@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("node:assert/strict");
 const fs=require("node:fs"),path=require("node:path");
-for(const m of ["model","wire-edit"])require(require("../support/app-source-paths.cjs").appFile(m));
+for(const m of ["model","sch-objects","wire-edit"])require(require("../support/app-source-paths.cjs").appFile(m));
 const A=Atrium,W=AtriumWireEdit,defs=new Map();
 const wire=(id,...points)=>({id,kind:"wire",points});
 const doc=(...items)=>({...A.sheet("schematic","Sheet"),items});
@@ -46,6 +46,15 @@ const start=[0,0],finish=[12,0],tap=[4,0];
   assert.deepEqual(moving.pointsAt([5,9],1),[[0,0],[0,4],[10,4],[10,6]]);
   assert.deepEqual(moving.pointsAt([5,-4],1),[[0,0],[0,1],[10,1],[10,6]]);
   assert.equal(W.begin(sheet,wire("x",[0,0],[1,1]),defs,[.5,.5]),null);
+}
+{
+  const w=wire("bend",[0,0],[10,0],[10,10]);
+  const power=AtriumSchObjects.make("power",[10,0],{text:"GND",style:"gnd"});
+  const s=doc(w,power);
+  assert.equal(A.connectivity(s,defs).byWire.get(w.id),"GND");
+  w.points=W.begin(s,w,defs,[5,0]).pointsAt([5,3],1);
+  assert.deepEqual([power.x,power.y],[10,0]);
+  assert.equal(A.connectivity(s,defs).byWire.get(w.id),"GND","a span drag preserves its stationary power connection");
 }
 {
   const a=wire("a",[0,3],[12,3]),b=wire("b",[6,0],[6,10]);
