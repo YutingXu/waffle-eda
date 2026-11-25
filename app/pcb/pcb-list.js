@@ -84,7 +84,11 @@ globalThis.AtriumPCBList = (() => {
           i.drill = num; break;
         case "size":
           if (i.kind === "via") {if (num <= (i.drill || 0)) {res.skipped++; continue;} i.diameter = num;}
-          else if (i.kind === "pad") {const k = num / (i.w || num); i.w = num; i.h = Number(((i.h || num) * k).toFixed(6));}
+          else if (i.kind === "pad") {
+            const k = num / (i.w || num), height = Number(((i.h || num) * k).toFixed(6));
+            if (i.drill > 0 && i.drill >= Math.min(num, height)) {res.skipped++; continue;}
+            i.w = num; i.h = height;
+          }
           else i.size = num;
           break;
         case "x": case "y":

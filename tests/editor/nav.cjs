@@ -115,6 +115,15 @@ assert.equal(L.apply(board,defs,["v1"],"size","0.8mm").changed,1);assert.equal(v
 assert.equal(L.apply(board,defs,["v1"],"layer","Top",{layers:["Top","Bottom"]}).skipped,1,"via layer is fixed");
 assert.ok(L.editable("width",{kind:"track"})&&!L.editable("width",{kind:"via"}));
 assert.equal(L.apply(board,defs,[u1.id,part(board,"R1").id],"name","U9").skipped,2,"one designator cannot go on many parts");
+{
+  const pad = {id: "hole-pad", kind: "pad", x: 0, y: 0, w: 2, h: 1, drill: .9, shape: "rect", layer: "Top"};
+  const doc = {kind: "pcb", items: [pad], outline: []};
+  const rejected=L.apply(doc, new Map(), [pad.id], "size", "1mm", {unit:"mm"});
+  assert.deepEqual([rejected.changed,rejected.skipped,pad.w,pad.h,pad.drill],[0,1,2,1,.9]);
+  assert.equal(L.apply(doc,new Map(),[pad.id],"size","3mm").changed,1);
+  assert.deepEqual([pad.w,pad.h,pad.drill],[3,1.5,.9]);
+}
+
 // The same List on a sheet (SCH List): schematic kinds, the same Designator / Comment / X / Y / Rotation edits.
 const sheet=JSON.parse(JSON.stringify(sch));
 const sl=L.rows(sheet,defs);
