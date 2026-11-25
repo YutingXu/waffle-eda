@@ -218,6 +218,22 @@ function run() {
     const solo = clone(base); add(solo, "schematic", "s1", "R95"); add(solo, "schematic", "s2", "R95");
     assert.equal(M.merge(base, solo, clone(base)).renumbered.length, 0);
   }
+  // A schematic collision changes the matching placement, not an unrelated board reference.
+  {
+    const design = Atrium.project("Designator domains", AtriumParts.catalogue);
+    const ours = clone(design), theirs = clone(design);
+    sch(ours).items.push({...part(base, r1, "schematic"), id: "our-sheet-part", ref: "R7", link: "ours"});
+    sch(theirs).items.push({...part(base, r1, "schematic"), id: "their-sheet-part", ref: "R7", link: "theirs"});
+    const placement = {...part(base, r1), id: "board-part", ref: "R7", link: "board-only"};
+    pcb(theirs).items.push(placement);
+    const result = M.merge(design, ours, theirs);
+    assert.equal(pcb(result.project).items[0].ref, "R7", "the board-only designator did not clash");
+    assert.deepEqual(result.renumbered.map(row => row.ids), [["their-sheet-part"]]);
+
+    placement.link = "theirs";
+    const linked = M.merge(design, ours, theirs);
+    assert.equal(pcb(linked.project).items[0].ref, "R8", "a linked placement follows its schematic part");
+  }
   // 6. Speed: two sides each moving 200 parts of a 25.6k-object board.
   {
     require("../pcb/dense-board.js");
