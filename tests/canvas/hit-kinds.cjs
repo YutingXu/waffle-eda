@@ -182,6 +182,22 @@ for (const p of [[-2, -1], [-1, 0], [1, 0], [5, 0]]) assert.equal(view.hit(doc, 
   assert.equal(view.hit(both, defs, [5, .3], {...opts, contactOnly:true, layer:"Bottom"})?.id, "b", "routing contacts ignore film strokes");
 }
 
+// A region cutout is filled for picking
+{
+  const S = AtriumBoardShape;
+  const disk = {version: 1, contour: [S.arc([0, 0], 5, 0, 180, true), S.line([-5, 0], [5, 0])],
+    cutouts: [[S.arc([0, -2], .8, 0, 0, true)]]};
+  const points = S.flattenContour(disk.contour);
+  const doc = Atrium.sheet("pcb", "Region hole");
+  doc.items = [{id: "disk", kind: "graphic", layer: "Top", fill: true, closed: true, width: 0, points,
+    regionShape: {...disk, sig: S.signature(points)}}];
+  const opts = {layer: "Top", layerMode: "all", hidden: new Set()};
+  view.restoreCamera({cx: 0, cy: -2, scale: 40, referenceScale: 40});
+  view.render(doc, defs, {...opts, grid: false});
+  assert.equal(view.hit(doc, defs, [0, -4], opts)?.id, "disk", "copper in the semicircle");
+  assert.equal(view.hit(doc, defs, [0, -2], opts)?.id ?? null, null, "the drawn cutout is empty");
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();
