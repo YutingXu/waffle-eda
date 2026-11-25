@@ -120,4 +120,18 @@ assert.throws(() => P.applyChecked(A.clone(base), v2([{op: "set", target: "proje
   const other = sheet.items.find(i => i.kind === "part" && i.id !== part.id);
   assert.throws(() => AtriumAI.apply(ctx(A.clone(base)), row("ref", other.ref)), /already used/);
 }
+// An invalid list traversal must fail before the earlier field edit is written.
+{
+  const p = A.clone(base), pcb = p.documents.find(d => d.id === board.id);
+  const wire = pcb.items.find(i => i.id === track.id);
+  const width = wire.width, points = A.clone(wire.points);
+  const edit = P.guarded(p, "geometry", [
+    {op: "set", target: "item", document: pcb.id, id: wire.id, path: ["width"], before: wire.width, after: wire.width + .1},
+    {op: "set", target: "item", document: pcb.id, id: wire.id, path: ["points", "0"], after: [9, 9]}
+  ]);
+  assert.throws(() => P.applyChecked(p, edit, {trial: false, validate: A.validate}), /edits inside a list/);
+  assert.equal(wire.width, width, "preflight prevents the first edit");
+  assert.deepEqual(wire.points, points);
+}
+
 console.log("PASS proposals: code fields refused, validated on a copy, stale guards re-checked on the live project, one v1 field list");
