@@ -156,7 +156,6 @@ if(process.argv.includes("--numeric-peer")){
   assert.equal(peer.locate(numericProject,nt),null);assert.equal(recipient.write(9),false);
   console.log("Numeric controls "+revision+" passed stable zero, preserved style, changed-unit reads and writes, authored replacement and deleted-axis checks.");
 }
-console.log("Table formula bindings, quantities, shared graph and clipboard passed.");
 
 {
   require("../../app/notebook/preferred-values.js");
@@ -186,3 +185,29 @@ console.log("Table formula bindings, quantities, shared graph and clipboard pass
   assert.equal(R.spelling(table,old),"=E4+log10(100)");
   check(old,9);
 }
+
+{
+  const project=Atrium.project("Qualified"),
+    board=Atrium.sheet("schematic","Board"),other=Atrium.sheet("schematic","Other"),namedLikeCell=Atrium.sheet("schematic","D1");
+  board.items=[{id:"board-r5",kind:"part",ref:"R5",value:"10k",pins:[]}];
+  other.items=[{id:"other-r5",kind:"part",ref:"R5",value:"4k7",pins:[]}];
+  namedLikeCell.items=[{id:"d1-r5",kind:"part",ref:"R5",value:"2k2",pins:[]}];
+  project.documents=[board,other,namedLikeCell];
+  let table=T.create(2,4,()=>String(++id));
+  const rowId=table.rows[0].id,columnId=table.columns[0].id;
+  const engine=R.engine({project,doc:board,item:{id:"qualified"}});
+  const check=(content,expected)=>{
+    table=T.change(table,rowId,columnId,{content});
+    assert.equal(engine.compute(table,{revision:1}).value(rowId,columnId).value,expected,content.source);
+  };
+  const binding=source=>engine.compute(table,{revision:1}).bind(source);
+  const otherValue=binding("=Other::R5.Value"),boardValue=binding("=Board::R5.Value");
+  assert.deepEqual(otherValue.references.map(r=>[r.name,r.span,r.target?.itemId]),[["Other::R5.Value",[1,16],"other-r5"]]);
+  check(otherValue,4700);
+  check(boardValue,10000);
+  check({kind:"formula",source:"=D1::R5.Value",references:[
+    {type:"cell",span:[1,3],rowId,columnId:table.columns[3].id,absoluteRow:false,absoluteColumn:false},
+    {type:"design",name:"R5.Value",span:[5,13],target:boardValue.references[0].target}
+  ]},2200);
+}
+console.log("Table formula bindings, quantities, shared graph and clipboard passed.");

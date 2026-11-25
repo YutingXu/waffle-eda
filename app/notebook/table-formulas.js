@@ -6,7 +6,7 @@ globalThis.AtriumTableFormulas = (() => {
   const G=globalThis,T=G.AtriumTableData,graph=()=>G.AtriumCalculationGraph;
   const address=/^(\$?)([A-Za-z]{1,3})(\$?)([1-9]\d{0,5})$/;
   // Consume quoted text and qualified design names before considering an A1 token.
-  const tokens=/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)+|\$?[A-Za-z_][A-Za-z_0-9]*\$?\d*|<>/g;
+  const tokens=/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:(?:[\p{L}_][\p{L}\p{N}_]*\.)*[\p{L}_][\p{L}\p{N}_]*::)?[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)+|\$?[A-Za-z_][A-Za-z_0-9]*\$?\d*|<>/gu;
   const failed=(code,message,span)=>({ok:false,diagnostic:{code,message,span}});
   function axis(s,token) {
     const m=address.exec(token);
@@ -25,7 +25,23 @@ globalThis.AtriumTableFormulas = (() => {
     return !(/^E(?:3|6|12|24|48|96|192)$/.test(name) && /(?:^|[^\w.])(?:in|nearest)\s+$/.test(source.slice(0,start)));
   }
   function formulaReferences({source,references}) {
-    return references.filter(ref=>ref.type!=="cell" || isCellReference(source,...ref.span));
+    const bindings=[];
+    for (const ref of references) {
+      const [start,end]=ref.span;
+      if (ref.type==="cell" && !isCellReference(source,start,end)) continue;
+      // Older formulas bound only the suffix, sometimes to a different sheet.
+      if (ref.type==="design" && source.slice(start-2,start)==="::") {
+        const prefix=/(?:^|[^\p{L}\p{N}_.:])((?:[\p{L}_][\p{L}\p{N}_]*\.)*[\p{L}_][\p{L}\p{N}_]*::)$/u.exec(source.slice(0,start));
+        if (prefix) {
+          const begin=start-prefix[1].length;
+          while (bindings.length && bindings.at(-1).span[1]>begin) bindings.pop();
+          bindings.push({type:"design",name:source.slice(begin,end),span:[begin,end]});
+          continue;
+        }
+      }
+      bindings.push(ref);
+    }
+    return bindings;
   }
   function scan(s,source,{resolveDesign}={}) {
     if (typeof source!=="string" || !source.startsWith("=") || source.length>T.limits.text) throw Error("Enter a bounded formula beginning with =.");
@@ -148,7 +164,7 @@ globalThis.AtriumTableFormulas = (() => {
       const api=model();
       if(!api)return;
       api.sync(revision);
-      const pins=cell?.content?.references.filter(r=>r.type==="design")||[];
+      const pins=cell?.content ? formulaReferences(cell.content).filter(r=>r.type==="design") : [];
       const references=pins.map(r=>({
         id:r.span[0],name:r.name,span:r.span,target:r.target || api.resolveName(context,r.name)?.binding
       }));
