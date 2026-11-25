@@ -18,6 +18,16 @@ for (const m of ["model", "parts", "sch-objects", "hierarchy", "board-shape", "b
   "library-panel", "footprint-wizard", "footprint-packages", "dynamic-symbol", "bom", "fab-outputs", "kicad-export", "kicad-schematic", "sexpr", "import-kicad", "altium-export",
   "generic-parts", "connector-gen"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const A = Atrium, GP = AtriumGenericParts, CG = AtriumConnectorGen, DS = AtriumDynamicSymbol, B = AtriumBOM, F = AtriumFabOutputs;
+{
+  const d = GP.make({family: "connector", type: "jst", rows: 2, cols: 3, pitch: 2, orientation: "right-angle", mount: "smd"});
+  const pads = d.footprint.pads.filter(p => p.number);
+  const centres = pads.map(p => p.x + "," + p.y + "," + (p.layer || "Top"));
+  assert.equal(pads.length, 6);
+  assert.equal(new Set(centres).size, pads.length);
+  assert.equal(AtriumLibrary.checkFootprint(d.footprint).filter(i => i.level === "error").length, 0);
+  for (const pad of pads) assert.ok(pad.y-pad.h/2>=d.footprint.courtyard[1],"courtyard covers both rows");
+}
+
 const defsOf = p => new Map(p.library.map(d => [d.id, d]));
 
 // ------------------------------------------------------------ 1. values and E-series

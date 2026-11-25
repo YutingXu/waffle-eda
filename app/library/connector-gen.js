@@ -157,8 +157,15 @@ globalThis.AtriumConnectorGen = (() => {
       body = [-hw, r6(ext.y0 - half - margin), hw, r6(ext.y1 + half + margin)];
     } else body = [r6(ext.x0 - across), r6(ext.y0 - half - margin), r6(ext.x1 + across), r6(ext.y1 + half + margin)];
     if (s.mount === "smd" && s.orientation === "right-angle") {
-      // Right-angle SMD (JST SH/GH style): one row of lands in front, along X; the housing behind.
-      pts.forEach((q, i) => { pads[i].x = r6(q.y); pads[i].y = r6(-p * 1.5); pads[i].w = r6(Math.max(.3, Math.min(p * .6, .8))); pads[i].h = r6(Math.max(1.2, p * 1.2)); });
+      // Right-angle SMD lands run along X in front of the housing.
+      const landWidth = r6(Math.max(.3, Math.min(p * .6, .8))), landLength = r6(Math.max(1.2, p * 1.2));
+      const rowPitch = landLength + Math.max(.2, p * .15);
+      pts.forEach((q, i) => {
+        pads[i].x = r6(q.y);
+        pads[i].y = r6(-p * 1.5 - q.row * rowPitch);
+        pads[i].w = landWidth;
+        pads[i].h = landLength;
+      });
       const hw = r6((ext.y1 - ext.y0) / 2 + Math.max(1.5, p * 1.5));
       body = [-hw, r6(-p * .9), hw, r6(p * 1.6)];
     }
