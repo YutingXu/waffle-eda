@@ -116,6 +116,23 @@ async function graphInk(page) {
   });
 }
 
+async function splitHistory(browser, server) {
+  const page = await browser.newPage({viewport:{width:1440,height:900}, reducedMotion:"reduce"});
+  try {
+    await page.goto(server + "/app/index.html");
+    await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
+    await page.waitForFunction(() => !AtriumNavHost.isStarter());
+    await page.evaluate(() => AtriumNavHost.act("split-down"));
+    await page.locator(".pane-tabs").nth(1).waitFor();
+    await page.locator(".quick-access .hv-entry").click();
+    const panel = page.locator("#doc-view-history");
+    await panel.waitFor();
+    const gap = await panel.evaluate(node => node.getBoundingClientRect().top -
+      node.parentElement.querySelector(".pane-tabs").getBoundingClientRect().bottom);
+    assert.equal(gap, 0, "History starts immediately below the split tab strip");
+  } finally { await page.close(); }
+}
+
 async function functional(browser, server) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "waffle-history-"));
   const page = await browser.newPage({viewport: {width: 1440, height: 900}});
@@ -536,6 +553,8 @@ async function run(browser) {
   const url = "http://127.0.0.1:" + server.address().port;
   try {
     if (process.argv.includes("--retry-only")) { await retry(browser, url); return; }
+    if (process.argv.includes("--split-only")) { await splitHistory(browser, url); return; }
+    await splitHistory(browser, url);
     await functional(browser, url);
     await noGit(browser, url);
     await retry(browser, url);
