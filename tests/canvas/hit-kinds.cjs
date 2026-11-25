@@ -198,6 +198,29 @@ for (const p of [[-2, -1], [-1, 0], [1, 0], [5, 0]]) assert.equal(view.hit(doc, 
   assert.equal(view.hit(doc, defs, [0, -2], opts)?.id ?? null, null, "the drawn cutout is empty");
 }
 
+// A mil dimension is picked with the millimetre leader
+require("../../app/pcb/pcb-draw.js");
+{
+  let displayUnits = "mil";
+  AtriumPCBDraw.install({
+    registerAction() {}, addRenderer() {}, on() {}, units: () => displayUnits,
+    doc: () => null, view: () => null, canvas: () => null, info() {}, redraw() {}
+  });
+  const item = AtriumPCBDraw.dimensionItem("radial", [[0, 0], [25.4, 0]], {id: "dim", units: "auto", textHeight: 2, layer: "Mechanical 2"});
+  const doc = Atrium.sheet("pcb", "Dimension units");
+  doc.items = [item];
+  const end = AtriumPCBDraw.dimensionGeometry(item, {units: "mil"}).lines.at(-1).at(-1);
+  const opts = {layer: "Mechanical 2", layerMode: "all", hidden: new Set()};
+  view.restoreCamera({cx: end[0], cy: end[1], scale: 8, referenceScale: 8});
+  view.render(doc, defs, {...opts, grid: false});
+  assert.equal(view.hit(doc, defs, end, opts)?.id, "dim", "mil leader end");
+  displayUnits = "mm";
+  const mmEnd = AtriumPCBDraw.dimensionGeometry(item, {units: "mm"}).lines.at(-1).at(-1);
+  view.render(doc, defs, {...opts, grid: false});
+  assert.equal(view.hit(doc, defs, end, opts), null);
+  assert.equal(view.hit(doc, defs, mmEnd, opts)?.id, "dim", "millimetre leader end");
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();
