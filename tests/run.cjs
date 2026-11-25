@@ -143,6 +143,43 @@ test("ASCII PCB copper retains dimensions, layer and assigned net", () => {
   close(t.points[0][0],2.54);close(t.points[0][1],-5.08);
 });
 
+test("Project History summarises Altium revisions with a net identifier scope", async () => {
+  const vm = require("node:vm");
+  const workerDir = path.join(__dirname, "../app/workers");
+  const worker = vm.createContext({TextDecoder, TextEncoder, atob, btoa, crypto: crypto.webcrypto});
+  worker.self = worker;
+  worker.importScripts = (...names) => {
+    for (const name of names) {
+      const filename = path.resolve(workerDir, name);
+      vm.runInContext(fs.readFileSync(filename, "utf8"), worker, {filename});
+    }
+  };
+  worker.importScripts("diff-worker.js");
+
+  function revision(wireEnd) {
+    const manifest = "[Design]\r\nHierarchyMode=3\r\n[Document1]\r\nDocumentPath=Main.SchDoc\r\n";
+    const sheet = [
+      "|HEADER=Protel for Windows - Schematic Capture Ascii File Version 5.0",
+      "|RECORD=31",
+      "|RECORD=27|LocationCount=2|X1=10|Y1=12|X2=" + wireEnd + "|Y2=12"
+    ].join("\r\n");
+    return {
+      blob: crypto.createHash("sha256").update(manifest).update(sheet).digest("hex"),
+      files: [
+        {name: "Design.PrjPcb", data: Buffer.from(manifest).toString("base64")},
+        {name: "Main.SchDoc", data: Buffer.from(sheet).toString("base64")}
+      ]
+    };
+  }
+
+  let reply;
+  worker.postMessage = message => { reply = message; };
+  await worker.onmessage({data: {history: true, sources: true, before: revision(20), after: revision(30)}});
+  assert.ok(reply?.result, reply?.error || "The History worker did not return a summary");
+  assert.ok(reply.result.regions.some(region => region.kind === "schematic" && region.name === "Main"));
+  assert.ok(reply.result.objects.some(change => change.kind.startsWith("wire.")));
+});
+
 if(fixtures){
   function read(file,sha){
     const {reopenAltium}=require("./support/altium-folder.cjs");

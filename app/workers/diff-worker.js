@@ -56,7 +56,7 @@ globalThis.AtriumDiffWorker = (() => {
           if (!globalThis.AtriumSHA256) importScripts("../core/sha256.js");
           if (!globalThis.AtriumHistorySummary) importScripts("../history/project-history-summary.js");
           if (!globalThis.AtriumHistorySource) importScripts("../vendor/cfb.min.js", "../library/parts.js", "../formats/altium-ids.js", "../project/source-file.js", "../project/obsolete-project.js",
-            "../formats/sch-import.js", "../checks/altium-rules.js", "../pcb/pcb-pours.js", "../formats/pdf-fonts.js", "../formats/altium-typefaces.js", "../formats/pcb-import.js", "../formats/io.js", "../pcb/board-shape.js", "../formats/board-shape-sources.js", "../formats/sexpr.js",
+            "../formats/sch-import.js", "../checks/design-query-record.js", "../checks/altium-rules.js", "../pcb/pcb-pours.js", "../formats/pdf-fonts.js", "../formats/altium-typefaces.js", "../formats/pcb-import.js", "../formats/io.js", "../pcb/board-shape.js", "../formats/board-shape-sources.js", "../formats/sexpr.js",
             "../formats/import-kicad.js", "../core/geometry.js", "../pcb/pcb-appearance.js", "../pcb/land-contours.js", "../pcb/pcb-draw.js", "../pcb/component-classes.js", "../checks/rules.js", "../checks/project-rules.js", "../pcb/pcb-text-rich.js", "../formats/import-link.js", "../workers/import-worker-client.js", "../library/library-import-altium.js", "../history/project-history-source.js");
           if (e.data.project) { self.postMessage({result: AtriumHistorySource.project(e.data.project)}); return; }
           const result = AtriumHistorySummary.fromProjects(AtriumHistorySource.project(e.data.before),
