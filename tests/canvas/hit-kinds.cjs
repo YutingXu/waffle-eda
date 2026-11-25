@@ -239,6 +239,28 @@ require("../../app/pcb/pcb-draw.js");
   }
 }
 
+// Hop-over arcs fall out of the pick once zoomed
+require("../../app/schematic/sch-appearance.js");
+require("../../app/schematic/sch-objects.js");
+{
+  const doc = Atrium.sheet("schematic", "Hop");
+  doc.hopOvers = true;
+  doc.items = [
+    {id: "h", kind: "wire", points: [[0, 0], [20, 0]]},
+    {id: "v", kind: "wire", points: [[10, -10], [10, 10]]}
+  ];
+  const ang = Math.PI * 1.25, hop = .7, at = [10 + Math.cos(ang) * hop, Math.sin(ang) * hop];
+  const opts = {hidden: new Set()};
+  view.restoreCamera({cx: 10, cy: 0, scale: 20, referenceScale: 20});
+  view.render(doc, defs, {grid: false, hidden: opts.hidden});
+  assert.equal(view.hit(doc, defs, at, opts)?.id, "h", "shoulder of the drawn hop");
+  view.restoreCamera({cx: 10, cy: 0, scale: 80, referenceScale: 80});
+  assert.equal(view.hit(doc, defs, [9.6, 0], opts), null, "the hop replaces the straight centreline");
+  doc.hopOvers=false;
+  assert.equal(view.hit(doc, defs, [9.6, 0], opts)?.id, "h", "turning the option off restores the straight stroke");
+  assert.equal(view.hit(doc, defs, at, opts), null);
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();
