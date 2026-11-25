@@ -4,7 +4,7 @@ globalThis.AtriumSelectionClipboard=(()=>{
   const mime="application/x-waffle-selection+json",marker="\nWaffle-Selection/1\n",maxLength=16*1024*1024;
   // Every object kind each editor's model accepts (power ports, buses and pours too), so a copy
   // that pastes in its own window also pastes from another window or the clipboard history.
-  const kinds={schematic:new Set(["part","wire","junction","label","netlabel","graphic","power","port","offsheet","sheetsymbol","bus","busentry","noerc","textframe","image"]),
+  const kinds={schematic:new Set(["part","wire","junction","label","netlabel","graphic","power","port","offsheet","sheetsymbol","bus","busentry","noerc","textframe","image","imageMarkup"]),
     pcb:new Set(["part","track","via","pad","label","graphic","polygon"])};
   function fits(text){
     if(text.length>maxLength)return false;

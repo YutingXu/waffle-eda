@@ -3,7 +3,13 @@
 globalThis.AtriumEditSelection = (() => {
   const A=Atrium;
   const locked=i=>globalThis.AtriumLabs?.notebookEnabled()===false && !!A.notebookItemKind(i);
-  const originOf=item=>item.points?item.points[0]:[item.x,item.y];
+  function originOf(item,doc){
+    if(item.kind==="imageMarkup"){
+      const image=doc?.items.find(i=>i.kind==="image"&&i.id===item.imageId);
+      return image?[image.x,image.y]:[0,0];
+    }
+    return item.points?item.points[0]:[item.x,item.y];
+  }
   // blobs: project.blobs; the 3D models the copied parts use travel with them.
   function capture(doc,defs,ids,cut=false,blobs=null,project=globalThis.AtriumNavHost?.project?.()){
     const items=doc.items.filter(i=>ids.has(i.id) && !locked(i)).map(i=>A.clone(i));
@@ -13,7 +19,7 @@ globalThis.AtriumEditSelection = (() => {
     if(blobs)for(const d of library)for(const m of [d.model3d,d.footprint?.model3d])if(blobs[m?.sha256])b[m.sha256]=blobs[m.sha256];
     const owner=project&&items.some(i=>i.calculation)?{calculationProject:globalThis.AtriumCalculationRecords?.projectToken(project),calculationDoc:doc.id}:{};
     const source=globalThis.AtriumNotebook?.clipboardSource(doc,items,project);
-    return {kind:doc.kind,doc:doc.id,cut,origin:originOf(items[0]).slice(),items,library,...owner,...source,...(Object.keys(b).length?{blobs:b}:{})};
+    return {kind:doc.kind,doc:doc.id,cut,origin:originOf(items[0],doc).slice(),items,library,...owner,...source,...(Object.keys(b).length?{blobs:b}:{})};
   }
   function planner(){
     // @ts-ignore CommonJS loads the planner on first placement.
