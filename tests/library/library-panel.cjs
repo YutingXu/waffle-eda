@@ -266,5 +266,18 @@ const L=AtriumLibrary,F=AtriumFootprintEditor,A=Atrium;
   assert.deepEqual(shown(component("separate", [{number: "1"}], [{number: "1"}, {number: "1"}]), {}).footprint, ["Pad number 1 is used by 2 separate pads."]);
   assert.deepEqual(shown(component("copper", [{number: "1"}], [{number: ""}, {number: "1"}]), {}).footprint, ["1 pad(s) have no number."]);
   assert.deepEqual(shown(component("npth", [{number: "1"}], [{number: "1"}, {number: "", extra: {plated: false, drill: 0.5}}]), {}).footprint, []);
-  console.log("PASS pin-to-pad pairing: matched sibling, authored duplicate and case, blanks, exposed pads");
+  {
+  const rows=[
+    {number:"1",name:"OUTA",electrical:2,part:1},{number:"2",name:"INA",electrical:0,part:1},
+    {number:"7",name:"OUTB",electrical:2,part:2},{number:"6",name:"INB",electrical:0,part:2},
+    {number:"8",name:"V+",electrical:7,part:0},{number:"4",name:"V-",electrical:7,part:0}];
+  const stored=L.buildSymbol(L.symbolFromGates(rows,2)).symbol;
+  const again=L.buildSymbol(L.symbolFromGates(L.pinsFromTable(L.tableFromPins(L.symbolModel(stored).pins,stored.parts)),2)).symbol;
+  const nums=unit=>A.pins({x:0,y:0,unit},{symbol:again},"schematic").map(p=>p.number).sort();
+  assert.deepEqual(nums(2),["4","6","7","8"]);
+  assert.equal(L.pinsFromTable(L.tableFromPins([{...rows[4],part:0}]))[0].part,0);
+  assert.equal(L.pinsFromTable("Number\tName\tPart\n1\tIN\t")[0].part,undefined);
+}
+
+console.log("PASS pin-to-pad pairing: matched sibling, authored duplicate and case, blanks, exposed pads");
 }

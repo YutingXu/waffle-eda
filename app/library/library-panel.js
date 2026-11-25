@@ -130,9 +130,9 @@ globalThis.AtriumLibrary = (() => {
     }
     return out;
   }
-  function tableFromPins(pins) {
+  function tableFromPins(pins, parts = 1) {
     const lines = ["Number\tName\tType\tSide\tPart\tHidden"];
-    for (const p of pins) lines.push([p.number, p.name || "", ELECTRICAL[p.electrical ?? 4], sideOf(p), p.part || "", p.hidden ? "yes" : ""].join("\t"));
+    for (const p of pins) lines.push([p.number, p.name || "", ELECTRICAL[p.electrical ?? 4], sideOf(p), p.part ?? (parts > 1 ? 0 : ""), p.hidden ? "yes" : ""].join("\t"));
     return lines.join("\n");
   }
   const sideOf = p => ({left: "left", right: "right", up: "top", down: "bottom"}[p.orientation] || (p.x < 0 ? "left" : "right"));

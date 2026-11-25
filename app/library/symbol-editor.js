@@ -408,7 +408,7 @@ globalThis.AtriumSymbolEditor = (() => {
       pane.append(s);
       const actions = el("div", null, "se-table-actions");
       actions.append(ui.button("Add pin", () => change(() => { const last = model.pins.at(-1); model.pins.push({nativeId:A.id(), nativeIdOwner:source.id, number: nextPinNumber(), name: "", electrical: 4, length: last?.length ?? 2 * G, orientation: last?.orientation || "left", x: last ? last.x : -5.08 - 2 * G, y: last ? r6(last.y + G) : 0, ...(model.parts > 1 ? {part: gate} : {})}); }), "lib-mini"));
-      actions.append(ui.button("Copy as TSV", () => globalThis.navigator?.clipboard?.writeText(L.tableFromPins(model.pins)), "lib-mini"));
+      actions.append(ui.button("Copy as TSV", () => globalThis.navigator?.clipboard?.writeText(L.tableFromPins(model.pins, model.parts)), "lib-mini"));
       pane.append(actions);
       const box = section(pane, "Paste or generate from a pin list");
       const ta = el("textarea", null, "se-paste"); ta.rows = 6; ta.placeholder = "Number, Name, Type, Side — paste CSV or TSV from a datasheet or spreadsheet.\n1\tVDD\tpower\n2\tPA0\tio\n3\tGND\tpower";
