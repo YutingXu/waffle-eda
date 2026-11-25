@@ -101,6 +101,30 @@ test("fanout then autoroute on a BGA board completes cleanly", () => {
   assert.ok(rep.routed / rep.total >= 0.9);
 });
 
+test("thermal via-in-pad follows a rotated exposed pad", () => {
+  const fp = {name: "ep", pads: [
+    {number: "1", x: -15, y: 0, w: .4, h: .8, layer: "Top"},
+    {number: "2", x: 15, y: 0, w: .4, h: .8, layer: "Top"},
+    {number: "EP", x: 0, y: 0, w: 5, h: 2, angle: 90, layer: "Top", shape:"rect"}]};
+  const def = {id: "ep", footprint: fp};
+  const part = {id: "u", kind: "part", def: "ep", ref: "U1", x: 20, y: 20, angle: 0, pinNets: {"1": "A", "2": "B", EP: "GND"}};
+  const doc = A.sheet("pcb", "Fan");
+  doc.outline = [[0, 0], [40, 0], [40, 40], [0, 40]];
+  doc.items = [part, {id: "g", kind: "pad", x: 5, y: 5, w: 1, h: 1, layer: "Top", net: "GND"}];
+  const plan = F.planV2(doc, new Map([["ep", def]]), {components: [part.id], powerNets: true, connectedOnly: false});
+  const ep = F.partPads(part, def).find(p => p.number === "EP");
+  const vias = plan.add.filter(i => i.kind === "via" && i.net === "GND" && i.viaInPad);
+  const local = vias.map(v => A.rotate([v.x - ep.at[0], v.y - ep.at[1]], -(ep.pad.angle || 0)));
+  const span = k => Math.max(...local.map(p => p[k])) - Math.min(...local.map(p => p[k]));
+  assert.ok(vias.length >= 2, "thermal vias were placed");
+  for (const [i,[u,v]] of local.entries()) {
+    const r=vias[i].diameter/2;
+    assert.ok(Math.abs(u)+r<=ep.pad.w/2+1e-6 && Math.abs(v)+r<=ep.pad.h/2+1e-6,"via land off the exposed pad at " + u + "," + v);
+  }
+  assert.ok(span(0) >= 3, "array runs along the pad's long axis, span " + span(0));
+  assert.ok(span(1) <= ep.pad.h, "array stays on the pad's short axis, span " + span(1));
+});
+
 let failed = 0;
 for (const t of tests) {
   try { const s = now(); t.fn(); console.log("ok   " + t.name + " (" + (now() - s).toFixed(0) + " ms)"); }
