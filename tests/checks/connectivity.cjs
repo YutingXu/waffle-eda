@@ -7,6 +7,15 @@ const pad=(id,net,x,y,w=1,h=w,angle=0,shape="round",layer="Top",drill=0)=>({id,k
 const via=(id,net,x,y,fromLayer="Top",toLayer="Bottom",diameter=1,drill=.4)=>({id,kind:"via",net,x,y,fromLayer,toLayer,diameter,drill,layer:"Multi"});
 const board=items=>({...A.sheet("pcb","Test"),items});
 const inspect=items=>C.inspect(board(items),defs);
+{
+  const slot={...pad("slot","A",0,0,6,2,0,"rect","Multi",.8),slotLength:4,plated:true};
+  const probe=x=>pad("probe","B",x,0,.2,.2);
+  assert.equal(inspect([slot,probe(1.2)]).shorts.length,0,"slot centreline is void");
+  assert.equal(inspect([slot,probe(1.85)]).shorts.length,0,"slot end cap is void");
+  assert.equal(inspect([slot,probe(1.96)]).shorts.length,1,"crossing the slot wall contacts the land");
+  const oval=pad("oval","B",1.1,0,1.2,.2,0,"ellipse");
+  assert.equal(inspect([slot,oval]).shorts.length,0,"an elliptical pad can fit along the slot");
+}
 require("../../app/checks/rules.js");
 {
   const fp={id:"FP",footprint:{name:"Bridge",pads:[

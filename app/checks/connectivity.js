@@ -78,6 +78,19 @@ globalThis.AtriumConnectivity = (() => {
       if(b*y*co-a*x*si+(b*b-a*a)*co*si>0)lo=t;else hi=t;}
     const t=(lo+hi)/2;return Math.max(Math.hypot(x+a,y), Math.hypot(x,y+b), Math.hypot(x+a*Math.cos(t),y+b*Math.sin(t)));
   }
+  function inBore(owner,shape){
+    if(!owner.hole)return false;
+    const limit=owner.hole-EPS;
+    if(!owner.slot)return farthest(shape,owner.center)<limit;
+    const [a,b]=owner.slot;
+    if(!shape.ellipse)return shape.core.every(p=>A.nearSegment(p,a,b)+shape.radius<limit);
+    const {a:rx,b:ry,c,s}=shape.ellipse;
+    const tolerance=Math.max(EPS,Math.max(rx,ry)*1e-7);
+    const boundary=AtriumGeometryCurves.flatten([{kind:"ellipseArc",center:shape.center,
+      cosineAxis:[rx*c,rx*s],sineAxis:[-ry*s,ry*c],start:0,sweep:360}],tolerance);
+    // The capsule is convex. Reserve the curve projection error at its boundary.
+    return boundary.every(p=>A.nearSegment(p,a,b)<limit-tolerance);
+  }
   function contact(a,b){
     if(a.pieces||b.pieces){
       for(const p of a.pieces||[a])for(const q of b.pieces||[b]){
@@ -93,8 +106,7 @@ globalThis.AtriumConnectivity = (() => {
       return inside(region.core,point)&&!region.cutouts.some(loop=>inside(loop,point));
     }
     if(!outerContact(a,b))return false;
-    if(a.hole&&farthest(b,a.center)<a.hole-EPS)return false;
-    if(b.hole&&farthest(a,b.center)<b.hole-EPS)return false;
+    if(inBore(a,b)||inBore(b,a))return false;
     return true;
   }
   // Convex pieces covering a simple polygon: itself when convex, else ear-clipped
@@ -120,13 +132,18 @@ globalThis.AtriumConnectivity = (() => {
     const L=AtriumResolvedLand,land=L.geometry(p,layer);
     if(!land||land.holeOnly)return null;
     const {at:center,angle,mirror}=L.place(land,parent),hole=(p.drill||0)/2;
-    if(land.shape==="ellipse")return {center,ellipse:{a:land.w/2,b:land.h/2,c:Math.cos(A.rad(angle)),s:Math.sin(A.rad(angle))},hole};
+    const bore={center,hole};
+    if(hole>0&&p.kind==="pad"&&p.slotLength>p.drill){
+      const local=A.drillCore(p,[p.x,p.y],p.angle||0);
+      bore.slot=parent?local.map(q=>A.world(q,parent)):local;
+    }
+    if(land.shape==="ellipse")return {...bore,ellipse:{a:land.w/2,b:land.h/2,c:Math.cos(A.rad(angle)),s:Math.sin(A.rad(angle))}};
     const {core,r:radius}=L.core(land,center,angle,mirror);
     if(land.shape==="custom"){
       const pieces=fillPieces(core);
-      return pieces?{center,pieces:pieces.map(core=>({core,radius})),hole}:null;
+      return pieces?{pieces:pieces.map(core=>({...bore,core,radius})),center}:null;
     }
-    return {center,core,radius,hole};
+    return {...bore,core,radius};
   }
   function airwireEdges(islands,net) {
     if(islands.length<2)return [];
