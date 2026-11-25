@@ -94,6 +94,23 @@ function run() {
     assert.ok(!pcb(r.project).items.some(i => i.net === net), "no object is left on the old name");
     assert.equal(pcb(r.project).items.at(-1).id, "added-part", "theirs' new object keeps its place after its predecessor");
   }
+  // A retarget beside a deletion is incomplete evidence for a net rename.
+  {
+    const design = Atrium.project("Partial net edit", AtriumParts.catalogue);
+    const board = pcb(design);
+    const track = id => ({id, kind: "track", layer: "Top", points: [[0, 0], [1, 0]], width: .2, net: "NET_A"});
+    board.items.push(track("retarget"), track("remove"));
+    const ours = clone(design), theirs = clone(design);
+    pcb(ours).items[0].net = "NET_B";
+    pcb(ours).items.pop();
+    const added = {...clone(part(base, r1)), id: "new-part", ref: "R99", pinNets: {1: "NET_A"}};
+    pcb(theirs).items.push(added);
+    const result = M.merge(design, ours, theirs);
+    assert.equal(result.conflicts.length, 0);
+    assert.equal(pcb(result.project).items.find(i => i.id === added.id).pinNets[1], "NET_A",
+      "partial retargeting keeps the other branch's new pin on the original net");
+    assert.deepEqual(result.renames.ours, {});
+  }
   // 4. Comments, deletes and document fields.
   {
     const ours = clone(base), theirs = clone(base);

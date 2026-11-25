@@ -74,18 +74,17 @@ globalThis.AtriumMerge3 = (() => {
     const out = {};
     if (!isObj(base) || !isObj(side)) return out;
     const sideDocs = new Map((side.documents || []).filter(isObj).map(d => [d.id, d]));
-    const baseNets = new Set(), sideNets = new Set(), pairs = new Map();
+    const baseNets = new Set(), sideNets = new Set(), missing = new Set(), pairs = new Map();
     for (const d of base.documents || []) {
       if (!isObj(d)) continue;
       const other = sideDocs.get(d.id), byId = new Map((other?.items || []).filter(isObj).map(i => [i.id, i]));
       for (const i of d.items || []) {
         for (const n of netsOf(i)) baseNets.add(n);
-        const j = byId.get(i?.id);
-        if (!j) continue;
-        const a = fieldsOfNets(i), b = fieldsOfNets(j);
+        const a = fieldsOfNets(i), b = fieldsOfNets(byId.get(i?.id));
         for (const [field, from] of a) {
           const to = b.get(field);
-          if (to === undefined || to === from) continue;
+          if (to === undefined) { missing.add(from); continue; }
+          if (to === from) continue;
           if (!pairs.has(from)) pairs.set(from, new Map());
           pairs.get(from).set(to, (pairs.get(from).get(to) || 0) + 1);
         }
@@ -93,7 +92,7 @@ globalThis.AtriumMerge3 = (() => {
     }
     for (const d of side.documents || []) for (const i of (isObj(d) && d.items) || []) for (const n of netsOf(i)) sideNets.add(n);
     for (const [from, targets] of pairs) {
-      if (targets.size !== 1 || sideNets.has(from)) continue;
+      if (targets.size !== 1 || sideNets.has(from) || missing.has(from)) continue;
       const [to] = targets.keys();
       if (!baseNets.has(to)) out[from] = to;
     }
