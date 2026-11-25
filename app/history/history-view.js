@@ -80,6 +80,7 @@ globalThis.AtriumHistoryView = (() => {
     const expanded = new Set();
     const summaries = new Map(), full = new Map();
     let summaryTask = null, detailTask = null, scrollIdle = 0, frame = 0, still = true;
+    let actionError = null;
     const mounted = new Map(); // key -> row element
     // The view's own root inside the document view (doc-views.css owns the box's placement).
     const root = el("div", "hv-view"); box.append(root);
@@ -304,6 +305,11 @@ globalThis.AtriumHistoryView = (() => {
           searchBox.input.focus({preventScroll:true});
           startObject();
         }})], live:true}));
+      if (actionError) {
+        const {title, message, retry} = actionError;
+        nodes.push(K.notice({tone:"danger", title, text:message, live:true,
+          actions:[K.button("Try again", {size:"sm", run:retry})]}));
+      }
       noticeSlot.replaceChildren(...nodes);
       noticeSlot.hidden = !nodes.length;
       empty.replaceChildren();
@@ -336,7 +342,9 @@ globalThis.AtriumHistoryView = (() => {
         }
       }
       if (host.isDirty?.()) parts.push("Unsaved changes");
-      const line = K.statusLine(parts.join(" · "), {busy: !!(objectScan || loading && !scoped())});
+      const action = [...busy].map(name => actionFeedback[name]).find(Boolean);
+      if (action) parts.unshift(action.pending);
+      const line = K.statusLine(parts.join(" · "), {busy: !!(action || objectScan || loading && !scoped())});
       if (objectScan) line.append(K.button("Cancel", {variant: "quiet", size: "sm", run: () => cancelObject()}));
       if (branchMode === "file" && more && !loading && !loadError && !stale)
         line.append(K.button("Show older commits", {size:"sm", run:() => load(true)}));
@@ -627,10 +635,27 @@ globalThis.AtriumHistoryView = (() => {
 
     // ---------------------------------------------------------------- actions
     const busy = new Set();
+    const actionFeedback = {
+      compare:{pending:"Opening comparison…", failure:"Could not open comparison."},
+      checkpoint:{pending:"Saving checkpoint…", failure:"Could not save checkpoint."}
+    };
     async function act(name, run) {
       if (busy.has(name)) return;
       busy.add(name);
-      try { await run(); } catch (error) { if (!closed) host.info?.(error.message); } finally { busy.delete(name); }
+      const feedback = actionFeedback[name];
+      if (actionError) { actionError = null; paintNotice(); }
+      if (feedback) paintFoot();
+      try { await run(); }
+      catch (error) {
+        if (closed) return;
+        if (feedback) {
+          actionError = {title:feedback.failure, message:error.message, retry:() => act(name, run)};
+          paintNotice();
+        } else host.info?.(error.message);
+      } finally {
+        busy.delete(name);
+        if (feedback && !closed) paintFoot();
+      }
     }
     const current = () => !closed && host.project() === project0 && source.current();
     function compareCommits(before, after) {
@@ -962,11 +987,22 @@ globalThis.AtriumHistoryView = (() => {
       details.scrollTop = 0;
     }
 
-    function refreshHistory() {
-      source.refresh({commits:true});
-      summaries.clear(); full.clear();
-      readLocal();
-      if (scoped()) startObject(); else load(false);
+    async function refreshHistory() {
+      if (refresh.hasAttribute("aria-busy")) return;
+      refresh.setAttribute("aria-busy", "true");
+      const spinner = K.spinner({size:"sm"});
+      spinner.setAttribute("aria-hidden", "true");
+      refresh.append(spinner);
+      try {
+        source.refresh({commits:true});
+        summaries.clear(); full.clear();
+        await Promise.all([readLocal(), scoped() ? startObject() : load(false)]);
+      } catch (error) {
+        if (!closed) host.info?.(error.message);
+      } finally {
+        spinner.remove();
+        refresh.removeAttribute("aria-busy");
+      }
     }
 
     // ---------------------------------------------------------------- lifecycle
