@@ -43,6 +43,8 @@ globalThis.AtriumWireEdit = (() => {
             if(on(b,f,t))add(b);
           }
         }
+      }else {
+        for(const [point] of globalThis.AtriumSchObjects?.netSources(item) || [])add(point);
       }
     }
     return [...points.values()];
