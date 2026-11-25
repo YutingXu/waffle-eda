@@ -1,0 +1,10 @@
+{"kind":"project","formatVersion":"2.0","id":"case-reimport-new-ids/snapshot","name":"Sensor interface"}
+{"kind":"projectSetting","id":"case-reimport-new-ids/snapshot/setting/revision","key":"revision","value":{"date":"2026-01-01","letter":"G","notes":"reimport-new-ids","status":"released"}}
+{"kind":"library","id":"x29326ml64lg2tjf8cz","order":"8","path":"libraries/Resistor.wlib"}
+{"kind":"library","id":"x2ka7edcmpb3u2m7os5","order":"G","path":"libraries/Capacitor.wlib"}
+{"kind":"library","id":"xa0hipgad35l9m26mi0","order":"e","path":"libraries/2-pin header.wlib"}
+{"kind":"library","id":"xaf3r09fquo6sbegzgs","order":"O","path":"libraries/Operational amplifier.wlib"}
+{"kind":"document","id":"xavsyeefnpaxx3i4iyl","docKind":"schematic","name":"Analog front end","order":"K","path":"Analog front end.wsch"}
+{"kind":"document","id":"xky4k58d150s7ztx7s4","docKind":"pcb","name":"Sensor board","order":"e","path":"Sensor board.wpcb"}
+{"kind":"library","id":"xyebannd4yz0emrvftv","order":"W","path":"libraries/3-pin header.wlib"}
+{"kind":"library","id":"xyhz0nartbnlzgcjn2q","order":"m","path":"libraries/Test point.wlib"}

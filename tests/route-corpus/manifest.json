@@ -1,0 +1,127 @@
+{
+  "format": "atrium-route-corpus",
+  "version": 1,
+  "purpose": "Routed open-hardware boards for the Route Suggestions evaluation harness (tests/route-suggest-eval.cjs --corpus DIR). Not redistributed and not yet downloaded: scripts/fetch-route-corpus.py --pin fetches them into ~/.cache/atrium-corpus and records SHA-256 pins. Licences were checked through the GitHub API (SPDX Apache-2.0) at the pinned commits.",
+  "boards": [
+    {
+      "name": "lpddr4-testbed",
+      "title": "LPDDR4 test bed with an LPDDR4 BGA and DDR routing",
+      "repo": "antmicro/lpddr4-testbed",
+      "commit": "93e67cfc3f267443d9b637073688457e8f5c1f91",
+      "source": "https://github.com/antmicro/lpddr4-testbed/tree/93e67cfc3f267443d9b637073688457e8f5c1f91",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/antmicro/lpddr4-testbed/blob/93e67cfc3f267443d9b637073688457e8f5c1f91/LICENSE",
+      "copyright": "Antmicro",
+      "files": [
+        {
+          "path": "lpddr4-testbed.kicad_pcb",
+          "bytes": 5401885
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358
+        }
+      ]
+    },
+    {
+      "name": "arty-expansion-board",
+      "title": "Arty A7 expansion board",
+      "repo": "antmicro/arty-expansion-board",
+      "commit": "715431bdda7c410146e381fa4a3a8fe375c77611",
+      "source": "https://github.com/antmicro/arty-expansion-board/tree/715431bdda7c410146e381fa4a3a8fe375c77611",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/antmicro/arty-expansion-board/blob/715431bdda7c410146e381fa4a3a8fe375c77611/LICENSE",
+      "copyright": "Antmicro",
+      "files": [
+        {
+          "path": "arty-a7-expansion.kicad_pcb",
+          "bytes": 1025631
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358
+        }
+      ]
+    },
+    {
+      "name": "m2-pcie-adapter",
+      "title": "M.2 to PCIe adapter (PCIe differential pairs)",
+      "repo": "antmicro/m2-pcie-adapter",
+      "commit": "11844f18ce14393043affde9e7aa8d51c0cd3ba7",
+      "source": "https://github.com/antmicro/m2-pcie-adapter/tree/11844f18ce14393043affde9e7aa8d51c0cd3ba7",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/antmicro/m2-pcie-adapter/blob/11844f18ce14393043affde9e7aa8d51c0cd3ba7/LICENSE",
+      "copyright": "Antmicro",
+      "files": [
+        {
+          "path": "m2-pcie-adapter.kicad_pcb",
+          "bytes": 1865463
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358
+        }
+      ]
+    },
+    {
+      "name": "gem-baseboard",
+      "title": "GEM demo baseboard",
+      "repo": "antmicro/gem-baseboard",
+      "commit": "21fecf7ca824db7bf481671b3e9ed3e44667d78a",
+      "source": "https://github.com/antmicro/gem-baseboard/tree/21fecf7ca824db7bf481671b3e9ed3e44667d78a",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/antmicro/gem-baseboard/blob/21fecf7ca824db7bf481671b3e9ed3e44667d78a/LICENSE",
+      "copyright": "Antmicro",
+      "files": [
+        {
+          "path": "gem-demo-board.kicad_pcb",
+          "bytes": 1592414
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358
+        }
+      ]
+    },
+    {
+      "name": "fmc-sata-adapter",
+      "title": "FMC to SATA adapter (high-speed pairs)",
+      "repo": "antmicro/fmc-sata-adapter",
+      "commit": "866fb1306a17373578b81aa0f960f1993844c409",
+      "source": "https://github.com/antmicro/fmc-sata-adapter/tree/866fb1306a17373578b81aa0f960f1993844c409",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/antmicro/fmc-sata-adapter/blob/866fb1306a17373578b81aa0f960f1993844c409/LICENSE",
+      "copyright": "Antmicro",
+      "files": [
+        {
+          "path": "fmc2sata.kicad_pcb",
+          "bytes": 1889294
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358
+        }
+      ]
+    },
+    {
+      "name": "scalenode-cm4-baseboard",
+      "title": "Scalenode Raspberry Pi CM4 baseboard",
+      "repo": "antmicro/scalenode-cm4-baseboard",
+      "commit": "77f5bf281d13e43154cac9645f7cc22a82e56971",
+      "source": "https://github.com/antmicro/scalenode-cm4-baseboard/tree/77f5bf281d13e43154cac9645f7cc22a82e56971",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/antmicro/scalenode-cm4-baseboard/blob/77f5bf281d13e43154cac9645f7cc22a82e56971/LICENSE",
+      "copyright": "Antmicro",
+      "files": [
+        {
+          "path": "scalenode-cm4-baseboard.kicad_pcb",
+          "bytes": 9824235
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358
+        }
+      ]
+    }
+  ]
+}

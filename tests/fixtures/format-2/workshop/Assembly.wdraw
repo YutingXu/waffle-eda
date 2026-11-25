@@ -1,0 +1,3 @@
+{"kind":"drawing","formatVersion":"2.0","id":"draw"}
+{"kind":"documentSettings","id":"draw/settings","value":{"drawing":{"board":"board","sheets":[{"id":"paper","name":"Fabrication","orientation":"landscape","size":"A4"}],"version":1,"views":[]},"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"drawingView","id":"view","order":"V","value":{"id":"view","options":{},"scale":1,"sheet":"paper","type":"board","x":12000000,"y":8000000}}

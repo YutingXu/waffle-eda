@@ -1,0 +1,93 @@
+/* Filter panel (query.js), Navigator panel (navigator-panel.js) and Layer Sets (layer-sets.js).
+   Left-pane dock panels in the shell's style: theme tokens only, so dark and light both work. */
+
+/* ---------------------------------------------------------------- shared dock panel frame */
+.panel-query,.panel-navp {display:flex;flex-direction:column;flex:1 1 0;min-height:140px;border-top:1px solid var(--divider);font-size:var(--fs-12);min-width:0;max-width:100%;overflow-x:hidden}
+.panel-query[hidden],.panel-navp[hidden] {display:none}
+.query-close,.navp-close {margin-left:auto}
+.query-close:focus-visible,.navp-close:focus-visible {outline:1px solid var(--focus);outline-offset:-1px}
+
+/* ---------------------------------------------------------------- Filter */
+.panel-query {overflow:auto;min-height:220px}
+.query-input {display:block;width:calc(100% - 12px);margin:6px 6px 0;min-height:52px;resize:vertical;font-family:var(--mono)}
+.query-error {min-height:1.3em;margin:2px 8px 0;color:var(--error-ink);font-size:var(--fs-11)}
+.query-error:empty {min-height:0;margin:0}
+.query-actions {display:flex;align-items:center;gap:4px;padding:4px 6px;flex-wrap:wrap}
+.ls-pick:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+.query-star {width:26px;padding:0;--ui-button-ink:var(--muted)}
+.query-star[aria-pressed=true] {--ui-button-ink:var(--warn-ink)}
+.query-count {margin-left:auto;color:var(--muted);font-size:var(--fs-11);font-variant-numeric:tabular-nums;white-space:nowrap}
+.query-modes {display:flex;flex-wrap:wrap;gap:2px 8px;margin:0;padding:2px 8px 6px;border:0;border-bottom:1px solid var(--line)}
+.query-modes legend {float:left;margin-right:4px;padding:0;color:var(--muted);font-size:var(--fs-11)}
+.query-mode {display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-11);cursor:default}
+.query-mode input {margin:0}
+.query-helper {padding:0 6px 6px;border-bottom:1px solid var(--line)}
+.query-helper > summary {padding:4px 2px;color:var(--head-ink);font-weight:600;cursor:default;font-size:var(--fs-11)}
+.query-chips {display:flex;flex-wrap:wrap;gap:4px}
+.query-chip {font-family:var(--mono)}
+.query-pick {display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.query-pick select,.query-lists select {min-width:0}
+.query-pick select:first-child {flex:0 0 auto}
+.query-pick select:nth-child(2) {flex:1 1 60px;max-width:100%}
+.query-lists {display:flex;gap:4px;padding:6px}
+.query-lists select {flex:1 1 0}
+.query-help {margin:0 8px 8px;color:var(--muted);font-size:var(--fs-11);line-height:1.45}
+.rules-query-input {flex:1 1 160px;min-width:0}
+.rules-query-input[hidden],.rules-query-status[hidden] {display:none}
+.rules-query-status {color:var(--error-ink);flex-basis:100%}
+
+/* ---------------------------------------------------------------- Navigator */
+.navp-tools {display:flex;flex-direction:column;gap:4px;padding:4px 6px 6px;border-bottom:1px solid var(--line)}
+
+.navp-modes {display:flex;align-items:center;gap:4px}
+.navp-modes-label {margin-right:2px;color:var(--muted);font-size:var(--fs-11)}
+.navp-mode {height:20px;padding:0 6px}
+.navp-mode[aria-pressed=true] {--ui-button-border:var(--accent);--ui-button-ink:var(--accent-text);--ui-button-fill:var(--tint-accent)}
+.navp-scroll {position:relative;flex:1 1 0;min-height:60px;overflow:auto;outline-offset:-2px}
+.navp-scroll:focus-visible {outline:1px solid var(--focus)}
+.navp-inner {position:relative;min-height:1px}
+.navp-row {position:absolute;left:0;right:0;height:22px;box-sizing:border-box;display:flex;align-items:center;gap:4px;padding-right:6px;
+  white-space:nowrap;cursor:default;color:var(--ink);font-size:var(--fs-12)}
+.navp-row[hidden] {display:none}
+.navp-row:hover {background:var(--hover)}
+.navp-row[aria-selected=true] {background:var(--selection);color:var(--selection-ink)}
+.navp-scroll:focus .navp-row[aria-selected=true] {outline:1px solid var(--focus);outline-offset:-1px}
+.navp-row[data-type=group] {font-weight:600;color:var(--head-ink);background:var(--panel-head);border-bottom:1px solid var(--soft)}
+.navp-row[data-type=group]:hover {background:var(--hover)}
+.navp-row[data-type=group][aria-selected=true] {background:var(--selection);color:var(--selection-ink)}
+.navp-twisty {flex:none;width:12px;text-align:center;color:var(--muted);font-size:var(--fs-10);cursor:default;position:relative;align-self:stretch}
+.navp-icon {flex:none;width:14px;text-align:center;color:var(--muted);font-size:var(--fs-11);display:none}
+.navp-row[data-type=group] .navp-icon {display:none}
+.navp-label {flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+.navp-detail {flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right;color:var(--muted);font-size:var(--fs-11);font-variant-numeric:tabular-nums}
+.navp-row[aria-selected=true] .navp-detail,.navp-row[aria-selected=true] .navp-icon,.navp-row[aria-selected=true] .navp-twisty {color:inherit;opacity:.85}
+.navp-row.is-lit .navp-label {font-weight:600;color:var(--accent-text)}
+.navp-row[aria-selected=true].is-lit .navp-label {color:inherit}
+.navp-row[data-type=pin] .navp-label {font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-11)}
+.navp-empty {margin:8px;color:var(--muted)}
+.navp-empty[hidden] {display:none}
+
+/* ---------------------------------------------------------------- Layer Sets dialog */
+.ls-dialog {width:min(440px,calc(100vw - 32px));padding:0}
+.ls-dialog h2 {margin:0;padding:14px 18px 4px;font-size:var(--fs-14)}
+.ls-help {margin:0;padding:0 18px 10px;color:var(--muted);font-size:var(--fs-12)}
+/* The sets are a library .ui-list of .ui-row options; the name inside each row is a bare button. */
+.ls-list {max-height:min(46vh,340px);overflow:auto;overscroll-behavior:contain;margin:0 18px}
+.ls-pick {min-width:0;padding:0;text-align:start;color:inherit;background:none;border:0;font:inherit;cursor:default}
+.ls-small {height:20px;padding:0 6px}
+.ls-add {display:flex;gap:6px;padding:10px 18px 0}
+.ls-add input {flex:1 1 auto;min-width:0}
+.ls-save {height:24px}
+.ls-status {min-height:1.2em;margin:6px 18px 0;color:var(--error-ink);font-size:var(--fs-11)}
+.ls-dialog .work-actions {margin:0;padding:10px 18px 14px}
+
+/* Narrow left pane: nothing may push the dock wider than the pane. */
+.panel-query > *,.panel-navp > * {min-width:0;max-width:100%;box-sizing:border-box}
+.query-chips,.query-pick {min-width:0}
+/* Twisties as drawn chevrons (font glyphs vary by platform). */
+.navp-twisty[data-state]:not([data-state=""])::before {content:"";position:absolute;left:3px;top:50%;width:4px;height:4px;margin-top:-3px;
+  border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform calc(var(--motion-fast) * var(--motion-move)) var(--ease-standard)}
+.navp-twisty[data-state=open]:not([data-state=""])::before {transform:rotate(45deg);margin-top:-4px}
+/* The dialog's list rows are plain options, not bordered buttons (beats .work-dialog button). */
+.work-dialog.ls-dialog .ls-pick {min-height:0;height:auto;border:0;background:none;color:inherit;padding:0;box-shadow:none}
+.work-dialog.ls-dialog .ls-pick:hover {background:none;text-decoration:underline}

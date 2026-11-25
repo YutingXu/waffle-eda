@@ -1,0 +1,19 @@
+{
+ "opamp@1": "140c2d28",
+ "comparator@1": "882981",
+ "ldo@1": "def8f27c",
+ "diode@1": "a16efe14",
+ "zener@1": "b7df736c",
+ "led@1": "62a6da59",
+ "bjt@1": "d28d1c12",
+ "mosfet@1": "c7ce612d",
+ "capacitor@1": "bad9aa36",
+ "inductor@1": "6beae6e6",
+ "ferrite@1": "961a258",
+ "crystal@1": "d32583a7",
+ "logic@1": "686c2521",
+ "load@1": "68798fca",
+ "switch@1": "677a60f4",
+ "opamp-ideal@1": "8636297a",
+ "diode-ideal@1": "cf7cc594"
+}

@@ -1,0 +1,3 @@
+{"kind":"library","formatVersion":"2.0","id":"metadata-footprint","name":"Metadata test footprint"}
+{"kind":"pad","id":"metadata-footprint/pad/1","order":"V","value":{"h":1000000,"layer":"Top","number":"1","shape":"round","w":1000000,"x":0,"y":0}}
+{"kind":"librarySettings","id":"metadata-footprint/settings","value":{"footprint":{"pads":[],"shapes":[]}}}

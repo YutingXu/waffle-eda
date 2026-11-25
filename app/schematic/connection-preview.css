@@ -1,0 +1,21 @@
+.sheet-connection-card {
+  position:fixed; z-index:var(--z-popover); box-sizing:border-box; width:min(258px,calc(100vw - 12px));
+  padding:8px; color:var(--ink); background:var(--menu-bg); border:1px solid var(--line-strong);
+  border-radius:var(--r-lg); box-shadow:var(--elev-2); pointer-events:none;
+  animation:sheet-connection-enter var(--motion-fast) var(--ease-standard) both;
+}
+.sheet-connection-title {margin:0 3px 4px;font-size:var(--fs-12);line-height:1.35;overflow-wrap:anywhere}
+.sheet-connection-list {display:grid;align-content:start;gap:4px;max-height:min(220px,34vh);overflow:auto;overscroll-behavior:contain}
+.sheet-connection-properties .sheet-connection-list {max-height:min(360px,45vh)}
+.sheet-connection-properties select {max-width:100%;margin-block-end:5px}
+.sheet-connection-summary,.sheet-connection-reason {margin:1px 3px;color:var(--muted);font-size:var(--fs-11);line-height:1.4;overflow-wrap:anywhere}
+.sheet-connection-target,.sheet-connection-more {pointer-events:auto;min-width:0}
+.sheet-connection-target {display:flex;align-items:center;gap:8px;padding:3px;text-align:start}
+.sheet-connection-target canvas {flex:0 0 auto;width:64px;height:36px;border-radius:var(--r-sm);background:var(--field)}
+.sheet-connection-caption {display:grid;min-width:0;gap:2px;line-height:1.25;overflow-wrap:anywhere}
+.sheet-connection-caption strong {font-size:var(--fs-12);font-weight:600}
+.sheet-connection-caption small {font-size:var(--fs-11)}
+.sheet-connection-flash {position:fixed;z-index:var(--z-float);pointer-events:none;border:2px solid var(--focus);border-radius:var(--r-sm);box-shadow:0 0 0 1px var(--focus-edge-light)}
+@keyframes sheet-connection-enter {from {opacity:0;transform:translateY(2px)} to {opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce) {.sheet-connection-card {animation:none}}
+:root[data-motion="reduce"] .sheet-connection-card,:root[data-motion="off"] .sheet-connection-card {animation:none}

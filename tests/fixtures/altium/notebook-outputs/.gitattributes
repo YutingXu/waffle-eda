@@ -1,0 +1,3 @@
+# Keep the exact CRLF records and final project separator read by Designer.
+*.PrjPcb -text whitespace=cr-at-eol,-blank-at-eof
+*.SchDoc -text whitespace=cr-at-eol

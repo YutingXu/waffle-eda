@@ -1,0 +1,84 @@
+/* Collaboration: presence badges (library avatars, .ui-avatar), the lock bar, dialogs and the live-session strip
+   (collab-presence.js). Tokens only. */
+.collab-badges {display:inline-flex;align-items:center;gap:2px;margin-left:var(--s-4);vertical-align:middle;pointer-events:auto}
+.collab-initials {display:block;width:100%;height:100%;fill:currentColor;direction:ltr;font-family:system-ui,sans-serif;font-weight:600;pointer-events:none}
+.collab-face {grid-template: minmax(0,1fr) / minmax(0,1fr);padding:0}
+.collab-c0 {color:var(--accent-text);background:var(--tint-accent)}
+.collab-c1 {color:var(--info);background:var(--tint-info)}
+.collab-c2 {color:var(--success);background:var(--tint-success)}
+.collab-c3 {color:var(--insight-ink);background:var(--tint-insight)}
+.collab-c4 {color:var(--danger);background:var(--tint-danger)}
+.collab-held {display:inline-block;width:6px;height:6px;margin-left:2px;border-radius:var(--r-pill);background:var(--muted)}
+
+#collab-people,#collab-faces,#collab-share {display:flex;align-items:center}
+#collab-people {flex:none;gap:var(--s-4);padding-inline-start:var(--s-4);margin-inline-start:auto}
+#collab-faces {gap:var(--s-2)}
+#collab-share {gap:var(--s-4);font-weight:var(--fw-medium);white-space:nowrap}
+#collab-share .icon {width:15px;height:15px}
+@media (hover:hover) and (pointer:fine) {
+  #collab-share:hover {border-color:var(--focus)}
+}
+.collab-person {position:relative;display:flex}
+.collab-face,#collab-more {display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border:1px solid currentColor;border-radius:var(--r-pill);
+  font-size:var(--fs-11);font-weight:var(--fw-semibold);line-height:1}
+#collab-more {grid-template:minmax(0,1fr) / minmax(0,1fr);padding:0;border-color:var(--line-strong);background:var(--raised);color:var(--ink)}
+#collab-more.is-wide {width:33px}
+#collab-people button:focus-visible {outline:2px solid var(--focus);outline-offset:1px}
+.collab-person-tip {display:none;position:absolute;z-index:var(--z-popover);inset-block-start:calc(100% + 5px);inset-inline-end:0;width:max-content;
+  max-width:min(280px,65vw);gap:var(--s-2);padding:var(--s-6) var(--s-8);border:1px solid var(--line-strong);border-radius:var(--r-md);
+  background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-12);text-align:start;overflow-wrap:anywhere}
+.collab-person-tip::before {content:"";position:absolute;inset-inline:0;bottom:100%;height:6px}
+/* Focus only, never hover (a click opens People here). */
+.collab-person:focus-within:not(.is-dismissed) > .collab-person-tip {display:grid}
+.collab-person-tip > span,.collab-roster li > span > span {color:var(--muted)}
+.collab-roster {display:grid;gap:var(--s-8);max-height:55vh;overflow:auto;list-style:none;margin:var(--s-8) 0;padding:0}
+.collab-roster li {display:flex;align-items:center;gap:var(--s-8)}
+.collab-roster li > span:last-child {display:grid;min-width:0;overflow-wrap:anywhere}
+.collab-object-motion,.collab-cursors,.collab-selections {position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.collab-cursors,.collab-selections {z-index:1}
+
+.collab-bar {display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-6) var(--s-8);padding:var(--s-4) var(--s-8);border-bottom:1px solid var(--line);
+  background:var(--tint-info);color:var(--ink);font-size:var(--fs-12)}
+.collab-bar[hidden] {display:none}
+.collab-bar[data-kind=warning] {background:var(--tint-warning)}
+.collab-bar[data-kind=error] {background:var(--tint-danger)}
+.collab-bar-icon {flex:none;width:8px;height:8px;border-radius:var(--r-pill);background:var(--info)}
+.collab-bar[data-kind=warning] .collab-bar-icon {background:var(--warning)}
+.collab-bar[data-kind=error] .collab-bar-icon {background:var(--danger)}
+.collab-bar-text {flex:1 1 240px;min-width:0;line-height:var(--lh)}
+.collab-bar-actions {display:flex;flex-wrap:wrap;gap:var(--s-4)}
+
+.collab-dialog {width:min(560px,calc(100vw - 32px))}
+.collab-dialog h3 {margin:var(--s-12) 0 var(--s-4);font-size:var(--fs-13);font-weight:var(--fw-semibold)}
+.collab-field {display:grid;gap:var(--s-2);margin:var(--s-8) 0}
+.collab-field > span {font-weight:var(--fw-medium)}
+.collab-field small,.collab-note {color:var(--muted);font-size:var(--fs-11);line-height:var(--lh)}
+.collab-field-error {color:var(--error-ink);font-size:var(--fs-12);margin:0}
+.collab-field-error:not(:empty) {margin:var(--s-4) 0}
+.collab-table {width:100%;border-collapse:collapse;margin:var(--s-8) 0;font-size:var(--fs-12)}
+.collab-table :is(th,td) {padding:var(--s-4) var(--s-6);border-bottom:1px solid var(--line);text-align:left}
+.collab-table th {color:var(--muted);font-weight:var(--fw-medium)}
+.collab-dialog-actions {display:flex;flex-wrap:wrap;gap:var(--s-6);justify-content:flex-end;margin-top:var(--s-12)}
+
+.collab-strip {display:inline-flex;align-items:center;gap:var(--s-6);min-width:0;margin-right:var(--s-8);font-size:var(--fs-11);white-space:nowrap;overflow:hidden}
+.collab-strip-state {color:var(--success);font-weight:var(--fw-medium)}
+.collab-strip-peer,.collab-strip-leave {display:inline-flex;align-items:center;gap:var(--s-4);max-width:220px;padding:0 var(--s-4);border:1px solid transparent;border-radius:var(--r-sm);
+  background:none;color:inherit;font:inherit;overflow:hidden;text-overflow:ellipsis}
+.collab-strip-peer:hover,.collab-strip-leave:hover {background:var(--hover)}
+.collab-strip-peer.is-following {border-color:var(--accent)}
+@media (prefers-reduced-motion:no-preference) {.collab-bar:not([hidden]) {animation:atrium-cue var(--motion-base) var(--ease-standard)}}
+
+/* Share: the join field, other ways to connect, people and the QR code */
+.collab-field textarea {resize:vertical;min-width:0;word-break:break-all}
+.collab-detected:empty {display:none}
+.collab-detected {color:var(--ink)}
+.collab-ways {margin:var(--s-8) 0;border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s-4) var(--s-8)}
+.collab-ways > summary,.collab-qr-box > summary {cursor:default;font-weight:var(--fw-medium);padding:var(--s-2) 0}
+.collab-ways > summary:focus-visible,.collab-qr-box > summary:focus-visible {outline:1px solid var(--focus);outline-offset:1px}
+.collab-card h3 {margin-top:var(--s-8)}
+.collab-people {display:flex;flex-wrap:wrap;gap:var(--s-4);margin:var(--s-8) 0 var(--s-2)}
+.collab-qr {display:block;width:168px;height:168px;margin:var(--s-6) 0;border-radius:var(--r-sm)}
+.collab-check {display:flex;align-items:center;gap:var(--s-6);margin:var(--s-8) 0;font-size:var(--fs-12)}
+.collab-check input:focus-visible {outline:1px solid var(--focus);outline-offset:1px}
+.collab-code {margin:var(--s-6) 0;font-family:var(--mono);font-size:var(--fs-16);font-weight:var(--fw-semibold);letter-spacing:.08em;-webkit-user-select:all;user-select:all}
+.collab-nearby {display:flex;flex-wrap:wrap;gap:var(--s-4);margin:var(--s-4) 0}

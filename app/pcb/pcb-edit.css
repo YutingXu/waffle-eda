@@ -1,0 +1,32 @@
+/* PCB editing tools (pcb-edit.js, teardrops.js): selection filter chips, multi-edit
+   kind chips, Find Similar grid, snap popover, HUD overlay and the bottom-view badge. */
+/* The selection filter and the multi-selection kind chips are library .ui-chip; these rules only place them. */
+.pcb-edit-chips{padding:var(--s-6) 0 var(--s-4)}
+.pcb-edit-check{display:flex;align-items:center;gap:6px;font-size:var(--fs-12);padding:4px 0}
+.pcb-edit-check:has(> input[type=number]){align-items:baseline}
+.pcb-edit-check input[type=number]{width:4.5em}
+.pcb-edit-similar-grid{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;margin:6px 0 8px;font-size:var(--fs-12)}
+.pcb-edit-similar-grid strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16em}
+.pcb-edit-snap-pop{position:fixed;z-index:var(--z-popover);display:flex;flex-direction:column;gap:2px;min-width:210px;padding:8px 12px;border-radius:var(--r-lg);
+  background:var(--panel);color:var(--text);border:1px solid var(--line);box-shadow:var(--elev-2);font-size:var(--fs-12)}
+.pcb-edit-snap-pop small{opacity:.7;margin-top:6px}
+.teardrop-field{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);align-items:center;gap:var(--s-8)}
+.teardrop-field > select{inline-size:100%;min-inline-size:0}
+.pcb-edit-overlay{position:absolute;left:0;top:0;pointer-events:none;z-index:3}
+.status-snap[aria-pressed="true"]{color:var(--accent-text)}
+.pcb-flip-badge {color:var(--accent);white-space:nowrap}
+/* Selection filter stays independent of the multi-selection kind chips; its chips are the library .ui-chip. */
+.pcb-edit-filter-section .pcb-edit-filter{display:flex;flex-wrap:wrap;gap:var(--s-4);align-items:center;padding:var(--s-4) 0 var(--s-8)}
+.pcb-edit-filter-count{color:var(--muted);font-weight:var(--fw-regular);margin-inline-start:var(--s-4);font-size:var(--fs-10)}
+.selection-filter-all{position:relative;display:inline-flex;align-items:center;flex:none;min-block-size:var(--chrome-chip-height);margin-inline-start:auto;padding-inline-start:var(--s-8);color:var(--accent-text);font-size:var(--fs-11);font-weight:var(--fw-regular);text-decoration:none;text-underline-offset:var(--s-2)}
+.selection-filter-all:focus-visible{outline:var(--focus-w) solid var(--focus);outline-offset:1px}
+@media (hover:hover) and (pointer:fine) {
+  .selection-filter-all:hover{text-decoration:underline}
+}
+@media (any-pointer:coarse) {
+  /* Extend each target halfway into the gap. The painted control stays on the chrome grid. */
+  .selection-filter-all::after{content:"";position:absolute;inset:calc(-1 * var(--s-2))}
+}
+/* Properties › Via Stack (pcb-selection-inspector.js): a check problem reads in the error ink. */
+.pcb-via-stack .side-note{margin-inline:0}
+.pcb-via-stack .side-note.ui-prop-error{color:var(--error)}

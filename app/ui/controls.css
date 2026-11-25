@@ -1,0 +1,425 @@
+/* Common controls. Native elements keep their own activation, form participation and focus. */
+:where(.ui-button, .ui-tab, .ui-segment) {--ui-control-height:var(--ctl-h)}
+:where(.ui-button, .ui-tab, .ui-segment)[data-size=sm] {--ui-control-height:var(--ctl-h-sm)}
+:where(.ui-button, .ui-tab, .ui-segment)[data-size=lg] {--ui-control-height:var(--ctl-h-lg)}
+
+/* Secondary buttons: a soft fill of the ink colour with ink text and no outline, so they sit in any
+   surface without drawing a box. The label identifies the control (WCAG 1.4.11), so the outline is
+   kept only where contrast is the point: the high-contrast themes and forced colours. */
+:root:not([data-theme=hc],[data-theme-id=hc-light]) {
+  --button-face:color-mix(in srgb, var(--ink) 9%, transparent);
+  --button-face-hover:color-mix(in srgb, var(--ink) 14%, transparent);
+  --button-face-pressed:color-mix(in srgb, var(--ink) 19%, transparent);
+  --button-face-line:transparent;
+}
+/* Adopted buttons share a face with ordinary controls in older dialogs. */
+:where(.ui-button,
+  :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):is(button,a) {
+  box-sizing:border-box;
+  /* A button a feature lays out as flex keeps its icon and label on the button's centre line. */
+  align-items:center;
+  min-height:var(--ui-control-height,var(--ctl-h));
+  padding:var(--s-2) var(--ctl-px);
+  border:1px solid var(--ui-button-border,var(--button-face-line,var(--button-line)));
+  border-radius:var(--chrome-control-radius);
+  background:var(--ui-button-fill,var(--button-face,var(--button)));
+  color:var(--ui-button-ink,var(--ink));
+  font-size:var(--fs-12);
+  font-weight:var(--fw-medium);
+  transition:background-color var(--motion-instant) linear,color var(--motion-instant) linear,border-color var(--motion-fast) var(--ease-standard);
+}
+:where(.ui-button,
+  :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):hover:not(:disabled) {
+  background:var(--ui-button-hover,var(--button-face-hover,var(--button-hover)));
+  border-color:var(--ui-button-hover-border,var(--ui-button-border,var(--button-face-line,var(--button-line))));
+}
+:where(.ui-button:not([data-variant]),.ui-button[data-variant=secondary]):active:not(:disabled) {
+  background:var(--ui-button-active,var(--button-face-pressed,var(--pressed)));
+}
+:where(.ui-button[data-variant=secondary][aria-pressed=true]) {
+  --ui-button-fill:var(--selection);
+  --ui-button-border:var(--accent);
+  --ui-button-ink:var(--selection-ink);
+  --ui-button-hover:var(--selection);
+  --ui-button-hover-border:var(--focus);
+  --ui-button-active:var(--selection);
+}
+:where(.ui-button, :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button):is(button,a):disabled {opacity:.45;cursor:default}
+:where(.ui-button[data-variant=primary], .message-dialog button[type=submit]:not([data-variant]),
+  :is(.work-actions,.lib-actions,.dialog-actions) button.is-primary:not([data-variant]),
+  .work-actions:not(:has(button:is(.is-primary,[data-variant]))) button:last-child) {
+  --ui-button-fill:var(--primary);
+  --ui-button-border:var(--primary-line);
+  --ui-button-ink:var(--on-primary);
+  --ui-button-hover:var(--primary);
+  --ui-button-hover-border:var(--on-primary);
+  --ui-control-focus:var(--on-primary);
+}
+:where(.ui-button[data-variant=quiet]) {
+  --ui-button-fill:transparent;
+  --ui-button-border:transparent;
+  --ui-button-hover:var(--hover);
+}
+.ui-button.ui-stepper-button {align-self:stretch;min-block-size:0;padding:0;border:0;border-inline-start:1px solid var(--line);border-radius:0}
+:where(.ui-button[data-variant=danger]) {
+  --ui-button-fill:var(--danger-fill);
+  --ui-button-border:var(--danger-fill);
+  --ui-button-ink:var(--on-danger);
+  --ui-button-hover:var(--danger-fill);
+  --ui-button-hover-border:var(--on-danger);
+  --ui-control-focus:var(--on-danger);
+}
+
+:root {--field-height:28px;--field-number-width:80px;--ui-switch-w:34px}
+
+/* One text Field also covers the ordinary form controls of adopted dialogs. */
+:where(.ui-field:not([data-field-face=paper]),#inspector :is(input,select),:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select) {
+  box-sizing:border-box;
+  min-block-size:var(--field-height);
+  max-inline-size:100%;
+  padding-block:var(--s-4);
+  padding-inline:var(--s-8);
+  text-indent:0;
+  border:1px solid var(--input-line);
+  border-radius:var(--chrome-control-radius);
+  background-color:var(--field);
+  color:var(--ink);
+  font:var(--fs-12)/var(--lh) var(--font-ui);
+}
+:where(.ui-field:not([data-field-face=paper]),:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),
+  select:not([multiple],[size]:not([size="1"]))) {
+  block-size:var(--field-height);
+  padding-block:0;
+  vertical-align:middle;
+}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
+  appearance:none;
+  border-radius:var(--chrome-control-radius);
+  padding-inline-end:calc(var(--s-12) + 2 * var(--s-8));
+  text-overflow:ellipsis;
+  background-image:linear-gradient(45deg,transparent 38%,var(--muted) 40% 59%,transparent 61%),
+    linear-gradient(-45deg,transparent 38%,var(--muted) 40% 59%,transparent 61%);
+  background-size:var(--s-4) var(--s-4);
+  background-repeat:no-repeat;
+  background-position:right var(--s-16) center,right var(--s-12) center;
+}
+:where(.statusbar select.status-action) {appearance:none}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))):where(:dir(rtl)) {
+  background-position:left var(--s-12) center,left var(--s-16) center;
+}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=search]) {
+  appearance:none;
+}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=number],input.ui-field-number) {
+  inline-size:var(--field-number-width);
+  font-variant-numeric:tabular-nums;
+}
+.ui-field-number:is([data-value-source=inherited],[data-value-source=override])::placeholder {color:var(--faint)}
+.ui-field-number[data-value-source=authored] {font-weight:600;border-color:var(--primary-line)}
+.ui-field-number[data-value-source=override] {border-color:var(--accent)}
+:where(.ui-field-measure) {display:flex;align-items:baseline;gap:var(--s-4);min-inline-size:0}
+:where(.ui-field-measure) > input {flex:0 1 var(--field-number-width);min-inline-size:0}
+:where(.ui-field-unit) {flex:none;color:var(--muted);font:var(--fs-11)/var(--lh) var(--font-ui);white-space:nowrap}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is([aria-invalid=true],:user-invalid) {border-color:var(--error)}
+:is(input,select):is(.ui-field,.lib-dialog *)[data-edit-rejected] {border-color:var(--ui-field-error,var(--err-mark))}
+input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(--error-ink);color:var(--ui-field-error)}
+:is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=none] {--ui-severity-color:var(--erc-none,var(--tint-success))}
+:is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=warning] {--ui-severity-color:var(--erc-warning,var(--tint-warning))}
+:is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=error] {--ui-severity-color:var(--erc-error,var(--tint-danger))}
+:is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=fatal] {--ui-severity-color:var(--erc-fatal,var(--tint-danger))}
+:is(.ui-severity-cell,.ui-severity-swatch)[data-severity] {background:var(--ui-severity-color,transparent);border:1px solid var(--line)}
+.ui-severity-cell[data-severity] {width:22px;height:var(--ctl-h);min-height:0;padding:0;border-radius:var(--r-sm);font:600 var(--fs-10) var(--mono);color:var(--ink)}
+.ui-severity-cell:hover {outline:1px solid var(--focus)}
+.ui-severity-swatch {width:12px;height:12px}
+.ui-severity-field[data-severity] {width:120px;border-inline-start-color:var(--ui-severity-color,var(--erc-none))}
+.ui-compact-field {height:var(--ctl-h-sm);border:1px solid var(--input-line);border-radius:var(--r-sm);background:var(--field);color:var(--ink);font-size:var(--fs-11)}
+.ui-field[data-grid-editing] {width:100%;border-color:var(--focus)}
+#inspector input:not([type="checkbox"]):focus,#inspector select:focus {border-color:var(--focus);outline:none}
+.ui-field[data-field-face=paper] {min-height:36px;max-width:100%;color:var(--ink);background:var(--sheet);border:1px solid var(--line)}
+:where(.ui-field)::placeholder {color:var(--muted)}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea,select)):disabled {color:var(--muted)}
+
+@media (forced-colors:active) {
+  :where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
+    appearance:auto;
+    padding-inline-end:var(--s-8);
+    background-image:none;
+  }
+}
+:where(.ui-field-row) {display:grid;gap:var(--s-4)}
+/* Inline label rows align to the first painted text line, including a wrapped caption.
+   Two-column grids and flex rows share this rule without changing their spacing. */
+:where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:has(
+  > span:first-child:not([aria-hidden=true],.icon) +
+    :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select,textarea,.ui-field-measure)
+) {align-items:baseline}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]) {accent-color:var(--accent);flex:none}
+:where(.ui-checkbox-row) {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h)}
+:where(.ui-checkbox-row) > :where(.ui-checkbox) {margin:0}
+/* Switch: input.ui-switch[role=switch] at the inline end of its label.ui-switch-row, centred on the
+   nearest positioned ancestor (the row by default). The row paints the knob because WebKit paints no
+   pseudo-element on an input. A change crossfades the track and slides the knob over --motion-toggle;
+   Reduced motion (--motion-move 0) and Off apply the new state at once. A switch never animates when it
+   first appears because a transition needs an earlier painted state. */
+:where(.ui-switch-row) {
+  --ui-switch-h:20px;--ui-switch-knob:16px;--ui-switch-time:calc(var(--motion-toggle) * var(--motion-move));
+  position:relative;padding-inline-end:calc(var(--ui-switch-w) + var(--s-8));cursor:default;
+}
+.ui-switch-row > .ui-switch {
+  appearance:none;position:absolute;inset-block-start:calc(50% - var(--ui-switch-h) / 2);inset-inline-end:0;
+  inline-size:var(--ui-switch-w);block-size:var(--ui-switch-h);margin:0;padding:0;
+  border:1px solid var(--line-strong);border-radius:var(--r-pill);background:var(--line-strong);cursor:default;
+  transition:background-color var(--ui-switch-time) var(--ease-decelerate),border-color var(--ui-switch-time) var(--ease-decelerate);
+}
+.ui-switch-row > .ui-switch:checked {background:var(--primary);border-color:var(--primary-line)}
+.ui-switch-row:has(> .ui-switch)::after {
+  content:"";position:absolute;inset-block-start:calc(50% - var(--ui-switch-knob) / 2);
+  inset-inline-end:calc(var(--ui-switch-w) - var(--ui-switch-knob) - var(--s-2));
+  pointer-events:none;inline-size:var(--ui-switch-knob);block-size:var(--ui-switch-knob);
+  border-radius:var(--r-pill);background:var(--focus-edge-light);box-shadow:var(--elev-1);
+  transition:transform var(--ui-switch-time) var(--ease-decelerate);
+}
+.ui-switch-row:has(> .ui-switch:checked)::after {transform:translateX(calc(var(--ui-switch-w) - var(--ui-switch-knob) - 2 * var(--s-2)))}
+.ui-switch-row:dir(rtl):has(> .ui-switch:checked)::after {transform:translateX(calc(2 * var(--s-2) + var(--ui-switch-knob) - var(--ui-switch-w)))}
+@media (forced-colors:active) {
+  .ui-switch-row > .ui-switch {forced-color-adjust:none;border-color:ButtonText;background:ButtonFace}
+  .ui-switch-row > .ui-switch:checked {border-color:Highlight;background:Highlight}
+  .ui-switch-row:has(> .ui-switch)::after {background:ButtonText}
+  .ui-switch-row:has(> .ui-switch:checked)::after {background:HighlightText}
+}
+
+/* Tabs share one indicator. A wrapper can extend it under a tab's close button. */
+:where(.ui-tab,.ui-tab-wrap) {position:relative}
+:where(.ui-tab):is(button,a) {
+  min-height:var(--ui-control-height);
+  padding:var(--s-2) var(--ctl-px);
+  color:var(--tab-ink);
+  font-size:var(--fs-12);
+}
+:where(.ui-button,.ui-tab)[data-size=sm] {font-size:var(--fs-11)}
+:where(.ui-tab):is(:hover,:focus-visible):not(:disabled) {color:var(--tab-hover-ink)}
+:where(.ui-tab):is([aria-selected=true],[aria-pressed=true]) {color:var(--ink)}
+:where(.ui-tab-wrap:has(> .ui-tab:is([aria-selected=true],[aria-pressed=true])),.ui-tab:is([aria-selected=true],[aria-pressed=true]):not(.ui-tab-wrap > .ui-tab))::after {
+  content:"";
+  position:absolute;
+  inset-inline:0;
+  inset-block-end:0;
+  block-size:var(--s-2);
+  background:var(--accent);
+  pointer-events:none;
+  animation:ui-tab-indicator var(--motion-fast) var(--ease-decelerate);
+}
+/* A tab strip: the tabs sit on a filled band with a hairline under it (panel and dialog view switchers).
+   Plain .ui-tabs stay on the surface; data-strip adds the band. The selected tab's indicator overlays the hairline. */
+:is(.ui-tabs)[data-strip] {display:flex;align-items:stretch;gap:0;flex:none;min-inline-size:0;min-block-size:var(--chrome-tab-height);
+  padding-inline:var(--s-4);overflow-x:auto;scrollbar-width:none;background:var(--panel-head);box-shadow:var(--chrome-rule-bottom) var(--divider)}
+:is(.ui-tabs)[data-strip] > :where(.ui-tab,.ui-tab-wrap) {flex:none}
+.ui-tabs[data-underline] {display:flex;gap:var(--s-2);border-bottom:1px solid var(--line)}
+.ui-tabs[data-boxed] {display:flex;gap:var(--s-2);padding:var(--s-2);border:1px solid var(--line);border-radius:var(--r-md);background:var(--field)}
+@keyframes ui-tab-indicator {from {opacity:0;scale:calc(1 - .6 * var(--motion-move)) 1}}
+.editor-chrome-tab {min-block-size:var(--chrome-tab-height)}
+.editor-chrome-tab::after {inset-inline:var(--s-8);animation:none}
+
+:where(.ui-segmented) {display:inline-flex;align-items:stretch;max-width:100%}
+:where(.ui-segment):is(button,label) {
+  position:relative;
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:var(--ui-control-height);
+  min-width:0;
+  padding:var(--s-2) var(--ctl-px);
+  border:1px solid var(--button-line);
+  border-radius:var(--chrome-control-radius);
+  color:var(--ink);
+  background:var(--button);
+  gap:var(--s-4);
+  cursor:default;
+}
+:where(.ui-segment) + :where(.ui-segment) {margin-inline-start:-1px}
+:where(.ui-segment:not(:first-child)):is(button,label) {border-start-start-radius:0;border-end-start-radius:0}
+:where(.ui-segment:not(:last-child)):is(button,label) {border-start-end-radius:0;border-end-end-radius:0}
+:where(.ui-segment):hover:not(:disabled,:has(:disabled)) {background:var(--button-hover)}
+:where(.ui-segment):is([aria-pressed=true],[aria-checked=true],:has(input:checked)) {
+  z-index:1;
+  border-color:var(--focus);
+  background:var(--selection);
+  color:var(--selection-ink);
+}
+:where(.ui-segment):is(:disabled,:has(input:disabled)) {opacity:.45;cursor:default}
+:where(.ui-segment) > :where(input[type=radio]) {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  margin:0;
+  opacity:0;
+  cursor:inherit;
+}
+:is(.ui-button,.ui-field,.ui-checkbox,.ui-tab,.ui-segment):focus-visible,
+.ui-segment:has(> input:focus-visible) {
+  outline:var(--focus-w) solid var(--ui-control-focus,var(--focus));
+  outline-offset:calc(-1 * var(--focus-w));
+}
+
+#inspector input:not([type="checkbox"]):focus-visible,#inspector select:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+
+:where(dialog:is(.ui-dialog,.work-dialog,.message-dialog),#library-dialog) {
+  width:var(--ui-dialog-width,min(560px,calc(100vw - 40px)));
+  max-height:var(--ui-dialog-max-height,min(78vh,720px,var(--dialog-avail-h)));
+  overflow:auto;
+  padding:var(--ui-dialog-padding,var(--s-16) var(--s-24));
+  border:1px solid var(--line-strong);
+  border-radius:var(--r-lg);
+  background:var(--surface);
+  color:var(--ink);
+  box-shadow:var(--elev-3);
+  font:inherit;
+}
+/* Dialogs use the same window safe area below the title bar and clear of the edges. */
+:where(dialog:modal,dialog.ui-dialog[data-ui-modeless]) {
+  inset:var(--dialog-safe-top) var(--dialog-margin) var(--dialog-margin);
+  max-inline-size:var(--dialog-avail-w);
+  max-block-size:var(--dialog-avail-h);
+}
+/* A modeless dialog stays available above the workbench without taking the native top layer. */
+:where(dialog.ui-dialog[data-ui-modeless]) {
+  position:fixed;margin:auto;block-size:max-content;z-index:var(--z-float);
+  max-block-size:min(var(--ui-dialog-max-height,min(78vh,720px)),var(--dialog-avail-h));
+}
+:where(dialog:is(.ui-dialog,.work-dialog,.message-dialog),#library-dialog)::backdrop {background:var(--backdrop)}
+/* Snap centered sheets in CSS without changing the native focus or top-layer behavior. */
+@supports (translate:round(down,-50%,1px)) {
+  :where(dialog.ui-dialog:modal:not(#palette,.thq-dialog)) {
+    inset:round(nearest,calc(var(--dialog-safe-top) + var(--dialog-avail-h) / 2),1px) auto auto round(nearest,50vw,1px);margin:0;
+    translate:round(down,-50%,1px) round(down,-50%,1px);
+    block-size:calc-size(auto,round(up,size,1px));
+    max-block-size:round(down,min(var(--ui-dialog-max-height,min(78vh,720px)),var(--dialog-avail-h)),1px);
+  }
+}
+/* Native state and focus change immediately. The top layer can finish painting the exit. */
+:root[data-ui-surface-motion] dialog.ui-dialog:not(#palette) {
+  transition:display var(--motion-dialog-out) allow-discrete,overlay var(--motion-dialog-out) allow-discrete
+}
+:root[data-ui-surface-motion] dialog.ui-dialog:not(#palette):not([open]) {opacity:0;pointer-events:none}
+:root[data-ui-surface-motion] dialog.ui-dialog:not(#palette)::backdrop {
+  opacity:0;
+  pointer-events:none;
+  transition:opacity var(--motion-dialog-out) var(--ease-decelerate),display var(--motion-dialog-out) allow-discrete,
+    overlay var(--motion-dialog-out) allow-discrete
+}
+:root[data-ui-surface-motion] dialog.ui-dialog:not(#palette)[open]::backdrop {opacity:1;pointer-events:auto;transition-duration:var(--motion-dialog-in)}
+@starting-style {
+  :root[data-ui-surface-motion] dialog.ui-dialog:not(#palette)[open]::backdrop {opacity:0}
+}
+:root:is([data-motion=off],[data-motion-input=keyboard],[data-efficient]) {
+  --motion-dialog-in:var(--motion-none);--motion-dialog-out:var(--motion-none);
+  --motion-menu-in:var(--motion-none);--motion-menu-out:var(--motion-none)
+}
+:root[data-ui-surface-motion] .ui-popover {transition:display var(--motion-menu-out) allow-discrete}
+:root[data-ui-surface-motion] .ui-popover[hidden] {opacity:0;pointer-events:none}
+:where(.work-menu > .menu-items,.nav-menu,.ui-popover) {transform-origin:top left}
+:where([dir=rtl] .work-menu > .menu-items,.ui-popover[data-anchor=right]) {transform-origin:top right}
+:where(.statusbar .work-menu > .menu-items) {transform-origin:bottom right}
+:where(.ui-popover[data-anchor=bottom]) {transform-origin:bottom left}
+:where(.ui-sheet,.message-dialog) {--ui-dialog-width:min(470px,calc(100vw - 40px));--ui-dialog-max-height:75vh}
+.ui-dialog-title,:where(.work-dialog,.message-dialog) h2 {
+  margin:0 0 var(--s-12);
+  font-size:var(--fs-14);
+  font-weight:var(--fw-semibold);
+  line-height:var(--lh);
+  overflow-wrap:anywhere;
+}
+:where(.ui-dialog-body) {min-inline-size:0;line-height:var(--lh)}
+:where(.ui-dialog-body,.work-dialog,.message-dialog) :where(p,small) {color:var(--muted);line-height:var(--lh-loose)}
+p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p {margin:var(--s-8) 0 var(--s-12)}
+:where(.ui-dialog-body,.work-dialog) :where(small) {display:block;font-size:var(--fs-11)}
+:where(.ui-dialog-actions,.work-actions) {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:var(--s-8);
+  margin-block-start:var(--s-16);
+}
+/* An action row never shrinks in a column dialog: the body scrolls instead. */
+:where(.ui-dialog) > :where(.ui-dialog-actions,.work-actions) {flex:none}
+/* A status line leading the action row: one line, cut with an ellipsis, full text on hover. */
+:where(.ui-dialog-status) {
+  flex:1 1 0;
+  min-inline-size:min(12em,100%);
+  margin-inline-end:auto;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:var(--muted);
+  font-size:var(--fs-12);
+  line-height:var(--s-16);
+}
+/* Keep the last action row available in a scrolling, standard-padded dialog. */
+:where(.work-dialog) > :where(.work-actions:last-child),
+:where(.ui-dialog) > :where(.ui-dialog-actions.ui-sticky-actions:last-child) {
+  position:sticky;
+  bottom:calc(-1 * var(--s-16));
+  z-index:var(--z-sticky);
+  padding-block:var(--s-8);
+  margin-bottom:0;
+  background:var(--surface);
+  box-shadow:calc(-1 * var(--s-24)) 0 0 var(--surface),var(--s-24) 0 0 var(--surface),0 var(--s-16) 0 var(--surface),
+    calc(-1 * var(--s-24)) var(--s-16) 0 var(--surface),var(--s-24) var(--s-16) 0 var(--surface);
+}
+@media (any-pointer:coarse) {
+  :where(.ui-button,.ui-tab,.ui-segment)[data-size],
+  :where(.ui-button,.ui-tab,.ui-segment) {--ui-control-height:var(--ctl-h-touch)}
+  :where(label.ui-field-row,.ui-field-measure) {min-block-size:var(--ctl-h-touch);align-content:center}
+  #inspector label.field-row:has(> select:not([multiple],[size]:not([size="1"]))) {min-block-size:var(--ctl-h-touch)}
+  :where(.ui-checkbox-row) {min-height:var(--ctl-h-touch)}
+}
+
+:where(.ui-popover) {
+  color:var(--ink);
+  background:var(--overlay);
+  border:1px solid var(--line-strong);
+  border-radius:var(--r-lg);
+  box-shadow:var(--elev-2);
+}
+
+/* One face per component, everywhere (2026-11-22 beta pass). The high-contrast themes keep their
+   outlined faces; these rules only soften the ordinary themes. */
+:root:not([data-theme=hc],[data-theme-id=hc-light]) {
+  /* Segmented control: a soft track; the chosen segment is raised, not outlined or blue. */
+  & .ui-segmented {gap:2px;padding:2px;border-radius:var(--chrome-control-radius);background:var(--button-face)}
+  & .ui-segmented > .ui-segment:is(button,label) {min-height:calc(var(--ui-control-height) - 4px);margin:0;border-color:transparent;border-radius:var(--r-md);background:transparent;color:var(--muted);font-weight:var(--fw-medium)}
+  & .ui-segmented > .ui-segment:hover:not(:disabled,:has(:disabled)) {background:var(--button-face);color:var(--ink)}
+  & .ui-segmented > .ui-segment:is([aria-pressed=true],[aria-checked=true],:has(input:checked)) {background:light-dark(var(--field),var(--raised));border-color:transparent;color:var(--ink)}
+  /* Toggle chips: off is a hairline and muted text, on is a raised neutral fill with ink text. */
+  & .bom-chip {font-weight:var(--fw-medium)}
+  /* Every text field and select has the control radius, whichever panel styled it. */
+  & :is(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file],[type=image]),select,textarea) {border-radius:var(--chrome-control-radius)}
+  /* Colour wells: rounded like every other control. */
+  & input[type=color] {border:1px solid var(--line);border-radius:var(--chrome-control-radius);background:none}
+}
+/* The option list of a single-line select (ui/select-popup.js): a menu below the field, left edges
+   aligned, option text on the field's own text inset (1 px border + 4 px padding + 4 px option inset). */
+.ui-select-list {
+  box-sizing:border-box;max-inline-size:min(420px,calc(100vw - 16px));overflow:auto;overscroll-behavior:contain;
+  padding:var(--s-4);border:1px solid var(--line-strong);border-radius:var(--r-sm);
+  background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);outline:none;
+}
+/* Focus shows as the active option, as in a menu. */
+.ui-select-list[role=listbox]:focus-visible {outline:none}
+.ui-select-option,.ui-select-group {
+  display:flex;align-items:center;min-block-size:24px;padding-inline:var(--s-4) var(--s-24);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:var(--r-sm);cursor:default;position:relative
+}
+.ui-select-group {color:var(--muted);font-size:var(--fs-11);font-weight:var(--fw-semibold)}
+.ui-select-option.nested {padding-inline-start:var(--s-12)}
+.ui-select-option.active {background:var(--selection);color:var(--selection-ink)}
+.ui-select-option[aria-disabled=true] {color:var(--muted)}
+.ui-select-option[aria-selected=true]::after {content:"✓";content:"✓" / "";position:absolute;inset-inline-end:var(--s-8);font-size:var(--fs-11)}
+/* A completion list (query, math and rich-text suggestions) reuses the option rows, but its aria-selected
+   item is the active suggestion, not a checked value: it takes the active fill and shows no ✓. */
+.ui-select-list[data-completion] .ui-select-option[aria-selected=true] {background:var(--selection);color:var(--selection-ink)}
+.ui-select-list[data-completion] .ui-select-option[aria-selected=true]::after {content:none}
+.ui-select-list[data-completion] .ui-select-option {padding-inline-end:var(--s-8)}

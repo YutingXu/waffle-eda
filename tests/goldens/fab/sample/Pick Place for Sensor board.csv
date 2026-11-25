@@ -1,0 +1,21 @@
+Waffle Pick and Place Locations
+"Sensor board"
+
+========================================================================================================================
+File Design Information:
+
+Date:       <date>
+Time:       <time>
+Revision:   Not in VersionControl
+Variant:    No variations
+Units used: mm
+Origin:     Board lower-left corner
+
+"Designator","Comment","Layer","Footprint","Center-X(mm)","Center-Y(mm)","Rotation","Description"
+"C1","10 nF","TopLayer","C_0603","13.3000","7.7000","270","Capacitor"
+"C2","100 nF","TopLayer","C_0603","19.4000","15.2000","0","Capacitor"
+"J1","Input","TopLayer","PinHeader_1×03_2.54mm","3.8000","11.0000","0","3-pin header"
+"J2","Output","TopLayer","PinHeader_1×02_2.54mm","32.2000","11.7000","0","2-pin header"
+"R1","10 kΩ","TopLayer","R_0603","9.9000","11.0000","0","Resistor"
+"R2","100 Ω","TopLayer","R_0603","25.2000","13.0000","0","Resistor"
+"U1","Buffer","TopLayer","SOT-23-5","18.5000","10.4000","0","Operational amplifier"

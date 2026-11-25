@@ -1,0 +1,26 @@
+/* Schematic | Board split with Follow (split-follow.js, lazy). */
+
+/* Follow toggle on the inactive pane's tab strip: an eye, accent while on, slashed while off. */
+.pane-follow {flex:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin:auto 0 auto auto;padding:0;border:0;
+  background:transparent;color:var(--split-ink);cursor:default}
+.pane-follow + .pane-close {margin-left:2px}
+.pane-follow:focus-visible {outline:1px solid var(--focus);outline-offset:-1px}
+.pane-follow[aria-pressed=true] {color:var(--accent-text)}
+.pane-follow[hidden] {display:none}
+.pane-follow[aria-pressed=true] .slash {display:none}
+
+/* The pulse on the followed object: a ring that closes onto it and fades (Reduced: it only fades). */
+.split-follow-pulse {position:absolute;z-index:3;box-sizing:border-box;border:2px solid var(--accent);border-radius:var(--r-sm);pointer-events:none;
+  background:color-mix(in srgb,var(--accent) 12%,transparent);opacity:0;
+  animation:split-follow-ring var(--motion-base) var(--ease-decelerate) both}
+.split-follow-pulse.is-still {animation-name:split-follow-fade}
+@keyframes split-follow-ring {
+  0% {opacity:0;scale:calc(1 + .6 * var(--motion-move))}
+  25% {opacity:1;scale:1}
+  100% {opacity:0;scale:1}
+}
+@keyframes split-follow-fade {
+  0% {opacity:0}
+  25% {opacity:1}
+  100% {opacity:0}
+}

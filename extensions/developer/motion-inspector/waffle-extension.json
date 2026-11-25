@@ -1,0 +1,15 @@
+{
+  "id": "waffle-dev.motion-inspector",
+  "name": "Motion Inspector",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "main.js",
+  "description": "Inspect animation policy, timings and active tracks without reading or changing a design.",
+  "enabledByDefault": false,
+  "permissions": ["read:motion", "ui:command", "ui:panel"],
+  "activationEvents": ["onCommand:motion-inspector.open", "onView:waffle-dev.motion-inspector"],
+  "contributes": {
+    "commands": [{"command": "motion-inspector.open", "title": "Motion Inspector"}],
+    "panels": [{"id": "waffle-dev.motion-inspector", "title": "Motion Inspector", "location": "dialog"}]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "publisher": "__PUBLISHER__",
+  "version": "0.1.0",
+  "apiVersion": 1,
+  "description": "Counts the objects on the active document, by kind, in a panel.",
+  "main": "main.js",
+  "activationEvents": ["onCommand:__PREFIX__.show", "onView:__PREFIX__"],
+  "permissions": ["read:project", "ui:command", "ui:panel"],
+  "contributes": {
+    "commands": [{"command": "__PREFIX__.show", "title": "__NAME__: Show"}],
+    "menus": {"tools": [{"command": "__PREFIX__.show"}]},
+    "panels": [{"id": "__PREFIX__", "title": "__NAME__", "location": "right"}]
+  }
+}

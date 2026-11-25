@@ -1,0 +1,4 @@
+{"kind":"project","formatVersion":"2.0","id":"infinite-canvas","name":"Connector directions and frames"}
+{"kind":"document","id":"analogue","docKind":"schematic","name":"Analogue","order":"K","path":"Analogue.wsch"}
+{"kind":"document","id":"controller","docKind":"schematic","name":"Controller","order":"e","path":"Controller.wsch"}
+{"kind":"outputJob","id":"infinite-canvas/outputJob/1","order":"V","value":{"folder":"{project}-{rev}-{date}","name":"Schematic pages","outputs":[{"kind":"pdf","id":"whole","enabled":true,"options":{}},{"kind":"pdf","id":"per-frame","enabled":true,"options":{"infiniteLayout":"frames"}},{"kind":"pdf","id":"scaled","enabled":true,"options":{"infiniteLayout":"tile","infiniteScale":"0.75"}}],"package":{"mode":"folder"},"version":2,"zip":false}}

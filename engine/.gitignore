@@ -1,0 +1,2 @@
+# cargo build/test output when run directly (scripts/build-engine.py builds in a temporary folder)
+/target/

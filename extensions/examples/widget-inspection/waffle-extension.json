@@ -1,0 +1,62 @@
+{
+  "id": "example.inspection",
+  "name": "Inspection counter",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "main.js",
+  "permissions": [
+    "ui:command",
+    "ui:widgets"
+  ],
+  "activationEvents": [
+    "onCommand:inspection.view",
+    "onCommand:inspection.event"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "inspection.view",
+        "title": "Inspection counter view"
+      },
+      {
+        "command": "inspection.event",
+        "title": "Record inspection"
+      }
+    ],
+    "widgets": [
+      {
+        "id": "counter",
+        "name": "Inspection counter",
+        "render": "inspection.view",
+        "state": {
+          "count": {
+            "type": "number",
+            "min": 0,
+            "max": 10000,
+            "default": 0
+          }
+        },
+        "inputs": [],
+        "fallback": {
+          "type": "text",
+          "text": "Inspection counter"
+        },
+        "size": {
+          "min": [
+            20,
+            12
+          ],
+          "preferred": [
+            48,
+            26
+          ],
+          "max": [
+            100,
+            60
+          ]
+        },
+        "event": "inspection.event"
+      }
+    ]
+  }
+}

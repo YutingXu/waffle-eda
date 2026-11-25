@@ -1,0 +1,16 @@
+/* Timing Vision HUD near the cursor (timing-vision.js). */
+.timing-hud {position:fixed;z-index:var(--z-popover);min-width:150px;max-width:320px;padding:4px 8px 6px;border:1px solid var(--line-strong);border-left:3px solid var(--muted);border-radius:var(--r-sm);
+  background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-11);pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.timing-hud[hidden] {display:none}
+.timing-hud strong {font-weight:600}
+.timing-hud-line {font-variant-numeric:tabular-nums}
+.timing-hud-sub {color:var(--muted)}
+.timing-hud-line[hidden], .timing-hud-bar[hidden] {display:none}
+.timing-hud-bar {position:relative;display:block;height:6px;margin-top:4px;border-radius:var(--r-sm);background:var(--soft);outline:1px solid var(--line)}
+.timing-hud-band {position:absolute;top:0;bottom:0;background:#2fbf7166;border-left:1px solid #2fbf71;border-right:1px solid #2fbf71}
+.timing-hud-mark {position:absolute;top:-3px;width:2px;height:12px;margin-left:-1px;background:var(--ink)}
+.timing-hud[data-state="short"] {border-left-color:#3d8bff}
+.timing-hud[data-state="ok"] {border-left-color:#2fbf71}
+.timing-hud[data-state="long"] {border-left-color:#ff4d4d}
+.timing-hud[data-state="short"] .timing-hud-mark {background:#3d8bff}
+.timing-hud[data-state="long"] .timing-hud-mark {background:#ff4d4d}

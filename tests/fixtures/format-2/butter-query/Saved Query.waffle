@@ -1,0 +1,5 @@
+{"kind":"project","formatVersion":"2.1","id":"01900000-0000-7000-8000-000000000001","entryDocument":"01900000-0000-7000-8000-000000000002","name":"Saved Query Design"}
+{"kind":"document","id":"01900000-0000-7000-8000-000000000002","docKind":"pcb","name":"Power","order":"V","path":"Power.wpcb"}
+{"kind":"rule","id":"01900000-0000-7000-8000-000000000006","order":"V","value":{"id":"01900000-0000-7000-8000-000000000006","enabled":true,"max":1,"min":{"$number":"0.25"},"name":"Rail minimum","preferred":{"$number":"0.3"},"priority":1,"scope":{"languageVersion":1,"source":"track where net.name = \"Rail\""},"type":"width"}}
+{"kind":"savedQuery","id":"01900000-0000-7000-8000-000000000007","order":"V","value":{"id":"01900000-0000-7000-8000-000000000007","columns":["width"],"name":"Narrow Rails","query":{"languageVersion":1,"source":"track where width < 0.2 mm and net.name = \"Rail\""},"scope":{"documentId":"01900000-0000-7000-8000-000000000002"}}}
+{"kind":"projectSetting","id":"01a20135-9d59-79d5-a626-6b4bc159bf09","key":"rules","value":{"format":"atrium-rules","units":"mm","version":3}}

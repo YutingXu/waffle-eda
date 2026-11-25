@@ -1,0 +1,28 @@
+{
+  "id": "waffle.si",
+  "name": "Signal Integrity",
+  "publisher": "Waffle",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "builtin": true,
+  "enabledByDefault": true,
+  "description": "IBIS-based reflection and crosstalk simulation of routed nets. Each segment's impedance, delay and loss come from Waffle's 2D field solver for its cross-section; vias are lumped with stubs after back-drilling; series and shunt parts and IBIS package parasitics are included. Typ/min/max corners, overshoot, ringback, settling, flight time and monotonicity, NEXT/FEXT on neighbouring nets and series/parallel termination sweeps. Runs offline in the sandbox; IBIS files and model assignments are stored in the project only through reviewed proposals.",
+  "main": "main.js",
+  "activationEvents": ["onView:waffle.si", "onCommand:si.show", "onCommand:si.simulateNet", "onCommand:si.importIbis", "onCommand:si.assignModel", "onCommand:si.simulate"],
+  "permissions": ["read:project", "propose:edits", "outputs:write", "ui:panel", "ui:command"],
+  "worker": "dedicated",
+  "timeoutMs": 120000,
+  "contributes": {
+    "commands": [
+      {"command": "si.simulateNet", "title": "Signal Integrity: Simulate Net…", "when": "pcb"},
+      {"command": "si.show", "title": "Signal Integrity"},
+      {"command": "si.importIbis", "title": "Signal Integrity: Import IBIS Model…"},
+      {"command": "si.assignModel", "title": "Signal Integrity: Assign IBIS Model to Part…", "when": "pcb"},
+      {"command": "si.simulate", "title": "Simulate Net (Signal Integrity, programmatic)"}
+    ],
+    "menus": {
+      "tools": [{"command": "si.simulateNet", "when": "pcb", "group": "Signal Integrity"}]
+    },
+    "panels": [{"id": "waffle.si", "title": "Signal Integrity", "location": "right", "tall": true}]
+  }
+}

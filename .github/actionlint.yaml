@@ -1,0 +1,4 @@
+# actionlint configuration: custom label the self-hosted runners carry (scripts/runners/).
+self-hosted-runner:
+  labels:
+    - atrium

@@ -1,0 +1,91 @@
+{
+  "documents": [
+    {
+      "boardShape": {
+        "contour": [{"a":[0,0],"b":[0,25.4],"kind":"line"},{"a":[0,25.4],"b":[50.8,25.4],"kind":"line"},{"a":[50.8,25.4],"b":[50.8,0],"kind":"line"},{"a":[50.8,0],"b":[0,0],"kind":"line"}],
+        "cutouts": [],
+        "source": "import",
+        "version": 1
+      },
+      "grid": 0.25,
+      "id": "amwpix2jrl0sweko6s8",
+      "items": [
+        {"id":"amwpix2jri9zruzvn0es","kind":"track","layer":"Top","net":"SIG","points":[[11.684,12.7],[11.684,5.08]],"width":0.254},
+        {"diameter":0.6096,"drill":0.3048,"id":"amwpix2jrfu2uao8mzk","kind":"via","layer":"Multi","net":"SIG","x":11.684,"y":5.08},
+        {"closed":true,"connectStyle":"relief","fillMode":"solid","id":"amwpix2jroqx59flosa","kind":"polygon","layer":"Bottom","name":"GND pour","net":"GND","points":[[1.27,1.27],[49.53,1.27],[49.53,24.13],[1.27,24.13]],"pourIndex":1,"pourOverSameNet":true,"removeDeadCopper":true,"viaConnectStyle":"direct"},
+        {"angle":0,"def":"amwpix2jra3jneun4u5","id":"amwpix2jr0l4haeh7fnbj","kind":"part","layer":"Top","link":"easyeda-R1","pinNets":{"1":"SIG","2":"GND"},"ref":"R1","value":"","x":12.7,"y":12.7}
+      ],
+      "kind": "pcb",
+      "name": "demo-easyeda",
+      "notes": [
+        "Pours import as unpoured polygon pours. Repour them before fabrication",
+        "EasyEDA Pro boards are read from the published line format; check layers and footprints",
+        "EasyEDA Pro schematics are read from the published line format; check symbols and net labels"
+      ],
+      "outline": [
+        [0,0],
+        [0,25.4],
+        [50.8,25.4],
+        [50.8,0]
+      ],
+      "sourceName": "demo-easyeda.epcb"
+    },
+    {
+      "grid": 2.54,
+      "id": "amwpix2jrp2cqznzkvrb",
+      "items": [
+        {"id":"amwpix2jrgpe42o07sq9","kind":"wire","net":"SIG","points":[[20.32,25.4],[15.24,25.4]]},
+        {"id":"amwpix2jrpzoj3tdi33c","kind":"wire","points":[[30.48,25.4],[35.56,25.4]]},
+        {"angle":0,"def":"amwpix2js8pjonox61e9","id":"amwpix2jsjs6u5xzqyk","kind":"part","link":"easyeda-R1","pinNets":{},"ref":"R1","value":"10k","x":25.4,"y":25.4},
+        {"direction":3,"id":"amwpix2jszzzix7f71s","kind":"power","style":"gnd","text":"GND","x":35.56,"y":25.4}
+      ],
+      "kind": "schematic",
+      "name": "demo-easyeda 1",
+      "notes": [
+        "Pours import as unpoured polygon pours. Repour them before fabrication",
+        "EasyEDA Pro boards are read from the published line format; check layers and footprints",
+        "EasyEDA Pro schematics are read from the published line format; check symbols and net labels"
+      ],
+      "outline": [],
+      "sourceName": "demo-easyeda.esch"
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.4",
+  "importNotes": [
+    "Pours import as unpoured polygon pours. Repour them before fabrication",
+    "EasyEDA Pro boards are read from the published line format; check layers and footprints",
+    "EasyEDA Pro schematics are read from the published line format; check symbols and net labels"
+  ],
+  "library": [
+    {
+      "category": "EasyEDA footprints",
+      "footprint": {
+        "name": "R0603",
+        "pads": [{"angle":0,"drill":0,"h":1.016,"layer":"Top","number":"1","shape":"rect","w":0.762,"x":-1.016,"y":0},{"angle":0,"drill":0,"h":1.016,"layer":"Top","number":"2","shape":"rect","w":0.762,"x":1.016,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","layer":"Silk","points":[[-1.524,-0.635],[1.524,-0.635]],"style":"silk","width":0.1524}]
+      },
+      "id": "amwpix2jra3jneun4u5",
+      "name": "R0603",
+      "prefix": "R",
+      "sourceName": "demo-easyeda.epcb",
+      "value": "R0603"
+    },
+    {
+      "category": "EasyEDA symbols",
+      "footprintName": "",
+      "id": "amwpix2js8pjonox61e9",
+      "name": "R",
+      "parameters": {},
+      "prefix": "R",
+      "sourceName": "demo-easyeda.esch",
+      "symbol": {
+        "pins": [{"electrical":7,"hidden":false,"name":"A","number":"1","x":-5.08,"y":0},{"electrical":7,"hidden":false,"name":"B","number":"2","x":5.08,"y":0}],
+        "shapes": [{"closed":true,"fill":false,"kind":"path","points":[[-2.54,-1.016],[2.54,-1.016],[2.54,1.016],[-2.54,1.016],[-2.54,-1.016]],"style":"body","width":0.254},{"closed":false,"fill":false,"kind":"path","points":[[-5.08,0],[-2.54,0]],"style":"body","width":0},{"closed":false,"fill":false,"kind":"path","points":[[5.08,0],[2.54,0]],"style":"body","width":0}]
+      },
+      "value": "10k"
+    }
+  ],
+  "name": "EasyEDA demo",
+  "version": 1
+}

@@ -1,0 +1,32 @@
+G04 Waffle fabrication output: Bottom Solder*
+G04 Board: Sensor board*
+%TF.GenerationSoftware,Waffle,Waffle,1.0*%
+%TF.CreationDate,<date>*%
+%TF.SameCoordinates,Original*%
+%TF.FileFunction,Soldermask,Bot*%
+%TF.FilePolarity,Negative*%
+%TF.Part,Single*%
+%FSLAX46Y46*%
+%MOMM*%
+G04 Origin: board lower-left corner*
+%LPD*%
+G75*
+G01*
+%ADD10R,1.9532X1.9532*%
+%ADD11C,1.9532*%
+%ADD12C,2.6032*%
+D10*
+X3800000Y13540000D03*
+D11*
+X3800000Y11000000D03*
+X3800000Y8460000D03*
+D10*
+X32200000Y12970000D03*
+D11*
+X32200000Y10430000D03*
+D12*
+X2600000Y19400000D03*
+X33400000Y19400000D03*
+X2600000Y2600000D03*
+X33400000Y2600000D03*
+M02*

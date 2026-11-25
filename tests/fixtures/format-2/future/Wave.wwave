@@ -1,0 +1,2 @@
+{"kind":"waveform","formatVersion":"2.1","id":"fw"}
+{"kind":"sample","id":"fp","scale":{"limits":[0,null,{"exact":[37,"Hz"]}],"mode":"μ"}}

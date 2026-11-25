@@ -1,0 +1,19 @@
+/* The visual diff's property table and status glyphs (diff-props.js), shared by the visual diff
+   inspector (diff-view.css) and the extension proposal review (extensions.js). */
+.dv-glyph{font-style:normal;font-weight:var(--fw-semibold);font-family:var(--mono);width:16px;height:16px;line-height:16px;text-align:center;border-radius:var(--r-pill);font-size:var(--fs-11);border:1.5px solid currentColor}
+[data-status="added"] > .dv-glyph,.dv-st-added{color:var(--success)}
+[data-status="removed"] > .dv-glyph,.dv-st-removed{color:var(--danger);border-style:dashed}
+[data-status="moved"] > .dv-glyph,.dv-st-moved{color:var(--warning)}
+[data-status="modified"] > .dv-glyph,.dv-st-modified{color:var(--warning);border-style:double;border-width:3px;line-height:12px}
+[data-status="properties"] > .dv-glyph,.dv-st-properties{color:var(--info);border-style:dotted}
+.dv-props{border-collapse:collapse;width:100%;font-size:var(--fs-11)}
+.dv-props th,.dv-props td{text-align:left;padding:var(--s-2) var(--s-4);border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.dv-props thead th{position:sticky;top:0;background:var(--panel-head);color:var(--muted);font-weight:var(--fw-medium)}
+.dv-props tbody th{color:var(--muted);font-weight:var(--fw-regular)}
+.dv-props tr.is-changed th{color:var(--text);font-weight:var(--fw-medium)}
+.dv-props tr.is-changed td:nth-child(2){background:var(--tint-danger);text-decoration:line-through;text-decoration-color:var(--danger)}
+.dv-props tr.is-changed td:nth-child(3){background:var(--tint-success);font-weight:var(--fw-medium)}
+.dv-props td.is-up{color:var(--warning)}
+.dv-props td.is-down{color:var(--success)}
+.dv-props-pick{display:flex;gap:var(--s-4);align-items:baseline;cursor:default}
+.dv-props-pick input{margin:0}

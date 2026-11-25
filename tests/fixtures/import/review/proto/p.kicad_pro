@@ -1,0 +1,1 @@
+{"net_settings": {"classes": [{"name": "__proto__", "clearance": 0.5, "track_width": 0.5, "via_drill": 0.5, "nets": ["__proto__", "constructor"]}, {"name": "Default", "clearance": 0.2, "track_width": 0.25, "via_drill": 0.3}], "netclass_assignments": {"__proto__": {"polluted": 1}, "constructor": "__proto__"}, "netclass_patterns": [{"pattern": "*", "netclass": "__proto__"}]}}

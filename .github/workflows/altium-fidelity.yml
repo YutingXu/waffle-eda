@@ -1,0 +1,68 @@
+name: Altium fidelity
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: altium-fidelity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fidelity:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, atrium]
+    timeout-minutes: 15
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prepare pinned measurement tools
+        run: |
+          set -eu
+          node_dir="$HOME/.cache/atrium-ci/node-v24.22.3"
+          if [ ! -x "$node_dir/bin/node" ]; then PREFIX="$node_dir" sh scripts/ci/install-node.sh; fi
+          echo "$node_dir/bin" >> "$GITHUB_PATH"
+          python3 -m venv "$RUNNER_TEMP/fidelity-python"
+          "$RUNNER_TEMP/fidelity-python/bin/python" -m pip --isolated install --no-deps --only-binary=:all: --require-hashes -r tests/altium-fidelity/requirements.txt
+      - name: Prepare generated editor assets
+        run: |
+          scripts/ci/install-rust.sh
+          python3 scripts/prepare-assets.py
+      - name: Fetch and verify public source files and licences
+        run: python3 tests/altium-fidelity/fetch.py
+      - name: Import, check, export, re-import and compare with both baselines
+        shell: bash
+        env:
+          PREVIOUS_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -eu
+          py="$RUNNER_TEMP/fidelity-python/bin/python"
+          args=(tests/altium-fidelity/run.py)
+          if [[ "$PREVIOUS_SHA" =~ ^[0-9a-f]{40}$ && ! "$PREVIOUS_SHA" =~ ^0+$ ]]; then
+            git cat-file -e "$PREVIOUS_SHA^{commit}"
+            if git cat-file -e "$PREVIOUS_SHA:tests/altium-fidelity.json" 2>/dev/null; then
+              git show "$PREVIOUS_SHA:tests/altium-fidelity.json" > "$RUNNER_TEMP/altium-fidelity-base.json"
+              args+=(--against "$RUNNER_TEMP/altium-fidelity-base.json")
+            fi
+          fi
+          node tests/altium-fidelity/raster.cjs
+          node tests/altium-fidelity/films.cjs
+          node tests/altium-fidelity/slots.cjs
+          "$py" tests/altium-fidelity/test_gate.py
+          "$py" "${args[@]}"
+      - name: Compare ODB++ with the public Gerber, Excellon and IPC-D-356 fixtures
+        run: |
+          set -eu
+          python3 tests/formats/odb-public.py
+          python3 tests/formats/odb-ipc356.py
+      - name: Clean workspace
+        if: always()
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete

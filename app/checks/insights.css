@@ -1,0 +1,20 @@
+/* Design Insights (insights-ui.js): the card a marker expands into. Advice, not a violation: the
+   insight colour (--insight, a calm violet) instead of the error / warning colours, a thin accent
+   edge instead of a filled banner, and no shadow heavier than a popover's. */
+.insight-card {position:fixed;z-index:var(--z-popover);width:max-content;max-width:min(360px,calc(100vw - 16px));max-height:calc(100vh - 16px);overflow:auto;padding:var(--s-8) var(--s-12);
+  border-left:3px solid var(--insight);
+  font-size:var(--fs-12);line-height:var(--lh);display:flex;flex-direction:column;gap:var(--s-4)}
+.insight-card[hidden] {display:none}
+.insight-head {display:flex;align-items:center;gap:var(--s-6);min-width:0}
+.insight-mark {flex:none;width:8px;height:8px;transform:rotate(45deg);border:1.5px solid var(--insight);border-radius:1px}
+.insight-mark[data-severity=advice] {background:var(--insight)}
+.insight-title {flex:1;min-width:0;font-weight:var(--fw-semibold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.insight-sev {flex:none;padding:0 var(--s-6);border-radius:var(--r-pill);background:var(--tint-insight);color:var(--insight-ink);font-size:var(--fs-11)}
+.insight-close {flex:none}
+.insight-msg {margin:0;color:var(--ink);overflow-wrap:anywhere}
+.insight-why,.insight-learn {margin:0;color:var(--soft-ink);font-size:var(--fs-11);overflow-wrap:anywhere}
+.insight-learn {border-top:1px solid var(--line);padding-top:var(--s-4)}
+.insight-learn[hidden] {display:none}
+.insight-actions {display:flex;flex-wrap:wrap;gap:var(--s-4);margin-top:var(--s-2)}
+.insight-link {text-decoration:underline;text-underline-offset:2px}
+.prf-row.prf-sub {padding-left:var(--s-24)}

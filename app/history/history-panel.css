@@ -1,0 +1,64 @@
+/* History panel (history-panel.js): undo steps, alternate branches and the local history timeline. Tokens only. */
+.hist-tabs {display:flex;gap:var(--s-2);margin-left:auto}
+.hist-list[hidden],.hist-branches[hidden] {display:none}
+.hist-row {position:relative;display:flex;align-items:center;gap:var(--s-8);min-height:var(--ctl-h-lg);padding:var(--s-2) var(--s-8) var(--s-2) var(--s-12);cursor:default;user-select:none;-webkit-user-select:none}
+/* The timeline rail: a dot per state on a vertical line; the current state is filled with the accent. */
+.hist-dot {position:relative;flex:none;width:8px;height:8px;border:1px solid var(--muted);border-radius:var(--r-pill);background:var(--surface)}
+.hist-row.is-current .hist-dot {border-color:var(--accent);background:var(--accent)}
+.hist-row.is-current .hist-label {font-weight:var(--fw-semibold)}
+.hist-row.is-future {color:var(--muted)}
+.hist-row.is-future .hist-dot {border-style:dashed}
+.hist-time.is-saved .hist-dot {border-color:var(--success);background:var(--tint-success)}
+.hist-time.is-git .hist-dot {border-color:var(--info);background:var(--tint-info);border-radius:var(--r-sm)}
+.hist-label {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-meta {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh);font-variant-numeric:tabular-nums}
+.hist-btn {flex:none;opacity:0}
+.hist-row:hover .hist-btn,.hist-row:focus-within .hist-btn,.hist-row[aria-selected="true"] .hist-btn,.hist-time .hist-btn,.hist-branch .hist-btn {opacity:1}
+.hist-controls {display:flex;flex-wrap:wrap;gap:var(--s-6);padding:var(--s-4) var(--s-12)}
+.hist-controls .hist-btn {opacity:1}
+.hist-branches {flex:none;max-height:40%;overflow:auto;border-top:1px solid var(--line)}
+.hist-branches > summary {padding:var(--s-4) var(--s-8);color:var(--muted);font-size:var(--fs-11);cursor:default}
+.hist-branches > summary:hover {color:var(--ink)}
+.hist-branch .hist-dot {border-color:var(--warning)}
+.hist-note {margin:var(--s-4) var(--s-8);color:var(--muted);font-size:var(--fs-11);line-height:var(--lh)}
+.hist-foot {font-variant-numeric:tabular-nums}
+/* Timeline rows: the text gets the full width; Compare / Restore copy sit on a second line. */
+.hist-time {flex-wrap:wrap;row-gap:var(--s-4);padding-bottom:var(--s-6)}
+.hist-time .hist-text {flex:1 1 calc(100% - 24px)}
+.hist-time .hist-dot {align-self:flex-start;margin-top:var(--s-4)}
+.hist-time .hist-btn:first-of-type {margin-left:var(--s-16)}
+
+/* Visual History (visual-history.js): the documents family's pager beside the time
+   slider, one preview with its actions under it, and 48 px library rows with before → after tiles. */
+.hist-rail {position:relative;min-width:0}
+.hist-rail > .hist-row.ui-row {position:absolute;inset-inline:var(--s-4);block-size:48px;min-block-size:0;box-sizing:border-box;padding-block:0;
+  grid-template-columns:var(--s-16) minmax(0,1fr) auto;column-gap:var(--s-8);border-radius:var(--chrome-control-radius)}
+.hist-rail > .hist-row.ui-row.is-current .ui-row-title {font-weight:var(--fw-semibold)}
+.hist-rail > .hist-row.ui-row.is-future {color:var(--muted)}
+.hist-scrub {display:grid;grid-template-columns:auto minmax(28px,1fr) auto;align-items:center;column-gap:var(--s-8);padding:var(--s-4) var(--s-8) 0}
+.hist-scrub input {min-width:28px;accent-color:var(--accent);touch-action:pan-y}
+.hist-scrub > .hist-position {grid-column:1 / -1;min-width:0}
+.hist-position {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.hist-edit-icon {color:var(--icon-ink)}
+.hist-thumbs {display:flex;align-items:center;gap:var(--s-2)}
+.hist-mini {--ui-thumb-ratio:44 / 26;inline-size:44px;padding:0}
+.hist-mini > .ui-thumb-art > canvas {background:var(--canvas-bg)}
+.hist-arrow {color:var(--muted);font-size:var(--fs-11)}
+.hist-preview {display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:var(--s-6);padding:var(--s-8);border-block-end:1px solid var(--line)}
+.hist-preview strong,.hist-preview select {min-width:0;overflow:hidden;text-overflow:ellipsis}
+.hist-preview strong {font-weight:var(--fw-semibold)}
+.hist-preview select {max-width:10em}
+.hist-art {--ui-thumb-ratio:16 / 7;grid-column:1 / -1;padding:0}
+.hist-design-preview {width:100%;height:100%;object-fit:contain;background:var(--canvas-bg)}
+.hist-design-preview[data-kind="schematic"] {background:var(--field)}
+.hist-caption {grid-column:1 / -1;margin:0}
+.hist-preview .hist-controls {grid-column:1 / -1;justify-content:flex-end;padding:0;gap:var(--s-4)}
+.hist-mini .hist-property {width:100%;height:100%;border:0;border-radius:0}
+.hist-fork-label {color:var(--accent)}
+.hist-scrub[hidden],.hist-preview[hidden],.hist-thumbs[hidden] {display:none}
+@media (pointer:coarse){.hist-scrub input {min-height:32px}}
+
+.hist-state-label:not(:empty)::before {content:" · "}
+
+.hist-property {width:46px;height:27px;display:grid;place-items:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);color:var(--ink);font-size:var(--fs-10)}
+.hist-scrub .hist-btn {opacity:1}

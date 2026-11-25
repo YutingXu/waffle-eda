@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- The Waffle Installer window's background (scripts/installer-art.sh renders it at 1x and 2x into
+     installer-background.tiff and, with #preview, installer-background-preview.tiff for ad hoc builds).
+     The window is 600 × 394 points. Finder draws the 72 pt icons at the centres installer-layout.dsstore
+     stores: Waffle.app (143, 120), Applications (457, 120), Read Me First.txt (457, 262). Everything
+     ends by y ≈ 325, so the icon view never scrolls: macOS 26+ has a 32 pt title bar and about 360 pt
+     of content, and a layout taller than that scrolled the art up under the title bar and showed white
+     below it. The art is 440 pt tall so any content height is covered. Finder draws labels in black
+     (light mode) or white (dark mode) about 15 pt below the icon; each sits on a 26 pt badge whose grey
+     keeps both readable (contrast 4.5:1 or better either way), tall enough for small label shifts. -->
+<meta charset="utf-8">
+<title>Waffle EDA Installer background</title>
+<style>
+  * {box-sizing:border-box;margin:0}
+  html, body {width:600px;height:440px;overflow:hidden}
+  body {position:relative;background:#f4f6f3;color:#1d2622;font:13px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;-webkit-font-smoothing:antialiased}
+  /* A tile per drop target, 150 wide, from 50 above the icon centre to the label badge plus 8. */
+  .tile {position:absolute;width:150px;height:129px;border-radius:16px;background:#e9eee8;border:1px solid #d6ddd5}
+  .tile::after {content:"";position:absolute;left:12px;right:12px;top:87px;height:26px;border-radius:13px;background:#707874}
+  h1 {position:absolute;left:28px;top:12px}
+  h1 img {display:block;width:150px;height:auto}
+  .lead {position:absolute;left:28px;top:44px;font-size:13.5px;color:#3c4842}
+  .step {display:inline-grid;place-items:center;width:20px;height:20px;margin-right:7px;border-radius:50%;background:#2f6f4f;color:#fff;font-size:12px;font-weight:700;vertical-align:1px}
+  .arrow {position:absolute;left:234px;top:100px;width:132px;height:40px}
+  .arrow-label {position:absolute;left:234px;top:142px;width:132px;text-align:center;font-size:11.5px;font-weight:600;color:#2f6f4f;letter-spacing:.3px;text-transform:uppercase}
+  .rule {position:absolute;left:0;right:0;top:204px;border-top:1px solid #dde3dd}
+  .foot {position:absolute;left:28px;top:220px;width:330px}
+  .foot h2 {font-size:13.5px;font-weight:700;margin-bottom:5px}
+  .foot p {font-size:12px;color:#3c4842;margin-bottom:4px}
+  .foot b {color:#1d2622;font-weight:600}
+  .hint {position:absolute;left:384px;top:258px;width:150px;text-align:center;font-size:11px;color:#55615b}
+</style>
+<body>
+  <h1><img src="../../brand/svg/waffle-lockup-eda-on-light.svg" alt="Waffle EDA"></h1>
+  <p class="lead"><span class="step">1</span>Drag <b>Waffle</b> onto the <b>Applications</b> folder.</p>
+  <div class="tile" style="left:68px;top:70px"></div>
+  <div class="tile" style="left:382px;top:70px"></div>
+  <svg class="arrow" viewBox="0 0 132 40" aria-hidden="true">
+    <path d="M6 20h112" stroke="#2f6f4f" stroke-width="4" stroke-linecap="round" fill="none" stroke-dasharray="1 9"/>
+    <path d="M104 8l16 12-16 12" stroke="#2f6f4f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </svg>
+  <p class="arrow-label">Drag</p>
+  <div class="rule"></div>
+  <div class="foot" id="foot"></div>
+  <div class="tile" style="left:382px;top:212px"></div>
+  <script>
+    // #preview: an ad hoc signed preview, which macOS asks about on its first launch (Gatekeeper).
+    const preview = location.hash === "#preview", foot = document.getElementById("foot");
+    foot.innerHTML = preview
+      ? '<h2><span class="step">2</span>Open Waffle from Applications</h2>' +
+        '<p><b>First launch of Waffle:</b> if macOS cannot verify Waffle, click <b>Done</b>, then ' +
+        '<b>System Settings › Privacy &amp; Security › Open Anyway</b>.</p>' +
+        '<p>macOS 14 and earlier: Control-click Waffle, choose <b>Open</b>.</p>'
+      : '<h2><span class="step">2</span>Open Waffle from Applications</h2>' +
+        '<p>When copying finishes, eject the <b>Waffle EDA Installer</b> disk in Finder.</p>' +
+        '<p>Your projects stay wherever you save them; updating Waffle never changes them.</p>';
+    document.title += preview ? " (preview)" : "";
+  </script>
+</body>

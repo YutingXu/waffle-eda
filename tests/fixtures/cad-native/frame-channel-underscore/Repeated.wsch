@@ -1,0 +1,5 @@
+{"kind":"schematic","formatVersion":"2.0","id":"620609cd-6e6b-4276-8c22-e798612c4d44"}
+{"kind":"part","id":"562cf0e8-0a56-4774-89d2-3600c5c2bdf6","angle":0,"at":[30000000,0],"def":"std-r","link":"253209ef-1773-4ac5-ac76-abf85eb6ed0d","order":"F","pinNets":{},"ref":"R2","value":"10 kΩ"}
+{"kind":"documentSettings","id":"620609cd-6e6b-4276-8c22-e798612c4d44/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"wire","id":"70ac102d-df85-40a2-9a98-0f58b80c745a","order":"U","points":[[10000000,0],[24920000,0]]}
+{"kind":"sheetsymbol","id":"af6be59d-71e8-4376-a31b-67353ddd2e85","at":[-10000000,-10000000],"entries":[{"id":"877db5b8-2378-4600-a09d-530da3185c50","io":"unspecified","name":"NetR1_CH1_2","offset":10000000,"side":"right"}],"h":20000000,"name":"Filter","order":"j","sheet":"e0d69b3c-8c35-4549-a862-5f72c9eb0f53","w":20000000}

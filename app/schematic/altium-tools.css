@@ -1,0 +1,11 @@
+/* Altium chords part 2 (altium-tools.js): the current drawing layer tab, the Align… dialog, the Simulate empty state. */
+.align-dialog .align-cols {display:grid;grid-template-columns:1fr 1fr;gap:var(--s-16)}
+.align-dialog .align-group {display:flex;flex-direction:column;gap:var(--s-4);margin:0;padding:var(--s-8) var(--s-12);border:1px solid var(--line);border-radius:var(--r-md)}
+.align-dialog legend {padding:0 var(--s-4);font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--ink)}
+.align-dialog .align-option {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h);font-size:var(--fs-12)}
+.align-dialog .align-gap {width:80px;height:var(--ctl-h);margin-left:auto}
+.align-dialog .align-grid {margin-top:var(--s-8)}
+.align-dialog .align-note {margin:var(--s-8) 0 0;font-size:var(--fs-11);color:var(--muted)}
+.sim-dialog .sim-empty {max-width:420px}
+.sim-dialog .sim-empty-head {font-weight:var(--fw-semibold);color:var(--ink)}
+@media (max-width:620px) {.align-dialog .align-cols {grid-template-columns:1fr}}

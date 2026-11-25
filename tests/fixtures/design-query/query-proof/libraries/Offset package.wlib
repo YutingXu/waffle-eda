@@ -1,0 +1,2 @@
+{"kind":"library","formatVersion":"2.0","id":"offset","name":"Offset package"}
+{"kind":"librarySettings","id":"offset/settings","value":{"footprint":{"courtyard":[4000000,-1000000,8000000,1000000],"pads":[],"shapes":[]},"prefix":"U","symbol":{"pins":[],"shapes":[]}}}

@@ -1,0 +1,3 @@
+{"kind":"schematic","formatVersion":"2.0","id":"01952010-a000-7000-8000-000000000002"}
+{"kind":"part","id":"01952010-a000-7000-8000-000000000003","at":[4000000,8000000],"def":"r-probe","order":"V","ref":"R1","value":"10 Ω"}
+{"kind":"frame","id":"input-frame","at":[0,0],"h":20000000,"name":"Input","order":"k","w":60000000}

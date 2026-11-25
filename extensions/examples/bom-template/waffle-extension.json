@@ -1,0 +1,24 @@
+{
+  "id": "atrium-samples.bom-template",
+  "name": "BOM Template Export",
+  "publisher": "Waffle samples",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Exports a bill of materials as Markdown or CSV, with the columns you define in a template such as \"Qty={qty}, Designators={refs}, Value={value}, MPN={param:MPN}\".",
+  "main": "main.js",
+  "activationEvents": ["onCommand:bomTemplate.markdown", "onCommand:bomTemplate.csv"],
+  "permissions": ["read:project", "outputs:write", "ui:command"],
+  "contributes": {
+    "commands": [
+      {"command": "bomTemplate.markdown", "title": "Export BOM as Markdown (Template)…"},
+      {"command": "bomTemplate.csv", "title": "Export BOM as CSV (Template)…"}
+    ],
+    "menus": {"reports": [{"command": "bomTemplate.markdown"}, {"command": "bomTemplate.csv"}]},
+    "settings": [
+      {"key": "template", "type": "string", "default": "Qty={qty}, Designators={refs}, Value={value}, Footprint={footprint}, Description={param:Description}",
+       "title": "Columns", "description": "Comma-separated Title={field} entries. Fields: qty, refs, value, footprint, name, category, prefix and param:<Name>. Text around a field is kept, e.g. Part={value} ({param:Tolerance})."},
+      {"key": "groupBy", "type": "string", "default": "value, footprint", "title": "One line per", "description": "Fields that must match for parts to share a line."},
+      {"key": "source", "type": "enum", "options": ["auto", "schematic", "pcb"], "default": "auto", "title": "Read parts from", "description": "Auto uses the active document, or the schematic when neither kind is active."}
+    ]
+  }
+}

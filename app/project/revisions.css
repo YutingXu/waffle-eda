@@ -1,0 +1,71 @@
+/* Board revisions (revisions-ui.js): status-bar chip, read-only banner, Board Revisions dialog. Theme tokens only. */
+.statusbar .revision-chip[data-status=draft] {color:var(--ink)}
+.statusbar .revision-chip[data-status=released] {color:var(--ok-ink)}
+.statusbar .revision-chip[data-status=obsolete] {color:var(--muted);text-decoration:line-through}
+
+/* The read-only banner is a floating library notice (.ui-notice[data-floating]); this places it. */
+.revision-banner {position:fixed;left:50%;bottom:36px;transform:translateX(-50%);z-index:var(--z-toast);animation:atrium-rise var(--motion-base) var(--ease-decelerate)}
+.revision-banner.is-cue {animation:atrium-cue var(--motion-base) var(--ease-standard)}
+
+.work-dialog.revisions-dialog {width:min(880px,calc(100vw - 32px));max-height:min(86vh,760px);padding:0;overflow:hidden;border-radius:var(--r-lg);background:var(--paper);color:var(--ink)}
+.work-dialog.revisions-dialog[open] {display:flex;flex-direction:column}
+.revisions-head {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 12px 8px 16px;border-bottom:1px solid var(--line)}
+.work-dialog.revisions-dialog h2 {margin:0;font-size:var(--fs-14);font-weight:600}
+.revisions-summary {margin:2px 0 0;font-size:var(--fs-11);color:var(--muted)}
+.revisions-body {flex:1;min-height:0;overflow:auto;padding:12px 16px}
+.revisions-foot {display:flex;align-items:center;gap:8px;padding:8px 16px;border-top:1px solid var(--line);min-height:20px}
+.revisions-status {font-size:var(--fs-12);color:var(--muted)}
+.revisions-status.is-bad {color:var(--error-ink)}
+.revisions-dialog .revisions-close {background:transparent;border-color:transparent;color:var(--muted)}
+.revisions-dialog textarea {width:100%;resize:vertical;box-sizing:border-box}
+.revisions-dialog textarea[readonly] {color:var(--muted);background:var(--soft)}
+.revisions-dialog input[type=checkbox] {margin:0}
+
+.revisions-overview {display:flex;flex-direction:column;gap:16px}
+.revisions-working {display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-left:4px solid var(--info);border-radius:var(--r-md);background:var(--panel)}
+.revisions-working.is-released {border-left-color:var(--ok-mark)}
+.revisions-working.is-obsolete {border-left-color:var(--line-strong)}
+.revisions-working-top {display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.revisions-letter-big {font-size:var(--fs-20);font-weight:600}
+.revisions-meta {font-size:var(--fs-11);color:var(--muted)}
+.revisions-actions {display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.revisions-locked {flex:1;font-size:var(--fs-12);color:var(--muted)}
+.revisions-empty {display:flex;flex-direction:column;gap:8px}
+.revisions-empty strong {font-size:var(--fs-13)}
+.revisions-empty p {margin:0;font-size:var(--fs-12);color:var(--muted);max-width:68ch;line-height:1.45}
+.revisions-row {display:flex;align-items:baseline;gap:8px;font-size:var(--fs-12)}
+.revisions-dialog .revisions-letter {width:56px;text-transform:uppercase}
+
+
+.revisions-history h3,.revisions-release h3 {margin:0 0 6px;font-size:var(--fs-13);font-weight:600}
+.revisions-hint {margin:6px 0;font-size:var(--fs-11);color:var(--muted);line-height:1.45}
+.revisions-table-wrap {overflow:auto;border:1px solid var(--line);border-radius:var(--r-md)}
+.revisions-table {width:100%;border-collapse:collapse;font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.revisions-table th,.revisions-table td {padding:4px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.revisions-table thead th {position:sticky;top:0;background:var(--soft);font-weight:600;color:var(--muted);font-size:var(--fs-11)}
+.revisions-table tbody tr {outline:none}
+.revisions-table tbody tr.is-focus {background:var(--hover)}
+:root[data-focus-nav=keys] .revisions-table tbody tr:focus-visible {box-shadow:inset 2px 0 0 var(--focus)}
+.revisions-table .revisions-rev {font-weight:600}
+.revisions-table .revisions-note-cell {white-space:normal;max-width:32ch;color:var(--muted)}
+.revisions-table .revisions-num {color:var(--muted)}
+.revisions-table td.is-bad {color:var(--error-ink)}
+.revisions-row-actions {display:flex;gap:4px;justify-content:flex-end}
+.revisions-dialog .revisions-row-actions button {min-height:var(--ctl-h);padding:2px 8px}
+
+.revisions-release {display:flex;flex-direction:column;gap:10px}
+.revisions-dialog .revisions-back {align-self:flex-start;background:transparent;border-color:transparent;color:var(--muted);padding:2px 4px}
+.revisions-form {display:grid;grid-template-columns:max-content minmax(0,320px);gap:8px 12px;align-items:center;font-size:var(--fs-12)}
+.revisions-check {display:flex;align-items:center;gap:6px}
+.revisions-checks h4 {margin:0 0 6px;font-size:var(--fs-12);font-weight:600}
+.revisions-check-row {display:grid;grid-template-columns:72px 140px minmax(0,1fr);gap:4px 8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);font-size:var(--fs-12)}
+.revisions-check-row .revisions-chip {justify-self:start}
+.revisions-check-sum {color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.revisions-dialog .revisions-override {grid-column:2/-1}
+
+.work-dialog.revisions-pick {width:min(520px,calc(100vw - 32px))}
+.revisions-pick h2 {margin:0 0 4px;font-size:var(--fs-14);font-weight:600}
+.revisions-pick-list {--ui-list-display:flex;--ui-list-outline:none;--ui-row-display:block;--ui-row-hover:transparent;flex-direction:column;max-height:320px;overflow:auto;margin:8px 0;border:1px solid var(--line);border-radius:var(--r-md);outline:none}
+:root[data-focus-nav=keys] .revisions-pick-list:focus-visible {box-shadow:0 0 0 2px var(--focus)}
+.revisions-pick-item {padding:6px 10px;font-size:var(--fs-12);border-bottom:1px solid var(--line)}
+@media (max-width:700px) {.revisions-form {grid-template-columns:1fr} .revisions-check-row {grid-template-columns:72px minmax(0,1fr)}}

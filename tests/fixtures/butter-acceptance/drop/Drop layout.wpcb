@@ -1,0 +1,3 @@
+{"kind":"pcb","formatVersion":"2.0","id":"01952049-a000-7000-8000-000000000003","requires":[]}
+{"kind":"part","id":"01952049-a000-7000-8000-000000000006","angle":0,"at":[0,4000000],"def":"01952049-a000-7000-8000-000000000004","link":"01a2015d-2360-77c2-a9db-4fc68ac36949","order":"V","pinNets":{"1":"GND"},"ref":"R2","value":"10 kΩ"}
+{"kind":"documentSettings","id":"01a2015d-2362-77c2-a9db-4fc68ac36943","value":{"grid":250000,"notes":[],"outline":[]}}

@@ -1,0 +1,3 @@
+{"kind":"library","formatVersion":"2.0","id":"01a20e24-7d25-7195-be33-1658afcdcba4","name":"Unused footprint","requires":[]}
+{"kind":"pad","id":"01a20e24-7d28-7371-8a5e-03933c164e1e","order":"V","value":{"h":1000000,"layer":"Top","w":1000000,"x":0,"y":0}}
+{"kind":"librarySettings","id":"01a20e24-7d29-71de-bff1-bdbb6935b15e","value":{"footprint":{"pads":[],"shapes":[]}}}

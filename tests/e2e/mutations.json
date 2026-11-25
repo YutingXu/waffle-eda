@@ -1,0 +1,4 @@
+{
+  "comment": "Each mutation injects one gross error; tests/e2e/run.py --mutations shows every applicable one turns the suite red. Model mutations edit the imported model (pipeline.cjs MUTATIONS); source mutations re-evaluate an app module with a known fix reverted (SOURCE_MUTATIONS).",
+  "mutations": ["roundrect-to-round", "any-pad-to-round", "track-width", "track-endpoint", "layer-remap", "drop-polygon", "pour-outline-stroke"]
+}

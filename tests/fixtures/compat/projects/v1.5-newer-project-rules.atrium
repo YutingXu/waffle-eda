@@ -1,0 +1,3090 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "98f34f15-64ac-485b-9240-496bcd0a116b",
+      "items": [
+        {
+          "angle": 0,
+          "def": "std-j3",
+          "id": "s-J1",
+          "kind": "part",
+          "link": "link-J1",
+          "pinNets": {
+            "1": "VDD",
+            "2": "VIN",
+            "3": "GND"
+          },
+          "ref": "J1",
+          "refAt": [
+            -2.159,
+            -8.89
+          ],
+          "value": "Input",
+          "valueAt": [
+            -2.159,
+            10.414
+          ],
+          "x": 78.74,
+          "y": 78.74
+        },
+        {
+          "angle": 0,
+          "def": "std-r",
+          "id": "s-R1",
+          "kind": "part",
+          "link": "link-R1",
+          "pinNets": {
+            "1": "VIN",
+            "2": "FILTER"
+          },
+          "ref": "R1",
+          "refAt": [
+            -2.54,
+            -1.905
+          ],
+          "value": "10 k\u03a9",
+          "valueAt": [
+            -2.54,
+            3.81
+          ],
+          "x": 104.14,
+          "y": 78.74
+        },
+        {
+          "angle": 90,
+          "def": "std-c",
+          "id": "s-C1",
+          "kind": "part",
+          "link": "link-C1",
+          "pinNets": {
+            "1": "FILTER",
+            "2": "GND"
+          },
+          "ref": "C1",
+          "refAt": [
+            -0.635,
+            -3.302
+          ],
+          "value": "10 nF",
+          "valueAt": [
+            2.921,
+            -3.302
+          ],
+          "x": 119.38,
+          "y": 88.9
+        },
+        {
+          "angle": 0,
+          "def": "std-opamp",
+          "id": "s-U1",
+          "kind": "part",
+          "link": "link-U1",
+          "pinNets": {
+            "1": "BUF",
+            "2": "GND",
+            "3": "FILTER",
+            "4": "BUF",
+            "5": "VDD"
+          },
+          "ref": "U1",
+          "refAt": [
+            3.81,
+            -5.842
+          ],
+          "value": "Buffer",
+          "valueAt": [
+            3.302,
+            7.366
+          ],
+          "x": 142.24,
+          "y": 81.28
+        },
+        {
+          "angle": 0,
+          "def": "std-r",
+          "id": "s-R2",
+          "kind": "part",
+          "link": "link-R2",
+          "pinNets": {
+            "1": "BUF",
+            "2": "VOUT"
+          },
+          "ref": "R2",
+          "refAt": [
+            -2.54,
+            -1.905
+          ],
+          "value": "100 \u03a9",
+          "valueAt": [
+            -2.54,
+            3.81
+          ],
+          "x": 165.1,
+          "y": 81.28
+        },
+        {
+          "angle": 0,
+          "def": "std-j2",
+          "id": "s-J2",
+          "kind": "part",
+          "link": "link-J2",
+          "pinNets": {
+            "1": "VOUT",
+            "2": "GND"
+          },
+          "ref": "J2",
+          "refAt": [
+            -2.159,
+            -6.35
+          ],
+          "value": "Output",
+          "valueAt": [
+            -2.159,
+            7.874
+          ],
+          "x": 190.5,
+          "y": 83.82
+        },
+        {
+          "angle": 90,
+          "def": "std-c",
+          "id": "s-C2",
+          "kind": "part",
+          "link": "link-C2",
+          "pinNets": {
+            "1": "VDD",
+            "2": "GND"
+          },
+          "ref": "C2",
+          "refAt": [
+            -0.635,
+            -3.302
+          ],
+          "value": "100 nF",
+          "valueAt": [
+            2.921,
+            -3.302
+          ],
+          "x": 157.48,
+          "y": 66.04
+        },
+        {
+          "at": "above",
+          "id": "7923fa83-15ac-43bb-8079-7fa1fd694889",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 1,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 2,
+            "type": "power"
+          },
+          "text": "VDD",
+          "x": 86.36,
+          "y": 73.66
+        },
+        {
+          "at": "below",
+          "id": "3d00005d-1a1d-4ac2-a4e2-3bca3b7a409d",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 3,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 4,
+            "type": "power"
+          },
+          "text": "GND",
+          "x": 86.36,
+          "y": 83.82
+        },
+        {
+          "id": "c8a83d79-678e-4f82-894e-fd45f3fe14e5",
+          "kind": "wire",
+          "points": [
+            [
+              86.36,
+              78.74
+            ],
+            [
+              99.06,
+              78.74
+            ]
+          ]
+        },
+        {
+          "at": "above",
+          "id": "8c879b15-b546-4add-9642-8d8658ded356",
+          "kind": "netlabel",
+          "text": "VIN",
+          "x": 88.9,
+          "y": 78.74
+        },
+        {
+          "id": "b47b690e-7c30-4c3c-81fb-33388eecf06e",
+          "kind": "wire",
+          "points": [
+            [
+              109.22,
+              78.74
+            ],
+            [
+              134.62,
+              78.74
+            ]
+          ]
+        },
+        {
+          "id": "74611a4a-85c2-4410-8a34-60170dce7b9f",
+          "kind": "wire",
+          "points": [
+            [
+              119.38,
+              78.74
+            ],
+            [
+              119.38,
+              83.82
+            ]
+          ]
+        },
+        {
+          "id": "4467ea1a-ccac-4d03-9454-7a953ff83ea2",
+          "kind": "junction",
+          "x": 119.38,
+          "y": 78.74
+        },
+        {
+          "at": "above",
+          "id": "db45cbf7-dd82-4fc8-b06c-42583ee0af9d",
+          "kind": "netlabel",
+          "text": "FILTER",
+          "x": 121.92,
+          "y": 78.74
+        },
+        {
+          "at": "below",
+          "id": "eb615e15-850f-421b-915a-99871a4e7681",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 3,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 4,
+            "type": "power"
+          },
+          "text": "GND",
+          "x": 119.38,
+          "y": 93.98
+        },
+        {
+          "id": "199cc8cb-4d86-443b-85dc-5750009a99d6",
+          "kind": "wire",
+          "points": [
+            [
+              142.24,
+              73.66
+            ],
+            [
+              142.24,
+              60.96
+            ],
+            [
+              157.48,
+              60.96
+            ]
+          ]
+        },
+        {
+          "at": "above",
+          "id": "8832e37d-f2a3-48e1-99c1-df1027e3dfb4",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 1,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 2,
+            "type": "power"
+          },
+          "text": "VDD",
+          "x": 142.24,
+          "y": 60.96
+        },
+        {
+          "at": "below",
+          "id": "4bbb7925-3842-4c4d-b761-8a08a010dc19",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 3,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 4,
+            "type": "power"
+          },
+          "text": "GND",
+          "x": 157.48,
+          "y": 71.12
+        },
+        {
+          "at": "below",
+          "id": "6f5b1657-be4c-4b3e-815c-a9fd86336552",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 3,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 4,
+            "type": "power"
+          },
+          "text": "GND",
+          "x": 142.24,
+          "y": 88.9
+        },
+        {
+          "id": "3c37147f-3364-4125-aaa7-ecd524c88663",
+          "kind": "wire",
+          "points": [
+            [
+              149.86,
+              81.28
+            ],
+            [
+              160.02,
+              81.28
+            ]
+          ]
+        },
+        {
+          "id": "2d0c1b26-af54-424b-b082-ab1eb1b51ac0",
+          "kind": "wire",
+          "points": [
+            [
+              134.62,
+              83.82
+            ],
+            [
+              132.08,
+              83.82
+            ],
+            [
+              132.08,
+              101.6
+            ],
+            [
+              154.94,
+              101.6
+            ],
+            [
+              154.94,
+              81.28
+            ]
+          ]
+        },
+        {
+          "id": "d9c2819c-ea84-44da-af16-474b31716f05",
+          "kind": "junction",
+          "x": 154.94,
+          "y": 81.28
+        },
+        {
+          "at": "above",
+          "id": "aca4539c-d236-46cd-bca4-bf7d7338547b",
+          "kind": "netlabel",
+          "text": "BUF",
+          "x": 134.62,
+          "y": 101.6
+        },
+        {
+          "id": "50d3258f-546c-44ba-8b15-571203c4243a",
+          "kind": "wire",
+          "points": [
+            [
+              170.18,
+              81.28
+            ],
+            [
+              182.88,
+              81.28
+            ]
+          ]
+        },
+        {
+          "at": "above",
+          "id": "95b4e997-75c4-4167-94b8-a3cf860ef86e",
+          "kind": "netlabel",
+          "text": "VOUT",
+          "x": 172.72,
+          "y": 81.28
+        },
+        {
+          "at": "below",
+          "id": "14914f0b-6859-4d96-8372-3f2b77410f4e",
+          "kind": "netlabel",
+          "schPaint": {
+            "direction": 3,
+            "family": "Times New Roman",
+            "ink": "#800000",
+            "showName": true,
+            "size": 2.032,
+            "style": 4,
+            "type": "power"
+          },
+          "text": "GND",
+          "x": 182.88,
+          "y": 86.36
+        }
+      ],
+      "kind": "schematic",
+      "name": "Analog front end",
+      "notes": [],
+      "outline": []
+    },
+    {
+      "grid": 0.25,
+      "id": "6060d8ab-ced2-403a-b64b-8290eee18901",
+      "items": [
+        {
+          "angle": 0,
+          "def": "std-j3",
+          "id": "b-J1",
+          "kind": "part",
+          "link": "link-J1",
+          "pinNets": {
+            "1": "VDD",
+            "2": "VIN",
+            "3": "GND"
+          },
+          "ref": "J1",
+          "value": "Input",
+          "x": 3.8,
+          "y": 11
+        },
+        {
+          "angle": 0,
+          "def": "std-r",
+          "id": "b-R1",
+          "kind": "part",
+          "link": "link-R1",
+          "pinNets": {
+            "1": "VIN",
+            "2": "FILTER"
+          },
+          "ref": "R1",
+          "value": "10 k\u03a9",
+          "x": 9.9,
+          "y": 11
+        },
+        {
+          "angle": 90,
+          "def": "std-c",
+          "id": "b-C1",
+          "kind": "part",
+          "link": "link-C1",
+          "pinNets": {
+            "1": "FILTER",
+            "2": "GND"
+          },
+          "ref": "C1",
+          "value": "10 nF",
+          "x": 13.3,
+          "y": 14.3
+        },
+        {
+          "angle": 0,
+          "def": "std-opamp",
+          "id": "b-U1",
+          "kind": "part",
+          "link": "link-U1",
+          "pinNets": {
+            "1": "BUF",
+            "2": "GND",
+            "3": "FILTER",
+            "4": "BUF",
+            "5": "VDD"
+          },
+          "ref": "U1",
+          "value": "Buffer",
+          "x": 18.5,
+          "y": 11.6
+        },
+        {
+          "angle": 0,
+          "def": "std-r",
+          "id": "b-R2",
+          "kind": "part",
+          "link": "link-R2",
+          "pinNets": {
+            "1": "BUF",
+            "2": "VOUT"
+          },
+          "ref": "R2",
+          "value": "100 \u03a9",
+          "x": 25.2,
+          "y": 9
+        },
+        {
+          "angle": 0,
+          "def": "std-j2",
+          "id": "b-J2",
+          "kind": "part",
+          "link": "link-J2",
+          "pinNets": {
+            "1": "VOUT",
+            "2": "GND"
+          },
+          "ref": "J2",
+          "value": "Output",
+          "x": 32.2,
+          "y": 10.3
+        },
+        {
+          "angle": 0,
+          "def": "std-c",
+          "id": "b-C2",
+          "kind": "part",
+          "link": "link-C2",
+          "pinNets": {
+            "1": "VDD",
+            "2": "GND"
+          },
+          "ref": "C2",
+          "value": "100 nF",
+          "x": 19.4,
+          "y": 6.8
+        },
+        {
+          "id": "da113b4a-b87c-480c-aae8-aa786a9496e5",
+          "kind": "track",
+          "layer": "Top",
+          "net": "VIN",
+          "points": [
+            [
+              3.8,
+              11
+            ],
+            [
+              9.1,
+              11
+            ]
+          ],
+          "width": 0.32
+        },
+        {
+          "id": "19faca0e-1409-4b16-b6b8-351ea1f1b69a",
+          "kind": "track",
+          "layer": "Top",
+          "net": "FILTER",
+          "points": [
+            [
+              10.7,
+              11
+            ],
+            [
+              12,
+              11
+            ],
+            [
+              13.3,
+              12.3
+            ],
+            [
+              13.3,
+              13.5
+            ]
+          ],
+          "width": 0.32
+        },
+        {
+          "id": "b150f44f-9c28-46de-bc12-e9c992633f7b",
+          "kind": "track",
+          "layer": "Top",
+          "net": "FILTER",
+          "points": [
+            [
+              13.3,
+              13.5
+            ],
+            [
+              15.3,
+              13.5
+            ],
+            [
+              16.25,
+              12.55
+            ],
+            [
+              17.25,
+              12.55
+            ]
+          ],
+          "width": 0.32
+        },
+        {
+          "id": "57fca07a-7523-4ec2-850c-687c8705bcb2",
+          "kind": "track",
+          "layer": "Top",
+          "net": "BUF",
+          "points": [
+            [
+              17.25,
+              10.65
+            ],
+            [
+              16.2,
+              10.65
+            ],
+            [
+              15.2,
+              9.65
+            ],
+            [
+              15.2,
+              8.2
+            ],
+            [
+              16.2,
+              7.2
+            ],
+            [
+              17,
+              7.2
+            ],
+            [
+              19.2,
+              9.4
+            ],
+            [
+              21,
+              9.4
+            ],
+            [
+              21.4,
+              9
+            ],
+            [
+              24.4,
+              9
+            ]
+          ],
+          "width": 0.32
+        },
+        {
+          "id": "6fe7a718-f850-4e7b-b64d-f9bf0898c5f0",
+          "kind": "track",
+          "layer": "Top",
+          "net": "BUF",
+          "points": [
+            [
+              19.75,
+              12.55
+            ],
+            [
+              21.6,
+              12.55
+            ],
+            [
+              22.6,
+              11.55
+            ],
+            [
+              22.6,
+              10.1
+            ],
+            [
+              23.7,
+              9
+            ],
+            [
+              24.4,
+              9
+            ]
+          ],
+          "width": 0.32
+        },
+        {
+          "id": "2668bede-507d-422c-bb07-42fb6f88f779",
+          "kind": "track",
+          "layer": "Top",
+          "net": "VOUT",
+          "points": [
+            [
+              26,
+              9
+            ],
+            [
+              29.6,
+              9
+            ],
+            [
+              29.63,
+              9.03
+            ],
+            [
+              32.2,
+              9.03
+            ]
+          ],
+          "width": 0.32
+        },
+        {
+          "diameter": 0.84,
+          "drill": 0.4,
+          "id": "133893af-e33f-44c6-948b-844e2504add1",
+          "kind": "via",
+          "layer": "Multi",
+          "net": "VDD",
+          "x": 19.7,
+          "y": 5.1
+        },
+        {
+          "id": "d2dbdd91-3ced-49ce-977f-404811ace07e",
+          "kind": "track",
+          "layer": "Bottom",
+          "net": "VDD",
+          "points": [
+            [
+              3.8,
+              8.46
+            ],
+            [
+              7.2,
+              8.46
+            ],
+            [
+              9.16,
+              6.5
+            ],
+            [
+              14.5,
+              6.5
+            ],
+            [
+              15.9,
+              5.1
+            ],
+            [
+              19.7,
+              5.1
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "id": "596017bf-061b-4dea-93fd-332b09591fe3",
+          "kind": "track",
+          "layer": "Top",
+          "net": "VDD",
+          "points": [
+            [
+              19.7,
+              5.1
+            ],
+            [
+              18.6,
+              6.2
+            ],
+            [
+              18.6,
+              6.8
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "diameter": 0.84,
+          "drill": 0.4,
+          "id": "bcb9ac21-59d5-458b-ae24-508bd7356363",
+          "kind": "via",
+          "layer": "Multi",
+          "net": "VDD",
+          "x": 21.4,
+          "y": 10.65
+        },
+        {
+          "id": "f09ded56-c7b7-46b9-be34-160f07556158",
+          "kind": "track",
+          "layer": "Bottom",
+          "net": "VDD",
+          "points": [
+            [
+              19.7,
+              5.1
+            ],
+            [
+              19.7,
+              8.95
+            ],
+            [
+              21.4,
+              10.65
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "id": "67f98b44-72e1-48fa-ac26-f222257f6c85",
+          "kind": "track",
+          "layer": "Top",
+          "net": "VDD",
+          "points": [
+            [
+              21.4,
+              10.65
+            ],
+            [
+              19.75,
+              10.65
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "diameter": 0.84,
+          "drill": 0.4,
+          "id": "9f0a82fe-0cba-45b4-a7e9-36f28b95453e",
+          "kind": "via",
+          "layer": "Multi",
+          "net": "GND",
+          "x": 16.1,
+          "y": 11.6
+        },
+        {
+          "id": "3d35e51f-c43e-4dc1-9b4e-81e3312d4b32",
+          "kind": "track",
+          "layer": "Top",
+          "net": "GND",
+          "points": [
+            [
+              17.25,
+              11.6
+            ],
+            [
+              16.1,
+              11.6
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "diameter": 0.84,
+          "drill": 0.4,
+          "id": "40dd58eb-fbcc-47fb-8aca-9a043029338c",
+          "kind": "via",
+          "layer": "Multi",
+          "net": "GND",
+          "x": 21.55,
+          "y": 6.8
+        },
+        {
+          "id": "3676d1e3-41ed-4ca4-8814-e0bc130d6cad",
+          "kind": "track",
+          "layer": "Top",
+          "net": "GND",
+          "points": [
+            [
+              20.2,
+              6.8
+            ],
+            [
+              21.55,
+              6.8
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "diameter": 0.84,
+          "drill": 0.4,
+          "id": "1fa8af1d-5c60-44d8-8538-9b39d30ab66c",
+          "kind": "via",
+          "layer": "Multi",
+          "net": "GND",
+          "x": 13.3,
+          "y": 16.2
+        },
+        {
+          "id": "63426f0a-2a4e-4ab3-8ebc-75b2e9bc2b66",
+          "kind": "track",
+          "layer": "Top",
+          "net": "GND",
+          "points": [
+            [
+              13.3,
+              15.1
+            ],
+            [
+              13.3,
+              16.2
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "id": "e0ef90ec-c0d9-4851-b9f0-cc78f0edc0db",
+          "kind": "track",
+          "layer": "Bottom",
+          "net": "GND",
+          "points": [
+            [
+              3.8,
+              13.54
+            ],
+            [
+              6.3,
+              13.54
+            ],
+            [
+              8.96,
+              16.2
+            ],
+            [
+              13.3,
+              16.2
+            ],
+            [
+              17.9,
+              11.6
+            ],
+            [
+              16.1,
+              11.6
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "id": "49291b9c-55c9-421b-9bfa-143b28cc867b",
+          "kind": "track",
+          "layer": "Bottom",
+          "net": "GND",
+          "points": [
+            [
+              17.9,
+              11.6
+            ],
+            [
+              19.5,
+              13.2
+            ],
+            [
+              22.9,
+              13.2
+            ],
+            [
+              23.3,
+              12.8
+            ],
+            [
+              23.3,
+              8.1
+            ],
+            [
+              22,
+              6.8
+            ],
+            [
+              21.55,
+              6.8
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "id": "c29a5bcb-7c86-43bc-9e21-f0468cdb97c2",
+          "kind": "track",
+          "layer": "Bottom",
+          "net": "GND",
+          "points": [
+            [
+              13.3,
+              16.2
+            ],
+            [
+              26.2,
+              16.2
+            ],
+            [
+              30.83,
+              11.57
+            ],
+            [
+              32.2,
+              11.57
+            ]
+          ],
+          "width": 0.48
+        },
+        {
+          "drill": 2.4,
+          "h": 2.4,
+          "id": "d90387f3-7976-430b-bdfc-1a0248d3f0d0",
+          "kind": "pad",
+          "layer": "Mechanical",
+          "net": "",
+          "number": "",
+          "shape": "round",
+          "w": 2.4,
+          "x": 2.6,
+          "y": 2.6
+        },
+        {
+          "drill": 2.4,
+          "h": 2.4,
+          "id": "231f6cab-35a2-48f3-a27d-08e4bf01ea36",
+          "kind": "pad",
+          "layer": "Mechanical",
+          "net": "",
+          "number": "",
+          "shape": "round",
+          "w": 2.4,
+          "x": 33.4,
+          "y": 2.6
+        },
+        {
+          "drill": 2.4,
+          "h": 2.4,
+          "id": "95567bfb-946e-4fe8-b6a2-d4b2ddeee7f2",
+          "kind": "pad",
+          "layer": "Mechanical",
+          "net": "",
+          "number": "",
+          "shape": "round",
+          "w": 2.4,
+          "x": 2.6,
+          "y": 19.4
+        },
+        {
+          "drill": 2.4,
+          "h": 2.4,
+          "id": "d2dab44c-f517-4dbe-bf86-4c86e430c499",
+          "kind": "pad",
+          "layer": "Mechanical",
+          "net": "",
+          "number": "",
+          "shape": "round",
+          "w": 2.4,
+          "x": 33.4,
+          "y": 19.4
+        },
+        {
+          "id": "dc2dc298-c38e-4113-beaa-f468bafaa672",
+          "kind": "label",
+          "layer": "Silk",
+          "size": 1.05,
+          "text": "SENSOR INTERFACE",
+          "x": 5.6,
+          "y": 3.05
+        },
+        {
+          "id": "4abaf113-daea-424a-bef6-69a5a1a41203",
+          "kind": "label",
+          "layer": "Silk",
+          "size": 0.56,
+          "text": "AFE  /  REV A",
+          "x": 5.65,
+          "y": 4.6
+        },
+        {
+          "id": "e9e17142-5378-47fe-8a17-446af40e0dda",
+          "kind": "label",
+          "layer": "Silk",
+          "size": 0.53,
+          "text": "ANALOG IN",
+          "x": 2.15,
+          "y": 16.8
+        },
+        {
+          "id": "b3c71efb-9e27-44b1-ae84-f6367c86a28a",
+          "kind": "label",
+          "layer": "Silk",
+          "size": 0.65,
+          "text": "OUT",
+          "x": 31.35,
+          "y": 14.45
+        },
+        {
+          "id": "44c4da47-3fc3-4715-9b80-941c8d87fa5a",
+          "kind": "label",
+          "layer": "Silk",
+          "size": 0.74,
+          "text": "ATRIUM",
+          "x": 27.1,
+          "y": 19.65
+        }
+      ],
+      "kind": "pcb",
+      "name": "Sensor board",
+      "notes": [],
+      "outline": [
+        [
+          1.5,
+          0
+        ],
+        [
+          34.5,
+          0
+        ],
+        [
+          36,
+          1.5
+        ],
+        [
+          36,
+          20.5
+        ],
+        [
+          34.5,
+          22
+        ],
+        [
+          1.5,
+          22
+        ],
+        [
+          0,
+          20.5
+        ],
+        [
+          0,
+          1.5
+        ]
+      ]
+    },
+    {
+      "grid": 0.25,
+      "id": "board-2",
+      "items": [],
+      "kind": "pcb",
+      "name": "Second board",
+      "notes": [],
+      "outline": [
+        [
+          1.5,
+          0
+        ],
+        [
+          34.5,
+          0
+        ],
+        [
+          36,
+          1.5
+        ],
+        [
+          36,
+          20.5
+        ],
+        [
+          34.5,
+          22
+        ],
+        [
+          1.5,
+          22
+        ],
+        [
+          0,
+          20.5
+        ],
+        [
+          0,
+          1.5
+        ]
+      ]
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.5",
+  "library": [
+    {
+      "category": "Resistors",
+      "footprint": {
+        "courtyard": [
+          -1.5,
+          -0.75,
+          1.5,
+          0.75
+        ],
+        "name": "R_0603",
+        "pads": [
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.95,
+            "number": "1",
+            "shape": "roundrect",
+            "w": 0.9,
+            "x": -0.8,
+            "y": 0
+          },
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.95,
+            "number": "2",
+            "shape": "roundrect",
+            "w": 0.9,
+            "x": 0.8,
+            "y": 0
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": true,
+            "kind": "path",
+            "points": [
+              [
+                -0.55,
+                -0.42
+              ],
+              [
+                0.55,
+                -0.42
+              ],
+              [
+                0.55,
+                0.42
+              ],
+              [
+                -0.55,
+                0.42
+              ]
+            ],
+            "style": "package"
+          },
+          {
+            "closed": true,
+            "kind": "path",
+            "layer": "Mechanical 15",
+            "points": [
+              [
+                -1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                0.75
+              ],
+              [
+                -1.5,
+                0.75
+              ]
+            ],
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ]
+      },
+      "id": "std-r",
+      "name": "Resistor",
+      "prefix": "R",
+      "symbol": {
+        "pins": [
+          {
+            "name": "1",
+            "number": "1",
+            "x": -5.08,
+            "y": 0
+          },
+          {
+            "name": "2",
+            "number": "2",
+            "x": 5.08,
+            "y": 0
+          }
+        ],
+        "shapes": [
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -2.1209,
+                -1.016
+              ],
+              [
+                -1.27,
+                1.016
+              ],
+              [
+                -0.4191,
+                -1.016
+              ],
+              [
+                0.4191,
+                1.016
+              ],
+              [
+                1.27,
+                -1.016
+              ],
+              [
+                2.1209,
+                1.016
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "style": "pin"
+          }
+        ]
+      },
+      "value": "10 k\u03a9"
+    },
+    {
+      "category": "Capacitors",
+      "footprint": {
+        "courtyard": [
+          -1.5,
+          -0.75,
+          1.5,
+          0.75
+        ],
+        "name": "C_0603",
+        "pads": [
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.95,
+            "number": "1",
+            "shape": "roundrect",
+            "w": 0.9,
+            "x": -0.8,
+            "y": 0
+          },
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.95,
+            "number": "2",
+            "shape": "roundrect",
+            "w": 0.9,
+            "x": 0.8,
+            "y": 0
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": true,
+            "kind": "path",
+            "points": [
+              [
+                -0.55,
+                -0.42
+              ],
+              [
+                0.55,
+                -0.42
+              ],
+              [
+                0.55,
+                0.42
+              ],
+              [
+                -0.55,
+                0.42
+              ]
+            ],
+            "style": "package"
+          },
+          {
+            "closed": true,
+            "kind": "path",
+            "layer": "Mechanical 15",
+            "points": [
+              [
+                -1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                0.75
+              ],
+              [
+                -1.5,
+                0.75
+              ]
+            ],
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ]
+      },
+      "id": "std-c",
+      "name": "Capacitor",
+      "prefix": "C",
+      "symbol": {
+        "pins": [
+          {
+            "name": "1",
+            "number": "1",
+            "x": -5.08,
+            "y": 0
+          },
+          {
+            "name": "2",
+            "number": "2",
+            "x": 5.08,
+            "y": 0
+          }
+        ],
+        "shapes": [
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -0.508,
+                0
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                0.508,
+                0
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -0.508,
+                -2.032
+              ],
+              [
+                -0.508,
+                2.032
+              ]
+            ],
+            "style": "body",
+            "width": 0.38
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                0.508,
+                -2.032
+              ],
+              [
+                0.508,
+                2.032
+              ]
+            ],
+            "style": "body",
+            "width": 0.38
+          }
+        ]
+      },
+      "value": "100 nF"
+    },
+    {
+      "category": "Amplifiers",
+      "footprint": {
+        "courtyard": [
+          -2.05,
+          -1.7,
+          2.05,
+          1.7
+        ],
+        "name": "SOT-23-5",
+        "pads": [
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.62,
+            "number": "1",
+            "shape": "roundrect",
+            "w": 1.05,
+            "x": -1.25,
+            "y": -0.95
+          },
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.62,
+            "number": "2",
+            "shape": "roundrect",
+            "w": 1.05,
+            "x": -1.25,
+            "y": 0
+          },
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.62,
+            "number": "3",
+            "shape": "roundrect",
+            "w": 1.05,
+            "x": -1.25,
+            "y": 0.95
+          },
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.62,
+            "number": "4",
+            "shape": "roundrect",
+            "w": 1.05,
+            "x": 1.25,
+            "y": 0.95
+          },
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 0.62,
+            "number": "5",
+            "shape": "roundrect",
+            "w": 1.05,
+            "x": 1.25,
+            "y": -0.95
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": true,
+            "kind": "path",
+            "points": [
+              [
+                -0.8,
+                -1.45
+              ],
+              [
+                0.8,
+                -1.45
+              ],
+              [
+                0.8,
+                1.45
+              ],
+              [
+                -0.8,
+                1.45
+              ]
+            ],
+            "style": "package"
+          },
+          {
+            "fill": true,
+            "kind": "circle",
+            "r": 0.13,
+            "style": "silk",
+            "x": -0.3,
+            "y": -1.02
+          },
+          {
+            "closed": true,
+            "kind": "path",
+            "layer": "Mechanical 15",
+            "points": [
+              [
+                -2.05,
+                -1.7
+              ],
+              [
+                2.05,
+                -1.7
+              ],
+              [
+                2.05,
+                1.7
+              ],
+              [
+                -2.05,
+                1.7
+              ]
+            ],
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ]
+      },
+      "id": "std-opamp",
+      "name": "Operational amplifier",
+      "prefix": "U",
+      "schDrawing": {
+        "pins": [
+          {
+            "direction": [
+              1,
+              0
+            ],
+            "end": [
+              7.62,
+              0
+            ],
+            "name": "",
+            "number": "1",
+            "start": [
+              5.08,
+              0
+            ]
+          },
+          {
+            "direction": [
+              0,
+              1
+            ],
+            "end": [
+              0,
+              7.62
+            ],
+            "name": "",
+            "number": "2",
+            "start": [
+              0,
+              2.8575
+            ]
+          },
+          {
+            "direction": [
+              -1,
+              0
+            ],
+            "end": [
+              -7.62,
+              -2.54
+            ],
+            "name": "",
+            "number": "3",
+            "start": [
+              -5.08,
+              -2.54
+            ]
+          },
+          {
+            "direction": [
+              -1,
+              0
+            ],
+            "end": [
+              -7.62,
+              2.54
+            ],
+            "name": "",
+            "number": "4",
+            "start": [
+              -5.08,
+              2.54
+            ]
+          },
+          {
+            "direction": [
+              0,
+              -1
+            ],
+            "end": [
+              0,
+              -7.62
+            ],
+            "name": "",
+            "number": "5",
+            "start": [
+              0,
+              -2.8575
+            ]
+          }
+        ]
+      },
+      "symbol": {
+        "pins": [
+          {
+            "name": "OUT",
+            "number": "1",
+            "x": 7.62,
+            "y": 0
+          },
+          {
+            "name": "V\u2212",
+            "number": "2",
+            "x": 0,
+            "y": 7.62
+          },
+          {
+            "name": "+IN",
+            "number": "3",
+            "x": -7.62,
+            "y": -2.54
+          },
+          {
+            "name": "\u2212IN",
+            "number": "4",
+            "x": -7.62,
+            "y": 2.54
+          },
+          {
+            "name": "V+",
+            "number": "5",
+            "x": 0,
+            "y": -7.62
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": true,
+            "kind": "path",
+            "points": [
+              [
+                -5.08,
+                -5.715
+              ],
+              [
+                5.08,
+                0
+              ],
+              [
+                -5.08,
+                5.715
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -7.62,
+                -2.54
+              ],
+              [
+                -5.08,
+                -2.54
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -7.62,
+                2.54
+              ],
+              [
+                -5.08,
+                2.54
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                7.62,
+                0
+              ],
+              [
+                5.08,
+                0
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                0,
+                -7.62
+              ],
+              [
+                0,
+                -2.8575
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                0,
+                7.62
+              ],
+              [
+                0,
+                2.8575
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -4.2545,
+                -2.54
+              ],
+              [
+                -2.794,
+                -2.54
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -3.5179,
+                -3.2639
+              ],
+              [
+                -3.5179,
+                -1.8161
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -4.2545,
+                2.54
+              ],
+              [
+                -2.794,
+                2.54
+              ]
+            ],
+            "style": "body"
+          }
+        ]
+      },
+      "value": "Op amp"
+    },
+    {
+      "category": "Connectors",
+      "footprint": {
+        "courtyard": [
+          -1.75,
+          -4.1,
+          1.75,
+          4.1
+        ],
+        "name": "PinHeader_1\u00d703_2.54mm",
+        "pads": [
+          {
+            "angle": 0,
+            "drill": 1,
+            "h": 1.75,
+            "number": "1",
+            "shape": "rect",
+            "w": 1.75,
+            "x": 0,
+            "y": -2.54
+          },
+          {
+            "angle": 0,
+            "drill": 1,
+            "h": 1.75,
+            "number": "2",
+            "shape": "round",
+            "w": 1.75,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "angle": 0,
+            "drill": 1,
+            "h": 1.75,
+            "number": "3",
+            "shape": "round",
+            "w": 1.75,
+            "x": 0,
+            "y": 2.54
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -1.49,
+                -3.81
+              ],
+              [
+                1.49,
+                -3.81
+              ],
+              [
+                1.49,
+                3.81
+              ],
+              [
+                -1.49,
+                3.81
+              ]
+            ],
+            "style": "silk"
+          },
+          {
+            "closed": true,
+            "kind": "path",
+            "layer": "Mechanical 15",
+            "points": [
+              [
+                -1.75,
+                -4.1
+              ],
+              [
+                1.75,
+                -4.1
+              ],
+              [
+                1.75,
+                4.1
+              ],
+              [
+                -1.75,
+                4.1
+              ]
+            ],
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ]
+      },
+      "id": "std-j3",
+      "name": "3-pin header",
+      "prefix": "J",
+      "schDrawing": {
+        "pins": [
+          {
+            "direction": [
+              1,
+              0
+            ],
+            "end": [
+              7.62,
+              -5.08
+            ],
+            "name": "",
+            "number": "1",
+            "start": [
+              2.159,
+              -5.08
+            ]
+          },
+          {
+            "direction": [
+              1,
+              0
+            ],
+            "end": [
+              7.62,
+              0
+            ],
+            "name": "",
+            "number": "2",
+            "start": [
+              2.159,
+              0
+            ]
+          },
+          {
+            "direction": [
+              1,
+              0
+            ],
+            "end": [
+              7.62,
+              5.08
+            ],
+            "name": "",
+            "number": "3",
+            "start": [
+              2.159,
+              5.08
+            ]
+          }
+        ]
+      },
+      "symbol": {
+        "pins": [
+          {
+            "name": "1",
+            "number": "1",
+            "x": 7.62,
+            "y": -5.08
+          },
+          {
+            "name": "2",
+            "number": "2",
+            "x": 7.62,
+            "y": 0
+          },
+          {
+            "name": "3",
+            "number": "3",
+            "x": 7.62,
+            "y": 5.08
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": true,
+            "kind": "path",
+            "points": [
+              [
+                -2.159,
+                -7.62
+              ],
+              [
+                2.159,
+                -7.62
+              ],
+              [
+                2.159,
+                7.62
+              ],
+              [
+                -2.159,
+                7.62
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                7.62,
+                -5.08
+              ],
+              [
+                2.159,
+                -5.08
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                2.159,
+                -5.08
+              ],
+              [
+                0.53975,
+                -5.08
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                7.62,
+                0
+              ],
+              [
+                2.159,
+                0
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                2.159,
+                0
+              ],
+              [
+                0.53975,
+                0
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                7.62,
+                5.08
+              ],
+              [
+                2.159,
+                5.08
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                2.159,
+                5.08
+              ],
+              [
+                0.53975,
+                5.08
+              ]
+            ],
+            "style": "body"
+          }
+        ]
+      },
+      "value": "1 \u00d7 03"
+    },
+    {
+      "category": "Connectors",
+      "footprint": {
+        "courtyard": [
+          -1.75,
+          -2.8,
+          1.75,
+          2.8
+        ],
+        "name": "PinHeader_1\u00d702_2.54mm",
+        "pads": [
+          {
+            "angle": 0,
+            "drill": 1,
+            "h": 1.75,
+            "number": "1",
+            "shape": "rect",
+            "w": 1.75,
+            "x": 0,
+            "y": -1.27
+          },
+          {
+            "angle": 0,
+            "drill": 1,
+            "h": 1.75,
+            "number": "2",
+            "shape": "round",
+            "w": 1.75,
+            "x": 0,
+            "y": 1.27
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -1.49,
+                -2.54
+              ],
+              [
+                1.49,
+                -2.54
+              ],
+              [
+                1.49,
+                2.54
+              ],
+              [
+                -1.49,
+                2.54
+              ]
+            ],
+            "style": "silk"
+          },
+          {
+            "closed": true,
+            "kind": "path",
+            "layer": "Mechanical 15",
+            "points": [
+              [
+                -1.75,
+                -2.8
+              ],
+              [
+                1.75,
+                -2.8
+              ],
+              [
+                1.75,
+                2.8
+              ],
+              [
+                -1.75,
+                2.8
+              ]
+            ],
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ]
+      },
+      "id": "std-j2",
+      "name": "2-pin header",
+      "prefix": "J",
+      "schDrawing": {
+        "pins": [
+          {
+            "direction": [
+              -1,
+              0
+            ],
+            "end": [
+              -7.62,
+              -2.54
+            ],
+            "name": "",
+            "number": "1",
+            "start": [
+              -2.159,
+              -2.54
+            ]
+          },
+          {
+            "direction": [
+              -1,
+              0
+            ],
+            "end": [
+              -7.62,
+              2.54
+            ],
+            "name": "",
+            "number": "2",
+            "start": [
+              -2.159,
+              2.54
+            ]
+          }
+        ]
+      },
+      "symbol": {
+        "pins": [
+          {
+            "name": "1",
+            "number": "1",
+            "x": -7.62,
+            "y": -2.54
+          },
+          {
+            "name": "2",
+            "number": "2",
+            "x": -7.62,
+            "y": 2.54
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "fill": true,
+            "kind": "path",
+            "points": [
+              [
+                -2.159,
+                -5.08
+              ],
+              [
+                2.159,
+                -5.08
+              ],
+              [
+                2.159,
+                5.08
+              ],
+              [
+                -2.159,
+                5.08
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -7.62,
+                -2.54
+              ],
+              [
+                -2.159,
+                -2.54
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -2.159,
+                -2.54
+              ],
+              [
+                -0.53975,
+                -2.54
+              ]
+            ],
+            "style": "body"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -7.62,
+                2.54
+              ],
+              [
+                -2.159,
+                2.54
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                -2.159,
+                2.54
+              ],
+              [
+                -0.53975,
+                2.54
+              ]
+            ],
+            "style": "body"
+          }
+        ]
+      },
+      "value": "1 \u00d7 02"
+    },
+    {
+      "category": "Test points",
+      "footprint": {
+        "courtyard": [
+          -1,
+          -1,
+          1,
+          1
+        ],
+        "name": "TestPoint_1.5mm",
+        "pads": [
+          {
+            "angle": 0,
+            "drill": 0,
+            "h": 1.5,
+            "number": "1",
+            "shape": "round",
+            "w": 1.5,
+            "x": 0,
+            "y": 0
+          }
+        ],
+        "shapes": [
+          {
+            "closed": true,
+            "kind": "path",
+            "layer": "Mechanical 15",
+            "points": [
+              [
+                -1,
+                -1
+              ],
+              [
+                1,
+                -1
+              ],
+              [
+                1,
+                1
+              ],
+              [
+                -1,
+                1
+              ]
+            ],
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ]
+      },
+      "id": "std-tp",
+      "name": "Test point",
+      "prefix": "TP",
+      "symbol": {
+        "pins": [
+          {
+            "name": "1",
+            "number": "1",
+            "x": 0,
+            "y": 2.54
+          }
+        ],
+        "shapes": [
+          {
+            "closed": false,
+            "fill": false,
+            "kind": "path",
+            "points": [
+              [
+                0,
+                2.54
+              ],
+              [
+                0,
+                -1.016
+              ]
+            ],
+            "style": "pin"
+          },
+          {
+            "kind": "circle",
+            "r": 0.8,
+            "style": "body",
+            "x": 0,
+            "y": -1.8
+          }
+        ]
+      },
+      "value": "Test point"
+    }
+  ],
+  "name": "Sensor interface",
+  "rules": {
+    "format": "atrium-rules",
+    "future": {
+      "note": "a newer rule book"
+    },
+    "list": [
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.2,
+        "id": "clearance-1",
+        "name": "Clearance",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "scope2": {
+          "kind": "all"
+        },
+        "type": "clearance"
+      },
+      {
+        "allowed": false,
+        "comment": "",
+        "enabled": true,
+        "id": "short-1",
+        "name": "ShortCircuit",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "scope2": {
+          "kind": "all"
+        },
+        "type": "short"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "unrouted-1",
+        "name": "UnRoutedNet",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "unrouted"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "width-1",
+        "max": null,
+        "min": 0.15,
+        "name": "Width",
+        "preferred": null,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "width"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingTopology-1",
+        "name": "RoutingTopology",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "topology": "shortest",
+        "type": "routingTopology"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingPriority-1",
+        "name": "RoutingPriority",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "routingPriority",
+        "value": 0
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "excluded": [],
+        "id": "routingLayers-1",
+        "name": "RoutingLayers",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "routingLayers"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingCorners-1",
+        "name": "RoutingCorners",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "setbackMax": 2.54,
+        "setbackMin": 2.54,
+        "style": "45",
+        "type": "routingCorners"
+      },
+      {
+        "comment": "",
+        "diameterMax": null,
+        "diameterMin": null,
+        "diameterPreferred": null,
+        "enabled": true,
+        "holeMax": null,
+        "holeMin": 0.3,
+        "holePreferred": null,
+        "id": "viaStyle-1",
+        "name": "RoutingVias",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "viaStyle"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-1",
+        "name": "Fanout_BGA",
+        "package": "bga",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "centered"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-2",
+        "name": "Fanout_LCC",
+        "package": "lcc",
+        "priority": 2,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "staggeredOut",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-3",
+        "name": "Fanout_SOIC",
+        "package": "soic",
+        "priority": 3,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "inline",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "outThenIn",
+        "enabled": true,
+        "id": "fanoutControl-4",
+        "name": "Fanout_Small",
+        "package": "small",
+        "priority": 4,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-5",
+        "name": "Fanout_Default",
+        "package": "default",
+        "priority": 5,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gapMax": 0.3,
+        "gapMin": 0.1,
+        "gapPreferred": 0.15,
+        "id": "diffPairsRouting-1",
+        "layers": {},
+        "maxUncoupled": 6.35,
+        "name": "DiffPairsRouting",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "diffPairsRouting",
+        "widthMax": 0.3,
+        "widthMin": 0.1,
+        "widthPreferred": 0.15
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "expansion": 0.1016,
+        "id": "solderMask-1",
+        "name": "SolderMaskExpansion",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "solderMask"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "expansion": 0,
+        "id": "pasteMask-1",
+        "name": "PasteMaskExpansion",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "pasteMask"
+      },
+      {
+        "airGap": 0.254,
+        "angle": 90,
+        "comment": "",
+        "conductorWidth": 0.254,
+        "enabled": true,
+        "entries": 4,
+        "id": "polygonConnect-1",
+        "kinds": {},
+        "minEntries": 2,
+        "name": "PolygonConnect",
+        "powerWidth": 0.5,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "polygon",
+        "tempRise": 10,
+        "type": "polygonConnect"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "annularRing-1",
+        "min": 0.1,
+        "name": "MinimumAnnularRing",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "annularRing"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "holeSize-1",
+        "max": 6.35,
+        "min": 0.025,
+        "name": "HoleSize",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "holeSize"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.254,
+        "id": "holeToHole-1",
+        "name": "HoleToHoleClearance",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "holeToHole"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.1,
+        "id": "silkToMask-1",
+        "name": "SilkToSolderMaskClearance",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "silkToMask"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.1,
+        "id": "silkToSilk-1",
+        "name": "SilkToSilkClearance",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "silkToSilk"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "flexLayers-1",
+        "name": "RegionLayers",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "flexLayers"
+      },
+      {
+        "allowInFlex": false,
+        "bendKeepout": 1,
+        "comment": "",
+        "enabled": true,
+        "id": "flexVias-1",
+        "name": "FlexViaKeepout",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "flexVias"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "bendKeepout-1",
+        "keepout": 0.5,
+        "name": "BendZoneKeepout",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "bendKeepout"
+      },
+      {
+        "comment": "",
+        "cornerAngle": 30,
+        "enabled": true,
+        "id": "bendCrossing-1",
+        "name": "BendLineCrossing",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "tolerance": 10,
+        "type": "bendCrossing"
+      },
+      {
+        "comment": "",
+        "dynamic1": 100,
+        "dynamic2": 150,
+        "dynamicMulti": 200,
+        "enabled": true,
+        "id": "bendRadius-1",
+        "name": "MinimumBendRadius",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "static1": 6,
+        "static2": 10,
+        "staticMulti": 15,
+        "type": "bendRadius"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "flexCopper-1",
+        "name": "FlexCopperHatching",
+        "priority": 1,
+        "requireHatch": true,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "flexCopper"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "stiffener-1",
+        "minPads": 6,
+        "name": "StiffenerPlacement",
+        "priority": 1,
+        "requireBacking": true,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "stiffener"
+      },
+      {
+        "bendTermination": true,
+        "comment": "",
+        "enabled": true,
+        "id": "flexRouting-1",
+        "minStackRun": 0.5,
+        "name": "FlexRouting",
+        "priority": 1,
+        "requireTeardrops": true,
+        "scope": {
+          "kind": "all"
+        },
+        "staggerLayers": true,
+        "type": "flexRouting"
+      },
+      {
+        "comment": "",
+        "coverlayExpansion": 0.1,
+        "enabled": true,
+        "id": "flexBuild-1",
+        "minWeb": 0.25,
+        "name": "FlexConstruction",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "stiffenerGap": 1,
+        "transition": 1.5,
+        "type": "flexBuild"
+      },
+      {
+        "enabled": true,
+        "id": "erc-unconnectedPins",
+        "name": "UnconnectedPins",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "severity": "error",
+        "type": "ercUnconnectedPins",
+        "where": "schematic"
+      },
+      {
+        "enabled": true,
+        "id": "erc-matrix",
+        "matrix": {
+          "2,2": "warning"
+        },
+        "name": "ConnectionMatrix",
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "type": "ercPinMatrix",
+        "where": "schematic"
+      },
+      {
+        "boards": [
+          "board-2"
+        ],
+        "comment": "",
+        "enabled": true,
+        "id": "width-b2",
+        "max": null,
+        "min": 0.1,
+        "name": "Narrow",
+        "origin": {
+          "kind": "user"
+        },
+        "preferred": null,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "severity": "warning",
+        "type": "width"
+      },
+      {
+        "enabled": true,
+        "id": "erc-tp",
+        "name": "TestPointsUnconnected",
+        "priority": 2,
+        "scope": {
+          "kind": "query",
+          "value": "InComponentClass('TestPoints')"
+        },
+        "severity": "off",
+        "type": "ercUnconnectedPins",
+        "where": "schematic"
+      }
+    ],
+    "units": "mm",
+    "version": 4
+  },
+  "version": 1
+}

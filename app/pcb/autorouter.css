@@ -1,0 +1,67 @@
+/* Autorouter and fanout dialogs. Dark theme variables only. */
+.ar-dialog {width:min(720px,calc(100vw - 32px));max-height:min(88vh,900px);}
+.ar-dialog.ar-fanout {width:min(560px,calc(100vw - 32px));}
+.ar-head {display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+.ar-head h2 {margin-bottom:8px;}
+.ar-head small {color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ar-dialog h3 {color:var(--ink);}
+.ar-rules {border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel-head);padding:0 8px;}
+.ar-rules summary {margin:8px 0;color:var(--ink);}
+.ar-rules dl {margin:0 0 8px;}
+.ar-warn {color:var(--accent-text);}
+p.ar-warn,.ar-rules p {margin:4px 0 8px;font-size:var(--fs-12);}
+.ar-note {font-size:var(--fs-12);}
+.ar-section-head {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.ar-section-head h3 {margin-bottom:6px;}
+.ar-layers {display:flex;flex-wrap:wrap;gap:8px 12px;}
+.ar-layers label {display:grid;gap:4px;font-size:var(--fs-11);color:var(--muted);min-width:128px;}
+.ar-dialog button.ar-small {font-size:var(--fs-11);min-height:var(--ctl-h);padding:2px 8px;}
+.ar-strategy-wrap {display:grid;grid-template-columns:minmax(0,1.6fr) minmax(150px,1fr);gap:8px;}
+/* Strategies: library .ui-row radios (aria-checked) in a scrolling list; descriptions wrap. */
+.ar-strategies {max-height:228px;overflow:auto;overscroll-behavior:contain}
+.ar-strategy {padding-block:var(--s-4)}
+.ar-strategy .ui-row-title {font-weight:var(--fw-medium)}
+.ar-strategy .ui-row-detail {white-space:normal;line-height:1.35}
+.ar-pass-wrap {border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 8px;background:var(--panel-head);}
+.ar-label {font-size:var(--fs-11);color:var(--muted);}
+.ar-passes {margin:4px 0 0;padding-left:18px;font-size:var(--fs-12);line-height:1.6;color:var(--ink);}
+.ar-checks {display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;}
+.ar-check {display:flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--ink);}
+
+.ar-scope {display:flex;gap:0;border-bottom:1px solid var(--line);}
+.ar-scope-body {display:grid;gap:6px;padding:8px 0 4px;}
+.ar-scope-body select[multiple] {width:100%;height:auto;min-height:118px;}
+.ar-area {display:flex;flex-wrap:wrap;gap:8px;}
+.ar-area label {display:grid;gap:2px;font-size:var(--fs-11);color:var(--muted);}
+.ar-form {display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:8px 12px;align-items:center;font-size:var(--fs-12);color:var(--muted);}
+.ar-form > div {display:flex;gap:6px;flex-wrap:wrap;}
+.ar-form select {min-width:180px;}
+.ar-status {display:flex;align-items:center;gap:8px;margin-top:12px;font-size:var(--fs-12);color:var(--muted);min-height:20px;}
+.ar-status progress {flex:0 0 180px;accent-color:var(--accent);height:8px;}
+.ar-log {max-height:140px;overflow:auto;margin-top:6px;font:var(--fs-11)/1.5 var(--mono);color:var(--muted);border-top:1px solid var(--line);}
+.ar-log:empty {display:none;}
+.ar-log p {margin:6px 0;font:var(--fs-12)/1.5 inherit;color:var(--ink);}
+.ar-msg {padding:1px 0;}
+.ar-msg time {color:var(--faint);margin-right:8px;}
+.ar-msg.ar-warn {color:var(--accent-text);}
+.ar-line {font-size:var(--fs-12);color:var(--muted);padding:4px 0;}
+.ar-line strong {color:var(--ink);font-weight:560;}
+.ar-sub {font-size:var(--fs-11);color:var(--faint);padding-left:12px;}
+.ar-report:empty {display:none;}
+.ar-stats {display:grid;grid-template-columns:minmax(110px,auto) 1fr;gap:4px 12px;font-size:var(--fs-12);margin:8px 0 0;}
+.ar-stats dt {color:var(--muted);}
+.ar-stats dd {margin:0;color:var(--ink);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+/* Unrouted connections: a scrolling list of library .ui-row buttons, no box around it. */
+.ar-failures {display:grid;align-content:start;max-height:180px;overflow:auto;overscroll-behavior:contain}
+.ar-locate strong {font-weight:var(--fw-semibold)}
+@media (max-width:620px) {
+  .ar-strategy-wrap {grid-template-columns:minmax(0,1fr);}
+  .ar-form {grid-template-columns:minmax(0,1fr);}
+}
+/* Engine v2: proposal review. The board stays visible behind the dialog, which moves aside. */
+.ar-engine-label {display:block;margin-top:8px;}
+.ar-pass-wrap select {width:100%;margin-top:4px;}
+.ar-dialog.ar-reviewing {margin-right:16px;margin-left:auto;}
+.ar-dialog.ar-reviewing::backdrop {background:transparent;}
+.ar-review {border-top:1px solid var(--line);padding-top:8px;}
+.ar-review[hidden] {display:none;}

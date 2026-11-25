@@ -1,0 +1,13 @@
+/* Design › Rule Sets… (rule-sets.js). Builds on .work-dialog from workflows.css. */
+.rset-dialog {width:min(920px,calc(100vw - 32px));max-height:min(88vh,820px);display:flex;flex-direction:column}
+.rset-dialog:not([open]) {display:none}
+.rset-head h2 {margin:0}
+.rset-sub {margin:4px 0 0}
+.rset-body {min-height:180px;flex:1 1 auto;overflow:hidden} /* 180: the dialog scrolls before the library list collapses */
+.rset-group {font-size:var(--fs-11);color:var(--muted);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.04em}
+.rset-items {overflow:auto;overscroll-behavior:contain}
+.rset-detail h3 {margin-top:0}
+
+.rset-status {min-height:1.4em;margin:8px 0 0}
+@media (max-width:640px){.rset-items{max-height:180px}}
+.rset-warning {margin-block:var(--s-12)}

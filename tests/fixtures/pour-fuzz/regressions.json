@@ -1,0 +1,790 @@
+[
+ {
+  "name": "seed-a4f45cfc",
+  "note": "trace: two outgoing edges in one half-plane at a pinch vertex took the far one (broken rings, copper lost)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      -1,
+      0,
+      15,
+      16,
+      -1,
+      16
+     ],
+     "tags": null
+    },
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      -1,
+      6,
+      10,
+      13,
+      3,
+      11
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      14,
+      7,
+      12,
+      11,
+      8,
+      13
+     ],
+     "tags": null
+    }
+   ],
+   "K": 7,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-fdebb54e",
+  "note": "trace: pinch-vertex tie-break (broken rings)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      -1,
+      0,
+      15,
+      0,
+      15,
+      16
+     ],
+     "tags": null
+    },
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      0,
+      1,
+      14,
+      1,
+      14,
+      17
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      2,
+      3,
+      0,
+      -1,
+      4,
+      3
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": -1,
+     "ring": [
+      3,
+      4,
+      1,
+      1,
+      5,
+      1
+     ],
+     "tags": null
+    }
+   ],
+   "K": 8,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-65274018",
+  "note": "trace: pinch-vertex tie-break, crossing obstacles (broken rings)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      -1,
+      0,
+      999,
+      0,
+      -1,
+      1000
+     ],
+     "tags": null
+    },
+    {
+     "cls": 2,
+     "sign": -1,
+     "ring": [
+      70,
+      177,
+      346,
+      490,
+      347,
+      490
+     ],
+     "tags": null
+    },
+    {
+     "cls": 2,
+     "sign": 1,
+     "ring": [
+      285,
+      356,
+      413,
+      959,
+      34,
+      919
+     ],
+     "tags": null
+    },
+    {
+     "cls": 2,
+     "sign": 1,
+     "ring": [
+      350,
+      60,
+      128,
+      731,
+      254,
+      213
+     ],
+     "tags": null
+    }
+   ],
+   "K": 8,
+   "hasBoard": false,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-de0526dc",
+  "note": "trace: pinch-vertex tie-break at 4e6 units",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      1,
+      0,
+      4000001,
+      4000000,
+      1,
+      4000000
+     ],
+     "tags": null
+    },
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      1,
+      1,
+      3999999,
+      4000001,
+      1,
+      4000001
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      357591,
+      3044576,
+      1565995,
+      4084645,
+      1565996,
+      4084645
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      895770,
+      3220404,
+      789046,
+      3478057,
+      531393,
+      3584781
+     ],
+     "tags": null
+    }
+   ],
+   "K": 6,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-3845cdb7",
+  "note": "planarize: near-coincident slivers, rounded crossings cascade for 12 passes (unresolved, broken rings)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      754,
+      119,
+      972,
+      90,
+      539,
+      71
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": 1,
+     "ring": [
+      558,
+      84,
+      920,
+      126,
+      602,
+      305
+     ],
+     "tags": null
+    },
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      559,
+      84,
+      921,
+      126,
+      603,
+      305
+     ],
+     "tags": null
+    }
+   ],
+   "K": 7,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-850dce8a",
+  "note": "planarize: a sliver outline, rounded crossings never settle (unresolved)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      0,
+      1,
+      99998,
+      1,
+      0,
+      100001
+     ],
+     "tags": null
+    },
+    {
+     "cls": 7,
+     "sign": 1,
+     "ring": [
+      3082,
+      48886,
+      8080,
+      37417,
+      49275,
+      66033
+     ],
+     "tags": null
+    },
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      1430,
+      45439,
+      33220,
+      54284,
+      33221,
+      54284
+     ],
+     "tags": null
+    }
+   ],
+   "K": 8,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-9f1d156e",
+  "note": "planarize: crossings rounded twice moved copper 1.04 units (over 10 nm)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      0,
+      0,
+      100000,
+      0,
+      100000,
+      100000
+     ],
+     "tags": null
+    },
+    {
+     "cls": 5,
+     "sign": 1,
+     "ring": [
+      90936,
+      12867,
+      59907,
+      42541,
+      59906,
+      42540
+     ],
+     "tags": null
+    },
+    {
+     "cls": 2,
+     "sign": 1,
+     "ring": [
+      90935,
+      12868,
+      59906,
+      42542,
+      59905,
+      42541
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      78870,
+      24814,
+      39024,
+      45663,
+      34379,
+      18260
+     ],
+     "tags": null
+    }
+   ],
+   "K": 6,
+   "hasBoard": false,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-30003371",
+  "note": "planarize: crossings rounded twice moved copper 1.01 units",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      1,
+      0,
+      1001,
+      1000,
+      1,
+      1000
+     ],
+     "tags": null
+    },
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      413,
+      636,
+      876,
+      1038,
+      877,
+      1038
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": -1,
+     "ring": [
+      414,
+      637,
+      877,
+      1039,
+      878,
+      1039
+     ],
+     "tags": null
+    },
+    {
+     "cls": 7,
+     "sign": 1,
+     "ring": [
+      657,
+      997,
+      269,
+      136,
+      839,
+      191
+     ],
+     "tags": null
+    }
+   ],
+   "K": 8,
+   "hasBoard": false,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-82f89383",
+  "note": "snap rounding: closed pixel squares routed an edge through a 2x2 hot-pixel cluster in a zigzag (crossing)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      8,
+      0,
+      8,
+      8,
+      0,
+      8
+     ],
+     "tags": null
+    },
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      1,
+      1,
+      7,
+      1,
+      7,
+      9
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      7,
+      2,
+      6,
+      5,
+      5,
+      6
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": 1,
+     "ring": [
+      3,
+      3,
+      7,
+      7,
+      6,
+      9
+     ],
+     "tags": null
+    }
+   ],
+   "K": 6,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-6d2c8197",
+  "note": "snap rounding: closed pixel squares (crossing, broken rings)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      1,
+      0,
+      17,
+      0,
+      17,
+      16
+     ],
+     "tags": null
+    },
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      0,
+      1,
+      14,
+      1,
+      14,
+      17
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": 1,
+     "ring": [
+      4,
+      -2,
+      13,
+      -3,
+      11,
+      7
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      10,
+      2,
+      10,
+      3,
+      8,
+      5
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": 1,
+     "ring": [
+      7,
+      2,
+      10,
+      7,
+      9,
+      8
+     ],
+     "tags": null
+    }
+   ],
+   "K": 8,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-e1e0b269",
+  "note": "snap rounding: closed pixel squares (output overlapped itself)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 2,
+     "sign": 1,
+     "ring": [
+      53,
+      41,
+      36,
+      41,
+      45,
+      25
+     ],
+     "tags": null
+    },
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      4,
+      22,
+      44,
+      2,
+      41,
+      29,
+      62,
+      6
+     ],
+     "tags": null
+    },
+    {
+     "cls": 3,
+     "sign": 1,
+     "ring": [
+      24,
+      11,
+      22,
+      15,
+      21,
+      16
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": 1,
+     "ring": [
+      20,
+      10,
+      24,
+      18,
+      18,
+      12
+     ],
+     "tags": null
+    },
+    {
+     "cls": 4,
+     "sign": 1,
+     "ring": [
+      51,
+      28,
+      48,
+      19,
+      50,
+      18
+     ],
+     "tags": null
+    }
+   ],
+   "K": 6,
+   "hasBoard": false,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ },
+ {
+  "name": "seed-1161b166",
+  "note": "an island inside a hole, touching it at vertices (a self-intersecting outline less a star)",
+  "task": {
+   "shapes": [
+    {
+     "cls": 0,
+     "sign": 1,
+     "ring": [
+      1,
+      0,
+      17,
+      0,
+      17,
+      16,
+      1,
+      16
+     ],
+     "tags": null
+    },
+    {
+     "cls": 1,
+     "sign": 1,
+     "ring": [
+      1,
+      1,
+      15,
+      1,
+      15,
+      17,
+      1,
+      17
+     ],
+     "tags": null
+    },
+    {
+     "cls": 0,
+     "sign": -1,
+     "ring": [
+      8,
+      10,
+      10,
+      5,
+      11,
+      11,
+      7,
+      7,
+      13,
+      7
+     ],
+     "tags": null
+    }
+   ],
+   "K": 6,
+   "hasBoard": true,
+   "anchors": [],
+   "removeDead": false,
+   "minArea": 0,
+   "minSize": 0,
+   "twoStage": false
+  }
+ }
+]

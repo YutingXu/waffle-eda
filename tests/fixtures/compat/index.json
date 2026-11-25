@@ -1,0 +1,170 @@
+{
+  "about": "Immutable pre-release single-file designs. Each must produce the documented source re-import diagnostic. Current and forward-compatible native projects are indexed in ../format-2/projects.json.",
+  "projects": [
+    {
+      "file": "v1.4-schematic-canvas.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic legacy-compatible optional fields on two schematic sheets. Covers directed and default off-sheet connectors, an unbounded sheet with a title block, named frames on infinite and fixed sheets, an ordinary text frame and PDF output layouts."
+    },
+    {
+      "file": "v1.6-newer-schematic-canvas.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor with an unknown connector direction, text-frame role, output layout, nested settings and an unknown object between two readable items. An unrelated edit must preserve them in place."
+    },
+    {
+      "file": "v1.4-frame-channel-net-hyphen.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic two-channel schematic after extracting a frame. A generated label retains the original hyphen pin-name style, stable part ID and pin number."
+    },
+    {
+      "file": "v1.4-frame-channel-net-underscore.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic two-channel schematic after extracting a frame. A generated label retains the original underscore pin-name style, stable part ID and pin number."
+    },
+    {
+      "file": "v1.6-newer-frame-channel-net.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic next-minor generated name with an unfamiliar style and nested properties. Its literal fallback preserves channel connectivity."
+    },
+    {
+      "file": "v1.4-coming-soon.atrium",
+      "expect": "pre-release-format",
+      "origin": "The sample project with format 1.3 fields (board rule sets with a disabled set, a Z-Axis Clearance rule over pours, a via fence along poured copper edges, related components), saved by the 1.3 build; synthesised. Restamped 1.4 (1.4 is the first supported format; pre-release formats are not supported)."
+    },
+    {
+      "file": "v1.4-newer-minor.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor version: unknown top-level, document and item fields, unknown item, document and symbol-shape kinds. Must open and save back unchanged."
+    },
+    {
+      "file": "v2.0-newer-major-compatible.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future major version that declares compatibleWith 1.1 and holds nothing unknown: read-only, Save As writes a lossless 1.1 copy."
+    },
+    {
+      "file": "v2.0-newer-major.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future major version with an object kind this build doesn't know: read-only, no copy offered."
+    },
+    {
+      "file": "v3.0-newer-major-unreadable.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future major version with a structure this build can't read: refused with the 'newer Atrium' message."
+    },
+    {
+      "file": "v1.4-generic-parts.atrium",
+      "expect": "pre-release-format",
+      "origin": "Generic parts (format 1.3): shared regenerable definitions (def.generic) for resistors (IEC and ANSI), capacitors, an electrolytic, an LED, a Schottky diode, a crystal and a 2×5 header on two sheets, per-part values and ratings, and a dynamic connector split into two parts, as the 1.3 build saves them; synthesised. Restamped 1.4 (1.4 is the first supported format; pre-release formats are not supported)."
+    },
+    {
+      "file": "v1.4-component-families.atrium",
+      "expect": "pre-release-format",
+      "origin": "Three synthetic definitions in one explicit component family, two package variants of the same chip with different terminal designators and a placed variant with a visible manufacturer part number. Restamped 1.4 (1.4 is the first supported format; pre-release formats are not supported)."
+    },
+    {
+      "file": "v1.4-altium-schematic-captions.atrium",
+      "expect": "pre-release-format",
+      "origin": "Saved import of a synthetic binary SchDoc with a rotated component, multipart designator, a custom pin font, a port with its electrical endpoint on the right, and connector-owned cross-reference captions. Restamped 1.4 (1.4 is the first supported format; pre-release formats are not supported)."
+    },
+    {
+      "file": "v1.4-newer-minor-rules-drawing.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor version (written by the 1.3 build for the 0.5.0 preview): the sample with an unknown rule type, a known-type rule this build can't validate (unknown scope kind), unknown settings on a rule, on the rules object and on rule sets, an unknown project-level rule type, an unknown item kind (bondwire) and item field, and a drawing with an unknown view type, unknown view/option/sheet/drawing/note fields, an unknown dimension type, a dimension with an unknown anchor kind and a callout with an unknown anchor kind. Must open, edit and save back with every unknown subtree unchanged."
+    },
+    {
+      "file": "v1.4-newer-minor-sections.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor version (written by the 1.3 build for the 0.5.0 preview): the sample with values a newer minor version may add to known fields (a power style and direction, a port I/O type, an image type, a sheet size, orientation and title block, a PCB text font, justification and stroke font, a panel separation, a revision status, a multichannel naming scheme), fields on panel sub-objects, cells, BOM views, symbols and pins (and a new pin electrical type), a board shape with a new segment kind, a layer stack with a new layer type, a layout block of a newer version, and a generic part from a newer generator. Must open, edit and save back with every unknown value unchanged."
+    },
+    {
+      "file": "v1.4-signals.atrium",
+      "expect": "pre-release-format",
+      "origin": "Format 1.4 signals and tags (app/signals.js), saved by the 1.4 build; synthesised from the sample: an AC-coupled differential signal spanning two series capacitors with stored stage names, a single-ended signal spanning a series resistor with a stored path, a bus, signal-, net- and path-level tags, a series override, naming conventions and a declined suggestion; the legacy mirror (board rules net classes, pairs, pair classes and lengthTuning xSignals) as written."
+    },
+    {
+      "file": "v1.5-newer-signals.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor version (written by the 1.4 build): v1.4-signals with unknown fields on the signals store, a signal, a leg and a tag. Must open and save back unchanged."
+    },
+    {
+      "file": "v1.5-newer-signals-store.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor version (written by the 1.4 build): v1.4-signals with a version 2 signals store, which this build sets aside whole (the board reads its legacy mirror) and restores on save."
+    },
+    {
+      "file": "v1.3-inline-step-models.atrium",
+      "expect": "pre-release-format",
+      "origin": "Two 0603 resistor definitions with the same embedded STEP model inline in footprint.model3d.stepText, as format 1.3 builds save them (one with library provenance), placed on a sheet and a board; synthesised. Opens and saves unchanged: inline models are never moved into project.blobs on open."
+    },
+    {
+      "file": "v1.4-library-blobs.atrium",
+      "expect": "pre-release-format",
+      "origin": "The same project in format 1.4: the STEP model stored once in project.blobs keyed by its SHA-256 and referenced by footprint.model3d.sha256, and libraryRef with rev and per-side hashes; synthesised."
+    },
+    {
+      "file": "v1.4-project-rules.atrium",
+      "expect": "pre-release-format",
+      "origin": "Format 1.4 project rules (app/project-rules.js), saved by the 1.4 build; synthesised from the sample with a second board: the rule book in project.designRules (rules shared by both boards, a width rule for the second board only with a severity and an origin, ERC levels and a matrix cell as schematic rules, a scoped ERC rule), and the mirrors (each board's doc.rules, project.erc) as written."
+    },
+    {
+      "file": "v1.5-newer-project-rules.atrium",
+      "expect": "pre-release-format",
+      "origin": "Synthetic future minor version (written by the 1.4 build): v1.4-project-rules with a version 4 rule book, which this build sets aside whole (the boards read their mirrors) and restores on save."
+    },
+    {
+      "file": "v1.4-sample.atrium",
+      "expect": "pre-release-format",
+      "origin": "Saved by the build that introduced format 1.4 (scripts/compat-corpus.py --add)."
+    },
+    {
+      "file": "v1.4-import-kicad.atrium",
+      "expect": "pre-release-format",
+      "origin": "Saved by the build that introduced format 1.4 (scripts/compat-corpus.py --add)."
+    },
+    {
+      "file": "v1.4-import-eagle.atrium",
+      "expect": "pre-release-format",
+      "origin": "Saved by the build that introduced format 1.4 (scripts/compat-corpus.py --add)."
+    },
+    {
+      "file": "v1.4-import-easyeda.atrium",
+      "expect": "pre-release-format",
+      "origin": "Saved by the build that introduced format 1.4 (scripts/compat-corpus.py --add)."
+    },
+    {
+      "file": "v1.4-import-altium.atrium",
+      "expect": "pre-release-format",
+      "origin": "Saved by the build that introduced format 1.4 (scripts/compat-corpus.py --add)."
+    },
+    {
+      "file": "v1.5-altium-geometry.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic example of additive Altium PCB geometry saved in format 1.5."
+    },
+    {
+      "file": "v1.5-altium-source-metadata.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic 1.5 board with an adopted rule index, a stored source contour, solid polygon settings, STEP checksum and native text placement."
+    },
+    {
+      "file": "v1.5-imported-rule-ledger.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic format 1.5 board retaining the one-based indices of previously adopted design rules after the source records were separated."
+    },
+    {
+      "file": "v1.5-replaced-source-rules.waffle",
+      "expect": "pre-release-format",
+      "origin": "Synthetic board with an explicitly supplied replacement rule file and one adopted rule."
+    },
+    {
+      "file": "v1.4-calculation-frame.waffle",
+      "expect": "pre-release-format",
+      "origin": "Authored RC corner saved as a legacy text frame with optional calculation bindings."
+    },
+    {
+      "file": "v1.4-notebook.waffle",
+      "expect": "pre-release-format",
+      "origin": "Distinct fallback text frames for an authored rich note, a TeX equation, a calculation and a checked widget."
+    }
+  ]
+}

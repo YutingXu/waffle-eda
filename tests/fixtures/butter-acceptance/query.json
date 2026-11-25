@@ -1,0 +1,113 @@
+{
+  "fixture": "tests/fixtures/format-2/butter-query",
+  "manifest": "Saved Query.waffle",
+  "cases": {
+    "plan": {
+      "args": {
+        "source": "track where width < 0.2 mm and net.name = \"Rail\"",
+        "documentId": "01900000-0000-7000-8000-000000000002"
+      },
+      "expect": {
+        "complete": true,
+        "changes": 0
+      }
+    },
+    "search": {
+      "args": {
+        "source": "track where width < 0.2 mm and net.name = \"Rail\"",
+        "documentId": "01900000-0000-7000-8000-000000000002",
+        "limit": 1
+      },
+      "expect": {
+        "complete": true,
+        "count": 1,
+        "changes": 0
+      }
+    },
+    "count": {
+      "args": {
+        "source": "track where width < 0.2 mm and net.name = \"Rail\"",
+        "documentId": "01900000-0000-7000-8000-000000000002"
+      },
+      "expect": {
+        "complete": true,
+        "count": 1,
+        "changes": 0
+      }
+    },
+    "list-saved": {
+      "args": {},
+      "expect": {
+        "complete": true,
+        "count": 1,
+        "changes": 0
+      }
+    },
+    "get-saved": {
+      "args": {
+        "id": "01900000-0000-7000-8000-000000000007"
+      },
+      "expect": {
+        "complete": true,
+        "changes": 0
+      }
+    },
+    "save-query": {
+      "args": {
+        "id": "01900000-0000-7000-8000-000000000007",
+        "name": "Narrow rail review"
+      },
+      "expect": {
+        "complete": true,
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Saved Query.waffle"
+      ],
+      "afterWrite": {
+        "id": "list-saved",
+        "args": {},
+        "expect": {
+          "complete": true,
+          "count": 1
+        }
+      }
+    },
+    "delete-saved": {
+      "args": {
+        "id": "01900000-0000-7000-8000-000000000007"
+      },
+      "expect": {
+        "complete": true,
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Saved Query.waffle"
+      ],
+      "afterWrite": {
+        "id": "list-saved",
+        "args": {},
+        "expect": {
+          "complete": true,
+          "count": 0
+        }
+      }
+    },
+    "rule-applicability": {
+      "args": {
+        "id": "01900000-0000-7000-8000-000000000006",
+        "documentId": "01900000-0000-7000-8000-000000000002"
+      },
+      "expect": {
+        "complete": true,
+        "changes": 0
+      }
+    }
+  }
+}

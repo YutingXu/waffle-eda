@@ -1,0 +1,1786 @@
+{
+ "v1.3-inline-step-models.atrium": {
+  "documents": [
+   {
+    "id": "sch",
+    "items": {
+     "part": 2
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "pcb",
+    "items": {
+     "part": 2
+    },
+    "kind": "pcb",
+    "name": "Board layout"
+   }
+  ],
+  "drc": {
+   "pcb": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "unconnectedPins": 4
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 4
+   },
+   "passed": true
+  },
+  "library": 2,
+  "render": {
+   "pcb": {
+    "digest": "d349487227e4ac5e",
+    "elements": 23
+   },
+   "sch": {
+    "digest": "b234470e35de84f3",
+    "elements": 64
+   }
+  }
+ },
+ "v1.4-altium-schematic-captions.atrium": {
+  "documents": [
+   {
+    "id": "sheet-0",
+    "items": {
+     "netlabel": 3,
+     "part": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Crossing"
+   },
+   {
+    "id": "sheet-1",
+    "items": {},
+    "kind": "pcb",
+    "name": "Board layout"
+   }
+  ],
+  "drc": {
+   "sheet-1": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "floatingPower": 2,
+    "missingFootprint": 1,
+    "unconnectedPins": 1
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 4
+   },
+   "passed": true
+  },
+  "library": 1,
+  "render": {
+   "sheet-0": {
+    "digest": "079440074cbce16c",
+    "elements": 58
+   },
+   "sheet-1": {
+    "digest": "20bb7048669629e2",
+    "elements": 1
+   }
+  }
+ },
+ "v1.4-calculation-frame.waffle": {
+  "documents": [
+   {
+    "id": "timing",
+    "items": {
+     "part": 2,
+     "textframe": 1
+    },
+    "kind": "schematic",
+    "name": "Timing"
+   }
+  ],
+  "drc": {},
+  "erc": {
+   "byCheck": {
+    "missingFootprint": 2
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 2
+   },
+   "passed": true
+  },
+  "library": 2,
+  "render": {
+   "timing": {
+    "digest": "e38ffe9a9ad6948d",
+    "elements": 55
+   }
+  }
+ },
+ "v1.4-coming-soon.atrium": {
+  "documents": [
+   {
+    "id": "amwnu37ca8j74dlw8g3e",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwnu37canzcknoksqjf",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "amwnu37canzcknoksqjf": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "amwnu37ca8j74dlw8g3e": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "amwnu37canzcknoksqjf": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   }
+  }
+ },
+ "v1.4-component-families.atrium": {
+  "documents": [
+   {
+    "id": "schematic",
+    "items": {
+     "netlabel": 1,
+     "part": 1
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "pcb",
+    "items": {
+     "part": 1
+    },
+    "kind": "pcb",
+    "name": "Board layout"
+   }
+  ],
+  "drc": {
+   "pcb": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "singlePinNets": 1,
+    "unconnectedPins": 1
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 2
+   },
+   "passed": true
+  },
+  "library": 3,
+  "render": {
+   "pcb": {
+    "digest": "c1a1b7248a46f3fa",
+    "elements": 9
+   },
+   "schematic": {
+    "digest": "1676e92fe912989f",
+    "elements": 52
+   }
+  }
+ },
+ "v1.4-frame-channel-net-hyphen.waffle": {
+  "documents": [
+   {
+    "id": "6806869f-23f1-486c-81ee-23d411ab31a8",
+    "items": {
+     "sheetsymbol": 1
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "14c51e59-e4ec-432d-90c2-c8e33b964a6f",
+    "items": {},
+    "kind": "pcb",
+    "name": "Board layout"
+   },
+   {
+    "id": "55ae18dc-084a-4586-9fd5-cbdcf77edd59",
+    "items": {
+     "part": 1,
+     "sheetsymbol": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Repeated"
+   },
+   {
+    "id": "ca4f8c5b-6aa0-42c2-bb81-2045432a850d",
+    "items": {
+     "netlabel": 1,
+     "part": 1,
+     "port": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Filter"
+   }
+  ],
+  "drc": {
+   "14c51e59-e4ec-432d-90c2-c8e33b964a6f": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "unconnectedPins": 2
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 2
+   },
+   "passed": true
+  },
+  "library": 1,
+  "render": {
+   "14c51e59-e4ec-432d-90c2-c8e33b964a6f": {
+    "digest": "20bb7048669629e2",
+    "elements": 1
+   },
+   "55ae18dc-084a-4586-9fd5-cbdcf77edd59": {
+    "digest": "37a686ed73cde618",
+    "elements": 60
+   },
+   "6806869f-23f1-486c-81ee-23d411ab31a8": {
+    "digest": "f3cd6b0626943269",
+    "elements": 52
+   },
+   "ca4f8c5b-6aa0-42c2-bb81-2045432a850d": {
+    "digest": "010fc21232246876",
+    "elements": 58
+   }
+  }
+ },
+ "v1.4-frame-channel-net-underscore.waffle": {
+  "documents": [
+   {
+    "id": "2e220dd4-272b-4673-ae8a-822d33c89f31",
+    "items": {
+     "sheetsymbol": 1
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "b27712fa-fd0e-4a8c-8dfa-456c67f24e66",
+    "items": {},
+    "kind": "pcb",
+    "name": "Board layout"
+   },
+   {
+    "id": "620609cd-6e6b-4276-8c22-e798612c4d44",
+    "items": {
+     "part": 1,
+     "sheetsymbol": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Repeated"
+   },
+   {
+    "id": "e0d69b3c-8c35-4549-a862-5f72c9eb0f53",
+    "items": {
+     "netlabel": 1,
+     "part": 1,
+     "port": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Filter"
+   }
+  ],
+  "drc": {
+   "b27712fa-fd0e-4a8c-8dfa-456c67f24e66": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "unconnectedPins": 2
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 2
+   },
+   "passed": true
+  },
+  "library": 1,
+  "render": {
+   "2e220dd4-272b-4673-ae8a-822d33c89f31": {
+    "digest": "f3cd6b0626943269",
+    "elements": 52
+   },
+   "620609cd-6e6b-4276-8c22-e798612c4d44": {
+    "digest": "90a56d42d96c6cc2",
+    "elements": 60
+   },
+   "b27712fa-fd0e-4a8c-8dfa-456c67f24e66": {
+    "digest": "20bb7048669629e2",
+    "elements": 1
+   },
+   "e0d69b3c-8c35-4549-a862-5f72c9eb0f53": {
+    "digest": "9d6def96f747d527",
+    "elements": 58
+   }
+  }
+ },
+ "v1.4-generic-parts.atrium": {
+  "documents": [
+   {
+    "id": "amwnujgndxeq2ez38e9",
+    "items": {
+     "netlabel": 1,
+     "part": 8,
+     "wire": 2
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "amwnujgnd2ry1xrdr0xq",
+    "items": {
+     "part": 2
+    },
+    "kind": "schematic",
+    "name": "Connectors"
+   },
+   {
+    "id": "amwnujgndtis2ekggyq",
+    "items": {
+     "part": 8
+    },
+    "kind": "pcb",
+    "name": "Board layout"
+   }
+  ],
+  "drc": {
+   "amwnujgndtis2ekggyq": {
+    "byType": {
+     "silkToMask": 6
+    },
+    "total": 6
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "boardMismatch": 2,
+    "danglingWires": 1,
+    "singlePinNets": 1,
+    "unconnectedPins": 16
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 20
+   },
+   "passed": true
+  },
+  "library": 9,
+  "render": {
+   "amwnujgnd2ry1xrdr0xq": {
+    "digest": "becb7902d2b48ebd",
+    "elements": 87
+   },
+   "amwnujgndtis2ekggyq": {
+    "digest": "a6c72ed65337d553",
+    "elements": 118
+   },
+   "amwnujgndxeq2ez38e9": {
+    "digest": "feadcd68c91447e4",
+    "elements": 123
+   }
+  }
+ },
+ "v1.4-import-altium.atrium": {
+  "documents": [
+   {
+    "id": "amwpix2jv0qp9434r2ed8",
+    "items": {
+     "graphic": 3,
+     "junction": 16,
+     "label": 3,
+     "netlabel": 74,
+     "noerc": 1,
+     "part": 23,
+     "wire": 69
+    },
+    "kind": "schematic",
+    "name": "PiDP11IOExpander"
+   },
+   {
+    "id": "amwpix2km0ix80kakocgn",
+    "items": {
+     "graphic": 24,
+     "label": 19,
+     "pad": 4,
+     "part": 23,
+     "polygon": 2,
+     "track": 194,
+     "via": 59
+    },
+    "kind": "pcb",
+    "name": "PiDP11IOExpander"
+   }
+  ],
+  "drc": {
+   "amwpix2km0ix80kakocgn": {
+    "byType": {
+     "clearance": 52,
+     "unrouted": 2
+    },
+    "total": 54
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 38,
+  "render": {
+   "amwpix2jv0qp9434r2ed8": {
+    "digest": "9ea80ae47a7f83fa",
+    "elements": 668
+   },
+   "amwpix2km0ix80kakocgn": {
+    "digest": "f56d34dcaa491cbd",
+    "elements": 780
+   }
+  }
+ },
+ "v1.4-import-eagle.atrium": {
+  "documents": [
+   {
+    "id": "amwpix2jn9dp6lhxva8",
+    "items": {
+     "graphic": 1,
+     "junction": 1,
+     "label": 1,
+     "netlabel": 1,
+     "part": 4,
+     "power": 1,
+     "wire": 8
+    },
+    "kind": "schematic",
+    "name": "demo-eagle 1"
+   },
+   {
+    "id": "amwpix2jok7lslo74oc",
+    "items": {
+     "netlabel": 1,
+     "part": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "demo-eagle 2"
+   },
+   {
+    "id": "amwpix2joutqphujwk6m",
+    "items": {
+     "label": 1,
+     "pad": 1,
+     "part": 2,
+     "polygon": 1,
+     "track": 3,
+     "via": 2
+    },
+    "kind": "pcb",
+    "name": "demo-eagle"
+   }
+  ],
+  "drc": {
+   "amwpix2joutqphujwk6m": {
+    "byType": {
+     "silkToMask": 2,
+     "unrouted": 2,
+     "viaStyle": 1
+    },
+    "total": 5
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "boardMismatch": 5,
+    "floatingInputs": 3,
+    "matrix": 1,
+    "noDriver": 1,
+    "singlePinNets": 1,
+    "unconnectedPins": 2
+   },
+   "counts": {
+    "Error": 4,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 9
+   },
+   "passed": false
+  },
+  "library": 4,
+  "render": {
+   "amwpix2jn9dp6lhxva8": {
+    "digest": "dd1ebfd5fe6c6e08",
+    "elements": 98
+   },
+   "amwpix2jok7lslo74oc": {
+    "digest": "d85f033ba687fd0f",
+    "elements": 58
+   },
+   "amwpix2joutqphujwk6m": {
+    "digest": "55daa0b734861d93",
+    "elements": 30
+   }
+  }
+ },
+ "v1.4-import-easyeda.atrium": {
+  "documents": [
+   {
+    "id": "amwpix2jrl0sweko6s8",
+    "items": {
+     "part": 1,
+     "polygon": 1,
+     "track": 1,
+     "via": 1
+    },
+    "kind": "pcb",
+    "name": "demo-easyeda"
+   },
+   {
+    "id": "amwpix2jrp2cqznzkvrb",
+    "items": {
+     "part": 1,
+     "power": 1,
+     "wire": 2
+    },
+    "kind": "schematic",
+    "name": "demo-easyeda 1"
+   }
+  ],
+  "drc": {
+   "amwpix2jrl0sweko6s8": {
+    "byType": {
+     "silkToMask": 2
+    },
+    "total": 2
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "danglingWires": 1,
+    "singlePinNets": 2
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 3
+   },
+   "passed": true
+  },
+  "library": 2,
+  "render": {
+   "amwpix2jrl0sweko6s8": {
+    "digest": "7721d446cac37cc3",
+    "elements": 11
+   },
+   "amwpix2jrp2cqznzkvrb": {
+    "digest": "0463461fad402b7e",
+    "elements": 61
+   }
+  }
+ },
+ "v1.4-import-kicad.atrium": {
+  "documents": [
+   {
+    "id": "amwpix2jf6y7luptqwlm",
+    "items": {
+     "graphic": 3,
+     "label": 1,
+     "part": 3,
+     "polygon": 1,
+     "track": 4,
+     "via": 2
+    },
+    "kind": "pcb",
+    "name": "demo"
+   },
+   {
+    "id": "amwpix2jh2d2vd3qvaj2",
+    "items": {
+     "junction": 1,
+     "label": 1,
+     "netlabel": 2,
+     "noerc": 1,
+     "offsheet": 1,
+     "part": 4,
+     "power": 2,
+     "sheetsymbol": 1,
+     "wire": 8
+    },
+    "kind": "schematic",
+    "name": "root"
+   },
+   {
+    "id": "amwpix2jil4vm0gbp97",
+    "items": {
+     "bus": 1,
+     "busentry": 1,
+     "part": 1,
+     "port": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "child"
+   }
+  ],
+  "drc": {
+   "amwpix2jf6y7luptqwlm": {
+    "byType": {
+     "clearance": 1,
+     "silkToMask": 2,
+     "unrouted": 2,
+     "viaStyle": 1
+    },
+    "total": 6
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "boardMismatch": 6,
+    "floatingInputs": 1,
+    "noDriver": 1,
+    "singlePinNets": 3,
+    "unconnectedPins": 2
+   },
+   "counts": {
+    "Error": 1,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 12
+   },
+   "passed": false
+  },
+  "library": 6,
+  "render": {
+   "amwpix2jf6y7luptqwlm": {
+    "digest": "ec2c01963c612911",
+    "elements": 50
+   },
+   "amwpix2jh2d2vd3qvaj2": {
+    "digest": "0c27b88ce7fb4f8c",
+    "elements": 109
+   },
+   "amwpix2jil4vm0gbp97": {
+    "digest": "08d73ee652b6cc37",
+    "elements": 59
+   }
+  }
+ },
+ "v1.4-library-blobs.atrium": {
+  "documents": [
+   {
+    "id": "sch",
+    "items": {
+     "part": 2
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "pcb",
+    "items": {
+     "part": 2
+    },
+    "kind": "pcb",
+    "name": "Board layout"
+   }
+  ],
+  "drc": {
+   "pcb": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "unconnectedPins": 4
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 4
+   },
+   "passed": true
+  },
+  "library": 2,
+  "render": {
+   "pcb": {
+    "digest": "d349487227e4ac5e",
+    "elements": 23
+   },
+   "sch": {
+    "digest": "b234470e35de84f3",
+    "elements": 64
+   }
+  }
+ },
+ "v1.4-newer-minor-rules-drawing.atrium": {
+  "documents": [
+   {
+    "id": "amwo5m0zxqx0of1imjki",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwo5m0zx9qjzjrasi1d",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   },
+   {
+    "id": "amwo5m0zy8d313oujx4f",
+    "items": {},
+    "kind": "drawing",
+    "name": "Fabrication drawing"
+   }
+  ],
+  "drc": {
+   "amwo5m0zx9qjzjrasi1d": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "amwo5m0zx9qjzjrasi1d": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   },
+   "amwo5m0zxqx0of1imjki": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   }
+  }
+ },
+ "v1.4-newer-minor-sections.atrium": {
+  "documents": [
+   {
+    "id": "amwo6gfso6ubpsjtzke2",
+    "items": {
+     "image": 1,
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "port": 1,
+     "power": 1,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwo6gfsodm2t81keev5",
+    "items": {
+     "label": 6,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   },
+   {
+    "id": "panel-future",
+    "items": {},
+    "kind": "panel",
+    "name": "Panel"
+   }
+  ],
+  "drc": {
+   "amwo6gfsodm2t81keev5": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "floatingPower": 1
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 1
+   },
+   "passed": true
+  },
+  "library": 7,
+  "render": {
+   "amwo6gfso6ubpsjtzke2": {
+    "digest": "b6f2d60d5a0f34e4",
+    "elements": 166
+   },
+   "amwo6gfsodm2t81keev5": {
+    "digest": "17494af87bea3590",
+    "elements": 107
+   }
+  }
+ },
+ "v1.4-newer-minor.atrium": {
+  "documents": [
+   {
+    "id": "amwnrc7iegu41l8njm",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwnrc7ieo6krtkulrs",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "amwnrc7ieo6krtkulrs": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "amwnrc7iegu41l8njm": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "amwnrc7ieo6krtkulrs": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   }
+  }
+ },
+ "v1.4-notebook.waffle": {
+  "documents": [
+   {
+    "id": "notebook",
+    "items": {
+     "textframe": 4
+    },
+    "kind": "schematic",
+    "name": "Bench notes"
+   }
+  ],
+  "drc": {},
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 0,
+  "render": {
+   "notebook": {
+    "digest": "1a5fceb66c433e6b",
+    "elements": 58
+   }
+  }
+ },
+ "v1.4-project-rules.atrium": {
+  "documents": [
+   {
+    "id": "98f34f15-64ac-485b-9240-496bcd0a116b",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "6060d8ab-ced2-403a-b64b-8290eee18901",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   },
+   {
+    "id": "board-2",
+    "items": {},
+    "kind": "pcb",
+    "name": "Second board"
+   }
+  ],
+  "drc": {
+   "6060d8ab-ced2-403a-b64b-8290eee18901": {
+    "byType": {},
+    "total": 0
+   },
+   "board-2": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "6060d8ab-ced2-403a-b64b-8290eee18901": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   },
+   "98f34f15-64ac-485b-9240-496bcd0a116b": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "board-2": {
+    "digest": "e12b6a14f1765945",
+    "elements": 3
+   }
+  }
+ },
+ "v1.4-sample.atrium": {
+  "documents": [
+   {
+    "id": "amwpix2jagchzzmyi4er",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwpix2jarbqo0k017l",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "amwpix2jarbqo0k017l": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "amwpix2jagchzzmyi4er": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "amwpix2jarbqo0k017l": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   }
+  }
+ },
+ "v1.4-schematic-canvas.waffle": {
+  "documents": [
+   {
+    "id": "analogue",
+    "items": {
+     "offsheet": 3,
+     "textframe": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Analogue"
+   },
+   {
+    "id": "controller",
+    "items": {
+     "offsheet": 2,
+     "textframe": 2
+    },
+    "kind": "schematic",
+    "name": "Controller"
+   }
+  ],
+  "drc": {},
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 0,
+  "render": {
+   "analogue": {
+    "digest": "5e0cd6719f17e594",
+    "elements": 12
+   },
+   "controller": {
+    "digest": "1d1fbcf9be024333",
+    "elements": 66
+   }
+  }
+ },
+ "v1.4-signals.atrium": {
+  "documents": [
+   {
+    "id": "adef6e8e-eeee-4ee6-834e-d11ab12c880b",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "097c0530-aeb7-40f8-be92-cd30fc8b4702",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 11,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "097c0530-aeb7-40f8-be92-cd30fc8b4702": {
+    "byType": {
+     "unrouted": 4
+    },
+    "total": 4
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "097c0530-aeb7-40f8-be92-cd30fc8b4702": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   },
+   "adef6e8e-eeee-4ee6-834e-d11ab12c880b": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   }
+  }
+ },
+ "v1.5-altium-geometry.waffle": {
+  "documents": [
+   {
+    "id": "sample-schematic",
+    "items": {},
+    "kind": "schematic",
+    "name": "Empty schematic"
+   },
+   {
+    "id": "sample-board",
+    "items": {
+     "graphic": 1,
+     "label": 1,
+     "pad": 1,
+     "part": 1,
+     "polygon": 1,
+     "track": 2
+    },
+    "kind": "pcb",
+    "name": "Geometry board"
+   }
+  ],
+  "drc": {
+   "sample-board": {
+    "byType": {
+     "clearance": 1
+    },
+    "total": 1
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "boardMismatch": 1
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 1
+   },
+   "passed": true
+  },
+  "library": 1,
+  "render": {
+   "sample-board": {
+    "digest": "1c965d59631f18c3",
+    "elements": 15
+   },
+   "sample-schematic": {
+    "digest": "178d0b3289feff2c",
+    "elements": 48
+   }
+  }
+ },
+ "v1.5-altium-source-metadata.waffle": {
+  "documents": [
+   {
+    "id": "metadata-board",
+    "items": {
+     "part": 1,
+     "polygon": 1
+    },
+    "kind": "pcb",
+    "name": "Metadata board"
+   }
+  ],
+  "drc": {
+   "metadata-board": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "boardMismatch": 1
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 1
+   },
+   "passed": true
+  },
+  "library": 1,
+  "render": {
+   "metadata-board": {
+    "digest": "bbbfa9c659018cb6",
+    "elements": 9
+   }
+  }
+ },
+ "v1.5-imported-rule-ledger.waffle": {
+  "documents": [
+   {
+    "id": "rule-ledger-board",
+    "items": {},
+    "kind": "pcb",
+    "name": "Board"
+   }
+  ],
+  "drc": {
+   "rule-ledger-board": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 0,
+  "render": {
+   "rule-ledger-board": {
+    "digest": "6dfb82be349ebae1",
+    "elements": 3
+   }
+  }
+ },
+ "v1.5-newer-project-rules.atrium": {
+  "documents": [
+   {
+    "id": "98f34f15-64ac-485b-9240-496bcd0a116b",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "6060d8ab-ced2-403a-b64b-8290eee18901",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   },
+   {
+    "id": "board-2",
+    "items": {},
+    "kind": "pcb",
+    "name": "Second board"
+   }
+  ],
+  "drc": {
+   "6060d8ab-ced2-403a-b64b-8290eee18901": {
+    "byType": {},
+    "total": 0
+   },
+   "board-2": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "6060d8ab-ced2-403a-b64b-8290eee18901": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   },
+   "98f34f15-64ac-485b-9240-496bcd0a116b": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "board-2": {
+    "digest": "e12b6a14f1765945",
+    "elements": 3
+   }
+  }
+ },
+ "v1.5-newer-signals-store.atrium": {
+  "documents": [
+   {
+    "id": "adef6e8e-eeee-4ee6-834e-d11ab12c880b",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "097c0530-aeb7-40f8-be92-cd30fc8b4702",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 11,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "097c0530-aeb7-40f8-be92-cd30fc8b4702": {
+    "byType": {
+     "unrouted": 4
+    },
+    "total": 4
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "097c0530-aeb7-40f8-be92-cd30fc8b4702": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   },
+   "adef6e8e-eeee-4ee6-834e-d11ab12c880b": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   }
+  }
+ },
+ "v1.5-newer-signals.atrium": {
+  "documents": [
+   {
+    "id": "adef6e8e-eeee-4ee6-834e-d11ab12c880b",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "097c0530-aeb7-40f8-be92-cd30fc8b4702",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 11,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "097c0530-aeb7-40f8-be92-cd30fc8b4702": {
+    "byType": {
+     "unrouted": 4
+    },
+    "total": 4
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "097c0530-aeb7-40f8-be92-cd30fc8b4702": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   },
+   "adef6e8e-eeee-4ee6-834e-d11ab12c880b": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   }
+  }
+ },
+ "v1.5-replaced-source-rules.waffle": {
+  "documents": [
+   {
+    "id": "external-rules-board",
+    "items": {},
+    "kind": "pcb",
+    "name": "Board"
+   }
+  ],
+  "drc": {
+   "external-rules-board": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 0,
+  "render": {
+   "external-rules-board": {
+    "digest": "6dfb82be349ebae1",
+    "elements": 3
+   }
+  }
+ },
+ "v1.6-newer-frame-channel-net.waffle": {
+  "documents": [
+   {
+    "id": "6806869f-23f1-486c-81ee-23d411ab31a8",
+    "items": {
+     "sheetsymbol": 1
+    },
+    "kind": "schematic",
+    "name": "Schematic"
+   },
+   {
+    "id": "14c51e59-e4ec-432d-90c2-c8e33b964a6f",
+    "items": {},
+    "kind": "pcb",
+    "name": "Board layout"
+   },
+   {
+    "id": "55ae18dc-084a-4586-9fd5-cbdcf77edd59",
+    "items": {
+     "part": 1,
+     "sheetsymbol": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Repeated"
+   },
+   {
+    "id": "ca4f8c5b-6aa0-42c2-bb81-2045432a850d",
+    "items": {
+     "netlabel": 1,
+     "part": 1,
+     "port": 1,
+     "wire": 1
+    },
+    "kind": "schematic",
+    "name": "Filter"
+   }
+  ],
+  "drc": {
+   "14c51e59-e4ec-432d-90c2-c8e33b964a6f": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {
+    "unconnectedPins": 2
+   },
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 2
+   },
+   "passed": true
+  },
+  "library": 1,
+  "render": {
+   "14c51e59-e4ec-432d-90c2-c8e33b964a6f": {
+    "digest": "20bb7048669629e2",
+    "elements": 1
+   },
+   "55ae18dc-084a-4586-9fd5-cbdcf77edd59": {
+    "digest": "37a686ed73cde618",
+    "elements": 60
+   },
+   "6806869f-23f1-486c-81ee-23d411ab31a8": {
+    "digest": "f3cd6b0626943269",
+    "elements": 52
+   },
+   "ca4f8c5b-6aa0-42c2-bb81-2045432a850d": {
+    "digest": "010fc21232246876",
+    "elements": 58
+   }
+  }
+ },
+ "v1.6-newer-schematic-canvas.waffle": {
+  "documents": [
+   {
+    "id": "future-sheet",
+    "items": {
+     "offsheet": 1,
+     "textframe": 2
+    },
+    "kind": "schematic",
+    "name": "Future sheet"
+   }
+  ],
+  "drc": {},
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 0,
+  "render": {
+   "future-sheet": {
+    "digest": "24124105ce504d02",
+    "elements": 10
+   }
+  }
+ },
+ "v2.0-newer-major-compatible.atrium": {
+  "documents": [
+   {
+    "id": "amwnrc7iegu41l8njm",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwnrc7ieo6krtkulrs",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "amwnrc7ieo6krtkulrs": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "amwnrc7iegu41l8njm": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "amwnrc7ieo6krtkulrs": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   }
+  }
+ },
+ "v2.0-newer-major.atrium": {
+  "documents": [
+   {
+    "id": "amwnrc7iegu41l8njm",
+    "items": {
+     "junction": 2,
+     "netlabel": 11,
+     "part": 7,
+     "wire": 7
+    },
+    "kind": "schematic",
+    "name": "Analog front end"
+   },
+   {
+    "id": "amwnrc7ieo6krtkulrs",
+    "items": {
+     "label": 5,
+     "pad": 4,
+     "part": 7,
+     "track": 16,
+     "via": 5
+    },
+    "kind": "pcb",
+    "name": "Sensor board"
+   }
+  ],
+  "drc": {
+   "amwnrc7ieo6krtkulrs": {
+    "byType": {},
+    "total": 0
+   }
+  },
+  "erc": {
+   "byCheck": {},
+   "counts": {
+    "Error": 0,
+    "Fatal": 0,
+    "Info": 1,
+    "Warning": 0
+   },
+   "passed": true
+  },
+  "library": 6,
+  "render": {
+   "amwnrc7iegu41l8njm": {
+    "digest": "f446daed88923b5e",
+    "elements": 159
+   },
+   "amwnrc7ieo6krtkulrs": {
+    "digest": "b745ff979a1ea02e",
+    "elements": 106
+   }
+  }
+ },
+ "v3.0-newer-major-unreadable.atrium": {
+  "refused": true
+ }
+}

@@ -1,0 +1,43 @@
+.import-save-hint {
+  flex:none;display:flex;align-items:center;flex-wrap:wrap;column-gap:var(--s-6);
+  padding:0 var(--s-12);min-height:var(--ctl-h);background:var(--panel);border-bottom:1px solid var(--line);
+  font-size:var(--fs-11);line-height:1.35;color:var(--muted);
+}
+.import-save-source {overflow-wrap:anywhere}
+.import-save-separator {color:var(--faint)}
+.import-save-link {
+  min-height:var(--ctl-h);padding:0;border:0;background:none;color:var(--link,var(--accent));font:inherit;
+  cursor:default;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px
+}
+.import-save-link:hover {color:var(--ink);text-decoration-thickness:2px}
+.import-save-sheet.ui-sheet {
+  /* Centred on the visual viewport (pinch zoom, on-screen keyboard), so the shared sheet centring
+     translate (ui/controls.css) must not apply on top of this one. */
+  position:fixed;inset:auto;left:var(--import-save-x,50vw);top:var(--import-save-y,50dvh);margin:0;translate:none;transform:translate(-50%,-50%);
+  box-sizing:border-box;
+  --ui-dialog-width:min(460px,calc(var(--import-save-w,100vw) - 24px));
+  --ui-dialog-max-height:min(calc(var(--import-save-h,100dvh) - 24px),620px);
+  --ui-dialog-padding:var(--s-16)
+}
+.import-save-sheet[open] {display:flex;flex-direction:column;gap:var(--s-16)}
+.import-save-sheet .ui-dialog-title,.import-save-description {margin:0}
+.import-save-description {overflow:auto;min-height:0}
+.import-save-sheet > .ui-dialog-actions {flex:none;margin:0}
+.import-save-sheet > .ui-dialog-actions button {white-space:normal;max-width:100%}
+.import-save-totals {display:flex;flex:none;flex-wrap:wrap;gap:var(--s-4) var(--s-16);margin:0;font-size:var(--fs-12)}
+.import-save-totals > div {display:inline-flex;align-items:baseline;gap:var(--s-4)}
+.import-save-totals dt {color:var(--muted)}
+.import-save-totals dd {margin:0;color:var(--ink);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums}
+.import-save-totals .has-loss dd {color:var(--danger)}
+.import-save-report {display:grid;gap:var(--s-12);overflow:auto;min-height:0;overscroll-behavior:contain;padding:1px}
+.import-save-group h3 {margin:0 0 var(--s-4);font-size:var(--fs-12);color:var(--muted);font-weight:var(--fw-semibold)}
+.import-save-group ul {list-style:none;padding:0;margin:0}
+.import-save-group li {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:2px var(--s-8);padding:2px 0;margin-block:0;overflow-wrap:anywhere}
+.import-save-feature {color:var(--ink)}
+.import-save-count {color:var(--muted);font-variant-numeric:tabular-nums}
+.import-save-detail {grid-column:1/-1;color:var(--muted);font-size:var(--fs-11)}
+.import-save-remember {flex:none;cursor:default}
+@media (any-pointer:coarse) {
+  .import-save-link {min-height:var(--ctl-h-touch)}
+}
+.import-save-sheet[data-stacked] > .ui-dialog-actions {display:grid;grid-template-columns:1fr}

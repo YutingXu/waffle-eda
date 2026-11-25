@@ -1,0 +1,3 @@
+{"kind":"project","formatVersion":"2.1","id":"ep","name":"Calibration"}
+{"kind":"document","id":"es","docKind":"schematic","name":"Input","path":"Input.wsch"}
+{"kind":"projectSetting","id":"package","key":"extensions","value":[{"files":{"calibration.json":"{\"units\":[\"μV\",\"mV\"],\"range\":[2,7]}\u000a","main.js":"exports.activate = api => api.commands.register(\"example.hello.say\", () => \"μV\");\u000d\u000a"},"manifest":{"id":"example.hello","apiVersion":1,"contributes":{"commands":[{"calibration":{"modes":[{"range":[2,7],"unit":"μV"}]},"command":"example.hello.say","title":"Say hello"}]},"main":"main.js","name":"Hello","permissions":["ui:command"],"publisher":"Example","version":"1.0.0"}}]}

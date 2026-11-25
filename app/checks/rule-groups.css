@@ -1,0 +1,19 @@
+/* Sets on this board (rule-groups.js) inside Design › Rule Sets… (rule-sets.css, workflows.css). */
+.rgrp {display:flex;flex-direction:column;gap:6px;margin:8px 0 4px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.rgrp-head h3 {margin:0}
+.rgrp-help {margin:2px 0 0;color:var(--muted);font-size:var(--fs-12)}
+.rgrp-tools {display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.rgrp-name {flex:0 1 180px;min-width:120px}
+.rgrp-body {min-height:0;max-height:240px}
+/* The grid row sizes to its content, so the 240 px cap goes on the scrolling columns: capped on the grid alone they spilled
+   over Library sets below (a11y/visual review). */
+.rgrp-items,.rgrp-detail {max-height:240px}
+/* The board's sets are a library .ui-list of .ui-row options with an enable checkbox in the leading column. */
+.rgrp-items {overflow:auto;overscroll-behavior:contain}
+.rgrp-row > input[type=checkbox] {margin:0}
+.rgrp-row[data-enabled="false"] .rgrp-label {opacity:.6;text-decoration:line-through}
+.rgrp-detail {display:flex;flex-direction:column;gap:6px}
+.rgrp-sub {margin:0;color:var(--muted)}
+.rgrp-detail select {align-self:flex-start}
+.rset-lib {margin:4px 0 0}
+@media (max-width:640px){.rgrp-body{max-height:none}.rgrp-items{max-height:160px}}

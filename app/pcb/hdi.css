@@ -1,0 +1,38 @@
+/* HDI Via Setup (hdi.js). Builds on .work-dialog (workflows.css) and the .vs-* dialog parts (viastack.css). */
+.hdi-dialog {width:min(1040px,calc(100vw - 32px));max-height:min(90vh,820px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+.hdi-dialog:not([open]) {display:none}
+.hdi-dialog .work-actions {margin:0;padding:10px 18px 14px;border-top:1px solid var(--line)}
+.hdi-body {display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px;padding:12px 18px;overflow:auto;min-height:0;flex:1 1 auto}
+.hdi-form,.hdi-side {display:flex;flex-direction:column;gap:12px;min-width:0}
+.hdi-group {border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 8px 8px;margin:0;display:flex;flex-direction:column;gap:6px}
+.hdi-group legend {color:var(--muted);font-size:var(--fs-11);padding:0 4px;text-transform:uppercase;letter-spacing:.04em}
+.hdi-field {display:grid;grid-template-columns:minmax(110px,1fr) minmax(0,1.4fr);align-items:center;gap:2px 8px;font-size:var(--fs-12)}
+.hdi-field .hdi-hint {grid-column:2}
+.hdi-k {color:var(--muted)}
+.hdi-hint {color:var(--faint);font-size:var(--fs-11);margin:0}
+.hdi-summary {color:var(--muted);font-size:var(--fs-12);line-height:var(--lh)}
+.hdi-field:has(> .hdi-pair),.hdi-pair {align-items:baseline}
+.hdi-pair {display:inline-flex;gap:4px}
+.work-dialog .hdi-num {width:var(--field-number-width);font-variant-numeric:tabular-nums}
+.work-dialog .hdi-select {min-width:0;max-width:100%}
+.hdi-status {margin:0;padding:0 18px;color:var(--error);font-size:var(--fs-12);min-height:0}
+.hdi-status:empty {display:none}
+.hdi-h3 {margin:0;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--muted)}
+.hdi-diagram {display:grid;grid-template-columns:minmax(180px,auto) repeat(var(--hdi-cols),14px);grid-template-rows:repeat(var(--hdi-rows),20px);column-gap:6px;row-gap:2px;
+  padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);overflow-x:auto}
+.hdi-layer {grid-column:1;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:6px;padding:0 6px;border-radius:var(--r-sm);
+  font-size:var(--fs-11);background:var(--tint-info)}
+.hdi-layer.is-core {background:var(--tint-accent)}
+.hdi-lnum {font-family:var(--mono);color:var(--muted)}
+.hdi-lname {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdi-lstage {color:var(--faint)}
+.hdi-bar {border-radius:var(--r-pill);margin:4px 3px;background:var(--muted)}
+.hdi-bar.is-laser {background:var(--accent)}
+.hdi-bar.is-bad {background:var(--error)}
+.hdi-legend {display:flex;align-items:center;gap:6px}
+.hdi-swatch {display:inline-block;width:14px;height:6px;border-radius:var(--r-pill);background:var(--muted)}
+.hdi-swatch.is-laser {background:var(--accent);margin-left:8px}
+.hdi-table td:first-child {white-space:nowrap}
+.hdi-bad {color:var(--error)}
+.hdi-findings {margin:0;padding-left:18px;font-size:var(--fs-12);line-height:var(--lh-loose)}
+@media (max-width:760px) {.hdi-body {grid-template-columns:minmax(0,1fr)}}

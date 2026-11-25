@@ -1,0 +1,6 @@
+{"kind":"schematic","formatVersion":"2.0","id":"ca4f8c5b-6aa0-42c2-bb81-2045432a850d"}
+{"kind":"wire","id":"07a356be-804f-4d98-a427-9316bfdd84b4","order":"a","points":[[5080000,0],[10000000,0]]}
+{"kind":"netlabel","id":"b16947c9-ea46-4604-a177-a1f68722230e","at":[5080000,0],"autoName":{"part":"dd0e83eb-65a1-4866-a6eb-5394d740604e","pin":"2","style":"hyphen"},"order":"C","text":"Net-R1_CH1-2"}
+{"kind":"port","id":"b8464d76-ceab-4697-8ac6-ce49bff258d5","angle":0,"at":[10000000,0],"io":"unspecified","order":"m","text":"Net-R1_CH1-2"}
+{"kind":"documentSettings","id":"ca4f8c5b-6aa0-42c2-bb81-2045432a850d/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"part","id":"dd0e83eb-65a1-4866-a6eb-5394d740604e","angle":0,"at":[0,0],"def":"std-r","link":"459a2f97-3390-432a-a271-ad4ae03d1f50","order":"O","pinNets":{},"ref":"R1","value":"10 kΩ"}

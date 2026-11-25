@@ -1,0 +1,15 @@
+{"kind":"project","formatVersion":"2.0","id":"query-proof","entryDocument":"analog","name":"Query proof"}
+{"kind":"document","id":"analog","docKind":"pcb","name":"Analog layout","order":"C","path":"Analog layout.wpcb"}
+{"kind":"library","id":"capacitive","order":"K","path":"libraries/Small capacitor.wlib"}
+{"kind":"document","id":"control","docKind":"pcb","name":"Control layout","order":"O","path":"Control layout.wpcb"}
+{"kind":"rule","id":"global-rail","order":"C","value":{"id":"global-rail","enabled":true,"max":1,"min":{"$number":"0.25"},"name":"Project Rail minimum","preferred":{"$number":"0.3"},"priority":2,"scope":{"languageVersion":1,"source":"track where net.name = \"Rail\""},"type":"width"}}
+{"kind":"rule","id":"local-rail","order":"O","value":{"id":"local-rail","boards":["analog"],"enabled":true,"max":1,"min":{"$number":"0.18"},"name":"Analog guard threshold","preferred":{"$number":"0.3"},"priority":1,"scope":{"languageVersion":1,"source":"object where net.name = \"Guard\""},"type":"width"}}
+{"kind":"rule","id":"low-ohms","order":"m","value":{"id":"low-ohms","enabled":true,"name":"Low resistance disconnect","priority":1,"scope":{"languageVersion":1,"source":"resistor where value < 1k"},"severity":"fatal","sheets":["power"],"type":"ercUnconnectedPins","where":"schematic"}}
+{"kind":"document","id":"monitor","docKind":"schematic","name":"Monitor","order":"m","path":"Monitor.wsch"}
+{"kind":"library","id":"offset","order":"U","path":"libraries/Offset package.wlib"}
+{"kind":"library","id":"ohmic","order":"A","path":"libraries/Small resistor.wlib"}
+{"kind":"document","id":"power","docKind":"schematic","name":"Power","order":"a","path":"Power.wsch"}
+{"kind":"library","id":"probe-hole","order":"o","path":"libraries/Through probe.wlib"}
+{"kind":"library","id":"probe-smd","order":"e","path":"libraries/Surface probe.wlib"}
+{"kind":"projectSetting","id":"query-proof/setting/rules","key":"rules","value":{"format":"atrium-rules","units":"mm","version":3}}
+{"kind":"rule","id":"two-nets","order":"a","value":{"id":"two-nets","enabled":true,"gap":300000,"name":"Named pair gap","priority":1,"scope":{"languageVersion":1,"source":"track where net.name = \"Pair+\""},"scope2":{"languageVersion":1,"source":"track where net.name = \"Pair-\""},"type":"clearance"}}

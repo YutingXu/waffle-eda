@@ -1,0 +1,45 @@
+/* Table editor (table-editor.js, butter.tables). Faces come from the UI library: soft-fill buttons,
+   .ui-field inputs, a .ui-toolbar, a formula bar and a status line. This file places them and draws
+   the grid itself, with the spreadsheet tokens (header --soft, cells --paper, hairlines --line). */
+.table-editor{width:min(920px,94vw);max-height:90vh;overflow:auto;color:var(--ink);background:var(--surface);padding:var(--s-12) var(--s-16) var(--s-12)}
+.table-editor header{display:flex;align-items:center;justify-content:space-between;gap:var(--s-8);margin-block-end:var(--s-4)}
+.table-editor h2{margin:0;font-size:var(--fs-14);font-weight:var(--fw-semibold)}
+.table-editor .table-tools.ui-toolbar{flex-wrap:wrap;row-gap:var(--s-4);padding-inline:0;margin-inline:calc(-1 * var(--s-4))}
+.table-field{display:inline-flex;align-items:center;gap:var(--s-6);color:var(--muted);font-size:var(--fs-11);white-space:nowrap}
+.table-field > .ui-field{color:var(--ink)}
+.table-field > select.ui-field{inline-size:auto}
+.table-field > input.ui-field:not([type=search]){inline-size:var(--field-number-width)}
+.table-field > input[type=text].ui-field{inline-size:16ch}
+.table-entry{display:flex;align-items:flex-start;gap:var(--s-6);margin-block:var(--s-6)}
+.table-address{flex:none;box-sizing:border-box;min-inline-size:7ch;block-size:var(--field-height);padding-inline:var(--s-8);display:inline-flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:var(--fs-12);font-variant-numeric:tabular-nums;border-inline-end:1px solid var(--line)}
+.table-entry textarea.ui-field{flex:1;min-inline-size:0;block-size:var(--field-height);min-block-size:var(--field-height);max-block-size:9em;resize:vertical;font-family:var(--font-mono,inherit)}
+.table-viewport{block-size:clamp(170px,46vh,520px);position:relative;overflow:auto;overscroll-behavior:contain;border-block:1px solid var(--line);background:var(--surface);
+  font-size:var(--fs-12);font-variant-numeric:tabular-nums;touch-action:pan-x pan-y;outline:none}
+:root[data-focus-nav=keys] .table-viewport:focus-visible{box-shadow:inset 0 0 0 calc(var(--focus-w) / 2) var(--focus)}
+.table-grid{position:relative}
+.table-cell,.table-col{position:absolute;overflow:hidden;box-sizing:border-box;padding:var(--s-2) var(--s-6);border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap;text-overflow:ellipsis}
+.table-cell{background:var(--paper);user-select:none}
+.table-col,.table-cell.heading{background:var(--soft);color:var(--ink);font-weight:var(--fw-medium);font-size:var(--fs-11)}
+.table-cell.band{background:color-mix(in srgb,var(--soft) 55%,var(--paper))}
+.table-cell[aria-selected=true]{background:color-mix(in srgb,var(--selection) 60%,var(--paper))}
+.table-cell.current{outline:var(--focus-w) solid var(--accent);outline-offset:calc(-1 * var(--focus-w))}
+.table-cell[data-state=error]{color:var(--error);box-shadow:inset var(--s-2) 0 var(--error)}
+.table-col{z-index:2}
+.table-resize{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;touch-action:none}
+.table-resize:hover{background:color-mix(in srgb,var(--focus) 45%,transparent)}
+.table-status{margin-block:var(--s-4) 0;min-block-size:var(--ctl-h-sm)}
+.table-options{margin-block-start:var(--s-8)}
+.table-options>summary{min-block-size:var(--ctl-h);line-height:var(--ctl-h);color:var(--ink);font-size:var(--fs-12);font-weight:var(--fw-semibold);cursor:default}
+.table-options>.table-tools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4) var(--s-8);padding-block:var(--s-2) var(--s-8)}
+.table-group-title{flex-basis:100%;margin:var(--s-8) 0 0;padding-block-end:var(--s-4);border-block-end:1px solid var(--line)}
+.table-group-title:first-child{margin-block-start:0}
+@media(any-pointer:coarse){
+  .table-field{min-block-size:var(--ctl-h-touch)}
+  .table-resize{width:15px}
+}
+/* Authored cell borders: table-editor.js sets --swatch-<edge> to the colour (a data colour, ui/components.css). */
+.table-cell[style*="--swatch-top:"] {border-top:2px solid var(--swatch-top)!important}
+.table-cell[style*="--swatch-right:"] {border-right:2px solid var(--swatch-right)!important}
+.table-cell[style*="--swatch-bottom:"] {border-bottom:2px solid var(--swatch-bottom)!important}
+.table-cell[style*="--swatch-left:"] {border-left:2px solid var(--swatch-left)!important}

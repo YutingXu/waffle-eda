@@ -1,0 +1,13 @@
+# The datasheet bundler verifies these original PDF.js release bytes.
+/app/vendor/pdfjs/LICENSE -text
+/app/vendor/pdfjs/pdf.min.mjs -text
+/app/vendor/pdfjs/pdf.worker.min.mjs -text
+
+# The slide test compares canonical format 2 manifest bytes.
+/tests/fixtures/butter-acceptance/slides/*.waffle text eol=lf
+# The AI fixture mutates this native board as saved.
+/tests/fixtures/butter-acceptance/saved-views/Board.wpcb text eol=lf
+# Model attachment checks the imported STEP payload's exact digest.
+/tests/fixtures/butter-acceptance/drop/body.step -text
+# Frozen CAD assets are addressed by the hash of their exact bytes.
+/tests/fixtures/cad-native/design-diff/assets/** -text

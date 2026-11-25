@@ -1,0 +1,7 @@
+{
+  "id": "example.divider", "name": "Voltage divider", "version": "1.0.0", "apiVersion": 1, "main": "main.js", "icon": "measure",
+  "permissions": ["ui:command"], "contributes": {
+    "paletteCommands": [{"id":"divider", "name":"Calculate voltage divider", "keywords":["resistor", "voltage", "ratio"], "icon":"measure", "command":"divider.calculate"}],
+    "mathFunctions": [{"id":"example.divider.vout", "version":"1.0.0", "arguments":[{"name":"vin","dimension":"voltage"},{"name":"rtop","dimension":"resistance"},{"name":"rbottom","dimension":"resistance"}], "returns":"voltage", "domain":["rtop >= 0 ohm","rbottom > 0 ohm"], "expression":"vin * rbottom / (rtop + rbottom)"}]
+  }
+}

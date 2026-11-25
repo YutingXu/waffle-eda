@@ -1,0 +1,3989 @@
+{
+  "format": "atrium",
+  "version": 1,
+  "formatVersion": "1.4",
+  "name": "Generic parts (format 1.3)",
+  "library": [
+    {
+      "id": "gen-res-0603-414b8e9a",
+      "name": "Resistor, 0603",
+      "category": "Resistors",
+      "prefix": "R",
+      "value": "10 kΩ",
+      "description": "Generic resistor, 0603 (1608 metric). Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "0603",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "1",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "2",
+            "name": "2",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": false,
+            "points": [
+              [
+                -2.54,
+                -0.76
+              ],
+              [
+                2.54,
+                -0.76
+              ],
+              [
+                2.54,
+                0.76
+              ],
+              [
+                -2.54,
+                0.76
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "RESC1608X55N",
+        "pads": [
+          {
+            "number": "1",
+            "x": -0.825,
+            "y": 0,
+            "w": 0.8,
+            "h": 0.95,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "2",
+            "x": 0.825,
+            "y": 0,
+            "w": 0.8,
+            "h": 0.95,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                0.75
+              ],
+              [
+                -1.5,
+                0.75
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -0.85,
+                -0.45
+              ],
+              [
+                0.85,
+                -0.45
+              ],
+              [
+                0.85,
+                0.45
+              ],
+              [
+                -0.85,
+                0.45
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.105,
+            "size": 0.3,
+            "align": "center"
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -0.165,
+                -0.46
+              ],
+              [
+                0.165,
+                -0.46
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                0.165,
+                0.46
+              ],
+              [
+                -0.165,
+                0.46
+              ]
+            ]
+          }
+        ],
+        "courtyard": [
+          -1.5,
+          -0.75,
+          1.5,
+          0.75
+        ],
+        "height": 0.55,
+        "ipc": {
+          "name": "RESC1608X55N",
+          "family": "chip",
+          "density": "N",
+          "Z": 2.45,
+          "G": 0.85,
+          "X": 0.95
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "resistor",
+        "package": "0603",
+        "style": "iec",
+        "fields": [
+          "Tolerance",
+          "Power",
+          "Voltage",
+          "Temperature coefficient"
+        ],
+        "digest": "48e15bf7fe98e883"
+      }
+    },
+    {
+      "id": "gen-res-0805-3cc77318",
+      "name": "Resistor, 0805",
+      "category": "Resistors",
+      "prefix": "R",
+      "value": "10 kΩ",
+      "description": "Generic resistor, 0805 (2012 metric). Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "0805",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "1",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "2",
+            "name": "2",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -2.116667,
+                -0.93
+              ],
+              [
+                -1.27,
+                0.93
+              ],
+              [
+                -0.423333,
+                -0.93
+              ],
+              [
+                0.423333,
+                0.93
+              ],
+              [
+                1.27,
+                -0.93
+              ],
+              [
+                2.116667,
+                0.93
+              ],
+              [
+                2.54,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "RESC2012X70N",
+        "pads": [
+          {
+            "number": "1",
+            "x": -0.8875,
+            "y": 0,
+            "w": 1.075,
+            "h": 1.4,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "2",
+            "x": 0.8875,
+            "y": 0,
+            "w": 1.075,
+            "h": 1.4,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -1.7,
+                -0.95
+              ],
+              [
+                1.7,
+                -0.95
+              ],
+              [
+                1.7,
+                0.95
+              ],
+              [
+                -1.7,
+                0.95
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -1.075,
+                -0.7
+              ],
+              [
+                1.075,
+                -0.7
+              ],
+              [
+                1.075,
+                0.7
+              ],
+              [
+                -1.075,
+                0.7
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.105,
+            "size": 0.3,
+            "align": "center"
+          }
+        ],
+        "courtyard": [
+          -1.7,
+          -0.95,
+          1.7,
+          0.95
+        ],
+        "height": 0.7,
+        "ipc": {
+          "name": "RESC2012X70N",
+          "family": "chip",
+          "density": "N",
+          "Z": 2.85,
+          "G": 0.7,
+          "X": 1.4
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "resistor",
+        "package": "0805",
+        "style": "ansi",
+        "fields": [
+          "Tolerance",
+          "Power",
+          "Voltage",
+          "Temperature coefficient"
+        ],
+        "digest": "4fa081bc745e9690"
+      }
+    },
+    {
+      "id": "gen-cap-0603-11537b57",
+      "name": "Capacitor, 0603",
+      "category": "Capacitors",
+      "prefix": "C",
+      "value": "100 nF",
+      "description": "Generic capacitor, 0603 (1608 metric). Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "0603",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "1",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "2",
+            "name": "2",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -0.4,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                2.54,
+                0
+              ],
+              [
+                0.4,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -0.4,
+                -1.6
+              ],
+              [
+                -0.4,
+                1.6
+              ]
+            ],
+            "width": 0.38
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                0.4,
+                -1.6
+              ],
+              [
+                0.4,
+                1.6
+              ]
+            ],
+            "width": 0.38
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "CAPC1608X55N",
+        "pads": [
+          {
+            "number": "1",
+            "x": -0.825,
+            "y": 0,
+            "w": 0.8,
+            "h": 0.95,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "2",
+            "x": 0.825,
+            "y": 0,
+            "w": 0.8,
+            "h": 0.95,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                0.75
+              ],
+              [
+                -1.5,
+                0.75
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -0.85,
+                -0.45
+              ],
+              [
+                0.85,
+                -0.45
+              ],
+              [
+                0.85,
+                0.45
+              ],
+              [
+                -0.85,
+                0.45
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.105,
+            "size": 0.3,
+            "align": "center"
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -0.165,
+                -0.46
+              ],
+              [
+                0.165,
+                -0.46
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                0.165,
+                0.46
+              ],
+              [
+                -0.165,
+                0.46
+              ]
+            ]
+          }
+        ],
+        "courtyard": [
+          -1.5,
+          -0.75,
+          1.5,
+          0.75
+        ],
+        "height": 0.55,
+        "ipc": {
+          "name": "CAPC1608X55N",
+          "family": "chip",
+          "density": "N",
+          "Z": 2.45,
+          "G": 0.85,
+          "X": 0.95
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "capacitor",
+        "package": "0603",
+        "fields": [
+          "Tolerance",
+          "Voltage",
+          "Dielectric",
+          "Temperature coefficient"
+        ],
+        "digest": "dafbc7d6306ead8a"
+      }
+    },
+    {
+      "id": "gen-cel-radial-d6-3-p2-5-7faf36ec",
+      "name": "Electrolytic capacitor, Radial D6.3 P2.5",
+      "category": "Capacitors",
+      "prefix": "C",
+      "value": "100 µF",
+      "description": "Generic electrolytic capacitor, Radial can, D6.3 mm, 2.5 mm pitch. Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "Radial D6.3 P2.5",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "+",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "2",
+            "name": "−",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -0.75,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                2.54,
+                0
+              ],
+              [
+                0.75,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": false,
+            "points": [
+              [
+                -0.75,
+                -1.6
+              ],
+              [
+                -0.25,
+                -1.6
+              ],
+              [
+                -0.25,
+                1.6
+              ],
+              [
+                -0.75,
+                1.6
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                0.25,
+                -1.6
+              ],
+              [
+                0.75,
+                -1.6
+              ],
+              [
+                0.75,
+                1.6
+              ],
+              [
+                0.25,
+                1.6
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": "+",
+            "x": -1.6,
+            "y": -1.3,
+            "size": 1.6,
+            "align": "center",
+            "style": "body"
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "CAPPRD250W50D630H1100N",
+        "pads": [
+          {
+            "number": "1",
+            "x": -1.25,
+            "y": 0,
+            "w": 1.6,
+            "h": 1.6,
+            "drill": 0.7,
+            "shape": "rect",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "2",
+            "x": 1.25,
+            "y": 0,
+            "w": 1.6,
+            "h": 1.6,
+            "drill": 0.7,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "circle",
+            "style": "silk",
+            "x": 0,
+            "y": 0,
+            "r": 3.27,
+            "width": 0.12
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -4.05,
+                -1.7325
+              ],
+              [
+                -3.45,
+                -1.7325
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -3.75,
+                -2.0325
+              ],
+              [
+                -3.75,
+                -1.4325
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "points": [
+              [
+                -3.4,
+                -3.4
+              ],
+              [
+                3.4,
+                -3.4
+              ],
+              [
+                3.4,
+                3.4
+              ],
+              [
+                -3.4,
+                3.4
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "circle",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "x": 0,
+            "y": 0,
+            "r": 3.15
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.35,
+            "size": 1,
+            "align": "center"
+          }
+        ],
+        "courtyard": [
+          -3.4,
+          -3.4,
+          3.4,
+          3.4
+        ],
+        "height": 11,
+        "ipc": {
+          "name": "CAPPRD250W50D630H1100N",
+          "family": "radial",
+          "hole": 0.7,
+          "land": 1.6,
+          "standard": "IPC-7251 (approximated through-hole allowances)"
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "electrolytic",
+        "package": "Radial D6.3 P2.5",
+        "style": "iec",
+        "fields": [
+          "Tolerance",
+          "Voltage",
+          "Temperature rating"
+        ],
+        "digest": "a109476f42b46f73"
+      }
+    },
+    {
+      "id": "gen-led-0603-1a081b88",
+      "name": "LED, 0603",
+      "category": "Optoelectronics",
+      "prefix": "D",
+      "value": "Red",
+      "description": "Generic LED, 0603 (1608 metric). Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "0603",
+      "symbol": {
+        "pins": [
+          {
+            "number": "2",
+            "name": "A",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "1",
+            "name": "K",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -1.1,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                1.1,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                -1.1,
+                -1.27
+              ],
+              [
+                -1.1,
+                1.27
+              ],
+              [
+                1.1,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                1.1,
+                -1.27
+              ],
+              [
+                1.1,
+                1.27
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -0.2,
+                -1.6
+              ],
+              [
+                0.7,
+                -2.5
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                0.7,
+                -2.5
+              ],
+              [
+                0.25,
+                -2.35
+              ],
+              [
+                0.55,
+                -2.05
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                0.7,
+                -1.6
+              ],
+              [
+                1.6,
+                -2.5
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                1.6,
+                -2.5
+              ],
+              [
+                1.15,
+                -2.35
+              ],
+              [
+                1.45,
+                -2.05
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "LEDC1608X55N",
+        "pads": [
+          {
+            "number": "1",
+            "x": -0.825,
+            "y": 0,
+            "w": 0.8,
+            "h": 0.95,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "2",
+            "x": 0.825,
+            "y": 0,
+            "w": 0.8,
+            "h": 0.95,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                0.75
+              ],
+              [
+                -1.5,
+                0.75
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -0.85,
+                -0.45
+              ],
+              [
+                0.85,
+                -0.45
+              ],
+              [
+                0.85,
+                0.45
+              ],
+              [
+                -0.85,
+                0.45
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.105,
+            "size": 0.3,
+            "align": "center"
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -0.165,
+                -0.46
+              ],
+              [
+                0.165,
+                -0.46
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                0.165,
+                0.46
+              ],
+              [
+                -0.165,
+                0.46
+              ]
+            ]
+          }
+        ],
+        "courtyard": [
+          -1.5,
+          -0.75,
+          1.5,
+          0.75
+        ],
+        "height": 0.55,
+        "ipc": {
+          "name": "LEDC1608X55N",
+          "family": "chip",
+          "density": "N",
+          "Z": 2.45,
+          "G": 0.85,
+          "X": 0.95
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "led",
+        "package": "0603",
+        "fields": [
+          "Forward voltage",
+          "Current"
+        ],
+        "digest": "2bfae16289f1a126"
+      }
+    },
+    {
+      "id": "gen-dio-sma-e036bd53",
+      "name": "Schottky diode, SMA",
+      "category": "Diodes",
+      "prefix": "D",
+      "value": "Rectifier",
+      "description": "Generic schottky diode, SMA (DO-214AC). Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "SMA",
+      "symbol": {
+        "pins": [
+          {
+            "number": "2",
+            "name": "A",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "1",
+            "name": "K",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -1.1,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                1.1,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                -1.1,
+                -1.27
+              ],
+              [
+                -1.1,
+                1.27
+              ],
+              [
+                1.1,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                1.6,
+                -1.6
+              ],
+              [
+                1.6,
+                -1.27
+              ],
+              [
+                1.1,
+                -1.27
+              ],
+              [
+                1.1,
+                1.27
+              ],
+              [
+                0.6,
+                1.27
+              ],
+              [
+                0.6,
+                1.6
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "DIO_SMA",
+        "pads": [
+          {
+            "number": "1",
+            "x": -1.8375,
+            "y": 0,
+            "w": 2.325,
+            "h": 1.75,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "2",
+            "x": 1.8375,
+            "y": 0,
+            "w": 2.325,
+            "h": 1.75,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -3.25,
+                -1.75
+              ],
+              [
+                3.25,
+                -1.75
+              ],
+              [
+                3.25,
+                1.75
+              ],
+              [
+                -3.25,
+                1.75
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -1.57,
+                -1.46
+              ],
+              [
+                2.3,
+                -1.46
+              ],
+              [
+                2.3,
+                1.46
+              ],
+              [
+                -2.3,
+                1.46
+              ],
+              [
+                -2.3,
+                -0.73
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.146364,
+            "size": 0.418182,
+            "align": "center"
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2.21,
+                -1.3625
+              ],
+              [
+                2.21,
+                -1.3625
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                2.21,
+                -1.3625
+              ],
+              [
+                2.21,
+                -1.135
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                2.21,
+                1.135
+              ],
+              [
+                2.21,
+                1.3625
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                2.21,
+                1.3625
+              ],
+              [
+                -2.21,
+                1.3625
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2.21,
+                1.3625
+              ],
+              [
+                -2.21,
+                1.135
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2.21,
+                -1.135
+              ],
+              [
+                -2.21,
+                -1.3625
+              ]
+            ]
+          },
+          {
+            "kind": "circle",
+            "style": "silk",
+            "x": -3.35,
+            "y": 0,
+            "r": 0.1,
+            "fill": true
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "width": 0.1,
+            "points": [
+              [
+                -1.075,
+                -1.3025
+              ],
+              [
+                -1.075,
+                1.3025
+              ]
+            ]
+          }
+        ],
+        "courtyard": [
+          -3.25,
+          -1.75,
+          3.25,
+          1.75
+        ],
+        "height": 2.3,
+        "ipc": {
+          "name": "SOD5026X230N",
+          "family": "sod",
+          "density": "N",
+          "Z": 6,
+          "G": 1.35,
+          "X": 1.75
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "diode",
+        "package": "SMA",
+        "subtype": "schottky",
+        "fields": [
+          "Voltage",
+          "Current"
+        ],
+        "digest": "a90db9dca6a15128"
+      }
+    },
+    {
+      "id": "gen-xtal-crystal-3225-428a954f",
+      "name": "Crystal, Crystal 3225",
+      "category": "Frequency control",
+      "prefix": "Y",
+      "value": "16 MHz",
+      "description": "Generic crystal, SMD crystal 3225, 4 pads. Value and ratings are set on each part; bind a manufacturer part before ordering.",
+      "package": "Crystal 3225",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "1",
+            "x": -5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "3",
+            "name": "3",
+            "x": 5.08,
+            "y": 0,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "right",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "2",
+            "name": "GND",
+            "x": -2.54,
+            "y": 5.08,
+            "electrical": 7,
+            "length": 2.54,
+            "orientation": "down",
+            "hideName": true,
+            "hideNumber": true
+          },
+          {
+            "number": "4",
+            "name": "GND",
+            "x": 2.54,
+            "y": 5.08,
+            "electrical": 7,
+            "length": 2.54,
+            "orientation": "down",
+            "hideName": true,
+            "hideNumber": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -1.5,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                2.54,
+                0
+              ],
+              [
+                1.5,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -1.5,
+                -1.9
+              ],
+              [
+                -1.5,
+                1.9
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                1.5,
+                -1.9
+              ],
+              [
+                1.5,
+                1.9
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": false,
+            "points": [
+              [
+                -0.8,
+                -1.6
+              ],
+              [
+                0.8,
+                -1.6
+              ],
+              [
+                0.8,
+                1.6
+              ],
+              [
+                -0.8,
+                1.6
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "points": [
+              [
+                -3.3,
+                2.54
+              ],
+              [
+                3.3,
+                2.54
+              ],
+              [
+                3.3,
+                -2.54
+              ],
+              [
+                -3.3,
+                -2.54
+              ],
+              [
+                -3.3,
+                2.54
+              ]
+            ],
+            "width": 0.1
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -2.54,
+                5.08
+              ],
+              [
+                -2.54,
+                2.54
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                2.54,
+                5.08
+              ],
+              [
+                2.54,
+                2.54
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              -2.54,
+              0
+            ],
+            "end": [
+              -5.08,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              0
+            ],
+            "end": [
+              5.08,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              -2.54,
+              2.54
+            ],
+            "end": [
+              -2.54,
+              5.08
+            ],
+            "direction": [
+              0,
+              1
+            ],
+            "name": "",
+            "number": ""
+          },
+          {
+            "start": [
+              2.54,
+              2.54
+            ],
+            "end": [
+              2.54,
+              5.08
+            ],
+            "direction": [
+              0,
+              1
+            ],
+            "name": "",
+            "number": ""
+          }
+        ]
+      },
+      "footprint": {
+        "name": "XTAL_SMD_3225-4",
+        "pads": [
+          {
+            "number": "1",
+            "x": -1.1,
+            "y": 0.8,
+            "w": 1.4,
+            "h": 1.15,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "2",
+            "x": 1.1,
+            "y": 0.8,
+            "w": 1.4,
+            "h": 1.15,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "3",
+            "x": 1.1,
+            "y": -0.8,
+            "w": 1.4,
+            "h": 1.15,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          },
+          {
+            "number": "4",
+            "x": -1.1,
+            "y": -0.8,
+            "w": 1.4,
+            "h": 1.15,
+            "shape": "roundrect",
+            "angle": 0,
+            "drill": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2,
+                1.75
+              ],
+              [
+                -2,
+                -1.75
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2,
+                1.75
+              ],
+              [
+                2,
+                1.75
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "points": [
+              [
+                -2.05,
+                -1.65
+              ],
+              [
+                2.05,
+                -1.65
+              ],
+              [
+                2.05,
+                1.65
+              ],
+              [
+                -2.05,
+                1.65
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -1.6,
+                -1.25
+              ],
+              [
+                1.6,
+                -1.25
+              ],
+              [
+                1.6,
+                1.25
+              ],
+              [
+                -1.6,
+                1.25
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.186667,
+            "size": 0.533333,
+            "align": "center"
+          }
+        ],
+        "height": 0.8,
+        "ipc": {
+          "name": "XTAL_SMD_3225-4",
+          "family": "crystal"
+        },
+        "courtyard": [
+          -2.05,
+          -1.65,
+          2.05,
+          1.65
+        ]
+      },
+      "generic": {
+        "v": 1,
+        "family": "crystal",
+        "package": "Crystal 3225",
+        "subtype": "4pin",
+        "fields": [
+          "Load capacitance",
+          "Tolerance"
+        ],
+        "digest": "e77912bc70c7d308"
+      }
+    },
+    {
+      "id": "gen-conn-header-4535406d",
+      "name": "Pin header 2×5, 2.54 mm",
+      "category": "Connectors",
+      "prefix": "J",
+      "value": "2×5",
+      "description": "Generic pin header 2×5, 2.54 mm, vertical, through-hole, odd/even (1–2 across rows). Check the land pattern against the connector you buy.",
+      "package": "2×5 2.54 mm",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "1",
+            "x": 0,
+            "y": 0,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "left",
+            "hideName": true
+          },
+          {
+            "number": "3",
+            "name": "3",
+            "x": 0,
+            "y": 2.54,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "left",
+            "hideName": true
+          },
+          {
+            "number": "5",
+            "name": "5",
+            "x": 0,
+            "y": 5.08,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "left",
+            "hideName": true
+          },
+          {
+            "number": "7",
+            "name": "7",
+            "x": 0,
+            "y": 7.62,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "left",
+            "hideName": true
+          },
+          {
+            "number": "9",
+            "name": "9",
+            "x": 0,
+            "y": 10.16,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "left",
+            "hideName": true
+          },
+          {
+            "number": "2",
+            "name": "2",
+            "x": 20.32,
+            "y": 0,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "right",
+            "hideName": true
+          },
+          {
+            "number": "4",
+            "name": "4",
+            "x": 20.32,
+            "y": 2.54,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "right",
+            "hideName": true
+          },
+          {
+            "number": "6",
+            "name": "6",
+            "x": 20.32,
+            "y": 5.08,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "right",
+            "hideName": true
+          },
+          {
+            "number": "8",
+            "name": "8",
+            "x": 20.32,
+            "y": 7.62,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "right",
+            "hideName": true
+          },
+          {
+            "number": "10",
+            "name": "10",
+            "x": 20.32,
+            "y": 10.16,
+            "electrical": 4,
+            "length": 5.08,
+            "orientation": "right",
+            "hideName": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                6.18,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                5.08,
+                2.54
+              ],
+              [
+                6.18,
+                2.54
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                5.08,
+                5.08
+              ],
+              [
+                6.18,
+                5.08
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                5.08,
+                7.62
+              ],
+              [
+                6.18,
+                7.62
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                5.08,
+                10.16
+              ],
+              [
+                6.18,
+                10.16
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                15.24,
+                0
+              ],
+              [
+                14.14,
+                0
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                15.24,
+                2.54
+              ],
+              [
+                14.14,
+                2.54
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                15.24,
+                5.08
+              ],
+              [
+                14.14,
+                5.08
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                15.24,
+                7.62
+              ],
+              [
+                14.14,
+                7.62
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "width": 0.5,
+            "points": [
+              [
+                15.24,
+                10.16
+              ],
+              [
+                14.14,
+                10.16
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                5.08,
+                -2.54
+              ],
+              [
+                15.24,
+                -2.54
+              ],
+              [
+                15.24,
+                12.7
+              ],
+              [
+                5.08,
+                12.7
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                5.08,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                0,
+                2.54
+              ],
+              [
+                5.08,
+                2.54
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                0,
+                5.08
+              ],
+              [
+                5.08,
+                5.08
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                0,
+                7.62
+              ],
+              [
+                5.08,
+                7.62
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                0,
+                10.16
+              ],
+              [
+                5.08,
+                10.16
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                20.32,
+                0
+              ],
+              [
+                15.24,
+                0
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                20.32,
+                2.54
+              ],
+              [
+                15.24,
+                2.54
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                20.32,
+                5.08
+              ],
+              [
+                15.24,
+                5.08
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                20.32,
+                7.62
+              ],
+              [
+                15.24,
+                7.62
+              ]
+            ],
+            "pinArt": true
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                20.32,
+                10.16
+              ],
+              [
+                15.24,
+                10.16
+              ]
+            ],
+            "pinArt": true
+          }
+        ]
+      },
+      "schDrawing": {
+        "pins": [
+          {
+            "start": [
+              5.08,
+              0
+            ],
+            "end": [
+              0,
+              0
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": "1"
+          },
+          {
+            "start": [
+              5.08,
+              2.54
+            ],
+            "end": [
+              0,
+              2.54
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": "3"
+          },
+          {
+            "start": [
+              5.08,
+              5.08
+            ],
+            "end": [
+              0,
+              5.08
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": "5"
+          },
+          {
+            "start": [
+              5.08,
+              7.62
+            ],
+            "end": [
+              0,
+              7.62
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": "7"
+          },
+          {
+            "start": [
+              5.08,
+              10.16
+            ],
+            "end": [
+              0,
+              10.16
+            ],
+            "direction": [
+              -1,
+              0
+            ],
+            "name": "",
+            "number": "9"
+          },
+          {
+            "start": [
+              15.24,
+              0
+            ],
+            "end": [
+              20.32,
+              0
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": "2"
+          },
+          {
+            "start": [
+              15.24,
+              2.54
+            ],
+            "end": [
+              20.32,
+              2.54
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": "4"
+          },
+          {
+            "start": [
+              15.24,
+              5.08
+            ],
+            "end": [
+              20.32,
+              5.08
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": "6"
+          },
+          {
+            "start": [
+              15.24,
+              7.62
+            ],
+            "end": [
+              20.32,
+              7.62
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": "8"
+          },
+          {
+            "start": [
+              15.24,
+              10.16
+            ],
+            "end": [
+              20.32,
+              10.16
+            ],
+            "direction": [
+              1,
+              0
+            ],
+            "name": "",
+            "number": "10"
+          }
+        ]
+      },
+      "footprint": {
+        "name": "HDRV10P254_2X5_H850N",
+        "pads": [
+          {
+            "number": "1",
+            "x": -1.27,
+            "y": -5.08,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "rect",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "2",
+            "x": 1.27,
+            "y": -5.08,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "3",
+            "x": -1.27,
+            "y": -2.54,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "4",
+            "x": 1.27,
+            "y": -2.54,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "5",
+            "x": -1.27,
+            "y": 0,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "6",
+            "x": 1.27,
+            "y": 0,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "7",
+            "x": -1.27,
+            "y": 2.54,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "8",
+            "x": 1.27,
+            "y": 2.54,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "9",
+            "x": -1.27,
+            "y": 5.08,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          },
+          {
+            "number": "10",
+            "x": 1.27,
+            "y": 5.08,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "round",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2.6,
+                -6.41
+              ],
+              [
+                2.6,
+                -6.41
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                2.6,
+                -6.41
+              ],
+              [
+                2.6,
+                6.41
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                2.6,
+                6.41
+              ],
+              [
+                -2.6,
+                6.41
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -2.6,
+                6.41
+              ],
+              [
+                -2.6,
+                -6.41
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "closed": true,
+            "points": [
+              [
+                -3.59,
+                -5.48
+              ],
+              [
+                -3.04,
+                -5.08
+              ],
+              [
+                -3.59,
+                -4.68
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "points": [
+              [
+                -2.8,
+                -6.6
+              ],
+              [
+                2.8,
+                -6.6
+              ],
+              [
+                2.8,
+                6.6
+              ],
+              [
+                -2.8,
+                6.6
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -2.54,
+                -6.35
+              ],
+              [
+                2.54,
+                -6.35
+              ],
+              [
+                2.54,
+                6.35
+              ],
+              [
+                -2.54,
+                6.35
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.296333,
+            "size": 0.846667,
+            "align": "center"
+          }
+        ],
+        "courtyard": [
+          -2.8,
+          -6.6,
+          2.8,
+          6.6
+        ],
+        "height": 8.5,
+        "ipc": {
+          "name": "HDRV10P254_2X5_H850N",
+          "family": "connector",
+          "standard": "IPC-7251 (approximated through-hole allowances)"
+        }
+      },
+      "generic": {
+        "v": 1,
+        "family": "connector",
+        "type": "header",
+        "pitch": 2.54,
+        "rows": 2,
+        "cols": 5,
+        "numbering": "odd-even",
+        "gender": "male",
+        "orientation": "vertical",
+        "mount": "tht",
+        "shrouded": false,
+        "key": false,
+        "pegs": false,
+        "split": 0,
+        "fields": [],
+        "digest": "59ae8dd17782cacd"
+      }
+    },
+    {
+      "id": "g0002",
+      "name": "Dynamic Connector",
+      "prefix": "J",
+      "value": "CONN",
+      "category": "Connectors",
+      "description": "Dynamic connector: wire to its edge to add pins.",
+      "dynamic": {
+        "body": [
+          -5.08,
+          -7.62,
+          5.08,
+          7.62
+        ],
+        "rows": 1,
+        "pitch": 2.54,
+        "pins": [
+          {
+            "number": "1",
+            "name": "TX",
+            "x": -5.08,
+            "y": -2.54,
+            "orientation": "left",
+            "auto": true,
+            "part": 1
+          }
+        ],
+        "footprintRows": 1,
+        "parts": 2
+      },
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "TX",
+            "x": -5.08,
+            "y": -2.54,
+            "electrical": 4,
+            "length": 2.54,
+            "orientation": "left",
+            "part": 1
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                -5.08,
+                -7.62
+              ],
+              [
+                5.08,
+                -7.62
+              ],
+              [
+                5.08,
+                7.62
+              ],
+              [
+                -5.08,
+                7.62
+              ]
+            ],
+            "part": 1
+          },
+          {
+            "kind": "text",
+            "text": "dynamic",
+            "x": -4.58,
+            "y": 7.02,
+            "size": 1.27,
+            "align": "left",
+            "style": "body",
+            "part": 1
+          },
+          {
+            "kind": "path",
+            "style": "body",
+            "closed": true,
+            "fill": true,
+            "points": [
+              [
+                -5.08,
+                -7.62
+              ],
+              [
+                5.08,
+                -7.62
+              ],
+              [
+                5.08,
+                7.62
+              ],
+              [
+                -5.08,
+                7.62
+              ]
+            ],
+            "part": 2
+          },
+          {
+            "kind": "text",
+            "text": "dynamic",
+            "x": -4.58,
+            "y": 7.02,
+            "size": 1.27,
+            "align": "left",
+            "style": "body",
+            "part": 2
+          },
+          {
+            "kind": "path",
+            "style": "pin",
+            "points": [
+              [
+                -5.08,
+                -2.54
+              ],
+              [
+                -2.54,
+                -2.54
+              ]
+            ],
+            "pinArt": true,
+            "part": 1
+          },
+          {
+            "kind": "text",
+            "text": "TX",
+            "x": -1.94,
+            "y": -1.84,
+            "size": 2.032,
+            "align": "left",
+            "angle": 0,
+            "pinArt": true,
+            "part": 1
+          },
+          {
+            "kind": "text",
+            "text": "1",
+            "x": -3.81,
+            "y": -2.79,
+            "size": 1.8,
+            "align": "center",
+            "angle": 0,
+            "pinArt": true,
+            "part": 1
+          }
+        ],
+        "parts": 2
+      },
+      "footprint": {
+        "name": "HDRV1W64P254_1X1_254X254X850N",
+        "pads": [
+          {
+            "number": "1",
+            "x": 0,
+            "y": 0,
+            "w": 1.65,
+            "h": 1.65,
+            "drill": 1.15,
+            "shape": "rect",
+            "angle": 0,
+            "layer": "Multi",
+            "plated": true
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -1.55,
+                -1.55
+              ],
+              [
+                1.55,
+                -1.55
+              ],
+              [
+                1.55,
+                1.55
+              ],
+              [
+                -1.55,
+                1.55
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          },
+          {
+            "kind": "path",
+            "layer": "Mechanical 13",
+            "style": "assembly",
+            "width": 0.1,
+            "closed": true,
+            "points": [
+              [
+                -0.635,
+                -1.27
+              ],
+              [
+                1.27,
+                -1.27
+              ],
+              [
+                1.27,
+                1.27
+              ],
+              [
+                -1.27,
+                1.27
+              ],
+              [
+                -1.27,
+                -0.635
+              ]
+            ]
+          },
+          {
+            "kind": "text",
+            "text": ".Designator",
+            "layer": "Mechanical 13",
+            "x": 0,
+            "y": 0.105,
+            "size": 0.3,
+            "align": "center"
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -1.33,
+                -1.33
+              ],
+              [
+                1.33,
+                -1.33
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                1.33,
+                -1.33
+              ],
+              [
+                1.33,
+                1.33
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                1.33,
+                1.33
+              ],
+              [
+                -1.33,
+                1.33
+              ]
+            ]
+          },
+          {
+            "kind": "path",
+            "style": "silk",
+            "width": 0.12,
+            "points": [
+              [
+                -1.33,
+                1.33
+              ],
+              [
+                -1.33,
+                -1.33
+              ]
+            ]
+          },
+          {
+            "kind": "circle",
+            "style": "silk",
+            "x": -1.72,
+            "y": 0,
+            "r": 0.1,
+            "fill": true
+          }
+        ],
+        "courtyard": [
+          -1.55,
+          -1.55,
+          1.55,
+          1.55
+        ],
+        "height": 8.5,
+        "ipc": {
+          "family": "header",
+          "density": "N",
+          "hole": 1.15,
+          "land": 1.65,
+          "goal": {
+            "table": "tht",
+            "hole": 0.2,
+            "annular": 0.25,
+            "courtyard": 0.25,
+            "flagged": "IPC-7251 through-hole allowances approximated"
+          },
+          "name": "HDRV1W64P254_1X1_254X254X850N",
+          "flagged": [
+            "IPC-7251 through-hole allowances approximated"
+          ]
+        },
+        "wizard": {
+          "family": "header",
+          "density": "B",
+          "fab": 0.1,
+          "place": 0.05,
+          "padShape": "round",
+          "preset": "1×6 2.54",
+          "rows": 1,
+          "cols": 1,
+          "pitch": 2.54,
+          "lead": 0.64,
+          "squareLead": true,
+          "H": 8.5,
+          "numbering": "zigzag",
+          "symbol": false,
+          "id": "g0002"
+        }
+      }
+    }
+  ],
+  "documents": [
+    {
+      "id": "amwnujgndxeq2ez38e9",
+      "kind": "schematic",
+      "name": "Schematic",
+      "grid": 1.27,
+      "items": [
+        {
+          "id": "amwnujgnfowiphcj3ky",
+          "kind": "part",
+          "def": "gen-res-0603-414b8e9a",
+          "ref": "R1",
+          "value": "4.7 kΩ",
+          "link": "amwnujgnfi4f7nvicjph",
+          "x": 10.16,
+          "y": 10.16,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Tolerance": "1%",
+            "Power": "100 mW",
+            "Voltage": "75 V",
+            "Temperature coefficient": "100 ppm/K",
+            "Description": "Resistor, 4.7 kΩ, 1%, 100 mW, 75 V, 100 ppm/K, 0603"
+          }
+        },
+        {
+          "id": "amwnujgnfqc1y64l11j",
+          "kind": "part",
+          "def": "gen-res-0805-3cc77318",
+          "ref": "R2",
+          "value": "10 kΩ",
+          "link": "amwnujgnf8fgeu5s43wa",
+          "x": 20.32,
+          "y": 10.16,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Tolerance": "1%",
+            "Power": "125 mW",
+            "Voltage": "150 V",
+            "Temperature coefficient": "100 ppm/K",
+            "Description": "Resistor, 10 kΩ, 1%, 125 mW, 150 V, 100 ppm/K, 0805"
+          }
+        },
+        {
+          "id": "amwnujgng3xslhdc2fkq",
+          "kind": "part",
+          "def": "gen-cap-0603-11537b57",
+          "ref": "C1",
+          "value": "100 nF",
+          "link": "amwnujgng9b5wh2h4d0i",
+          "x": 30.48,
+          "y": 10.16,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Tolerance": "10%",
+            "Voltage": "25 V",
+            "Dielectric": "X5R",
+            "Description": "Capacitor, 100 nF, 10%, 25 V, X5R, 0603"
+          }
+        },
+        {
+          "id": "amwnujgngyzffmc4n5t",
+          "kind": "part",
+          "def": "gen-cel-radial-d6-3-p2-5-7faf36ec",
+          "ref": "C2",
+          "value": "47 µF",
+          "link": "amwnujgngwyr35q3sd5b",
+          "x": 40.64,
+          "y": 10.16,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Tolerance": "20%",
+            "Voltage": "25 V",
+            "Temperature rating": "105 °C",
+            "Description": "Electrolytic capacitor, 47 µF, 20%, 25 V, 105 °C, Radial D6.3 P2.5"
+          }
+        },
+        {
+          "id": "amwnujgngmwr0gtpjdi",
+          "kind": "part",
+          "def": "gen-led-0603-1a081b88",
+          "ref": "D1",
+          "value": "Green",
+          "link": "amwnujgnggmdforhfrwp",
+          "x": 10.16,
+          "y": 25.4,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Current": "20 mA",
+            "Description": "LED, Green, 20 mA, 0603"
+          }
+        },
+        {
+          "id": "amwnujgngcwu28tze26c",
+          "kind": "part",
+          "def": "gen-dio-sma-e036bd53",
+          "ref": "D2",
+          "value": "Rectifier",
+          "link": "amwnujgng9zete750gfq",
+          "x": 20.32,
+          "y": 25.4,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Description": "Schottky diode, Rectifier, SMA"
+          }
+        },
+        {
+          "id": "amwnujgnh2iq3tbcili1",
+          "kind": "part",
+          "def": "gen-xtal-crystal-3225-428a954f",
+          "ref": "Y1",
+          "value": "16 MHz",
+          "link": "amwnujgnhg5drxb0uxsw",
+          "x": 30.48,
+          "y": 25.4,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Load capacitance": "10 pF",
+            "Tolerance": "20 ppm",
+            "Description": "Crystal, 16 MHz, 10 pF, 20 ppm, Crystal 3225"
+          }
+        },
+        {
+          "id": "g0001",
+          "kind": "wire",
+          "points": [
+            [
+              15.24,
+              10.16
+            ],
+            [
+              17.78,
+              10.16
+            ]
+          ]
+        },
+        {
+          "id": "amwnujgnifc3yany6n3q",
+          "kind": "part",
+          "def": "g0002",
+          "ref": "J2",
+          "value": "CONN",
+          "link": "amwnujgni8zw44nkfcz7",
+          "x": 50.8,
+          "y": 50.8,
+          "angle": 0,
+          "pinNets": {},
+          "unit": 1
+        },
+        {
+          "id": "g0003",
+          "kind": "wire",
+          "points": [
+            [
+              38.1,
+              48.26
+            ],
+            [
+              45.72,
+              48.26
+            ]
+          ]
+        },
+        {
+          "id": "g0004",
+          "kind": "netlabel",
+          "text": "TX",
+          "x": 38.1,
+          "y": 48.26
+        }
+      ],
+      "outline": [],
+      "notes": []
+    },
+    {
+      "id": "amwnujgnd2ry1xrdr0xq",
+      "kind": "schematic",
+      "name": "Connectors",
+      "grid": 1.27,
+      "items": [
+        {
+          "id": "amwnujgnicy44098o85v",
+          "kind": "part",
+          "def": "gen-conn-header-4535406d",
+          "ref": "J1",
+          "value": "2×5",
+          "link": "amwnujgniexl5r3gy56w",
+          "x": 20.32,
+          "y": 20.32,
+          "angle": 0,
+          "pinNets": {},
+          "parameters": {
+            "Description": "Pin header 2×5, 2.54 mm, 2×5, HDRV10P254_2X5_H850N"
+          }
+        },
+        {
+          "id": "amwnujgni0v2lc9vxonw",
+          "kind": "part",
+          "def": "g0002",
+          "ref": "J2",
+          "value": "CONN",
+          "link": "amwnujgni8zw44nkfcz7",
+          "x": 50.8,
+          "y": 50.8,
+          "angle": 0,
+          "pinNets": {},
+          "unit": 2
+        }
+      ],
+      "outline": [],
+      "notes": []
+    },
+    {
+      "id": "amwnujgndtis2ekggyq",
+      "kind": "pcb",
+      "name": "Board layout",
+      "grid": 0.25,
+      "items": [
+        {
+          "id": "g0005",
+          "kind": "part",
+          "def": "gen-res-0603-414b8e9a",
+          "ref": "R1",
+          "value": "4.7 kΩ",
+          "link": "amwnujgnfi4f7nvicjph",
+          "x": 5,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0006",
+          "kind": "part",
+          "def": "gen-res-0805-3cc77318",
+          "ref": "R2",
+          "value": "10 kΩ",
+          "link": "amwnujgnf8fgeu5s43wa",
+          "x": 11,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0007",
+          "kind": "part",
+          "def": "gen-cap-0603-11537b57",
+          "ref": "C1",
+          "value": "100 nF",
+          "link": "amwnujgng9b5wh2h4d0i",
+          "x": 17,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0008",
+          "kind": "part",
+          "def": "gen-cel-radial-d6-3-p2-5-7faf36ec",
+          "ref": "C2",
+          "value": "47 µF",
+          "link": "amwnujgngwyr35q3sd5b",
+          "x": 23,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0009",
+          "kind": "part",
+          "def": "gen-led-0603-1a081b88",
+          "ref": "D1",
+          "value": "Green",
+          "link": "amwnujgnggmdforhfrwp",
+          "x": 29,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0010",
+          "kind": "part",
+          "def": "gen-dio-sma-e036bd53",
+          "ref": "D2",
+          "value": "Rectifier",
+          "link": "amwnujgng9zete750gfq",
+          "x": 35,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0011",
+          "kind": "part",
+          "def": "gen-xtal-crystal-3225-428a954f",
+          "ref": "Y1",
+          "value": "16 MHz",
+          "link": "amwnujgnhg5drxb0uxsw",
+          "x": 41,
+          "y": 6,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "g0012",
+          "kind": "part",
+          "def": "gen-conn-header-4535406d",
+          "ref": "J1",
+          "value": "2×5",
+          "link": "amwnujgniexl5r3gy56w",
+          "x": 5,
+          "y": 18,
+          "angle": 0,
+          "pinNets": {}
+        }
+      ],
+      "outline": [
+        [
+          0,
+          0
+        ],
+        [
+          50,
+          0
+        ],
+        [
+          50,
+          30
+        ],
+        [
+          0,
+          30
+        ]
+      ],
+      "notes": []
+    }
+  ]
+}

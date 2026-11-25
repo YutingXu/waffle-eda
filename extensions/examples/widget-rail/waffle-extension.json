@@ -1,0 +1,62 @@
+{
+  "id": "example.rail",
+  "name": "Rail specification",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "main.js",
+  "permissions": [
+    "ui:command",
+    "ui:widgets",
+    "read:project"
+  ],
+  "activationEvents": [
+    "onCommand:rail.view"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "rail.view",
+        "title": "Rail specification view"
+      }
+    ],
+    "widgets": [
+      {
+        "id": "supply",
+        "name": "Rail specification",
+        "render": "rail.view",
+        "state": {
+          "caption": {
+            "type": "string",
+            "maxLength": 80,
+            "default": "Supply requirement"
+          }
+        },
+        "inputs": [
+          {
+            "key": "rail",
+            "kind": "field",
+            "expression": "{net VDD.voltage}"
+          }
+        ],
+        "fallback": {
+          "type": "text",
+          "text": "Rail specification"
+        },
+        "size": {
+          "min": [
+            20,
+            12
+          ],
+          "preferred": [
+            48,
+            26
+          ],
+          "max": [
+            100,
+            60
+          ]
+        }
+      }
+    ]
+  }
+}

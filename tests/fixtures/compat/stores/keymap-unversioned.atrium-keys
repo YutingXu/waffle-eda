@@ -1,0 +1,7 @@
+{
+  "bindings": {
+    "save": [
+      "Mod+S"
+    ]
+  }
+}

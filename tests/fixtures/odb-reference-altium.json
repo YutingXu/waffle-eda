@@ -1,0 +1,48 @@
+{
+  "publisher": "Fraunhofer Institute for Integrated Systems and Device Technology IISB",
+  "project": "foxBMS 2 BMS-Interface NXP MC33664",
+  "hardwareRevision": "1.0.2",
+  "releaseDirectory": "https://iisb-foxbms.iisb.fraunhofer.de/foxbms/gen2/hardware/release/",
+  "releaseUrl": "https://iisb-foxbms.iisb.fraunhofer.de/foxbms/gen2/hardware/release/interface-nxp-mc33664-v1.0.2.zip",
+  "releaseSha256": "8797c6cc649f2c72ea8c0919d8a9d8c8bbd0350013f3f0599e043fc1e07da4a0",
+  "projectRepository": "https://github.com/foxBMS/foxbms-2",
+  "projectRepositoryDocumentationCommit": "73dbde670f7e9ec59afc33855bcf27576bd874de",
+  "designPackageDocumentation": "https://docs.foxbms.org/hardware/design-resources.html",
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://foxbms.org/resources/",
+  "altiumOdbVersion": "8.0",
+  "altiumVersion": "22.7.1.60",
+  "exportCreated": "20230112.180301",
+  "members": [
+    {
+      "role": "source",
+      "path": "Sources/foxbms2-interface-mc33664.PcbDoc",
+      "sha256": "e38e02ed19dfbf444182a981dd3b34e59ca9c889688f3507f1ff18f57ee9c924"
+    },
+    {
+      "role": "vendorOdb",
+      "path": "Fabrication/odb-data/foxbms2-interface-mc33664.tgz",
+      "sha256": "1e8df9e5701ea7afa5a87108e4c0b58d5ffe1d31477b84b57c082c5618da5b9a"
+    },
+    {
+      "role": "license",
+      "path": "Sources/LICENSE.md",
+      "sha256": "b7f5663142382c9ac98c7c1ed15b11ee9c844799cd7d112b23f9c681d89a8bd8"
+    },
+    {
+      "role": "changelog",
+      "path": "Sources/CHANGELOG.rst",
+      "sha256": "6b48e24621477efb2669bc244ca4de51e98139b8f87cb5749c56a99cc4de79aa"
+    },
+    {
+      "role": "outputJob",
+      "path": "Sources/fabrication.OutJob",
+      "sha256": "5954738dc3da524317129850cb66049633f346e60718567ea667d51cad582c42"
+    },
+    {
+      "role": "ipc356",
+      "path": "Fabrication/test-point-report/Fabrication Testpoint Report for foxbms2-interface-mc33664.ipc",
+      "sha256": "1f78d71483a78aeabe596a4e6a5b9f94abcff518d0b61a15b0fbb8f067164c0f"
+    }
+  ]
+}

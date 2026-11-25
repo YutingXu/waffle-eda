@@ -1,0 +1,85 @@
+/* Theme picker (quick pick), Appearance gallery and theme editor (theme-picker.js, theme-editor.js).
+   Tokens only (docs/design-system.md). The .thp-* page controls live in theme.css. */
+
+/* Quick pick: a VS Code-style list at the top of the window. */
+.thq-dialog {width:min(560px,calc(100vw - 32px));margin:56px auto auto;padding:0;border:1px solid var(--line-strong);border-radius:var(--r-lg);
+  background:var(--overlay);color:var(--ink);box-shadow:var(--elev-3);overflow:hidden}
+.thq-dialog[open] {display:flex;flex-direction:column;max-height:min(70vh,560px)}
+.thq-dialog::backdrop {background:transparent}
+.thq-input {margin:var(--s-6)}
+.thq-list {flex:1;min-height:0;padding-bottom:var(--s-4);overflow:auto}
+.thq-group {padding:var(--s-6) var(--s-12) var(--s-2);font-size:var(--fs-11);color:var(--muted);text-align:right;border-top:1px solid var(--line)}
+.thq-group:first-child {border-top:0}
+.thq-item {gap:var(--s-8);min-height:calc(24px + var(--d-row));padding:0 var(--s-12);font-size:var(--fs-12)}
+.thq-name {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thq-detail,.thq-current {font-size:var(--fs-11);color:var(--muted)}
+.thq-item[aria-selected=true] :is(.thq-detail,.thq-current) {color:inherit}
+.thq-current {padding:0 var(--s-6);border-radius:var(--r-pill);box-shadow:inset 0 0 0 1px currentColor}
+.thq-empty {padding:var(--s-8) var(--s-12);color:var(--muted);font-size:var(--fs-12)}
+.thq-strip {display:inline-flex;flex:none;border-radius:var(--r-sm);overflow:hidden;box-shadow:inset 0 0 0 1px var(--swatch-edge)}
+.thq-strip i {display:block;width:9px;height:14px}
+.thq-foot {display:flex;flex-wrap:wrap;justify-content:normal;margin-block-start:0;gap:var(--s-4);padding:var(--s-4) var(--s-6);border-top:1px solid var(--line);background:var(--chrome)}
+.thq-link {min-height:var(--ctl-h-sm);padding:0 var(--s-8);border:0;border-radius:var(--r-sm);background:none;color:var(--muted);font-size:var(--fs-11);cursor:default}
+.thq-link:hover {background:var(--hover);color:var(--ink)}
+
+/* Gallery cards: the theme's own board and sheet, a copper layer strip, the name. */
+.thp-group.thg-group {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:var(--s-8)}
+.thp-group.thg-group > :not(.thp-heading,.thg-tools) {grid-column:1 / -1}
+.thg-tools {display:flex;flex-wrap:wrap;gap:var(--s-6)}
+.thg-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s-16) var(--s-12)}
+.thg-head {grid-column:1/-1;margin:var(--s-8) 0 0;font-size:var(--fs-11);font-weight:var(--fw-medium);color:var(--muted)}
+.thg-head:first-child {margin-top:0}
+/* One box per theme: the preview. The name sits under it; the ring marks the current theme. */
+.thg-card {position:relative;display:flex;flex-direction:column;gap:var(--s-6);cursor:default}
+.thg-card input {position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.thg-thumb {display:grid;grid-template-columns:1fr 1fr;grid-template-rows:84px auto;gap:2px;padding:2px;border-radius:var(--r-md);overflow:hidden;box-shadow:inset 0 0 0 1px var(--swatch-edge)}
+.thg-card:hover .thg-thumb {outline:1px solid var(--line);outline-offset:1px}
+.thg-card:has(input:checked) .thg-thumb {outline:2px solid var(--accent);outline-offset:0}
+.thg-card:has(input:focus-visible) .thg-thumb {outline:2px solid var(--focus);outline-offset:3px}
+.thg-thumb img {display:block;width:100%;height:84px;object-fit:cover;border-radius:var(--r-sm)}
+.thg-layers {grid-column:1/-1;display:flex;gap:2px;height:6px}
+.thg-layers i {flex:1;border-radius:var(--r-sm)}
+.thg-name {font-size:var(--fs-12);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thg-card:has(input:checked) .thg-name {color:var(--ink)}
+.thg-remove {position:absolute;top:var(--s-8);right:var(--s-8);width:20px;height:20px;padding:0;border:0;border-radius:var(--r-sm);background:var(--overlay);color:var(--ink);opacity:0}
+.thg-remove::before {content:"";display:block;width:12px;height:12px;margin:auto;background:currentColor;-webkit-mask:var(--icon-close) center/contain no-repeat;mask:var(--icon-close) center/contain no-repeat}
+.thg-card:hover .thg-remove,.thg-remove:focus-visible {opacity:1}
+
+/* Theme editor. */
+.the-dialog {width:min(980px,calc(100vw - 32px));height:min(86vh,820px);padding:0;display:none;flex-direction:column;overflow:hidden}
+.the-dialog[open] {display:flex}
+.work-dialog.the-dialog h2 {margin:0;font-size:var(--fs-13)}
+.the-meta {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8) var(--s-16);padding:var(--s-8) var(--s-16);border-bottom:1px solid var(--line)}
+.the-meta > .thp-inline {display:flex;align-items:baseline;gap:var(--s-8);min-inline-size:0;max-inline-size:100%;font:var(--fs-12)/var(--lh) var(--font-ui)}
+.the-meta > .thp-inline > span {flex:none}
+.the-meta > .thp-inline > .ui-field {min-inline-size:0;max-inline-size:220px}
+.the-meta input[type=text] {inline-size:220px}
+.the-meta > .ui-search {margin-left:auto;width:200px}
+.the-body {display:grid;grid-template-columns:minmax(0,1fr) 260px;flex:1;min-height:0}
+.the-list {overflow:auto;padding:0 var(--s-16) var(--s-12)}
+.the-side {overflow:auto;padding:var(--s-8) var(--s-12);border-left:1px solid var(--line);background:var(--chrome);font-size:var(--fs-12)}
+.the-side h3,.the-group h3 {margin:var(--s-12) 0 var(--s-6);font-size:var(--fs-12);font-weight:var(--fw-semibold)}
+.the-group h3 {position:sticky;top:0;z-index:var(--z-sticky);padding:var(--s-4) 0;background:var(--surface)}
+.the-row {display:grid;grid-template-columns:minmax(0,1fr) 40px 86px 52px 22px;align-items:center;gap:var(--s-6);min-height:calc(26px + var(--d-row));font-size:var(--fs-12)}
+.the-row[hidden],.the-group[hidden] {display:none}
+.the-row.is-own .the-name > span:first-child {font-weight:var(--fw-semibold)}
+.the-name {display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.the-name > * {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.the-name small {color:var(--muted);font-size:var(--fs-11)}
+.work-dialog .the-row input[type=color] {width:40px;height:22px;padding:1px 2px;cursor:default}
+.work-dialog .the-hex {width:86px}
+.the-badge {font-size:var(--fs-11);color:var(--muted);text-align:right}
+.the-badge.is-bad {color:var(--danger);font-weight:var(--fw-semibold)}
+.work-dialog .the-reset {width:22px;height:22px;min-height:0;padding:0;border:0;background:none;color:var(--muted)}
+.the-reset::before {content:"";display:block;width:12px;height:12px;margin:auto;background:currentColor;-webkit-mask:var(--icon-close) center/contain no-repeat;mask:var(--icon-close) center/contain no-repeat}
+.the-reset:disabled {visibility:hidden}
+.the-ok {color:var(--success)}
+.the-warn {color:var(--warning)}
+.the-pairs {margin:0;padding:0;list-style:none}
+.the-pairs li {display:flex;align-items:center;gap:var(--s-4);padding:var(--s-2) 0;cursor:default}
+.the-pairs li:hover,.the-pairs li:focus-visible {color:var(--ink-bright);outline:none;text-decoration:underline}
+.the-pairs i {flex:none;width:12px;height:12px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--swatch-edge)}
+.the-pairs i + i {margin-left:-6px}
+.the-tools {display:flex;flex-wrap:wrap;gap:var(--s-8)}
+.work-dialog .the-actions {margin:0;padding:var(--s-8) var(--s-16) var(--s-12);border-top:1px solid var(--line);background:var(--chrome)}
+@media(max-width:720px) {.the-body {grid-template-columns:1fr} .the-side {border-left:0;border-top:1px solid var(--line)}}

@@ -1,0 +1,90 @@
+/* Layer Stack Manager dialog. Builds on .work-dialog from workflows.css. */
+.stk-dialog {width:min(980px,calc(100vw - 32px));height:min(88vh,780px);max-height:min(88vh,860px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+.stk-dialog[open] {display:flex}
+.stk-head {display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;padding:14px 18px 8px;background:var(--panel-head);border-bottom:1px solid var(--line)}
+.stk-head h2 {margin:0;font-size:var(--fs-14)}
+.stk-doc {color:var(--muted);font-size:var(--fs-12);overflow-wrap:anywhere}
+.stk-panel {padding:10px 18px 4px;overflow:auto;min-height:0;min-width:0;flex:1 1 auto}
+.stk-panel[hidden] {display:none}
+.stk-toolbar {display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.stk-label {color:var(--muted);font-size:var(--fs-12)}
+.work-dialog .stk-preset {width:auto;max-width:min(300px,100%)}
+.stk-sep {width:1px;align-self:stretch;background:var(--line);margin:0 4px}
+.work-dialog .stk-danger:hover:not(:disabled) {box-shadow:inset 0 0 0 1px var(--accent)}
+.stk-table-wrap {overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm);max-height:52vh;background:var(--field)}
+.stk-table {width:100%;border-collapse:collapse;font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.stk-table th {position:sticky;top:0;z-index:1;background:var(--panel-head);color:var(--muted);font-weight:500;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.stk-table td {padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap;height:28px;box-sizing:border-box;line-height:20px}
+.stk-table tbody tr {background:var(--panel)}
+.stk-table tbody tr:hover {background:var(--soft)}
+.stk-table tbody tr[aria-selected="true"] {background:var(--selection)}
+.stk-table tbody tr:focus-visible {outline:1px solid var(--accent);outline-offset:-1px}
+.stk-row td:first-child {box-shadow:inset 4px 0 0 var(--stk-swatch,transparent);color:var(--muted);text-align:right;width:28px}
+.stk-signal,.stk-plane {--stk-swatch:var(--accent)}
+.stk-plane td:first-child {box-shadow:inset 4px 0 0 var(--accent),inset 8px 0 0 var(--panel)}
+.stk-dielectric {--stk-swatch:var(--faint)}
+.stk-dielectric td {color:var(--muted)}
+.stk-solder-mask,.stk-overlay,.stk-surface-finish {--stk-swatch:var(--line)}
+.stk-table tbody tr.stk-dielectric:not([aria-selected="true"]) {background:var(--soft)}
+.stk-text {width:100%;min-width:110px}
+.stk-num {width:var(--field-number-width);font-variant-numeric:tabular-nums}
+.stk-select {min-width:86px}
+.stk-unit {color:var(--muted);margin-left:4px;font-size:var(--fs-11)}
+.stk-type {color:var(--muted)}
+/* Name and layer key share one line so every cell in a row sits on the same centre line. */
+.stk-name-line {display:flex;align-items:center;gap:6px;min-width:0}
+.work-dialog .stk-name-line .stk-text {flex:1 1 auto;width:auto;min-width:110px}
+.stk-key {flex:none;width:58px;color:var(--faint);font-size:var(--fs-10);line-height:20px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+.stk-shared-name,.stk-ro {color:var(--ink);font-variant-numeric:tabular-nums}
+.stk-shared-name {flex:1 1 auto;min-width:110px;padding-left:6px}
+.stk-muted {color:var(--muted)}
+.stk-check {display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-12);color:var(--ink)}
+.stk-subbar {padding-bottom:6px;border-bottom:1px solid var(--line)}
+.work-dialog .stk-subname {width:160px;min-width:0}
+/* Impedance profiles */
+.stk-imp {display:grid;grid-template-columns:200px minmax(0,1fr);gap:12px;align-items:start}
+.stk-imp-side .stk-toolbar {flex-wrap:wrap}
+/* Profiles: a library .ui-list of .ui-row options. */
+.stk-imp-list {min-height:120px}
+.stk-imp-main {min-width:0}
+.stk-field-box {display:inline-flex;align-items:center;gap:4px}
+.stk-imp-table {max-height:30vh}
+.stk-imp-table .stk-num::placeholder {color:var(--muted);font-style:italic}
+.stk-strong {font-weight:600}
+.stk-xsec-wrap {display:grid;grid-template-columns:minmax(0,480px) minmax(200px,1fr);gap:12px;align-items:start;margin-top:8px}
+.stk-xsec {width:100%;height:auto;background:var(--field);border:1px solid var(--line);border-radius:var(--r-sm)}
+.stk-x-plane {fill:#c8873a}
+.stk-x-trace {fill:#e0a050;stroke:#7a4b16;stroke-width:.6}
+.stk-x-diel {fill:#3f6b4a}
+.stk-x-mask {fill:#2f5f8a}
+.stk-x-air {fill:#3f6b4a;opacity:.55}
+.stk-x-label,.stk-x-dim {font:var(--fs-10) system-ui,sans-serif;fill:var(--muted);font-variant-numeric:tabular-nums}
+.stk-x-dim {fill:var(--ink)}
+/* Board regions */
+.stk-regions .stk-table-wrap {max-height:26vh;margin-bottom:8px}
+.stk-h3 {font-size:var(--fs-12);margin:12px 0 6px;color:var(--ink)}
+.stk-note {font-size:var(--fs-11);color:var(--muted);margin:8px 0 6px}
+.stk-message {min-height:20px;padding:4px 18px;font-size:var(--fs-12);color:var(--ink);display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.stk-message[data-kind="error"] {color:var(--ink);background:var(--soft);border-top:1px solid var(--line);box-shadow:inset 3px 0 0 var(--accent)}
+.stk-move {display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px}
+.stk-move label {color:var(--muted)}
+.stk-summary {display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;padding:8px 18px;border-top:1px solid var(--line);background:var(--panel-head);font-size:var(--fs-12);color:var(--muted)}
+.stk-summary strong {color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.stk-warn {color:var(--accent-text)}
+.stk-dialog .work-actions {margin:0;padding:10px 18px 14px;background:var(--panel-head)}
+.stk-vias td {white-space:normal}
+.stk-imp-form {display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;margin:4px 0 12px}
+.stk-field {display:grid;gap:4px;font-size:var(--fs-12);color:var(--muted)}
+.stk-field > span:first-child {font-size:var(--fs-11)}
+.stk-field-box .stk-unit {margin-left:0;align-self:center}
+.stk-imp-values {display:grid;grid-template-columns:minmax(150px,max-content) 1fr;gap:4px 16px;margin:0;font-size:var(--fs-12)}
+.stk-imp-values dt {color:var(--muted)}
+.stk-imp-values dd {margin:0;font-variant-numeric:tabular-nums;color:var(--ink)}
+.stk-imp-values .stk-strong {font-weight:600}
+.stk-approx {border-left:2px solid var(--accent);padding-left:8px;margin-top:12px}
+@media (max-width:680px){
+  .stk-imp,.stk-xsec-wrap {grid-template-columns:1fr}
+  .stk-dialog {width:calc(100vw - 12px);height:94vh;max-height:94vh}
+  .stk-panel,.stk-message,.stk-summary {padding-inline:8px}
+  .stk-text {min-width:80px}
+}

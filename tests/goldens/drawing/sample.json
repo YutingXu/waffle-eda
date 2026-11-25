@@ -1,0 +1,10 @@
+{
+  "sample": {
+    "bytes": 113984,
+    "fnv1a": "ff34cd72"
+  },
+  "extended": {
+    "bytes": 128718,
+    "fnv1a": "eee4c2b6"
+  }
+}

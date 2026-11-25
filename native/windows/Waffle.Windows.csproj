@@ -1,0 +1,80 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Waffle for Windows: a WebView2 host on .NET Framework 4.8, which ships with Windows 10
+    (1903+) and Windows 11, so the app installs no runtime and no browser engine.
+    Builds on Windows with `dotnet build`, and on macOS/Linux with EnableWindowsTargeting
+    (see scripts/build-windows.sh). Sources in src/Core are shared with tests/ (net8.0).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Waffle</AssemblyName>
+    <RootNamespace>Waffle.Windows</RootNamespace>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>../../brand/windows/waffle.ico</ApplicationIcon>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../../app/VERSION').Trim())</Version>
+    <Product>Waffle EDA</Product>
+    <Company>Waffle contributors</Company>
+    <Description>Waffle EDA schematic and PCB editor</Description>
+    <Copyright>Waffle contributors</Copyright>
+    <Deterministic>true</Deterministic>
+    <DebugType>embedded</DebugType>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- WebView2Loader.dll for x64 and arm64 only (no x86 build of Waffle). -->
+    <WebView2LoaderPreference>Dynamic</WebView2LoaderPreference>
+    <WebView2UseWinRT>false</WebView2UseWinRT>
+    <!-- Code signing slot (unused): set SignTool / CertificateThumbprint in build.ps1. -->
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>$(DefineConstants);ATRIUM_DEVTOOLS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3912.50" />
+    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.18362.2007" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+  <!--
+    Stage and zip the portable app: dotnet build -c Release -t:Build;WafflePackage
+    Output: $(WaffleDist)/Waffle-windows/ and $(WaffleDist)/Waffle-$(Version)-windows.zip
+    Only the files the host needs ship: the WinForms/WPF WebView2 wrappers and the x86 loader do not.
+  -->
+  <PropertyGroup>
+    <WaffleRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</WaffleRoot>
+    <WaffleDist Condition="'$(WaffleDist)' == ''">$(WaffleRoot)/dist</WaffleDist>
+    <WaffleStage>$(WaffleDist)/Waffle-windows</WaffleStage>
+    <WafflePython Condition="'$(WafflePython)' == '' And '$(OS)' == 'Windows_NT'">python</WafflePython>
+    <WafflePython Condition="'$(WafflePython)' == ''">python3</WafflePython>
+  </PropertyGroup>
+  <Target Name="WaffleAssets">
+    <Exec Command="&quot;$(WafflePython)&quot; -B &quot;$(WaffleRoot)/scripts/prepare-assets.py&quot;" />
+  </Target>
+  <Target Name="WafflePackage" DependsOnTargets="WaffleAssets;Build">
+    <ItemGroup>
+      <WaffleHostFile Include="$(OutDir)Waffle.exe;$(OutDir)Waffle.exe.config;$(OutDir)Microsoft.Web.WebView2.Core.dll" />
+      <WaffleLoader Include="$(OutDir)runtimes/win-x64/native/WebView2Loader.dll" Dir="win-x64" />
+      <WaffleLoader Include="$(OutDir)runtimes/win-arm64/native/WebView2Loader.dll" Dir="win-arm64" />
+      <WaffleApp Include="$(WaffleRoot)/app/**/*" Exclude="$(WaffleRoot)/app/**/.DS_Store" />
+      <WaffleDoc Include="$(WaffleRoot)/LICENSE;$(WaffleRoot)/THIRD_PARTY_NOTICES.md;$(WaffleRoot)/native/bridge.js" />
+    </ItemGroup>
+    <RemoveDir Directories="$(WaffleStage)" />
+    <Copy SourceFiles="@(WaffleHostFile);@(WaffleDoc)" DestinationFolder="$(WaffleStage)" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)packaging/Register-WaffleDocumentTypes.ps1" DestinationFolder="$(WaffleStage)" />
+    <Copy SourceFiles="@(WaffleLoader)" DestinationFolder="$(WaffleStage)/runtimes/%(WaffleLoader.Dir)/native" />
+    <Copy SourceFiles="@(WaffleApp)" DestinationFiles="@(WaffleApp->'$(WaffleStage)/app/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Exec Command="&quot;$(WafflePython)&quot; -B &quot;$(WaffleRoot)/scripts/package_payload.py&quot; stage &quot;$(WaffleStage)&quot; --preserve-times" />
+    <Delete Files="$(WaffleDist)/Waffle-$(Version)-windows.zip" />
+    <ZipDirectory SourceDirectory="$(WaffleStage)" DestinationFile="$(WaffleDist)/Waffle-$(Version)-windows.zip" />
+    <Message Importance="high" Text="$(WaffleDist)/Waffle-$(Version)-windows.zip" />
+  </Target>
+</Project>

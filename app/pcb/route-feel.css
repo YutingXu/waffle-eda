@@ -1,0 +1,9 @@
+/* Interactive routing feel (route-feel.js): the corner-style chip and the one-time Space hint in the status bar. */
+.route-feel-chip {display:inline-flex;align-items:center;gap:var(--s-4);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.route-feel-chip[hidden] {display:none}
+/* A name-matched pair being routed: the offer to declare it. */
+.route-pair-offer {flex:none}
+.route-feel-glyph {width:16px;height:12px;flex:none;fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.route-feel-hint {display:inline-flex;align-items:center;gap:6px;flex:none;padding:0 4px 0 8px;height:var(--ctl-h-sm);border-radius:var(--r-md);
+  background:var(--tint-info);color:var(--text);white-space:nowrap;animation:atrium-rise var(--motion) var(--ease)}
+.route-feel-hint .ui-button {--ui-control-height:calc(var(--ctl-h-sm) - 4px);padding-block:0}

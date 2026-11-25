@@ -1,0 +1,29 @@
+{"kind":"schematic","formatVersion":"2.0","id":"xavsyeefnpaxx3i4iyl"}
+{"kind":"wire","id":"x0zrp45iv147ugm0bqi","order":"bZ","points":[[142240000,73660000],[142240000,60960000],[157480000,60960000]]}
+{"kind":"netlabel","id":"x1by07k8n8n7n8iowlu","at":[157480000,71120000],"order":"fz","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"netlabel","id":"x4rn0y75u2uecrcrwtb","at":[86360000,83820000],"order":"Jt","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"junction","id":"x6w1nxacml03xxzmkg6","at":[154940000,81280000],"order":"op"}
+{"kind":"netlabel","id":"x8ey65nhzbhgpq2z6dm","at":[172720000,81280000],"order":"vS","text":"VOUT"}
+{"kind":"netlabel","id":"x8h6ayb8c7z8h5fke83","at":[119380000,93980000],"order":"ZM","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"netlabel","id":"xaufzm6vqrhkziv8x1l","at":[134620000,101600000],"order":"r2","text":"BUF"}
+{"kind":"documentSettings","id":"xavsyeefnpaxx3i4iyl/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"netlabel","id":"xbcmjoasuwp5g5h6qm7","at":[142240000,60960000],"order":"dm","schPaint":{"direction":1,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":2,"type":"power"},"text":"VDD"}
+{"kind":"wire","id":"xbgmwxh6v6me4gbc964","order":"kP","points":[[149860000,81280000],[160020000,81280000]]}
+{"kind":"junction","id":"xe1cl8vi4j7725fo279","at":[119380000,78740000],"order":"Uw"}
+{"kind":"part","id":"xer02pdclsx7ifxi2v7","angle":270000000000,"at":[119380000,88900000],"def":"x2ka7edcmpb3u2m7os5","link":"relink-C1","order":"6d","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","refAt":[-635000,-3302000],"value":"10 nF","valueAt":[2921000,-3302000]}
+{"kind":"wire","id":"xft8uqbw6fc2v90r5bn","order":"Sj","points":[[119380000,78740000],[119380000,83820000]]}
+{"kind":"part","id":"xh55qaxtjm7kv25puzq","angle":270000000000,"at":[157480000,66040000],"def":"x2ka7edcmpb3u2m7os5","link":"relink-C2","order":"FT","pinNets":{"1":"VDD","2":"GND"},"ref":"C2","refAt":[-635000,-3302000],"value":"100 nF","valueAt":[2921000,-3302000]}
+{"kind":"part","id":"xhq0vy3238f76btf4bo","angle":0,"at":[190500000,83820000],"def":"xa0hipgad35l9m26mi0","link":"relink-J2","order":"DG","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","refAt":[-2159000,-6350000],"value":"Output","valueAt":[-2159000,7874000]}
+{"kind":"part","id":"xicb4wtcbe4etuiee28","angle":0,"at":[142240000,81280000],"def":"xaf3r09fquo6sbegzgs","link":"relink-U1","order":"8q","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","refAt":[3810000,-5842000],"value":"Buffer","valueAt":[3302000,7366000]}
+{"kind":"wire","id":"xiz3mbrpjdh2g8xemm4","order":"M6","points":[[86360000,78740000],[99060000,78740000]]}
+{"kind":"wire","id":"xjmlhnlksgdi3eguz31","order":"mc","points":[[134620000,83820000],[132080000,83820000],[132080000,101600000],[154940000,101600000],[154940000,81280000]]}
+{"kind":"part","id":"xjtopmk9my4f0dggc6q","angle":0,"at":[78740000,78740000],"def":"xyebannd4yz0emrvftv","link":"relink-J1","order":"2D","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","refAt":[-2159000,-8890000],"value":"Input","valueAt":[-2159000,10414000]}
+{"kind":"netlabel","id":"xm1mnyounii5wcerkh2","at":[86360000,73660000],"order":"Hg","schPaint":{"direction":1,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":2,"type":"power"},"text":"aaaaaaaaaaaaaaaaaaaaaaaaaa!"}
+{"kind":"part","id":"xpzq05s7leio49ernnb","angle":0,"at":[104140000,78740000],"def":"x29326ml64lg2tjf8cz","link":"relink-R?","order":"4Q","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R?","refAt":[-2540000,-1905000],"value":"10 kΩ","valueAt":[-2540000,3810000]}
+{"kind":"netlabel","id":"xqla48clorw876kzof0","at":[88900000,78740000],"order":"OJ","text":"VIN"}
+{"kind":"netlabel","id":"xs9k769qtyntj87r5m0","at":[121920000,78740000],"order":"X9","text":"FILTER"}
+{"kind":"netlabel","id":"xumnmgipifqyg108imz","at":[142240000,88900000],"order":"iC","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"part","id":"xxcivwf4e0b5ayyaeff","angle":0,"at":[165100000,81280000],"def":"x29326ml64lg2tjf8cz","link":"relink-R2","order":"B3","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","refAt":[-2540000,-1905000],"value":"100 Ω","valueAt":[-2540000,3810000]}
+{"kind":"netlabel","id":"xyagqqrv98607g2e9cy","at":[182880000,86360000],"order":"xf","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"wire","id":"xyi23may96v3unghnpy","order":"QW","points":[[109220000,78740000],[134620000,78740000]]}
+{"kind":"wire","id":"xznlevt4gawdortvnzl","order":"tF","points":[[170180000,81280000],[182880000,81280000]]}

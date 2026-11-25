@@ -1,0 +1,18 @@
+{
+  "manifest": "Sensor.waffle",
+  "projectId": "p1",
+  "transaction": "9c4ee281-25f7-492d-8a51-e1163ec087b1",
+  "before": {
+    "Power.wsch": "{\"kind\":\"schematic\",\"formatVersion\":\"2.0\",\"id\":\"s1\"}\n{\"kind\":\"netlabel\",\"id\":\"n1\",\"text\":\"SENSE\"}\n",
+    "Sensor.waffle": "{\"kind\":\"project\",\"formatVersion\":\"2.0\",\"id\":\"p1\",\"name\":\"Sensor\"}\n{\"kind\":\"document\",\"id\":\"s1\",\"docKind\":\"schematic\",\"name\":\"Power\",\"path\":\"Power.wsch\"}\n"
+  },
+  "after": {
+    "assets/328975f24457d58da82eb3d42151ced7f78a04209724bc41f20c51ce49e45c0b": "opaque\n",
+    "Power.wsch": "{\"kind\":\"schematic\",\"formatVersion\":\"2.0\",\"id\":\"s1\"}\n{\"kind\":\"image\",\"id\":\"i1\",\"asset\":{\"byteLength\":7,\"mediaType\":\"application/octet-stream\",\"sha256\":\"328975f24457d58da82eb3d42151ced7f78a04209724bc41f20c51ce49e45c0b\"}}\n{\"kind\":\"netlabel\",\"id\":\"n1\",\"text\":\"SENSE\"}\n",
+    "Sensor.waffle": "{\"kind\":\"project\",\"formatVersion\":\"2.0\",\"id\":\"p1\",\"name\":\"Sensor\"}\n{\"kind\":\"document\",\"id\":\"s1\",\"docKind\":\"schematic\",\"name\":\"Power\",\"path\":\"Power.wsch\"}\n"
+  },
+  "plan": [
+    "assets/328975f24457d58da82eb3d42151ced7f78a04209724bc41f20c51ce49e45c0b",
+    "Power.wsch"
+  ]
+}

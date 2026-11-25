@@ -1,0 +1,26 @@
+/* Violation inspector (drc-inspector.js): pinned at the top of the Properties pane. */
+.drc-insp {display:flex;flex-direction:column;gap:var(--s-6);max-height:65%;overflow:auto;padding:var(--s-8) var(--s-12) var(--s-12);
+  border-bottom:1px solid var(--line);border-left:3px solid var(--error);background:var(--surface);color:var(--ink);font-size:var(--fs-12);line-height:var(--lh)}
+.drc-insp[data-sev="warning"] {border-left-color:var(--warning)}
+.drc-insp[data-sev="waived"] {border-left-color:var(--line-strong)}
+.drc-insp-head {display:flex;align-items:center;gap:var(--s-4);min-height:var(--ctl-h)}
+.drc-insp-title {flex:1;min-width:0;display:flex;align-items:center;gap:var(--s-6);margin:0;font-size:var(--fs-13);font-weight:var(--fw-semibold);overflow-wrap:anywhere}
+.drc-insp-count {flex:none;color:var(--muted);font-size:var(--fs-11);font-variant-numeric:tabular-nums}
+/* The head's severity is a .ui-badge, the arrows .ui-icon-button and the close button .ui-close. */
+:root[data-focus-nav=keys] .drc-insp-object:focus-visible {outline:none;box-shadow:var(--focus-ring)}
+.drc-insp-rule,.drc-insp-where,.drc-insp-detail,.drc-insp-note {margin:0;color:var(--muted)}
+.drc-insp-note {line-height:var(--lh-loose)}
+.drc-insp-values {display:grid;grid-template-columns:auto 1fr;gap:var(--s-2) var(--s-12);margin:0}
+.drc-insp-values dt {color:var(--muted)}
+.drc-insp-values dd {margin:0;font-variant-numeric:tabular-nums;font-weight:var(--fw-medium)}
+.drc-insp-values .drc-insp-actual {color:var(--error)}
+.drc-insp[data-sev="warning"] .drc-insp-actual {color:var(--warning)}
+.drc-insp[data-sev="waived"] .drc-insp-actual {color:var(--ink)}
+.drc-insp-sub {margin:var(--s-2) 0 0;font-size:var(--fs-11);font-weight:var(--fw-medium);color:var(--muted)}
+.drc-insp-objects {list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--s-2)}
+.drc-insp-object {max-width:100%;padding:0 var(--s-4);border:0;border-radius:var(--r-sm);background:transparent;color:var(--accent-text);font:inherit;text-align:left;cursor:default;overflow-wrap:anywhere}
+.drc-insp-object:hover {background:var(--hover);text-decoration:underline}
+.drc-insp-actions {display:flex;flex-wrap:wrap;gap:var(--s-6);margin-top:var(--s-2)}
+.drc-insp-foot {color:var(--faint);font-size:var(--fs-11)}
+.drc-fix-panel {display:flex;flex-direction:column;gap:var(--s-6)}
+.drc-fix-note {color:var(--muted);font-size:var(--fs-11)}

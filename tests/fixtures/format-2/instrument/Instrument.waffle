@@ -1,0 +1,8 @@
+{"kind":"project","formatVersion":"2.0","id":"project-a0397b9833e7e125a6d4c6915e9d5eb613217b9044a3a0c461fddc4e4cbb5be6","entryDocument":"amwqtkf8xybbog9ug3m9","name":"Instrument"}
+{"kind":"library","id":"amwqtkf8u57qyvuhe4mf","order":"V","path":"libraries/Precision.wlib"}
+{"kind":"document","id":"amwqtkf8uzgkfqlplv9t","docKind":"pcb","name":"Instrument","order":"e","path":"Instrument.wpcb"}
+{"kind":"document","id":"amwqtkf8xybbog9ug3m9","docKind":"schematic","name":"Schematic","order":"K","path":"Schematic.wsch"}
+{"kind":"importIndex","id":"amwqtkfa3tgdakjjp22n","path":".waffle/imports/f59070c89f598613b7bc0927f58b30559659fabd63e7d0f6b6c7e79475c85fe7/bindings-amwqtkfa3tgdakjjp22n.json"}
+{"kind":"projectSetting","id":"project-a0397b9833e7e125a6d4c6915e9d5eb613217b9044a3a0c461fddc4e4cbb5be6/setting/importNotes","key":"importNotes","value":["Instrument.kicad_pcb — No board outline (edge cuts) was found.","Instrument.kicad_pcb — Imported 1 footprints, 0 tracks, 0 vias and 0 zones"]}
+{"kind":"projectSetting","id":"project-a0397b9833e7e125a6d4c6915e9d5eb613217b9044a3a0c461fddc4e4cbb5be6/setting/revision","key":"revision","value":{"date":"2026-01-02","from":"A","letter":"B","status":"draft"}}
+{"kind":"release","id":"release-a","snapshot":{"byteLength":1251,"mediaType":"application/vnd.waffle.snapshot+jsonl","sha256":"ed6bc593f8cef56ed93ac70ab6f0907b97dcd336d2b7aa5295c5536cf3207ca7"},"value":{"id":"release-a","date":"2026-01-01","letter":"A","released":"2026-01-01T12:00:00.000Z","status":"released","stored":{"bytes":24786,"chunks":11}}}

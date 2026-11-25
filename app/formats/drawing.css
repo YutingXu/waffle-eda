@@ -1,0 +1,30 @@
+/* Drawing documents (app/drawing.js): the Add Drawing / Add View dialogs and the Properties panel
+   sections for a drawing. Extends .work-dialog, .work-form and the inspector's .field-row. */
+.drawing-dialog {width:min(460px,calc(100vw - 32px))}
+.drawing-form {display:grid;gap:var(--s-6)}
+.drawing-row {display:grid;grid-template-columns:minmax(96px,120px) minmax(0,1fr);align-items:center;gap:var(--s-2) var(--s-8);min-height:var(--ctl-h)}
+.drawing-row > span {color:var(--ink)}
+.drawing-dialog select,.drawing-dialog input:not([type=number]) {width:100%;min-width:0}
+.drawing-hint {margin:0;color:var(--muted);font-size:var(--fs-12);line-height:var(--lh-loose)}
+.drawing-status {min-height:1.2em;margin:0;color:var(--error);font-size:var(--fs-12)}
+.drawing-status:empty {display:none}
+/* Properties panel. */
+.drawing-actions {display:flex;flex-wrap:wrap;gap:var(--s-4);margin:var(--s-4) 0}
+.drawing-sheet {display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);align-items:center;gap:var(--s-4);margin:var(--s-6) 0;padding-bottom:var(--s-6);border-bottom:1px solid var(--line)}
+.drawing-sheet > strong {grid-row:span 3;align-self:start;padding-top:var(--s-4)}
+.drawing-sheet > input:not([type=checkbox]) {grid-column:2 / span 2}
+.drawing-sheet > .drawing-remove {justify-self:end}
+/* Library fields (.ui-field) at the inspector's dense height. */
+.drawing-sheet input:not([type=checkbox]),.drawing-sheet select,.drawing-note textarea,.drawing-rev input {min-height:var(--ctl-h-sm);min-width:0;width:100%}
+.drawing-note {display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:start;gap:var(--s-4);margin:var(--s-4) 0}
+.drawing-note > strong {padding-top:var(--s-2)}
+.drawing-note textarea {grid-column:2 / span 3;resize:vertical;padding:var(--s-2) var(--s-4)}
+.drawing-note > .ui-button {grid-row:2;justify-self:start}
+.drawing-note > .ui-button:nth-of-type(1) {grid-column:2}
+.drawing-note > .ui-button:nth-of-type(2) {grid-column:3}
+.drawing-rev {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4);margin:var(--s-4) 0}
+.drawing-rev input {width:auto;flex:1 1 40px}
+.drawing-rev input:nth-child(3) {flex:3 1 100%}
+.drawing-check {display:inline-flex;align-items:center;gap:var(--s-4);color:var(--ink);font-size:var(--fs-12);min-height:var(--ctl-h-sm)}
+.drawing-check input {accent-color:var(--accent)}
+.drawing-warning {margin:var(--s-4) 0}

@@ -1,0 +1,140 @@
+/* Messages panel (AtriumMessages) and Project Options → Error Reporting (AtriumERC). */
+.msg-panel,.erc-options {
+  --msg-fatal:#d9453d;--msg-error:#e2655b;--msg-warning:var(--accent);--msg-info:var(--focus);
+  --erc-none:#3f5a3f;--erc-warning:#8a6a22;--erc-error:#94502a;--erc-fatal:#8f2f2f;
+}
+.msg-panel {
+  /* Docked like VS Code's bottom panel: it takes space in the body's flex column
+     (between the workbench and the status bar) so the editor shrinks instead of
+     being covered. */
+  position:relative;z-index:4;order:1;flex:none;height:min(30vh,280px);min-height:120px;max-height:70vh;
+  display:flex;flex-direction:column;background:var(--panel);color:var(--ink);border-top:1px solid var(--app);
+  font-size:calc(12px*var(--fs-scale));
+}
+.msg-panel[hidden] {display:none}
+.msg-grip {height:4px;flex:none;cursor:ns-resize;margin-top:-2px}
+.msg-grip:hover {background:var(--focus)}
+.msg-context {color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:24ch}
+.msg-filters {display:flex;gap:1px;margin-left:6px}
+.msg-filter {display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:var(--r-sm);color:var(--muted);font:var(--fs-11) var(--font-ui);font-variant-numeric:tabular-nums}
+.msg-filter[aria-pressed=true] {background:var(--soft);color:var(--ink)}
+.msg-filter[aria-pressed=false] .msg-icon {opacity:.35}
+.msg-search {flex:none;width:150px;min-width:80px}
+.msg-extra {display:flex;align-items:center;gap:6px}
+.msg-extra:empty {display:none}
+.msg-close {font-size:var(--fs-14);line-height:1;width:22px;padding:0!important;color:var(--muted)!important}
+.msg-export {position:relative}
+.msg-export > summary {display:flex;align-items:center;list-style:none;cursor:default}
+.msg-export > summary::-webkit-details-marker {display:none}
+.msg-export > summary::after {content:"▾";margin-left:4px;font-size:var(--fs-10);color:var(--muted)}
+.msg-export-items {position:fixed;z-index:7;padding:4px;min-width:150px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--chrome);box-shadow:var(--elev-2)}
+.msg-export-items button {display:block;width:100%;text-align:left;padding:4px 8px;color:var(--ink)}
+.msg-grid {flex:1;min-height:0;overflow:auto;outline:none;container-type:inline-size}
+:root[data-focus-nav=keys] .msg-grid:focus-visible {box-shadow:inset 0 0 0 1px var(--focus)}
+.msg-grid table {width:100%;border-collapse:collapse;table-layout:fixed}
+.msg-grid thead th {position:sticky;top:0;z-index:1;background:var(--panel-head);border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;text-align:left;font-weight:500}
+.msg-grid thead button {display:block;width:100%;height:20px;padding:0 6px;text-align:left;color:var(--muted);font-size:var(--fs-11);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-grid th[aria-sort=ascending] button::after {content:" ▴"}
+.msg-grid th[aria-sort=descending] button::after {content:" ▾"}
+.msg-grid th[aria-sort=ascending] button,.msg-grid th[aria-sort=descending] button {color:var(--ink)}
+.msg-grid td {height:20px;padding:0 6px;border-bottom:1px solid var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.msg-grid td.msg-col-time,.msg-grid td.msg-col-no {font-size:var(--fs-11);font-variant-numeric:tabular-nums;color:var(--muted)}
+.msg-grid td.msg-col-no {text-align:right}
+.msg-grid td.msg-col-class {display:flex;align-items:center;gap:4px}
+.msg-grid td.msg-col-document,.msg-grid td.msg-col-source {color:var(--muted)}
+.msg-grid.msg-with-pairs tr[data-no] td {height:max(24px,var(--ctl-h))}
+.msg-net-pair-line {display:flex;align-items:center;gap:8px}
+.msg-net-pair span {min-width:0;overflow:hidden;text-overflow:ellipsis}
+.msg-pair-toggle {flex:none;min-height:max(24px,var(--ctl-h));font-size:var(--fs-11)}
+.msg-grid td.msg-net-pair-child {padding-inline-start:16px}
+.msg-grid tbody tr:hover td {background:var(--hover)}
+.msg-grid tbody tr[aria-selected=true] td {background:var(--selection);color:var(--selection-ink)}
+.msg-grid tr.msg-empty td {color:var(--muted);padding:8px 8px;cursor:default;background:none}
+.msg-fatal .msg-col-class span,.msg-error .msg-col-class span {color:var(--msg-error)}
+.msg-warning .msg-col-class span {color:var(--msg-warning)}
+.msg-info .msg-col-class span {color:var(--msg-info)}
+.msg-grid tr[aria-selected=true] .msg-col-class span {color:inherit}
+.msg-icon {width:12px;height:12px;flex:none;overflow:visible}
+.msg-icon .msg-glyph {fill:none;stroke:var(--app);stroke-width:1.5;stroke-linecap:round}
+.msg-icon-fatal .msg-shape {fill:var(--msg-fatal)}
+.msg-icon-error .msg-shape {fill:var(--msg-error)}
+.msg-icon-warning .msg-shape {fill:var(--msg-warning);stroke:var(--msg-warning);stroke-linejoin:round}
+.msg-icon-info .msg-shape {fill:var(--msg-info)}
+.msg-foot {display:flex;justify-content:space-between;gap:12px;flex:none;height:20px;align-items:center;padding:0 8px;border-top:1px solid var(--line);color:var(--muted);font-size:var(--fs-11);white-space:nowrap;overflow:hidden}
+.msg-hint {color:var(--faint);overflow:hidden;text-overflow:ellipsis}
+@media(max-width:700px){.msg-hint {display:none}}
+/* Column widths live on <col> elements (messages.js, the user's widths); Message takes the rest. The
+   divider on a header cell's end edge resizes the column: a 6 px hit area, an accent rule while used. */
+.msg-grid thead th {position:sticky}
+.msg-col-grip {position:absolute;z-index:1;top:0;bottom:0;right:0;width:6px;cursor:col-resize;touch-action:none}
+.msg-col-grip[hidden] {display:none}
+.msg-col-grip::after {content:"";position:absolute;top:0;bottom:0;right:0;width:2px;background:var(--focus);opacity:0}
+.msg-col-grip:hover::after,.msg-col-grip.is-dragging::after {opacity:1}
+
+/* Project Options dialog. */
+.work-dialog.erc-options {width:min(720px,calc(100vw - 40px));max-height:min(86vh,780px);flex-direction:column}
+.erc-options[open] {display:flex}
+.erc-tabs {flex:none}
+.erc-tab-body {flex:1;min-height:0;overflow:auto;padding-top:8px}
+.erc-report-table {width:100%;border-collapse:collapse}
+.erc-report-table thead th {position:sticky;top:0;z-index:1;background:var(--panel-head);text-align:left;font-weight:500;color:var(--muted);padding:4px 8px;font-size:var(--fs-11)}
+.erc-report-table td {padding:4px 8px;border-bottom:1px solid var(--soft);vertical-align:middle}
+.erc-report-table td span {display:block}
+.erc-report-table td small {color:var(--faint)}
+.erc-report-table td:last-child {width:130px}
+.erc-report-table tr.erc-group th {text-align:left;padding:8px 8px 4px;font-size:var(--fs-11);font-weight:600;color:var(--ink);border-bottom:1px solid var(--line)}
+.erc-matrix {border-collapse:collapse;margin:6px 0 8px}
+.erc-matrix th {font-weight:500;color:var(--muted);font-size:var(--fs-11);padding:2px 6px;text-align:right;white-space:nowrap}
+.erc-matrix thead th {height:96px;vertical-align:bottom;padding:0 0 4px;width:24px;text-align:center}
+.erc-matrix thead th span {display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);text-align:left}
+.erc-matrix td {padding:1px;width:24px;height:24px}
+.erc-legend {display:flex;flex-wrap:wrap;gap:12px;color:var(--muted);font-size:var(--fs-11)}
+.erc-legend span {display:inline-flex;align-items:center;gap:4px}
+.work-dialog .work-actions .erc-reset {margin-right:auto}
+
+body > .statusbar {order:2}
+/* Messages › Problems and Log (messages.js): the view tabs and the hint tier (a quiet violet, as Design Insights). */
+/* One face for the whole panel: the view tabs, the counters, the chips and every row use --font-ui (no mono). */
+.msg-chips {margin-left:4px;gap:var(--s-4)}
+.msg-grid tr[data-sev=hint] .msg-col-class {color:var(--insight-ink, var(--insight))}
+.msg-grid tr[data-sev=hint] .msg-icon .msg-shape {fill:var(--insight)}
+
+/* Narrow docks (messages.js fit()). msg-compact: the header no longer fits on one line, so it wraps into
+   32 px rows (view tabs and counters, then chips and the filter field) and its actions move into ⋯.
+   msg-list: the table becomes a list, the message on a 24 px first line and class · document · source
+   on a 16 px second line, each line ending in an ellipsis rather than a clipped word. */
+.msg-more {display:none}
+.msg-compact .msg-head {flex-wrap:wrap;overflow:visible;row-gap:0;column-gap:var(--s-4);min-height:var(--chrome-tab-height);padding-block:0}
+.msg-compact .msg-head > * {margin-block:calc((var(--chrome-tab-height) - var(--ctl-h)) / 2)}
+.msg-compact .msg-head > :is(.msg-context,.ui-toolbar-spacer,button:not(.msg-more,.msg-close),.msg-extra,.msg-export) {display:none}
+.msg-compact.dock-tabbed .msg-head > h2 {display:none}
+.msg-compact .msg-head > .msg-filters {margin-left:0}
+.msg-compact .msg-filters:not(.msg-tabs,.msg-chips) .msg-filter {gap:var(--s-2);padding:0 var(--s-4)}
+.msg-compact .msg-more {display:inline-flex;margin-left:auto;padding:0;width:var(--ctl-h);height:var(--ctl-h)}
+.msg-compact .msg-head > .msg-chips {order:1;flex-wrap:wrap}
+.msg-compact .msg-head > .msg-search {order:2;flex:1 1 100%;width:auto;min-width:0}
+.msg-compact .msg-hint {display:none}
+.msg-compact .msg-foot > span:first-child {min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+.msg-list .msg-grid {container-type:normal}
+.msg-list .msg-grid :is(table,tbody) {display:block;width:100%}
+.msg-list .msg-grid :is(thead,colgroup) {display:none}
+.msg-list .msg-grid tbody > tr {display:block}
+.msg-list .msg-grid tbody > tr > td {display:block;height:auto;border:0}
+.msg-list .msg-grid tbody > tr[data-no] {display:grid;grid-template-columns:12px minmax(0,max-content) minmax(0,max-content) minmax(0,1fr);
+  grid-template-rows:24px 16px;column-gap:var(--s-6);align-items:center;padding:0 var(--s-8) var(--s-2);border-bottom:1px solid var(--soft)}
+.msg-list .msg-grid tbody > tr[data-no] > td {width:auto;padding:0;min-width:0;background:none}
+.msg-list .msg-grid tbody > tr[data-no] > td.msg-col-class {display:contents}
+.msg-list .msg-grid td.msg-col-class > .msg-icon {grid-area:1/1}
+.msg-list .msg-grid td.msg-col-class > span {grid-area:2/2;font-size:var(--fs-11);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* contain: the message's width does not stretch the second line's columns. */
+.msg-list .msg-grid td.msg-col-text {grid-area:1/2/2/-1;contain:inline-size}
+.msg-list .msg-grid td.msg-col-document {grid-area:2/3;font-size:var(--fs-11)}
+.msg-list .msg-grid td.msg-col-source {grid-area:2/4;font-size:var(--fs-11)}
+.msg-list .msg-grid td:is(.msg-col-document,.msg-col-source):not(:empty)::before {content:"· "}
+.msg-list .msg-grid td:is(.msg-col-time,.msg-col-no) {display:none}
+.msg-list .msg-grid td.msg-net-pair-child {padding-inline-start:var(--s-12)}
+.msg-list .msg-grid tbody > tr[data-no]:hover {background:var(--hover)}
+.msg-list .msg-grid tbody > tr[aria-selected=true] {background:var(--selection);color:var(--selection-ink)}
+.msg-list .msg-grid tbody > tr[aria-selected=true] td {color:inherit}
+.msg-list .msg-grid tr.msg-empty td {padding:var(--s-8)}

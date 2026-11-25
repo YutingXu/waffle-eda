@@ -1,0 +1,83 @@
+/* Panelize dialog (app/panel-ui.js). Non-modal so the panel stays visible on the canvas. Extends .work-dialog. */
+.panel-dialog {position:fixed;inset:auto var(--s-16) var(--s-16) auto;margin:0;width:min(480px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);box-shadow:var(--elev-2);z-index:var(--z-popover)}
+.panel-dialog h2 {margin:0}
+.panel-dialog h3 {margin:var(--s-12) 0 var(--s-6);color:var(--muted);font-size:var(--fs-12);font-weight:var(--fw-semibold);text-transform:uppercase;letter-spacing:.04em}
+.panel-head {display:flex;flex-direction:column;gap:var(--s-2)}
+.panel-hint {font-size:var(--fs-12);color:var(--muted);margin:var(--s-4) 0 var(--s-6)}
+.panel-summary {font-family:var(--mono);font-size:var(--fs-12);margin:0;color:var(--muted);font-variant-numeric:tabular-nums}
+.panel-summary[data-level="ok"] {color:var(--success)}
+.panel-summary[data-level="warning"] {color:var(--warning)}
+.panel-summary[data-level="error"] {color:var(--danger)}
+
+/* Presets: one click to a fab-ready panel. */
+.panel-presets {display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:var(--s-6)}
+.panel-dialog .panel-preset {display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-2);text-align:left;padding:var(--s-6) var(--s-8);min-height:var(--ctl-h-lg);
+  background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);
+  transition:transform calc(var(--motion-fast) * var(--motion-move)) var(--ease-decelerate)}
+.panel-preset strong {font-size:var(--fs-12);font-weight:var(--fw-semibold)}
+.panel-preset small {font-size:var(--fs-11);color:var(--muted);line-height:var(--lh-tight)}
+@media (hover:hover) and (pointer:fine) {
+  .panel-dialog .panel-preset {transition:border-color var(--motion-fast) ease,background-color var(--motion-fast) ease,transform calc(var(--motion-fast) * var(--motion-move)) var(--ease-decelerate)}
+  .panel-dialog .panel-preset:hover {border-color:var(--line-strong);background:var(--hover)}
+}
+.panel-dialog .panel-preset:active {transform:scale(.98)}
+.panel-dialog .panel-preset[aria-pressed="true"] {border-color:var(--accent);background:var(--tint-accent)}
+
+/* Live preview (SVG, model millimetres). */
+.panel-preview-wrap {margin:var(--s-12) 0 0;padding:var(--s-8);background:var(--canvas-bg);border:1px solid var(--line);border-radius:var(--r-md)}
+.panel-preview {display:block;width:100%;height:auto;max-height:240px}
+.panel-preview-wrap.is-changing .panel-preview {animation:panel-preview-in var(--motion-base) var(--ease-decelerate)}
+@keyframes panel-preview-in {from {opacity:.35;scale:calc(1 - .015 * var(--motion-move))}}
+.panel-preview .pv-profile {fill:var(--soft);stroke:var(--line-strong);stroke-width:.25}
+.panel-preview .pv-rail {fill:var(--soft);stroke:none}
+.panel-preview .pv-tab {fill:var(--line-strong);stroke:none}
+.panel-preview .pv-tab.is-manual {fill:var(--accent)}
+.panel-preview .pv-board path {fill:var(--layer-on);fill-opacity:.25;stroke:var(--ok-mark);stroke-width:.3}
+.panel-preview .pv-board text {fill:var(--ink);font-family:var(--mono)}
+.panel-preview .pv-board {cursor:default;outline:none}
+.panel-preview .pv-board:hover path,.panel-preview .pv-board:focus-visible path {fill-opacity:.45}
+.panel-preview .pv-board.is-selected path {stroke:var(--accent);stroke-width:.6;fill-opacity:.45}
+.panel-preview .pv-bite circle {fill:var(--canvas-bg)}
+.panel-preview .pv-tool {fill:var(--canvas-bg);stroke:var(--muted);stroke-width:.2}
+.panel-preview .pv-fid {fill:none;stroke:var(--accent);stroke-width:.3}
+.panel-preview .pv-vcut {stroke:var(--warning);stroke-width:.35;stroke-dasharray:2 1}
+.panel-preview .pv-thief circle {fill:var(--accent);fill-opacity:.35}
+.panel-preview .pv-thief-hatch line {stroke:var(--accent);stroke-opacity:.35}
+
+/* Sections. */
+.panel-section {border-top:1px solid var(--line);padding:var(--s-6) 0}
+.panel-section > summary {cursor:default;font-weight:var(--fw-semibold);padding:var(--s-4) 0;color:var(--ink)}
+.panel-grid {display:grid;gap:var(--s-2) 0}
+.panel-row {display:grid;grid-template-columns:minmax(120px,150px) minmax(0,1fr);align-items:center;gap:var(--s-2) var(--s-8);min-height:var(--ctl-h)}
+.panel-row > span {color:var(--ink)}
+.panel-row > small {grid-column:2;margin:0;color:var(--muted);font-size:var(--fs-11)}
+.panel-row input[type=checkbox] {justify-self:start;accent-color:var(--accent)}
+.panel-dialog select,.panel-dialog input:not([type=checkbox],[type=number]),.panel-cell-editor select {width:100%;min-width:0}
+.panel-dialog input:not([type=checkbox]) {font-variant-numeric:tabular-nums}
+.panel-sides {display:flex;flex-wrap:wrap;gap:var(--s-4) var(--s-12)}
+.panel-sides label,.panel-inline {display:inline-flex;align-items:center;gap:var(--s-4)}
+.panel-row:has(> .panel-pair, > .panel-fit),.panel-pair,.panel-fit {align-items:baseline}
+.panel-pair {display:flex;gap:var(--s-6)}
+.panel-pair > * {flex:1 1 0;min-width:0}
+.panel-pair > input[type=checkbox] {flex:0 0 auto}
+.panel-fit {display:flex;gap:var(--s-4)}
+.panel-fit input {flex:1 1 0}
+.panel-fit > span {color:var(--muted);flex:0 0 auto}
+.panel-segmented {margin:var(--s-4) 0 var(--s-8)}
+
+/* Picked cell (dialog and Properties panel). */
+.panel-cell-editor {margin:var(--s-8) 0;padding:var(--s-8);border:1px solid var(--accent);border-radius:var(--r-md);background:var(--tint-accent)}
+.panel-cell-title {margin:0 0 var(--s-4);font-weight:var(--fw-semibold)}
+
+/* Panel check. */
+.panel-drc {margin:0;padding:0;list-style:none;font-size:var(--fs-12);line-height:var(--lh)}
+.panel-drc li {margin:var(--s-4) 0;padding-left:var(--s-8);border-left:3px solid var(--line)}
+.panel-drc li[data-level="error"] {border-left-color:var(--err-mark)}
+.panel-drc li[data-level="warning"] {border-left-color:var(--warn-mark)}
+.panel-drc li[data-level="ok"] {border-left-color:var(--ok-mark)}
+.panel-dialog .panel-finding {background:none;border:0;padding:0;color:inherit;text-align:left;font:inherit;cursor:default;text-decoration:underline dotted var(--muted)}
+.panel-status {min-height:1.2em;margin:var(--s-8) 0 0}
+/* The footer stays in view while the form scrolls. */
+.panel-dialog > .work-actions {position:sticky;bottom:-18px;margin:var(--s-16) -20px -18px;padding:10px 20px;background:var(--panel);border-top:1px solid var(--line);z-index:1;flex-wrap:wrap}
+.panel-dialog .work-actions .panel-close {margin-right:auto}

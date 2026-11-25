@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Waffle EDA
+GenericName=Electronics Design Editor
+Comment=Edit schematics, PCB layouts and component libraries
+Exec=waffle %u
+TryExec=waffle
+Icon=org.waffle.editor
+Terminal=false
+Categories=Science;Electronics;Engineering;
+MimeType=application/x-waffle-project;application/x-waffle-board;application/x-waffle-schematic;application/x-waffle-library;application/x-waffle-drawing;application/x-waffle-panel;x-scheme-handler/waffle;

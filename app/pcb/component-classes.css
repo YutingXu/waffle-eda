@@ -1,0 +1,24 @@
+/* Component classes (component-classes.js) and dynamic connector pins (dynamic-symbol.js). */
+.cc-dialog {width:min(720px,calc(100vw - 32px))}
+.cc-help,.ds-help {margin:0 0 8px;color:var(--muted);font-size:var(--fs-12)}
+.cc-body {display:grid;grid-template-columns:minmax(180px,240px) 1fr;gap:12px;min-height:260px;max-height:52vh}
+/* The class list is a library .ui-list of .ui-row options; it scrolls beside the detail. */
+.cc-list {overflow:auto;overscroll-behavior:contain}
+.cc-item .ui-row-title {font-weight:var(--fw-semibold)}
+.ds-side {color:var(--muted);font-size:var(--fs-11)}
+.ds-empty {margin:8px;color:var(--muted)}
+.cc-pane {overflow:auto;min-width:0}
+.cc-pane h3 {margin:0 0 4px;font-size:var(--fs-14)}
+.cc-query {display:block;margin-bottom:8px;color:var(--muted);font-size:var(--fs-11)}
+.cc-members {display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:2px 8px;margin:6px 0 8px}
+.cc-member {display:flex;align-items:center;gap:4px;white-space:nowrap}
+.cc-tools,.cc-add {display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cc-add {margin-top:8px}
+.cc-add input {flex:1;min-width:160px}
+.cc-status,.ds-status {min-height:1.2em;margin:8px 0 0;color:var(--muted)}
+.ds-dialog {width:min(520px,calc(100vw - 32px))}
+.ds-head {margin:0 0 6px;font-weight:600}
+.ds-pins {display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto}
+.ds-row {display:grid;grid-template-columns:3em 1fr 4em auto auto;gap:6px;align-items:center}
+.ds-number {text-align:right;font-variant-numeric:tabular-nums}
+.ds-rows {display:flex;align-items:center;gap:6px;margin-top:8px}

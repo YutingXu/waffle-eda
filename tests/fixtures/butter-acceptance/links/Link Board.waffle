@@ -1,0 +1,3 @@
+{"kind":"project","formatVersion":"2.1","id":"01952010-a000-7000-8000-000000000001","entryDocument":"01952010-a000-7000-8000-000000000002","name":"Link Board","requires":[]}
+{"kind":"document","id":"01952010-a000-7000-8000-000000000002","docKind":"pcb","name":"Power","order":"V","path":"Power.wpcb"}
+{"kind":"link","id":"01952010-a000-7000-8000-000000000006","value":{"id":"01952010-a000-7000-8000-000000000006","label":"Check the reference rail","source":{"documentId":"01952010-a000-7000-8000-000000000002","kind":"track","objectId":"01952010-a000-7000-8000-000000000004"},"target":{"objectId":"01952010-a000-7000-8000-000000000003","projectId":"01952010-a000-7000-8000-000000000001"}}}

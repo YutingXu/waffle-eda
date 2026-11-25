@@ -1,0 +1,43 @@
+.keys-grid {width:min(330px,calc(100vw - 32px))}
+.keys-grid form>select,.keys-grid form>input {display:block;width:100%;margin-bottom:8px}
+.keys-grid-note {min-height:1.2em;margin:-2px 0 8px;font-size:var(--fs-11);color:var(--danger)}
+.keys-grid-note:empty {display:none}
+/* Keyboard shortcuts editor */
+.keymap-dialog {width:min(920px,calc(100vw - 32px));max-height:min(86vh,860px);display:flex;flex-direction:column;padding:16px 18px 10px;overflow:hidden}
+.keymap-dialog[open] {display:flex}
+.km-head {display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.km-head h2 {margin:0 auto 0 0}
+.km-tools {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+.km-tools .km-find {flex:1 1 260px;min-width:0}
+.km-check {display:flex;align-items:center;gap:4px;color:var(--muted);white-space:nowrap}
+.km-status {min-height:1.4em;margin:2px 0 6px;font-size:var(--fs-11)}
+.km-scroll {flex:1 1 auto;min-height:0;overflow:auto;border-top:1px solid var(--line)}
+.km-table {width:100%;border-collapse:collapse;font-size:var(--fs-12)}
+.km-table thead th {position:sticky;top:0;z-index:1;background:var(--panel-head);color:var(--muted);font-weight:500;text-align:left;padding:4px 8px}
+.km-table td {padding:4px 8px;border-bottom:1px solid var(--soft);vertical-align:middle}
+.km-group th {text-align:left;padding:8px 8px 4px;color:var(--accent-text);font-weight:600;font-size:var(--fs-11);letter-spacing:.04em;text-transform:uppercase}
+.km-name span {display:block}
+.km-name small {color:var(--faint);font:var(--fs-10) var(--mono)}
+.km-table tr:hover td {background:var(--soft)}
+.km-table tr.km-active td {background:var(--selection)}
+.keymap-dialog .km-keys,.keymap-dialog .km-when-edit {background:none;border-color:transparent;padding:2px 4px;text-align:left;min-width:90px}
+.keymap-dialog .km-keys:hover,.keymap-dialog .km-when-edit:hover:not(:disabled) {border-color:var(--line)}
+.keymap-dialog .km-when-edit {font:var(--fs-11) var(--mono);color:var(--muted)}
+.keymap-dialog .km-when-edit:disabled {opacity:1;color:var(--faint)}
+.km-when input {width:100%;font:var(--fs-11) var(--mono)}
+.km-unbound {color:var(--faint)}
+.km-warn {margin-left:4px;color:var(--km-warn);cursor:help}
+.km-src {color:var(--muted);white-space:nowrap}
+.km-user {color:var(--accent-text)}
+.km-actions {white-space:nowrap;text-align:right}
+.keymap-dialog .km-actions button {min-width:24px;padding:1px 6px;margin-left:4px}
+.km-recording {display:inline-flex;align-items:center;gap:8px;outline:1px dashed var(--accent);padding:2px 6px;border-radius:var(--r-sm)}
+.km-recording small {display:inline;color:var(--muted)}
+.km-empty {color:var(--faint);padding:16px 8px}
+/* Swap pickers */
+.swap-pick {width:min(420px,calc(100vw - 32px))}
+.swap-pick .swap-find {width:100%;margin-bottom:8px}
+/* The choices are library .ui-row options; the detail is a mono meta column. */
+.swap-list {max-height:46vh;overflow:auto;overscroll-behavior:contain;display:grid;align-content:start}
+.swap-list .ui-row-meta {font-family:var(--mono)}
+.swap-list .swap-current {color:var(--accent-text)}

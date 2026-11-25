@@ -1,0 +1,304 @@
+{
+ "version": 1,
+ "comment": "Altium entries reuse tests/altium-fidelity/fixtures.json (licences, pins and roles there). KiCad entries ship KiCad 8 Gerbers and Excellon drill from the same board revision; fetched from raw.githubusercontent.com at the pinned revision and verified by SHA-256 into the fixture cache outside the checkout. No source is vendored.",
+ "projects": [
+  {
+   "id": "pidp11-io-expander",
+   "fixtures": "altium-fidelity"
+  },
+  {
+   "id": "snes-tap",
+   "fixtures": "altium-fidelity"
+  },
+  {
+   "id": "midas-communication",
+   "fixtures": "altium-fidelity"
+  },
+  {
+   "id": "cm4-5-shim",
+   "fixtures": "altium-fidelity"
+  },
+  {
+   "id": "esp32c3-haptic",
+   "fixtures": "altium-fidelity"
+  },
+  {
+   "id": "garganturam",
+   "fixtures": "altium-fidelity"
+  },
+  {
+   "id": "oneincheye",
+   "name": "OneInchEye",
+   "translator": "kicad",
+   "upstream": "https://github.com/will127534/OneInchEye",
+   "revision": "95fd695905b14ef6db79789743de0b3649cbbc88",
+   "license": "MIT",
+   "attribution": "Will Whang",
+   "licenseEvidence": "LICENSE",
+   "origin": "absolute",
+   "files": [
+    {
+     "path": "LICENSE",
+     "role": "license",
+     "sha256": "76690faefdb4256805a61fcd061a7245d84a6316e6873bc4d57746fc2fb4a329"
+    },
+    {
+     "path": "OneInchEye.kicad_pcb",
+     "role": "source",
+     "sha256": "4447f73374b99d0bb9eb10ae0a371ae99f6e5dc8949118a1ea0780b50ec1efd5"
+    },
+    {
+     "path": "OneInchEye.kicad_pro",
+     "role": "source",
+     "sha256": "67591fec65bc96b9634402479d9bf40deef79fe36d700f1000ba89741186c77d"
+    },
+    {
+     "path": "OneInchEye.kicad_sch",
+     "role": "source",
+     "sha256": "05e83fd04d8d72c4284996f4262897b2eaa9311a3d2e4416ed151ba72c504f47"
+    },
+    {
+     "path": "Gerber/OneInchEye-F_Cu.gbr",
+     "role": "gerber:GTL",
+     "sha256": "1611e041685cdad0afb03e988b011d343858078a3c10cdcea2e08fb004e97278"
+    },
+    {
+     "path": "Gerber/OneInchEye-In1_Cu.gbr",
+     "role": "gerber:G1",
+     "sha256": "2327cc0fa7de50734b04b64b9f2d8a3161df8d0fa8e2fb784e6d1464b2f7fbf9"
+    },
+    {
+     "path": "Gerber/OneInchEye-In2_Cu.gbr",
+     "role": "gerber:G2",
+     "sha256": "25bced4e4cdee94e50e41f9da77fad14b42d611b671354f523a56a2fff06570f"
+    },
+    {
+     "path": "Gerber/OneInchEye-B_Cu.gbr",
+     "role": "gerber:GBL",
+     "sha256": "91da39856af4066ca0d7f1e68520d4659d3abccd76f768bf522f00df752ece3d"
+    },
+    {
+     "path": "Gerber/OneInchEye-F_Mask.gbr",
+     "role": "gerber:GTS",
+     "sha256": "123154d300d3057d1a7cda12025847289ab402189336587478ab16b1d487ed02"
+    },
+    {
+     "path": "Gerber/OneInchEye-B_Mask.gbr",
+     "role": "gerber:GBS",
+     "sha256": "500e2891f7b85986f8a67fef1f50b79addc8a5f27ee82f36bd67c7476ea04dbc"
+    },
+    {
+     "path": "Gerber/OneInchEye-F_Paste.gbr",
+     "role": "gerber:GTP",
+     "sha256": "72892ea199613a0e92672f7b911073ecd9e4da3227f0b300f4da42f4aba111a8"
+    },
+    {
+     "path": "Gerber/OneInchEye-B_Paste.gbr",
+     "role": "gerber:GBP",
+     "sha256": "753effffc8bf8555374cdea3b88ea2e273227da0856aba7c1652d0a7ee906317"
+    },
+    {
+     "path": "Gerber/OneInchEye-F_Silkscreen.gbr",
+     "role": "gerber:GTO",
+     "sha256": "59785c73cfa99224f3cf080f09c73d9ffdba4c2d0ad21ffa8d129d157ff1acfd"
+    },
+    {
+     "path": "Gerber/OneInchEye-B_Silkscreen.gbr",
+     "role": "gerber:GBO",
+     "sha256": "a37425ea922f6611b8b85bf490e8f04a79e9ab6f138188b18f9a85e2d37b82b1"
+    },
+    {
+     "path": "Gerber/OneInchEye-Edge_Cuts.gbr",
+     "role": "gerber:profile",
+     "sha256": "9696576e21d3616bb551267b0a6b01536a2c2eb1f8cff1f6793f829d53dd94bc"
+    },
+    {
+     "path": "Gerber/OneInchEye-PTH.drl",
+     "role": "drill",
+     "sha256": "f01c754d28527df8de1bbf103ad04e3140de4d1c9ce194aa69a6a3c26456aa27"
+    },
+    {
+     "path": "Gerber/OneInchEye-NPTH.drl",
+     "role": "drill",
+     "sha256": "93684cd56c060c3176304c818d79ae09f6ff8803bd9c3c5066611eef753a5a5c"
+    }
+   ]
+  },
+  {
+   "id": "ds4-type-c-001",
+   "name": "DS4-Type-C 001 v2",
+   "translator": "kicad",
+   "upstream": "https://github.com/CasualCodersProjects/DS4-Type-C",
+   "revision": "ea4fb99778ea226f78e109af980c7838af0d62cb",
+   "license": "MIT",
+   "attribution": "Casual Coders Projects",
+   "licenseEvidence": "LICENSE",
+   "origin": "absolute",
+   "files": [
+    {
+     "path": "LICENSE",
+     "role": "license",
+     "sha256": "c56d211a7532238f74723366d766f2b690328b58733f6fb7f53b7bb102edc4fc"
+    },
+    {
+     "path": "001-v2/001-v2.kicad_pcb",
+     "role": "source",
+     "sha256": "b881d6b04393c3a27a3ac9bcdfad97af6a6dc5f9111fffc8de95d6c41cb3873e"
+    },
+    {
+     "path": "001-v2/001-v2.kicad_pro",
+     "role": "source",
+     "sha256": "17aa5e08a4a4ab0bba1ff042885e51f3c0ce8a5587b704020943e75888ccbc99"
+    },
+    {
+     "path": "001-v2/001-v2.kicad_sch",
+     "role": "source",
+     "sha256": "140af1a46560e12b7e617b6592f9767baaf5fc830c980008458a2cb8a3a5c441"
+    },
+    {
+     "path": "Gerbers/001/001-v2-F_Cu.gbr",
+     "role": "gerber:GTL",
+     "sha256": "06adc98b038b5b715d564c813f66a1da7812b4de4d687bf04942ad255307297f"
+    },
+    {
+     "path": "Gerbers/001/001-v2-B_Cu.gbr",
+     "role": "gerber:GBL",
+     "sha256": "7e4623153c30620dd7441bb8a46c57dc1e781b52588816eca3f1619e31f48992"
+    },
+    {
+     "path": "Gerbers/001/001-v2-F_Mask.gbr",
+     "role": "gerber:GTS",
+     "sha256": "8fc5485f4ba74bf1c88bb18b94a6ff5320ec7c1d9cb18fc39fedd0664e25ab31"
+    },
+    {
+     "path": "Gerbers/001/001-v2-B_Mask.gbr",
+     "role": "gerber:GBS",
+     "sha256": "adf1fb02956c1b0dad34b365f5f2f397bb3182d74c7833f10cc39c175e8bb5f7"
+    },
+    {
+     "path": "Gerbers/001/001-v2-F_Paste.gbr",
+     "role": "gerber:GTP",
+     "sha256": "494c1f96b7eda2190dc690b31078929e87db7aa865499e8d66cfd2b2f2fb5364"
+    },
+    {
+     "path": "Gerbers/001/001-v2-B_Paste.gbr",
+     "role": "gerber:GBP",
+     "sha256": "32e39ec1cce1d89629405ed3737af0247f1c0e992de346c933fb3e789d42990f"
+    },
+    {
+     "path": "Gerbers/001/001-v2-F_Silkscreen.gbr",
+     "role": "gerber:GTO",
+     "sha256": "23963cb2c83f3a4108cd34db7ca590979b97481cc6c551717c3fa87d2d28cfa4"
+    },
+    {
+     "path": "Gerbers/001/001-v2-B_Silkscreen.gbr",
+     "role": "gerber:GBO",
+     "sha256": "f4be1e9965af39f672559a7a7d692911850ef266fa6ef44b3631b4258fa0b9c1"
+    },
+    {
+     "path": "Gerbers/001/001-v2-Edge_Cuts.gbr",
+     "role": "gerber:profile",
+     "sha256": "5f7ded6149348a1c20e0a5c8cd19a2ecd7be834b850acd81c0ec203702623849"
+    },
+    {
+     "path": "Gerbers/001/001-v2-PTH.drl",
+     "role": "drill",
+     "sha256": "a8339efb7dadf5e6a04c89848c093552f3a37e2c555610732b69bb7191c44e79"
+    },
+    {
+     "path": "Gerbers/001/001-v2-NPTH.drl",
+     "role": "drill",
+     "sha256": "b8191091b3d45ba9d27f3e8c128e34cc797d2f284db1f4eaf3f40188e033d5c9"
+    }
+   ]
+  },
+  {
+   "id": "nanocomp",
+   "name": "nanoComp",
+   "translator": "kicad",
+   "upstream": "https://github.com/venomix666/nanoComp",
+   "revision": "b32047d792edc6d4d71bbbbef758ab545becbcf4",
+   "license": "BSD-2-Clause",
+   "attribution": "venomix666",
+   "licenseEvidence": "LICENSE",
+   "origin": "absolute",
+   "files": [
+    {
+     "path": "LICENSE",
+     "role": "license",
+     "sha256": "1c63cbd1bdcedecdc6c1c967f23647305d810929d47cfb827c5f88c3bfe5ca56"
+    },
+    {
+     "path": "nanoComp.kicad_pcb",
+     "role": "source",
+     "sha256": "3ecd54526d807fb616c92b1336fabd2fb67a421de6afd830f750177b3d7119d1"
+    },
+    {
+     "path": "nanoComp.kicad_pro",
+     "role": "source",
+     "sha256": "d4665756460a84da1d51250d046d0de71389984be09bf54e3cea50c210b79ee6"
+    },
+    {
+     "path": "nanoComp.kicad_sch",
+     "role": "source",
+     "sha256": "f9a4cd574e81b3d0d789335560efdebe241550f251a9935d240487fec57e1198"
+    },
+    {
+     "path": "gerber/nanoComp-F_Cu.gbr",
+     "role": "gerber:GTL",
+     "sha256": "8b94be1ee614a80dc912c7f6a4be068d1c7d677f0b0850590470d8f613a97e15"
+    },
+    {
+     "path": "gerber/nanoComp-B_Cu.gbr",
+     "role": "gerber:GBL",
+     "sha256": "ff7c9ab19dbbf72933546ee79abacc44b33def3f94b563c011b12d20574d0052"
+    },
+    {
+     "path": "gerber/nanoComp-F_Mask.gbr",
+     "role": "gerber:GTS",
+     "sha256": "4a8f0dd85eed09539828a9776c5ff87a20a789f8baaba2915cc7fdb8e3ccf793"
+    },
+    {
+     "path": "gerber/nanoComp-B_Mask.gbr",
+     "role": "gerber:GBS",
+     "sha256": "63cfdb6cac16c2335a28cc01b5b2803c65402bbd6ee842d7b894c72bf05fd647"
+    },
+    {
+     "path": "gerber/nanoComp-F_Paste.gbr",
+     "role": "gerber:GTP",
+     "sha256": "9df316ca693a60122a9e7ba14bbfacccdbb5466649a13a0be3d0cba384de06b4"
+    },
+    {
+     "path": "gerber/nanoComp-B_Paste.gbr",
+     "role": "gerber:GBP",
+     "sha256": "01448e1c6320a40ed4b632f2a28d3c301082fbf18ab4a415e8c4b7a81ceec030"
+    },
+    {
+     "path": "gerber/nanoComp-F_Silkscreen.gbr",
+     "role": "gerber:GTO",
+     "sha256": "3fede102b453b3e4c17e549ae88b461c120e4cca3e1d7cb16976125d9764a2d3"
+    },
+    {
+     "path": "gerber/nanoComp-B_Silkscreen.gbr",
+     "role": "gerber:GBO",
+     "sha256": "0995c21b46daaf8859b358b5cfa07cbd81be72523eb4fc239c55f05b02cd3de7"
+    },
+    {
+     "path": "gerber/nanoComp-Edge_Cuts.gbr",
+     "role": "gerber:profile",
+     "sha256": "3bd73d8853a695eb88e56f313c57cff4183e07e9da2f949c15d19c3a684313c9"
+    },
+    {
+     "path": "gerber/nanoComp-PTH.drl",
+     "role": "drill",
+     "sha256": "b0a8de06634bd437e61f5de561e1eb57e1d05d0badd3b58ac4fffa9047ead6b6"
+    },
+    {
+     "path": "gerber/nanoComp-NPTH.drl",
+     "role": "drill",
+     "sha256": "c59433714030710dbe963aac37de26608a2dca7502d092ef08a559c400ad817b"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,218 @@
+{
+ "sample": {
+  "Sensor board.GTL": {
+   "sha256": "277c0586b0f75c2f3684dafae5538c6d068b451dca54293b4a6c40e76f24c6a9",
+   "bytes": 3273,
+   "lines": 185
+  },
+  "Sensor board.GBL": {
+   "sha256": "3cc75d36782755575b321e0bd0ad4cb7bf73730bc925d8f731716516e1e15f2b",
+   "bytes": 1555,
+   "lines": 87
+  },
+  "Sensor board.GTO": {
+   "sha256": "716435f23a89dd53f37cffc22ea078b56969d6f42d2ba1bbc8f9450fd41bbd6b",
+   "bytes": 8481,
+   "lines": 391
+  },
+  "Sensor board.GTS": {
+   "sha256": "914d6d45884664e5c4e1f4bd340d0f9486aa5f97f8b162e19a12df13c7a55fb0",
+   "bytes": 1463,
+   "lines": 75
+  },
+  "Sensor board.GBS": {
+   "sha256": "7e54fe1edcbe7cf710439d95bc87dbb359638b127edef49b646ff033107cf9f4",
+   "bytes": 614,
+   "lines": 33
+  },
+  "Sensor board.GTP": {
+   "sha256": "ad64eb2650be443c6bbfba3470858da2d948a6956fecedbcd95d279b3b9d3765",
+   "bytes": 1148,
+   "lines": 57
+  },
+  "Sensor board.GM1": {
+   "sha256": "ef3c661ccc9ff776243c30a59d6fdb507aad4031f286cf3a0a1d1b2f0d606d77",
+   "bytes": 582,
+   "lines": 29
+  },
+  "Sensor board-Plated.TXT": {
+   "sha256": "0fcbce12116812a6e111beb927bbff15aef53fedef196ee82e6198d7144486db",
+   "bytes": 528,
+   "lines": 33
+  },
+  "Sensor board-NonPlated.TXT": {
+   "sha256": "3c885e5624ca9fb681f60ba027e9a2e1ace2c35bfc45416ec2c6cb151c18bfe4",
+   "bytes": 404,
+   "lines": 24
+  },
+  "Sensor board.GD1": {
+   "sha256": "150fdd6f0d6a63657ec0e63977e66364c4dc0a9934c542dfd91383e7ea080536",
+   "bytes": 44553,
+   "lines": 1918
+  },
+  "Sensor board-DrillReport.txt": {
+   "sha256": "13e669276f4b52cde33d8b4e9d2702e94e52cd56b9db9f47cd13df353380a13c",
+   "bytes": 1016,
+   "lines": 24
+  },
+  "Pick Place for Sensor board.csv": {
+   "sha256": "14e2959b4746e16bddbdf5185fb3b52c9a3366e9fdca021dbf9fe15f71129b0c",
+   "bytes": 997,
+   "lines": 22
+  },
+  "Sensor board-Assembly-Top.svg": {
+   "sha256": "166f53f31614cfef769b43fce320fead33a83b09d005b5377283dd1854246ba6",
+   "bytes": 11211,
+   "lines": 57
+  },
+  "Sensor board-Fabrication-Readme.txt": {
+   "sha256": "ffc95c3bfaf385e8676bae15dd86dc3ca290f169a4244bb686d8dcb70a622c5a",
+   "bytes": 1712,
+   "lines": 26
+  }
+ },
+ "dense": {
+  "Dense signal board.GTL": {
+   "sha256": "41d5fe3ef9384aabee76c99bc272f2d4f8e360820d8a8802ca6dcd708adad335",
+   "bytes": 1353716,
+   "lines": 72411
+  },
+  "Dense signal board.GBL": {
+   "sha256": "eb0331eb0264f2b86c5142ac69ca465a1d275fb820b02bb81c9e63dc1cef5475",
+   "bytes": 543556,
+   "lines": 25781
+  },
+  "Dense signal board.GTO": {
+   "sha256": "7a85b83c311c1063e5b69488b99ccd4bc4a447a6294939439364b73f19063aee",
+   "bytes": 2437530,
+   "lines": 100346
+  },
+  "Dense signal board.GTS": {
+   "sha256": "829e9ff0305290f64957a2a2d6b5969680326bab1913438ae0fb7b85508be519",
+   "bytes": 177691,
+   "lines": 10680
+  },
+  "Dense signal board.GBS": {
+   "sha256": "4da35b199ce6df4acca99531e5c7965680a1f96c0a28da6df5834b028c9a6288",
+   "bytes": 338,
+   "lines": 16
+  },
+  "Dense signal board.GTP": {
+   "sha256": "8f5ef3bdb86337383f0e1bd3f4b7c761f0b0d4e327f20948a4e801e2c8bc6a46",
+   "bytes": 177644,
+   "lines": 10680
+  },
+  "Dense signal board.GM1": {
+   "sha256": "8df56acaeee6d0cb68c690f7019feadd5c34b3163ede32145397787611b31554",
+   "bytes": 499,
+   "lines": 25
+  },
+  "Dense signal board-Plated.TXT": {
+   "sha256": "35ab83a2855cb168b7273d87a925947b365878ee9c216d8666007a95dabdafab",
+   "bytes": 56327,
+   "lines": 4290
+  },
+  "Dense signal board.GD1": {
+   "sha256": "7e1bb052a068696c50ebc246e044d15da5636c9a35a90f1041b08c2789591d7d",
+   "bytes": 438746,
+   "lines": 18141
+  },
+  "Dense signal board-DrillReport.txt": {
+   "sha256": "658507b1a36d58ab6d2cc2fd1f613ea5273cf869c4a1eebe380e2157c3e55fe5",
+   "bytes": 662,
+   "lines": 16
+  },
+  "Pick Place for Dense signal board.csv": {
+   "sha256": "e2a0da30e59ca6428fd7d725e54679f643c96a9583790e631a81378d60c4c9a4",
+   "bytes": 160686,
+   "lines": 2148
+  },
+  "Dense signal board-Assembly-Top.svg": {
+   "sha256": "14c315a7030d5a150eec0a892141a59a3668a366285da2031ba69bcabcd4eaff",
+   "bytes": 2723106,
+   "lines": 10682
+  },
+  "Dense signal board-Fabrication-Readme.txt": {
+   "sha256": "f2753e1b7fd2a4dec155787e3b8bbd269ec81888cd386ab8a20c5f17369331c0",
+   "bytes": 1650,
+   "lines": 25
+  }
+ },
+ "pidp11": {
+  "PiDP11IOExpander.GTL": {
+   "sha256": "52df4d4aeac2b3b2608ec404b5d7fcbc42d0c7e664ce8da77874849457b883e5",
+   "bytes": 48276,
+   "lines": 2343
+  },
+  "PiDP11IOExpander.GBL": {
+   "sha256": "65473f4a29e0590e42f0e660eee2d9ffade4e49be648b6e853997a253cb63cb7",
+   "bytes": 34445,
+   "lines": 1641
+  },
+  "PiDP11IOExpander.GTO": {
+   "sha256": "4573a6bf503e1af91e914ee737e0be704ff5a808227e8584b40f273a2e33845d",
+   "bytes": 138423,
+   "lines": 6357
+  },
+  "PiDP11IOExpander.GBO": {
+   "sha256": "8d1aaa9ea3a31c82971d8568ebabcd6a0cc85586f343b929144c2ff9c0ca8b26",
+   "bytes": 6328,
+   "lines": 291
+  },
+  "PiDP11IOExpander.GTS": {
+   "sha256": "5005d154069598131392c074d6fc3c4649e5fd7ad04492674d785ee0c837db57",
+   "bytes": 2838,
+   "lines": 137
+  },
+  "PiDP11IOExpander.GBS": {
+   "sha256": "08a52bc253c9c368146013ab872b890b89b8efe10f7458febaae83329c6f49c4",
+   "bytes": 1174,
+   "lines": 56
+  },
+  "PiDP11IOExpander.GTP": {
+   "sha256": "2fb0e32f123d269081a1b85a1acef39f4ceb5e7a0bd1cdcd678f3509fae5f9fe",
+   "bytes": 1963,
+   "lines": 94
+  },
+  "PiDP11IOExpander.GM1": {
+   "sha256": "4dda5c0c291af1955f14b47b688521d74fe80b5f3b93844724ee1d993ab24732",
+   "bytes": 474,
+   "lines": 25
+  },
+  "PiDP11IOExpander-Plated.TXT": {
+   "sha256": "36c85b09a0fdc6456f42d59e20dafd7ba3f9e31d5b0f2071b39f11e1d715fc67",
+   "bytes": 1785,
+   "lines": 114
+  },
+  "PiDP11IOExpander-NonPlated.TXT": {
+   "sha256": "597d518ead6cfc35e4dde08e8c4a40f4cd3fdc6a0aa81d8475b2d57b8059607a",
+   "bytes": 421,
+   "lines": 24
+  },
+  "PiDP11IOExpander.GD1": {
+   "sha256": "a11e7ac58147d59313ab85d26d2eca4972ab6b7e3968b62b5cb1f392d9b179fd",
+   "bytes": 53809,
+   "lines": 2329
+  },
+  "PiDP11IOExpander-DrillReport.txt": {
+   "sha256": "b13fc304167d0abb783f738b0cfde6219c5cc0863190043b1b54131cc10580d5",
+   "bytes": 1024,
+   "lines": 24
+  },
+  "Pick Place for PiDP11IOExpander.csv": {
+   "sha256": "d7297e232dba367dcf3f04258729f817f86e61ef9963c61fd447bb67ec3dd335",
+   "bytes": 2523,
+   "lines": 38
+  },
+  "PiDP11IOExpander-Assembly-Top.svg": {
+   "sha256": "e4dd7f9f89c70f5002c96d4fc183c16cf60ad7c43fe2c49fe2b1ba0a525fc116",
+   "bytes": 53502,
+   "lines": 361
+  },
+  "PiDP11IOExpander-Fabrication-Readme.txt": {
+   "sha256": "dbf703edc4be9c499876ca5ed5ccc0e0dc94f1a16f4918692713f54df9d54a1f",
+   "bytes": 1838,
+   "lines": 27
+  }
+ }
+}

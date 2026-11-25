@@ -1,0 +1,4 @@
+{"kind":"library","formatVersion":"2.0","id":"01a20e24-7d26-70f6-99d5-d3b777182ecd","name":"Retained asymmetric footprint","requires":[]}
+{"kind":"pad","id":"01a20e24-7d29-71de-bff1-bdbb6935b15f","order":"K","value":{"angle":42000000000,"h":1300000,"layer":"Bottom","number":"1","poly":[[-940000,-430000],[910000,-170000],[-250000,590000]],"shape":"custom","w":2400000,"x":-1200000,"y":-700000}}
+{"kind":"pad","id":"01a20e24-7d29-71de-bff1-bdbb6935b160","order":"e","value":{"angle":12000000000,"drill":350000,"h":1400000,"layer":"Multi","number":"2","padStack":{"Bottom":{"h":700000,"w":900000},"Inner 1":{"h":750000,"w":1150000},"Inner 2":{"h":600000,"w":850000},"Top":{"h":700000,"w":1200000}},"shape":"rect","stackMode":"full","w":1800000,"x":2000000,"y":600000}}
+{"kind":"librarySettings","id":"01a20e24-7d29-71de-bff1-bdbb6935b161","value":{"footprint":{"pads":[],"shapes":[]},"mirrorOf":"01a20e24-7d25-7195-be33-1658afcdcba2","mirrorSig":"2b8ac41c","prefix":"U"}}

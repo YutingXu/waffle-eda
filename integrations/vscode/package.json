@@ -1,0 +1,107 @@
+{
+  "name": "waffle-eda",
+  "displayName": "Waffle EDA",
+  "description": "Preview Waffle EDA schematics and boards, run DRC/ERC into the Problems panel, generate outputs and summarise design changes against Git HEAD. Offline; no telemetry.",
+  "version": "0.1.0",
+  "publisher": "waffle-eda",
+  "license": "MIT",
+  "engines": {"vscode": "^1.80.0"},
+  "categories": ["Visualization", "Linters", "Other"],
+  "keywords": ["eda", "pcb", "schematic", "waffle", "drc"],
+  "main": "./extension.js",
+  "extensionKind": ["workspace"],
+  "activationEvents": [
+    "workspaceContains:**/*.waffle",
+    "onLanguage:waffle-native",
+    "onCustomEditor:waffle.preview"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted workspace Waffle only previews and validates. DRC, ERC, outputs and the Git comparison start processes, so they need a trusted workspace.",
+      "restrictedConfigurations": ["waffle.serverPath", "waffle.pythonPath"]
+    }
+  },
+  "contributes": {
+    "languages": [
+      {"id": "waffle-native", "aliases": ["Waffle Native Records"], "extensions": [".waffle", ".wsch", ".wpcb", ".wdraw", ".wpanel", ".wlib", ".wblock"]},
+      {"id": "json", "extensions": [".waffle-ai", ".waffle-eco"]}
+    ],
+    "grammars": [{"language":"waffle-native","scopeName":"source.waffle-native","path":"./syntaxes/native.json"}],
+    "customEditors": [
+      {
+        "viewType": "waffle.preview",
+        "displayName": "Waffle Preview (read-only)",
+        "selector": [{"filenamePattern": "*.waffle"}],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {"command": "waffle.openPreview", "title": "Open Preview", "category": "Waffle", "icon": "$(open-preview)"},
+      {"command": "waffle.runDrc", "title": "Run Design Rule Check", "category": "Waffle"},
+      {"command": "waffle.runErc", "title": "Run Electrical Rule Check", "category": "Waffle"},
+      {"command": "waffle.generateOutputs", "title": "Generate Outputs…", "category": "Waffle"},
+      {"command": "waffle.compareWithHead", "title": "Summarise Changes Since Git HEAD", "category": "Waffle"},
+      {"command": "waffle.clearProblems", "title": "Clear DRC/ERC Problems", "category": "Waffle"}
+    ],
+    "menus": {
+      "commandPalette": [
+        {"command": "waffle.openPreview", "when": "resourceExtname == .waffle"},
+        {"command": "waffle.runDrc", "when": "resourceExtname == .waffle && isWorkspaceTrusted"},
+        {"command": "waffle.runErc", "when": "resourceExtname == .waffle && isWorkspaceTrusted"},
+        {"command": "waffle.generateOutputs", "when": "resourceExtname == .waffle && isWorkspaceTrusted"},
+        {"command": "waffle.compareWithHead", "when": "resourceExtname == .waffle && isWorkspaceTrusted"}
+      ],
+      "editor/title": [
+        {"command": "waffle.openPreview", "when": "resourceExtname == .waffle && activeEditor == workbench.editors.files.textFileEditor", "group": "navigation"}
+      ],
+      "explorer/context": [
+        {"command": "waffle.openPreview", "when": "resourceExtname == .waffle", "group": "navigation@50"},
+        {"command": "waffle.runDrc", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@1"},
+        {"command": "waffle.runErc", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@2"},
+        {"command": "waffle.generateOutputs", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@3"},
+        {"command": "waffle.compareWithHead", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@4"}
+      ],
+      "editor/context": [
+        {"command": "waffle.runDrc", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@1"},
+        {"command": "waffle.runErc", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@2"},
+        {"command": "waffle.compareWithHead", "when": "resourceExtname == .waffle && isWorkspaceTrusted", "group": "7_waffle@3"}
+      ]
+    },
+    "configuration": {
+      "title": "Waffle",
+      "properties": {
+        "waffle.serverPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Path to Waffle's mcp/server.py. Empty: look in the workspace (mcp/server.py), $ATRIUM_HOME, /Applications/Waffle.app and /usr/share/waffle."
+        },
+        "waffle.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "scope": "machine-overridable",
+          "description": "Python 3 used to run the Waffle server."
+        },
+        "waffle.timeoutSeconds": {
+          "type": "number",
+          "default": 300,
+          "minimum": 10,
+          "maximum": 3600,
+          "description": "Time limit for one DRC, ERC or output run."
+        },
+        "waffle.validation.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate native Waffle records while editing project manifests and their members."
+        },
+        "waffle.validation.schema": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also check each native record against its bundled JSON Schema."
+        }
+      }
+    }
+  }
+}

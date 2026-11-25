@@ -1,0 +1,5 @@
+{"kind":"library","formatVersion":"2.0","id":"symbol","name":"Probe"}
+{"kind":"pin","id":"symbol/pin/1","order":"V","value":{"electrical":4,"hidden":false,"name":"CLK","number":"9","x":0,"y":5080000}}
+{"kind":"librarySettings","id":"symbol/settings","value":{"category":"Imported symbols","description":"","footprintName":"","parameters":{},"prefix":"U","schDrawing":{"pinFont":{"bold":false,"family":"Arial","italic":false,"size":2032000,"underline":false},"pins":[{"direction":[0,1],"end":[0,5080000],"name":"CLK","nameFont":{"bold":false,"family":"Times New Roman","italic":false,"size":2032000,"underline":false},"number":"9","start":[0,2540000]}]},"symbol":{"pins":[],"shapes":[]},"value":"Probe"}}
+{"kind":"shape","id":"symbol/shape/1","order":"K","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[0,2540000],[0,5080000]],"schPaint":{"fill":"#ffffb0","ink":"#000000","width":180000},"style":"body"}}
+{"kind":"shape","id":"symbol/shape/2","order":"e","side":"symbol","value":{"kind":"text","schPaint":{"pinNameFallback":true},"size":1350000,"style":"body","text":"CLK","x":-400000,"y":-200000}}

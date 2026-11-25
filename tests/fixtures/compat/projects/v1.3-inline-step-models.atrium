@@ -1,0 +1,725 @@
+{
+ "format": "atrium",
+ "version": 1,
+ "formatVersion": "1.3",
+ "name": "Library models 1.3",
+ "library": [
+  {
+   "id": "res-a",
+   "name": "Resistor 0603",
+   "prefix": "R",
+   "value": "10k",
+   "category": "Footprints",
+   "footprint": {
+    "name": "RESC1608X55N",
+    "pads": [
+     {
+      "number": "1",
+      "x": -0.825,
+      "y": 0,
+      "w": 0.8,
+      "h": 0.95,
+      "shape": "roundrect",
+      "angle": 0,
+      "drill": 0
+     },
+     {
+      "number": "2",
+      "x": 0.825,
+      "y": 0,
+      "w": 0.8,
+      "h": 0.95,
+      "shape": "roundrect",
+      "angle": 0,
+      "drill": 0
+     }
+    ],
+    "shapes": [
+     {
+      "kind": "path",
+      "points": [
+       [
+        -1.5,
+        -0.75
+       ],
+       [
+        1.5,
+        -0.75
+       ],
+       [
+        1.5,
+        0.75
+       ],
+       [
+        -1.5,
+        0.75
+       ]
+      ],
+      "closed": true,
+      "layer": "Mechanical 15",
+      "style": "courtyard",
+      "width": 0.05
+     },
+     {
+      "kind": "path",
+      "layer": "Mechanical 13",
+      "style": "assembly",
+      "width": 0.1,
+      "closed": true,
+      "points": [
+       [
+        -0.85,
+        -0.475
+       ],
+       [
+        0.85,
+        -0.475
+       ],
+       [
+        0.85,
+        0.475
+       ],
+       [
+        -0.85,
+        0.475
+       ]
+      ]
+     },
+     {
+      "kind": "text",
+      "text": ".Designator",
+      "layer": "Mechanical 13",
+      "x": 0,
+      "y": 0.105,
+      "size": 0.3,
+      "align": "center"
+     },
+     {
+      "kind": "path",
+      "style": "silk",
+      "width": 0.18,
+      "points": [
+       [
+        -0.135,
+        -0.5025
+       ],
+       [
+        0.135,
+        -0.5025
+       ]
+      ]
+     },
+     {
+      "kind": "path",
+      "style": "silk",
+      "width": 0.18,
+      "points": [
+       [
+        0.135,
+        0.5025
+       ],
+       [
+        -0.135,
+        0.5025
+       ]
+      ]
+     }
+    ],
+    "courtyard": [
+     -1.5,
+     -0.75,
+     1.5,
+     0.75
+    ],
+    "height": 0.55,
+    "ipc": {
+     "family": "chip",
+     "density": "N",
+     "Z": 2.45,
+     "G": 0.85,
+     "X": 0.95,
+     "Zraw": 2.429129,
+     "Graw": 0.831793,
+     "Xraw": 0.973861,
+     "Smin": 0.7,
+     "Smax": 1.253101,
+     "CS": 0.406202,
+     "F": 0.1,
+     "P": 0.05,
+     "roundOff": 0.05,
+     "padLength": 0.8,
+     "padCentre": 0.825,
+     "goal": {
+      "table": "chip",
+      "toe": 0.35,
+      "heel": 0,
+      "side": 0,
+      "courtyard": 0.25
+     },
+     "sources": [
+      "IPC-SM-782 chip resistor outline (as in KiCad resistor_chip.yaml)"
+     ],
+     "name": "RESC1608X55N",
+     "flagged": []
+    },
+    "wizard": {
+     "family": "chip",
+     "density": "B",
+     "fab": 0.1,
+     "place": 0.05,
+     "padShape": "roundrect",
+     "preset": "0603",
+     "kind": "RES",
+     "L": {
+      "min": 1.5,
+      "max": 1.7
+     },
+     "W": {
+      "min": 0.7,
+      "max": 0.95
+     },
+     "T": {
+      "min": 0.15,
+      "max": 0.4
+     },
+     "H": 0.55,
+     "source": "IPC-SM-782 chip resistor outline (as in KiCad resistor_chip.yaml)",
+     "symbol": true
+    },
+    "model3d": {
+     "file": "r0603.step",
+     "stepText": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('corpus model'),'2;1');\nFILE_NAME('r0603.step','2026-11-20',(''),(''),'','','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n",
+     "offset": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "symbol": {
+    "pins": [
+     {
+      "number": "1",
+      "name": "",
+      "x": -10.16,
+      "y": 0,
+      "electrical": 4,
+      "length": 5.08,
+      "orientation": "left"
+     },
+     {
+      "number": "2",
+      "name": "",
+      "x": 10.16,
+      "y": 0,
+      "electrical": 4,
+      "length": 5.08,
+      "orientation": "right"
+     }
+    ],
+    "shapes": [
+     {
+      "kind": "path",
+      "style": "body",
+      "closed": true,
+      "fill": true,
+      "points": [
+       [
+        -5.08,
+        -2.54
+       ],
+       [
+        5.08,
+        -2.54
+       ],
+       [
+        5.08,
+        2.54
+       ],
+       [
+        -5.08,
+        2.54
+       ]
+      ]
+     },
+     {
+      "kind": "path",
+      "style": "pin",
+      "points": [
+       [
+        -10.16,
+        0
+       ],
+       [
+        -5.08,
+        0
+       ]
+      ],
+      "pinArt": true
+     },
+     {
+      "kind": "path",
+      "style": "pin",
+      "points": [
+       [
+        10.16,
+        0
+       ],
+       [
+        5.08,
+        0
+       ]
+      ],
+      "pinArt": true
+     }
+    ]
+   },
+   "schDrawing": {
+    "pins": [
+     {
+      "start": [
+       -5.08,
+       0
+      ],
+      "end": [
+       -10.16,
+       0
+      ],
+      "direction": [
+       -1,
+       0
+      ],
+      "name": "",
+      "number": "1"
+     },
+     {
+      "start": [
+       5.08,
+       0
+      ],
+      "end": [
+       10.16,
+       0
+      ],
+      "direction": [
+       1,
+       0
+      ],
+      "name": "",
+      "number": "2"
+     }
+    ]
+   },
+   "libraryRef": {
+    "library": "lab",
+    "name": "Lab",
+    "id": "lab-r0603",
+    "hash": "105a02888d2fee6a"
+   }
+  },
+  {
+   "id": "res-b",
+   "name": "Resistor 0603 (B)",
+   "prefix": "R",
+   "value": "4k7",
+   "category": "Footprints",
+   "footprint": {
+    "name": "RESC1608X55N",
+    "pads": [
+     {
+      "number": "1",
+      "x": -0.825,
+      "y": 0,
+      "w": 0.8,
+      "h": 0.95,
+      "shape": "roundrect",
+      "angle": 0,
+      "drill": 0
+     },
+     {
+      "number": "2",
+      "x": 0.825,
+      "y": 0,
+      "w": 0.8,
+      "h": 0.95,
+      "shape": "roundrect",
+      "angle": 0,
+      "drill": 0
+     }
+    ],
+    "shapes": [
+     {
+      "kind": "path",
+      "points": [
+       [
+        -1.5,
+        -0.75
+       ],
+       [
+        1.5,
+        -0.75
+       ],
+       [
+        1.5,
+        0.75
+       ],
+       [
+        -1.5,
+        0.75
+       ]
+      ],
+      "closed": true,
+      "layer": "Mechanical 15",
+      "style": "courtyard",
+      "width": 0.05
+     },
+     {
+      "kind": "path",
+      "layer": "Mechanical 13",
+      "style": "assembly",
+      "width": 0.1,
+      "closed": true,
+      "points": [
+       [
+        -0.85,
+        -0.475
+       ],
+       [
+        0.85,
+        -0.475
+       ],
+       [
+        0.85,
+        0.475
+       ],
+       [
+        -0.85,
+        0.475
+       ]
+      ]
+     },
+     {
+      "kind": "text",
+      "text": ".Designator",
+      "layer": "Mechanical 13",
+      "x": 0,
+      "y": 0.105,
+      "size": 0.3,
+      "align": "center"
+     },
+     {
+      "kind": "path",
+      "style": "silk",
+      "width": 0.18,
+      "points": [
+       [
+        -0.135,
+        -0.5025
+       ],
+       [
+        0.135,
+        -0.5025
+       ]
+      ]
+     },
+     {
+      "kind": "path",
+      "style": "silk",
+      "width": 0.18,
+      "points": [
+       [
+        0.135,
+        0.5025
+       ],
+       [
+        -0.135,
+        0.5025
+       ]
+      ]
+     }
+    ],
+    "courtyard": [
+     -1.5,
+     -0.75,
+     1.5,
+     0.75
+    ],
+    "height": 0.55,
+    "ipc": {
+     "family": "chip",
+     "density": "N",
+     "Z": 2.45,
+     "G": 0.85,
+     "X": 0.95,
+     "Zraw": 2.429129,
+     "Graw": 0.831793,
+     "Xraw": 0.973861,
+     "Smin": 0.7,
+     "Smax": 1.253101,
+     "CS": 0.406202,
+     "F": 0.1,
+     "P": 0.05,
+     "roundOff": 0.05,
+     "padLength": 0.8,
+     "padCentre": 0.825,
+     "goal": {
+      "table": "chip",
+      "toe": 0.35,
+      "heel": 0,
+      "side": 0,
+      "courtyard": 0.25
+     },
+     "sources": [
+      "IPC-SM-782 chip resistor outline (as in KiCad resistor_chip.yaml)"
+     ],
+     "name": "RESC1608X55N",
+     "flagged": []
+    },
+    "wizard": {
+     "family": "chip",
+     "density": "B",
+     "fab": 0.1,
+     "place": 0.05,
+     "padShape": "roundrect",
+     "preset": "0603",
+     "kind": "RES",
+     "L": {
+      "min": 1.5,
+      "max": 1.7
+     },
+     "W": {
+      "min": 0.7,
+      "max": 0.95
+     },
+     "T": {
+      "min": 0.15,
+      "max": 0.4
+     },
+     "H": 0.55,
+     "source": "IPC-SM-782 chip resistor outline (as in KiCad resistor_chip.yaml)",
+     "symbol": true
+    },
+    "model3d": {
+     "file": "r0603.step",
+     "stepText": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('corpus model'),'2;1');\nFILE_NAME('r0603.step','2026-11-20',(''),(''),'','','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n",
+     "offset": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ]
+    }
+   },
+   "symbol": {
+    "pins": [
+     {
+      "number": "1",
+      "name": "",
+      "x": -10.16,
+      "y": 0,
+      "electrical": 4,
+      "length": 5.08,
+      "orientation": "left"
+     },
+     {
+      "number": "2",
+      "name": "",
+      "x": 10.16,
+      "y": 0,
+      "electrical": 4,
+      "length": 5.08,
+      "orientation": "right"
+     }
+    ],
+    "shapes": [
+     {
+      "kind": "path",
+      "style": "body",
+      "closed": true,
+      "fill": true,
+      "points": [
+       [
+        -5.08,
+        -2.54
+       ],
+       [
+        5.08,
+        -2.54
+       ],
+       [
+        5.08,
+        2.54
+       ],
+       [
+        -5.08,
+        2.54
+       ]
+      ]
+     },
+     {
+      "kind": "path",
+      "style": "pin",
+      "points": [
+       [
+        -10.16,
+        0
+       ],
+       [
+        -5.08,
+        0
+       ]
+      ],
+      "pinArt": true
+     },
+     {
+      "kind": "path",
+      "style": "pin",
+      "points": [
+       [
+        10.16,
+        0
+       ],
+       [
+        5.08,
+        0
+       ]
+      ],
+      "pinArt": true
+     }
+    ]
+   },
+   "schDrawing": {
+    "pins": [
+     {
+      "start": [
+       -5.08,
+       0
+      ],
+      "end": [
+       -10.16,
+       0
+      ],
+      "direction": [
+       -1,
+       0
+      ],
+      "name": "",
+      "number": "1"
+     },
+     {
+      "start": [
+       5.08,
+       0
+      ],
+      "end": [
+       10.16,
+       0
+      ],
+      "direction": [
+       1,
+       0
+      ],
+      "name": "",
+      "number": "2"
+     }
+    ]
+   }
+  }
+ ],
+ "documents": [
+  {
+   "id": "sch",
+   "kind": "schematic",
+   "name": "Schematic",
+   "grid": 1.27,
+   "items": [
+    {
+     "id": "r1",
+     "kind": "part",
+     "def": "res-a",
+     "ref": "R1",
+     "value": "10k",
+     "link": "l1",
+     "x": 50.8,
+     "y": 50.8,
+     "angle": 0,
+     "pinNets": {}
+    },
+    {
+     "id": "r2",
+     "kind": "part",
+     "def": "res-b",
+     "ref": "R2",
+     "value": "4k7",
+     "link": "l2",
+     "x": 76.2,
+     "y": 50.8,
+     "angle": 0,
+     "pinNets": {}
+    }
+   ],
+   "outline": [],
+   "notes": []
+  },
+  {
+   "id": "pcb",
+   "kind": "pcb",
+   "name": "Board layout",
+   "grid": 0.25,
+   "items": [
+    {
+     "id": "b1",
+     "kind": "part",
+     "def": "res-a",
+     "ref": "R1",
+     "value": "10k",
+     "link": "l1",
+     "x": 10,
+     "y": 10,
+     "angle": 0,
+     "pinNets": {}
+    },
+    {
+     "id": "b2",
+     "kind": "part",
+     "def": "res-b",
+     "ref": "R2",
+     "value": "4k7",
+     "link": "l2",
+     "x": 20,
+     "y": 10,
+     "angle": 0,
+     "pinNets": {}
+    }
+   ],
+   "outline": [
+    [
+     0,
+     0
+    ],
+    [
+     30,
+     0
+    ],
+    [
+     30,
+     20
+    ],
+    [
+     0,
+     20
+    ]
+   ],
+   "notes": []
+  }
+ ]
+}

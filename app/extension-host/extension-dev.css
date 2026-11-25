@@ -1,0 +1,20 @@
+/* Extension developer tools (extension-dev.js) and the Developer badge in the Extensions manager.
+   Design tokens only (docs/design-system.md). */
+.ext-dev-badge {align-self:flex-start;margin-top:var(--s-2)}
+h2 .ext-dev-badge {margin:0 0 0 var(--s-8);vertical-align:middle}
+.ext-dev-note {margin:var(--s-4) 0;padding:var(--s-4) var(--s-8);border-radius:var(--r-sm);background:var(--tint-warning);color:var(--ink);font-size:var(--fs-12)}
+.ext-dev-mono {font-family:var(--mono);font-size:var(--fs-11);color:var(--muted);overflow-wrap:anywhere}
+.ext-dev-dialog {width:min(440px,calc(100vw - 32px))}
+.ext-dev-dialog h2 {margin:0 0 var(--s-8);font-size:var(--fs-14)}
+.ext-dev-field {display:flex;flex-direction:column;gap:var(--s-4);font-size:var(--fs-12);color:var(--muted)}
+.ext-dev-field input {width:100%;font-family:var(--mono)}
+.ext-dev-error {min-height:1em;margin:var(--s-4) 0;color:var(--danger);font-size:var(--fs-12)}
+.ext-dev-console {position:fixed;inset:auto var(--s-16) var(--s-16) auto;z-index:40;display:none;flex-direction:column;gap:var(--s-6);
+  width:min(640px,calc(100vw - 32px));height:min(420px,calc(100vh - 96px));margin:0;padding:var(--s-8) var(--s-12);
+  border:1px solid var(--line-strong);border-radius:var(--r-md);background:var(--panel);color:var(--ink)}
+.ext-dev-console[open] {display:flex}
+.ext-dev-console-head {display:flex;flex-direction:column;gap:var(--s-2);min-width:0}
+.ext-dev-console-head h2 {display:flex;align-items:center;margin:0;font-size:var(--fs-13)}
+.ext-dev-log {flex:1;min-height:0;margin:0;overflow:auto;white-space:pre-wrap;font-size:var(--fs-11)}
+:root[data-focus-nav=keys] .ext-dev-log:focus-visible {outline:none;box-shadow:var(--focus-ring)}
+.ext-install.ext-dev-load {border-color:var(--warning)}

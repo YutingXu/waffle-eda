@@ -1,0 +1,64 @@
+/* BOM optimiser tab inside the Bill of Materials dialog. Theme tokens only. */
+.bomopt {flex:1;min-height:0;display:flex;flex-direction:column;font-size:var(--fs-12)}
+.bomopt-metrics {display:flex;gap:12px;margin-right:auto;flex-wrap:wrap}
+.bomopt-metric {display:flex;align-items:baseline;gap:6px;color:var(--muted);font-size:var(--fs-11)}
+.bomopt-metric strong {color:var(--ink);font-size:var(--fs-13);font-weight:600;font-variant-numeric:tabular-nums}
+.work-dialog.bom-dialog .bomopt-link {background:transparent;border-color:transparent;color:var(--focus);padding:2px 4px;min-height:22px}
+.bomopt-left {flex:1 1 60%;min-width:0;overflow:auto;padding:4px 16px 16px;overscroll-behavior:contain}
+.bomopt-cost {flex:0 0 min(400px,40%);overflow:auto;padding:4px 12px 16px;border-left:1px solid var(--line);background:var(--paper)}
+.bomopt h3 {margin:12px 0 6px;font-size:var(--fs-12);font-weight:600;color:var(--head-ink)}
+.bomopt-count {color:var(--muted);font-weight:400}
+.bomopt-empty,.bomopt-note {margin:4px 0;color:var(--muted);line-height:1.45}
+.bomopt-list {list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.bomopt-prop {padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel)}
+.bomopt-prop.advisory {border-style:dashed}
+.bomopt-prop-head {display:flex;align-items:center;gap:8px;cursor:default}
+.bomopt-title {font-weight:600;flex:1;min-width:0}
+.bomopt-save {font-variant-numeric:tabular-nums;color:var(--ok-ink);white-space:nowrap}
+.bomopt-flow {display:flex;flex-direction:column;gap:1px;margin:6px 0 2px 22px;font-size:var(--fs-11)}
+.bomopt-from,.bomopt-to {display:grid;grid-template-columns:16px minmax(80px,auto) minmax(0,1fr) auto;align-items:baseline;gap:8px}
+.bomopt-from::before {content:"";}
+.bomopt-from.is-target .bomopt-val {font-weight:600}
+.bomopt-to {color:var(--ink);padding-top:2px;border-top:1px solid var(--line);margin-top:2px}
+.bomopt-arrow {color:var(--muted)}
+.bomopt-spec {color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bomopt-flow code,.bomopt-check code,.bomopt-issues code {font:var(--fs-11) var(--mono);color:var(--muted)}
+.bomopt-prop .bomopt-note {margin-left:22px}
+.bomopt-caveat {margin:3px 0 0 22px;padding-left:8px;border-left:2px solid var(--warn-mark);color:var(--warn-ink)}
+.bomopt-check {margin:4px 0;padding:2px 8px;border:1px solid var(--line);border-radius:var(--r-md)}
+.bomopt-check summary {display:flex;align-items:center;gap:8px;padding:4px 0;cursor:default}
+.bomopt-check ul {margin:0 0 6px;padding-left:18px;color:var(--muted)}
+.bomopt-check li {margin:2px 0;line-height:1.45}
+.bomopt-sev {min-width:52px;font-size:var(--fs-10);color:var(--muted)}
+.bomopt-check.sev-error .bomopt-sev {color:var(--bad-ink)}
+.bomopt-check.sev-warning .bomopt-sev {color:var(--warn-ink)}
+.bomopt-privacy {margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--soft);color:var(--muted);line-height:1.45}
+.bomopt-form {display:flex;flex-wrap:wrap;gap:6px 12px;margin-bottom:8px}
+.bomopt-field {display:flex;align-items:center;gap:6px;color:var(--muted)}
+
+.bomopt-suppliers {margin:0 0 8px;padding:4px 8px 6px;border:1px solid var(--line);border-radius:var(--r-md)}
+.bomopt-suppliers legend {padding:0 4px;color:var(--muted)}
+.bomopt-supplier {display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:4px 0;border-bottom:1px solid var(--line)}
+.bomopt-supplier:last-child {border-bottom:0}
+.bomopt-supplier label {display:flex;align-items:center;gap:6px;flex:1}
+.bomopt-state {color:var(--muted);font-size:var(--fs-11)}
+.bomopt-supplier .bomopt-note {flex-basis:100%;margin:0 0 0 20px;font-size:var(--fs-11)}
+.bomopt-keys {flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;padding-left:20px}
+.work-dialog.bom-dialog .bomopt-keys input {flex:1 1 140px;min-width:0}
+.bomopt-actions {display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.bomopt-table {width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.bomopt-table th,.bomopt-table td {padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+.bomopt-table th {color:var(--muted);font-weight:600;font-size:var(--fs-11)}
+.bomopt-table .num {text-align:right}
+.bomopt-table td.refs {font:var(--fs-11) var(--mono);max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.bomopt-best td {font-weight:600;color:var(--ink)}
+.bomopt-issues {margin:8px 0;padding-left:18px;color:var(--warn-ink)}
+.bomopt-issues li {margin:2px 0}
+.bomopt-lines summary {margin:8px 0 4px;cursor:default;color:var(--ink)}
+@media(max-width:820px){
+  .bomopt-main {flex-direction:column;overflow:auto}
+  .bomopt-cost {flex:none;border-left:0;border-top:1px solid var(--line)}
+}
+/* Show in Optimise (from a Lines hint) marks the proposal or check it opened. */
+.bomopt-flash {box-shadow:0 0 0 2px var(--focus);animation:atrium-cue var(--motion-base) var(--ease-standard)}
+.bomopt-dismissed {display:flex;align-items:center;gap:6px}

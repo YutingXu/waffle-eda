@@ -1,0 +1,272 @@
+{
+  "project": "KaTeX",
+  "version": "0.16.25",
+  "sourceCommit": "d2f1084c5ecca7c47295de52728e0c5f565b12ec",
+  "sourceFile": "test/katex-spec.js",
+  "sourceSHA256": "45f9f7fc7214b51135727003badf8bb76ac5261bc0616c2036d424e20702d626",
+  "license": "MIT",
+  "cases": [
+    {
+      "id": "superscript",
+      "sourceLine": 180,
+      "display": false,
+      "tex": "x^2"
+    },
+    {
+      "id": "subscript",
+      "sourceLine": 184,
+      "display": false,
+      "tex": "x_3"
+    },
+    {
+      "id": "sup-before-sub",
+      "sourceLine": 188,
+      "display": false,
+      "tex": "x^2_3"
+    },
+    {
+      "id": "sub-before-sup",
+      "sourceLine": 190,
+      "display": false,
+      "tex": "x_2^3"
+    },
+    {
+      "id": "compound-scripts",
+      "sourceLine": 264,
+      "display": false,
+      "tex": "x^{2+3}_{3-2}"
+    },
+    {
+      "id": "nested-scripts",
+      "sourceLine": 274,
+      "display": false,
+      "tex": "x^{x^x}"
+    },
+    {
+      "id": "integral-limits",
+      "sourceLine": 311,
+      "display": true,
+      "tex": "\\int\\limits_2^2 3"
+    },
+    {
+      "id": "sum-side-scripts",
+      "sourceLine": 312,
+      "display": true,
+      "tex": "\\sum\\nolimits_3^4 4"
+    },
+    {
+      "id": "unbraced-fraction",
+      "sourceLine": 454,
+      "display": true,
+      "tex": "\\frac 1 2"
+    },
+    {
+      "id": "spacing-prefix",
+      "sourceLine": 476,
+      "display": false,
+      "tex": "\\;x"
+    },
+    {
+      "id": "fraction",
+      "sourceLine": 481,
+      "display": true,
+      "tex": "\\frac{x}{y}"
+    },
+    {
+      "id": "display-fraction",
+      "sourceLine": 482,
+      "display": false,
+      "tex": "\\dfrac{x}{y}"
+    },
+    {
+      "id": "text-fraction",
+      "sourceLine": 483,
+      "display": true,
+      "tex": "\\tfrac{x}{y}"
+    },
+    {
+      "id": "upright-text",
+      "sourceLine": 704,
+      "display": false,
+      "tex": "\\text{a b}"
+    },
+    {
+      "id": "text-after-space",
+      "sourceLine": 709,
+      "display": false,
+      "tex": "\\text {moo}"
+    },
+    {
+      "id": "script-on-text",
+      "sourceLine": 712,
+      "display": false,
+      "tex": "\\text{sin}^2"
+    },
+    {
+      "id": "stretch-delimiters",
+      "sourceLine": 1219,
+      "display": true,
+      "tex": "\\left( \\dfrac{x}{y} \\right)"
+    },
+    {
+      "id": "invisible-delimiter",
+      "sourceLine": 1220,
+      "display": true,
+      "tex": "\\left( \\dfrac{x}{y} \\right."
+    },
+    {
+      "id": "angle-delimiters",
+      "sourceLine": 1285,
+      "display": true,
+      "tex": "\\left\\langle \\right\\rangle"
+    },
+    {
+      "id": "radical",
+      "sourceLine": 1392,
+      "display": true,
+      "tex": "\\sqrt{x}"
+    },
+    {
+      "id": "integral-scripts",
+      "sourceLine": 1570,
+      "display": true,
+      "tex": "\\int_i^n"
+    },
+    {
+      "id": "roman-letter",
+      "sourceLine": 1618,
+      "display": false,
+      "tex": "\\mathrm x"
+    },
+    {
+      "id": "roman-expression",
+      "sourceLine": 1622,
+      "display": false,
+      "tex": "\\mathrm {x + 1}"
+    },
+    {
+      "id": "greek-and-symbols",
+      "sourceLine": 1957,
+      "display": false,
+      "tex": "Ax2k\\omega\\Omega\\imath+"
+    },
+    {
+      "id": "vector-accent",
+      "sourceLine": 2286,
+      "display": false,
+      "tex": "\\vec{x}"
+    },
+    {
+      "id": "accent-over-script",
+      "sourceLine": 2287,
+      "display": false,
+      "tex": "\\vec{x^2}"
+    },
+    {
+      "id": "script-over-accent",
+      "sourceLine": 2288,
+      "display": false,
+      "tex": "\\vec{x}^2"
+    },
+    {
+      "id": "stretch-accent",
+      "sourceLine": 2306,
+      "display": true,
+      "tex": "\\widehat{x}"
+    },
+    {
+      "id": "indexed-radical",
+      "sourceLine": 2784,
+      "display": true,
+      "tex": "\\sqrt[3]{2}"
+    },
+    {
+      "id": "small-matrix",
+      "sourceLine": 2864,
+      "display": false,
+      "tex": "\\begin{smallmatrix} a & b \\\\ c & d \\end{smallmatrix}"
+    },
+    {
+      "id": "cases",
+      "sourceLine": 2872,
+      "display": true,
+      "tex": "f(a,b)=\\begin{cases}a+1&\\text{if }b\\text{ is odd}\\\\a&\\text{if }b=0\\\\a-1&\\text{otherwise}\\end{cases}"
+    },
+    {
+      "id": "sum",
+      "sourceLine": 4152,
+      "display": true,
+      "tex": "\\sum_{k = 0}^{\\infty} x^k"
+    },
+    {
+      "id": "duplicate-superscript",
+      "sourceLine": 242,
+      "display": false,
+      "tex": "x^x^x",
+      "errorAt": 3
+    },
+    {
+      "id": "duplicate-subscript",
+      "sourceLine": 244,
+      "display": false,
+      "tex": "x_x_x",
+      "errorAt": 3
+    },
+    {
+      "id": "duplicate-after-superscript",
+      "sourceLine": 246,
+      "display": false,
+      "tex": "x_x^x_x",
+      "errorAt": 5
+    },
+    {
+      "id": "duplicate-after-subscript",
+      "sourceLine": 248,
+      "display": false,
+      "tex": "x_x^x^x",
+      "errorAt": 5
+    },
+    {
+      "id": "missing-fraction-arguments",
+      "sourceLine": 462,
+      "display": false,
+      "tex": "\\frac",
+      "errorAt": 5
+    },
+    {
+      "id": "missing-denominator",
+      "sourceLine": 464,
+      "display": false,
+      "tex": "\\frac 1",
+      "errorAt": 7
+    },
+    {
+      "id": "unknown-control-word",
+      "sourceLine": 468,
+      "display": false,
+      "tex": "\\redx",
+      "errorAt": 0
+    },
+    {
+      "id": "unclosed-delimiter",
+      "sourceLine": 1235,
+      "display": false,
+      "tex": "\\left( \\dfrac{x}{y}",
+      "errorAt": 19
+    },
+    {
+      "id": "missing-root",
+      "sourceLine": 1393,
+      "display": false,
+      "tex": "\\sqrt",
+      "errorAt": 5
+    },
+    {
+      "id": "unfinished-root-index",
+      "sourceLine": 2797,
+      "display": false,
+      "tex": "\\sqrt[",
+      "errorAt": 6
+    }
+  ]
+}

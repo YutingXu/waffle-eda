@@ -1,0 +1,32 @@
+{
+  "id": "atrium-samples.pcb-geometry",
+  "name": "Teardrops and Via Stitching",
+  "publisher": "Waffle samples",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Adds teardrops where tracks meet pads and vias, and fills the board with stitching vias on a chosen net. Generated copper is tagged so it can be removed again in one step.",
+  "main": "main.js",
+  "activationEvents": ["onCommand:teardrops.add", "onCommand:teardrops.remove", "onCommand:stitching.add", "onCommand:stitching.remove"],
+  "permissions": ["read:project", "write:edits", "ui:command"],
+  "timeoutMs": 30000,
+  "contributes": {
+    "commands": [
+      {"command": "teardrops.add", "title": "Add Teardrops", "when": "pcb"},
+      {"command": "teardrops.remove", "title": "Remove Teardrops", "when": "pcb"},
+      {"command": "stitching.add", "title": "Add Stitching Vias…", "when": "pcb"},
+      {"command": "stitching.remove", "title": "Remove Stitching Vias", "when": "pcb"}
+    ],
+    "menus": {
+      "tools": [{"command": "teardrops.add"}, {"command": "teardrops.remove"}, {"command": "stitching.add"}, {"command": "stitching.remove"}],
+      "activeBar": [{"command": "teardrops.add", "title": "Add teardrops", "when": "pcb"}]
+    },
+    "settings": [
+      {"key": "teardropLength", "type": "number", "default": 1, "title": "Teardrop length (× pad radius)"},
+      {"key": "teardropStrands", "type": "number", "default": 2, "title": "Strands per side", "description": "More strands fill the teardrop more densely."},
+      {"key": "stitchPitch", "type": "number", "default": 2.5, "title": "Stitching pitch (mm)"},
+      {"key": "stitchClearance", "type": "number", "default": 0.5, "title": "Stitching clearance (mm)"},
+      {"key": "stitchDiameter", "type": "number", "default": 0.6, "title": "Via diameter (mm)"},
+      {"key": "stitchDrill", "type": "number", "default": 0.3, "title": "Via drill (mm)"}
+    ]
+  }
+}

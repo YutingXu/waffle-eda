@@ -1,0 +1,31 @@
+/* Tools › Signal Integrity… (si.js). Non-modal: the board stays live under the overlays. Builds on .work-dialog. */
+.si-dialog {width:min(760px,calc(100vw - 32px));max-height:min(62vh,640px);padding:12px 12px;display:flex;flex-direction:column;position:fixed;inset:auto 16px 16px auto;margin:0;z-index:var(--z-popover)}
+.si-dialog:not([open]) {display:none}
+.si-head h2 {margin:0}
+.si-summary {margin:4px 0 6px}
+.si-tools {display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.si-field {display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-12)}
+.si-unit {color:var(--muted)}
+.si-modes {display:flex;flex-wrap:wrap;gap:4px 12px;border:none;margin:6px 0 0;padding:0;font-size:var(--fs-12)}
+.si-modes legend {float:left;margin-right:8px;color:var(--muted);padding:0}
+.si-tabs {margin:8px 0 0}
+.si-body {overflow:auto;flex:1 1 auto;min-height:120px}
+.si-table-wrap {overflow:auto;max-height:24vh;border:1px solid var(--line);border-top:none}
+.si-row {cursor:default}
+.si-row:hover,.si-row:focus-visible {background:var(--hover);outline:none}
+.si-row:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
+.si-row.si-fail td:last-child {color:var(--error-ink);font-weight:600}
+.si-row.si-warn td:last-child {color:var(--warn-ink);font-weight:600}
+.si-row.si-ok td:last-child {color:var(--ok-ink)}
+.si-empty,.si-hint {color:var(--muted)}
+.si-empty {text-align:center;padding:12px}
+.si-plot-box h3 {margin:8px 0 4px}
+.si-plot {width:100%;height:auto;max-height:120px;display:block;background:var(--paper);border:1px solid var(--line)}
+.si-band {fill:#2fb35a;opacity:.13}
+.si-target {stroke:#2fb35a;stroke-dasharray:4 3;stroke-width:1}
+.si-axis {fill:var(--muted);font-size:var(--fs-10)}
+.si-axis-line {stroke:var(--line-strong);stroke-width:1}
+.si-plot-muted {fill:var(--muted);font-size:var(--fs-12)}
+.si-step {stroke-width:3;stroke-linecap:round;stroke:#6aa0ff}
+.si-step.si-ok {stroke:#2fb35a} .si-step.si-warn {stroke:#e6a417} .si-step.si-fail {stroke:#ff5cf0} .si-step.si-antipad {stroke:#7f8a99} .si-step.si-nomodel {stroke:#c04fd8}
+.si-dialog .work-actions {margin-top:8px}

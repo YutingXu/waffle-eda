@@ -1,0 +1,35 @@
+/* Fabrication Outputs dialog (app/fab-outputs.js). Extends .work-dialog. */
+.fab-dialog {width:min(720px,calc(100vw - 32px));max-height:min(86vh,820px);background:var(--panel);color:var(--ink)}
+.fab-dialog > p {margin:4px 0 8px}
+.fab-tabs {margin:12px 0 0}
+.fab-panels {padding:6px 0 0;min-height:240px}
+.fab-panel h3 {color:var(--ink)}
+/* One label column for every row (the generic .work-row:has(...) grid sizes each row to its own label). */
+.fab-row,.fab-dialog .work-row.fab-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) {display:grid;grid-template-columns:minmax(120px,160px) minmax(0,220px) minmax(0,1fr);align-items:center;gap:4px 12px;min-height:30px;padding:4px 0}
+.fab-dialog .work-row.fab-row:has(> span:first-child + .ui-field) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
+.fab-row > span {color:var(--ink)}
+.fab-row:has(> input.ui-field) > span:first-child {position:relative;inset-block-start:.5px}
+.fab-row > small {margin:0}
+.fab-row input[type=checkbox] {justify-self:start}
+.fab-dialog select,.fab-dialog input:not([type=checkbox],[type=number]) {width:100%}
+.fab-dialog input[type=checkbox] {accent-color:var(--accent)}
+.fab-layers {display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0 18px}
+.fab-layer {display:grid;grid-template-columns:auto minmax(0,1fr) 3.4em auto;align-items:center;gap:8px;min-height:28px;border-bottom:1px solid var(--line);cursor:default}
+.fab-layer span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fab-layer code {font:var(--fs-11) var(--mono);color:var(--ink)}
+.fab-layer small {margin:0;text-align:right}
+.fab-drill {padding:6px 0;border-bottom:1px solid var(--line)}
+.fab-drill strong {display:block;font-weight:560}
+.fab-drill small {font-family:var(--mono)}
+.fab-dialog .fab-hint {font-size:var(--fs-12)}
+.fab-dialog .fab-alert,.fab-warnings li {color:var(--ink);border-left:3px solid var(--accent);padding-left:8px}
+.fab-warnings {margin:6px 0 4px;padding:0;list-style:none;font-size:var(--fs-12);line-height:1.5}
+.fab-warnings li {margin:4px 0}
+.fab-status {min-height:1.2em;margin:8px 0 0}
+.fab-dialog .fab-files strong {display:block;font:var(--fs-12) var(--mono);overflow-wrap:anywhere}
+.fab-dialog .review-line button {flex:none}
+@media(max-width:620px){
+  .fab-row,.fab-dialog .work-row.fab-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) {grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .fab-row > small {grid-column:1 / -1}
+  .fab-layers {grid-template-columns:minmax(0,1fr)}
+}

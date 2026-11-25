@@ -1,0 +1,17 @@
+{
+  "id": "example.hello",
+  "name": "Hello",
+  "version": "1.0.0",
+  "publisher": "Example",
+  "apiVersion": 1,
+  "main": "main.js",
+  "permissions": ["ui:command"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "example.hello.say",
+        "title": "Say hello"
+      }
+    ]
+  }
+}

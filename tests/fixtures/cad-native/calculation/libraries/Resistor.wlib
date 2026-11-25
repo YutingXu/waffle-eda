@@ -1,0 +1,2 @@
+{"kind":"library","formatVersion":"2.0","id":"def-r","name":"Resistor"}
+{"kind":"librarySettings","id":"def-r/settings","value":{"prefix":"R","symbol":{"pins":[],"shapes":[]}}}

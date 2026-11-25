@@ -1,0 +1,3 @@
+{"kind":"project","formatVersion":"2.0","id":"source-metadata","name":"Altium source metadata"}
+{"kind":"document","id":"metadata-board","docKind":"pcb","name":"Metadata board","order":"V","path":"Metadata board.wpcb"}
+{"kind":"library","id":"metadata-footprint","order":"V","path":"libraries/Metadata test footprint.wlib"}

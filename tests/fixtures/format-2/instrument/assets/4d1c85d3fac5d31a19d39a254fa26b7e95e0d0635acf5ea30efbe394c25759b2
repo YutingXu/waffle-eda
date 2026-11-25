@@ -1,0 +1,6 @@
+{"kind":"pcb","formatVersion":"2.0","id":"amwqtkf8uzgkfqlplv9t"}
+{"kind":"part","id":"amwqtkf8u5xpjb4nm1gn","angle":12123456789,"at":[2000003,3000007],"def":"amwqtkf8u57qyvuhe4mf","layer":"Top","link":"amwqtkf8uyaciifwtc6m","order":"V","pinNets":{},"ref":"U1","refAt":[0,1000000],"value":"Meter","valueAt":[0,-1000000]}
+{"kind":"modelAlias","id":"amwqtkf8uzgkfqlplv9t/modelAlias/tray","order":"F","value":{"id":"tray","file":"tray.step","model":{"byteLength":22070,"mediaType":"model/step","sha256":"2eaa6337beeac5d1384c1ec9393fceb9839a4ad5d977f2ae15ea5b256641460c"}}}
+{"kind":"modelAlias","id":"amwqtkf8uzgkfqlplv9t/modelAlias/tray-second","order":"U","value":{"id":"tray-second","file":"tray-alias.stp","model":{"byteLength":22070,"mediaType":"model/step","sha256":"2eaa6337beeac5d1384c1ec9393fceb9839a4ad5d977f2ae15ea5b256641460c"}}}
+{"kind":"modelAlias","id":"amwqtkf8uzgkfqlplv9t/modelAlias/unresolved","order":"j","value":{"id":"unresolved","file":"optional-cover.step"}}
+{"kind":"documentSettings","id":"amwqtkf8uzgkfqlplv9t/settings","value":{"bodyModelVersion":1,"bodyModels":[],"grid":250000,"notes":["No board outline (edge cuts) was found.","Imported 1 footprints, 0 tracks, 0 vias and 0 zones"],"outline":[[0,0],[12000000,0],[12000000,8000000],[0,8000000]],"thickness":1600000}}

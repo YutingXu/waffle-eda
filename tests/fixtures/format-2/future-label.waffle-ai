@@ -1,0 +1,45 @@
+{
+ "format": "atrium-ai",
+ "project": "Future",
+ "source_sha256": "a8a1cb86d985eefcd76bd835a14c61dced61e9dc3b32e5f4efb4933cd3cc5262",
+ "document_ids": [
+  "fs"
+ ],
+ "version": 2,
+ "summary": null,
+ "ops": [
+  {
+   "op": "set",
+   "target": "item",
+   "document": "fs",
+   "id": "fa",
+   "path": [
+    "text"
+   ],
+   "before": "SENSE",
+   "after": "SENSE2"
+  }
+ ],
+ "format2_base": {
+  "project_id": "fu",
+  "manifest_sha256": "c263f2df99a33e90a5e3b8dbdf2d8935a0d818551dcaa3733b8bc0a61e3e32bf",
+  "members": [
+   [
+    "Assembly.wdraw",
+    "39c4509f9cc938ac8ccd4866e60535fa3e52a2167a8cf5f2552a24ec41bb47b9"
+   ],
+   [
+    "Logic.wsch",
+    "b8b69b62112f2707ccedbe02ced8f1aac48aaf8f8920887a85789a89c9029579"
+   ],
+   [
+    "Wave.wwave",
+    "f200b5da9b2c29eca8c40bdf45b86f36f0137be27cebd00109d5c60a313f1ea3"
+   ],
+   [
+    "libraries/Probe.wlib",
+    "aa5fceaa8a8dcac1293c3fb5d4b3a8f0c8d461e26c0ff5b20421d098d8a9553b"
+   ]
+  ]
+ }
+}

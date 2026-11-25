@@ -1,0 +1,10 @@
+{"kind":"pcb","formatVersion":"2.0","id":"01a2013c-fadd-7044-9657-808b45136d4a","requires":[]}
+{"kind":"track","id":"01a2013c-fadd-7044-9657-808b45136d4b","layer":"Top","net":"POWER","order":"V","points":[[2000000,4000000],[10000000,4000000]],"width":250000}
+{"kind":"documentSettings","id":"01a2013c-ffe1-7044-9657-808b45136d4a","value":{"fabPreset":{"id":"jlcpcb-2l","dataVersion":"2026.11.19","format":"atrium-fab-preset","hash":"0f236259e0609133","name":"JLCPCB 2-layer (cheapest)","vendor":"JLCPCB","version":1},"grid":250000,"notes":[],"outline":[[0,0],[30000000,0],[30000000,20000000],[0,20000000]],"stackup":{"drillPairs":[],"layers":[],"source":"preset:jlcpcb-2l","version":1}}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13a8","order":"7","value":{"material":"","name":"Top Overlay","thickness":0,"type":"Overlay"}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13a9","order":"E","value":{"dk":"3.8","material":"Solder Resist","name":"Top Solder","thickness":30480,"type":"Solder Mask"}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13aa","order":"L","value":{"key":"Top","material":"Copper","name":"Top Layer","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13ab","order":"S","value":{"dielectric":"Core","dk":"4.6","material":"FR-4","name":"Core","thickness":1530000,"type":"Dielectric"}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13ac","order":"Z","value":{"key":"Bottom","material":"Copper","name":"Bottom Layer","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13ad","order":"g","value":{"dk":"3.8","material":"Solder Resist","name":"Bottom Solder","thickness":30480,"type":"Solder Mask"}}
+{"kind":"layer","id":"01a2013d-00dc-7963-a402-bc978f1d13ae","order":"n","value":{"material":"","name":"Bottom Overlay","thickness":0,"type":"Overlay"}}

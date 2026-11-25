@@ -1,0 +1,18 @@
+Panel Sensor board panel
+Size: 93.2 x 65.2 mm
+Array: 2 rows x 2 columns, 4 boards
+Separation: tab routing with mouse bites (24 tabs, 128 NPTH holes 0.5 mm at 0.8 mm pitch)
+Board spacing: 2.4 mm; every other column turned 180 deg
+Routing: inside corners filleted for a 2 mm bit
+Rails: top, bottom, left, right (7 mm)
+Fiducials: 3 (1 mm copper, 2 mm mask opening, both sides)
+Tooling holes: 4 (2.5 mm NPTH)
+Copper thieving on the rails: dots, 1 mm at 2 mm pitch, every copper layer
+
+Instances (designator suffix, position of the board centre from the panel lower-left, rotation):
+  _1  Sensor board  row 1 col 1  X 27.4 Y 44.8  0 deg
+  _2  Sensor board  row 1 col 2  X 65.8 Y 44.8  180 deg
+  _3  Sensor board  row 2 col 1  X 27.4 Y 20.4  0 deg
+  _4  Sensor board  row 2 col 2  X 65.8 Y 20.4  180 deg
+
+Panel checks are approximate. Check the panel against the fab's current panelization rules before ordering.

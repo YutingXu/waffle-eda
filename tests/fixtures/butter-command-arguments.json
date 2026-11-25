@@ -1,0 +1,10 @@
+[
+  {"command":"butter.query.search","args":"{\"source\":\"track\",\"limit\":1}","outcome":"accepted"},
+  {"command":"butter.query.search","args":"{\"source\":\"track\",\"limit\":1.0}","outcome":"accepted"},
+  {"command":"butter.query.search","args":"{\"source\":\"track\",\"limit\":1e0}","outcome":"accepted"},
+  {"command":"butter.query.search","args":"{\"source\":\"track\",\"limit\":1.5}","outcome":"invalid_arguments"},
+  {"command":"butter.query.search","args":"{\"source\":\"track\",\"limit\":201}","outcome":"invalid_arguments"},
+  {"command":"butter.query.search","args":"{\"source\":\"track\",\"limit\":true}","outcome":"invalid_arguments"},
+  {"command":"butter.visualHistory.session-preview","args":"{\"step\":\"1\\n\"}","outcome":"invalid_arguments"},
+  {"command":"butter.macros.save","args":"{\"macro\":{\"constructor\":{}}}","outcome":"invalid_arguments"}
+]

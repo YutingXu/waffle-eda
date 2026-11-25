@@ -1,0 +1,45 @@
+/* VS Code keys (vscode-keys.js): the Ctrl+Tab document switcher and the keyboard cheat sheet overlay. */
+
+/* Document switcher: a small list at the top, shown only if Ctrl is held past a quick tap. */
+.vsk-switch {position:fixed;z-index:var(--z-top);top:56px;left:50%;width:min(420px,calc(100vw - 32px));transform:translateX(-50%);padding:var(--s-4) 0;
+  opacity:0;pointer-events:none}
+.vsk-switch.is-shown {opacity:1;pointer-events:auto}
+.vsk-switch-head {padding:var(--s-4) var(--s-12) var(--s-6);font-size:var(--fs-11);color:var(--muted)}
+.vsk-switch ul {display:block;max-height:50vh;overflow:auto}
+.vsk-switch li {display:flex;align-items:center;gap:var(--s-8);min-height:calc(24px + var(--d-row));padding:0 var(--s-12);font-size:var(--fs-12);cursor:default}
+.vsk-switch li span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vsk-switch .icon {width:14px;height:14px;flex:none}
+
+/* Cheat sheet: a calm, fast entrance (about 160 ms): the backdrop fades, the panel scales from 0.98 and
+   the group columns follow with a small stagger. The exit is quicker. No motion when reduced. */
+.kcs-dialog {width:min(1100px,calc(100vw - 48px));max-height:min(84vh,820px);padding:0;border:1px solid var(--line-strong);border-radius:var(--r-lg);
+  background:var(--overlay);color:var(--ink);box-shadow:var(--elev-3);overflow:hidden;}
+.kcs-dialog[open] {display:flex;flex-direction:column;animation:kcs-in var(--motion-base) var(--ease-decelerate) both}
+.kcs-dialog::backdrop {background:var(--backdrop);animation:kcs-fade var(--motion-base) linear both}
+.kcs-dialog[open].is-closing {animation:kcs-out var(--motion-instant) var(--ease-accelerate) both}
+.kcs-dialog.is-closing::backdrop {animation:kcs-fade-out var(--motion-instant) linear both}
+@keyframes kcs-in {from {opacity:0;scale:calc(1 - .02 * var(--motion-move))}}
+@keyframes kcs-out {to {opacity:0;scale:calc(1 - .01 * var(--motion-move))}}
+@keyframes kcs-fade {from {opacity:0} to {opacity:1}}
+@keyframes kcs-fade-out {from {opacity:1} to {opacity:0}}
+@keyframes kcs-col {from {opacity:0;translate:0 calc(4px * var(--motion-move))}}
+.kcs-group {animation:kcs-col var(--motion-fast) var(--ease-decelerate) both}
+.kcs-dialog[open].no-motion,.kcs-dialog.no-motion::backdrop,.kcs-dialog.no-motion .kcs-group {animation:none}
+.kcs-dialog.is-filtered .kcs-group {animation:none}
+/* Reduced motion: fades only (style.css --motion-move). */
+.kcs-head {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8) var(--s-12);padding:var(--s-12) var(--s-16);border-bottom:1px solid var(--line)}
+.kcs-head h2 {margin:0;font-size:var(--fs-14);font-weight:var(--fw-semibold)}
+.kcs-preset {padding:0 var(--s-6);border-radius:var(--r-pill);background:var(--tint-accent);color:var(--ink);font-size:var(--fs-11)}
+.kcs-head > .ui-search {margin-inline-start:auto;inline-size:220px}
+.kcs-body {flex:1;min-height:0;overflow:auto;padding:var(--s-12) var(--s-16);columns:300px;column-gap:var(--s-24)}
+.kcs-group {break-inside:avoid-column;margin:0 0 var(--s-16)}
+.kcs-group[hidden],.kcs-row[hidden] {display:none}
+.kcs-group h3 {margin:0 0 var(--s-6);font-size:var(--fs-11);font-weight:var(--fw-semibold);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.kcs-group.is-pending {padding:var(--s-8);border-radius:var(--r-md);background:var(--tint-accent)}
+.kcs-group dl {margin:0}
+.kcs-row {display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-8);padding:var(--s-2) 0;font-size:var(--fs-12);break-inside:avoid}
+.kcs-row dt {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kcs-row dd {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--s-4);margin:0;flex:none}
+.kcs-keys {display:inline-flex;gap:var(--s-2)}
+.kcs-keys + .kcs-keys::before {content:"/";color:var(--faint);margin-right:var(--s-2)}
+.kcs-foot {margin:0;padding:var(--s-6) var(--s-16);border-top:1px solid var(--line);background:var(--chrome);color:var(--muted);font-size:var(--fs-11)}

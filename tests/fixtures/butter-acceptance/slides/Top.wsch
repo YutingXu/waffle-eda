@@ -1,0 +1,6 @@
+{"kind":"schematic","formatVersion":"2.0","id":"018cc251-f400-7001-8000-000000000002","requires":[],"sheet":{"infinite":true}}
+{"kind":"frame","id":"018cc251-f400-7001-8000-000000000004","at":[0,0],"h":27000000,"name":"Instrument overview","order":"C","w":48000000}
+{"kind":"netlabel","id":"018cc251-f400-7001-8000-000000000005","at":[1270000,2540000],"order":"O","text":"SENSE"}
+{"kind":"wire","id":"018cc251-f400-7001-8000-000000000006","order":"a","points":[[1270000,2540000],[10000000,2540000]]}
+{"kind":"sheetsymbol","id":"018cc251-f400-7001-8000-000000000007","at":[10000000,0],"entries":[{"id":"018cc251-f400-7001-8000-000000000008","io":"input","name":"SENSE","offset":2540000,"side":"left"}],"h":10000000,"name":"Sensor","order":"m","sheet":"018cc251-f400-7001-8000-000000000003","w":15000000}
+{"kind":"documentSettings","id":"018cc251-f400-7001-8000-000000000014","value":{"grid":1270000,"notes":[],"outline":[]}}

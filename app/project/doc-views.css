@@ -1,0 +1,14 @@
+/* Document views (doc-views.js): a non-document tab (the Rules and Constraints Editor) over its pane's canvas. */
+.doc-view {position:absolute;inset:0;z-index:5;display:flex;min-width:0;min-height:0;background:var(--bg);color:var(--text);overflow:hidden}
+.has-pane-tabs .doc-view {top:calc(26px + var(--d-bar))}
+.doc-view > dialog.rules-window {position:static;inset:auto;flex:1 1 auto;width:auto;max-width:none;height:auto;max-height:none;margin:0;border:0;border-radius:0;box-shadow:none;resize:none;overflow:auto}
+.view-tab .view-tab-close {display:inline-grid;place-items:center;width:16px;height:16px;margin-left:2px;padding:0;border:0;background:none;color:inherit;opacity:.6;cursor:default}
+.view-tab .view-tab-close::before {content:"×";font-size:var(--fs-13);line-height:1}
+.view-tab .view-tab-close:hover {opacity:1}
+.view-tab.is-shown {color:var(--text)}
+
+/* Hide document-specific controls only while the active editor pane shows a view.
+   User-docked tools in a different group stay usable. The saved layout is untouched. */
+.document-view-active :is(.layer-bar, .panel-properties, [data-tab-for="properties"], [data-dock-target="properties"]) {display:none}
+.document-view-active #workbench:not(:has(#properties [data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {--properties:0px}
+.document-view-active #properties:not(:has([data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {display:none}

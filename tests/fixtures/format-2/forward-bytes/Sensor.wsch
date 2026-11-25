@@ -1,0 +1,4 @@
+{"kind":"schematic","formatVersion":"2.0","id":"019ab000-0000-7000-8000-000000000002","requires":[],"sheet":{"size":"A4","x-printer" : { "name":"\u0050lotter", "dpi":6e+2 }}}
+{"kind":"documentSettings","id":"019ab000-0000-7000-8000-000000000006","value":{"grid":1270000,"notes":[],"outline":[],"unrecognizedTuning" : { "x":2.500, "bias":-0.0 }}}
+{"kind":"netlabel","id":"019ab000-0000-7000-8000-000000000007","at":[1000000,2000000],"futureMeter" : { "shown":"\u03a9", "step":1.20, "range":1e400, "label":"測定" },"order":"V","text":"SENSE","x-sensor" : {"span":[1e+2,-0],"w":3.140}}
+{"kind":"sampleEnvelope","id":"019ab000-0000-7000-8000-000000000008", "path":"../../unrecognized.bin", "waveform" : { "width":3.00, "caption":"\u0041 波", "samples":[1.0,-0.0,2e+1] } }

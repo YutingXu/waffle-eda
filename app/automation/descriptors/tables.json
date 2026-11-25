@@ -1,0 +1,350 @@
+{
+  "feature": "tables",
+  "title": "Tables",
+  "modules": {"editor": ["AtriumTableData"], "mcp": ["table-data"]},
+  "commands": [
+    {
+      "id": "list",
+      "title": "List tables",
+      "kind": "read",
+      "properties": {"documentId": {"type": "string", "minLength": 1, "maxLength": 128}},
+      "required": ["documentId"]
+    },
+    {
+      "id": "describe",
+      "title": "Inspect table",
+      "kind": "read",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rowOffset": {"type": "integer", "minimum": 0, "maximum": 8192},
+        "columnOffset": {"type": "integer", "minimum": 0, "maximum": 256},
+        "rowLimit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "columnLimit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "visible": {"type": "boolean"}
+      },
+      "required": ["documentId", "itemId"],
+      "modules": {"editor": ["AtriumTableVisual", "AtriumNotebook"], "mcp": ["table-visual", "notebook"]}
+    },
+    {
+      "id": "create",
+      "title": "Create full table",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "x": {"type": "number", "minimum": -100000, "maximum": 100000},
+        "y": {"type": "number", "minimum": -100000, "maximum": 100000},
+        "rows": {"type": "integer", "minimum": 1, "maximum": 8192},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 256},
+        "title": {"type": "string", "minLength": 1, "maxLength": 512}
+      },
+      "required": ["documentId", "x", "y"],
+      "modules": {"editor": ["AtriumSheetWidgets"], "mcp": ["sheet-widgets"]}
+    },
+    {
+      "id": "upgrade",
+      "title": "Upgrade table",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "required": ["documentId", "itemId"]
+    },
+    {
+      "id": "edit-cells",
+      "title": "Edit table cells",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "cells": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rowId": {"type": "string", "minLength": 1, "maxLength": 128},
+              "columnId": {"type": "string", "minLength": 1, "maxLength": 128},
+              "content": {
+                "type": ["object", "null"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["literal", "formula", "field", "calculation", "math", "rich", "link", "image"]
+                  },
+                  "text": {"type": "string", "maxLength": 16384},
+                  "source": {"type": "string", "minLength": 1, "maxLength": 16384},
+                  "expression": {"type": "string", "minLength": 1, "maxLength": 512},
+                  "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                  "blockId": {"type": "string", "minLength": 1, "maxLength": 128},
+                  "instanceId": {"type": "string", "minLength": 1, "maxLength": 128},
+                  "tex": {"type": "string", "maxLength": 4096},
+                  "richText": {"type": "object", "maxProperties": 32},
+                  "label": {"type": "string", "maxLength": 2048},
+                  "url": {"type": "string", "minLength": 1, "maxLength": 4096},
+                  "target": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+                      "itemId": {"type": "string", "minLength": 1, "maxLength": 128}
+                    },
+                    "required": ["documentId", "itemId"]
+                  },
+                  "alt": {"type": "string", "maxLength": 2048},
+                  "assetRef": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                      "mediaType": {"type": "string", "minLength": 1, "maxLength": 64},
+                      "byteLength": {"type": "integer", "minimum": 1, "maximum": 134217728}
+                    },
+                    "required": ["sha256", "mediaType", "byteLength"]
+                  }
+                }
+              },
+              "style": {
+                "type": ["object", "null"],
+                "additionalProperties": false,
+                "properties": {
+                  "align": {"type": "string", "enum": ["left", "center", "right"]},
+                  "vertical": {"type": "string", "enum": ["top", "middle", "bottom"]},
+                  "bold": {"type": "boolean"},
+                  "italic": {"type": "boolean"},
+                  "wrap": {"type": "boolean"},
+                  "fill": {"type": "string", "minLength": 1, "maxLength": 16},
+                  "color": {"type": "string", "minLength": 1, "maxLength": 16},
+                  "borders": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "top": {"type": "string", "minLength": 1, "maxLength": 16},
+                      "right": {"type": "string", "minLength": 1, "maxLength": 16},
+                      "bottom": {"type": "string", "minLength": 1, "maxLength": 16},
+                      "left": {"type": "string", "minLength": 1, "maxLength": 16}
+                    },
+                    "required": []
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": ["rowId", "columnId"]
+          },
+          "maxItems": 256,
+          "minItems": 1
+        }
+      },
+      "required": ["documentId", "itemId", "cells"],
+      "modules": {
+        "editor": ["AtriumTableFormulas", "AtriumSheetWidgets", "AtriumNotebook"],
+        "mcp": ["table-formulas", "table-visual", "notebook"]
+      }
+    },
+    {
+      "id": "edit-axis",
+      "title": "Edit table axis",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "axis": {"type": "string", "enum": ["rows", "columns"]},
+        "action": {"type": "string", "enum": ["insert", "remove", "move", "configure"]},
+        "axisId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "beforeId": {"type": ["string", "null"]},
+        "count": {"type": "integer", "minimum": 1, "maximum": 8192},
+        "attributes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {"type": "string", "maxLength": 512},
+            "heightNm": {"type": ["integer", "null"], "minimum": 1, "maximum": 1000000000},
+            "widthNm": {"type": ["integer", "null"], "minimum": 1, "maximum": 1000000000},
+            "unit": {"type": ["string", "null"], "maxLength": 128},
+            "filter": {"type": ["string", "null"], "maxLength": 256},
+            "sortDirection": {"type": ["string", "null"], "enum": ["asc", "desc", null]}
+          },
+          "required": []
+        }
+      },
+      "required": ["documentId", "itemId", "axis", "action"],
+      "modules": {"editor": ["AtriumCalculationCore"], "mcp": ["calculation-core"]}
+    },
+    {
+      "id": "configure",
+      "title": "Configure table headers",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "headerRows": {"type": "integer", "minimum": 0, "maximum": 8192},
+        "headerColumns": {"type": "integer", "minimum": 0, "maximum": 256},
+        "banded": {"type": "boolean"}
+      },
+      "required": ["documentId", "itemId"]
+    },
+    {
+      "id": "merge",
+      "title": "Merge or split table cells",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "columnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endRowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endColumnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "action": {"type": "string", "enum": ["merge", "split"]}
+      },
+      "required": ["documentId", "itemId", "rowId", "columnId", "action"]
+    },
+    {
+      "id": "fill",
+      "title": "Fill table cells down",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "columnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endRowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endColumnId": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "required": ["documentId", "itemId", "rowId", "columnId", "endRowId"],
+      "modules": {
+        "editor": ["AtriumTableFormulas", "AtriumSheetWidgets", "AtriumNotebook"],
+        "mcp": ["table-formulas", "table-visual", "notebook"]
+      }
+    },
+    {
+      "id": "evaluate",
+      "title": "Evaluate table cells",
+      "kind": "read",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "columnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endRowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endColumnId": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "required": ["documentId", "itemId", "rowId", "columnId"],
+      "modules": {
+        "editor": ["AtriumTableFormulas", "AtriumSheetWidgets", "AtriumNotebook"],
+        "mcp": ["table-formulas", "table-visual", "notebook"]
+      }
+    },
+    {
+      "id": "bind-query",
+      "title": "Bind live query table",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "queryDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "source": {"type": "string", "minLength": 1, "maxLength": 16384},
+        "savedQueryId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "field": {"type": "string", "minLength": 1, "maxLength": 128},
+              "columnId": {"type": "string", "minLength": 1, "maxLength": 128}
+            },
+            "required": ["field", "columnId"]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        }
+      },
+      "required": ["documentId", "itemId", "queryDocumentId", "fields"],
+      "modules": {"editor": ["AtriumTableQuery"], "mcp": ["table-query"]},
+      "mcpAdapter": true
+    },
+    {
+      "id": "refresh-query",
+      "title": "Refresh live query table",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "required": ["documentId", "itemId"],
+      "modules": {"editor": ["AtriumTableQuery"], "mcp": ["table-query"]},
+      "mcpAdapter": true
+    },
+    {
+      "id": "clear-removed",
+      "title": "Clear removed query table rows",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "required": ["documentId", "itemId"],
+      "modules": {"editor": ["AtriumTableQuery"], "mcp": ["table-query"]}
+    },
+    {
+      "id": "unbind-query",
+      "title": "Unbind live query table",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128}
+      },
+      "required": ["documentId", "itemId"]
+    },
+    {
+      "id": "import",
+      "title": "Import table cells",
+      "kind": "edit",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "columnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "format": {"type": "string", "enum": ["csv", "tsv", "html"]},
+        "data": {"type": "string", "minLength": 1, "maxLength": 2097152}
+      },
+      "required": ["documentId", "itemId", "rowId", "columnId", "format", "data"],
+      "modules": {"editor": ["AtriumTableExchange"], "mcp": ["table-exchange"]},
+      "mcpAdapter": true,
+      "mcpMacro": {"format": ["csv", "tsv"]}
+    },
+    {
+      "id": "export",
+      "title": "Export table cells",
+      "kind": "read",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "rowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "columnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endRowId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "endColumnId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "format": {"type": "string", "enum": ["csv", "tsv", "html"]}
+      },
+      "required": ["documentId", "itemId", "format"],
+      "modules": {"editor": ["AtriumTableVisual", "AtriumNotebook"], "mcp": ["table-visual", "notebook"]}
+    },
+    {
+      "id": "compare",
+      "title": "Compare table cells",
+      "kind": "read",
+      "properties": {
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "itemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "otherDocumentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "otherItemId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "offset": {"type": "integer", "minimum": 0, "maximum": 65536},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 200}
+      },
+      "required": ["documentId", "itemId", "otherDocumentId", "otherItemId"]
+    }
+  ]
+}

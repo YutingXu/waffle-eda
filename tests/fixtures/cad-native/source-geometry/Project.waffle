@@ -1,0 +1,4 @@
+{"kind":"project","formatVersion":"2.0","id":"source-geometry","name":"Altium geometry example"}
+{"kind":"document","id":"sample-board","docKind":"pcb","name":"Geometry board","order":"e","path":"Geometry board.wpcb"}
+{"kind":"library","id":"sample-package","order":"V","path":"libraries/One-pad package.wlib"}
+{"kind":"document","id":"sample-schematic","docKind":"schematic","name":"Empty schematic","order":"K","path":"Empty schematic.wsch"}

@@ -1,0 +1,234 @@
+{
+  "feature": "links",
+  "title": "Project Links",
+  "modules": {
+    "editor": [
+      "AtriumLinksDesktop"
+    ],
+    "mcp": [
+      "links"
+    ]
+  },
+  "commands": [
+    {
+      "id": "copy-link",
+      "title": "Copy Link",
+      "kind": "state",
+      "properties": {
+        "objectId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [],
+      "editorMode": "write"
+    },
+    {
+      "id": "resolve",
+      "title": "Resolve Link",
+      "kind": "read",
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 114
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    {
+      "id": "backlinks",
+      "title": "List Backlinks",
+      "kind": "read",
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 114
+        },
+        "includeGit": {
+          "type": "boolean"
+        },
+        "gitOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "gitSnapshot": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    {
+      "id": "list",
+      "title": "List Project Links",
+      "kind": "read",
+      "properties": {
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": []
+    },
+    {
+      "id": "status",
+      "title": "Check Stored Link",
+      "kind": "read",
+      "properties": {
+        "recordId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "recordId"
+      ]
+    },
+    {
+      "id": "create",
+      "title": "Create Link",
+      "kind": "edit",
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 114
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "required": [
+        "sourceId",
+        "url"
+      ]
+    },
+    {
+      "id": "rebind",
+      "title": "Rebind Link",
+      "kind": "edit",
+      "properties": {
+        "recordId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 114
+        }
+      },
+      "required": [
+        "recordId",
+        "url"
+      ]
+    },
+    {
+      "id": "remove",
+      "title": "Remove Link",
+      "kind": "edit",
+      "properties": {
+        "recordId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "recordId"
+      ]
+    },
+    {
+      "id": "anchor",
+      "title": "Create Link Anchor",
+      "kind": "edit",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 36,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "pin",
+            "net"
+          ]
+        },
+        "terminal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      },
+      "required": [
+        "documentId",
+        "ownerId",
+        "kind"
+      ]
+    },
+    {
+      "id": "open",
+      "title": "Open Link",
+      "kind": "state",
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 114
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "editorTransition": true
+    }
+  ]
+}

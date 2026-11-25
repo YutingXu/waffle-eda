@@ -1,0 +1,38 @@
+/* Print / Export PDF dialog (app/print.js). Extends .work-dialog. */
+.print-dialog {--ui-dialog-width:min(1080px,var(--dialog-avail-w));--ui-dialog-max-height:min(90vh,900px);background:var(--panel);color:var(--ink);flex-direction:column}
+.print-dialog[open] {display:flex}
+.print-body {display:grid;grid-template-columns:minmax(260px,330px) minmax(0,1fr);gap:16px;min-height:0;flex:1;overflow:hidden}
+.print-form {overflow:auto;padding-right:6px}
+.print-form:focus, .print-form:focus-visible {outline:none}
+.print-form fieldset {border:0;border-top:1px solid var(--line);margin:0 0 6px;padding:6px 0 4px}
+.print-form legend {font-weight:600;color:var(--ink);padding:0 6px 0 0}
+.print-check {display:flex;align-items:center;gap:8px;min-height:26px;cursor:default}
+.print-check input {accent-color:var(--accent)}
+.print-row {display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:8px;min-height:30px}
+.print-row[hidden] {display:none}
+.print-dialog select,.print-dialog input:not([type=checkbox],[type=number]) {width:100%}
+.print-quick {display:flex;gap:6px;margin:2px 0 4px}
+.print-form small {display:block;color:var(--muted);margin:4px 0}
+.print-preview {position:relative;overflow:auto;background:var(--soft);border:1px solid var(--line);border-radius:var(--r-md);padding:12px;min-height:320px}
+.print-pages {display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;align-items:start}
+.print-dialog .print-thumb {display:flex;flex-direction:column;gap:6px;background:transparent;border:0;padding:0;color:var(--ink);text-align:left;cursor:zoom-in}
+.print-thumb img {width:100%;height:auto;border-radius:var(--r-sm)}
+.print-thumb span {font-size:var(--fs-11);overflow:hidden;text-overflow:ellipsis;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.35}
+.print-thumb:focus-visible img {outline:2px solid var(--accent);outline-offset:2px}
+.print-zoom {position:absolute;inset:0;background:var(--soft);padding:12px;cursor:zoom-out;display:flex;align-items:center;justify-content:center}
+.print-zoom[hidden] {display:none}
+.print-zoom img {max-width:100%;max-height:100%}
+.print-dialog .work-actions {display:flex;align-items:center;gap:8px;margin-top:8px}
+.print-status {flex:1;margin:0;min-height:1.2em;font-size:var(--fs-12);color:var(--muted)}
+@media(max-width:720px){.print-body {grid-template-columns:minmax(0,1fr);overflow:auto}}
+
+/* Printing: only the mounted pages print (print.js mounts #atrium-print-root). */
+#atrium-print-root {display:none}
+@media print {
+  body > *:not(#atrium-print-root) {display:none !important}
+  html,body {background:var(--printed-paper) !important;margin:0 !important;padding:0 !important;overflow:visible !important;height:auto !important}
+  #atrium-print-root {display:block}
+  .atrium-print-page {break-after:page;page-break-after:always;width:100%;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .atrium-print-page:last-child {break-after:auto;page-break-after:auto}
+  .atrium-print-page svg {max-width:100%;max-height:100%;width:auto;height:auto}
+}

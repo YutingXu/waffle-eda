@@ -1,0 +1,319 @@
+{
+  "feature": "query",
+  "title": "Design Queries",
+  "modules": {
+    "editor": [
+      "AtriumQueryService"
+    ],
+    "mcp": [
+      "butter-query-service"
+    ]
+  },
+  "commands": [
+    {
+      "id": "plan",
+      "title": "Plan Design Query",
+      "kind": "read",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "savedQueryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [],
+      "modules": {
+        "mcp": [
+          "dfa",
+          "length"
+        ],
+        "editor": [
+          "AtriumRules"
+        ]
+      }
+    },
+    {
+      "id": "search",
+      "title": "Run Design Query",
+      "kind": "read",
+      "replayable": true,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "savedQueryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 48,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "cursor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "key",
+            "after"
+          ],
+          "properties": {
+            "key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "after": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        },
+        "suggestions": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "modules": {
+        "mcp": [
+          "dfa",
+          "length"
+        ],
+        "editor": [
+          "AtriumRules"
+        ]
+      }
+    },
+    {
+      "id": "count",
+      "title": "Count Design Query Matches",
+      "kind": "read",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "savedQueryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [],
+      "modules": {
+        "mcp": [
+          "dfa",
+          "length"
+        ],
+        "editor": [
+          "AtriumRules"
+        ]
+      }
+    },
+    {
+      "id": "list-saved",
+      "title": "List Saved Queries",
+      "kind": "read",
+      "properties": {},
+      "required": []
+    },
+    {
+      "id": "get-saved",
+      "title": "Read Saved Query",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    {
+      "id": "save-query",
+      "title": "Save Design Query",
+      "kind": "edit",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "documentId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "instanceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "maxItems": 48,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      },
+      "required": [],
+      "modules": {
+        "mcp": [
+          "dfa",
+          "length"
+        ],
+        "editor": [
+          "AtriumRules"
+        ]
+      }
+    },
+    {
+      "id": "delete-saved",
+      "title": "Delete Saved Query",
+      "kind": "edit",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    {
+      "id": "rule-applicability",
+      "title": "Show What This Rule Applies To",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "modules": {
+        "editor": [
+          "AtriumDRC",
+          "AtriumERC",
+          "AtriumDFA",
+          "AtriumLength",
+          "AtriumViaStubs",
+          "AtriumCollision3D",
+          "AtriumTopology",
+          "AtriumParallelSegment",
+          "AtriumReturnPath",
+          "AtriumImpedanceChecks",
+          "AtriumIPC2152"
+        ],
+        "mcp": [
+          "drc",
+          "erc",
+          "dfa",
+          "via-stubs",
+          "viastack",
+          "ipc2152",
+          "polygon-pour"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,285 @@
+{
+  "app/canvas/artwork.css": [
+    [".logo-swatch", "box-shadow", "inset 0 0 0 1px var(--shadow-md)"]
+  ],
+  "app/pcb/autoplace.js": [
+    ["JS stylesheet / .autoplace-swatch", "border-radius", "2px"],
+    ["JS stylesheet / .autoplace-view svg", "background", "var(--canvas-bg,rgba(0,0,0,.04))"],
+    ["JS stylesheet / .autoplace-view svg", "border", "1px solid var(--border,rgba(128,128,128,.3))"],
+    ["JS stylesheet / .autoplace-view svg", "border-radius", "6px"]
+  ],
+  "app/pcb/board-shape.css": [
+    [".bsh-message[data-kind=\"error\"]", "box-shadow", "inset 3px 0 0 var(--danger)"],
+    [".bsh-warn", "box-shadow", "inset 3px 0 0 var(--danger)"]
+  ],
+  "app/formats/bom-optimiser.css": [
+    [".bomopt-flash", "box-shadow", "0 0 0 2px var(--focus)"]
+  ],
+  "app/formats/bom.css": [
+    [".bom-column.drop-after", "box-shadow", "inset 0 -2px var(--focus)"],
+    [".bom-column.drop-before", "box-shadow", "inset 0 2px var(--focus)"],
+    [".bom-grid tbody tr.bom-part td.bom-lead", "box-shadow", "inset -2px 0 var(--line-strong)"],
+    [".bom-grid tbody tr.hint-keep td.bom-lead", "box-shadow", "inset 3px 0 var(--ok-ink)"],
+    [".bom-grid tbody tr.hint-partner td.bom-lead", "box-shadow", "inset 3px 0 var(--focus)"],
+    [".bom-grid td.active", "box-shadow", "inset 0 0 0 2px var(--focus)"],
+    [".bom-grid th.drop-after", "box-shadow", "inset -2px 0 var(--focus)"],
+    [".bom-grid th.drop-before", "box-shadow", "inset 2px 0 var(--focus)"],
+    [".bom-hint-mark::before", "border-radius", "1px"],
+    [".bom-mark", "border-radius", "50%"]
+  ],
+  "app/formats/bom.js": [
+    ["<style> / body", "color", "#1d2321"],
+    ["<style> / dl", "color", "#4b5552"],
+    ["<style> / tbody tr:nth-child(even)", "background", "#f7f8f8"],
+    ["<style> / th", "background", "#eceff0"],
+    ["<style> / th,td", "border", "1px solid #c8cfcc"]
+  ],
+  "app/schematic/connection-preview.css": [
+    [".sheet-connection-flash", "box-shadow", "0 0 0 1px var(--focus-edge-light)"]
+  ],
+  "app/checks/constraints.css": [
+    [".cm-colitem.drop-after", "box-shadow", "inset 0 -2px var(--focus)"],
+    [".cm-colitem.drop-before", "box-shadow", "inset 0 2px var(--focus)"],
+    [".cm-grid th.drop-after", "box-shadow", "inset -2px 0 var(--focus)"],
+    [".cm-grid th.drop-before", "box-shadow", "inset 2px 0 var(--focus)"],
+    [".cm-grid th.editable", "box-shadow", "inset 0 2px var(--primary)"]
+  ],
+  "app/formats/diff-export.js": [
+    ["JS stylesheet / .card", "border", "1px solid #8885"],
+    ["JS stylesheet / .card", "border-radius", "6px"],
+    ["JS stylesheet / .pair img,.none", "border", "1px solid #8886"],
+    ["JS stylesheet / .pair img,.none", "color", "#888"],
+    ["JS stylesheet / :root", "--added", "#2f9e5b"],
+    ["JS stylesheet / :root", "--moved", "#c48a12"],
+    ["JS stylesheet / :root", "--properties", "#2f7fc0"],
+    ["JS stylesheet / :root", "--removed", "#d0453f"],
+    ["JS stylesheet / figcaption", "color", "#777"],
+    ["JS stylesheet / th,td", "border-bottom", "1px solid #8884"]
+  ],
+  "app/history/diff-view.css": [
+    [".dv-after .dv-caption", "box-shadow", "inset 3px 0 0 var(--success)"],
+    [".dv-before .dv-caption", "box-shadow", "inset 3px 0 0 var(--danger)"],
+    [".dv-doc[aria-current=\"true\"]", "box-shadow", "inset 2px 0 0 var(--sel-bar)"],
+    [".dv-handle::before", "box-shadow", "0 0 0 1px var(--surface)"],
+    [".dv-rev-after", "box-shadow", "inset 3px 0 0 var(--success)"],
+    [".dv-rev-before", "box-shadow", "inset 3px 0 0 var(--danger)"],
+    [".dv-row.is-linked", "box-shadow", "inset -3px 0 0 var(--accent)"]
+  ],
+  "app/history/diff.js": [
+    ["JS stylesheet / .card", "border-radius", "8px"],
+    ["JS stylesheet / .sev", "border-radius", "9px"],
+    ["JS stylesheet / :root", "--bg", "#fff"],
+    ["JS stylesheet / :root", "--c", "#3b6ea5"],
+    ["JS stylesheet / :root", "--e", "#b3261e"],
+    ["JS stylesheet / :root", "--fg", "#1d2125"],
+    ["JS stylesheet / :root", "--line", "#d8dde2"],
+    ["JS stylesheet / :root", "--m", "#8a5a00"],
+    ["JS stylesheet / :root", "--muted", "#5b636b"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--bg", "#16191c"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--c", "#7fb2e6"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--e", "#f0857d"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--fg", "#e6e9ec"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--line", "#33393f"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--m", "#e5b84b"],
+    ["JS stylesheet / @media (prefers-color-scheme:dark) / :root", "--muted", "#a3abb3"],
+    ["JS stylesheet / figure", "border-radius", "8px"]
+  ],
+  "app/checks/drc.js": [
+    ["<style> / :root", "--bad", "#b42318"],
+    ["<style> / :root", "--ink", "#1d2125"],
+    ["<style> / :root", "--line", "#d6dadf"],
+    ["<style> / :root", "--muted", "#5d666e"],
+    ["<style> / :root", "--paper", "#fff"],
+    ["<style> / :root", "--soft", "#f2f4f6"],
+    ["<style> / @media (prefers-color-scheme:dark) / :root", "--bad", "#ff8a80"],
+    ["<style> / @media (prefers-color-scheme:dark) / :root", "--ink", "#e2e2e2"],
+    ["<style> / @media (prefers-color-scheme:dark) / :root", "--line", "#474747"],
+    ["<style> / @media (prefers-color-scheme:dark) / :root", "--muted", "#b0b0b0"],
+    ["<style> / @media (prefers-color-scheme:dark) / :root", "--paper", "#1f1f1f"],
+    ["<style> / @media (prefers-color-scheme:dark) / :root", "--soft", "#2b2b2b"]
+  ],
+  "app/schematic/eco.css": [
+    [".eco-row.is-conflict td:first-child", "box-shadow", "inset 2px 0 0 var(--warning)"],
+    [".eco-row.is-focus td:first-child", "box-shadow", "inset 2px 0 0 var(--accent)"]
+  ],
+  "app/checks/erc.css": [
+    [":root[data-focus-nav=keys] .msg-grid:focus-visible", "box-shadow", "inset 0 0 0 1px var(--focus)"]
+  ],
+  "app/extension-host/extensions.css": [
+    [".script-editor:focus-within", "box-shadow", "inset 0 0 0 1px var(--focus)"]
+  ],
+  "app/checks/insights.css": [
+    [".insight-mark", "border-radius", "1px"]
+  ],
+  "app/library/library-panel.css": [
+    [":root[data-focus-nav=keys] .fe-canvas:focus-visible", "box-shadow", "inset 0 0 0 2px var(--accent)"]
+  ],
+  "app/notebook/math-editor.css": [
+    [".math-source-area, .math-live-preview", "border-radius", "6px"],
+    [".math-source-mark mark", "border-radius", "1px"]
+  ],
+  "app/editor/messages.js": [
+    ["<style> / th,td", "border-bottom", "1px solid #8884"],
+    ["<style> / tr.fatal td:first-child,tr.error td:first-child", "color", "#d33"],
+    ["<style> / tr.info td:first-child", "color", "#37c"],
+    ["<style> / tr.warning td:first-child", "color", "#c80"]
+  ],
+  "app/editor/nav.css": [
+    [".pl-grid td.active", "box-shadow", "inset 0 0 0 1px var(--focus)"]
+  ],
+  "app/formats/output-jobs.js": [
+    ["<style> / th,td", "border-bottom", "1px solid #8884"]
+  ],
+  "app/history/review.css": [
+    [".rc-thread.is-selected", "box-shadow", "inset 2px 0 0 var(--accent)"]
+  ],
+  "app/project/revisions.css": [
+    [":root[data-focus-nav=keys] .revisions-pick-list:focus-visible", "box-shadow", "0 0 0 2px var(--focus)"],
+    [":root[data-focus-nav=keys] .revisions-table tbody tr:focus-visible", "box-shadow", "inset 2px 0 0 var(--focus)"]
+  ],
+  "app/notebook/rich-text-editor.css": [
+    [".rn-editor", "border-radius", "2px"],
+    [".rn-more", "border-radius", "7px"]
+  ],
+  "app/checks/rules-editor.css": [
+
+  ],
+  "app/notebook/sheet-widgets.css": [
+    [".sw-body fieldset", "border-radius", "5px"]
+  ],
+  "app/analysis/si.css": [
+    [".si-band", "fill", "#2fb35a"],
+    [".si-step", "stroke", "#6aa0ff"],
+    [".si-step.si-antipad", "stroke", "#7f8a99"],
+    [".si-step.si-fail", "stroke", "#ff5cf0"],
+    [".si-step.si-nomodel", "stroke", "#c04fd8"],
+    [".si-step.si-ok", "stroke", "#2fb35a"],
+    [".si-step.si-warn", "stroke", "#e6a417"],
+    [".si-target", "stroke", "#2fb35a"]
+  ],
+  "app/project/split-view.css": [
+    [".pane-caption i", "border-radius", "50%"]
+  ],
+  "app/pcb/stackup.css": [
+    [".stk-message[data-kind=\"error\"]", "box-shadow", "inset 3px 0 0 var(--accent)"],
+    [".stk-plane td:first-child", "box-shadow", "inset 4px 0 0 var(--accent),inset 8px 0 0 var(--panel)"],
+    [".stk-row td:first-child", "box-shadow", "inset 4px 0 0 var(--stk-swatch,transparent)"],
+    [".stk-x-air", "fill", "#3f6b4a"],
+    [".stk-x-diel", "fill", "#3f6b4a"],
+    [".stk-x-mask", "fill", "#2f5f8a"],
+    [".stk-x-plane", "fill", "#c8873a"],
+    [".stk-x-trace", "fill", "#e0a050"],
+    [".stk-x-trace", "stroke", "#7a4b16"],
+    [".work-dialog .stk-danger:hover:not(:disabled)", "box-shadow", "inset 0 0 0 1px var(--accent)"]
+  ],
+  "app/editor/start-page.js": [
+    ["JS declaration list", "fill", "#d9a521"],
+    ["JS declaration list", "stroke", "#7a5a00"],
+    ["JS declaration list", "stroke", "#c8a050"]
+  ],
+  "app/style.css": [
+    [".layer-dot", "box-shadow", "inset 0 0 0 1px var(--swatch-edge)"]
+  ],
+  "app/library/symbol-wizard.css": [
+    [".sw-grid tr.sw-error td:first-child", "box-shadow", "inset 3px 0 0 var(--error)"],
+    [".sw-grid tr.sw-warning td:first-child", "box-shadow", "inset 3px 0 0 var(--warning)"]
+  ],
+  "app/editor/theme-ui.css": [
+    [".the-pairs i", "box-shadow", "inset 0 0 0 1px var(--swatch-edge)"],
+    [".thg-thumb", "box-shadow", "inset 0 0 0 1px var(--swatch-edge)"],
+    [".thq-current", "box-shadow", "inset 0 0 0 1px currentColor"],
+    [".thq-strip", "box-shadow", "inset 0 0 0 1px var(--swatch-edge)"]
+  ],
+  "app/editor/theme.css": [
+    [".thp-chip", "border-radius", "50%"],
+    [".thp-chip", "box-shadow", "inset 0 0 0 1px var(--swatch-edge)"],
+    [".thp-swatch", "border-radius", "50%"],
+    [".thp-swatch:has(input:checked)", "box-shadow", "0 0 0 2px var(--ink)"]
+  ],
+  "app/pcb/timing-vision.css": [
+    [".timing-hud-band", "background", "#2fbf7166"],
+    [".timing-hud-band", "border-left", "1px solid #2fbf71"],
+    [".timing-hud-band", "border-right", "1px solid #2fbf71"],
+    [".timing-hud[data-state=\"long\"]", "border-left-color", "#ff4d4d"],
+    [".timing-hud[data-state=\"long\"] .timing-hud-mark", "background", "#ff4d4d"],
+    [".timing-hud[data-state=\"ok\"]", "border-left-color", "#2fbf71"],
+    [".timing-hud[data-state=\"short\"]", "border-left-color", "#3d8bff"],
+    [".timing-hud[data-state=\"short\"] .timing-hud-mark", "background", "#3d8bff"]
+  ],
+  "app/editor/touch-precision.css": [
+    [".touch-loupe", "border-radius", "50%"],
+    [".touch-loupe i", "border-radius", "50%"]
+  ],
+  "app/project/variants.css": [
+    [".variants-grid tbody tr.is-diff > th.ref", "box-shadow", "inset 3px 0 var(--warning)"],
+    [".variants-grid td.cell.is-selected", "box-shadow", "inset 0 0 0 999px color-mix(in srgb,var(--selection) 70%,transparent)"],
+    [".variants-grid thead th.is-focus", "box-shadow", "inset 0 -2px var(--focus)"],
+    [":root[data-focus-nav=keys] .variants-grid-wrap:focus-visible", "box-shadow", "inset 0 0 0 1px var(--focus)"]
+  ],
+  "app/pcb/viastack.css": [
+    [".vs-error", "box-shadow", "inset 3px 0 0 var(--err-mark)"],
+    [".vs-info", "box-shadow", "inset 3px 0 0 var(--accent)"],
+    [".vs-ok", "box-shadow", "inset 3px 0 0 var(--ok-mark)"],
+    [".vs-warning", "box-shadow", "inset 3px 0 0 var(--warn-mark)"],
+    [".work-dialog .vs-danger:hover:not(:disabled)", "box-shadow", "inset 0 0 0 1px var(--err-mark)"]
+  ],
+  "app/canvas/view3d.css": [
+    [":root[data-focus-nav=keys] .v3d-canvas:focus-visible", "box-shadow", "inset 0 0 0 2px var(--focus)"]
+  ],
+  "app/editor/vscode-theme.js": [
+    ["JS stylesheet / .vsc-pick[aria-pressed=true]", "box-shadow", "inset 0 -2px 0 var(--accent)"],
+    ["JS stylesheet / .vsc-sw i", "border", "1px solid var(--swatch-line,#8888)"]
+  ],
+  "app/editor/welcome.css": [
+    [".wl-dot", "border-radius", "50%"],
+    [".wl-mock-bar i", "border-radius", "2px"],
+    [".wl-mock-pad", "border-radius", "2px"],
+    [".wl-mock-side b", "border-radius", "2px"],
+    [".wl-state", "border-radius", "50%"]
+  ],
+  "app/editor/workflows.css": [
+    [".symbol-previews canvas", "box-shadow", "inset 0 0 0 1px var(--preview-edge)"]
+  ],
+  "brand/tools/sheet.css": [
+    [".black", "background", "#000"],
+    [".black", "color", "#ddd"],
+    [".dark", "background", "#1D1D1D"],
+    [".dark", "color", "#d8d2ca"],
+    [".dock", "border-radius", "26px"],
+    [".dock .app.on:after", "border-radius", "2px"],
+    [".idea", "color", "#5b524a"],
+    [".light", "background", "#F7F5F1"],
+    [".light", "color", "#3a332c"],
+    [".mb-blob", "border-radius", "5px"],
+    [".note", "color", "#8a7f74"],
+    [".panel", "border-radius", "18px"],
+    [".sep", "background", "rgba(127,127,127,.25)"],
+    [".wall", "border-radius", "18px"],
+    [".wall.d", "background", "linear-gradient(135deg,#1a2130,#2a2130 55%,#1c1a22)"],
+    [".wall.d .dock", "background", "rgba(40,40,44,.55)"],
+    [".wall.d .dock", "box-shadow", "inset 0 0 0 1px rgba(255,255,255,.14),0 10px 30px rgba(0,0,0,.35)"],
+    [".wall.d .dock", "color", "#eee"],
+    [".wall.d .label", "color", "#eee"],
+    [".wall.d .menubar", "background", "rgba(24,24,26,.62)"],
+    [".wall.d .menubar", "color", "#f2f2f2"],
+    [".wall.l", "background", "linear-gradient(135deg,#dfe6ee,#efe6dc 55%,#e5dfe9)"],
+    [".wall.l .dock", "background", "rgba(255,255,255,.42)"],
+    [".wall.l .dock", "box-shadow", "inset 0 0 0 1px rgba(255,255,255,.6),0 10px 30px rgba(0,0,0,.12)"],
+    [".wall.l .dock", "color", "#222"],
+    [".wall.l .menubar", "background", "rgba(255,255,255,.62)"],
+    [".wall.l .menubar", "color", "#1d1d1f"],
+    [".zoom", "border-radius", "4px"],
+    [".zoom", "outline", "1px dashed rgba(127,127,127,.35)"],
+    ["body", "background", "#ECE8E1"],
+    ["body", "color", "#2a2520"],
+    ["h1 small", "border", "1.5px solid #a65300"],
+    ["h1 small", "border-radius", "20px"],
+    ["h1 small", "color", "#a65300"],
+    ["h2", "color", "#8a7f74"]
+  ],
+  "integrations/vscode/media/viewer.css": [
+    [".badge", "border-radius", "8px"],
+    ["button", "border-radius", "2px"],
+    ["select", "border-radius", "2px"]
+  ]
+}

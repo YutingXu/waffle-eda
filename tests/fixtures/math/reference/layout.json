@@ -1,0 +1,1928 @@
+{
+  "reference": "XeTeX via Tectonic",
+  "tectonic": "Tectonic 0.17.0",
+  "poppler": "pdftoppm version 26.05.0",
+  "font": "STIXTwoMath-Regular.ttf",
+  "fontCommit": "744a22a4dd626cd14d75728aef34fc8ad7c85db0",
+  "fontSHA256": "49b22767985171bce579307b21d98f4d35012fa39e316acc4ffcab8644dfb69b",
+  "rasterDpi": 192,
+  "sourceEmPt": 24,
+  "cases": [
+    {
+      "id": "ohm",
+      "mode": "inline",
+      "advance": 3.03861,
+      "ascent": 0.657,
+      "descent": 0.005,
+      "ink": [
+        0.0516,
+        -0.6587,
+        3.0001,
+        0.0157
+      ],
+      "image": "ink/ohm.png",
+      "sha256": "1cbb3805b0243cbef0976c30ffb355b9e0581b06f35f86bad3e097ef157aefe7"
+    },
+    {
+      "id": "joule",
+      "mode": "inline",
+      "advance": 3.26994,
+      "ascent": 0.81084,
+      "descent": 0.0,
+      "ink": [
+        -0.0268,
+        -0.8312,
+        3.2354,
+        -0.0157
+      ],
+      "image": "ink/joule.png",
+      "sha256": "ccfb98cf5e3222c19b2fb5826d8af07fdce4bcb14abb3d57e6b371c3be17bb02"
+    },
+    {
+      "id": "capacitor-charge",
+      "mode": "inline",
+      "advance": 3.44861,
+      "ascent": 0.67,
+      "descent": 0.173,
+      "ink": [
+        0.0359,
+        -0.6901,
+        3.455,
+        0.1568
+      ],
+      "image": "ink/capacitor-charge.png",
+      "sha256": "edb60c7f864db9860e70b36ac582f30e22eae5b4016aa6fafb37ce7d9a5ce7ae"
+    },
+    {
+      "id": "capacitor-energy",
+      "mode": "display",
+      "advance": 4.78897,
+      "ascent": 1.27907,
+      "descent": 0.64007,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        4.741,
+        0.6273
+      ],
+      "image": "ink/capacitor-energy.png",
+      "sha256": "71ccb8c98a20f36393afb86571a63e3c6547e44fd351a91236e8170c6df5ac37"
+    },
+    {
+      "id": "inductor-energy",
+      "mode": "display",
+      "advance": 4.20408,
+      "ascent": 1.27907,
+      "descent": 0.64007,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        4.1607,
+        0.6273
+      ],
+      "image": "ink/inductor-energy.png",
+      "sha256": "27c1021f7f7328a60297f5a6cab473bbc78f23984616381a1875e0ea70b84ed5"
+    },
+    {
+      "id": "parallel-resistance",
+      "mode": "display",
+      "advance": 5.26715,
+      "ascent": 1.70578,
+      "descent": 1.23138,
+      "ink": [
+        0.0203,
+        -1.5684,
+        5.2115,
+        1.0822
+      ],
+      "image": "ink/parallel-resistance.png",
+      "sha256": "887ee7a7e793ef89d2c044f8c738e4e25ebba94ec0db5f0a88d7f795c33f8c1a"
+    },
+    {
+      "id": "divider",
+      "mode": "display",
+      "advance": 7.12842,
+      "ascent": 1.30905,
+      "descent": 0.85009,
+      "ink": [
+        0.0516,
+        -1.3174,
+        7.0779,
+        0.8312
+      ],
+      "image": "ink/divider.png",
+      "sha256": "16bf40106d3633bfc0e50dd71b21d68b208bb3994ed69f645a70a33f256b7a89"
+    },
+    {
+      "id": "current-divider",
+      "mode": "display",
+      "advance": 6.24163,
+      "ascent": 1.30905,
+      "descent": 0.85009,
+      "ink": [
+        -0.0268,
+        -1.3174,
+        6.1839,
+        0.8312
+      ],
+      "image": "ink/current-divider.png",
+      "sha256": "858373af5c833e7dcc0c5b06dee4aec476fd7b404087e0e9859d69dd61f11dc6"
+    },
+    {
+      "id": "kcl",
+      "mode": "inline",
+      "advance": 4.86165,
+      "ascent": 0.94731,
+      "descent": 0.37598,
+      "ink": [
+        0.0516,
+        -0.9724,
+        4.8351,
+        0.3764
+      ],
+      "image": "ink/kcl.png",
+      "sha256": "b03d4e3f314aaf88553f3c558f127422a72cf1f6269f1481e1c63e59fcadbe5c"
+    },
+    {
+      "id": "kvl",
+      "mode": "inline",
+      "advance": 5.36065,
+      "ascent": 0.94731,
+      "descent": 0.37598,
+      "ink": [
+        0.0516,
+        -0.9724,
+        5.3213,
+        0.3764
+      ],
+      "image": "ink/kvl.png",
+      "sha256": "4bbc278cc9884a65de06c6f8e710ced07c0615905720f458bc979aa8008bc60e"
+    },
+    {
+      "id": "rc-time",
+      "mode": "inline",
+      "advance": 3.08061,
+      "ascent": 0.67,
+      "descent": 0.011,
+      "ink": [
+        0.0203,
+        -0.6901,
+        3.0472,
+        0.0
+      ],
+      "image": "ink/rc-time.png",
+      "sha256": "5ac27c48b39e7f34c9265acef53b5555adc55ac626a161b6f2f1ec267196995b"
+    },
+    {
+      "id": "rl-time",
+      "mode": "display",
+      "advance": 2.47461,
+      "ascent": 1.29707,
+      "descent": 0.64007,
+      "ink": [
+        0.0203,
+        -1.3017,
+        2.4198,
+        0.6273
+      ],
+      "image": "ink/rl-time.png",
+      "sha256": "18b8631d4a5045e5e41b62e3ca2865b7d4542ae7155111c3a2f513ce1dcc65e5"
+    },
+    {
+      "id": "rc-charge",
+      "mode": "display",
+      "advance": 9.82307,
+      "ascent": 0.87524,
+      "descent": 0.33497,
+      "ink": [
+        0.0359,
+        -0.8783,
+        9.7754,
+        0.3294
+      ],
+      "image": "ink/rc-charge.png",
+      "sha256": "aca736b15dd45cb2a887447367b4cee1604a8cba130abdeb1e6087f20465435b"
+    },
+    {
+      "id": "rc-discharge",
+      "mode": "inline",
+      "advance": 7.1866,
+      "ascent": 0.87524,
+      "descent": 0.21772,
+      "ink": [
+        0.0359,
+        -0.8783,
+        7.1249,
+        0.2196
+      ],
+      "image": "ink/rc-discharge.png",
+      "sha256": "7ce0ee6e91ea55b2b0aff2af6f738bd58fd075f8a9ef19a300737655c1cb5bb5"
+    },
+    {
+      "id": "rl-step",
+      "mode": "display",
+      "advance": 8.97047,
+      "ascent": 1.31955,
+      "descent": 0.64007,
+      "ink": [
+        0.0359,
+        -1.3174,
+        8.9285,
+        0.643
+      ],
+      "image": "ink/rl-step.png",
+      "sha256": "afa5033f552097ded5552fc7e1864c48fa52abf882494c000840571fea009c4f"
+    },
+    {
+      "id": "lc-resonance",
+      "mode": "display",
+      "advance": 4.50094,
+      "ascent": 1.27907,
+      "descent": 1.18097,
+      "ink": [
+        0.0203,
+        -1.3017,
+        4.4587,
+        1.1763
+      ],
+      "image": "ink/lc-resonance.png",
+      "sha256": "f6d747a94dc01d2420eef5df463cedf325f7e0fd9e69324c3ccbd21226f732ca"
+    },
+    {
+      "id": "rlc-damping",
+      "mode": "display",
+      "advance": 4.49161,
+      "ascent": 1.707,
+      "descent": 0.731,
+      "ink": [
+        0.0359,
+        -1.6625,
+        4.4901,
+        0.7214
+      ],
+      "image": "ink/rlc-damping.png",
+      "sha256": "b418a1d6fe9e98dac28397df6c72b86798be1f0cd65feb326300998bc2e364da"
+    },
+    {
+      "id": "capacitor-current",
+      "mode": "display",
+      "advance": 4.49667,
+      "ascent": 1.36475,
+      "descent": 0.65207,
+      "ink": [
+        0.0359,
+        -1.3645,
+        4.443,
+        0.6587
+      ],
+      "image": "ink/capacitor-current.png",
+      "sha256": "897e3a2b7577f4aea75f3af7d404e503065393b00a212bd8406b6ee820d90b70"
+    },
+    {
+      "id": "inductor-voltage",
+      "mode": "display",
+      "advance": 4.16787,
+      "ascent": 1.35705,
+      "descent": 0.65207,
+      "ink": [
+        0.0359,
+        -1.3645,
+        4.1137,
+        0.643
+      ],
+      "image": "ink/inductor-voltage.png",
+      "sha256": "1724600d4e9217dbc6e879be53d1317ce3c02ff4b313706c1b0fde1c8d93a36b"
+    },
+    {
+      "id": "step-settling",
+      "mode": "display",
+      "advance": 4.66501,
+      "ascent": 0.706,
+      "descent": 0.21772,
+      "ink": [
+        0.0359,
+        -0.7058,
+        4.6469,
+        0.2196
+      ],
+      "image": "ink/step-settling.png",
+      "sha256": "974c9f1afeb421e66f12faa7b7a60b509d386e27f5abb70ede09fb8d9cc927d0"
+    },
+    {
+      "id": "resistor-impedance",
+      "mode": "inline",
+      "advance": 2.98194,
+      "ascent": 0.657,
+      "descent": 0.21002,
+      "ink": [
+        -0.0268,
+        -0.6587,
+        2.9531,
+        0.2039
+      ],
+      "image": "ink/resistor-impedance.png",
+      "sha256": "3ef14a1ac95134545b8055a087f86562189ac3bf3362f8386a1cc822ee76227f"
+    },
+    {
+      "id": "inductor-impedance",
+      "mode": "inline",
+      "advance": 3.98074,
+      "ascent": 0.665,
+      "descent": 0.225,
+      "ink": [
+        -0.0268,
+        -0.6901,
+        3.9568,
+        0.2196
+      ],
+      "image": "ink/inductor-impedance.png",
+      "sha256": "a4da4a37680acf96877478747125b1bd562e799c7cd5dc81a171c89858ec848b"
+    },
+    {
+      "id": "capacitor-impedance",
+      "mode": "display",
+      "advance": 4.31364,
+      "ascent": 1.27907,
+      "descent": 0.86507,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        4.2705,
+        0.8626
+      ],
+      "image": "ink/capacitor-impedance.png",
+      "sha256": "41a897f14e390f174614166f0147999b4625fe1eaf678b6e541d45a4571125a2"
+    },
+    {
+      "id": "rlc-impedance",
+      "mode": "display",
+      "advance": 9.09327,
+      "ascent": 1.27907,
+      "descent": 0.69497,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        9.0226,
+        0.6901
+      ],
+      "image": "ink/rlc-impedance.png",
+      "sha256": "fe209ef67ab9c38e801ab694660b0aaf0681bcecc9d45cd1813229ecfa41a07c"
+    },
+    {
+      "id": "phasor-peak",
+      "mode": "inline",
+      "advance": 4.00177,
+      "ascent": 0.851,
+      "descent": 0.36402,
+      "ink": [
+        0.0516,
+        -0.8626,
+        3.9568,
+        0.345
+      ],
+      "image": "ink/phasor-peak.png",
+      "sha256": "881a69b7e03116070032872d4abf76cfbc95788990a1df2a004a3b05fefee0ce"
+    },
+    {
+      "id": "admittance",
+      "mode": "display",
+      "advance": 6.96971,
+      "ascent": 1.27907,
+      "descent": 0.64007,
+      "ink": [
+        0.0359,
+        -1.3017,
+        6.9367,
+        0.6273
+      ],
+      "image": "ink/admittance.png",
+      "sha256": "7d56fbd2b96a2f36d3be7f437a22eb0b4a060ed086688d2cd2f47516d2935c81"
+    },
+    {
+      "id": "ac-real-power",
+      "mode": "inline",
+      "advance": 7.23543,
+      "ascent": 0.695,
+      "descent": 0.21772,
+      "ink": [
+        -0.0268,
+        -0.7214,
+        7.2033,
+        0.2039
+      ],
+      "image": "ink/ac-real-power.png",
+      "sha256": "de41cc52635b1d1f39bb99fdb93ce3498c8c71ad3a4e330830a55faea3288f14"
+    },
+    {
+      "id": "ac-reactive-power",
+      "mode": "inline",
+      "advance": 7.25943,
+      "ascent": 0.695,
+      "descent": 0.21772,
+      "ink": [
+        0.0359,
+        -0.7214,
+        7.2347,
+        0.2039
+      ],
+      "image": "ink/ac-reactive-power.png",
+      "sha256": "a5ac972a929fc70f4e70bd012c7ee90ec58ba23a655dd3136ad42cd82c2ba8c0"
+    },
+    {
+      "id": "ac-apparent-power",
+      "mode": "inline",
+      "advance": 5.86376,
+      "ascent": 1.00291,
+      "descent": 0.25209,
+      "ink": [
+        0.0046,
+        -0.941,
+        5.8702,
+        0.2509
+      ],
+      "image": "ink/ac-apparent-power.png",
+      "sha256": "7d0e01a76cb0306f1e939ff3e8582f449cf1cbac018d1682b4787dc0f078f719"
+    },
+    {
+      "id": "sine-rms",
+      "mode": "display",
+      "advance": 4.24234,
+      "ascent": 1.46305,
+      "descent": 1.18097,
+      "ink": [
+        0.0516,
+        -1.4743,
+        4.1921,
+        1.1606
+      ],
+      "image": "ink/sine-rms.png",
+      "sha256": "53ce7399d925c9c5f9a90b384df300f141cf4ebbb4cf16b55e2c1fc1be166a16"
+    },
+    {
+      "id": "low-pass",
+      "mode": "display",
+      "advance": 6.6641,
+      "ascent": 1.27907,
+      "descent": 0.68007,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        6.6074,
+        0.6744
+      ],
+      "image": "ink/low-pass.png",
+      "sha256": "ca3b5184d67572264beed20bcae98d88767e6a30ea4cf168f798605bba62d36d"
+    },
+    {
+      "id": "high-pass",
+      "mode": "display",
+      "advance": 6.6641,
+      "ascent": 1.31007,
+      "descent": 0.68007,
+      "ink": [
+        -0.0268,
+        -1.3331,
+        6.6074,
+        0.6744
+      ],
+      "image": "ink/high-pass.png",
+      "sha256": "e3b6e7a0ad1edc0c9dd08b4bdbef99f835dec198113b3600be8095cd0280e370"
+    },
+    {
+      "id": "rc-cutoff",
+      "mode": "display",
+      "advance": 4.53424,
+      "ascent": 1.27907,
+      "descent": 0.65107,
+      "ink": [
+        -0.0111,
+        -1.3017,
+        4.4901,
+        0.643
+      ],
+      "image": "ink/rc-cutoff.png",
+      "sha256": "98b155eb7a57a655613720565c1d16c167db81cb53c85cfa990199fcdfed9560"
+    },
+    {
+      "id": "butterworth",
+      "mode": "display",
+      "advance": 10.46856,
+      "ascent": 1.27907,
+      "descent": 1.18097,
+      "ink": [
+        0.083,
+        -1.3017,
+        10.4185,
+        1.1763
+      ],
+      "image": "ink/butterworth.png",
+      "sha256": "abca63245eb6743cea8a505a941503444a4dc2e24ab6e7ff0b83ea5b9d428f72"
+    },
+    {
+      "id": "second-lp",
+      "mode": "display",
+      "advance": 9.85158,
+      "ascent": 1.49992,
+      "descent": 0.98387,
+      "ink": [
+        -0.0268,
+        -1.5213,
+        9.8068,
+        0.9881
+      ],
+      "image": "ink/second-lp.png",
+      "sha256": "d9057d51efba77b34ada8d5c0db2034fe24eaa0412d56c1d2b4ff13e9c89efa8"
+    },
+    {
+      "id": "series-q",
+      "mode": "display",
+      "advance": 3.72794,
+      "ascent": 1.31675,
+      "descent": 0.64007,
+      "ink": [
+        0.0359,
+        -1.3174,
+        3.6745,
+        0.643
+      ],
+      "image": "ink/series-q.png",
+      "sha256": "2fecd54369b12248e186c929d6a34f049510fa60eebc85024d126c2f7ae876a2"
+    },
+    {
+      "id": "bandwidth-q",
+      "mode": "display",
+      "advance": 4.85976,
+      "ascent": 1.37802,
+      "descent": 0.86507,
+      "ink": [
+        0.0359,
+        -1.3958,
+        4.8037,
+        0.8626
+      ],
+      "image": "ink/bandwidth-q.png",
+      "sha256": "ddf23391133a4fc7dfdcb45e4af671feb0b244349de1f6501977276574610783"
+    },
+    {
+      "id": "resonant-notch",
+      "mode": "display",
+      "advance": 10.68558,
+      "ascent": 1.49992,
+      "descent": 0.98387,
+      "ink": [
+        -0.0268,
+        -1.5213,
+        10.638,
+        0.9881
+      ],
+      "image": "ink/resonant-notch.png",
+      "sha256": "8aacc7ca3af28f43fe23ce8ca77c07f8d0846d7ec7cf0fb9853239ddd9c8d5d8"
+    },
+    {
+      "id": "voltage-db",
+      "mode": "display",
+      "advance": 8.15767,
+      "ascent": 1.31605,
+      "descent": 0.85009,
+      "ink": [
+        -0.0738,
+        -1.3174,
+        8.0503,
+        0.8469
+      ],
+      "image": "ink/voltage-db.png",
+      "sha256": "935790cff5c914664564d629b64ed8bbeff59390dc821086edf6619db630aab3"
+    },
+    {
+      "id": "cascade",
+      "mode": "display",
+      "advance": 7.79235,
+      "ascent": 1.70828,
+      "descent": 1.23389,
+      "ink": [
+        -0.0268,
+        -1.5684,
+        7.7366,
+        1.0822
+      ],
+      "image": "ink/cascade.png",
+      "sha256": "2c7c82f6f8c6ee1c2b2ec282ae79ebc05c874bf3d77d2b2fc119ed4575ebf250"
+    },
+    {
+      "id": "inv-gain",
+      "mode": "display",
+      "advance": 4.42927,
+      "ascent": 1.46655,
+      "descent": 0.85009,
+      "ink": [
+        -0.0738,
+        -1.4743,
+        4.3803,
+        0.8312
+      ],
+      "image": "ink/inv-gain.png",
+      "sha256": "e4cc69e3e0febae06c158104cc5396f9d5094a1d507506152b1916bca25940ad"
+    },
+    {
+      "id": "noninv-gain",
+      "mode": "display",
+      "advance": 5.18396,
+      "ascent": 1.46655,
+      "descent": 1.00759,
+      "ink": [
+        -0.0738,
+        -1.4743,
+        5.1331,
+        0.9881
+      ],
+      "image": "ink/noninv-gain.png",
+      "sha256": "b8ca482e0da0b59244bf9c12f67050d4ba8a024a3cd0ed0fe2edd131f9b8080e"
+    },
+    {
+      "id": "balanced-differential",
+      "mode": "display",
+      "advance": 7.46323,
+      "ascent": 1.30905,
+      "descent": 0.85009,
+      "ink": [
+        0.0516,
+        -1.3174,
+        7.4072,
+        0.8312
+      ],
+      "image": "ink/balanced-differential.png",
+      "sha256": "31cd42a6fa390ce04ef4d129005821d5d01f885b7e6cd0c50252ad6527aefbfe"
+    },
+    {
+      "id": "feedback",
+      "mode": "display",
+      "advance": 5.50823,
+      "ascent": 1.30107,
+      "descent": 0.85897,
+      "ink": [
+        -0.0738,
+        -1.3174,
+        5.4625,
+        0.8626
+      ],
+      "image": "ink/feedback.png",
+      "sha256": "a56c306bb3a9e15c08b8ba0a1797878c1108a2d19539c4f362be93e2a2c4de96"
+    },
+    {
+      "id": "transimpedance",
+      "mode": "inline",
+      "advance": 5.464,
+      "ascent": 0.657,
+      "descent": 0.36752,
+      "ink": [
+        0.0516,
+        -0.6587,
+        5.4311,
+        0.3607
+      ],
+      "image": "ink/transimpedance.png",
+      "sha256": "e8a9bb22a8eb7fa4ae834eca55a215195368526a6cb81cb7cf65ef878f46f477"
+    },
+    {
+      "id": "integrator",
+      "mode": "display",
+      "advance": 11.08525,
+      "ascent": 1.68511,
+      "descent": 1.03468,
+      "ink": [
+        0.0516,
+        -1.7095,
+        11.0772,
+        1.0351
+      ],
+      "image": "ink/integrator.png",
+      "sha256": "2618fd2373147cc453bf1eae307e3a9512a8c5001af978773b9b58b6ac0d731e"
+    },
+    {
+      "id": "differentiator",
+      "mode": "display",
+      "advance": 6.57627,
+      "ascent": 1.35705,
+      "descent": 0.65207,
+      "ink": [
+        0.0516,
+        -1.3645,
+        6.5289,
+        0.643
+      ],
+      "image": "ink/differentiator.png",
+      "sha256": "feb7cb0b3fe946fc483b80851a52ae3db897d81e832becf42166b74bb8b9e004"
+    },
+    {
+      "id": "cmrr",
+      "mode": "display",
+      "advance": 9.72124,
+      "ascent": 1.32145,
+      "descent": 0.85709,
+      "ink": [
+        0.0359,
+        -1.3488,
+        9.6186,
+        0.8469
+      ],
+      "image": "ink/cmrr.png",
+      "sha256": "c464b47a0f301e56d68ab4d6c14d965c3645e8fcb0c5dd96170f709a062a0cbd"
+    },
+    {
+      "id": "sine-slew",
+      "mode": "display",
+      "advance": 6.19927,
+      "ascent": 0.711,
+      "descent": 0.36402,
+      "ink": [
+        0.0203,
+        -0.7371,
+        6.1525,
+        0.345
+      ],
+      "image": "ink/sine-slew.png",
+      "sha256": "12a76f21ac2ca8cb463b16b910dd17a271b81bd122dc2620d99eae2fa11f91f9"
+    },
+    {
+      "id": "comparator",
+      "mode": "display",
+      "advance": 7.95765,
+      "ascent": 1.75802,
+      "descent": 1.24197,
+      "ink": [
+        0.0516,
+        -1.6938,
+        7.8464,
+        1.192
+      ],
+      "image": "ink/comparator.png",
+      "sha256": "58ab6d4121234b808b1fd677eb2a1c8e132b8604f4b1c40c60674ee76609653a"
+    },
+    {
+      "id": "line-z0",
+      "mode": "display",
+      "advance": 4.45998,
+      "ascent": 1.72355,
+      "descent": 0.71445,
+      "ink": [
+        -0.0268,
+        -1.6781,
+        4.4587,
+        0.7058
+      ],
+      "image": "ink/line-z0.png",
+      "sha256": "fe49f075a51638133cb8c886a5b8f8c8489a69cd6d0e523426dc0e0888ada08e"
+    },
+    {
+      "id": "line-velocity",
+      "mode": "display",
+      "advance": 4.66741,
+      "ascent": 1.27907,
+      "descent": 1.18097,
+      "ink": [
+        0.0359,
+        -1.3017,
+        4.6155,
+        1.1763
+      ],
+      "image": "ink/line-velocity.png",
+      "sha256": "676fe251d09a7b911e7e2d3d6b0e8772c537674f6f3526acb3f73d6519c61df6"
+    },
+    {
+      "id": "wavelength",
+      "mode": "display",
+      "advance": 2.77634,
+      "ascent": 1.28505,
+      "descent": 0.86507,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        2.7335,
+        0.8626
+      ],
+      "image": "ink/wavelength.png",
+      "sha256": "3e64a48e2a7b5851791f25c7a7c254bc6316420e2031113928518825052d4c13"
+    },
+    {
+      "id": "reflection",
+      "mode": "display",
+      "advance": 5.3617,
+      "ascent": 1.31675,
+      "descent": 0.85779,
+      "ink": [
+        0.0203,
+        -1.3174,
+        5.3056,
+        0.8626
+      ],
+      "image": "ink/reflection.png",
+      "sha256": "699117b57967ddbef7990c408047db7bd9c490933c12cc028466aae9590f9e47"
+    },
+    {
+      "id": "vswr",
+      "mode": "display",
+      "advance": 7.17923,
+      "ascent": 1.36802,
+      "descent": 0.86007,
+      "ink": [
+        -0.0268,
+        -1.3645,
+        7.1249,
+        0.8626
+      ],
+      "image": "ink/vswr.png",
+      "sha256": "67d5f47342ed7639e8a2eb69f3a6f9a6b7645b899bf8e8bf2c1efe31260a0fc9"
+    },
+    {
+      "id": "line-input",
+      "mode": "display",
+      "advance": 10.57811,
+      "ascent": 1.40302,
+      "descent": 0.88697,
+      "ink": [
+        -0.0268,
+        -1.4115,
+        10.5283,
+        0.8783
+      ],
+      "image": "ink/line-input.png",
+      "sha256": "5da299d353c3a90e9d50fe70ac48ecaeca361a2921e68dca8baec6d6bbcfafa0"
+    },
+    {
+      "id": "return-loss",
+      "mode": "inline",
+      "advance": 7.91494,
+      "ascent": 0.706,
+      "descent": 0.35471,
+      "ink": [
+        0.0203,
+        -0.7058,
+        7.815,
+        0.3607
+      ],
+      "image": "ink/return-loss.png",
+      "sha256": "912e8a3f8442362a5bb896a01f879b8198a761b6c86101cd62bb55cceb11fe14"
+    },
+    {
+      "id": "group-delay",
+      "mode": "display",
+      "advance": 4.06354,
+      "ascent": 1.36302,
+      "descent": 0.65207,
+      "ink": [
+        0.0203,
+        -1.3645,
+        4.0196,
+        0.643
+      ],
+      "image": "ink/group-delay.png",
+      "sha256": "de8515b0eaa2160b1db08461d38d8b4a688a6ff9cee774b149a96a6c51fc21fd"
+    },
+    {
+      "id": "abcd",
+      "mode": "display",
+      "advance": 8.42062,
+      "ascent": 1.50803,
+      "descent": 0.99197,
+      "ink": [
+        0.0987,
+        -1.4586,
+        8.3012,
+        0.941
+      ],
+      "image": "ink/abcd.png",
+      "sha256": "b075094404b5a4c8e7cde858350450beba580ffb1d2208087eab143070834afc"
+    },
+    {
+      "id": "scattering",
+      "mode": "display",
+      "advance": 9.22829,
+      "ascent": 1.50803,
+      "descent": 0.99197,
+      "ink": [
+        0.0516,
+        -1.4429,
+        9.1481,
+        0.941
+      ],
+      "image": "ink/scattering.png",
+      "sha256": "cf57da15cd8ea947ae4947a3664d62bfd4097e11563dac9f6b1a484d638f1e2b"
+    },
+    {
+      "id": "shockley",
+      "mode": "display",
+      "advance": 8.57294,
+      "ascent": 0.87524,
+      "descent": 0.33497,
+      "ink": [
+        -0.0268,
+        -0.8783,
+        8.5364,
+        0.3294
+      ],
+      "image": "ink/shockley.png",
+      "sha256": "969843d215545cd55883a6bcf5737d90d44bf6da49ace3c3a78f96c447c20070"
+    },
+    {
+      "id": "thermal-voltage",
+      "mode": "display",
+      "advance": 4.05237,
+      "ascent": 1.35705,
+      "descent": 0.86007,
+      "ink": [
+        0.0516,
+        -1.3645,
+        4.0039,
+        0.8469
+      ],
+      "image": "ink/thermal-voltage.png",
+      "sha256": "fe172ccfb9494f9bd6539e4c68584058e6faf405f2586b1d58a82faf84ac4048"
+    },
+    {
+      "id": "mos-saturation",
+      "mode": "display",
+      "advance": 10.85789,
+      "ascent": 1.29707,
+      "descent": 0.64007,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        10.8106,
+        0.6273
+      ],
+      "image": "ink/mos-saturation.png",
+      "sha256": "6b2206a40c7dacee78e3f43bfb66d6d74462ffa8683aead516097436960e6bc1"
+    },
+    {
+      "id": "mos-triode",
+      "mode": "display",
+      "advance": 15.13199,
+      "ascent": 1.52162,
+      "descent": 0.93397,
+      "ink": [
+        -0.0268,
+        -1.537,
+        15.0451,
+        0.941
+      ],
+      "image": "ink/mos-triode.png",
+      "sha256": "c11e02515265ffabda24afd011124206c555703d50b515d1dee507484e676420"
+    },
+    {
+      "id": "buck",
+      "mode": "inline",
+      "advance": 3.92217,
+      "ascent": 0.657,
+      "descent": 0.21702,
+      "ink": [
+        0.0516,
+        -0.6587,
+        3.8784,
+        0.2196
+      ],
+      "image": "ink/buck.png",
+      "sha256": "4a85ffbddbeafbd026b5f5b1917bb5feff55c6cf8db0bba7fc4c92d6c5f06f8b"
+    },
+    {
+      "id": "boost",
+      "mode": "display",
+      "advance": 4.53613,
+      "ascent": 1.30905,
+      "descent": 0.64007,
+      "ink": [
+        0.0516,
+        -1.3174,
+        4.4901,
+        0.6273
+      ],
+      "image": "ink/boost.png",
+      "sha256": "402b25d11f3e88728795ca377e2ef0ca484c7fa0eebc88c3baa5d75623206597"
+    },
+    {
+      "id": "inverting-buckboost",
+      "mode": "display",
+      "advance": 6.40166,
+      "ascent": 1.29707,
+      "descent": 0.64007,
+      "ink": [
+        0.0516,
+        -1.3017,
+        6.3564,
+        0.6273
+      ],
+      "image": "ink/inverting-buckboost.png",
+      "sha256": "0504e77f9283bd0fba6e229d1cc172b788e11ae6e96e0738618667c056d33013"
+    },
+    {
+      "id": "switching-loss",
+      "mode": "display",
+      "advance": 9.29459,
+      "ascent": 1.27907,
+      "descent": 0.64007,
+      "ink": [
+        -0.0268,
+        -1.3017,
+        9.2579,
+        0.6273
+      ],
+      "image": "ink/switching-loss.png",
+      "sha256": "ab3006f1fb4ae35f8cb1eb0f4c7f4243684d67c26928a433350835d7e1420e9d"
+    },
+    {
+      "id": "thermal-rise",
+      "mode": "inline",
+      "advance": 6.28283,
+      "ascent": 0.717,
+      "descent": 0.36752,
+      "ink": [
+        0.0673,
+        -0.7371,
+        6.2466,
+        0.3607
+      ],
+      "image": "ink/thermal-rise.png",
+      "sha256": "700df854c1b9773597abd3c102d6c4e4435e281e0f8583d83b9aa25a6d3042c3"
+    },
+    {
+      "id": "buck-ripple",
+      "mode": "display",
+      "advance": 7.32979,
+      "ascent": 1.39505,
+      "descent": 0.86507,
+      "ink": [
+        0.0046,
+        -1.3958,
+        7.2818,
+        0.8783
+      ],
+      "image": "ink/buck-ripple.png",
+      "sha256": "5b3bb2048257f3d442ad790fab8b7409cb9625807557d559273eee06c00fc666"
+    },
+    {
+      "id": "nyquist",
+      "mode": "inline",
+      "advance": 4.30517,
+      "ascent": 0.711,
+      "descent": 0.225,
+      "ink": [
+        -0.0111,
+        -0.7371,
+        4.2862,
+        0.2196
+      ],
+      "image": "ink/nyquist.png",
+      "sha256": "eb5c490707b3fb52b6c09813048feadae330c535613af210159e65aaa871454a"
+    },
+    {
+      "id": "adc-lsb",
+      "mode": "display",
+      "advance": 4.42057,
+      "ascent": 1.31955,
+      "descent": 0.64007,
+      "ink": [
+        0.0516,
+        -1.3174,
+        4.3646,
+        0.643
+      ],
+      "image": "ink/adc-lsb.png",
+      "sha256": "00c746de82e7f4d8cf88d72c36fe17909e323f14eef838328adfa3fdbd493e47"
+    },
+    {
+      "id": "adc-enob",
+      "mode": "display",
+      "advance": 11.36878,
+      "ascent": 1.34607,
+      "descent": 0.65207,
+      "ink": [
+        0.0203,
+        -1.3488,
+        11.3124,
+        0.643
+      ],
+      "image": "ink/adc-enob.png",
+      "sha256": "9950183368fcf3a1f2acece7e6d6c64d08c90ec0d9fe06b54d9cb3211f449fdb"
+    },
+    {
+      "id": "quantization-snr",
+      "mode": "inline",
+      "advance": 9.90778,
+      "ascent": 0.706,
+      "descent": 0.04,
+      "ink": [
+        0.0203,
+        -0.7058,
+        9.8695,
+        0.0471
+      ],
+      "image": "ink/quantization-snr.png",
+      "sha256": "4852a4cfe47b53708802b560dd5c585cc49c22a77b0cf2d4ab61e1eddce467c1"
+    },
+    {
+      "id": "quantization-noise",
+      "mode": "display",
+      "advance": 4.01734,
+      "ascent": 1.30207,
+      "descent": 1.18097,
+      "ink": [
+        0.0203,
+        -1.3174,
+        3.9725,
+        1.1763
+      ],
+      "image": "ink/quantization-noise.png",
+      "sha256": "fb8015541f42d6b5ca60d752ed3dd6cd83b8df8e3e868541cf44da565a3cf6f2"
+    },
+    {
+      "id": "adc-ideal-code",
+      "mode": "display",
+      "advance": 6.75956,
+      "ascent": 1.32853,
+      "descent": 0.86059,
+      "ink": [
+        0.0203,
+        -1.3488,
+        6.6544,
+        0.8626
+      ],
+      "image": "ink/adc-ideal-code.png",
+      "sha256": "f12bc3a0d5df421f105a196766b1d0fd5029c8b91fa359a252061d17e740cc7c"
+    },
+    {
+      "id": "zero-order-hold",
+      "mode": "display",
+      "advance": 9.96333,
+      "ascent": 1.40302,
+      "descent": 0.86507,
+      "ink": [
+        -0.0268,
+        -1.4115,
+        9.9166,
+        0.8626
+      ],
+      "image": "ink/zero-order-hold.png",
+      "sha256": "aadfffa658ec31021ef934a5bee3256b48f97a99ce59c18ad4e1c88f09702c71"
+    },
+    {
+      "id": "jitter-snr",
+      "mode": "inline",
+      "advance": 11.06112,
+      "ascent": 0.736,
+      "descent": 0.36752,
+      "ink": [
+        0.0203,
+        -0.7371,
+        11.0145,
+        0.3607
+      ],
+      "image": "ink/jitter-snr.png",
+      "sha256": "c877d4cd584e908a57cd8ff47a1dfedc7a8492d7743a248ee7b7027fad5c7846"
+    },
+    {
+      "id": "average-filter",
+      "mode": "display",
+      "advance": 9.43576,
+      "ascent": 1.83038,
+      "descent": 1.23208,
+      "ink": [
+        -0.0268,
+        -1.6938,
+        9.352,
+        1.0822
+      ],
+      "image": "ink/average-filter.png",
+      "sha256": "bcb8d7cc5801697518f8405275a6b110548ad576354d914ad3222455f40ef4f0"
+    },
+    {
+      "id": "dft",
+      "mode": "display",
+      "advance": 10.26551,
+      "ascent": 1.83038,
+      "descent": 1.23208,
+      "ink": [
+        -0.0738,
+        -1.6938,
+        10.246,
+        1.0822
+      ],
+      "image": "ink/dft.png",
+      "sha256": "5a733cc789fb2fbdd13a4029f638fb4f796996010d5b07d46d04a0ff1910e44b"
+    },
+    {
+      "id": "johnson-noise",
+      "mode": "display",
+      "advance": 7.02037,
+      "ascent": 1.0235,
+      "descent": 0.2315,
+      "ink": [
+        0.0359,
+        -0.9724,
+        7.0151,
+        0.2196
+      ],
+      "image": "ink/johnson-noise.png",
+      "sha256": "ca20dd2cba94667db7ee55476e598e1402c72db5d4d4ae38a55a3f61a2f98a3b"
+    },
+    {
+      "id": "shot-noise",
+      "mode": "display",
+      "advance": 5.42394,
+      "ascent": 1.0235,
+      "descent": 0.2315,
+      "ink": [
+        0.0359,
+        -0.9724,
+        5.4311,
+        0.2196
+      ],
+      "image": "ink/shot-noise.png",
+      "sha256": "5ae3b32978710e562ab5deede9dec631c75bd83584f27dc99b04a323f2e2b29c"
+    },
+    {
+      "id": "flicker-density",
+      "mode": "display",
+      "advance": 4.31474,
+      "ascent": 1.29707,
+      "descent": 0.86507,
+      "ink": [
+        0.0046,
+        -1.3017,
+        4.2705,
+        0.8626
+      ],
+      "image": "ink/flicker-density.png",
+      "sha256": "44f2a07c3a1532fb7b829776d4f478568f41234de7a59dfb27139ccd34cfdd4c"
+    },
+    {
+      "id": "friis",
+      "mode": "display",
+      "advance": 11.15519,
+      "ascent": 1.31815,
+      "descent": 0.85009,
+      "ink": [
+        -0.0268,
+        -1.3174,
+        11.1086,
+        0.8469
+      ],
+      "image": "ink/friis.png",
+      "sha256": "dd54afdf1371a683e89a28fabaed33912d14a55051a3e7dd5a8fe53cd87b1f4f"
+    },
+    {
+      "id": "rss",
+      "mode": "display",
+      "advance": 6.14935,
+      "ascent": 2.01178,
+      "descent": 1.23138,
+      "ink": [
+        0.0203,
+        -1.9604,
+        6.1525,
+        1.2233
+      ],
+      "image": "ink/rss.png",
+      "sha256": "8d0d3120c4dec343d4885a032fb015ec5c20a4c9e7355a8a8d059f41a04ac8b1"
+    },
+    {
+      "id": "meas-average",
+      "mode": "display",
+      "advance": 5.2405,
+      "ascent": 1.83038,
+      "descent": 1.23138,
+      "ink": [
+        0.0046,
+        -1.6938,
+        5.2115,
+        1.0822
+      ],
+      "image": "ink/meas-average.png",
+      "sha256": "8ee6fc226d9d3d6f4abaab33b6724520a0a374015a0c3a2be48c81ca38861d15"
+    },
+    {
+      "id": "integrated-psd",
+      "mode": "display",
+      "advance": 9.4733,
+      "ascent": 2.07371,
+      "descent": 1.18448,
+      "ink": [
+        0.0359,
+        -2.0075,
+        9.4775,
+        1.192
+      ],
+      "image": "ink/integrated-psd.png",
+      "sha256": "d1386a0a270c1b73389d943df1b94a3bc37d28ff425b43a8fb66539435ea13d6"
+    },
+    {
+      "id": "log-noise",
+      "mode": "inline",
+      "advance": 6.57181,
+      "ascent": 0.706,
+      "descent": 0.35471,
+      "ink": [
+        0.0046,
+        -0.7058,
+        6.5603,
+        0.3607
+      ],
+      "image": "ink/log-noise.png",
+      "sha256": "977aab098611ae62e0852a775a36015f65bff829648266d980fb16e6b304e99f"
+    },
+    {
+      "id": "lc-matching",
+      "mode": "display",
+      "advance": 9.97266,
+      "ascent": 1.75773,
+      "descent": 0.86507,
+      "ink": [
+        0.0516,
+        -1.7095,
+        9.9793,
+        0.8783
+      ],
+      "image": "ink/lc-matching.png",
+      "sha256": "81ffcf6ab6da7a0f8291610f211e1dfb937b06d763fe02721aa8fc8752326629"
+    },
+    {
+      "id": "decade-variance",
+      "mode": "display",
+      "advance": 8.81881,
+      "ascent": 1.76771,
+      "descent": 1.18448,
+      "ink": [
+        0.0359,
+        -1.7879,
+        8.7874,
+        1.1763
+      ],
+      "image": "ink/decade-variance.png",
+      "sha256": "b6464b7be269a05fd0e86c3f7a76e43e3316422acdd1834ebd2072da983ab2db"
+    },
+    {
+      "id": "symbol-bitrate",
+      "mode": "inline",
+      "advance": 6.13927,
+      "ascent": 0.706,
+      "descent": 0.34701,
+      "ink": [
+        -0.0268,
+        -0.7058,
+        6.1369,
+        0.345
+      ],
+      "image": "ink/symbol-bitrate.png",
+      "sha256": "f00514d0ed3a5b75903109d38e92221bf87c4086962ae074ca01d88dd25d7e22"
+    },
+    {
+      "id": "binary-weight",
+      "mode": "display",
+      "advance": 5.38795,
+      "ascent": 1.83038,
+      "descent": 1.23208,
+      "ink": [
+        -0.0268,
+        -1.6938,
+        5.3527,
+        1.0822
+      ],
+      "image": "ink/binary-weight.png",
+      "sha256": "5d1712c5d5919594c00de3a805febff0326540025c75fb7a87392c0165cc95b8"
+    },
+    {
+      "id": "sampling-period",
+      "mode": "display",
+      "advance": 4.08467,
+      "ascent": 1.27907,
+      "descent": 0.86507,
+      "ink": [
+        0.0673,
+        -1.3017,
+        4.0353,
+        0.8626
+      ],
+      "image": "ink/sampling-period.png",
+      "sha256": "63e78453ef3a065202db5de1f28c5a68bb5d02fc97b344d06bbf9843c2c8d0e5"
+    },
+    {
+      "id": "pwm-average",
+      "mode": "inline",
+      "advance": 9.03665,
+      "ascent": 0.787,
+      "descent": 0.21002,
+      "ink": [
+        0.0516,
+        -0.7842,
+        9.007,
+        0.2039
+      ],
+      "image": "ink/pwm-average.png",
+      "sha256": "012f47d634442dec53e86ee5eb5ca0fba9f9c73feb0dad64600e662958b92827"
+    },
+    {
+      "id": "setup-timing",
+      "mode": "inline",
+      "advance": 10.0696,
+      "ascent": 0.657,
+      "descent": 0.37452,
+      "ink": [
+        0.0673,
+        -0.6587,
+        10.0264,
+        0.3764
+      ],
+      "image": "ink/setup-timing.png",
+      "sha256": "4c63f69723b6c2441714902072299a33ea8b5f66361f4662dac184f50fc3c7b1"
+    },
+    {
+      "id": "hold-timing",
+      "mode": "inline",
+      "advance": 10.02717,
+      "ascent": 0.623,
+      "descent": 0.37452,
+      "ink": [
+        0.0359,
+        -0.643,
+        9.9793,
+        0.3764
+      ],
+      "image": "ink/hold-timing.png",
+      "sha256": "a381b1fbf4effc22d7d4533dc990d0dbcdf3d55b45b281f6d9e02cd4f5310cf6"
+    },
+    {
+      "id": "quadrature",
+      "mode": "display",
+      "advance": 14.26473,
+      "ascent": 0.736,
+      "descent": 0.21842,
+      "ink": [
+        0.0359,
+        -0.7371,
+        14.2139,
+        0.2196
+      ],
+      "image": "ink/quadrature.png",
+      "sha256": "f6881221c845d2fe7ee0f2473612782778233a6a7fdcd23bd4872a040cf63d46"
+    },
+    {
+      "id": "sample-rms",
+      "mode": "display",
+      "advance": 7.60593,
+      "ascent": 2.13638,
+      "descent": 1.23208,
+      "ink": [
+        0.0516,
+        -2.0702,
+        7.6111,
+        1.239
+      ],
+      "image": "ink/sample-rms.png",
+      "sha256": "91870e31de7cd7a414f2d7b705739f8eca3c9774ffca4d72096393afbde7569e"
+    },
+    {
+      "id": "lumped-units",
+      "mode": "display",
+      "advance": 11.50962,
+      "ascent": 0.711,
+      "descent": 0.225,
+      "ink": [
+        -0.0268,
+        -0.7371,
+        11.4693,
+        0.2196
+      ],
+      "image": "ink/lumped-units.png",
+      "sha256": "0768e5d0007ebba98065e8c2bc2637a3e65f51314c6fded850a66f423e85c991"
+    },
+    {
+      "id": "rise-fall-window",
+      "mode": "display",
+      "advance": 10.47556,
+      "ascent": 1.75802,
+      "descent": 1.24197,
+      "ink": [
+        0.0359,
+        -1.6938,
+        10.4028,
+        1.192
+      ],
+      "image": "ink/rise-fall-window.png",
+      "sha256": "646a1684ecea61985917a4b81a71a32a7805c1249da8d32672a4d9eb5d67af9d"
+    },
+    {
+      "id": "katex-superscript",
+      "mode": "inline",
+      "advance": 0.93633,
+      "ascent": 0.81084,
+      "descent": 0.01,
+      "ink": [
+        0.0046,
+        -0.8312,
+        0.8829,
+        0.0
+      ]
+    },
+    {
+      "id": "katex-subscript",
+      "mode": "inline",
+      "advance": 0.92633,
+      "ascent": 0.479,
+      "descent": 0.21912,
+      "ink": [
+        0.0046,
+        -0.4862,
+        0.8672,
+        0.2196
+      ]
+    },
+    {
+      "id": "katex-sup-before-sub",
+      "mode": "inline",
+      "advance": 0.93633,
+      "ascent": 0.8308,
+      "descent": 0.2299,
+      "ink": [
+        0.0046,
+        -0.8469,
+        0.8829,
+        0.2353
+      ]
+    },
+    {
+      "id": "katex-sub-before-sup",
+      "mode": "inline",
+      "advance": 0.93633,
+      "ascent": 0.8399,
+      "descent": 0.2208,
+      "ink": [
+        0.0046,
+        -0.8626,
+        0.8829,
+        0.2039
+      ]
+    },
+    {
+      "id": "katex-compound-scripts",
+      "mode": "inline",
+      "advance": 1.78683,
+      "ascent": 0.8588,
+      "descent": 0.2299,
+      "ink": [
+        0.0046,
+        -0.8783,
+        1.7298,
+        0.2353
+      ]
+    },
+    {
+      "id": "katex-nested-scripts",
+      "mode": "inline",
+      "advance": 1.29347,
+      "ascent": 0.85156,
+      "descent": 0.01,
+      "ink": [
+        0.0046,
+        -0.8783,
+        1.2436,
+        0.0
+      ]
+    },
+    {
+      "id": "katex-integral-limits",
+      "mode": "display",
+      "advance": 1.69368,
+      "ascent": 2.33178,
+      "descent": 1.73489,
+      "ink": [
+        0.0359,
+        -2.1957,
+        1.6513,
+        1.5684
+      ]
+    },
+    {
+      "id": "katex-sum-side-scripts",
+      "mode": "display",
+      "advance": 2.14102,
+      "ascent": 1.21101,
+      "descent": 0.52558,
+      "ink": [
+        0.0046,
+        -1.2076,
+        2.1219,
+        0.5332
+      ]
+    },
+    {
+      "id": "katex-unbraced-fraction",
+      "mode": "display",
+      "advance": 0.595,
+      "ascent": 1.27907,
+      "descent": 0.64007,
+      "ink": [
+        0.0516,
+        -1.3017,
+        0.5378,
+        0.6273
+      ]
+    },
+    {
+      "id": "katex-spacing-prefix",
+      "mode": "inline",
+      "advance": 0.84681,
+      "ascent": 0.479,
+      "descent": 0.01,
+      "ink": [
+        0.2869,
+        -0.4862,
+        0.8201,
+        0.0157
+      ]
+    },
+    {
+      "id": "katex-fraction",
+      "mode": "display",
+      "advance": 0.669,
+      "ascent": 1.11907,
+      "descent": 0.86007,
+      "ink": [
+        0.0516,
+        -1.1449,
+        0.6162,
+        0.8469
+      ]
+    },
+    {
+      "id": "katex-display-fraction",
+      "mode": "inline",
+      "advance": 0.669,
+      "ascent": 1.11907,
+      "descent": 0.86007,
+      "ink": [
+        0.0516,
+        -1.1449,
+        0.6162,
+        0.8469
+      ]
+    },
+    {
+      "id": "katex-text-fraction",
+      "mode": "display",
+      "advance": 0.4983,
+      "ascent": 0.92036,
+      "descent": 0.73906,
+      "ink": [
+        0.0359,
+        -0.941,
+        0.4437,
+        0.7371
+      ]
+    },
+    {
+      "id": "katex-upright-text",
+      "mode": "inline",
+      "advance": 1.237,
+      "ascent": 0.706,
+      "descent": 0.01,
+      "ink": [
+        0.0203,
+        -0.7058,
+        1.1965,
+        0.0157
+      ]
+    },
+    {
+      "id": "katex-text-after-space",
+      "mode": "inline",
+      "advance": 1.88,
+      "ascent": 0.485,
+      "descent": 0.01,
+      "ink": [
+        0.0203,
+        -0.4862,
+        1.8395,
+        0.0157
+      ]
+    },
+    {
+      "id": "katex-script-on-text",
+      "mode": "inline",
+      "advance": 1.62333,
+      "ascent": 0.96278,
+      "descent": 0.011,
+      "ink": [
+        0.0203,
+        -0.9881,
+        1.5729,
+        0.0
+      ]
+    },
+    {
+      "id": "katex-stretch-delimiters",
+      "mode": "display",
+      "advance": 1.615,
+      "ascent": 1.33003,
+      "descent": 0.86007,
+      "ink": [
+        0.0516,
+        -1.3488,
+        1.5416,
+        0.8469
+      ]
+    },
+    {
+      "id": "katex-invisible-delimiter",
+      "mode": "display",
+      "advance": 1.192,
+      "ascent": 1.33003,
+      "descent": 0.86007,
+      "ink": [
+        0.0516,
+        -1.3488,
+        1.0867,
+        0.8469
+      ]
+    },
+    {
+      "id": "katex-angle-delimiters",
+      "mode": "display",
+      "advance": 0.678,
+      "ascent": 0.72403,
+      "descent": 0.20797,
+      "ink": [
+        0.0203,
+        -0.7214,
+        0.6476,
+        0.2196
+      ]
+    },
+    {
+      "id": "katex-radical",
+      "mode": "display",
+      "advance": 1.363,
+      "ascent": 1.015,
+      "descent": 0.24,
+      "ink": [
+        0.0046,
+        -0.9567,
+        1.369,
+        0.2353
+      ]
+    },
+    {
+      "id": "katex-integral-scripts",
+      "mode": "display",
+      "advance": 1.44833,
+      "ascent": 1.60531,
+      "descent": 1.03328,
+      "ink": [
+        0.0359,
+        -1.6311,
+        1.4004,
+        1.0351
+      ]
+    },
+    {
+      "id": "katex-roman-letter",
+      "mode": "inline",
+      "advance": 0.479,
+      "ascent": 0.473,
+      "descent": 0.0,
+      "ink": [
+        -0.0268,
+        -0.4862,
+        0.4751,
+        0.0
+      ]
+    },
+    {
+      "id": "katex-roman-expression",
+      "mode": "inline",
+      "advance": 2.13849,
+      "ascent": 0.639,
+      "descent": 0.04,
+      "ink": [
+        -0.0268,
+        -0.6587,
+        2.0748,
+        0.0314
+      ]
+    },
+    {
+      "id": "katex-greek-and-symbols",
+      "mode": "inline",
+      "advance": 4.719,
+      "ascent": 0.705,
+      "descent": 0.04,
+      "ink": [
+        -0.0738,
+        -0.7058,
+        4.6469,
+        0.0471
+      ]
+    },
+    {
+      "id": "katex-vector-accent",
+      "mode": "inline",
+      "advance": 0.569,
+      "ascent": 0.843,
+      "descent": 0.01,
+      "ink": [
+        0.0046,
+        -0.8626,
+        0.5692,
+        0.0
+      ]
+    },
+    {
+      "id": "katex-accent-over-script",
+      "mode": "inline",
+      "advance": 0.93633,
+      "ascent": 1.06582,
+      "descent": 0.01,
+      "ink": [
+        0.0046,
+        -1.0822,
+        0.8829,
+        0.0157
+      ]
+    },
+    {
+      "id": "katex-script-over-accent",
+      "mode": "inline",
+      "advance": 0.93633,
+      "ascent": 0.843,
+      "descent": 0.01,
+      "ink": [
+        0.0046,
+        -0.8626,
+        0.8829,
+        0.0
+      ]
+    },
+    {
+      "id": "katex-stretch-accent",
+      "mode": "display",
+      "advance": 0.569,
+      "ascent": 0.674,
+      "descent": 0.01,
+      "ink": [
+        0.0046,
+        -0.6744,
+        0.5378,
+        0.0157
+      ]
+    },
+    {
+      "id": "katex-indexed-radical",
+      "mode": "display",
+      "advance": 1.4015,
+      "ascent": 1.1025,
+      "descent": 0.1525,
+      "ink": [
+        0.0359,
+        -1.0508,
+        1.4004,
+        0.1412
+      ]
+    },
+    {
+      "id": "katex-small-matrix",
+      "mode": "inline",
+      "advance": 1.40276,
+      "ascent": 0.8068,
+      "descent": 0.29075,
+      "ink": [
+        0.1928,
+        -0.8312,
+        1.1965,
+        0.2823
+      ]
+    },
+    {
+      "id": "katex-cases",
+      "mode": "display",
+      "advance": 12.08378,
+      "ascent": 2.50802,
+      "descent": 1.99197,
+      "ink": [
+        -0.0111,
+        -2.4153,
+        12.0025,
+        1.882
+      ]
+    },
+    {
+      "id": "katex-sum",
+      "mode": "display",
+      "advance": 2.36021,
+      "ascent": 1.67848,
+      "descent": 1.23208,
+      "ink": [
+        0.0046,
+        -1.537,
+        2.3257,
+        1.0822
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{"kind":"library","formatVersion":"2.0","id":"qfn","name":"QFN16"}
+{"kind":"pad","id":"qfn/pad/1","order":"K","value":{"h":300000,"number":"1","w":600000,"x":-1400000,"y":-750000}}
+{"kind":"pad","id":"qfn/pad/2","order":"e","value":{"h":300000,"number":"2","w":600000,"x":1400000,"y":750000}}
+{"kind":"librarySettings","id":"qfn/settings","value":{"footprint":{"height":900000,"name":"QFN16","pads":[],"shapes":[]},"prefix":"U"}}
+{"kind":"shape","id":"qfn/shape/1","order":"V","side":"footprint","value":{"kind":"path","closed":true,"layer":"Mechanical 13","points":[[-1500000,-1500000],[1500000,-1500000],[1500000,1500000],[-1500000,1500000]]}}

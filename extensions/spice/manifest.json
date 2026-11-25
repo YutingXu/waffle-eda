@@ -1,0 +1,36 @@
+{
+  "id": "waffle.spice",
+  "name": "SPICE Simulation",
+  "publisher": "Waffle",
+  "version": "1.1.0",
+  "apiVersion": 1,
+  "builtin": true,
+  "enabledByDefault": true,
+  "description": "Run operating point, DC sweep, AC and transient test benches with the built-in solver or your own ngspice or LTspice installation. Probe nets on the schematic, plot waveforms and review model coverage. Save benches and model assignments with the project through reviewed proposals.",
+  "main": "main.js",
+  "activationEvents": ["onView:waffle.spice", "onCommand:spice.show", "onCommand:spice.probeSelection", "onCommand:spice.exportNetlist", "onCommand:spice.simulate", "onCommand:spice.coverage", "onCommand:spice.modelWizard"],
+  "permissions": ["read:project", "outputs:write", "ui:panel", "ui:command", "propose:edits", "ui:decorations", "run:external"],
+  "worker": "dedicated",
+  "timeoutMs": 120000,
+  "contributes": {
+    "externalTools": [
+      {"id": "ltspice", "name": "LTspice", "description": "Run a SPICE test bench in batch mode.", "homepage": "https://www.analog.com/ltspice", "args": ["-b"]},
+      {"id": "ngspice", "name": "ngspice", "description": "Run a SPICE test bench in batch mode.", "homepage": "https://ngspice.sourceforge.io", "args": ["-n", "-b", "-r"]}
+    ],
+    "commands": [
+      {"command": "spice.show", "title": "SPICE Simulation"},
+      {"command": "spice.probeSelection", "title": "Probe Selected Nets (SPICE)", "when": "schematic && selection"},
+      {"command": "spice.exportNetlist", "title": "Export SPICE Netlist…", "when": "schematic"},
+      {"command": "spice.simulate", "title": "Simulate (SPICE, programmatic)"},
+      {"command": "spice.coverage", "title": "Simulation Coverage (SPICE, programmatic)"},
+      {"command": "spice.modelWizard", "title": "SPICE Model Wizard…", "when": "schematic"}
+    ],
+    "menus": {
+      "tools": [{"command": "spice.show"}, {"command": "spice.modelWizard", "when": "schematic"}],
+      "file": [{"command": "spice.exportNetlist", "when": "schematic"}],
+      "edit": [{"command": "spice.probeSelection", "when": "schematic && selection"}]
+    },
+    "keybindings": [{"command": "spice.probeSelection", "key": "mod+alt+shift+p", "when": "schematic && selection"}],
+    "panels": [{"id": "waffle.spice", "title": "SPICE Simulation", "location": "right", "tall": true}]
+  }
+}

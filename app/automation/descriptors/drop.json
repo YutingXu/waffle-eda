@@ -1,0 +1,488 @@
+{
+  "feature": "drop",
+  "title": "Drag and Drop",
+  "mcpAdapter": true,
+  "commands": [
+    {
+      "id": "inspect",
+      "title": "Inspect Drop",
+      "kind": "read",
+      "properties": {
+        "source": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "projectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "documentId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "instanceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "ownerId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "files": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 268435456
+                  },
+                  "mime": {
+                    "type": "string",
+                    "maxLength": 127
+                  }
+                },
+                "required": [
+                  "name",
+                  "size"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "point": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number",
+                "minimum": -1000000,
+                "maximum": 1000000
+              }
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "modules": {
+        "editor": [
+          "AtriumDrop"
+        ],
+        "mcp": [
+          "drop-receiver"
+        ]
+      }
+    },
+    {
+      "id": "open-design",
+      "title": "Open Dropped Design",
+      "kind": "read",
+      "properties": {
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      },
+      "required": [],
+      "surfaces": [
+        "mcp"
+      ],
+      "mcpAdapter": true
+    },
+    {
+      "id": "place-library",
+      "title": "Place Library Component",
+      "kind": "edit",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "definitionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "x": {
+          "type": "number",
+          "minimum": -1000000,
+          "maximum": 1000000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -1000000,
+          "maximum": 1000000
+        }
+      },
+      "required": [
+        "documentId",
+        "definitionId",
+        "x",
+        "y"
+      ]
+    },
+    {
+      "id": "scope-rule",
+      "title": "Scope Rule to Net",
+      "kind": "edit",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "ruleId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "netId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "documentId",
+        "ruleId",
+        "netId"
+      ],
+      "modules": {
+        "editor": [
+          "AtriumRules"
+        ],
+        "mcp": [
+          "rules"
+        ]
+      }
+    },
+    {
+      "id": "resolve-result",
+      "title": "Resolve Dropped Result",
+      "kind": "read",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "projectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "link": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [],
+      "modules": {
+        "editor": [
+          "AtriumLinksDesktop"
+        ],
+        "mcp": [
+          "links"
+        ]
+      }
+    },
+    {
+      "id": "export-bom",
+      "title": "Export Dropped BOM",
+      "kind": "output",
+      "properties": {
+        "view": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "titleBlock": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "modules": {
+        "editor": [
+          "AtriumBOM"
+        ],
+        "mcp": [
+          "bom"
+        ]
+      },
+      "outputKind": "bom"
+    },
+    {
+      "id": "export-frame",
+      "title": "Export Dropped Frame",
+      "kind": "output",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "frameId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "documentId",
+        "frameId"
+      ],
+      "modules": {
+        "editor": [
+          "AtriumPrint",
+          "AtriumSavedViews"
+        ],
+        "mcp": [
+          "print",
+          "saved-views"
+        ]
+      },
+      "outputKind": "pdf"
+    },
+    {
+      "id": "export-selection",
+      "title": "Export Dragged Selection",
+      "kind": "output",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "objectIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "svg",
+            "link",
+            "png"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 3200
+        }
+      },
+      "required": [],
+      "modules": {
+        "editor": [
+          "AtriumPrint",
+          "AtriumLinksDesktop"
+        ],
+        "mcp": [
+          "print",
+          "links"
+        ]
+      },
+      "outputKind": "selection"
+    },
+    {
+      "id": "attach-model",
+      "title": "Attach Dropped STEP Model",
+      "kind": "edit",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "partId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "documentId",
+        "partId",
+        "file"
+      ],
+      "surfaces": [
+        "mcp"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "mcp": [
+          "drop-receiver",
+          "drop-data",
+          "step-io",
+          "step-import"
+        ]
+      }
+    },
+    {
+      "id": "import-table",
+      "title": "Append Dropped CSV to Table",
+      "kind": "edit",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "tableId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "documentId",
+        "tableId",
+        "file"
+      ],
+      "surfaces": [
+        "mcp"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "mcp": [
+          "drop-receiver",
+          "drop-data",
+          "widget-catalogue",
+          "table-exchange"
+        ]
+      }
+    },
+    {
+      "id": "bind-calculation",
+      "title": "Bind Calculation to Dropped Part Field",
+      "kind": "edit",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "calculationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "partDocumentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "partId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16384
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16384
+        }
+      },
+      "required": [
+        "documentId",
+        "calculationId",
+        "partDocumentId",
+        "partId",
+        "start",
+        "end"
+      ],
+      "modules": {
+        "editor": [
+          "AtriumCalculations"
+        ],
+        "mcp": [
+          "calculations"
+        ]
+      }
+    }
+  ]
+}

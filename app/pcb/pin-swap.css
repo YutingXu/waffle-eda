@@ -1,0 +1,12 @@
+/* Pin/gate swapping (pin-swap.js): the optimiser proposal list and the diff-pair "swap pins" chip. */
+.pin-swap-dialog {position:fixed;inset:auto 16px calc(40px + var(--d-bar, 0px)) auto;margin:0;width:min(420px,calc(100vw - 32px));max-height:min(70vh,560px);display:flex;flex-direction:column;gap:6px}
+.pin-swap-dialog h2 {margin:0}
+.pin-swap-list {overflow:auto;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:var(--r-sm);padding:4px;min-height:48px}
+.pin-swap-row {display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:3px 6px;border-radius:var(--r-sm);cursor:default}
+.pin-swap-row:hover {background:var(--hover)}
+.pin-swap-gain {color:var(--ok-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pin-swap-empty {margin:6px;color:var(--muted)}
+.pin-swap-sum {margin:0;color:var(--muted)}
+.pin-swap-actions {display:flex;justify-content:flex-end;gap:8px}
+.pin-swap-hint {position:fixed;z-index:var(--z-popover);display:flex;align-items:center;gap:var(--s-8);padding:var(--s-4) var(--s-6) var(--s-4) var(--s-8);font-size:var(--fs-12)}
+.pin-swap-hint[hidden] {display:none}

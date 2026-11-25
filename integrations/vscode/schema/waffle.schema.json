@@ -1,0 +1,1926 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Waffle internal editor project projection",
+  "description": "Internal data model used by the editor and type checks. Use waffle-folder-record.schema.json for native disk records.",
+  "type": "object",
+  "required": [
+    "format",
+    "version",
+    "name",
+    "library",
+    "documents"
+  ],
+  "properties": {
+    "format": {
+      "const": "atrium",
+      "description": "Always \"atrium\"."
+    },
+    "version": {
+      "const": 1,
+      "description": "The format's major version (the major part of formatVersion)."
+    },
+    "formatVersion": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$",
+      "default": "1.5",
+      "description": "Format version major.minor (docs/format-versioning.md). The single-file writer uses 1.5. A newer minor version may add fields and kinds."
+    },
+    "name": {
+      "type": "string",
+      "description": "Project name."
+    },
+    "library": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/definition"
+      },
+      "description": "Symbol and footprint definitions."
+    },
+    "componentFamilies": {
+      "type": "array",
+      "description": "Optional families of exact library definitions and their part labels.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "members"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "defId",
+                "part"
+              ],
+              "properties": {
+                "defId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Exact package definition ID."
+                },
+                "part": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Part label within the family."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "documents": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/document"
+      }
+    },
+    "importNotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceDrillPlots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/pcbSourceDrillPlot"
+      }
+    },
+    "multichannel": {
+      "type": "object"
+    },
+    "layoutBlocks": {
+      "type": "array"
+    },
+    "outputJobs": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "outputs"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "outputs": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "pdf"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "infiniteLayout": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "examples": [
+                          "fit",
+                          "frames",
+                          "tile"
+                        ],
+                        "description": "PDF layout for infinite schematic sheets. Omission fits the drawing on one page."
+                      },
+                      "infiniteScale": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "Printed length divided by drawing length when tiling an infinite schematic. Omission means 1:1."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "bomViews": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          }
+        }
+      }
+    },
+    "variants": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "activeVariant": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "extensions": {
+      "type": "array",
+      "description": "Extensions saved with the project. Waffle blocks them until you trust the exact bundle.",
+      "items": {
+        "type": "object",
+        "required": [
+          "manifest"
+        ],
+        "properties": {
+          "manifest": {
+            "type": "object"
+          },
+          "files": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "pcbArc": {
+      "type": "object",
+      "required": [
+        "kind",
+        "c",
+        "r",
+        "start",
+        "end",
+        "ccw"
+      ],
+      "properties": {
+        "kind": {
+          "const": "arc"
+        },
+        "c": {
+          "$ref": "#/definitions/point"
+        },
+        "r": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "start": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "end": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "ccw": {
+          "type": "boolean"
+        }
+      }
+    },
+    "pcbContour": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000000,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/definitions/pcbArc"
+          },
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "a",
+              "b"
+            ],
+            "properties": {
+              "kind": {
+                "const": "line"
+              },
+              "a": {
+                "$ref": "#/definitions/point"
+              },
+              "b": {
+                "$ref": "#/definitions/point"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "pcbRegionShape": {
+      "type": "object",
+      "required": [
+        "version",
+        "contour",
+        "cutouts"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "contour": {
+          "$ref": "#/definitions/pcbContour"
+        },
+        "cutouts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbContour"
+          }
+        },
+        "sig": {
+          "type": "string"
+        }
+      }
+    },
+    "pcbBoardShape": {
+      "type": "object",
+      "required": [
+        "version",
+        "contour"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1
+        },
+        "contour": {
+          "$ref": "#/definitions/pcbContour"
+        },
+        "cutouts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbContour"
+          }
+        },
+        "sig": {
+          "type": "string"
+        },
+        "cutoutRegions": {
+          "type": "object",
+          "patternProperties": {
+            "^(0|[1-9][0-9]*)$": {
+              "$ref": "#/definitions/pcbRegionShape"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "pcbSourceTextBox": {
+      "type": "object",
+      "properties": {
+        "letterSet": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "writingOffset": {
+          "$ref": "#/definitions/point"
+        },
+        "sourceJustify": {
+          "enum": [
+            "top-left",
+            "middle-left",
+            "bottom-left",
+            "top-center",
+            "center",
+            "bottom-center",
+            "top-right",
+            "middle-right",
+            "bottom-right"
+          ]
+        }
+      }
+    },
+    "pcbBoardLabel": {
+      "type": "object",
+      "required": [
+        "field",
+        "at",
+        "angle",
+        "size",
+        "layer",
+        "mirrored"
+      ],
+      "properties": {
+        "field": {
+          "enum": [
+            "ref",
+            "value"
+          ]
+        },
+        "at": {
+          "$ref": "#/definitions/point"
+        },
+        "angle": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "size": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mirrored": {
+          "type": "boolean"
+        },
+        "sourceTextBox": {
+          "$ref": "#/definitions/pcbSourceTextBox"
+        }
+      }
+    },
+    "pcbDrillToolIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "pcbSourceDrillDrawing": {
+      "type": "object",
+      "required": [
+        "tools"
+      ],
+      "properties": {
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "mark",
+              "diameter",
+              "slot",
+              "plated",
+              "hits"
+            ],
+            "properties": {
+              "mark": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/definitions/pcbDrillToolIndex"
+                  }
+                ]
+              },
+              "diameter": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "slot": {
+                "type": "number",
+                "minimum": 0
+              },
+              "hits": {
+                "$ref": "#/definitions/pcbDrillToolIndex"
+              },
+              "plated": {
+                "type": "boolean"
+              },
+              "slotted": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "pcbSourceDrillPlot": {
+      "type": "object",
+      "required": [
+        "board",
+        "size"
+      ],
+      "properties": {
+        "board": {
+          "type": "string"
+        },
+        "size": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "pcbBody": {
+      "type": "object",
+      "required": [
+        "type",
+        "layer",
+        "side",
+        "ownerSide",
+        "sourceRecord",
+        "identifier",
+        "modelId",
+        "rings",
+        "at",
+        "angle",
+        "rotation",
+        "dz",
+        "minZ",
+        "maxZ"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "extruded",
+            "step",
+            "unsupported"
+          ]
+        },
+        "layer": {
+          "type": "string"
+        },
+        "side": {
+          "enum": [
+            "Top",
+            "Bottom"
+          ]
+        },
+        "ownerSide": {
+          "enum": [
+            "Top",
+            "Bottom"
+          ]
+        },
+        "sourceRecord": {
+          "type": "string"
+        },
+        "shapeRecord": {
+          "type": "string"
+        },
+        "identifier": {
+          "type": "string"
+        },
+        "modelId": {
+          "type": "string"
+        },
+        "modelType": {
+          "type": "string"
+        },
+        "rings": {
+          "type": "array",
+          "maxItems": 257,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 20000,
+            "items": {
+              "$ref": "#/definitions/point"
+            }
+          }
+        },
+        "contour": {
+          "$ref": "#/definitions/pcbContour"
+        },
+        "at": {
+          "$ref": "#/definitions/point"
+        },
+        "angle": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "rotation": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": -100000000.0,
+            "exclusiveMaximum": 100000000.0
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "dz": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "minZ": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "maxZ": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16777215
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "pcbBodyModel": {
+      "type": "object",
+      "required": [
+        "id",
+        "file"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "zlib",
+              "stepText"
+            ]
+          },
+          {
+            "required": [
+              "zlib",
+              "assetId"
+            ]
+          },
+          {
+            "required": [
+              "stepText",
+              "assetId"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "file": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checksum": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "zlib": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "maxLength": 44739244
+        },
+        "stepText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 33554432
+        }
+      }
+    },
+    "pcbPowerPlane": {
+      "type": "object",
+      "required": [
+        "sourceLayer"
+      ],
+      "properties": {
+        "sourceLayer": {
+          "type": "string",
+          "pattern": "^PLANE([1-9]|1[0-6])$"
+        },
+        "pad": {
+          "type": "object",
+          "required": [
+            "expansion",
+            "airGap",
+            "width",
+            "entries"
+          ],
+          "properties": {
+            "expansion": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "airGap": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "entries": {
+              "enum": [
+                2,
+                4
+              ]
+            }
+          }
+        },
+        "via": {
+          "type": "object",
+          "required": [
+            "expansion",
+            "airGap",
+            "width",
+            "entries"
+          ],
+          "properties": {
+            "expansion": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "airGap": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "entries": {
+              "enum": [
+                2,
+                4
+              ]
+            }
+          }
+        }
+      }
+    },
+    "pcbDrawing": {
+      "type": "object",
+      "required": [
+        "annotations"
+      ],
+      "properties": {
+        "pourUnverified": {
+          "description": "An array of owner IDs records retained copper that needs a refill. Other values from earlier native readers are opaque."
+        },
+        "sourceHatchSignature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "nativeText": {
+          "const": true
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/pcbBoardLabel"
+            }
+          }
+        },
+        "letterSets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^(0|[1-9][0-9]{0,6})$"
+            },
+            "additionalProperties": {
+              "type": "array",
+              "items": [
+                {
+                  "type": "integer",
+                  "minimum": -2147483648,
+                  "maximum": 2147483647
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      }
+    },
+    "coordinate": {
+      "type": "number",
+      "exclusiveMinimum": -100000000.0,
+      "exclusiveMaximum": 100000000.0
+    },
+    "point": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/coordinate"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "points": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/point"
+      }
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique across the library, documents and items."
+    },
+    "shape": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "path",
+            "circle",
+            "text"
+          ]
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "points": {
+          "$ref": "#/definitions/points"
+        },
+        "x": {
+          "$ref": "#/definitions/coordinate"
+        },
+        "y": {
+          "$ref": "#/definitions/coordinate"
+        },
+        "r": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "pcbShape": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/shape"
+        },
+        {
+          "properties": {
+            "arc": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/definitions/pcbArc"
+                }
+              ]
+            },
+            "regionShape": {
+              "$ref": "#/definitions/pcbRegionShape"
+            },
+            "keepoutRestrictions": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 31
+            },
+            "planeVoid": {
+              "type": "boolean"
+            },
+            "sourceTextBox": {
+              "$ref": "#/definitions/pcbSourceTextBox"
+            },
+            "keepout": {
+              "type": "boolean"
+            },
+            "cutout": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "definition": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "symbol"
+          ]
+        },
+        {
+          "required": [
+            "footprint"
+          ]
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "mirrorOf": {
+          "type": "string"
+        },
+        "symbol": {
+          "type": "object",
+          "required": [
+            "pins",
+            "shapes"
+          ],
+          "properties": {
+            "pins": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "number",
+                  "x",
+                  "y"
+                ],
+                "properties": {
+                  "number": {
+                    "type": "string"
+                  },
+                  "x": {
+                    "$ref": "#/definitions/coordinate"
+                  },
+                  "y": {
+                    "$ref": "#/definitions/coordinate"
+                  }
+                }
+              }
+            },
+            "shapes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/shape"
+              }
+            }
+          }
+        },
+        "footprint": {
+          "type": "object",
+          "required": [
+            "pads",
+            "shapes"
+          ],
+          "properties": {
+            "pads": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "x",
+                  "y",
+                  "w",
+                  "h"
+                ],
+                "properties": {
+                  "x": {
+                    "$ref": "#/definitions/coordinate"
+                  },
+                  "y": {
+                    "$ref": "#/definitions/coordinate"
+                  },
+                  "w": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 100000000.0
+                  },
+                  "h": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 100000000.0
+                  },
+                  "fabTestpoint": {
+                    "enum": [
+                      "Top",
+                      "Bottom",
+                      "Both"
+                    ]
+                  },
+                  "holeOnly": {
+                    "type": "boolean"
+                  },
+                  "slotLength": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "exclusiveMaximum": 100000000.0
+                  },
+                  "slotAngle": {
+                    "type": "number",
+                    "exclusiveMinimum": -100000000.0,
+                    "exclusiveMaximum": 100000000.0
+                  },
+                  "sourceDrillTool": {
+                    "$ref": "#/definitions/pcbDrillToolIndex"
+                  },
+                  "roundrectRadiusRatio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 0.5
+                  },
+                  "padStack": {
+                    "additionalProperties": {
+                      "properties": {
+                        "roundrectRadiusRatio": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 0.5
+                        }
+                      }
+                    }
+                  },
+                  "tent": {
+                    "type": "object",
+                    "properties": {
+                      "top": {
+                        "type": "boolean"
+                      },
+                      "bottom": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "maskExpansion": {
+                    "type": "number",
+                    "exclusiveMinimum": -100000000.0,
+                    "exclusiveMaximum": 100000000.0
+                  },
+                  "pasteExpansion": {
+                    "type": "number",
+                    "exclusiveMinimum": -100000000.0,
+                    "exclusiveMaximum": 100000000.0
+                  }
+                }
+              }
+            },
+            "shapes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/pcbShape"
+              }
+            },
+            "bodyModelVersion": {
+              "const": 1
+            },
+            "bodies3d": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/pcbBody"
+              }
+            },
+            "bodyModels": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/pcbBodyModel"
+              }
+            }
+          }
+        }
+      }
+    },
+    "document": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "grid",
+        "items",
+        "outline",
+        "notes"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "not": {
+                  "const": "schematic"
+                }
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "items": {
+                "items": {
+                  "not": {
+                    "properties": {
+                      "kind": {
+                        "const": "textframe"
+                      },
+                      "math": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "math"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "kind": {
+          "enum": [
+            "pcb",
+            "schematic",
+            "panel",
+            "drawing"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "grid": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/item"
+          }
+        },
+        "outline": {
+          "$ref": "#/definitions/points"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "origin": {
+          "$ref": "#/definitions/point"
+        },
+        "hopOvers": {
+          "type": "boolean"
+        },
+        "sheet": {
+          "type": "object",
+          "properties": {
+            "infinite": {
+              "type": "boolean",
+              "description": "Use the drawing bounds on this schematic sheet. Fixed paper is the default."
+            }
+          }
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rooms": {
+          "type": "array"
+        },
+        "sourceRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "boardShape": {
+          "$ref": "#/definitions/pcbBoardShape"
+        },
+        "pcbDrawing": {
+          "$ref": "#/definitions/pcbDrawing"
+        },
+        "sourceDrillDrawing": {
+          "$ref": "#/definitions/pcbSourceDrillDrawing"
+        },
+        "appliedSourceRuleRecords": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "sourceRuleChecks": {
+          "type": "object",
+          "properties": {
+            "kinds": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              }
+            },
+            "batch": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              }
+            },
+            "online": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535
+              }
+            }
+          }
+        },
+        "ruleCheckSelection": {
+          "type": "object",
+          "required": [
+            "batch",
+            "online"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "batch": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9]{0,63}$"
+              }
+            },
+            "online": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9]{0,63}$"
+              }
+            }
+          }
+        },
+        "sourceRulesReplaced": {
+          "const": true
+        },
+        "sourceRuleLayers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "sourceArcVersion": {
+          "const": 1
+        },
+        "bodyModelVersion": {
+          "const": 1
+        },
+        "bodies3d": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbBody"
+          }
+        },
+        "bodyModels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbBodyModel"
+          }
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "wire",
+                  "track",
+                  "graphic",
+                  "polygon",
+                  "bus"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "points"
+            ],
+            "properties": {
+              "points": {
+                "minItems": 2
+              }
+            }
+          },
+          "else": {}
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "part",
+                  "label",
+                  "netlabel",
+                  "junction",
+                  "via",
+                  "pad",
+                  "power",
+                  "port",
+                  "offsheet",
+                  "sheetsymbol",
+                  "busentry",
+                  "noerc",
+                  "textframe",
+                  "image"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "x",
+              "y"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "imageMarkup"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "imageId",
+              "shape",
+              "at",
+              "to",
+              "width",
+              "colour"
+            ],
+            "properties": {
+              "imageId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "shape": {
+                "enum": [
+                  "arrow",
+                  "ellipse",
+                  "box",
+                  "highlight",
+                  "text"
+                ]
+              },
+              "at": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "to": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              },
+              "colour": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "polygon"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "points": {
+                "minItems": 3
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "textframe"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "w",
+              "h",
+              "text"
+            ],
+            "properties": {
+              "role": {
+                "type": "string",
+                "maxLength": 64,
+                "examples": [
+                  "frame"
+                ]
+              }
+            },
+            "if": {
+              "properties": {
+                "role": {
+                  "const": "frame"
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "then": {
+              "properties": {
+                "w": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "exclusiveMaximum": 100000000.0
+                },
+                "h": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "exclusiveMaximum": 100000000.0
+                },
+                "text": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "maxLength": 300
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "netlabel"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "autoName": {
+                "type": "object",
+                "required": [
+                  "part",
+                  "pin",
+                  "style"
+                ],
+                "properties": {
+                  "part": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "pin": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "style": {
+                    "type": "string",
+                    "pattern": "\\S",
+                    "maxLength": 64,
+                    "examples": [
+                      "hyphen",
+                      "underscore"
+                    ]
+                  }
+                },
+                "description": "Generated net name based on a connected part ID and pin number in the current channel. The label text is its fallback."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "offsheet"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "io": {
+                "type": "string",
+                "maxLength": 64,
+                "examples": [
+                  "unspecified",
+                  "input",
+                  "output",
+                  "bidirectional"
+                ],
+                "description": "Connector I/O direction. Omission means unspecified."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "textframe"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "math": {
+                "type": "boolean",
+                "description": "Display the TeX source in text as a non-electrical equation."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "textframe"
+              },
+              "math": {
+                "const": true
+              }
+            },
+            "required": [
+              "kind",
+              "math"
+            ]
+          },
+          "then": {
+            "required": [
+              "text",
+              "x",
+              "y",
+              "w",
+              "h"
+            ],
+            "properties": {
+              "role": {
+                "not": {
+                  "const": "frame"
+                }
+              },
+              "size": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 100000000.0
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192,
+                "pattern": "\\S"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "part"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "def",
+              "ref",
+              "value"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "label",
+                  "netlabel"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "text"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "pad"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "w",
+              "h"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "via"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "diameter"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/id"
+        },
+        "kind": {
+          "enum": [
+            "part",
+            "wire",
+            "track",
+            "graphic",
+            "label",
+            "netlabel",
+            "junction",
+            "via",
+            "pad",
+            "polygon",
+            "power",
+            "port",
+            "offsheet",
+            "sheetsymbol",
+            "bus",
+            "busentry",
+            "noerc",
+            "textframe",
+            "image",
+            "imageMarkup"
+          ]
+        },
+        "x": {
+          "$ref": "#/definitions/coordinate"
+        },
+        "y": {
+          "$ref": "#/definitions/coordinate"
+        },
+        "angle": {
+          "$ref": "#/definitions/coordinate"
+        },
+        "points": {
+          "$ref": "#/definitions/points"
+        },
+        "width": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "w": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "diameter": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "def": {
+          "type": "string",
+          "description": "Library definition id."
+        },
+        "ref": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "net": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "pinNets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "groupId": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "sourceLink": {
+          "type": "string"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "teardrop": {
+          "type": "boolean"
+        },
+        "arc": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/pcbArc"
+            }
+          ]
+        },
+        "regionShape": {
+          "$ref": "#/definitions/pcbRegionShape"
+        },
+        "keepoutRestrictions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 31
+        },
+        "planeVoid": {
+          "type": "boolean"
+        },
+        "sourceTextBox": {
+          "$ref": "#/definitions/pcbSourceTextBox"
+        },
+        "bodies3d": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbBody"
+          }
+        },
+        "powerPlane": {
+          "$ref": "#/definitions/pcbPowerPlane"
+        },
+        "boardLabels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbBoardLabel"
+          }
+        },
+        "hiddenBoardLabels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/pcbBoardLabel"
+          }
+        },
+        "fabTestpoint": {
+          "enum": [
+            "Top",
+            "Bottom",
+            "Both"
+          ]
+        },
+        "holeOnly": {
+          "type": "boolean"
+        },
+        "slotLength": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "slotAngle": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "sourceDrillTool": {
+          "$ref": "#/definitions/pcbDrillToolIndex"
+        },
+        "roundrectRadiusRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        },
+        "padStack": {
+          "additionalProperties": {
+            "properties": {
+              "roundrectRadiusRatio": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 0.5
+              }
+            }
+          }
+        },
+        "tent": {
+          "type": "object",
+          "properties": {
+            "top": {
+              "type": "boolean"
+            },
+            "bottom": {
+              "type": "boolean"
+            }
+          }
+        },
+        "maskExpansion": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        },
+        "pasteExpansion": {
+          "type": "number",
+          "exclusiveMinimum": -100000000.0,
+          "exclusiveMaximum": 100000000.0
+        }
+      }
+    }
+  }
+}

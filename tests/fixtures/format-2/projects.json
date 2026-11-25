@@ -1,0 +1,62 @@
+[
+  {
+    "directory": "golden",
+    "manifest": "Sensor Board.waffle",
+    "sha256": "0b1e6a5e9b241a9ffb2f1fd92fbafb656d1cd6f3f64e908c7c591d55c8135f64"
+  },
+  {
+    "directory": "workshop",
+    "manifest": "Reference.waffle",
+    "sha256": "a673c37c80cefe28fe5ec19648fe71e065e0176bd9acbc0c08d8dd543a0c691b"
+  },
+  {
+    "directory": "future",
+    "manifest": "Future.waffle",
+    "sha256": "980ffcf2c667c44279b9251f1865037d3985782510fcb08e13f303456b1a14ae"
+  },
+  {
+    "directory": "notebook",
+    "manifest": "Notebook.waffle",
+    "sha256": "16b4469296e1bf5ee23059be39c24d00629f2e6ddc9e8d0fd95ce8ba1adcc421"
+  },
+  {
+    "directory": "extension",
+    "manifest": "Calibration.waffle",
+    "sha256": "0f919442614c2605b8f1302f2c68449801ae968102b73ccacb8bd0949b299870"
+  },
+  {
+    "directory": "instrument",
+    "manifest": "Instrument.waffle",
+    "sha256": "6079a174015d0392a30cfb55e0dbb8d6f17e33eab740ba5850c5857998febf87"
+  },
+  {
+    "directory": "query-parameter",
+    "manifest": "Parameters.waffle",
+    "sha256": "60631b99dd84a21253707c02c4651ab5b2920354092f14f19486f89425013f41"
+  },
+  {
+    "directory": "forward-bytes",
+    "manifest": "Forward.waffle",
+    "sha256": "79da6ccc3867c8d6edaf69c49ccfc47c80eabe37431bd9ea580d48c7d0c453a6"
+  },
+  {
+    "directory": "durable-preset",
+    "manifest": "Durable Preset.waffle",
+    "sha256": "bb27d04c8465b8078171601443be96c649bf81871e6cbd8aca3f30e30d672a3b"
+  },
+  {
+    "directory": "butter-query",
+    "manifest": "Saved Query.waffle",
+    "sha256": "a188947f9fb2aa65d27a06442bf646787ce47e83582b2681e48d7e2179b9d2c2"
+  },
+  {
+    "directory": "butter-table-query",
+    "manifest": "Table and Query.waffle",
+    "sha256": "cc1df7777c8ad756d6733b10a14370226a49a5bb45193b9c42d47e6998d9007a"
+  },
+  {
+    "directory": "butter-project-metadata",
+    "manifest": "Project Metadata.waffle",
+    "sha256": "d2020b80f77c6d085022f27797063eec9b0b94e318b36f7a7fe07886f07d87ca"
+  }
+]

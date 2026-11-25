@@ -1,0 +1,41 @@
+{
+  "format": "atrium-release",
+  "version": 1,
+  "app": "0.5.0",
+  "published": "2026-12-01",
+  "formats": {
+    "writes": "1.1",
+    "reads": "1.0-1.1"
+  },
+  "apiVersions": [
+    1
+  ],
+  "notes": [
+    "Faster pours.",
+    "Projects open in 0.4.0 and later."
+  ],
+  "assets": [
+    {
+      "platform": "macos",
+      "name": "Atrium-macOS.zip",
+      "url": "https://github.com/YutingXu/Atrium/releases/download/v0.5.0/Atrium-macOS.zip",
+      "sha256": "f5773f3d3c03f0d3cae1d4b82909c0477a30f3df62e2ecc05aef26570d61039c",
+      "size": 15
+    },
+    {
+      "platform": "linux",
+      "name": "atrium_0.5.0_all.deb",
+      "url": "https://github.com/YutingXu/Atrium/releases/download/v0.5.0/atrium_0.5.0_all.deb",
+      "sha256": "b65ab1ed14ad372bfc5603e921bad94b9843ecfa709b9b988dea6ce4624ee581",
+      "size": 9
+    },
+    {
+      "platform": "windows",
+      "name": "Atrium-0.5.0-windows.zip",
+      "url": "https://github.com/YutingXu/Atrium/releases/download/v0.5.0/Atrium-0.5.0-windows.zip",
+      "sha256": "3fb16a13677f3c02deaa8c2aaab1b9256396a296e5620c6aabc77093e73af886",
+      "size": 9
+    }
+  ],
+  "rollback": "https://github.com/YutingXu/Atrium/blob/main/docs/upgrading.md#rolling-back"
+}

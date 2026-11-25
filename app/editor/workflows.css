@@ -1,0 +1,95 @@
+.work-dialog h3 {font-size:var(--fs-13);line-height:1.3;margin:16px 0 6px;}
+.work-dialog summary {margin:12px 0;cursor:default;}
+.work-dialog pre {padding:12px 0;overflow:auto;font:var(--fs-11)/1.5 var(--mono);color:var(--ink);}
+.work-list {max-height:47vh;overflow:auto;}
+.work-row {display:flex;align-items:baseline;gap:8px;min-height:calc(34px + var(--d-row));padding:6px 0;line-height:1.4;}
+.source-rule {border-bottom:1px solid var(--line);padding:2px 0 4px;}
+.source-rule summary {margin:6px 0;}
+.rule-properties {display:grid;grid-template-columns:minmax(112px,1fr) 2fr;gap:4px 12px;font:var(--fs-11)/1.5 var(--mono);}
+.rule-properties dt,.rule-properties dd {overflow-wrap:anywhere;margin:0;}
+.rule-properties dt {color:var(--muted);}
+.review-line {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);}
+.review-line strong {font-weight:560;}
+.pair-actions {display:flex;gap:4px;}
+.connection-card label {display:grid;gap:4px;color:var(--muted);}
+.connection-card input {width:100%;}
+.connection-card [data-copy-status] {margin-left:8px;color:var(--muted);}
+.revision-dialog {
+  width:min(1000px,calc(100vw - 48px));max-height:min(85vh,830px);padding:0;overflow:auto;
+}
+.rev-header,.rev-sources,.rev-controls {padding-inline:24px}
+.rev-header {display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-top:21px}
+.rev-header h2 {margin:0}
+.rev-header .rev-status {margin:4px 0 0;font-size:var(--fs-12);overflow-wrap:anywhere}
+.revision-dialog .rev-done {min-width:58px}
+.rev-sources {display:flex;flex-wrap:wrap;gap:6px;padding-top:12px;padding-bottom:16px}
+.rev-overview {padding:0 24px 12px;display:grid;gap:8px}
+.rev-severity {display:flex;gap:6px;flex-wrap:wrap}
+.rev-headline {margin:0;padding-left:18px;font-size:var(--fs-12);overflow-wrap:anywhere}
+.rev-export {display:flex;gap:6px;flex-wrap:wrap}
+.rev-controls {display:flex;align-items:center;gap:8px;border-block:1px solid var(--line);padding-block:8px}
+.rev-controls .rev-search {min-width:95px;flex:1}
+.rev-controls select {max-width:25%}
+.rev-split {display:grid;grid-template-columns:minmax(215px,.8fr) minmax(300px,1.2fr);height:clamp(270px,53vh,510px)}
+.rev-nav {display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--line)}
+.rev-list {--ui-row-selected-ink:currentColor;flex:1;overflow:auto;min-height:0;overscroll-behavior:contain;padding:8px}
+.rev-group h4 {font-size:var(--fs-11);font-weight:600;color:var(--muted);margin:12px 8px 4px;overflow-wrap:anywhere}
+.rev-option {display:flex;gap:8px;align-items:baseline;min-height:38px;padding:6px 8px;border-radius:var(--r-sm);line-height:1.35}
+.rev-option > div {min-width:0}
+.rev-option strong,.rev-option small {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rev-option strong {font-size:var(--fs-13);font-weight:560}
+.rev-option small {font-size:var(--fs-11);margin-top:2px;line-height:1.35}
+.rev-mark {flex:none;width:13px;font:550 var(--fs-13)/1 var(--mono);color:var(--diff-changed);text-align:center}
+.rev-mark[data-kind=Added] {color:var(--diff-added)}
+.rev-mark[data-kind=Removed] {color:var(--diff-removed)}
+.rev-paging {border-top:1px solid var(--line);padding:6px 8px;display:flex;align-items:center;justify-content:space-between;gap:4px}
+.rev-paging button {font-size:var(--fs-11);min-height:var(--ctl-h-lg);padding:4px 6px;background:transparent}
+.rev-paging span {font:var(--fs-10) var(--mono);color:var(--muted)}
+.rev-detail {padding:18px 24px;overflow:auto;min-width:0;overscroll-behavior:contain}
+.rev-detail-head {display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.rev-detail-head h3 {font-size:var(--fs-20);letter-spacing:-.4px;margin:4px 0 12px;line-height:1.2;overflow-wrap:anywhere}
+.rev-detail-head button {font-size:var(--fs-12);min-height:var(--ctl-h-lg);padding:4px 8px}
+.rev-values {width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed;font-size:var(--fs-12);margin:6px 0 12px}
+.rev-values thead th {font-size:var(--fs-11);color:var(--muted);font-weight:500;padding-bottom:6px}
+.rev-values td,.rev-values th {text-align:left;border-bottom:1px solid var(--line);vertical-align:top;padding:6px 8px 6px 0;overflow-wrap:anywhere}
+.rev-values tbody th {font-weight:500}
+.rev-values tbody td {font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:var(--fs-11)}
+.rev-values tbody td:last-child {color:var(--ok-ink)}
+.revision-geometry {margin:4px 0 16px}
+.revision-geometry > svg {display:block;width:100%;height:140px;background:var(--sheet);border-radius:var(--r-sm)}
+.revision-geometry figcaption {margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--muted);font-size:var(--fs-10)}
+@media(max-width:680px){
+  .revision-dialog {width:calc(100vw - 18px);max-height:94vh}
+  .rev-header,.rev-sources,.rev-controls,.rev-detail {padding-inline:12px}
+  .rev-split {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(135px,25vh) minmax(210px,1fr);height:58vh}
+  .rev-nav {border-right:0;border-bottom:1px solid var(--line)}
+  .rev-detail {padding-top:12px}
+  .rev-controls {flex-wrap:wrap}
+  .rev-controls .rev-search {flex:1 0 100%}
+  .rev-controls select {max-width:48%}
+}
+
+/* Label + control rows: labels share one column so every control starts at the same x
+   (checkbox rows, where the input comes first, keep the flex layout). */
+.work-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) {display:grid;grid-template-columns:minmax(96px,max-content) minmax(0,1fr);align-items:baseline;}
+.work-dialog .work-list:has(> .work-row > span:first-child + select) {--work-label:8em;}
+.work-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) > span:first-child {min-width:var(--work-label,96px);}
+/* Label/control forms with labels of any length: one grid, so every control in the form
+   starts at the same x and has the same width. Labels are display:contents rows. */
+.work-form {display:grid;grid-template-columns:minmax(0,1fr) minmax(11em,14em);align-items:baseline;gap:6px 12px;margin:8px 0}
+.work-form > label {display:contents}
+.work-form > label > span {color:var(--ink);overflow-wrap:anywhere}
+.work-form > label > :is(select,input) {width:100%}
+.work-form > p {grid-column:1/-1;margin:4px 0}
+.work-form.work-list {max-height:26vh}
+/* A scrolling form: its overlay scrollbar takes no width, so sibling forms keep their columns lined up. */
+.work-dialog:has(.work-form.work-list) .work-form {overflow:auto}
+.work-dialog .work-note {font-size:var(--fs-12);color:var(--muted);line-height:1.5;margin:8px 0 12px}
+.work-dialog .work-toolbar {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+.work-dialog .work-item {display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.work-dialog .work-item > div {flex:1;min-width:90px;overflow-wrap:anywhere}
+.work-dialog .work-item small {margin-top:2px}
+.symbol-previews {display:flex;gap:18px;margin:14px 0 18px}
+.symbol-search {width:100%;margin:2px 0 6px}
+.work-dialog .work-error {color:var(--error-ink)}
+.symbol-previews canvas {background:var(--sheet);border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--preview-edge)}

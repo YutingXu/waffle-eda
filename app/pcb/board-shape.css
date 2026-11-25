@@ -1,0 +1,77 @@
+/* Board Shape dialog and inspector section. Builds on .work-dialog from workflows.css. */
+.bsh-dialog {width:min(940px,calc(100vw - 32px));height:min(86vh,720px);max-height:min(88vh,820px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+.bsh-dialog[open] {display:flex}
+.bsh-head {display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;padding:14px 18px 8px;background:var(--panel-head);border-bottom:1px solid var(--line)}
+.bsh-head h2 {margin:0;font-size:var(--fs-14)}
+.bsh-doc {color:var(--muted);font-size:var(--fs-12);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.bsh-panel {padding:12px 18px 4px;overflow:auto;min-height:0;min-width:0;flex:1 1 auto}
+.bsh-panel[hidden] {display:none}
+.bsh-split {display:grid;grid-template-columns:minmax(0,1.15fr) minmax(220px,1fr);gap:16px;align-items:start}
+.bsh-form {min-width:0}
+.bsh-preview {position:sticky;top:0;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);min-height:220px;display:flex;flex-direction:column;justify-content:center;padding:8px}
+.bsh-svg {width:100%;height:auto;max-height:46vh;display:block}
+.bsh-board {fill:var(--soft);stroke:var(--accent);stroke-width:1.4;stroke-linejoin:round}
+.bsh-line {fill:none;stroke:var(--ink);stroke-width:1}
+.bsh-hole {fill:var(--field);stroke:var(--muted);stroke-width:1.2}
+.bsh-gap {fill:none;stroke:var(--danger);stroke-width:2}
+.bsh-gap-line {stroke:var(--danger);stroke-width:1.5;stroke-dasharray:4 3}
+.bsh-caption {color:var(--muted);font-size:var(--fs-12);text-align:center;margin:8px 0}
+.bsh-empty {justify-items:center;text-align:center}
+.bsh-caption {margin:6px 0 0;font-variant-numeric:tabular-nums}
+.bsh-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px 12px;margin:4px 0 8px}
+.bsh-grid > .bsh-field:has(> select) {grid-column:span 2}
+.bsh-field {display:grid;gap:4px;font-size:var(--fs-11);color:var(--muted);min-width:0}
+.bsh-num[aria-invalid="true"] {outline:1px solid var(--danger)}
+.work-dialog .bsh-select {width:100%}
+.bsh-check {display:flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--ink);margin:6px 0}
+.bsh-row {display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin:6px 0 8px}
+.bsh-row .bsh-field {width:132px}
+.bsh-sub {font-size:var(--fs-12);font-weight:600;margin:12px 0 6px;color:var(--ink)}
+.bsh-note {font-size:var(--fs-11) !important;color:var(--muted);margin:4px 0 8px !important;line-height:1.45}
+.bsh-warn {font-size:var(--fs-12);color:var(--ink);margin:6px 0;padding:4px 8px;background:var(--soft);box-shadow:inset 3px 0 0 var(--danger)}
+.bsh-summary-line {font-size:var(--fs-12);color:var(--ink);font-variant-numeric:tabular-nums;margin-top:12px}
+.bsh-corners {display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding:8px;border:1px dashed var(--line);border-radius:var(--r-sm)}
+.bsh-corners.is-disabled {opacity:.55}
+.bsh-corner {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,calc(var(--field-number-width) + var(--s-24))),1fr));gap:6px}
+.bsh-corner-tr,.bsh-corner-br {text-align:right}
+.bsh-facts {display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin:8px 0;font-size:var(--fs-12)}
+.bsh-facts dt {color:var(--muted)}
+.bsh-facts dd {margin:0;color:var(--ink);font-variant-numeric:tabular-nums}
+.bsh-gaps {list-style:none;margin:0 0 6px;padding:0;max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm)}
+.bsh-gaps li {display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 8px;font-size:var(--fs-12);border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.bsh-gaps li:last-child {border-bottom:0}
+.bsh-table-wrap {max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);margin:4px 0 8px}
+.bsh-table {width:100%;border-collapse:collapse;font-size:var(--fs-12)}
+.bsh-table th {position:sticky;top:0;background:var(--panel-head);color:var(--muted);font-weight:500;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line)}
+.bsh-table td {padding:4px 6px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.bsh-table tr.is-empty td {color:var(--faint)}
+.bsh-numcell {text-align:right;font-variant-numeric:tabular-nums}
+.bsh-layer-list {display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0 12px;max-height:180px;overflow:auto}
+.bsh-message {min-height:20px;padding:4px 18px;font-size:var(--fs-12);color:var(--ink);display:flex;align-items:center}
+.bsh-message[data-kind="error"] {background:var(--soft);border-top:1px solid var(--line);box-shadow:inset 3px 0 0 var(--danger)}
+.bsh-dialog .work-actions {margin:0;padding:10px 18px 14px;background:var(--panel-head);border-top:1px solid var(--line)}
+.bsh-dialog .work-actions button[hidden] {display:none}
+/* Inspector section (labels are flex rows there: name left, control right) */
+#inspector .bsh-section .bsh-grid {grid-template-columns:1fr;gap:0;margin:0 0 4px}
+#inspector .bsh-section .bsh-field {display:flex;gap:6px}
+#inspector .bsh-section .bsh-num {width:72px;flex-basis:auto}
+#inspector .bsh-section .bsh-corners {grid-template-columns:1fr;padding:2px 6px;gap:0}
+#inspector .bsh-section .bsh-corner {grid-template-columns:minmax(0,1fr) auto;gap:8px;text-align:left}
+#inspector .bsh-section .bsh-corner .bsh-field:last-child > span:first-child {display:none}
+#inspector .bsh-section .bsh-select {width:88px;font-size:var(--fs-12)}
+#inspector .bsh-section .bsh-corner .bsh-num {width:52px}
+#inspector .bsh-section .bsh-row {gap:4px;margin:4px 0 6px}
+#inspector .bsh-section .bsh-sub {margin:8px 0 4px}
+@media (max-width:720px) {
+  .bsh-split {grid-template-columns:1fr}
+  .bsh-preview {position:static;order:-1;min-height:160px}
+  .bsh-corner {grid-template-columns:1fr}
+}
+/* Non-modal (show()): centred over the editor without a backdrop; the canvas stays live. */
+.bsh-dialog[open]:not(:modal) {position:fixed;inset:0;margin:auto;z-index:var(--z-float)}
+/* Define from Selection docks at the right edge of the editor, over the Properties panel,
+   so lines and arcs can be selected on the canvas while it is open. */
+.bsh-dialog.bsh-docked[open] {inset:calc(62px + var(--d-bar)*2) 6px 40px auto;width:min(400px,calc(100vw - 40px));height:auto;max-height:none;margin:0;box-shadow:var(--elev-3)}
+.bsh-docked .bsh-split {grid-template-columns:minmax(0,1fr)}
+.bsh-docked .bsh-preview {position:static;min-height:160px}
+.bsh-docked .bsh-svg {max-height:26vh}

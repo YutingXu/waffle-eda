@@ -1,0 +1,11 @@
+{
+  "format": "atrium-fab-preset",
+  "version": 1,
+  "vendor": "Example",
+  "dataVersion": "2026.11.19",
+  "retrieved": "2026-11-19",
+  "sources": {"x": {"url": "https://example.invalid/capabilities", "title": "Example capabilities", "retrieved": "2026-11-19"}},
+  "outputs": {},
+  "common": {"limits": {"track": {"v": 0.15, "src": "x"}}},
+  "presets": [{"id": "example-2l", "name": "Example 2-layer", "layers": 2, "limits": {}, "stackup": null}]
+}

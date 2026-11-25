@@ -1,0 +1,67 @@
+/* Constraint Manager: a docked, non-modal spreadsheet panel. Colours come from theme tokens. */
+.work-dialog.cm-dialog {
+  position:fixed;inset:auto 8px 8px 8px;margin:0;width:auto;max-width:none;height:min(46vh,520px);max-height:calc(100vh - 60px);
+  padding:0;overflow:hidden;border-radius:var(--r-lg);background:var(--paper);color:var(--ink);border:1px solid var(--line-strong);
+  box-shadow:var(--elev-3);z-index:var(--z-popover);
+}
+.work-dialog.cm-dialog[open] {display:flex;flex-direction:column}
+.work-dialog.cm-dialog [hidden] {display:none !important}
+.cm-grip {height:6px;flex:none;cursor:ns-resize;background:linear-gradient(var(--line),var(--line)) center/36px 2px no-repeat}
+.cm-grip:hover {background-color:color-mix(in srgb,var(--focus) 25%,transparent)}
+.cm-head {display:flex;align-items:center;gap:12px;padding:2px 8px 6px 12px;border-bottom:1px solid var(--line)}
+.cm-head > div:first-child {flex:0 1 auto;min-width:180px}
+.work-dialog.cm-dialog .cm-summary {margin:1px 0 0;font-size:var(--fs-11);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-tabs {flex-wrap:wrap;margin-left:auto}
+.work-dialog.cm-dialog .cm-close {background:transparent;border-color:transparent;font-size:var(--fs-16);line-height:1;width:28px;padding:0;color:var(--muted)}
+.cm-toolbar {display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--soft)}
+.work-dialog.cm-dialog .cm-find {flex:0 1 260px;min-width:120px}
+.cm-grid th.editable {box-shadow:inset 0 2px var(--primary)}
+.cm-grid th.actual .cm-sort {color:var(--muted)}
+.cm-grid thead tr.cm-filter-row th {top:calc(25px*var(--fs-scale));box-shadow:none}
+.cm-grid th.drop-before {box-shadow:inset 2px 0 var(--focus)}
+.cm-grid th.drop-after {box-shadow:inset -2px 0 var(--focus)}
+.work-dialog.cm-dialog .cm-sort {display:block;white-space:nowrap;min-height:calc(25px*var(--fs-scale));padding:2px 8px 2px 8px}
+.cm-grid th.num .cm-sort {text-align:right}
+.cm-sort[data-dir]::after {content:" " attr(data-dir)}
+.cm-grid td {height:calc(22px + var(--d-row));padding:1px 8px}
+.cm-grid td.num {text-align:right}
+.cm-grid tbody tr:hover td {background:color-mix(in srgb,var(--selection) 28%,var(--paper))}
+.cm-grid tbody tr.sel td {background:color-mix(in srgb,var(--selection) 70%,var(--paper));color:var(--selection-ink)}
+.cm-grid td.editable {cursor:text}
+.cm-grid td.inherited {color:var(--faint)}
+.cm-grid td.bad {color:var(--error-ink);font-weight:600;background:color-mix(in srgb,var(--err-mark) 14%,var(--paper))}
+.cm-grid tbody tr.odd td.bad {background:color-mix(in srgb,var(--err-mark) 18%,var(--paper))}
+.cm-grid td.ok {color:var(--ok-ink)}
+/* The status column's Pass/Fail is a library .ui-badge; this only keeps the column's labels one width. */
+.cm-badge {min-width:38px;justify-content:center}
+.cm-side {flex:0 0 250px;overflow:auto;border-left:1px solid var(--line);padding:8px 12px;background:var(--soft);font-size:var(--fs-12)}
+.cm-side h3 {margin:2px 0 4px;font-size:var(--fs-12)}
+.cm-hint {margin:0 0 8px;color:var(--muted);font-size:var(--fs-11);line-height:1.35}
+.cm-hint.bad,.cm-status.bad {color:var(--error-ink)}
+.cm-collist {display:flex;flex-direction:column;gap:1px;margin-bottom:8px}
+.cm-colitem {display:flex;align-items:center;gap:6px;padding:4px 4px;border-radius:var(--r-sm);cursor:default}
+.cm-colitem:hover {background:var(--hover)}
+.cm-colitem.drop-before {box-shadow:inset 0 2px var(--focus)}
+.cm-colitem.drop-after {box-shadow:inset 0 -2px var(--focus)}
+.cm-tpl {display:flex;flex-direction:column;gap:6px}
+.cm-tpl-list {display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.cm-tpl-item {display:flex;flex-direction:column;gap:4px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--paper)}
+.cm-tpl-item .cm-hint {margin:0}
+.cm-matrix {padding:8px 12px}
+.cm-mtx {border-collapse:separate;border-spacing:0;font-size:var(--fs-12);margin-bottom:8px}
+.cm-mtx th {padding:4px 8px;font-weight:600;white-space:nowrap;background:var(--soft);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center}
+.cm-mtx tr > th:first-child {text-align:left;position:sticky;left:0;z-index:1}
+.cm-mtx td {padding:2px 4px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);position:relative;background:var(--paper)}
+.cm-mtx td.mirror {background:var(--soft)}
+.cm-hits {position:absolute;top:1px;right:2px;font-size:var(--fs-10);font-weight:700}
+.cm-hits.fail {color:var(--error-ink)}
+.cm-hits.pass {color:var(--ok-ink)}
+.cm-dfa-head {display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:8px}
+.cm-field {display:flex;align-items:center;gap:6px;color:var(--muted);font-size:var(--fs-11)}
+.work-dialog.cm-dialog .cm-field input:not([type=checkbox]) {width:var(--field-number-width)}
+.cm-dfa-list {border-collapse:collapse;font-size:var(--fs-12);min-width:420px}
+.cm-dfa-list th,.cm-dfa-list td {padding:4px 8px;border-bottom:1px solid var(--line);text-align:left}
+.cm-dfa-list td.num {text-align:right}
+.cm-dfa-list td.bad {color:var(--error-ink);font-weight:600}
+.cm-dfa-list tr[tabindex]:hover td {background:var(--hover);cursor:default}
+.cm-status {margin:0;padding:4px 12px;min-height:22px;border-top:1px solid var(--line);font-size:var(--fs-11);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

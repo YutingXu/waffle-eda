@@ -1,0 +1,5 @@
+{"kind":"project","formatVersion":"2.0","id":"rule-parameters","entryDocument":"board","name":"Scoped parameter"}
+{"kind":"document","id":"board","docKind":"pcb","name":"Board","order":"V","path":"Board.wpcb"}
+{"kind":"rule","id":"minimum","order":"V","value":{"id":"minimum","enabled":true,"min":{"$number":"0.2"},"name":"Declared minimum","priority":1,"scope":{"bindings":[{"id":"read-min","name":"project.MinTrace","span":[20,36],"target":{"field":"mintrace","parameterId":"p-min","scope":"project"}}],"languageVersion":1,"source":"track where width < project.MinTrace"},"type":"width"}}
+{"kind":"projectSetting","id":"rule-parameters/setting/parameters","key":"parameters","value":{"MinTrace":{"id":"p-min","unit":"mm","value":"0.20"}}}
+{"kind":"projectSetting","id":"rule-parameters/setting/rules","key":"rules","value":{"format":"atrium-rules","units":"mm","version":3}}

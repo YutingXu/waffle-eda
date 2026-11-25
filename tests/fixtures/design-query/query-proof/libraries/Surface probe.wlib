@@ -1,0 +1,3 @@
+{"kind":"library","formatVersion":"2.0","id":"probe-smd","name":"Surface probe"}
+{"kind":"pad","id":"probe-smd/pad/1","order":"V","value":{"h":1000000,"layer":"Top","number":"1","shape":"rect","w":1000000,"x":0,"y":0}}
+{"kind":"librarySettings","id":"probe-smd/settings","value":{"footprint":{"pads":[],"shapes":[]},"prefix":"TP","symbol":{"pins":[],"shapes":[]}}}

@@ -1,0 +1,12 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('Drop test three-point shape'),'2;1');
+FILE_NAME('body.step','1970-01-01T00:00:00',('Waffle'),('Waffle'),'Waffle','Waffle','');
+FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));
+ENDSEC;
+DATA;
+#1=CARTESIAN_POINT('',(0.,0.,0.));
+#2=CARTESIAN_POINT('',(3.,0.,0.));
+#3=CARTESIAN_POINT('',(0.,3.,0.));
+ENDSEC;
+END-ISO-10303-21;

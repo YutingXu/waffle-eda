@@ -1,0 +1,17 @@
+/* Interactive Bus Routing (bus-route.js): the bus picker with its member order, and the status-bar hints (first-use coach,
+   Tune Bus Group accept/discard). */
+.bus-route-dialog {width:min(420px,calc(100vw - 32px));padding:16px 20px}
+.bus-route-dialog[open] {display:flex;flex-direction:column;gap:8px}
+.bus-route-dialog h2 {margin:0 0 4px;font-size:var(--fs-14)}
+.bus-route-dialog select,.bus-route-dialog input:not([type=number]) {width:100%}
+.bus-route-order {margin:0;padding:4px 0 4px 8px;list-style:none;counter-reset:bus-member;max-height:min(40vh,320px);overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);
+  font-variant-numeric:tabular-nums;font-size:var(--fs-12)}
+.bus-route-order li {display:flex;align-items:center;gap:6px;padding:1px 4px}
+.bus-route-order li::before {counter-increment:bus-member;content:counter(bus-member);min-width:3ch;color:var(--muted);text-align:right}
+.bus-route-order li button {margin-left:auto;min-height:calc(var(--ctl-h-sm) - 4px);padding:0 6px;font:inherit}
+.bus-route-order li button + button {margin-left:0}
+.bus-route-msg {margin:0;color:var(--muted);font-size:var(--fs-12)}
+.bus-route-dialog .dialog-actions {display:flex;justify-content:flex-end;gap:8px}
+.bus-route-hint {display:inline-flex;align-items:center;gap:6px;flex:none;max-width:min(70vw,900px);padding:0 4px 0 8px;height:var(--ctl-h-sm);border-radius:var(--r-md);
+  background:var(--tint-info);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:atrium-rise var(--motion) var(--ease)}
+.bus-route-hint .ui-button {flex:none;--ui-control-height:calc(var(--ctl-h-sm) - 4px);padding-block:0}

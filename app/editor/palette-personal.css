@@ -1,0 +1,13 @@
+.palette-personal-groups {display:grid;gap:var(--prf-section-gap,var(--s-24))}
+.palette-personal-groups .prf-group {min-width:0}
+.palette-personal-controls {display:flex;flex-wrap:wrap;gap:var(--s-8);margin-block-start:var(--s-8)}
+.palette-personal-link-form {display:grid}
+.palette-personal-link-form > .prf-button {margin-block-start:var(--s-8)}
+.palette-personal-list {list-style:none;padding:0;margin:var(--s-8) 0 0}
+.palette-personal-list li {display:flex;align-items:center;gap:var(--s-6);padding:var(--s-6) 0;border-top:1px solid var(--line)}
+.palette-personal-list li > span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.palette-personal-status {min-height:1.35em}
+.palette-personal-groups .prf-button {min-height:var(--ctl-h-lg)}
+@media (pointer:coarse) {
+  .palette-personal-groups .prf-button {min-height:var(--ctl-h-touch)}
+}

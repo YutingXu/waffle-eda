@@ -1,0 +1,9 @@
+/* PCB place and draw tools (pcb-draw.js): Tab properties dialog and Properties hints. */
+.pcbdraw-props {min-width:300px;max-width:min(420px,calc(100vw - 32px))}
+.pcbdraw-props h2 {margin:0 0 8px;font-size:var(--fs-14);font-weight:600}
+.pcbdraw-fields {display:grid;gap:6px}
+.pcbdraw-fields .field-row {display:grid;grid-template-columns:minmax(110px,40%) 1fr;align-items:center;gap:8px}
+.pcbdraw-fields .field-row input:not([type=checkbox]),.pcbdraw-fields .field-row select {min-width:0;width:100%}
+.pcbdraw-check {display:flex !important;align-items:center;gap:6px}
+.pcbdraw-actions {display:flex;justify-content:flex-end;margin-top:12px}
+.pcbdraw-hint {margin:6px 0 0;color:var(--muted);font-size:var(--fs-11);line-height:1.35}

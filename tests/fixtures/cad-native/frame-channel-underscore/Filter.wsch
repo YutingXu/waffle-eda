@@ -1,0 +1,6 @@
+{"kind":"schematic","formatVersion":"2.0","id":"e0d69b3c-8c35-4549-a862-5f72c9eb0f53"}
+{"kind":"netlabel","id":"0c8b267a-6da7-4cd6-893d-867a0fbbf5b1","at":[5080000,0],"autoName":{"part":"52a0cca7-f64e-496c-9428-87beb080d8c0","pin":"2","style":"underscore"},"order":"C","text":"NetR1_CH1_2"}
+{"kind":"wire","id":"2cbeb9ba-f07c-45f8-a204-96730c487ed9","order":"a","points":[[5080000,0],[10000000,0]]}
+{"kind":"part","id":"52a0cca7-f64e-496c-9428-87beb080d8c0","angle":0,"at":[0,0],"def":"std-r","link":"6fbf96fb-c97b-45cc-bced-a677695dd03a","order":"O","pinNets":{},"ref":"R1","value":"10 kΩ"}
+{"kind":"port","id":"6d3b8c4a-f553-4eaf-8722-3ada4845166a","angle":0,"at":[10000000,0],"io":"unspecified","order":"m","text":"NetR1_CH1_2"}
+{"kind":"documentSettings","id":"e0d69b3c-8c35-4549-a862-5f72c9eb0f53/settings","value":{"grid":1270000,"notes":[],"outline":[]}}

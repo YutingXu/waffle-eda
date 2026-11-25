@@ -1,0 +1,72 @@
+/* Assembly variants: status-bar switcher and the Variant Management dialog. Colours come from theme tokens. */
+.statusbar .variant-switch {display:flex;align-items:center;height:100%}
+.statusbar .variant-switch[hidden] {display:none}
+.statusbar .variant-switch-label {display:none}
+.statusbar .variant-switch select {field-sizing:content;max-inline-size:112px;text-overflow:ellipsis;cursor:default}
+.statusbar .variant-switch.has-variant select {color:var(--ink)}
+@media (max-width:620px) {.statusbar .variant-switch select {max-width:11ch}}
+
+.work-dialog.variants-dialog {
+  --vr-nf:var(--danger);--vr-nf-bg:var(--tint-danger);--vr-alt:var(--info);--vr-alt-bg:var(--tint-info);--vr-diff:var(--tint-warning);
+  width:min(1180px,var(--dialog-avail-w));height:min(84vh,820px,var(--dialog-avail-h));max-height:var(--dialog-avail-h);padding:0;overflow:hidden;border-radius:var(--r-lg);
+  background:var(--paper);color:var(--ink)
+}
+.work-dialog.variants-dialog[open] {display:flex;flex-direction:column}
+.work-dialog.variants-dialog [hidden] {display:none !important}
+.variants-head {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 12px 8px 16px;border-bottom:1px solid var(--line)}
+.work-dialog.variants-dialog .variants-head h2 {margin:0;font-size:var(--fs-14);font-weight:600}
+.work-dialog.variants-dialog .variants-summary {margin:2px 0 0;font-size:var(--fs-11);color:var(--muted)}
+.work-dialog.variants-dialog .variants-close {background:transparent;border-color:transparent;font-size:var(--fs-16);line-height:1;width:28px;padding:0;color:var(--muted);display:none}
+.work-dialog.variants-dialog textarea {resize:vertical;width:100%}
+.work-dialog.variants-dialog input[type=checkbox] {margin:0}
+
+.variants-toolbar {display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:6px 16px;border-bottom:1px solid var(--line);background:var(--soft)}
+.variants-ops {display:flex;gap:4px}
+.variants-toolbar > .ui-search {flex:0 1 200px;min-width:110px}
+.variants-compare {display:flex;align-items:center;gap:6px;margin-left:auto;font-size:var(--fs-11);color:var(--muted)}
+.variants-compare select {max-width:150px}
+.variants-check {display:flex;align-items:center;gap:4px;white-space:nowrap}
+
+.variants-panel {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px;align-items:start;padding:8px 16px;border-bottom:1px solid var(--line);background:var(--panel-head)}
+.variants-panel > strong {grid-column:1/-1;font-size:var(--fs-12)}
+.variants-field {display:flex;flex-direction:column;gap:4px;font-size:var(--fs-11);color:var(--muted)}
+.variants-field small {font-size:var(--fs-10)}
+.variants-panel-actions {grid-column:1/-1;display:flex;justify-content:flex-end;gap:6px}
+.variants-confirm {grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:var(--fs-12)}
+.variants-confirm span {flex:1}
+
+.variants-grid-wrap {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;outline:none}
+:root[data-focus-nav=keys] .variants-grid-wrap:focus-visible {box-shadow:inset 0 0 0 1px var(--focus)}
+.variants-grid {border-collapse:separate;border-spacing:0;font-size:var(--fs-12);line-height:1.3;font-variant-numeric:tabular-nums;min-width:100%}
+.variants-grid th,.variants-grid td {padding:4px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;text-align:left}
+.variants-grid thead th {position:sticky;top:0;z-index:2;background:var(--soft);font-weight:600;vertical-align:bottom}
+.variants-grid thead th.var {min-width:120px;cursor:default}
+.variants-grid thead th.var span {display:block}
+.variants-grid thead th.var small {display:block;font-weight:400;color:var(--muted);font-size:var(--fs-10)}
+.variants-grid thead th.var.base {cursor:default}
+.variants-grid thead th.is-focus {box-shadow:inset 0 -2px var(--focus)}
+.variants-grid thead th.is-active span::after {content:"●";margin-left:6px;color:var(--primary);font-size:var(--fs-10);vertical-align:2px}
+.variants-grid th.fixed.ref {position:sticky;left:0;z-index:1;background:var(--paper);cursor:default;font-weight:600;min-width:64px}
+.variants-grid thead th.fixed.ref {z-index:3;background:var(--soft);cursor:default}
+.variants-grid td.fixed {color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.variants-grid tbody tr:hover > * {background-color:var(--hover)}
+.variants-grid tbody tr.is-diff > th.ref {box-shadow:inset 3px 0 var(--warning)}
+.variants-grid tbody tr.is-diff > td.fixed {background:var(--vr-diff)}
+.variants-grid td.cell {cursor:default;-webkit-user-select:none;user-select:none;min-width:120px}
+.variants-grid td.cell .icon {display:inline-block;width:14px;font-weight:700}
+.variants-grid td.cell.fit .label {color:var(--ink)}
+.variants-grid td.cell.inherit.fit .label,.variants-grid td.cell.base.fit .label {color:var(--muted)}
+.variants-grid td.cell.nf {background:var(--vr-nf-bg);color:var(--vr-nf);font-weight:600}
+.variants-grid td.cell.alt {background:var(--vr-alt-bg);color:var(--vr-alt);font-weight:600}
+.variants-grid td.cell .badge {display:inline-block;margin-left:6px;padding:0 4px;border-radius:var(--r-sm);border:1px solid currentColor;font-size:var(--fs-10);font-weight:700;color:var(--vr-alt)}
+.variants-grid td.cell.is-selected {box-shadow:inset 0 0 0 999px color-mix(in srgb,var(--selection) 70%,transparent);color:var(--selection-ink)}
+.variants-grid td.cell.is-cursor {outline:2px solid var(--focus);outline-offset:-2px}
+.variants-grid th.var.add button {font-weight:500}
+.variants-empty {padding:16px;color:var(--muted);font-size:var(--fs-12);border-top:1px solid var(--line)}
+
+.variants-actions {display:flex;align-items:center;gap:8px;padding:8px 16px;margin:0;border-top:1px solid var(--line)}
+.variants-bulk {display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.variants-selection {font-size:var(--fs-11);color:var(--muted);margin-right:6px;min-width:110px}
+.variants-status {flex:1;text-align:right;font-size:var(--fs-11);color:var(--muted)}
+@media (prefers-reduced-motion:no-preference) {.variants-grid td.cell {transition:background-color var(--motion-instant) linear}}
+/* UX review 2: one close affordance (the footer's Close; Escape also closes) and 24 px fields. */

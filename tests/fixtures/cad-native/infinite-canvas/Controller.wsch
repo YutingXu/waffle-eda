@@ -1,0 +1,6 @@
+{"kind":"schematic","formatVersion":"2.0","id":"controller","sheet":{"size":"A4"}}
+{"kind":"documentSettings","id":"controller/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"frame","id":"frame-b","at":[60000000,20000000],"h":24000000,"name":"Diagnostics","order":"m","w":35000000}
+{"kind":"offsheet","id":"off-explicit","at":[5000000,5000000],"order":"O","text":"AUX"}
+{"kind":"offsheet","id":"off-in","at":[15000000,15000000],"io":"input","order":"C","text":"SENSE"}
+{"kind":"textframe","id":"ordinary-note","at":[0,30000000],"h":12000000,"order":"a","text":"Assembly note","w":50000000}

@@ -1,0 +1,21 @@
+{
+  "id": "atrium-samples.net-length-report",
+  "name": "Net Length Report",
+  "publisher": "Waffle samples",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "A right-dock panel listing routed length, track and via counts per net on the active board. Click a row to select the net. Updates as you edit.",
+  "main": "main.js",
+  "activationEvents": ["onView:netLengths", "onCommand:netLengths.show"],
+  "permissions": ["read:project", "outputs:write", "ui:panel", "ui:command"],
+  "contributes": {
+    "commands": [
+      {"command": "netLengths.show", "title": "Net Length Report", "when": "pcb"},
+      {"command": "netLengths.refresh", "title": "Refresh Net Length Report"},
+      {"command": "netLengths.export", "title": "Export Net Lengths (CSV)", "when": "pcb"},
+      {"command": "netLengths.select", "title": "Select Net"}
+    ],
+    "menus": {"reports": [{"command": "netLengths.show"}]},
+    "panels": [{"id": "netLengths", "title": "Net Lengths", "location": "right"}]
+  }
+}

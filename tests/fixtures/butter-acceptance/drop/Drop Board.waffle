@@ -1,0 +1,4 @@
+{"kind":"project","formatVersion":"2.0","id":"01952049-a000-7000-8000-000000000001","name":"Drop Board"}
+{"kind":"document","id":"01952049-a000-7000-8000-000000000002","docKind":"schematic","name":"Drop sheet","order":"K","path":"Drop sheet.wsch"}
+{"kind":"document","id":"01952049-a000-7000-8000-000000000003","docKind":"pcb","name":"Drop layout","order":"e","path":"Drop layout.wpcb"}
+{"kind":"library","id":"01952049-a000-7000-8000-000000000004","order":"V","path":"libraries/Resistor.wlib"}

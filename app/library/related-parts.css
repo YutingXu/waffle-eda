@@ -1,0 +1,15 @@
+/* Design › Library › Related Components… (related-parts.js). Builds on .work-dialog (workflows.css). */
+.related-components-dialog {width:min(720px,calc(100vw - 32px));max-height:min(86vh,760px);display:flex;flex-direction:column;gap:var(--s-6)}
+.related-components-field {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);align-items:center;gap:var(--s-8)}
+.related-components-field > .ui-field:not([type=number]) {inline-size:100%;min-inline-size:0}
+.rel-help,.rel-back,.rel-empty {margin:0;color:var(--muted);font-size:var(--fs-12)}
+.rel-rows {overflow:auto;min-height:60px;display:flex;flex-direction:column;gap:2px}
+.rel-rows h3 {margin:8px 0 2px;font-size:var(--fs-13)}
+.rel-row {display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:4px 8px;border-radius:var(--r-sm);
+  transition:background-color var(--motion-fast) var(--ease-standard)}
+.rel-row:hover {background:var(--soft)}
+.rel-note {color:var(--muted);font-size:var(--fs-12)}
+.related-components-form {display:grid;gap:var(--s-4);min-inline-size:0;margin:0;padding:var(--s-8) 0 0;border:0;border-block-start:1px solid var(--line)}
+.related-components-add {display:flex;justify-content:flex-end}
+.rel-status {min-height:1.4em;margin:0}
+@media (max-width:640px){.rel-row{grid-template-columns:1fr auto}.rel-note{display:none}}

@@ -1,0 +1,190 @@
+{
+  "fixture": "tests/fixtures/butter-acceptance/drop",
+  "manifest": "Drop Board.waffle",
+  "cases": {
+    "inspect": {
+      "args": {
+        "source": {
+          "files": [
+            {
+              "name": "Datasheet.pdf",
+              "size": 4096
+            }
+          ]
+        },
+        "target": {
+          "kind": "sheet"
+        }
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.route": "insert-pdf",
+        "untrusted_design_text.target.kind": "sheet"
+      }
+    },
+    "place-library": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000002",
+        "definitionId": "01952049-a000-7000-8000-000000000004",
+        "x": 22,
+        "y": 5
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Drop sheet.wsch"
+      ]
+    },
+    "scope-rule": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000003",
+        "ruleId": "clearance-1",
+        "netId": "GND"
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Drop Board.waffle"
+      ],
+      "expectPaths": {
+        "untrusted_design_text.scope.languageVersion": 1,
+        "untrusted_design_text.scope.source": "object where net.name = \"GND\""
+      }
+    },
+    "resolve-result": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000002",
+        "objectId": "01952049-a000-7000-8000-000000000005"
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found",
+        "untrusted_design_text.target.objectId": "01952049-a000-7000-8000-000000000005"
+      }
+    },
+    "export-bom": {
+      "args": {},
+      "expect": {
+        "lines": 1,
+        "parts": 1
+      },
+      "expectWrite": {
+        "mode": "write"
+      },
+      "outputFile": "Drop Board-outputs/bom/Drop Board-BOM.csv"
+    },
+    "export-frame": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000002",
+        "frameId": "01952049-a000-7000-8000-000000000007"
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectWrite": {
+        "mode": "write"
+      },
+      "outputFile": "Drop Board-outputs/pdf/Frame A.pdf"
+    },
+    "export-selection": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000002",
+        "objectIds": [
+          "01952049-a000-7000-8000-000000000005"
+        ],
+        "width": 100
+      },
+      "expect": {
+        "count": 1
+      },
+      "expectWrite": {
+        "mode": "write"
+      },
+      "outputFile": "Drop Board-outputs/selection/Drop sheet-selection.svg"
+    },
+    "attach-model": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000003",
+        "partId": "01952049-a000-7000-8000-000000000006",
+        "file": "body.step"
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "libraries/Resistor.wlib",
+        "models/7e24bfd8bb08e581c23df2db52f3718fcce72ac7e2ac85588f898057097e7faa.step.gz"
+      ],
+      "expectWritePaths": {
+        "untrusted_design_text.source": "body.step"
+      }
+    },
+    "import-table": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000002",
+        "tableId": "01952049-a000-7000-8000-000000000008",
+        "file": "input.csv"
+      },
+      "expect": {
+        "rows": 2,
+        "columns": 2,
+        "changes": 1
+      },
+      "expectWrite": {
+        "rows": 2,
+        "columns": 2
+      },
+      "changedMembers": [
+        "Drop sheet.wsch"
+      ]
+    },
+    "bind-calculation": {
+      "args": {
+        "documentId": "01952049-a000-7000-8000-000000000002",
+        "calculationId": "01952049-a000-7000-8000-000000000009",
+        "partDocumentId": "01952049-a000-7000-8000-000000000002",
+        "partId": "01952049-a000-7000-8000-000000000005",
+        "start": 7,
+        "end": 9
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Drop sheet.wsch"
+      ]
+    },
+    "open-design": {
+      "args": {
+        "files": [
+          "input.kicad_pcb"
+        ]
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.kind": "preview",
+        "untrusted_design_text.report.translator": "kicad"
+      }
+    }
+  }
+}

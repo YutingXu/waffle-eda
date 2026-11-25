@@ -1,0 +1,50 @@
+/* Clipboard history (clip-history.js): the Clipboard panel and the Mod+Alt+V picker. Tokens only. */
+.clip-clear {margin-inline-start:auto}
+.clip-clear:hover:not(:disabled) {background:var(--hover)}
+.clip-clear:disabled {opacity:.5}
+.clip-item.is-other-kind .clip-thumb {opacity:.6}
+.clip-frame {position:relative;flex:none;display:flex}
+.clip-thumb {flex:none;width:88px;height:55px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--canvas-bg)}
+.clip-thumb[data-kind="schematic"] {background:var(--field)}
+.clip-thumb[data-pending] {background:var(--raised)}
+.clip-line {display:flex;align-items:center;gap:var(--s-6);min-width:0}
+.clip-name {flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:var(--fw-medium)}
+.clip-badge {flex:none}
+.clip-meta,.clip-src {display:flex;gap:var(--s-6);align-items:center;min-width:0;line-height:var(--lh)}
+.clip-counts,.clip-source {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clip-time {flex:none;font-variant-numeric:tabular-nums}
+.clip-source + .clip-time::before {content:"· "}
+/* The kind (Schematic or Layout) is a chip on the thumbnail's top-left corner. */
+.clip-kind {position:absolute;left:var(--s-2);top:var(--s-2);padding:0 var(--s-4);border-radius:var(--r-sm);background:var(--overlay);font-size:var(--fs-10);line-height:14px;font-weight:var(--fw-medium);text-transform:uppercase;letter-spacing:.04em;pointer-events:none}
+.clip-kind-schematic {color:var(--info)}
+.clip-kind-pcb {color:var(--warning)}
+/* The actionable row keeps its controls beside the artwork at every pointer size. */
+.clip-actions {position:absolute;left:var(--s-2);bottom:var(--s-2);display:flex;gap:var(--s-2);padding:1px;border-radius:var(--r-sm);background:var(--overlay);box-shadow:var(--elev-1);opacity:0}
+[data-butter-visual-history] .clip-actions {position:static;align-self:flex-start;align-items:center;padding:0;background:transparent;box-shadow:none}
+.clip-item:focus-within .clip-actions,.clip-item:hover .clip-actions,.clip-item[aria-selected="true"] .clip-actions,.clip-item.is-pinned .clip-actions {opacity:1}
+.clip-item.is-pinned:not(:hover):not([aria-selected="true"]) .clip-actions > :not(.clip-pin) {display:none}
+.clip-pin[aria-pressed="true"] .icon {fill:currentColor}
+.clip-rename-input {min-width:0;width:100%;height:var(--ctl-h-sm);padding:0 var(--s-4);border:1px solid var(--focus);border-radius:var(--r-sm);background:var(--field);color:var(--ink);font:inherit;font-size:var(--fs-12)}
+.clip-empty[hidden],.clip-note[hidden] {display:none}
+.clip-note {margin:var(--s-4) var(--s-8);color:var(--warning);font-size:var(--fs-11);line-height:var(--lh)}
+
+/* Mod+Alt+V picker: a small list at the cursor. */
+.clip-picker {position:fixed;margin:0;inset:auto;width:min(340px,calc(100vw - 16px));max-height:min(440px,calc(100vh - 16px));padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--overlay);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-12)}
+.clip-picker:not([open]) {display:none}
+.clip-picker::backdrop {background:transparent}
+.clip-picker-head {display:flex;align-items:center;gap:var(--s-8);padding:var(--s-6) var(--s-8);border-bottom:1px solid var(--line)}
+.clip-picker-head h2 {margin:0;font-size:var(--fs-12);font-weight:var(--fw-semibold)}
+.clip-picker-key {margin-inline-start:auto}
+.clip-picker .clip-list {--ui-card-fill:transparent;--ui-row-hover:transparent;flex:1 1 auto;min-height:0;max-height:340px;padding-top:var(--s-6)}
+.clip-picker-foot {display:flex;align-items:center;justify-content:normal;margin-block-start:0;gap:var(--s-8);border-top:1px solid var(--line);padding-right:var(--s-8)}
+.clip-picker-foot .clip-foot {flex:1 1 auto;border-top:0}
+.clip-open-panel {flex:none}
+.clip-open-panel:hover {background:var(--hover)}
+
+.clip-search {display:flex;gap:var(--s-4);padding:var(--s-4) var(--s-8)}
+.clip-search[hidden] {display:none}
+.clip-search > .ui-search {flex:1;min-width:0}
+@media (pointer:coarse) {
+  [data-butter-visual-history] .clip-actions {opacity:1}
+  [data-butter-visual-history] .clip-actions button,.clip-filter {min-height:32px;min-width:32px}
+}

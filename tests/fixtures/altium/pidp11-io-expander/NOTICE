@@ -1,0 +1,65 @@
+PiDP-11 I/O Expander: Altium Designer source files used as an import test fixture.
+
+Source:   https://github.com/sstallion/PCB-PiDP11IOExpander
+Commit:   d97b81645091da8404661b37f75e4872c1788f79
+Author:   Steven Stallion
+Licence:  Simplified BSD License (BSD-2-Clause); the full text is in LICENSE.
+
+Files (unmodified, byte-for-byte copies of the upstream commit; the binary
+documents were fetched from GitHub's LFS media endpoint):
+
+  PiDP11IOExpander.SchDoc       sha256 8555c4ece52cebd911b6152bd211d4e8b7dc59f003fc5a031e1c7d525ff4325d
+  PiDP11IOExpander.PcbDoc       sha256 1ff7234670ec5e20092d23ecf0cd5e7380e842ef7efff2b5cb992f53f84c9c69
+  PCB-PiDP11IOExpander.PrjPcb   sha256 ede24d715cf83b91bb0d0e86a0f747d315de0f036bb9309a6e7e29c451e6a359
+
+Used by tests/import-altium-real.cjs, which imports the project and compares an
+import report (parts, nets, tracks, vias, pours, notes) with a snapshot.
+Atrium is not affiliated with the author or with Altium LLC. Altium Designer is
+a trademark of Altium LLC.
+
+Altium reference outputs (altium-outputs-reva/)
+-----------------------------------------------
+The Gerber and NC drill files Altium Designer 21.5.1 generated for this board,
+used by tests/altium-fab-parity.cjs as the reference fabrication output.
+
+Source:   https://github.com/sstallion/PCB-PiDP11IOExpander/releases/tag/RevA
+          release asset PCB-PiDP11IOExpander-RevA.zip
+          (sha256 87c4064f8b7168c1ddfd187b0eb81a24474d54a8a174ba0d8a8518d9b0841643),
+          tag RevA -> commit 3a4fe6f68b1ae437ce63bfbbe1f34fabaf4faacd ("Release Revision A").
+Author:   Steven Stallion
+Licence:  BSD-2-Clause, as the repository; the release's own LICENSE.txt is
+          altium-outputs-reva/LICENSE.txt (same terms; its copyright line reads
+          "Copyright (c) 2021 Steven Stallion / All rights reserved.").
+Board:    the release's Sources/PiDP11IOExpander.PcbDoc is byte-identical to
+          PiDP11IOExpander.PcbDoc above (sha256 1ff72346...), so these files are
+          Altium's output for exactly this fixture.
+
+Files (unmodified, byte-for-byte copies from the zip's "Fabrication/Gerber Files"
+and "Fabrication/NC Drill Files" folders; CRLF line endings kept, see .gitattributes):
+
+  PiDP11IOExpander.GTL     sha256 894b658f0278ff9aaff4716352428ba109ad35755d359b3f2e8fdbe43df48c68
+  PiDP11IOExpander.GBL     sha256 626bdebff03ad0b3c9044079a5876441433d7262487fdcf2fbfa86e366894363
+  PiDP11IOExpander.GTO     sha256 d92078604907b256626c34861687ac443ce6f54a670ef2634bd5008190098aa7
+  PiDP11IOExpander.GBO     sha256 23cb5fb95478c69d0de9700493b6a3c2fff03299b4b3692f8b8ae92fbd3e1f28
+  PiDP11IOExpander.GTS     sha256 e51dae137bfa88289352f3569e230995bfdd9788a1eb0f7d5232a4c8de4992e5
+  PiDP11IOExpander.GBS     sha256 cb4577080898e12c384e1f7cd6b682aa7fbb82650bfe0b882f959f6be013fd23
+  PiDP11IOExpander.GTP     sha256 e08933bff8ef6b6fffa08be632eec4f5df23d835061c20dc3e11bfb87078021c
+  PiDP11IOExpander.GBP     sha256 f43343e62ba7ef73bd279f4e8cb37a0b9e0b5d1b9913ab3c8bf6635a9c6ced5b
+  PiDP11IOExpander.GM1     sha256 dd7782e90835973309649ce012941d7ae61f026451f476ccf2d13e2ae1ce4dd0
+  PiDP11IOExpander.EXTREP  sha256 7f5746e970c25568e6281a95997700f47b1c014853f7f4e801d859189531e35e
+  PiDP11IOExpander.TXT     sha256 e7fdf2a0145b4dd0e9934acdce2243598859c880f061b3edada198c8fc3e8e7e
+  PiDP11IOExpander.DRR     sha256 db70a097230326961091cfbd34f4bad7eeab8c5b29b309a1d0b525aa561a8b2e
+  LICENSE.txt              sha256 5e799349ab4701dfae69702e03ca3a4ebf74a4fdb7833afc9bbbf5f1524af3b9
+
+Altium Designer generated these files; they contain no Altium software.
+
+Native ASCII geometry fixture
+-----------------------------
+designer-ascii-geometry.txt contains eight filtered records from Altium
+Designer's ASCII save of the upstream PiDP11IOExpander.PcbDoc identified above.
+The selected fields retain their original spellings, values, IDs and order.
+Line endings have been normalized. The complete native ASCII save had SHA-256
+f1cae67437698f5a0812729ef9bc1892266bd644ded128e599863b5acdb51b00.
+The board outline and the three overlay arc centers were also measured through
+the native PCB editor. This derived fixture is covered by the same BSD-2-Clause
+license.

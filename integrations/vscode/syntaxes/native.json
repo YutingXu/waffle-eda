@@ -1,0 +1,1 @@
+{"scopeName":"source.waffle-native","patterns":[{"begin":"^(?=.)","end":"$","patterns":[{"include":"source.json"}]}]}

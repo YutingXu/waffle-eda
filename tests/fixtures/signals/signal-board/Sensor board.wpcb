@@ -1,0 +1,43 @@
+{"kind":"pcb","formatVersion":"2.0","id":"097c0530-aeb7-40f8-be92-cd30fc8b4702"}
+{"kind":"track","id":"00ec6788-4515-48dc-abfb-c4a80be00b31","layer":"Bottom","net":"VDD","order":"QQ","points":[[19700000,5100000],[19700000,8950000],[21400000,10650000]],"width":480000}
+{"kind":"documentSettings","id":"097c0530-aeb7-40f8-be92-cd30fc8b4702/settings","value":{"grid":250000,"notes":[],"outline":[[1500000,0],[34500000,0],[36000000,1500000],[36000000,20500000],[34500000,22000000],[1500000,22000000],[0,20500000],[0,1500000]]}}
+{"kind":"label","id":"10399727-fd0d-4f65-a741-675b31c118ed","at":[5600000,3050000],"layer":"Silk","order":"mR","size":1050000,"text":"SENSOR INTERFACE"}
+{"kind":"via","id":"138a2e8a-de74-4f42-93f3-50886aadd9fa","at":[16100000,11600000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"TM"}
+{"kind":"label","id":"16bf2d84-c4e4-4fef-9d6b-14b5a337dee4","at":[31350000,14450000],"layer":"Silk","order":"qq","size":650000,"text":"OUT"}
+{"kind":"track","id":"23b90711-161e-4103-997f-085aef700899","layer":"Bottom","net":"GND","order":"f6","points":[[13300000,16200000],[26200000,16200000],[30830000,11570000],[32200000,11570000]],"width":480000}
+{"kind":"track","id":"29e37643-0676-4550-b2c1-b6c7ee88ccc6","layer":"Top","net":"FILTER","order":"Eg","points":[[13300000,13500000],[15300000,13500000],[16250000,12550000],[17250000,12550000]],"width":320000}
+{"kind":"track","id":"2ec5cdac-6eda-4fa0-8dbb-9eb3a13c7c54","layer":"Top","net":"VDD","order":"Rt","points":[[21400000,10650000],[19750000,10650000]],"width":480000}
+{"kind":"label","id":"38e887cb-e0a1-46bb-b59a-bffe00514f8d","at":[5650000,4600000],"layer":"Silk","order":"nu","size":560000,"text":"AFE  /  REV A"}
+{"kind":"via","id":"41583690-7adb-4128-95d2-3d480b05bdd1","at":[13300000,16200000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"ZE"}
+{"kind":"via","id":"42917531-df19-466d-a0c9-63669861d93a","at":[21400000,10650000],"diameter":840000,"drill":400000,"layer":"Multi","net":"VDD","order":"Ox"}
+{"kind":"track","id":"452d33da-bec3-4f2a-bbd1-b6eec34e4c96","layer":"Top","net":"GND","order":"ah","points":[[13300000,15100000],[13300000,16200000]],"width":480000}
+{"kind":"track","id":"60638950-c18d-41e4-a097-afd2340645dc","layer":"Top","net":"BUF","order":"G9","points":[[17250000,10650000],[16200000,10650000],[15200000,9650000],[15200000,8200000],[16200000,7200000],[17000000,7200000],[19200000,9400000],[21000000,9400000],[21400000,9000000],[24400000,9000000]],"width":320000}
+{"kind":"track","id":"6151be43-0635-48ac-98dc-ba5057123cb2","layer":"Top","net":"VIN","order":"Bk","points":[[3800000,11000000],[9100000,11000000]],"width":320000}
+{"kind":"pad","id":"77bbee81-1b27-47af-ba08-f324524f3eb8","at":[2600000,2600000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"gZ","shape":"round","w":2400000}
+{"kind":"track","id":"7925081d-f093-4c25-a63d-0f052e4e690c","layer":"Bottom","net":"GND","order":"dd","points":[[17900000,11600000],[19500000,13200000],[22900000,13200000],[23300000,12800000],[23300000,8100000],[22000000,6800000],[21550000,6800000]],"width":480000}
+{"kind":"track","id":"8254f832-b9f0-41b0-9b1a-aad9a79b5e5a","layer":"Top","net":"GND","order":"Xl","points":[[20200000,6800000],[21550000,6800000]],"width":480000}
+{"kind":"track","id":"8774a67a-7abc-46c7-80d2-1ac8025f9ecb","layer":"Top","net":"VDD","order":"NU","points":[[19700000,5100000],[18600000,6200000],[18600000,6800000]],"width":480000}
+{"kind":"label","id":"98b8388e-5ebe-4f2d-8649-e0e2accb280d","at":[27100000,19650000],"layer":"Silk","order":"sJ","size":740000,"text":"ATRIUM"}
+{"kind":"label","id":"9dad0c8e-4aee-49a5-b07f-584ccc4fae7b","at":[2150000,16800000],"layer":"Silk","order":"pN","size":530000,"text":"ANALOG IN"}
+{"kind":"track","id":"9e91df9d-629d-46c1-901e-3b2ca42abfd6","layer":"Top","net":"BUF","order":"Hc","points":[[19750000,12550000],[21600000,12550000],[22600000,11550000],[22600000,10100000],[23700000,9000000],[24400000,9000000]],"width":320000}
+{"kind":"pad","id":"9f59ce76-f6a1-4b2a-8ea7-9d206df190e2","at":[2600000,19400000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"jV","shape":"round","w":2400000}
+{"kind":"via","id":"9fcf995f-96aa-4667-a5c5-7f2bbda06483","at":[19700000,5100000],"diameter":840000,"drill":400000,"layer":"Multi","net":"VDD","order":"KY"}
+{"kind":"pad","id":"a6cf1fbc-2981-4f99-bed2-00f2a7cf534b","at":[33400000,2600000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"i2","shape":"round","w":2400000}
+{"kind":"track","id":"a9d5baf1-b01e-4d67-9b53-422a7e938c19","layer":"Bottom","net":"GND","order":"cA","points":[[3800000,13540000],[6300000,13540000],[8960000,16200000],[13300000,16200000],[17900000,11600000],[16100000,11600000]],"width":480000}
+{"kind":"part","id":"b-C1","angle":270000000000,"at":[13300000,14300000],"def":"std-c","link":"link-C1","order":"4P","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","value":"10 nF"}
+{"kind":"part","id":"b-C2","angle":0,"at":[19400000,6800000],"def":"std-c","link":"link-C2","order":"AH","pinNets":{"1":"VDD","2":"GND"},"ref":"C2","value":"100 nF"}
+{"kind":"part","id":"b-J1","angle":0,"at":[3800000,11000000],"def":"std-j3","link":"link-J1","order":"1T","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","value":"Input"}
+{"kind":"part","id":"b-J2","angle":0,"at":[32200000,10300000],"def":"std-j2","link":"link-J2","order":"8o","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","value":"Output"}
+{"kind":"part","id":"b-R1","angle":0,"at":[9900000,11000000],"def":"std-r","link":"link-R1","order":"2w","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R1","value":"10 kΩ"}
+{"kind":"part","id":"b-R2","angle":0,"at":[25200000,9000000],"def":"std-r","link":"link-R2","order":"7L","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","value":"100 Ω"}
+{"kind":"part","id":"b-U1","angle":0,"at":[18500000,11600000],"def":"std-opamp","link":"link-U1","order":"5s","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","value":"Buffer"}
+{"kind":"pad","id":"b48f2eec-8fc8-49d0-9566-28c44795c8a0","at":[33400000,19400000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"ky","shape":"round","w":2400000}
+{"kind":"track","id":"b94e2868-3d6a-4501-85b3-b14b8747cc44","layer":"Top","net":"FILTER","order":"DD","points":[[10700000,11000000],[12000000,11000000],[13300000,12300000],[13300000,13500000]],"width":320000}
+{"kind":"via","id":"c10c25af-53fd-478f-83c9-ceed12ad8a4a","at":[21550000,6800000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"WI"}
+{"kind":"track","id":"c7f56de7-f967-4db2-96f0-5af590f861ce","layer":"Top","net":"GND","order":"Up","points":[[17250000,11600000],[16100000,11600000]],"width":480000}
+{"kind":"track","id":"dd9c19c2-6a61-4350-bb4b-fb1d84ab5b06","layer":"Top","net":"VOUT","order":"J5","points":[[26000000,9000000],[29600000,9000000],[29630000,9030000],[32200000,9030000]],"width":320000}
+{"kind":"track","id":"ea19a0d8-0dbf-43e1-8b7d-17042cc8367a","layer":"Bottom","net":"VDD","order":"M1","points":[[3800000,8460000],[7200000,8460000],[9160000,6500000],[14500000,6500000],[15900000,5100000],[19700000,5100000]],"width":480000}
+{"kind":"part","id":"sig-C3","angle":270000000000,"at":[15000000,38000000],"def":"std-c","link":"link-C1","order":"vF","pinNets":{"1":"TX_P","2":"TX_P_C"},"ref":"C3","value":"10 nF"}
+{"kind":"part","id":"sig-C4","angle":270000000000,"at":[15000000,42000000],"def":"std-c","link":"link-C1","order":"wi","pinNets":{"1":"TX_N","2":"TX_N_C"},"ref":"C4","value":"10 nF"}
+{"kind":"part","id":"sig-J3","angle":0,"at":[5000000,40000000],"def":"std-j2","link":"link-J2","order":"tm","pinNets":{"1":"TX_P","2":"TX_N"},"ref":"J3","value":"Output"}
+{"kind":"part","id":"sig-J4","angle":0,"at":[25000000,40000000],"def":"std-j2","link":"link-J2","order":"yB","pinNets":{"1":"TX_P_C","2":"TX_N_C"},"ref":"J4","value":"Output"}

@@ -1,0 +1,28 @@
+M48
+;DRILL file {Waffle 1.0} date 2026-11-18T10:30:00+00:00
+;Board: HDI
+;FORMAT={-:-/ absolute / metric / decimal}
+; #@! TF.CreationDate,2026-11-18T10:30:00+00:00
+; #@! TF.GenerationSoftware,Waffle,Waffle,1.0
+; #@! TF.FileFunction,Other,ViaFill,1,2
+; #@! TF.FilePolarity,Positive
+;TYPE=PLATED
+;LAYER_PAIR=Top - Inner 1
+;DRILL_PAIR=Top Layer - GND (blind)
+;LASER=microvia
+;VIA_FILL=plug or fill these holes (IPC-4761 VII); they are also in the drill file of their span
+;ORIGIN=board lower-left corner
+METRIC
+; #@! TA.AperFunction,ViaDrill,VII
+T01C0.100
+%
+G90
+G05
+T01
+X8.0Y26.0
+X12.0Y26.0
+X16.0Y26.0
+X20.0Y26.0
+X44.0Y26.0
+T0
+M30

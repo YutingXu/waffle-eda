@@ -1,0 +1,39 @@
+{"kind":"pcb","formatVersion":"2.0","id":"amwmqqymcb98cj7osact"}
+{"kind":"documentSettings","id":"amwmqqymcb98cj7osact/settings","value":{"grid":250000,"notes":[],"outline":[[1500000,0],[34500000,0],[36000000,1500000],[36000000,20500000],[34500000,22000000],[1500000,22000000],[0,20500000],[0,1500000]]}}
+{"kind":"via","id":"amwmqqymd35k0xhw7ze9","at":[19700000,5100000],"diameter":840000,"drill":400000,"layer":"Multi","net":"VDD","order":"JY"}
+{"kind":"pad","id":"amwmqqymd4uugzl8m62v","at":[2600000,19400000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"lF","shape":"round","w":2400000}
+{"kind":"track","id":"amwmqqymd6sygaz4u8vo","layer":"Top","net":"VDD","order":"Rh","points":[[21400000,10650000],[19750000,10650000]],"width":480000}
+{"kind":"via","id":"amwmqqymd7sahobxii9e","at":[21400000,10650000],"diameter":840000,"drill":400000,"layer":"Multi","net":"VDD","order":"OR"}
+{"kind":"label","id":"amwmqqymd8km63k0wpf9","at":[5600000,3050000],"layer":"Silk","order":"oV","size":1050000,"text":"SENSOR INTERFACE"}
+{"kind":"via","id":"amwmqqymdatcg82v8qm","at":[21550000,6800000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"Wa"}
+{"kind":"pad","id":"amwmqqymdbkzj4jm5tsh","at":[33400000,19400000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"ms","shape":"round","w":2400000}
+{"kind":"via","id":"amwmqqymddebqaq39yh","at":[16100000,11600000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"TK"}
+{"kind":"track","id":"amwmqqymddl64c9sdq1h","layer":"Top","net":"GND","order":"bT","points":[[13300000,15100000],[13300000,16200000]],"width":480000}
+{"kind":"label","id":"amwmqqymdfnxau02logb","at":[27100000,19650000],"layer":"Silk","order":"v1","size":740000,"text":"WAFFLE"}
+{"kind":"track","id":"amwmqqymdhabd293oswa","layer":"Top","net":"VDD","order":"Mo","points":[[19700000,5100000],[18600000,6200000],[18600000,6800000]],"width":480000}
+{"kind":"track","id":"amwmqqymdkg6b14v0zsc","layer":"Bottom","net":"GND","order":"d6","points":[[3800000,13540000],[6300000,13540000],[8960000,16200000],[13300000,16200000],[17900000,11600000],[16100000,11600000]],"width":480000}
+{"kind":"track","id":"amwmqqymdnu70k0c6qd","layer":"Top","net":"BUF","order":"Ef","points":[[17250000,10650000],[16200000,10650000],[15200000,9650000],[15200000,8200000],[16200000,7200000],[17000000,7200000],[19200000,9400000],[21000000,9400000],[21400000,9000000],[24400000,9000000]],"width":320000}
+{"kind":"pad","id":"amwmqqymdnuvptrelzu","at":[2600000,2600000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"hz","shape":"round","w":2400000}
+{"kind":"track","id":"amwmqqymdq1pazlw404q","layer":"Top","net":"GND","order":"YD","points":[[20200000,6800000],[21550000,6800000]],"width":480000}
+{"kind":"track","id":"amwmqqymdr2v9hhc58sf","layer":"Top","net":"VOUT","order":"Hv","points":[[26000000,9000000],[29600000,9000000],[29630000,9030000],[32200000,9030000]],"width":320000}
+{"kind":"track","id":"amwmqqymdr8w4l47f16","layer":"Bottom","net":"VDD","order":"Q4","points":[[19700000,5100000],[19700000,8950000],[21400000,10650000]],"width":480000}
+{"kind":"label","id":"amwmqqymdru0gr4heg6f","at":[31350000,14450000],"layer":"Silk","order":"tO","size":650000,"text":"OUT"}
+{"kind":"track","id":"amwmqqymds4v7mygzwpb","layer":"Bottom","net":"GND","order":"ej","points":[[17900000,11600000],[19500000,13200000],[22900000,13200000],[23300000,12800000],[23300000,8100000],[22000000,6800000],[21550000,6800000]],"width":480000}
+{"kind":"track","id":"amwmqqymdsi4w0xbc2dl","layer":"Bottom","net":"VDD","order":"LB","points":[[3800000,8460000],[7200000,8460000],[9160000,6500000],[14500000,6500000],[15900000,5100000],[19700000,5100000]],"width":480000}
+{"kind":"label","id":"amwmqqymdusz2vj7bves","at":[5650000,4600000],"layer":"Silk","order":"q8","size":560000,"text":"AFE  /  REV A"}
+{"kind":"label","id":"amwmqqymdwsjm5nlw6ec","at":[2150000,16800000],"layer":"Silk","order":"rl","size":530000,"text":"ANALOG IN"}
+{"kind":"track","id":"amwmqqymdxs2xmhe8y4","layer":"Bottom","net":"GND","order":"gM","points":[[13300000,16200000],[26200000,16200000],[30830000,11570000],[32200000,11570000]],"width":480000}
+{"kind":"pad","id":"amwmqqymdxue2kxowkuk","at":[33400000,2600000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"jc","shape":"round","w":2400000}
+{"kind":"track","id":"amwmqqymdyc85jskxsi","layer":"Top","net":"GND","order":"Ux","points":[[17250000,11600000],[16100000,11600000]],"width":480000}
+{"kind":"track","id":"amwmqqymdyrrm6cwmjo","layer":"Top","net":"BUF","order":"GI","points":[[19750000,12550000],[21600000,12550000],[22600000,11550000],[22600000,10100000],[23700000,9000000],[24400000,9000000]],"width":320000}
+{"kind":"via","id":"amwmqqymdyrtxcx4a7wb","at":[13300000,16200000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"Zq"}
+{"kind":"track","id":"amwmqqymdz6qwm82446","layer":"Top","net":"VIN","order":"D2","points":[[3800000,11000000],[9100000,11000000]],"width":320000}
+{"kind":"part","id":"b-C1","angle":270000000000,"at":[13300000,14300000],"def":"std-c","link":"link-C1","order":"4t","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","value":"10 nF"}
+{"kind":"part","id":"b-C2","angle":0,"at":[19400000,6800000],"def":"std-c","link":"link-C2","order":"BP","pinNets":{"1":"VDD","2":"GND"},"ref":"C2","value":"100 nF"}
+{"kind":"part","id":"b-J1","angle":0,"at":[3800000,11000000],"def":"std-j3","link":"link-J1","order":"1d","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","value":"Input"}
+{"kind":"part","id":"b-J2","angle":0,"at":[32200000,10300000],"def":"std-j2","link":"link-J2","order":"9m","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","value":"Output"}
+{"kind":"part","id":"b-R1","angle":0,"at":[9900000,11000000],"def":"std-r","link":"link-R1","order":"3G","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R1","value":"10 kΩ"}
+{"kind":"part","id":"b-R2","angle":0,"at":[25200000,9000000],"def":"std-r","link":"link-R2","order":"89","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","value":"100 Ω"}
+{"kind":"part","id":"b-U1","angle":0,"at":[18500000,11600000],"def":"std-opamp","link":"link-U1","order":"6W","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","value":"Buffer"}
+{"kind":"polygon","id":"gndpour","arcApproximation":{"$number":"0.0127"},"closed":true,"connectStyle":"relief","fillMode":"solid","hatchAngle":315000000000,"hatchPitch":500000,"hatchWidth":150000,"islandAreaThreshold":"0","layer":"Bottom","minPrimLength":76200,"name":"GND pour","net":"GND","order":"yH","points":[[2000000,2000000],[34000000,2000000],[34000000,20000000],[2000000,20000000]],"pourIndex":0,"pourOverSameNet":true,"reliefAirGap":254000,"reliefAngle":90,"reliefConductorWidth":254000,"reliefEntries":4,"removeDeadCopper":true,"viaConnectStyle":"direct"}
+{"kind":"track","id":"thin","layer":"Top","net":"GND","order":"we","points":[[5000000,18000000],[9000000,18000000]],"width":50000}

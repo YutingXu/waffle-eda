@@ -1,0 +1,272 @@
+{
+  "fixture": "tests/fixtures/butter-acceptance/saved-views",
+  "manifest": "Saved-view study.waffle",
+  "cases": {
+    "list": {
+      "args": {
+        "limit": 1
+      },
+      "expect": {
+        "offset": 0,
+        "total": 2
+      },
+      "expectPaths": {
+        "untrusted_design_text.views": [
+          {
+            "id": "018cc251-f400-7000-8000-000000000002",
+            "name": "Copper probe",
+            "documentId": "board",
+            "documentName": "Board",
+            "status": "ready",
+            "hasFilter": true,
+            "selectionCount": 1
+          }
+        ]
+      }
+    },
+    "capture": {
+      "args": {
+        "name": "Assembly overview",
+        "view": {
+          "documentId": "draw",
+          "camera": {
+            "center": [
+              100,
+              50
+            ],
+            "scale": 3.5,
+            "referenceScale": 4,
+            "flipped": false,
+            "rotationRadians": 0
+          },
+          "viewport": {
+            "pixelWidth": 800,
+            "pixelHeight": 600
+          }
+        }
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Saved-view study.waffle"
+      ],
+      "afterWrite": {
+        "id": "list",
+        "args": {},
+        "expect": {
+          "total": 3
+        }
+      }
+    },
+    "rename": {
+      "args": {
+        "id": "018cc251-f400-7000-8000-000000000002",
+        "name": "Power copper"
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Saved-view study.waffle"
+      ],
+      "afterWrite": {
+        "id": "list",
+        "args": {
+          "limit": 1
+        },
+        "expectPaths": {
+          "untrusted_design_text.views": [
+            {
+              "id": "018cc251-f400-7000-8000-000000000002",
+              "name": "Power copper",
+              "documentId": "board",
+              "documentName": "Board",
+              "status": "ready",
+              "hasFilter": true,
+              "selectionCount": 1
+            }
+          ]
+        }
+      }
+    },
+    "apply": {
+      "args": {
+        "id": "018cc251-f400-7000-8000-000000000002"
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "ready",
+        "untrusted_design_text.selection": [
+          "run"
+        ],
+        "untrusted_design_text.netHighlight": "SENSE",
+        "untrusted_design_text.camera": {
+          "center": [
+            5,
+            4
+          ],
+          "scale": 45,
+          "referenceScale": 40,
+          "flipped": true,
+          "rotationRadians": 0.125
+        },
+        "untrusted_design_text.layers": {
+          "hidden": [
+            "Bottom"
+          ],
+          "active": "Top",
+          "mode": "single"
+        },
+        "untrusted_design_text.id": "018cc251-f400-7000-8000-000000000002",
+        "untrusted_design_text.filter.status": "complete",
+        "untrusted_design_text.filter.count": 1,
+        "untrusted_design_text.filter.rows": [
+          {
+            "id": "run"
+          }
+        ],
+        "untrusted_design_text.missingSelection": []
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "ready",
+        "untrusted_design_text.selection": [
+          "run"
+        ],
+        "untrusted_design_text.netHighlight": "SENSE",
+        "untrusted_design_text.camera": {
+          "center": [
+            5,
+            4
+          ],
+          "scale": 45,
+          "referenceScale": 40,
+          "flipped": true,
+          "rotationRadians": 0.125
+        },
+        "untrusted_design_text.layers": {
+          "hidden": [
+            "Bottom"
+          ],
+          "active": "Top",
+          "mode": "single"
+        },
+        "untrusted_design_text.id": "018cc251-f400-7000-8000-000000000002",
+        "untrusted_design_text.filter.status": "complete",
+        "untrusted_design_text.filter.count": 1,
+        "untrusted_design_text.filter.rows": [
+          {
+            "id": "run"
+          }
+        ],
+        "untrusted_design_text.missingSelection": []
+      }
+    },
+    "present": {
+      "args": {
+        "ids": [
+          "018cc251-f400-7000-8000-000000000002",
+          "018cc251-f400-7000-8000-000000000003"
+        ]
+      },
+      "expect": {
+        "index": 0,
+        "total": 2
+      },
+      "expectWrite": {
+        "index": 0,
+        "total": 2
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "ready"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "ready"
+      }
+    },
+    "step": {
+      "args": {
+        "ids": [
+          "018cc251-f400-7000-8000-000000000002",
+          "018cc251-f400-7000-8000-000000000003"
+        ],
+        "index": 1
+      },
+      "expect": {
+        "index": 1,
+        "total": 2,
+        "next": null
+      },
+      "expectWrite": {
+        "index": 1,
+        "total": 2,
+        "next": null
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "ready"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "ready"
+      }
+    },
+    "export-pdf": {
+      "args": {
+        "ids": [
+          "018cc251-f400-7000-8000-000000000003",
+          "018cc251-f400-7000-8000-000000000002"
+        ]
+      },
+      "expect": {
+        "pageCount": 2
+      },
+      "expectWrite": {
+        "pageCount": 2,
+        "links": 2
+      },
+      "outputFile": "Saved-view study-outputs/saved-views/Saved-view study-Saved views.pdf",
+      "expectPaths": {
+        "untrusted_design_text.name": "Saved-view study-Saved views.pdf",
+        "untrusted_design_text.viewIds": [
+          "018cc251-f400-7000-8000-000000000003",
+          "018cc251-f400-7000-8000-000000000002"
+        ]
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.name": "Saved-view study-Saved views.pdf",
+        "untrusted_design_text.notes": []
+      }
+    },
+    "remove": {
+      "args": {
+        "id": "018cc251-f400-7000-8000-000000000003"
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectWrite": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Saved-view study.waffle"
+      ],
+      "afterWrite": {
+        "id": "list",
+        "args": {},
+        "expect": {
+          "total": 2
+        }
+      },
+      "expectPaths": {
+        "untrusted_design_text.id": "018cc251-f400-7000-8000-000000000003"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.id": "018cc251-f400-7000-8000-000000000003"
+      }
+    }
+  }
+}

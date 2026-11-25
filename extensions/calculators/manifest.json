@@ -1,0 +1,33 @@
+{
+  "id": "waffle.calculators",
+  "name": "Engineering Calculators",
+  "publisher": "Waffle",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "builtin": true,
+  "enabledByDefault": true,
+  "description": "Engineering calculator commands for scripts. Open Calculators in Tools for design-aware track, via, impedance and component calculations.",
+  "main": "main.js",
+  "activationEvents": [
+    "onCommand:calculators.compute",
+    "onCommand:calculators.form.track",
+    "onCommand:calculators.form.via",
+    "onCommand:calculators.form.eseries",
+    "onCommand:calculators.form.divider"
+  ],
+  "permissions": [
+    "ui:command"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "calculators.show",
+        "title": "Engineering Calculators"
+      },
+      {
+        "command": "calculators.compute",
+        "title": "Compute (calculators)"
+      }
+    ]
+  }
+}

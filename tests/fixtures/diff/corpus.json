@@ -1,0 +1,426 @@
+{
+ "cases": [
+  {
+   "name": "reserialised",
+   "description": "Same design saved by another writer: keys and objects reordered, sub-tolerance float noise. Expect no changes.",
+   "before": null,
+   "after": "reserialised",
+   "options": {},
+   "expected": {
+    "total": 0,
+    "bySeverity": {
+     "electrical": 0,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": []
+   }
+  },
+  {
+   "name": "move-rotate-flip",
+   "description": "Board placement: U1 moved, R2 rotated 90°, C1 flipped to the bottom; on the sheet R2 moved (cosmetic).",
+   "before": null,
+   "after": "move-rotate-flip",
+   "options": {},
+   "expected": {
+    "total": 9,
+    "bySeverity": {
+     "electrical": 8,
+     "mechanical": 1,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "pad.opened",
+      "PCB Sensor board: R2.1 (BUF) lost its BUF copper (open)"
+     ],
+     [
+      "electrical",
+      "pad.opened",
+      "PCB Sensor board: R2.2 (VOUT) lost its VOUT copper (open)"
+     ],
+     [
+      "electrical",
+      "pad.opened",
+      "PCB Sensor board: U1.2 (GND) lost its GND copper (open)"
+     ],
+     [
+      "electrical",
+      "pad.shorted",
+      "PCB Sensor board: U1.1 (BUF) now touches VDD copper and lost its own"
+     ],
+     [
+      "electrical",
+      "pad.shorted",
+      "PCB Sensor board: U1.3 (FILTER) now touches BUF copper"
+     ],
+     [
+      "electrical",
+      "pad.shorted",
+      "PCB Sensor board: U1.5 (VDD) now touches BUF copper"
+     ],
+     [
+      "electrical",
+      "part.rotated",
+      "R2 rotated 0° → 90°"
+     ],
+     [
+      "electrical",
+      "part.moved",
+      "U1 moved by (+2.5, 0) mm to (21, 11.6)"
+     ],
+     [
+      "mechanical",
+      "part.flipped",
+      "C1 flipped to Bottom"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "reroute",
+   "description": "VIN re-routed with a detour and a via; a GND stub deleted; BUF track widened.",
+   "before": null,
+   "after": "reroute",
+   "options": {},
+   "expected": {
+    "total": 7,
+    "bySeverity": {
+     "electrical": 2,
+     "mechanical": 5,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "pad.opened",
+      "PCB Sensor board: C1.2 (GND) lost its GND copper (open)"
+     ],
+     [
+      "electrical",
+      "track.removed",
+      "Removed Track on GND (Top), 1.1 mm from Sensor board"
+     ],
+     [
+      "mechanical",
+      "track.property",
+      "Track on BUF (Top) width 0.32 → 0.4"
+     ],
+     [
+      "mechanical",
+      "routing.changed",
+      "GND routing on Sensor board: track −1.1 mm (Top −1.1), segments 7 → 6"
+     ],
+     [
+      "mechanical",
+      "routing.changed",
+      "VIN routing on Sensor board: track +0.828 mm (Top +0.828), vias 0 → 1"
+     ],
+     [
+      "mechanical",
+      "track.reshaped",
+      "Track on VIN (Top) re-routed: 5.3 → 6.128 mm (+0.828)"
+     ],
+     [
+      "mechanical",
+      "via.added",
+      "Added Via on VIN (Multi) at (6.5, 12) on Sensor board"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "pin-swap",
+   "description": "Gate-equivalent pins swapped on the board: U1 pin 1 and 3 exchange BUF and FILTER, the tracks follow.",
+   "before": null,
+   "after": "pin-swap",
+   "options": {},
+   "expected": {
+    "total": 1,
+    "bySeverity": {
+     "electrical": 1,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "pin.swapped",
+      "PCB Sensor board: U1 pins 1 and 3 swapped (BUF ↔ FILTER)"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "rename-net",
+   "description": "Net VOUT renamed to VOUT_BUF everywhere: the sheet label, both parts' pin nets and the board track.",
+   "before": null,
+   "after": "rename-net",
+   "options": {},
+   "expected": {
+    "total": 3,
+    "bySeverity": {
+     "electrical": 3,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "net.renamed",
+      "Schematic: net VOUT renamed to VOUT_BUF"
+     ],
+     [
+      "electrical",
+      "net.renamed",
+      "PCB Sensor board: net VOUT renamed to VOUT_BUF"
+     ],
+     [
+      "electrical",
+      "netlabel.text",
+      "Net label text “VOUT” → “VOUT_BUF”"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "reannotate",
+   "description": "Designators renumbered on both documents (R2 -> R5, C1 -> C7, R? -> R3); ids unchanged. Connectivity is equal.",
+   "before": null,
+   "after": "reannotate",
+   "options": {},
+   "expected": {
+    "total": 6,
+    "bySeverity": {
+     "electrical": 0,
+     "mechanical": 0,
+     "cosmetic": 6
+    },
+    "changes": [
+     [
+      "cosmetic",
+      "part.reannotated",
+      "C1 re-annotated as C7"
+     ],
+     [
+      "cosmetic",
+      "part.reannotated",
+      "R? re-annotated as R3"
+     ],
+     [
+      "cosmetic",
+      "part.reannotated",
+      "R2 re-annotated as R5"
+     ],
+     [
+      "cosmetic",
+      "part.reannotated",
+      "C1 re-annotated as C7"
+     ],
+     [
+      "cosmetic",
+      "part.reannotated",
+      "R1 re-annotated as R3"
+     ],
+     [
+      "cosmetic",
+      "part.reannotated",
+      "R2 re-annotated as R5"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "reimport-new-ids",
+   "description": "The same design re-imported: every document, object, link and library id regenerated. Matching falls back to designators and geometry; expect no changes.",
+   "before": null,
+   "after": "reimport-new-ids",
+   "options": {},
+   "expected": {
+    "total": 0,
+    "bySeverity": {
+     "electrical": 0,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": []
+   }
+  },
+  {
+   "name": "library-footprint",
+   "description": "Library edit: the resistor footprint's pads grow from 0.9 x 0.95 to 1.0 x 1.1 mm. Affects every placed resistor.",
+   "before": null,
+   "after": "library-footprint",
+   "options": {},
+   "expected": {
+    "total": 1,
+    "bySeverity": {
+     "electrical": 1,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "library.footprint",
+      "Footprint R_0603 changed (pad 1 height/width, pad 2 height/width); affects R?, R1, R2"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "values-footprints",
+   "description": "C1 value 10 nF -> 22 nF on both documents; R2 re-assigned to the test-point footprint on the board; U1 gains an MPN parameter.",
+   "before": null,
+   "after": "values-footprints",
+   "options": {},
+   "expected": {
+    "total": 6,
+    "bySeverity": {
+     "electrical": 6,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "pad.shorted",
+      "PCB Sensor board: R2.1 (BUF) now touches VOUT copper"
+     ],
+     [
+      "electrical",
+      "pin.disconnected",
+      "PCB Sensor board: R2.2 disconnected from VOUT"
+     ],
+     [
+      "electrical",
+      "part.value",
+      "C1 value 10 nF → 22 nF"
+     ],
+     [
+      "electrical",
+      "part.parameter",
+      "U1 MPN: none → OPA350AIDBVR"
+     ],
+     [
+      "electrical",
+      "part.value",
+      "C1 value 10 nF → 22 nF"
+     ],
+     [
+      "electrical",
+      "part.footprint",
+      "R2 footprint R_0603 → TestPoint_1.5mm"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "merge-nets",
+   "description": "On the sheet the FILTER label is renamed BUF: nets FILTER and BUF merge.",
+   "before": null,
+   "after": "merge-nets",
+   "options": {},
+   "expected": {
+    "total": 2,
+    "bySeverity": {
+     "electrical": 2,
+     "mechanical": 0,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "net.merged",
+      "Schematic: net FILTER merged into BUF"
+     ],
+     [
+      "electrical",
+      "netlabel.text",
+      "Net label text “FILTER” → “BUF”"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "outline-rules-variants",
+   "description": "Board outline 36 x 22 -> 40 x 22 mm and an assembly variant added (Lite: C2 not fitted).",
+   "before": null,
+   "after": "outline-rules-variants",
+   "options": {},
+   "expected": {
+    "total": 2,
+    "bySeverity": {
+     "electrical": 1,
+     "mechanical": 1,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "variant.added",
+      "Variant Lite added"
+     ],
+     [
+      "mechanical",
+      "board.outline",
+      "Board outline of Sensor board changed: 36 × 22 mm → 40 × 22 mm (area +88 mm²)"
+     ]
+    ]
+   }
+  },
+  {
+   "name": "delete-add",
+   "description": "C2 deleted from both documents with its board copper; R9 added (unwired on the sheet; on the board by ECO with pins on VOUT and a new net SENSE).",
+   "before": null,
+   "after": "delete-add",
+   "options": {},
+   "expected": {
+    "total": 7,
+    "bySeverity": {
+     "electrical": 5,
+     "mechanical": 2,
+     "cosmetic": 0
+    },
+    "changes": [
+     [
+      "electrical",
+      "net.added",
+      "PCB Sensor board: net SENSE added (R9.2)"
+     ],
+     [
+      "electrical",
+      "part.removed",
+      "Removed C2 (100 nF, Capacitor) from Analog front end — pins 1: VDD, 2: GND"
+     ],
+     [
+      "electrical",
+      "part.added",
+      "Added R9 (1 kΩ, Resistor) on Analog front end"
+     ],
+     [
+      "electrical",
+      "part.removed",
+      "Removed C2 (100 nF, C_0603) from Sensor board — pins 1: VDD, 2: GND"
+     ],
+     [
+      "electrical",
+      "part.added",
+      "Added R9 (1 kΩ, R_0603) on Sensor board — pins 1: VOUT, 2: SENSE"
+     ],
+     [
+      "mechanical",
+      "routing.changed",
+      "VDD routing on Sensor board: track −2.156 mm (Top −2.156), segments 4 → 3"
+     ],
+     [
+      "mechanical",
+      "track.removed",
+      "Removed Track on VDD (Top), 2.156 mm from Sensor board"
+     ]
+    ]
+   }
+  }
+ ]
+}

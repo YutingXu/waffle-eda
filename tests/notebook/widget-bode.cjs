@@ -1,0 +1,21 @@
+"use strict";
+const assert=require("node:assert/strict"),harness=require("../../extensions/examples/harness.cjs");
+const run=async()=>{
+  const h=await harness.setup();for(const m of ["variants","bom","widget-catalogue","sheet-widgets","sheet-widget-runtime"])require(require("../support/app-source-paths.cjs").appFile(m+".js"));
+  const R=AtriumSheetWidgetRuntime,W=AtriumSheetWidgets,p=h.project,d=h.sheet(),part=ref=>d.items.find(i=>i.ref===ref);
+  part("J1").parameters={"Spice.Prefix":"V","Spice.Pins":"2 3",DC:"0",AC:"1"};part("U1").parameters={Spice:"OPAMP"};
+  const fc=1/(2*Math.PI*10000*10e-9);
+  p.simulation={benches:[{id:"loop",name:"AC response",analyses:[{type:"ac",sweep:"lin",points:3,fstart:fc/2,fstop:fc*1.5}]}]};
+  const item=W.make("bode",[1,1]);item.widget.state={bench:"loop",probe:"VOUT",channel:"both"};d.items.push(item);
+  const real=h.X;let solves=0;
+  globalThis.AtriumExtensions={...real,execute(...args){solves++;return real.execute(...args);}};
+  const ctx={host:h.host,revision:h.host.revision()};
+  const [a,b]=await Promise.all([R.prepare(p,d,item,ctx),R.prepare(p,d,item,ctx)]);assert.equal(solves,1);
+  assert(a.plot,a.rows[0].cells.map(c=>c.text).join(" "));assert.deepEqual(a.plot,b.plot);
+  assert(Math.abs(a.plot.points[1][1]+10*Math.log10(2))<.001);assert(Math.abs(a.plot.phase.points[1][1]+45)<.15,JSON.stringify(a.plot));
+  assert.equal(JSON.stringify(item).includes("points"),false);
+  h.host.edit(()=>{part("R1").value="20k";});const next=await R.prepare(p,d,item,{host:h.host,revision:h.host.revision()});
+  assert.equal(solves,2);assert(next.plot.points[1][1]<-6);const old=await R.prepare(p,d,item,ctx);assert.equal(old.plot,undefined);
+  real.shutdown();console.log("widget-bode: actual SPICE worker produced the RC magnitude and phase, concurrent widgets shared one run, a design edit recomputed it");
+};
+globalThis.__testDone=run().catch(e=>{console.error(e.stack || e);globalThis.AtriumExtensions?.shutdown();if(globalThis.process)process.exitCode=1;throw e;});

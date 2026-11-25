@@ -1,0 +1,27 @@
+{
+  "id": "waffle.ai-assistant",
+  "name": "AI Assistant",
+  "publisher": "Waffle",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "builtin": true,
+  "enabledByDefault": true,
+  "description": "Chat with Claude, ChatGPT or a local model about the open design. It reads the design with Waffle's own tools (components, nets, DRC, ERC, BOM, outputs) and suggests changes as proposals you review. Uses your own API key; network access is off until you turn it on.",
+  "main": "main.js",
+  "activationEvents": ["onView:waffle.ai-assistant", "onCommand:ai.show", "onCommand:ai.askSelection"],
+  "permissions": ["read:project", "propose:edits", "ui:panel", "ui:command", "network:api.anthropic.com", "network:api.openai.com", "network:localhost"],
+  "worker": "dedicated",
+  "timeoutMs": 60000,
+  "contributes": {
+    "commands": [
+      {"command": "ai.show", "title": "AI Assistant"},
+      {"command": "ai.askSelection", "title": "Ask AI about Selection", "when": "selection"}
+    ],
+    "menus": {
+      "tools": [{"command": "ai.show"}],
+      "edit": [{"command": "ai.askSelection", "when": "selection"}]
+    },
+    "keybindings": [{"command": "ai.askSelection", "key": "mod+alt+i"}],
+    "panels": [{"id": "waffle.ai-assistant", "title": "AI Assistant", "location": "right", "tall": true}]
+  }
+}

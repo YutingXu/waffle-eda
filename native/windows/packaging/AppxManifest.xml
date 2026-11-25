@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for Waffle EDA (scripts/build-windows.ps1 -Msix). Unsigned by default: the
+  Publisher carries the "unsigned package" OID, so Windows 11 installs it with
+  `Add-AppxPackage -AllowUnsigned`. To sign, replace Publisher with your certificate's
+  subject exactly and pass -CertificateThumbprint (see native/windows/README.md).
+-->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap uap3 rescap">
+  <Identity Name="Waffle.Editor" Publisher="CN=Waffle, OID.2.25.311729368913984317654407730594956997722=1"
+            Version="__VERSION__" ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>Waffle EDA</DisplayName>
+    <PublisherDisplayName>Waffle EDA contributors</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.18362.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Waffle" Executable="Waffle.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Waffle EDA" Description="Schematic and PCB editor"
+                          BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
+                          Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <uap3:Extension Category="windows.protocol">
+          <uap3:Protocol Name="waffle" Parameters="&quot;%1&quot;">
+            <uap:DisplayName>Waffle EDA record link</uap:DisplayName>
+          </uap3:Protocol>
+        </uap3:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap3:FileTypeAssociation Name="waffle" Parameters="&quot;%1&quot;">
+            <uap:DisplayName>Waffle EDA design file</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.waffle</uap:FileType>
+              <uap:FileType>.wpcb</uap:FileType>
+              <uap:FileType>.wsch</uap:FileType>
+              <uap:FileType>.wlib</uap:FileType>
+              <uap:FileType>.wdraw</uap:FileType>
+              <uap:FileType>.wpanel</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap3:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

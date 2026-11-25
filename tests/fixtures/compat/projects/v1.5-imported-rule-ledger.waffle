@@ -1,0 +1,39 @@
+{
+ "format": "atrium",
+ "version": 1,
+ "formatVersion": "1.5",
+ "name": "Imported rule ledger",
+ "library": [],
+ "documents": [
+  {
+   "id": "rule-ledger-board",
+   "kind": "pcb",
+   "name": "Board",
+   "grid": 0.25,
+   "items": [],
+   "outline": [
+    [
+     0,
+     0
+    ],
+    [
+     10,
+     0
+    ],
+    [
+     10,
+     8
+    ],
+    [
+     0,
+     8
+    ]
+   ],
+   "notes": [],
+   "appliedSourceRuleRecords": [
+    2,
+    7
+   ]
+  }
+ ]
+}

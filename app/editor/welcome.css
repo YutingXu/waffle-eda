@@ -1,0 +1,101 @@
+/* Get set up (welcome.js), inside the start page's right column. Colours are theme tokens; motion uses the tokens, so Animations Off/Reduced apply. */
+.wl-panel {display:flex;flex-direction:column;gap:10px;padding:10px 0 4px}
+.wl-top {display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.wl-titles {flex:1 1 min(100%,240px);min-width:0}
+.work-dialog .wl-title {margin:0;font-size:var(--fs-16);font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0}
+.wl-lead {margin:2px 0 0;color:var(--muted);font-size:var(--fs-12);line-height:1.4}
+.wl-tools {display:flex;flex-wrap:wrap;gap:var(--s-6);max-width:100%}
+.wl-progress {display:flex;align-items:center;gap:10px}
+.wl-meter {flex:1}
+.wl-count {color:var(--muted);font-size:var(--fs-11);white-space:nowrap}
+.wl-steps {list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.wl-step {border:1px solid var(--line);border-radius:var(--r-lg);background:var(--panel)}
+.wl-step.wl-open {border-color:var(--line-strong)}
+.wl-head {scroll-margin-block-start:6px}
+.work-dialog .wl-head {display:flex;align-items:center;gap:10px;width:100%;height:auto;padding:8px 10px;text-align:left;border:0;background:none;border-radius:var(--r-lg)}
+.work-dialog .wl-head:hover {background:var(--hover)}
+.work-dialog .wl-head:focus-visible {outline:2px solid var(--focus);outline-offset:-2px}
+.wl-head-text {display:flex;flex-direction:column;gap:1px;min-width:0}
+.wl-head-text strong {font-weight:600;color:var(--ink)}
+.wl-summary {color:var(--muted);font-size:var(--fs-11);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-state {flex:none;width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted);box-sizing:border-box;position:relative}
+.wl-done .wl-state {border-color:var(--ok-ink);background:var(--ok-ink)}
+.wl-done .wl-state::after {content:"";position:absolute;left:3.5px;top:1px;width:3px;height:6px;border:solid var(--panel);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.wl-skipped .wl-state {border-style:dashed}
+.wl-body {padding:0 10px 10px 34px}
+.wl-body[hidden] {display:none}
+.wl-inner {display:flex;flex-direction:column;gap:10px;animation:atrium-reveal var(--motion-base) var(--ease-decelerate)}
+.wl-options {display:grid;gap:6px}
+.wl-options.wl-list {grid-template-columns:1fr}
+.wl-options.wl-row {grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.wl-motion-options {grid-template-columns:repeat(2,minmax(0,1fr))}
+.wl-options.wl-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,118px),1fr))}
+.wl-option {--ui-checked-line:var(--accent);--ui-checked-halo:inset 0 0 0 calc(var(--s-2) / 2) var(--accent);--ui-choice-focus-width:2px;--ui-choice-focus-offset:1px;display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--field);cursor:default}
+.wl-option:hover {background:var(--hover)}
+.wl-option input {margin:2px 0 0;flex:none;accent-color:var(--primary)}
+.wl-grid .wl-option {flex-direction:column;gap:4px;position:relative}
+.wl-grid .wl-option input {position:absolute;top:8px;right:8px;margin:0}
+.wl-option-text {display:flex;flex-direction:column;gap:2px;min-width:0;font-size:var(--fs-12)}
+.wl-option-text strong {font-weight:500;color:var(--ink)}
+.wl-option-text span {color:var(--muted);font-size:var(--fs-11);line-height:1.35}
+.wl-swatch {display:grid;grid-template-columns:2fr 2fr 1fr;grid-template-rows:1fr 1fr;width:100%;height:30px;border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--swatch-edge)}
+.wl-swatch-app {grid-row:1/3}
+.wl-swatch-panel {grid-row:1/3}
+.wl-accents {display:flex;flex-direction:column;gap:4px}
+.wl-accents .wl-option {align-items:center}
+.wl-dot {flex:none;width:12px;height:12px;border-radius:50%;border:1px solid var(--swatch-edge)}
+.wl-dot-theme {background:var(--accent)}
+.wl-label {color:var(--muted);font-size:var(--fs-11);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.wl-fields {display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end}
+.wl-field {display:flex;flex-direction:column;gap:3px;font-size:var(--fs-12);color:var(--muted);min-width:0}
+.wl-field select {max-width:100%}
+.wl-check {display:flex;align-items:center;gap:6px;font-size:var(--fs-12);min-height:var(--ctl-h-lg);cursor:default}
+.wl-preview {margin:0;padding:8px 10px;border:1px dashed var(--line-strong);border-radius:var(--r-md);background:var(--chrome);display:flex;flex-direction:column;gap:6px}
+.wl-preview figcaption {color:var(--muted);font-size:var(--fs-11)}
+.wl-keys {display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:0;font-size:var(--fs-12)}
+.wl-keys dt {font-family:var(--mono);font-size:var(--fs-11);color:var(--ink);white-space:nowrap}
+.wl-keys dd {margin:0;color:var(--muted)}
+.wl-note {margin:0;color:var(--muted);font-size:var(--fs-11);line-height:1.4}
+.wl-text {margin:0;font-size:var(--fs-12);line-height:1.45;color:var(--ink)}
+.wl-privacy {padding-left:8px;border-left:2px solid var(--accent)}
+.work-dialog .wl-code {margin:0;padding:8px;max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);background:var(--field);color:var(--ink);font-size:var(--fs-11);white-space:pre-wrap;word-break:break-all}
+.work-dialog .wl-code:focus-visible {outline:2px solid var(--focus);outline-offset:1px}
+.wl-actions {display:flex;flex-wrap:wrap;gap:6px}
+.wl-step-foot,.wl-finish {display:flex;justify-content:flex-end;flex-wrap:wrap;gap:var(--s-6);margin-top:var(--s-8)}
+.wl-step-foot .ui-button {max-width:100%;overflow-wrap:anywhere}
+.wl-status {margin:0;min-height:1em;color:var(--muted);font-size:var(--fs-12)}
+.wl-status.wl-error {color:var(--error-ink)}
+/* Theme preview: a small window drawn with the live tokens. */
+.wl-mock {display:flex;flex-direction:column;height:92px;border:1px solid var(--line-strong);border-radius:var(--r-md);overflow:hidden;background:var(--app)}
+.wl-mock-bar {display:flex;gap:4px;align-items:center;height:14px;padding:0 6px;background:var(--menu-bg);border-bottom:1px solid var(--line)}
+.wl-mock-bar i {width:18px;height:4px;border-radius:2px;background:var(--muted)}
+.wl-mock-body {flex:1;display:flex;min-height:0}
+.wl-mock-side {width:30%;display:flex;flex-direction:column;gap:4px;padding:6px;background:var(--panel);border-right:1px solid var(--line)}
+.wl-mock-side b {height:6px;border-radius:2px;background:var(--line-strong)}
+.wl-mock-side b.wl-mock-sel {background:var(--selection)}
+.wl-mock-canvas {flex:1;position:relative;background:var(--canvas-bg)}
+.wl-mock-track {position:absolute;left:18%;right:22%;top:48%;height:3px;background:var(--accent)}
+.wl-mock-pad {position:absolute;left:12%;top:38%;width:10px;height:14px;border-radius:2px;background:var(--icon-pcb)}
+.wl-mock-pad2 {left:auto;right:16%}
+.wl-mock-status {height:10px;background:var(--bar-bg);border-top:1px solid var(--bar-line)}
+.wl-gridpic {width:100%;max-width:320px;height:auto;fill:var(--muted)}
+.wl-gridpic-track {fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round}
+.wl-fab {display:flex;flex-direction:column;gap:4px;font-size:var(--fs-12)}
+.wl-fab > span {color:var(--muted);line-height:1.4}
+/* Changing the animation preference should replay the miniature inspector only. */
+.work-dialog.sp-welcome-on[open],.work-dialog.sp-welcome-on[open]::backdrop,.wl-step[data-step=motion] .wl-inner {animation:none}
+.wl-motion-stage .wl-mock-body {position:relative;overflow:hidden}
+.wl-motion-stage .wl-mock-canvas {background-color:var(--canvas-bg);background-image:radial-gradient(var(--line-strong) 1px,transparent 1px);background-size:10px 10px}
+.wl-motion-stage .wl-mock-side {position:absolute;inset:0 0 0 auto;z-index:1;width:auto;min-width:32%;padding:8px 12px;border:0;border-left:1px solid var(--line-strong);font-size:var(--fs-11);color:var(--ink)}
+.wl-motion-stage .wl-mock-side span {color:var(--muted)}
+.wl-motion-stage .wl-mock-track {left:18%;right:56%}
+.wl-motion-stage .wl-mock-pad2 {right:52%}
+.wl-motion-stage[data-level=full] .wl-mock-side {animation:wl-panel-in var(--motion-ambient) var(--ease-decelerate)}
+.wl-motion-stage[data-level=reduce] .wl-mock-side {animation:atrium-fade var(--motion-base) var(--ease-decelerate)}
+@keyframes wl-panel-in {from {opacity:0;transform:translateX(calc(100% * var(--motion-move)))}}
+.wl-motion-stage[data-level=full] .wl-mock-canvas {animation:wl-camera var(--motion-ambient) var(--ease-standard);transform-origin:30% 50%}
+@keyframes wl-camera {from {transform:scale(calc(1 + .9 * var(--motion-move)))}}
+.wl-motion-list {margin:0;padding-left:18px;color:var(--muted);font-size:var(--fs-12);line-height:1.5}
+.wl-preview > .wl-small {align-self:flex-start}
+@media(max-width:700px) {.wl-body {padding-left:10px}}
+@media(pointer:coarse) {.wl-step-foot .ui-button {min-inline-size:var(--ctl-h-touch)}}

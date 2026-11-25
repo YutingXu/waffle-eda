@@ -1,0 +1,14 @@
+.rn-editor,.rn-tools,.rn-field-list{position:fixed;box-sizing:border-box;z-index:78}
+.rn-editor{z-index:76;background:var(--sheet);color:var(--ink);outline:1px solid var(--focus);border-radius:2px;overflow:auto;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;font-kerning:none;text-align:left;touch-action:manipulation;caret-color:var(--primary)}
+.rn-editor [data-block]{position:relative;min-height:1.45em;margin:0;padding:0}
+.rn-editor [data-style=h1],.rn-editor [data-style=h2],.rn-editor [data-style=h3]{line-height:1.45;padding-bottom:.1em;font-weight:700}
+.rn-editor [data-style=h1]{font-size:1.85em}.rn-editor [data-style=h2]{font-size:1.5em}.rn-editor [data-style=h3]{font-size:1.24em}
+.rn-editor [data-style=bullet],.rn-editor [data-style=number],.rn-editor [data-style=check]{padding-left:1.55em}
+.rn-editor [data-style=number]{counter-increment:rn-number}.rn-editor [data-block]:not([data-style=number]){counter-reset:rn-number}
+.rn-editor .rn-marker{position:absolute;inset-inline-start:0;top:0;user-select:none}.rn-editor [data-style=bullet]>.rn-marker::before{content:"•"}.rn-editor [data-style=number]>.rn-marker::before{content:counter(rn-number) "."}
+.rn-field,.rn-link{color:var(--rn-field,var(--primary));text-decoration:underline;text-underline-offset:.1em}.rn-field.broken{color:var(--rn-broken,var(--ls-ink));text-decoration-style:dashed}
+.rn-tools [data-command=bold]{font-weight:700}.rn-tools [data-command=italic]{font-style:italic}.rn-tools [data-command=underline]{text-decoration:underline}.rn-tools [data-command=strikeThrough]{text-decoration:line-through}
+.rn-tools :focus-visible{outline:2px solid var(--focus);outline-offset:-2px}.rn-more{position:absolute;top:100%;left:0;display:flex;flex-wrap:wrap;align-items:center;width:min(450px,calc(100vw - 20px));padding:4px;background:var(--menu-bg);border:1px solid var(--line);border-radius:7px}
+.rn-more label{display:flex;gap:4px;align-items:center}.rn-more input[type=color]{width:25px;height:22px;padding:0;border:0}
+/* Design-field suggestions: a library completion list (.ui-select-list[data-completion]) placed at the caret. */.rn-field-list{display:grid;min-width:220px;max-width:min(350px,95vw);max-height:208px}.rn-field-list .ui-select-option{gap:10px;justify-content:space-between;border:0;background:none;color:inherit;font:inherit;text-align:start}.rn-field-list small{color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+@media(prefers-reduced-motion:no-preference){.rn-tools{animation:rn-appear var(--motion-fast) var(--ease-decelerate)}@keyframes rn-appear{from{opacity:0;transform:translateY(calc(2px * var(--motion-move,1)))}to{opacity:1;transform:translateY(0)}}}

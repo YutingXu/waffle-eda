@@ -1,0 +1,11 @@
+.numeric-field-preview {
+  display: block;
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: .875em;
+  overflow-wrap: anywhere;
+}
+.numeric-field-preview[hidden] { display: none; }
+.numeric-field-preview.is-error { color: var(--danger); }
+/* The "ƒx" button beside a field is a small library button (soft fill); this only keeps it tight. */
+.numeric-field-chip { padding-inline: .35em; }

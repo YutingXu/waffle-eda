@@ -1,0 +1,10 @@
+{"kind":"project","formatVersion":"2.0","id":"case-move-rotate-flip/snapshot","name":"Sensor interface"}
+{"kind":"document","id":"amwmqqymcb98cj7osact","docKind":"pcb","name":"Sensor board","order":"e","path":"Sensor board.wpcb"}
+{"kind":"document","id":"amwmqqymcvjqh0taq6if","docKind":"schematic","name":"Analog front end","order":"K","path":"Analog front end.wsch"}
+{"kind":"projectSetting","id":"case-move-rotate-flip/snapshot/setting/revision","key":"revision","value":{"date":"2026-01-01","letter":"B","notes":"move-rotate-flip","status":"released"}}
+{"kind":"library","id":"std-c","order":"G","path":"libraries/Capacitor.wlib"}
+{"kind":"library","id":"std-j2","order":"e","path":"libraries/2-pin header.wlib"}
+{"kind":"library","id":"std-j3","order":"W","path":"libraries/3-pin header.wlib"}
+{"kind":"library","id":"std-opamp","order":"O","path":"libraries/Operational amplifier.wlib"}
+{"kind":"library","id":"std-r","order":"8","path":"libraries/Resistor.wlib"}
+{"kind":"library","id":"std-tp","order":"m","path":"libraries/Test point.wlib"}

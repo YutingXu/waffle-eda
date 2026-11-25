@@ -1,0 +1,28 @@
+"use strict";
+const assert=require("node:assert/strict"),crypto=require("node:crypto");
+for(const m of ["vendor/notebook-fonts/faces","pdf-fonts","notebook-fonts"])require(require("../support/app-source-paths.cjs").appFile(m+".js"));
+(async()=>{
+  const bytes=Buffer.from(AtriumNotebookFontData.serif.bytes,"base64"),sha256=crypto.createHash("sha256").update(bytes).digest("hex");
+  const assetRef={sha256,mediaType:"font/ttf",byteLength:bytes.length},font={source:"asset",assetRef,license:"OFL-1.1"};
+  let requests=0;const read=async args=>{requests++;assert.deepEqual(args,{ownerId:"note",assetRef,purpose:"font"});return {assetRef,bytes};};
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",{...font,license:"unspecified"},read),false);
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",{...font,assetRef:{...assetRef,mediaType:"text/plain"}},read),false);
+  assert.equal(requests,0);
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",font,async()=>({assetRef:{...assetRef,mediaType:"image/png"},bytes})),false);
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",font,async()=>bytes.subarray(1)),false);
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",font,async()=>new Uint8Array(bytes.length)),false);
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",font,read),true);assert.equal(requests,1);
+  const face=AtriumNotebookFonts.face(font);assert.equal(face.parsed.unitsPerEm,AtriumNotebookFontData.serif.units);
+  assert.equal(AtriumNotebookFonts.measure(face,"R1"),AtriumNotebookFonts.measure(AtriumNotebookFonts.face("serif"),"R1"));
+  assert.equal(await AtriumNotebookFonts.loadAsset("note",font,read),true);assert.equal(requests,1);
+  let otherRead=0;assert.equal(await AtriumNotebookFonts.loadAsset("other",font,async()=>{otherRead++;return null;}),false);assert.equal(otherRead,1);
+  const one={id:"first",richText:{font}},two={id:"second",richText:{font}};
+  const project={documents:[{id:"A",items:[one]},{id:"B",items:[two]}]};
+  assert.equal(AtriumNotebookFonts.prepareAssets(project,[]),null);
+  let sheetReads=0;const scoped=async ({ownerId})=>{sheetReads++;assert.equal(ownerId,"first");return {assetRef,bytes};};
+  assert.equal(AtriumNotebookFonts.fontFor(one),"sans");
+  await AtriumNotebookFonts.prepareAssets(project,["A"],scoped);assert.equal(AtriumNotebookFonts.fontFor(one),font);
+  await AtriumNotebookFonts.prepareAssets(project,["A"],scoped);assert.equal(sheetReads,1);
+  assert.equal(AtriumNotebookFonts.fontFor(two),"sans");
+  console.log("PASS licensed font demand, owner-bound requests, digest, media/length checks, exact metrics, and cache reuse");
+})().catch(error=>{console.error(error);process.exitCode=1;});

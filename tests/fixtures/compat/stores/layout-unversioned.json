@@ -1,0 +1,14 @@
+{
+  "name": "Old",
+  "areas": {
+    "left": [
+      {
+        "tabs": [
+          "projects"
+        ]
+      }
+    ],
+    "right": [],
+    "bottom": []
+  }
+}

@@ -1,0 +1,191 @@
+/* Extensions, declarative extension panels and the Scripting Console. Dark theme tokens only. */
+:root {--ext-error:var(--danger);--ext-warn:var(--warning);--ext-ok:var(--success);}
+
+/* ---------------------------------------------------------------- right-dock panels */
+.ext-panel {display:flex;flex-direction:column;flex:0 1 auto;min-height:90px;max-height:55%;border-top:1px solid var(--app);background:var(--panel)}
+.ext-panel[hidden] {display:none}
+.ext-panel.is-tall {flex:1 1 auto;max-height:none;min-height:240px}
+.ext-field.is-wide {grid-template-columns:1fr}
+.ext-field textarea {width:100%;min-height:52px;resize:vertical}
+.ext-panel-head {display:flex;align-items:center;gap:6px;flex:none;height:24px;padding:0 2px 0 8px;background:var(--panel-head);border-bottom:1px solid var(--app)}
+.ext-panel-head h2 {flex:1;margin:0;font-size:var(--fs-12);font-weight:600;color:var(--ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ext-panel-body {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:6px 8px 8px;font-size:var(--fs-12)}
+.ext-dialog {--ui-dialog-width:min(560px,var(--dialog-avail-w));--ui-dialog-max-height:min(70vh,640px);--ui-dialog-padding:0;overflow:hidden;flex-direction:column}
+.ext-dialog[open] {display:flex}
+.ext-dialog .ext-panel-head {height:32px;padding:0 6px 0 12px}
+.ext-dialog .ext-panel-head h2 {font-size:var(--fs-13);margin:0}
+.ext-dialog .ext-panel-body {padding:8px 12px 12px}
+
+/* Declarative view elements */
+.ext-heading {margin:8px 0 6px;font-size:var(--fs-12);font-weight:600;color:var(--ink)}
+.ext-text {margin:6px 0;line-height:1.45;color:var(--ink);overflow-wrap:anywhere}
+.ext-text.is-muted {color:var(--muted)}
+.ext-text.is-error {color:var(--ext-error)}
+.ext-text.is-warn {color:var(--ext-warn)}
+.ext-code {margin:6px 0;padding:6px 8px;max-height:240px;overflow:auto;white-space:pre-wrap;font:var(--fs-11)/1.5 var(--mono);color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:var(--r-sm)}
+.ext-kv {display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:6px 0;align-items:baseline}
+.ext-kv dt {color:var(--muted)}
+.ext-kv dd {margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--ink)}
+.ext-buttons {display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.ext-list {list-style:none;margin:4px 0;padding:0}
+.ext-list-row {display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-8)}
+.ext-list-row small {color:var(--muted);font-size:var(--fs-11)}
+.ext-table-wrap {overflow:auto;margin:6px -8px;max-width:calc(100% + 20px)}
+.ext-table {width:100%;border-collapse:collapse;font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.ext-table th {position:sticky;top:0;padding:4px 8px;text-align:left;font-weight:600;color:var(--muted);background:var(--panel-head);border-bottom:1px solid var(--app);white-space:nowrap}
+.ext-table td {padding:4px 8px;border-bottom:1px solid var(--soft);color:var(--ink);white-space:nowrap}
+.ext-table tr.is-action {cursor:default}
+.ext-table tr.is-action:hover td,.ext-table tr.is-action:focus-visible td {background:var(--selection);color:var(--selection-ink)}
+.ext-form {display:grid;gap:4px;margin:6px 0}
+.ext-field {display:grid;grid-template-columns:minmax(0,1fr) minmax(72px,42%);align-items:center;gap:2px 8px;min-height:26px;color:var(--muted);font-size:var(--fs-12)}
+.ext-field small {grid-column:1/-1;color:var(--faint);font-size:var(--fs-11)}
+.ext-field input[type=checkbox] {justify-self:end;accent-color:var(--accent)}
+.ext-field :is(input:not([type=checkbox]),select) {min-width:0;width:100%}
+.ext-form .ext-button {justify-self:end;margin-top:4px}
+
+/* Status bar and Active Bar contributions */
+.ext-status {display:flex;align-items:center;gap:8px;flex:none;max-width:40%;overflow:hidden}
+.ext-status:empty {display:none}
+.ext-status-item {white-space:nowrap;color:var(--muted);font-size:var(--fs-11);padding:0 4px;border-radius:var(--r-sm);overflow:hidden;text-overflow:ellipsis}
+.ext-tool-label {font:600 var(--fs-10)/1 var(--mono);letter-spacing:.02em}
+
+/* ------------------------------------------------------------------ manager */
+.ext-manager {width:min(980px,calc(100vw - 32px));height:min(680px,calc(100vh - 48px));padding:0;overflow:hidden;flex-direction:column}
+.ext-manager[open] {display:flex}
+.ext-manager-head {display:flex;align-items:center;gap:8px;flex:none;padding:12px 16px 0;border-bottom:1px solid var(--line)}
+.ext-manager-head h2 {margin:0 12px 8px 0}
+.ext-tabs {display:flex;gap:2px;flex:1;align-self:flex-end}
+.ext-install {margin-bottom:8px}
+.ext-manager-message {flex:none;margin:0;padding:0 16px;min-height:0;color:var(--ext-warn)}
+.ext-manager-message:not(:empty) {padding:6px 16px}
+.ext-manager-body {display:grid;grid-template-columns:minmax(220px,300px) 1fr;flex:1;min-height:0}
+.ext-manager-body.is-output {grid-template-columns:1fr}
+.ext-manager-body.is-output .ext-cards {display:none}
+.ext-cards {overflow:auto;border-right:1px solid var(--line);padding:6px;background:var(--app)}
+.work-dialog .ext-card {display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:8px;width:100%;min-height:52px;margin:0 0 4px;padding:8px;text-align:left;border:1px solid transparent;border-radius:var(--r-sm);background:var(--panel)}
+.work-dialog .ext-card:hover:not(:disabled) {background:var(--soft)}
+.work-dialog .ext-card[aria-pressed=true] {border-color:var(--focus);background:var(--soft)}
+.ext-card-text {display:flex;flex-direction:column;min-width:0}
+.ext-card-text strong {font-size:var(--fs-12);font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ext-card-text small {color:var(--muted);font-size:var(--fs-11);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ext-detail {overflow:auto;padding:14px 18px 18px;min-width:0}
+.ext-detail-head h3 {margin:0;font-size:var(--fs-14)}
+.ext-detail-head small {margin-top:4px}
+.ext-actions {display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.ext-section h3 {margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--line);font-size:var(--fs-12);color:var(--ink)}
+.ext-detail .ext-kv {grid-template-columns:minmax(90px,auto) 1fr}
+.ext-detail .ext-kv dd {text-align:left}
+.ext-perms {list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.ext-perms li {display:grid;grid-template-columns:minmax(96px,auto) 1fr auto;align-items:center;gap:8px;min-height:24px;font-size:var(--fs-12);color:var(--faint)}
+.ext-perms li input[type=checkbox] {accent-color:var(--accent)}
+.ext-perms li strong {font:600 var(--fs-11)/1.6 var(--mono)}
+.ext-perms li.is-granted {color:var(--ink)}
+.ext-perms li.is-granted strong {color:var(--accent-text)}
+.ext-mono {font-family:var(--mono);font-size:var(--fs-11)}
+.ext-output {max-height:none;height:100%;margin:0;box-sizing:border-box}
+.ext-manager-body.is-output .ext-detail {padding:8px 16px}
+.ext-manager-foot {flex:none;align-items:center;margin:0;padding:8px 16px;border-top:1px solid var(--line)}
+.ext-host-note {flex:1;color:var(--muted);font-size:var(--fs-11)}
+.ext-prompt input {width:100%;margin-top:4px}
+.ext-prompt {max-width:min(560px,calc(100vw - 32px))}
+.ext-prompt input[type=checkbox] {width:auto;margin:0}
+.ext-consent .work-row,.ext-review .work-row {min-height:28px;padding:4px 0}
+.ext-consent .work-row span,.ext-review .work-row span {display:flex;flex-direction:column;font-family:var(--mono);font-size:var(--fs-12);color:var(--ink)}
+.ext-review {max-height:40vh;border-block:1px solid var(--line);margin:6px 0}
+.ext-pause {display:flex;align-items:center;gap:4px;margin-bottom:8px;color:var(--muted);font-size:var(--fs-12);white-space:nowrap}
+.ext-pause input {accent-color:var(--accent)}
+.ext-pick {max-height:45vh;min-width:min(420px,80vw)}
+@media (max-width:620px) {
+  .ext-manager-body {grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .ext-cards {max-height:34vh;border-right:0;border-bottom:1px solid var(--line)}
+  .ext-manager-head {flex-wrap:wrap}
+}
+
+/* --------------------------------------------------------- scripting console */
+.script-console {position:relative;display:flex;flex-direction:column;flex:none;min-height:140px;max-height:85vh;border-top:1px solid var(--app);background:var(--panel);font-size:var(--fs-12)}
+.script-console[hidden] {display:none}
+.script-sash {position:absolute;z-index:1;top:-3px;left:0;right:0;height:6px;cursor:ns-resize}
+.script-sash:focus-visible {outline:2px solid var(--focus);outline-offset:-2px}
+.script-bar {display:flex;align-items:center;gap:6px;flex:none;min-height:30px;padding:2px 4px 2px 8px;background:var(--panel-head);border-bottom:1px solid var(--app);overflow-x:auto;scrollbar-width:none}
+.script-bar h2 {margin:0 6px 0 0;font-size:var(--fs-12);font-weight:600;color:var(--ink);white-space:nowrap}
+.script-bar :is(button,select,input) {flex:none}
+.script-save-fields {display:grid;gap:var(--s-8)}
+.script-bar select {max-width:170px}
+.script-spacer {flex:1}
+.script-timeout-label {display:flex;align-items:baseline;gap:4px;color:var(--muted);white-space:nowrap}
+.script-bar .script-close {border-color:transparent;background:none;font-size:var(--fs-14);line-height:1;padding:0 6px}
+.script-console.is-running .script-bar h2::after {content:" · running";color:var(--accent-text);font-weight:400}
+.script-body {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);flex:1;min-height:0}
+.script-editor {display:flex;min-width:0;min-height:0;border-right:1px solid var(--app);background:var(--field)}
+.script-gutter {flex:none;width:38px;padding:6px 6px 6px 0;overflow:hidden;white-space:pre;text-align:right;color:var(--faint);font:var(--fs-12)/1.5 var(--mono);background:var(--app);user-select:none;-webkit-user-select:none}
+.script-editor textarea {flex:1;min-width:0;margin:0;padding:6px 8px;border:0;outline:0;resize:none;white-space:pre;overflow:auto;tab-size:2;color:var(--ink);background:var(--field);font:var(--fs-12)/1.5 var(--mono);caret-color:var(--accent)}
+.script-editor:focus-within {box-shadow:inset 0 0 0 1px var(--focus)}
+.script-output {min-width:0;overflow:auto;padding:4px 0;font:var(--fs-12)/1.5 var(--mono);background:var(--panel)}
+.script-line {padding:1px 8px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);border-left:2px solid transparent}
+.script-line small {display:block;color:var(--faint);font-size:var(--fs-11)}
+.script-line.is-input {color:var(--muted);margin-top:4px}
+.script-line.is-result {border-left-color:var(--ext-ok)}
+.script-line.is-error {color:var(--ext-error);border-left-color:var(--ext-error)}
+.script-line.is-warn {color:var(--ext-warn)}
+.script-line.is-status,.script-line.is-debug {color:var(--muted)}
+@media (max-width:760px) {.script-body {grid-template-columns:1fr;grid-template-rows:1fr 1fr} .script-editor {border-right:0;border-bottom:1px solid var(--app)}}
+
+/* Declarative plots (host-drawn SVG) */
+:root {--ext-plot-0:#5f9de3;--ext-plot-1:#f0a32e;--ext-plot-2:#7fbf8a;--ext-plot-3:#e3837c;--ext-plot-4:#b48ee0;--ext-plot-5:#5cc6c6;--ext-plot-6:#d6c35c;--ext-plot-7:#c9c9c9;}
+.ext-plot {margin:8px 0}
+.ext-plot figcaption {margin:0 0 4px;font-size:var(--fs-12);font-weight:600;color:var(--ink)}
+.ext-plot svg {display:block;width:100%;height:auto;background:var(--field);border:1px solid var(--line);border-radius:var(--r-sm)}
+.ext-plot-frame {fill:none;stroke:var(--line)}
+.ext-plot-tick,.ext-plot-label {fill:var(--muted);font:var(--fs-10) var(--mono)}
+.ext-plot-line {fill:none;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.ext-plot-legend {display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:var(--fs-11);color:var(--muted)}
+.ext-plot-key::before {content:"";display:inline-block;width:10px;height:2px;margin:0 4px 4px 0;background:currentColor;vertical-align:middle}
+.ext-plot-line.ext-plot-s0 {stroke:var(--ext-plot-0)} .ext-plot-key.ext-plot-s0 {color:var(--ext-plot-0)}
+.ext-plot-line.ext-plot-s1 {stroke:var(--ext-plot-1)} .ext-plot-key.ext-plot-s1 {color:var(--ext-plot-1)}
+.ext-plot-line.ext-plot-s2 {stroke:var(--ext-plot-2)} .ext-plot-key.ext-plot-s2 {color:var(--ext-plot-2)}
+.ext-plot-line.ext-plot-s3 {stroke:var(--ext-plot-3)} .ext-plot-key.ext-plot-s3 {color:var(--ext-plot-3)}
+.ext-plot-line.ext-plot-s4 {stroke:var(--ext-plot-4)} .ext-plot-key.ext-plot-s4 {color:var(--ext-plot-4)}
+.ext-plot-line.ext-plot-s5 {stroke:var(--ext-plot-5)} .ext-plot-key.ext-plot-s5 {color:var(--ext-plot-5)}
+.ext-plot-line.ext-plot-s6 {stroke:var(--ext-plot-6)} .ext-plot-key.ext-plot-s6 {color:var(--ext-plot-6)}
+.ext-plot-line.ext-plot-s7 {stroke:var(--ext-plot-7)} .ext-plot-key.ext-plot-s7 {color:var(--ext-plot-7)}
+/* Light themes: series darken toward the ink so every line and key keeps >= 3:1 on the white plot field (a11y review). */
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s0 {stroke:color-mix(in srgb,var(--ext-plot-0) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-0) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s1 {stroke:color-mix(in srgb,var(--ext-plot-1) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-1) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s2 {stroke:color-mix(in srgb,var(--ext-plot-2) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-2) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s3 {stroke:color-mix(in srgb,var(--ext-plot-3) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-3) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s4 {stroke:color-mix(in srgb,var(--ext-plot-4) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-4) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s5 {stroke:color-mix(in srgb,var(--ext-plot-5) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-5) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s6 {stroke:color-mix(in srgb,var(--ext-plot-6) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-6) 55%,var(--ink))}
+:root:is([data-theme=light],[data-theme=classic]) .ext-plot-s7 {stroke:color-mix(in srgb,var(--ext-plot-7) 55%,var(--ink));color:color-mix(in srgb,var(--ext-plot-7) 55%,var(--ink))}
+/* si-sim: large plots, grid, thresholds, cursors, corner styles, drag-to-zoom band */
+.ext-plot.is-large svg {max-height:420px}
+.ext-plot.is-interactive svg {cursor:crosshair;touch-action:none}
+.ext-plot-grid {stroke:var(--line);stroke-width:.5;opacity:.6;vector-effect:non-scaling-stroke}
+.ext-plot-hline {stroke:var(--warning);stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.ext-plot-cursor {stroke:var(--accent);stroke-width:1;vector-effect:non-scaling-stroke}
+.ext-plot-line.is-dash {stroke-dasharray:5 3} .ext-plot-line.is-faint {opacity:.45}
+.ext-plot-key.is-dash::before {background:none;border-top:2px dashed currentColor;height:0} .ext-plot-key.is-faint {opacity:.6}
+.ext-plot-band {fill:var(--accent);opacity:.15;transition:opacity var(--motion-fast) var(--ease-standard)}
+/* UX review 2: status colours readable on light surfaces (>= 4.5:1), 24 px fields, and tables in
+   the narrow dock wrap instead of scrolling sideways. */
+.ext-panel .ext-table td {white-space:normal;overflow-wrap:anywhere}
+.ext-panel .ext-table th {white-space:normal}
+/* Chips (badges) in extension views and the permission prompt: text in a tone, no hover pop-up. */
+.ext-chip {font-variant-numeric:tabular-nums}
+.ext-chips {display:flex;flex-wrap:wrap;gap:var(--s-4);margin:var(--s-4) 0}
+.ext-consent .ext-chip {align-self:flex-start;margin:var(--s-2) 0;font-family:inherit}
+/* Proposal review: the visual diff's property tables (diff-props.css), one per changed object. */
+.ext-review-diff {display:grid;gap:var(--s-8);max-height:55vh;overflow:auto}
+.ext-review-object {display:grid;gap:var(--s-4)}
+.ext-review-head {display:flex;gap:var(--s-6);align-items:center;font-size:var(--fs-12)}
+.ext-review-head strong {font-weight:var(--fw-semibold);overflow-wrap:anywhere}
+
+.ext-table-wrap:has(> .ext-detail-table) {container-type:inline-size}
+@container (max-width:440px) {
+  .ext-panel .ext-detail-table, .ext-detail-table tbody {display:block}
+  .ext-detail-table thead {position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
+  .ext-detail-table tr {display:block;padding:var(--s-6) var(--s-8);border-bottom:1px solid var(--line)}
+  .ext-panel .ext-detail-table td {display:grid;grid-template-columns:minmax(68px,26%) minmax(0,1fr);gap:var(--s-8);padding:var(--s-2) 0;border:0;text-align:start!important;overflow-wrap:break-word}
+  .ext-detail-table td::before {content:attr(data-label);color:var(--muted);font-size:var(--fs-11)}
+  .ext-detail-table td > .ext-chip {justify-self:start}
+}

@@ -1,0 +1,298 @@
+# Waffle CI on self-hosted runners (see docs/ci.md and scripts/runners/README.md).
+#
+# Security model:
+# - Self-hosted jobs never run code from a fork: every job is skipped for a pull request whose head
+#   branch lives in another repository. Same-repository branches and pushes run normally.
+# - The token is read-only (contents: read) and no secrets are used. Checkout does not persist it.
+# - Actions are pinned by full commit SHA.
+# - The workspace is wiped before and after each job.
+# - Linux steps run in throwaway containers with no network, all capabilities dropped and the
+#   checkout mounted read-only (scripts/ci-linux.sh).
+# The same scripts run locally: scripts/ci-local.sh (macOS) and scripts/ci-linux.sh (Linux).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      windows_view_feel:
+        description: Measure PCB pan and zoom on the unlocked Windows test desktop
+        type: boolean
+        default: false
+      windows_exact_package:
+        description: Qualify the exact Windows asset from this Preview tag
+        type: boolean
+        default: false
+      windows_release_id:
+        description: Numeric ID of this repository's draft or published Preview release
+        type: string
+      windows_asset_id:
+        description: Numeric ID of the portable Windows ZIP in that release
+        type: string
+      windows_package_sha256:
+        description: Independently verified SHA-256 of the portable ZIP
+        type: string
+
+permissions:
+  contents: read
+
+# One run per ref; each self-hosted runner takes one job at a time, so jobs from other refs queue.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (arm64)
+    if: >-
+      !inputs.windows_exact_package &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, macOS, ARM64, atrium]
+    timeout-minutes: 75
+    concurrency:
+      group: ci-macos-${{ github.ref }}   # a newer push to the same ref cancels this job
+      cancel-in-progress: true
+    defaults:
+      run:
+        shell: zsh {0}
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain for application assets
+        run: scripts/ci/install-rust.sh
+      # Every step below runs even when an earlier one failed, so one run reports everything.
+      - name: JS suites under JavaScriptCore (known failures in tests/known-failures.txt)
+        timeout-minutes: 30
+        run: scripts/ci-local.sh jsc
+      - name: End-to-end fidelity, full tier (pinned Altium and KiCad corpora, known failures in tests/e2e/known-failures.json)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: scripts/ci-local.sh e2e
+      - name: MCP, headless parity, ECO end to end
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-local.sh mcp
+      - name: Static checks (tokens, reachability, shortcuts, startup budget, bundles)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-local.sh static
+      - name: Rust/WebAssembly kernels (cargo test, reproducible engine-core.js, JS/Wasm equivalence)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: scripts/ci-local.sh rust
+      - name: Swift typecheck, app build, native tests
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: scripts/ci-local.sh swift
+      - name: Windows host cross-build (core tests + portable zip, .NET 8 in user space)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: scripts/ci-local.sh windows
+      - name: macOS harness (real Desktop class in WKWebView)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-local.sh harness
+      - name: Click-through, pcb and schematic (headless Chrome)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 30
+        run: scripts/ci-local.sh click
+      - name: Canvas frame budgets
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-local.sh perf
+      - name: GPU renderer pixel test (Chrome and WKWebView) and click-through with the GPU
+        if: ${{ !cancelled() }}
+        timeout-minutes: 30
+        run: scripts/ci-local.sh gpu
+      - name: Clean workspace
+        if: always()
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+
+  linux:
+    name: Linux (arm64, containers)
+    if: >-
+      !inputs.windows_exact_package &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, Linux, ARM64, atrium]
+    timeout-minutes: 75
+    concurrency:
+      group: ci-linux-${{ github.ref }}   # a newer push to the same ref cancels this job
+      cancel-in-progress: true
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build CI images (cached by the content of scripts/ci)
+        timeout-minutes: 20
+        run: scripts/ci-linux.sh images
+      - name: Rust/WebAssembly kernels (cargo test, reproducible build, pinned rust image)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        run: scripts/ci-linux.sh rust
+      - name: Node suites (known failures in tests/known-failures.txt)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: scripts/ci-linux.sh node
+      - name: MCP tests (JavaScriptCore-GTK and Node)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-linux.sh mcp
+      - name: Static checks
+        if: ${{ !cancelled() }}
+        timeout-minutes: 5
+        run: scripts/ci-linux.sh static
+      - name: Linux host (Python syntax, imports, native tests)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-linux.sh native
+      - name: WebKitGTK smoke and UI probes (Xvfb)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 20
+        run: scripts/ci-linux.sh webkitgtk
+      - name: Debian package (build, inspect, dpkg -i)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: scripts/ci-linux.sh deb
+      - name: Chromium (reachability, click-through, performance, integration and Git history)
+        if: ${{ !cancelled() }}
+        timeout-minutes: 30
+        run: scripts/ci-linux.sh browser
+      - name: Clean workspace
+        if: always()
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+
+  windows:
+    name: Windows (x64)
+    # Off until a Windows runner is registered: set the repository variable WINDOWS_RUNNER=true.
+    if: >-
+      !inputs.windows_exact_package && vars.WINDOWS_RUNNER == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, Windows, X64, atrium]
+    timeout-minutes: 60
+    concurrency:
+      group: ci-windows-${{ github.ref }}   # a newer push to the same ref cancels this job
+      cancel-in-progress: true
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Clean workspace
+        run: Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 8.0.x
+      - name: Install the pinned Rust toolchain for application assets
+        run: rustup toolchain install 1.91.1 --profile minimal --target wasm32-unknown-unknown --no-self-update
+      # WINDOWS-HOST: native/windows (WebView2 host on .NET Framework 4.8); see native/windows/README.md.
+      - name: Windows host core tests
+        timeout-minutes: 10
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: dotnet run --project native/windows/tests -c Release
+      - name: Build and package the Windows host
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: dotnet build native/windows/Waffle.Windows.csproj -c Release -t:WafflePackage "-p:WaffleDist=$PWD/dist"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: waffle-windows-ci
+          path: dist/Waffle-*-windows.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Measure packaged WebView2 pan and zoom
+        id: windows_pcb_timing
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows_view_feel }}
+        timeout-minutes: 25
+        run: |
+          $version = (Get-Content -Raw app/VERSION).Trim()
+          $package = Join-Path $PWD "dist/Waffle-$version-windows.zip"
+          $packageInfo = @{
+            Package = $package
+            ExpectedSHA256 = (Get-FileHash -Algorithm SHA256 $package).Hash
+            ExpectedExecutableSHA256 = (Get-FileHash -Algorithm SHA256 dist/Waffle-windows/Waffle.exe).Hash
+            PackagedCandidate = $env:GITHUB_SHA
+            PackagedTree = (git rev-parse 'HEAD^{tree}')
+          }
+          $runs = @(
+            @{ Board = 'GargantuRAM'; Output = "$PWD/windows-pcb-timing/GargantuRAM" }
+            @{ Board = 'PiDP'; Output = "$PWD/windows-pcb-timing/PiDP" }
+            @{ Board = 'GargantuRAM'; Output = "$PWD/windows-pcb-timing/GargantuRAM-trace"; Trace = $true; Repetitions = 1 }
+          )
+          $failed = @()
+          foreach ($run in $runs) {
+            try {
+              ./scripts/ci/windows-view-feel.ps1 @packageInfo @run
+              if ($LASTEXITCODE -ne 0) { throw "Timing suite exited with $LASTEXITCODE" }
+            } catch {
+              Write-Warning "$($run.Board) timing failed. $_"
+              $failed += Split-Path -Leaf $run.Output
+            }
+          }
+          if ($failed.Count) { throw "Windows PCB timing failed for $($failed -join ', ')" }
+      - name: Save Windows frame timings
+        if: ${{ !cancelled() && (steps.windows_pcb_timing.outcome == 'success' || steps.windows_pcb_timing.outcome == 'failure') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: waffle-windows-pcb-timing
+          path: windows-pcb-timing/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Clean workspace
+        if: always()
+        run: Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+
+  windows-exact-package:
+    name: Exact Windows Preview asset (native WebView2)
+    if: github.event_name == 'workflow_dispatch' && inputs.windows_exact_package
+    runs-on: [self-hosted, Windows, X64, atrium]
+    timeout-minutes: 20
+    concurrency:
+      group: exact-windows-preview
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Verify runner and clean workspace
+        run: |
+          if ($env:RUNNER_NAME -ne 'waffle-windows') { throw 'Wrong Windows runner.' }
+          Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Retrieve and verify the immutable Preview asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_RELEASE_ID: ${{ inputs.windows_release_id }}
+          QA_ASSET_ID: ${{ inputs.windows_asset_id }}
+          QA_PACKAGE_SHA256: ${{ inputs.windows_package_sha256 }}
+        run: ./scripts/ci/windows-exact-package.ps1 -Acquire
+      - name: Smoke native launch and saved copper on the verified ZIP
+        env:
+          QA_PACKAGE_SHA256: ${{ inputs.windows_package_sha256 }}
+        run: ./scripts/ci/windows-exact-package.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: exact-windows-preview-qualification
+          path: .evidence/exact-windows/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Clean workspace
+        if: always() && runner.name == 'waffle-windows'
+        run: Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force

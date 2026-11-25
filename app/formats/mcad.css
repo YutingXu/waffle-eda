@@ -1,0 +1,37 @@
+/* MCAD panel (mcad-panel.js): incoming IDX / IDF / STEP proposals, the enclosure and its clearance. Tokens only. */
+.panel-mcad {display:flex;flex-direction:column;flex:1 1 0;min-height:200px;min-width:0;max-width:100%;overflow-x:hidden;border-top:1px solid var(--divider);font-size:var(--fs-12)}
+.panel-mcad[hidden] {display:none}
+.panel-mcad > * {min-width:0;max-width:100%;box-sizing:border-box}
+.panel-mcad .pane-heading {display:flex;align-items:center;gap:var(--s-6)}
+.mcad-close {margin-left:auto}
+.mcad-status {margin:0;padding:var(--s-4) var(--s-8);color:var(--muted);font-size:var(--fs-11);line-height:var(--lh);font-variant-numeric:tabular-nums}
+.mcad-tools,.mcad-bulk {display:flex;flex-wrap:wrap;gap:var(--s-4);padding:var(--s-4) var(--s-8)}
+.mcad-bulk[hidden],.mcad-decided[hidden] {display:none}
+.mcad-btn {flex:none}
+.mcad-list {flex:1 1 auto;min-height:40px;overflow:auto;padding:var(--s-2) 0}
+.mcad-row {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h-lg);padding:var(--s-2) var(--s-8);cursor:default;user-select:none;-webkit-user-select:none}
+.mcad-row:hover {background:var(--hover)}
+.mcad-row .mcad-btn {opacity:0;transition:opacity var(--motion-fast) var(--ease-standard)}
+.mcad-row:hover .mcad-btn,.mcad-row:focus-within .mcad-btn {opacity:1}
+.mcad-dot {flex:none;width:8px;height:8px;border-radius:var(--r-pill);border:1px solid var(--accent);background:var(--surface)}
+.mcad-row.is-accepted .mcad-dot {border-color:var(--success);background:var(--success)}
+.mcad-row.is-rejected .mcad-dot {border-color:var(--error);background:none}
+.mcad-row.is-info .mcad-dot {border-color:var(--muted);border-style:dashed}
+.mcad-row.is-bad .mcad-dot {border-color:var(--error);background:var(--error)}
+.mcad-text {flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:var(--s-2)}
+.mcad-label {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcad-meta {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh)}
+.mcad-decided {flex:none;max-height:30%;overflow:auto;border-top:1px solid var(--line)}
+.mcad-decided > summary {padding:var(--s-4) var(--s-8);color:var(--muted);font-size:var(--fs-11);cursor:default}
+.mcad-decided > summary:hover {color:var(--ink)}
+.mcad-enclosure {flex:none;padding:var(--s-4) var(--s-8) var(--s-8);border-top:1px solid var(--line)}
+.mcad-sub {margin:var(--s-4) 0;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--ink)}
+.mcad-note {margin:var(--s-4) 0;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh)}
+.mcad-note.is-bad {color:var(--error-ink)}
+.mcad-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:var(--s-4);margin:var(--s-4) 0}
+.mcad-field {display:flex;flex-direction:column;gap:var(--s-2);color:var(--muted);font-size:var(--fs-11)}
+.mcad-field input,.mcad-derive select,.mcad-derive input {min-width:0}
+.mcad-derive {display:flex;flex-wrap:wrap;gap:var(--s-4);margin-top:var(--s-6)}
+.mcad-derive select {flex:1 1 120px}
+.mcad-derive input {width:64px}
+.mcad-list > .mcad-note {margin:var(--s-4) var(--s-8)}

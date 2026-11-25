@@ -1,0 +1,3 @@
+{"kind":"schematic","formatVersion":"2.0","id":"extension-sheet"}
+{"kind":"widget","id":"counter","at":[25000000,32000000],"h":26000000,"order":"V","text":"Inspection counter","w":48000000,"widget":{"fallback":{"text":"Inspection counter","type":"text"},"state":{"count":0},"type":"ext.example.inspection.counter"}}
+{"kind":"documentSettings","id":"extension-sheet/settings","value":{"grid":1270000,"notes":[],"outline":[]}}

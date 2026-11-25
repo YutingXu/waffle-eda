@@ -1,0 +1,147 @@
+/* Navigation and verification: command palette, context menu and Active Bar flyouts,
+   DRC status and marker tooltip, Nets panel, PCB List and the one-row-per-
+   command keyboard shortcuts editor. Tokens only; sizes scale with --fs-scale. */
+
+/* ---------------------------------------------------------------- command palette */
+/* Keep the input and dialog measurable before the search module loads. */
+.nav-palette.ui-dialog {
+  --ui-dialog-width:min(744px,calc(var(--palette-w,100vw) - 28px));
+  --ui-dialog-padding:0;
+  --palette-top:clamp(12px,calc(var(--palette-h,100dvh) * .2),148px);
+  --palette-available:calc(var(--palette-h,100dvh) - var(--palette-top) - 12px);
+  --ui-dialog-max-height:min(376px,var(--palette-available));
+  position:fixed;inset:auto;margin:0;display:flex;flex-direction:column;overflow:hidden;
+  left:calc(var(--palette-x,0px) + var(--palette-w,100vw)/2);
+  top:calc(var(--palette-y,0px) + var(--palette-top));
+  translate:-50%;
+  max-width:none;
+  width:round(nearest,var(--ui-dialog-width),1px);max-height:round(down,var(--ui-dialog-max-height),1px);
+  left:round(nearest,calc(var(--palette-x,0px) + var(--palette-w,100vw)/2),1px);
+  top:round(nearest,calc(var(--palette-y,0px) + var(--palette-top)),1px);
+  translate:round(down,-50%,1px);
+}
+.nav-palette.ui-dialog:is([data-palette-pointer=touch],[data-palette-stacked]) {
+  --ui-dialog-max-height:min(452px,var(--palette-available));
+  height:var(--ui-dialog-max-height);height:round(down,var(--ui-dialog-max-height),1px);
+}
+@media(any-pointer:coarse) {
+  .nav-palette.ui-dialog {
+    --ui-dialog-max-height:min(452px,var(--palette-available));
+    --palette-query-height:48px;
+    height:var(--ui-dialog-max-height);height:round(down,var(--ui-dialog-max-height),1px);
+  }
+}
+.nav-palette[data-palette-pointer=touch] {--palette-query-height:48px}
+.nav-palette[data-palette-short] {--palette-top:12px}
+.nav-palette.ui-dialog:not([open]),.nav-palette [hidden] {display:none}
+.nav-palette.ui-dialog::backdrop {background:transparent;animation:none}
+.nav-palette-query {
+  display:flex;align-items:center;gap:var(--s-8);padding:var(--s-4) var(--s-12);
+  box-shadow:var(--chrome-rule-bottom) var(--line);flex:none;
+}
+.nav-palette-query>.nav-palette-search-icon {width:18px;height:18px;color:var(--muted)}
+.nav-palette-scope-chip {
+  display:inline-flex;align-items:center;gap:var(--s-4);white-space:nowrap;
+  --ui-button-fill:var(--field);--ui-button-border:var(--line);
+}
+.nav-palette-scope-chip .icon {width:12px;height:12px;color:var(--muted)}
+.nav-palette:not([data-palette-commands],[data-palette-scope]) .nav-palette-scope-chip,
+.nav-palette-query:has(>.nav-palette-search-icon[hidden]) .nav-palette-scope-chip {display:none}
+.nav-palette[data-palette-pointer=touch] .nav-palette-scope-chip {min-height:var(--ctl-h-touch)}
+.nav-palette-query input {
+  flex:1;min-width:0;min-height:var(--palette-query-height,42px);padding:0;border:0;border-radius:0;background:transparent;
+  color:var(--ink);font-size:var(--fs-20);caret-color:var(--ink);
+}
+.nav-palette-query input:focus {outline:none}
+.nav-palette-query input::placeholder {color:var(--muted)}
+.nav-palette-body {flex:1 1 auto;min-height:0}
+.nav-palette-foot {padding:var(--s-2) var(--s-8);box-shadow:var(--chrome-rule-top) var(--line);color:var(--muted);font-size:var(--fs-11)}
+
+/* The existing canvas tool remains reachable without a hardware keyboard. */
+.palette-insert-launch {position:absolute;inset-inline-end:var(--s-12);inset-block-end:var(--s-12);z-index:2;min-width:var(--ctl-h-touch);min-height:var(--ctl-h-touch);display:none;place-items:center;padding:0;border-radius:var(--r-pill);font-size:var(--fs-20);box-shadow:var(--elev-1)}
+@media (any-pointer:coarse) {.palette-insert-launch {display:grid}}
+.palette-insert-launch[hidden] {display:none}
+
+/* ---------------------------------------------------------------- context menu, flyouts */
+.nav-menu {position:fixed;z-index:var(--z-float);min-width:200px;max-width:min(340px,90vw);padding:4px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2)}
+.nav-menu {inline-size:calc-size(max-content, round(up,size,1px));max-inline-size:round(down,min(340px,90vw),1px)}
+.nav-menu-item {display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;min-height:calc(24px + var(--d-row));padding:2px 8px;text-align:left;font-size:var(--fs-12);color:inherit}
+.nav-menu-item:disabled {color:var(--faint)}
+.nav-menu-item > .ui-shortcut {flex:none}
+.nav-menu hr {border:0;border-top:1px solid var(--line);margin:4px 4px}
+.active-bar .tool[data-tool-group] {position:relative}
+.active-bar .tool[data-tool-group]::after {content:"";position:absolute;inset-inline-end:var(--s-2);inset-block-end:var(--s-2);width:5px;height:5px;
+  background:currentColor;opacity:.6;clip-path:polygon(100% 0,100% 100%,0 100%);pointer-events:none}
+.menu-items [data-checkable][data-checked=true]::before {content:"✓";position:absolute;left:7px;font-size:var(--fs-11);color:var(--accent-text)}
+
+/* ---------------------------------------------------------------- status bar */
+.nav-drc-tip {position:fixed;z-index:var(--z-popover);max-width:340px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-11);pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.nav-drc-tip[hidden] {display:none}
+.nav-drc-tip strong {font-weight:600}
+.nav-drc-tip small {color:var(--muted)}
+
+/* ---------------------------------------------------------------- Nets panel (left pane) */
+.panel-nets {flex:1 1 0;border-top:1px solid var(--divider);min-height:120px}
+.panel-nets[hidden] {display:none}
+.nets-close {margin-left:auto}
+.nets-tools {display:flex;flex-wrap:wrap;gap:4px;padding:4px 6px;border-bottom:1px solid var(--line)}
+.nets-search {--ui-search-height:calc(20px + var(--d-row));flex:1 1 100%}
+.nets-tools select {flex:1 1 auto;min-width:0;height:20px}
+.nets-tools select[hidden],.nets-tools button[hidden] {display:none}
+.nets-small {white-space:nowrap}
+.nets-override[aria-pressed=true] {border-color:var(--accent);color:var(--accent-text)}
+.nets-table:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-2px}
+.nets-table {width:100%;border-collapse:collapse;font-size:var(--fs-11);table-layout:fixed}
+.nets-table thead th {position:sticky;top:0;z-index:1;background:var(--panel-head);text-align:left;font-weight:500;color:var(--muted);padding:0}
+.nets-table thead th button {width:100%;height:calc(20px + var(--d-row));padding:0 4px;text-align:inherit;color:inherit;font:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nets-table th[aria-sort=ascending] button::after {content:" ▲";font-size:.75em}
+.nets-table th[aria-sort=descending] button::after {content:" ▼";font-size:.75em}
+.nets-table th[hidden],.nets-table td[hidden] {display:none}
+.nets-table td {height:calc(20px + var(--d-row));padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid var(--soft)}
+.nets-table .num {text-align:right;font-variant-numeric:tabular-nums}
+.nets-table .nets-sw {width:22px}
+.nets-table .nets-col-name {width:auto}
+.nets-table th.nets-col-cls {width:17%}
+.nets-table th.nets-col-nodes,.nets-table th.nets-col-unrouted {width:13%}
+.nets-table th.nets-col-length {width:17%}
+.nets-table tbody tr:hover td {background:var(--hover)}
+.nets-table tbody tr[aria-selected=true] td {background:var(--selection);color:var(--selection-ink)}
+.nets-table tbody tr.is-lit td.nets-col-name {font-weight:600;color:var(--accent-text)}
+.nets-table tbody tr[aria-selected=true].is-lit td.nets-col-name {color:inherit}
+.nets-table .is-bad {color:var(--error-ink)}
+.nets-table .is-warn {color:var(--warn-ink)}
+.nets-swatch {display:inline-block;width:12px;height:12px;border-radius:var(--r-sm);border:1px solid var(--swatch-edge);vertical-align:middle;cursor:default}
+.nets-swatch.is-empty {background:repeating-linear-gradient(45deg,transparent 0 2px,var(--line) 2px 3px)}
+.nets-picker {position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.nav-spacer td {padding:0!important;border:0!important}
+
+/* ---------------------------------------------------------------- PCB List (bottom dock, like Messages) */
+.pl-panel {position:relative;z-index:4;order:1;flex:none;height:min(32vh,300px);min-height:120px;max-height:70vh;display:flex;flex-direction:column;
+  background:var(--panel);color:var(--ink);border-top:1px solid var(--app);font-size:var(--fs-12)}
+.pl-panel[hidden] {display:none}
+.pl-head input {width:110px;padding:0 6px}
+.pl-count,.pl-label {color:var(--muted);white-space:nowrap}
+.pl-apply {white-space:nowrap}
+.pl-grid {flex:1 1 auto;min-height:0;overflow:auto;outline-offset:-2px}
+.pl-grid:focus-visible {outline:1px solid var(--focus)}
+.pl-grid table {border-collapse:collapse;min-width:100%;font-size:var(--fs-11)}
+.pl-grid thead th {position:sticky;top:0;z-index:1;background:var(--panel-head);color:var(--muted);font-weight:500;text-align:left;padding:4px 8px;white-space:nowrap;border-bottom:1px solid var(--line)}
+.pl-grid thead th.pl-editable {color:var(--ink)}
+.pl-grid td {height:calc(20px + var(--d-row));padding:0 8px;white-space:nowrap;border-bottom:1px solid var(--soft);border-right:1px solid var(--soft)}
+.pl-grid td.num {text-align:right;font-variant-numeric:tabular-nums}
+.pl-grid td:not(.pl-can-edit) {color:var(--muted)}
+.pl-grid tr:hover td {background:var(--hover)}
+.pl-grid tr.is-picked td {background:var(--selection);color:var(--selection-ink)}
+.pl-grid td.active {box-shadow:inset 0 0 0 1px var(--focus)}
+.pl-cell-editor {width:100%;min-width:60px;height:calc(18px + var(--d-row));padding:0 4px;border:1px solid var(--focus);border-radius:0;background:var(--field);color:var(--ink);font:inherit}
+
+/* ---------------------------------------------------------------- shortcuts editor: one row per command (PARITY §3.2 #8) */
+.keymap-dialog .km-tools {margin-bottom:0}
+.keymap-dialog .km-status:empty {min-height:0;margin:0}
+.km-chips {display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+/* Each binding is a library .ui-chip token (data-invalid marks a conflict); the key button sits inside it. */
+.km-chip {padding-inline:0 var(--s-6)}
+.km-chip .km-keys {min-width:0!important;padding:1px 4px!important}
+.km-ctx {display:block;color:var(--muted);font-size:var(--fs-11);text-align:left;padding:1px 4px;border:1px solid transparent;border-radius:var(--r-sm);background:none}
+.km-ctx:hover {border-color:var(--line)}
+.km-ctx + .km-ctx {margin-top:2px}

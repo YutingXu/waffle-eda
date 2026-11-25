@@ -1,0 +1,4 @@
+{"kind":"schematic","formatVersion":"2.0","id":"schematic"}
+{"kind":"documentSettings","id":"schematic/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"netlabel","id":"sense","at":[10000000,10000000],"order":"e","text":"SENSE"}
+{"kind":"part","id":"u1","angle":0,"at":[10000000,10000000],"def":"b-g","link":"u1-link","order":"K","pinNets":{},"ref":"U1","schPaint":{"parameters":{"MPN":{"at":[0,-3000000],"caption":"MPN","size":1200000,"text":"b-g-order"}}},"value":"Demo B"}

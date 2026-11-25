@@ -1,0 +1,9 @@
+/* The ODB++ card's extra lines (release-odb.js): placement only. Status lines, buttons, the progress
+   row and the fidelity table are the library's. */
+.rel-card .odb-lines {display:flex;flex-direction:column;gap:var(--s-4);min-inline-size:0}
+.rel-card .odb-lines:empty {display:none}
+.rel-card .odb-lines .ui-status-line {flex-wrap:wrap;column-gap:var(--s-6)}
+.rel-card .odb-lines .ui-status-line .ui-button {margin-inline-start:auto}
+.work-dialog.odb-report {inline-size:min(560px,var(--dialog-avail-w))}
+.rel-card .odb-lines .ui-status-text {white-space:normal;overflow-wrap:anywhere}
+.rel-card .rel-thumb .ui-empty {padding:var(--s-8)}

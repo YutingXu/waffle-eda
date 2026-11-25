@@ -1,0 +1,11 @@
+.sw-editor {width:min(38rem,calc(100vw - 24px));max-height:min(90dvh,48rem);padding:0}
+.sw-editor header {position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.sw-editor h2,.sw-editor header > .ui-dialog-actions {margin:0}.sw-editor button {min-height:var(--ctl-h-touch)}
+.sw-body {display:grid;gap:10px;padding:16px;overflow-wrap:anywhere}.sw-body fieldset {display:grid;gap:6px;min-width:0;margin:0;padding:10px;border:1px solid var(--line);border-radius:5px}
+.sw-field {display:grid;grid-template-columns:minmax(7rem,1fr) minmax(0,2fr);align-items:center;gap:8px}.sw-field .ui-field {min-width:0}
+.sw-field input[type=date]::-webkit-datetime-edit-day-field,
+.sw-field input[type=date]::-webkit-datetime-edit-month-field,
+.sw-field input[type=date]::-webkit-datetime-edit-year-field {padding-inline-start:0}
+.sw-check {display:flex;align-items:center;gap:8px;min-height:44px;font-weight:600}.sw-check input {min-width:22px;accent-color:var(--accent)}
+.sw-table,.sw-result {display:grid;gap:8px}.sw-table fieldset {row-gap:var(--s-12)}.sw-result pre {white-space:pre-wrap}.sw-status {margin:0 16px 12px;color:var(--danger,var(--ink))}.sw-status:empty {display:none}
+@media (max-width:420px) {.sw-field {grid-template-columns:1fr;gap:2px}.sw-body {padding:10px}}

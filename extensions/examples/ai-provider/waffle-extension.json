@@ -1,0 +1,13 @@
+{
+  "id": "waffle.local-ai-example",
+  "name": "Local AI Provider Example",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "main": "provider.js",
+  "permissions": ["ai:provider"],
+  "contributes": {
+    "aiProviders": [
+      {"id":"local", "label":"Deterministic local provider", "entry":"provider.js", "hosts":[]}
+    ]
+  }
+}

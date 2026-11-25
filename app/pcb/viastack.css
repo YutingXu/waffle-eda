@@ -1,0 +1,83 @@
+/* Via Stack editor, Via Templates library and Fab Profiles dialogs. Builds on .work-dialog (workflows.css). */
+.vs-dialog,.fp-dialog {width:min(1120px,calc(100vw - 32px));max-height:min(90vh,860px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+.vs-dialog:not([open]),.fp-dialog:not([open]) {display:none}
+.vs-head {display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;padding:14px 18px 10px;background:var(--panel-head);border-bottom:1px solid var(--line)}
+.vs-head h2 {margin:0;font-size:var(--fs-14)}
+.vs-sub {color:var(--muted);font-size:var(--fs-12);overflow-wrap:anywhere}
+.vs-dialog .work-actions,.fp-dialog .work-actions {margin:0;padding:10px 18px 14px;border-top:1px solid var(--line)}
+.vs-body {padding:10px 18px;overflow:auto;min-height:0;flex:1 1 auto}
+.vs-tpl {padding:8px 18px 0}
+.vs-editor {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:12px;align-items:start}
+.vs-form {display:flex;flex-direction:column;gap:8px;min-width:0}
+.vs-side {position:sticky;top:0;min-width:0}
+.vs-row {display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
+.vs-k {color:var(--muted);font-size:var(--fs-12);min-width:60px}
+.vs-field {display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--muted)}
+.vs-field.vs-measure {gap:var(--s-8)}
+.vs-field.vs-wide {display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,2fr);margin:4px 0}
+.vs-check {display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-12)}
+.work-dialog .vs-num {width:var(--field-number-width);font-variant-numeric:tabular-nums}
+.work-dialog .vs-name {flex:1 1 220px;min-width:0}
+.vs-modes {gap:0}
+.vs-table-wrap {overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm);max-height:240px;background:var(--field)}
+.vs-table {width:100%;border-collapse:collapse;font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.vs-table th {position:sticky;top:0;background:var(--panel-head);color:var(--muted);font-weight:500;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.vs-table td {padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.vs-table td:first-child {white-space:normal;min-width:70px}
+.vs-table tbody tr {background:var(--panel)}
+.vs-bad {color:var(--err-mark)}
+.vs-group {border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 8px 8px;margin:0;display:flex;flex-direction:column;gap:6px}
+.vs-group legend {color:var(--muted);font-size:var(--fs-11);padding:0 4px;text-transform:uppercase;letter-spacing:.04em}
+.vs-section {border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);padding:4px}
+.vs-svg {display:block;width:100%;height:auto}
+.vs-svg .vs-lbl {fill:var(--muted);font:var(--fs-10) var(--mono)}
+.vs-svg .vs-cu {fill:var(--ink)}
+.vs-svg .vs-dim {fill:var(--ink);font:var(--fs-10) var(--mono)}
+.vs-svg .vs-warn {fill:var(--err-mark)}
+.vs-svg .vs-open {fill:var(--field)}
+.vs-cut {color:var(--err-mark)}
+.vs-svg .vs-legend {fill:var(--muted);font:var(--fs-11) system-ui,sans-serif}
+.vs-msgs {list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:var(--fs-12)}
+.vs-msg {padding:4px 8px 4px 22px;border-radius:var(--r-sm);background:var(--soft);position:relative;line-height:1.4}
+.vs-msg::before {position:absolute;left:8px;top:4px;font-weight:700}
+.vs-error {box-shadow:inset 3px 0 0 var(--err-mark)}.vs-error::before {content:"!";color:var(--err-mark)}
+.vs-warning {box-shadow:inset 3px 0 0 var(--warn-mark)}.vs-warning::before {content:"!";color:var(--warn-mark)}
+.vs-info {box-shadow:inset 3px 0 0 var(--accent)}.vs-info::before {content:"i";color:var(--accent-text)}
+.vs-ok {box-shadow:inset 3px 0 0 var(--ok-mark)}.vs-ok::before {content:"✓";color:var(--ok-mark);left:6px}
+.vs-readonly .vs-form {pointer-events:none;opacity:.7}
+.vs-lib .vs-editor {grid-template-columns:minmax(300px,1fr) minmax(0,1.15fr)}
+.fp-detail .vs-table-wrap {max-height:none}
+.vs-detail > *,.fp-detail > * {flex:none}
+/* Library and profile lists */
+.vs-lib-body,.fp-body {display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);min-height:0;flex:1 1 auto;overflow:hidden}
+.vs-list,.fp-list {border-right:1px solid var(--line);padding:8px 12px;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:0}
+.vs-detail,.fp-detail {padding:10px 18px;overflow:auto;min-height:0;display:flex;flex-direction:column;gap:8px}
+.vs-items {--ui-row-hover:var(--soft);--ui-row-selected-meta:var(--sel-sub-ink);border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);padding:4px;overflow:auto;min-height:120px;flex:1 1 auto}
+.vs-group-title {color:var(--faint);font-size:var(--fs-10);text-transform:uppercase;letter-spacing:.06em;padding:6px 6px 2px}
+.vs-templates {overflow:auto;overscroll-behavior:contain;min-height:120px;flex:1 1 auto}
+.vs-template .ui-row-detail {font-family:var(--mono)}
+.vs-item strong {font-weight:560;font-size:var(--fs-12)}
+.vs-item small {font-family:var(--mono)}
+.vs-tools button,.vs-io button {font-size:var(--fs-12)}
+.work-dialog .vs-danger:hover:not(:disabled) {box-shadow:inset 0 0 0 1px var(--err-mark)}
+.vs-note {color:var(--muted);font-size:var(--fs-11)}
+.vs-list > .vs-defaults {margin-block-start:var(--s-8)}
+.vs-defaults > .vs-field {align-items:baseline}
+.vs-defaults small {margin-top:2px}
+/* Fab profiles */
+.fp-warning {display:flex;gap:6px;flex-wrap:wrap;align-items:baseline;margin:10px 18px 0;padding:8px 12px;border:1px solid var(--warn-mark);border-radius:var(--r-sm);background:color-mix(in srgb,var(--warn-mark) 14%,var(--panel));font-size:var(--fs-13);line-height:1.45}
+.fp-warning strong {color:var(--warn-ink);font-size:var(--fs-14)}
+.fp-title {display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.fp-title h3 {margin:0;font-size:var(--fs-14)}
+.work-dialog .fp-note {margin:0;font-size:var(--fs-12)}
+.fp-table td:nth-child(2),.fp-table td:nth-child(3) {font-family:var(--mono)}
+.fp-fact td {color:var(--muted);white-space:normal}
+.fp-fact td:first-child {color:var(--ink)}
+.fp-ok {color:var(--ok-mark)}.fp-looser {color:var(--err-mark)}.fp-missing,.fp-differs {color:var(--warn-mark)}
+.fp-check h3 {margin:4px 0 2px;font-size:var(--fs-13)}
+.fp-status {margin:6px 18px 0;min-height:1.4em;font-size:var(--fs-12)}
+@media (max-width:760px) {
+  .vs-editor,.vs-lib-body,.fp-body {grid-template-columns:1fr}
+  .vs-list,.fp-list {border-right:0;border-bottom:1px solid var(--line);max-height:34vh}
+  .vs-lib-body,.fp-body {overflow:auto}
+}

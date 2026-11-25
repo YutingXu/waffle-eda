@@ -1,0 +1,81 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const { loadDOM } = require("../integration/integration.cjs");
+require("../../app/core/model.js");
+require("../../app/library/parts.js");
+require("../../app/history/revision-review.js");
+require("../../app/history/revision-geometry.js");
+
+async function main() {
+  const {parseHTML}=await loadDOM();
+  globalThis.document=parseHTML("<html><body></body></html>").document;
+  const baseline=AtriumParts.example(),current=Atrium.clone(baseline);
+  const [sheet,board]=current.documents;
+  const item=(d,k)=>d.items.find(i=>i.kind===k);
+  const track=item(board,"track"), wire=item(sheet,"wire"), via=item(board,"via"), pad=item(board,"pad");
+  const part=board.items.find(i=>i.ref==="U1"), sym=sheet.items.find(i=>i.ref==="R1");
+  const oldTrack=item(baseline.documents[1],"track"), oldWire=item(baseline.documents[0],"wire");
+  track.width=.95;track.points[0]=[-3.1,5.2];wire.points[0][0]+=2;
+  via.drill=.69;pad.net="UNCHANGED_GEOMETRY";
+  part.x=-7;part.angle=90;sym.angle+=90;
+  const defs=current.library.find(d=>d.id===part.def);defs.footprint.pads[0].w+=.1;
+  const removed=board.items.find(i=>i.ref==="J1");board.items=board.items.filter(i=>i!==removed);
+  const added={id:"new-flat",kind:"wire",points:[[50,50],[50,50]]};
+  sheet.items.push(added);
+  const report=AtriumRevisionReview.compare(baseline,current);
+  const preview=id=>{
+    const row=report.rows.find(r=>(r.next||r.previous).data.id===id);
+    assert.ok(row,id);return AtriumRevisionGeometry.preview(report,row);
+  };
+  const group=(fig,side)=>fig.querySelector('g[data-revision="'+side+'"]');
+  const svg=fig=>fig.querySelector('svg[role="img"]');
+  const view=fig=>svg(fig).getAttribute("viewBox").split(" ").map(Number);
+  const band=(fig,side)=>group(fig,side).querySelector("polyline");
+  const trace=preview(track.id);
+  assert.equal(Number(band(trace,"After").getAttribute("stroke-width")),.95);
+  assert.equal(Number(band(trace,"Before").getAttribute("stroke-width")),oldTrack.width);
+  assert.equal(band(trace,"Before").getAttribute("points"),oldTrack.points.map(p=>p.map(n=>+n.toFixed(9)).join(",")).join(" "));
+  assert.ok(group(trace,"Before").querySelector("polyline[stroke-dasharray]"));assert.ok(!band(trace,"After").hasAttribute("stroke-dasharray"));
+  const [x,y,w,h]=view(trace);
+  for(const [px,py] of [...track.points,...oldTrack.points])assert.ok(x<px&&px<x+w&&y<py&&py<y+h);
+  assert.ok(svg(trace).getAttribute("aria-label").includes("Before and after"));
+  const schematic=preview(wire.id);
+  assert.equal(+band(schematic,"Before").getAttribute("stroke-width"),oldWire.width||.22);
+  assert.equal(+group(preview(via.id),"After").querySelectorAll("ellipse")[1].getAttribute("rx"),via.drill/2);
+  assert.equal(preview(pad.id),null,"net-only change has no geometry diff");
+  const fp=preview(part.id), fpAfter=group(fp,"After");
+  assert.match(fp.textContent,/Component outlines/);
+  // Pin 1 SOT-23-5 is roundrect. Its corner and angle must follow parent placement.
+  const firstPad=fpAfter.querySelector("rect");
+  assert.ok(firstPad);
+  const padDef=defs.footprint.pads[0],at=Atrium.world([padDef.x,padDef.y],part);
+  assert.ok(Math.abs(Number(firstPad.getAttribute("x"))+padDef.w/2-at[0])<1e-8);
+  assert.ok(Math.abs(Number(firstPad.getAttribute("y"))+padDef.h/2-at[1])<1e-8);
+  assert.match(firstPad.getAttribute("transform"),/^rotate\(90 /);
+  assert.ok(group(preview(sym.id),"After").querySelectorAll("polyline").length>0);
+  const library=preview(defs.id);assert.equal(library.querySelectorAll('svg[role="img"]').length,1);
+  assert.match(svg(library).getAttribute("aria-label"),/Footprint outline/);
+  const deletion=preview(removed.id);assert.ok(group(deletion,"Before"));assert.equal(group(deletion,"After"),null);
+  const addition=preview(added.id);assert.equal(group(addition,"Before"),null);assert.ok(group(addition,"After"));
+  assert.ok(view(addition).every(Number.isFinite));assert.ok(view(addition)[2]>0&&view(addition)[3]>0);
+  const reversed=Atrium.clone(baseline);
+  reversed.documents[1].items.find(i=>i.id===oldTrack.id).points.reverse();
+  const reversedReport=AtriumRevisionReview.compare(baseline,reversed);
+  assert.equal(AtriumRevisionGeometry.preview(reversedReport,reversedReport.rows[0]),null,"reversing identical copper has no visible overlay");
+  const outer=[[0,0],[10,0],[10,10],[0,10]];
+  const contour=points=>points.map((a,i)=>({kind:"line",a,b:points[(i+1)%points.length]}));
+  const film=Atrium.clone(baseline);
+  film.documents[1].items.push({kind:"graphic",id:"foil",layer:"Top",fill:true,points:outer,
+    regionShape:{version:1,contour:contour(outer),cutouts:[],sig:AtriumBoardShape.signature(outer)}});
+  const drilled=Atrium.clone(film);
+  drilled.documents[1].items.at(-1).regionShape.cutouts=[contour([[2,2],[2,3],[3,3],[3,2]])];
+  const diff=AtriumRevisionReview.compare(film,drilled);
+  const overlay=AtriumRevisionGeometry.preview(diff,diff.rows.find(row=>row.next?.data.id==="foil"));
+  assert.ok(overlay,"a change confined to an interior hole must have a visible comparison");
+  const cut=group(overlay,"After").querySelector('path[fill-rule="evenodd"]');
+  assert.ok(cut);assert.equal(cut.getAttribute("d").split("M").length-1,2);
+  assert.ok(cut.getAttribute("d").includes("2,3"));
+  console.log("PASS selected geometry overlays: copper widths, wire vertices, drill, rotated pads and symbols, library footprints, added and removed objects, zero span and unchanged geometry");
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

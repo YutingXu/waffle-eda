@@ -1,0 +1,44 @@
+name: Parity gap
+description: A workflow another EDA tool supports that Waffle lacks or does worse.
+labels: [parity]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the behaviour in your own words and link to the vendor's public documentation.
+        Please **do not paste vendor documentation text or screenshots** (see the clean-room policy in CONTRIBUTING.md).
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Reference tool
+      options: [Altium Designer, KiCad, Cadence Allegro / OrCAD, EasyEDA, Other]
+    validations:
+      required: true
+  - type: input
+    id: feature
+    attributes:
+      label: Feature name
+      placeholder: "e.g. xSignals wizard"
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow
+      description: Step by step, what a designer does and gets in the reference tool, and what happens in Waffle today.
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Link to public documentation
+  - type: dropdown
+    id: status
+    attributes:
+      label: Waffle status
+      options: [Missing, Partial, Exists but hard to find, UX worse than reference]
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample file (optional)
+      description: Only files you made yourself or whose licence allows redistribution.

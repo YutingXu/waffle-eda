@@ -1,0 +1,113 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "sch",
+      "items": [
+        {"angle":0,"def":"std-j3","id":"amwnqtyrvd0id37fpsh","kind":"part","link":"amwnqtyrvq2pxpbh770t","ref":"J1","value":"1 × 03","x":0,"y":0},
+        {"angle":0,"def":"std-r","id":"amwnqtys3kdgslhiavg","kind":"part","link":"amwnqtys3kzqgs66yt3c","ref":"R1","value":"10 kΩ","x":20.32,"y":0},
+        {"angle":0,"def":"std-c","id":"amwnqtys7cnq2qhnzdap","kind":"part","link":"amwnqtys75nwpge0x2b","ref":"C1","value":"100 nF","x":35.56,"y":7.62},
+        {"angle":0,"def":"std-r","id":"amwnqtys9si1z713ern","kind":"part","link":"amwnqtys9ngw1aa9wk1","ref":"R2","value":"10 kΩ","x":55.88,"y":0},
+        {"angle":0,"def":"std-c","id":"amwnqtysd7n0w2ofb0b7","kind":"part","link":"amwnqtysdfjxa0gscnxq","ref":"C2","value":"100 nF","x":55.88,"y":20.32},
+        {"angle":0,"def":"std-j3","id":"amwnqtysijo554r9pb3k","kind":"part","link":"amwnqtysiedrotmbmfbt","ref":"J2","value":"1 × 03","x":81.28,"y":0},
+        {"id":"amwnqtysoycvs66tfto","kind":"wire","points":[[7.62,0],[15.24,0]]},
+        {"id":"amwnqtyssm5r2rocnpss","kind":"netlabel","text":"FILT","x":25.4,"y":0},
+        {"id":"amwnqtysxq4xd4bqulad","kind":"netlabel","text":"FILT","x":30.48,"y":7.62},
+        {"id":"amwnqtyt1xirctirs128","kind":"netlabel","text":"FILT","x":50.8,"y":0},
+        {"id":"amwnqtyt4vy9wy88a8v","kind":"netlabel","text":"OUT","x":60.96,"y":0},
+        {"id":"amwnqtyt8a5bao4q4cxl","kind":"netlabel","text":"OUT","x":88.9,"y":0},
+        {"direction":1,"id":"amwnqtytb5nb4a84rrxs","kind":"power","showName":true,"style":"bar","text":"+5V","x":7.62,"y":-5.08},
+        {"direction":1,"id":"amwnqtytea2teeyaqxhj","kind":"power","showName":true,"style":"bar","text":"+5V","x":88.9,"y":-5.08},
+        {"direction":1,"id":"amwnqtytio3wv4ffx1xi","kind":"power","showName":true,"style":"bar","text":"+5V","x":50.8,"y":20.32},
+        {"direction":3,"id":"amwnqtytnrq06b6xkndh","kind":"power","showName":true,"style":"gnd","text":"GND","x":7.62,"y":5.08},
+        {"direction":3,"id":"amwnqtytqr563ego6ym","kind":"power","showName":true,"style":"gnd","text":"GND","x":40.64,"y":7.62},
+        {"direction":3,"id":"amwnqtytwhizva0n6mn4","kind":"power","showName":true,"style":"gnd","text":"GND","x":60.96,"y":20.32},
+        {"direction":3,"id":"amwnqtytzj7ex1hkiyrn","kind":"power","showName":true,"style":"gnd","text":"GND","x":88.9,"y":5.08}
+      ],
+      "kind": "schematic",
+      "name": "Input stage",
+      "notes": [],
+      "outline": []
+    },
+    {
+      "grid": 0.25,
+      "id": "pcb",
+      "items": [
+        {"angle":90,"def":"std-c","id":"amwnqtyu4bpibpo2p4vw","kind":"part","link":"amwnqtys75nwpge0x2b","pinNets":{"1":"FILT","2":"GND"},"ref":"C1","value":"100 nF","x":14,"y":20},
+        {"angle":0,"def":"std-c","id":"amwnqtyu4rjlp8j1mmoh","kind":"part","link":"amwnqtysdfjxa0gscnxq","pinNets":{"1":"+5V","2":"GND"},"ref":"C2","value":"100 nF","x":24,"y":23},
+        {"angle":0,"def":"std-j3","id":"amwnqtyu4jjxqxk33ojo","kind":"part","link":"amwnqtyrvq2pxpbh770t","pinNets":{"1":"+5V","2":"Net-J1-2","3":"GND"},"ref":"J1","value":"1 × 03","x":5,"y":15},
+        {"angle":0,"def":"std-j3","id":"amwnqtyu4t7kcjoujqbj","kind":"part","link":"amwnqtysiedrotmbmfbt","pinNets":{"1":"+5V","2":"OUT","3":"GND"},"ref":"J2","value":"1 × 03","x":35,"y":15},
+        {"angle":0,"def":"std-r","id":"amwnqtyu4ctoad9gt7dg","kind":"part","link":"amwnqtys3kzqgs66yt3c","pinNets":{"1":"Net-J1-2","2":"FILT"},"ref":"R1","value":"10 kΩ","x":14,"y":10},
+        {"angle":0,"def":"std-r","id":"amwnqtyu4w7ob9bu6ud","kind":"part","link":"amwnqtys9ngw1aa9wk1","pinNets":{"1":"FILT","2":"OUT"},"ref":"R2","value":"10 kΩ","x":24,"y":12}
+      ],
+      "kind": "pcb",
+      "name": "Buffer board",
+      "notes": [],
+      "outline": [
+        [0,0],
+        [40,0],
+        [40,30],
+        [0,30]
+      ]
+    }
+  ],
+  "format": "atrium",
+  "library": [
+    {
+      "category": "Connectors",
+      "footprint": {
+        "courtyard": [-1.75,-4.1,1.75,4.1],
+        "name": "PinHeader_1×03_2.54mm",
+        "pads": [{"angle":0,"drill":1,"h":1.75,"number":"1","shape":"rect","w":1.75,"x":0,"y":-2.54},{"angle":0,"drill":1,"h":1.75,"number":"2","shape":"round","w":1.75,"x":0,"y":0},{"angle":0,"drill":1,"h":1.75,"number":"3","shape":"round","w":1.75,"x":0,"y":2.54}],
+        "shapes": [{"closed":true,"fill":false,"kind":"path","points":[[-1.49,-3.81],[1.49,-3.81],[1.49,3.81],[-1.49,3.81]],"style":"silk"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.75,-4.1],[1.75,-4.1],[1.75,4.1],[-1.75,4.1]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-j3",
+      "name": "3-pin header",
+      "prefix": "J",
+      "schDrawing": {
+        "pins": [{"direction":[1,0],"end":[7.62,-5.08],"name":"","number":"1","start":[2.159,-5.08]},{"direction":[1,0],"end":[7.62,0],"name":"","number":"2","start":[2.159,0]},{"direction":[1,0],"end":[7.62,5.08],"name":"","number":"3","start":[2.159,5.08]}]
+      },
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":7.62,"y":-5.08},{"name":"2","number":"2","x":7.62,"y":0},{"name":"3","number":"3","x":7.62,"y":5.08}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-2.159,-7.62],[2.159,-7.62],[2.159,7.62],[-2.159,7.62]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,-5.08],[2.159,-5.08]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[2.159,-5.08],[0.53975,-5.08]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,0],[2.159,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[2.159,0],[0.53975,0]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,5.08],[2.159,5.08]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[2.159,5.08],[0.53975,5.08]],"style":"body"}]
+      },
+      "value": "1 × 03"
+    },
+    {
+      "category": "Resistors",
+      "footprint": {
+        "courtyard": [-1.5,-0.75,1.5,0.75],
+        "name": "R_0603",
+        "pads": [{"angle":0,"drill":0,"h":0.95,"number":"1","shape":"roundrect","w":0.9,"x":-0.8,"y":0},{"angle":0,"drill":0,"h":0.95,"number":"2","shape":"roundrect","w":0.9,"x":0.8,"y":0}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-0.55,-0.42],[0.55,-0.42],[0.55,0.42],[-0.55,0.42]],"style":"package"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.5,-0.75],[1.5,-0.75],[1.5,0.75],[-1.5,0.75]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-r",
+      "name": "Resistor",
+      "prefix": "R",
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":-5.08,"y":0},{"name":"2","number":"2","x":5.08,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[-5.08,0],[-2.54,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-2.54,0],[-2.1209,-1.016],[-1.27,1.016],[-0.4191,-1.016],[0.4191,1.016],[1.27,-1.016],[2.1209,1.016],[2.54,0]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[5.08,0],[2.54,0]],"style":"pin"}]
+      },
+      "value": "10 kΩ"
+    },
+    {
+      "category": "Capacitors",
+      "footprint": {
+        "courtyard": [-1.5,-0.75,1.5,0.75],
+        "name": "C_0603",
+        "pads": [{"angle":0,"drill":0,"h":0.95,"number":"1","shape":"roundrect","w":0.9,"x":-0.8,"y":0},{"angle":0,"drill":0,"h":0.95,"number":"2","shape":"roundrect","w":0.9,"x":0.8,"y":0}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-0.55,-0.42],[0.55,-0.42],[0.55,0.42],[-0.55,0.42]],"style":"package"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.5,-0.75],[1.5,-0.75],[1.5,0.75],[-1.5,0.75]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-c",
+      "name": "Capacitor",
+      "prefix": "C",
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":-5.08,"y":0},{"name":"2","number":"2","x":5.08,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[-5.08,0],[-0.508,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[5.08,0],[0.508,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-0.508,-2.032],[-0.508,2.032]],"style":"body","width":0.38},{"closed":false,"fill":false,"kind":"path","points":[[0.508,-2.032],[0.508,2.032]],"style":"body","width":0.38}]
+      },
+      "value": "100 nF"
+    }
+  ],
+  "name": "Buffer",
+  "version": 1
+}

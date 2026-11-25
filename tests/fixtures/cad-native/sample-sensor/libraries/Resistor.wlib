@@ -1,0 +1,11 @@
+{"kind":"library","formatVersion":"2.0","id":"std-r","name":"Resistor"}
+{"kind":"pad","id":"std-r/pad/1","order":"K","value":{"angle":0,"drill":0,"h":950000,"number":"1","shape":"roundrect","w":900000,"x":-800000,"y":0}}
+{"kind":"pad","id":"std-r/pad/2","order":"e","value":{"angle":0,"drill":0,"h":950000,"number":"2","shape":"roundrect","w":900000,"x":800000,"y":0}}
+{"kind":"pin","id":"std-r/pin/1","order":"K","value":{"name":"1","number":"1","x":-5080000,"y":0}}
+{"kind":"pin","id":"std-r/pin/2","order":"e","value":{"name":"2","number":"2","x":5080000,"y":0}}
+{"kind":"librarySettings","id":"std-r/settings","value":{"category":"Resistors","footprint":{"courtyard":[-1500000,-750000,1500000,750000],"name":"R_0603","pads":[],"shapes":[]},"prefix":"R","symbol":{"pins":[],"shapes":[]},"value":"10 kΩ"}}
+{"kind":"shape","id":"std-r/shape/1","order":"F","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-5080000,0],[-2540000,0]],"style":"pin"}}
+{"kind":"shape","id":"std-r/shape/1-2","order":"K","side":"footprint","value":{"kind":"path","closed":true,"fill":true,"points":[[-550000,-420000],[550000,-420000],[550000,420000],[-550000,420000]],"style":"package"}}
+{"kind":"shape","id":"std-r/shape/2","order":"U","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-2540000,0],[-2120900,-1016000],[-1270000,1016000],[-419100,-1016000],[419100,1016000],[1270000,-1016000],[2120900,1016000],[2540000,0]],"style":"body"}}
+{"kind":"shape","id":"std-r/shape/2-2","order":"e","side":"footprint","value":{"kind":"path","closed":true,"layer":"Mechanical 15","points":[[-1500000,-750000],[1500000,-750000],[1500000,750000],[-1500000,750000]],"style":"courtyard","width":50000}}
+{"kind":"shape","id":"std-r/shape/3","order":"j","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[5080000,0],[2540000,0]],"style":"pin"}}

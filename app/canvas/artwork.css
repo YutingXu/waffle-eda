@@ -1,0 +1,52 @@
+/* PCB text properties (app/pcb-text.js) and the Logo Creator dialog
+   (app/logo-creator.js). Dark theme variables only. */
+
+/* Inspector: Altium String properties */
+#inspector .pcbtext-inspector textarea {height:auto;min-height:var(--ctl-h);resize:vertical;font:var(--fs-12)/1.4 var(--mono);white-space:pre}
+#inspector .pcbtext-text {align-items:flex-start}
+#inspector .pcbtext-text > span {padding-top:4px}
+.pcbtext-kind,.pcbtext-justify-row {display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;margin:1px 0;color:var(--muted)}
+.pcbtext-kind {flex-wrap:wrap;gap:4px 8px;margin-bottom:4px}
+.pcbtext-segment {flex:1 0 100%}
+.pcbtext-segment .ui-segment {flex:1 1 0;padding-inline:0}
+.pcbtext-justify {display:grid;grid-template-columns:repeat(3,20px);gap:4px;width:58%}
+#inspector .pcbtext-check input {margin-right:auto;margin-left:calc(42% - 8px)}
+#inspector .pcbtext-inspector > .pcbtext-font-load {margin:2px 0 4px auto;display:block}
+#inspector .pcbtext-note {margin:6px 0 0;font-size:var(--fs-11);line-height:1.45}
+
+/* Logo Creator */
+.logo-dialog {width:min(1000px,calc(100vw - 32px));max-height:min(92vh,880px)}
+.logo-dialog [hidden] {display:none !important}
+.logo-head p {margin:0 0 12px}
+.logo-body {display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:16px;align-items:start}
+.logo-stage {position:relative;height:min(58vh,540px);min-height:260px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);overflow:hidden}
+.logo-stage.logo-drop {outline:2px dashed var(--accent);outline-offset:-6px}
+.logo-preview {display:block;position:absolute;inset:0}
+.logo-empty {position:absolute;inset:0;display:grid;place-content:center;gap:4px;text-align:center;color:var(--muted);pointer-events:none}
+.logo-empty strong {color:var(--ink);font-weight:560}
+.logo-controls {max-height:min(58vh,540px);overflow:auto;padding-right:6px}
+.logo-controls h3 {margin:12px 0 4px;color:var(--ink)}
+.logo-controls h3:first-child {margin-top:0}
+.logo-row {display:grid;grid-template-columns:118px minmax(0,1fr);align-items:center;gap:2px 8px;min-height:28px;padding:1px 0}
+.logo-row:has(> input[type=text],> select) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
+.logo-row:has(> input[type=text]) > span:first-child {position:relative;inset-block-start:.5px}
+.logo-row > span:first-child {color:var(--ink)}
+.logo-row > small {grid-column:2;margin:0 0 2px}
+.logo-dialog .logo-row select,.logo-dialog .logo-row input[type=text] {width:100%}
+.logo-slider {display:flex;align-items:center;gap:8px;min-width:0}
+.logo-slider input {flex:1;min-width:0;accent-color:var(--accent)}
+.logo-slider output {min-width:46px;text-align:right;font:var(--fs-11) var(--mono);color:var(--muted)}
+.logo-pick {display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;min-width:0}
+.logo-pick label {display:flex;align-items:center;gap:4px;color:var(--ink)}
+.logo-file {font:var(--fs-11) var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.logo-palette h4 {margin:8px 0 4px;font-size:var(--fs-12);font-weight:600;color:var(--ink)}
+.logo-swatch-row > span {font:var(--fs-11) var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logo-swatch {display:inline-block;width:12px;height:12px;border-radius:var(--r-sm);vertical-align:-2px;box-shadow:inset 0 0 0 1px var(--shadow-md)}
+.logo-dialog .logo-stats {margin:8px 0 4px;font:var(--fs-11)/1.5 var(--mono);color:var(--muted)}
+.logo-warnings {margin:4px 0 0;padding:0;list-style:none;font-size:var(--fs-12);line-height:1.5}
+.logo-warnings li {margin:4px 0;padding-left:8px;border-left:3px solid var(--accent);color:var(--ink)}
+@media(max-width:760px){
+  .logo-body {grid-template-columns:minmax(0,1fr)}
+  .logo-stage {height:42vh}
+  .logo-controls {max-height:none}
+}

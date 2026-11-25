@@ -1,0 +1,8 @@
+.project-connections-dialog {width:min(450px, 92vw)}
+.project-connections-dialog label,.project-connections-dialog dt {font-weight:600;color:var(--ink)}
+.project-connections-dialog select {display:block;margin:var(--s-4) 0 var(--s-12);max-width:100%}
+.project-connections-dialog dl {display:grid;grid-template-columns:auto 1fr;gap:var(--s-8);font-size:var(--fs-12)}
+.project-connections-dialog dd {margin:0;line-height:1.45}
+#project-scope-notice {display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-8);padding:var(--s-6) var(--s-12);border-top:1px solid var(--line);background:var(--panel);color:var(--ink);font-size:var(--fs-12)}
+#project-scope-notice p {flex:1 1 24em;margin:0}
+#project-scope-notice div {display:flex;align-items:center;gap:var(--s-4)}

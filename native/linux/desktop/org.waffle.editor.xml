@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-waffle-project">
+    <comment>Waffle EDA project</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.waffle"/>
+  </mime-type>
+  <mime-type type="application/x-waffle-board">
+    <comment>Waffle EDA PCB layout</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.wpcb"/>
+  </mime-type>
+  <mime-type type="application/x-waffle-schematic">
+    <comment>Waffle EDA schematic</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.wsch"/>
+  </mime-type>
+  <mime-type type="application/x-waffle-library">
+    <comment>Waffle EDA component library</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.wlib"/>
+  </mime-type>
+  <mime-type type="application/x-waffle-drawing">
+    <comment>Waffle EDA drawing</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.wdraw"/>
+  </mime-type>
+  <mime-type type="application/x-waffle-panel">
+    <comment>Waffle EDA board panel</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.wpanel"/>
+  </mime-type>
+</mime-info>

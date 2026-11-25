@@ -1,0 +1,116 @@
+{
+  "feature": "slides",
+  "title": "Slides",
+  "editorActions": [
+    {"id":"panel","title":"Slides Panel","module":"AtriumViewsPanel"},
+    {"id":"present","title":"Present Slides","module":"AtriumViewsPanel"}
+  ],
+  "modules": {"editor":["AtriumSlides"], "mcp":["slides"]},
+  "commands": [
+    {
+      "id":"list", "title":"List Slides", "kind":"read",
+      "properties":{
+        "offset":{"type":"integer","minimum":0,"maximum":128},
+        "limit":{"type":"integer","minimum":1,"maximum":128}
+      },
+      "required":[]
+    },
+    {
+      "id":"add", "title":"Add Slide", "kind":"edit",
+      "properties":{
+        "name":{"type":"string","minLength":1,"maxLength":200},
+        "aspect":{"type":"string","enum":["16:9","4:3"]},
+        "notes":{"type":"string","maxLength":16384},
+        "source":{
+          "type":"object","additionalProperties":false,"required":["kind"],
+          "properties":{
+            "kind":{"type":"string","enum":["frame","savedView"]},
+            "documentId":{"type":"string","minLength":1,"maxLength":512},
+            "frameId":{"type":"string","minLength":1,"maxLength":512},
+            "savedViewId":{"type":"string","minLength":36,"maxLength":36}
+          }
+        }
+      },
+      "required":["name","source"]
+    },
+    {
+      "id":"update", "title":"Update Slide", "kind":"edit",
+      "properties":{
+        "id":{"type":"string","minLength":36,"maxLength":36},
+        "name":{"type":"string","minLength":1,"maxLength":200},
+        "aspect":{"type":"string","enum":["16:9","4:3"]},
+        "notes":{"type":"string","maxLength":16384},
+        "source":{
+          "type":"object","additionalProperties":false,"required":["kind"],
+          "properties":{
+            "kind":{"type":"string","enum":["frame","savedView"]},
+            "documentId":{"type":"string","minLength":1,"maxLength":512},
+            "frameId":{"type":"string","minLength":1,"maxLength":512},
+            "savedViewId":{"type":"string","minLength":36,"maxLength":36}
+          }
+        }
+      },
+      "required":["id"]
+    },
+    {
+      "id":"remove", "title":"Remove Slide", "kind":"edit",
+      "properties":{"id":{"type":"string","minLength":36,"maxLength":36}},
+      "required":["id"]
+    },
+    {
+      "id":"reorder", "title":"Reorder Slides", "kind":"edit",
+      "properties":{"ids":{"type":"array","maxItems":128,"uniqueItems":true,"items":{"type":"string","minLength":36,"maxLength":36}}},
+      "required":["ids"]
+    },
+    {
+      "id":"apply", "title":"Go to Slide", "kind":"state", "editorTransition":true,
+      "modules":{"mcp":["drawing","query","butter-query-service"]},
+      "properties":{"id":{"type":"string","minLength":36,"maxLength":36}},
+      "required":["id"]
+    },
+    {
+      "id":"start", "title":"Start Slide Presentation", "kind":"state", "editorTransition":true, "editorMode":"write",
+      "modules":{"mcp":["drawing","query","butter-query-service"]},
+      "properties":{
+        "ids":{"type":"array","maxItems":128,"uniqueItems":true,"items":{"type":"string","minLength":36,"maxLength":36}},
+        "index":{"type":"integer","minimum":0,"maximum":127},
+        "presenter":{"type":"boolean"}
+      },
+      "required":[]
+    },
+    {
+      "id":"step", "title":"Move to Slide", "kind":"state", "editorTransition":true, "editorMode":"write",
+      "modules":{"mcp":["drawing","query","butter-query-service"]},
+      "properties":{
+        "index":{"type":"integer","minimum":0,"maximum":127},
+        "direction":{"type":"integer","enum":[-1,1]}
+      },
+      "required":[]
+    },
+    {
+      "id":"resume", "title":"Return to Current Slide", "kind":"state", "editorTransition":true, "editorMode":"write",
+      "modules":{"mcp":["drawing","query","butter-query-service"]},
+      "properties":{}, "required":[]
+    },
+    {
+      "id":"stop", "title":"End Slide Presentation", "kind":"state", "editorTransition":true, "editorMode":"write",
+      "properties":{}, "required":[]
+    },
+    {
+      "id":"presenter", "title":"Read Presenter State", "kind":"read",
+      "properties":{}, "required":[]
+    },
+    {
+      "id":"export-pdf", "title":"Export Slides as PDF", "kind":"output", "outputKind":"slides",
+      "modules":{
+        "editor":["AtriumPrint","AtriumDrawing","AtriumPanel","AtriumCanvasInput","AtriumQuery"],
+        "mcp":["print","drawing","panel","canvas-input","query","butter-query-service"]
+      },
+      "properties":{
+        "ids":{"type":"array","minItems":1,"maxItems":128,"uniqueItems":true,"items":{"type":"string","minLength":36,"maxLength":36}},
+        "color":{"type":"string","enum":["color","grey","mono"]}
+      },
+      "required":[]
+    }
+  ]
+}

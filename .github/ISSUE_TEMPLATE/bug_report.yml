@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Waffle does not work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security problems go to SECURITY.md, not here.**
+        Please do not attach proprietary or customer design files; a minimal synthetic project is best.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the example design
+        2. Press P T on the board
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: host
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - macOS app
+        - Linux app (WebKitGTK)
+        - Browser (app/index.html)
+        - MCP server / CLI
+        - Extension or Scripting Console
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Waffle version or commit
+      placeholder: "0.7.0 / Help → About Waffle"
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      placeholder: "macOS 27.2 / Ubuntu 26.04"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Schematic, PCB editing, Routing, Rules/DRC/ERC, Outputs, Library, BOM, Import/Export, MCP/CLI, Extensions, UI/Theme/Keys, Other]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Messages, console output or screenshots
+      render: text

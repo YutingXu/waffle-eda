@@ -1,0 +1,1390 @@
+"use strict";
+// GPU board renderer pixel test (app/canvas/canvas-gpu.js): the composited GPU frame
+// (WebGL2 canvas plus the 2D layer above it) against the 2D renderer's exact frame of the same inputs, in the
+// real editor. Runs in headless Chrome (scripts/gpu-pixels.sh, over the DevTools protocol) and in WKWebView
+// (native/tests/macos-harness/gpu-pixels.sh, through the real Desktop class).
+//
+// Boards: the 25.6k-object board of tests/pcb/dense-board.js with 64 nets and ten pours (plus objects it lacks:
+// stacked, tented, filled, back-drilled, blind and buried vias, a custom pad, large pads), a 900-object board
+// whose own pours follow a drag ("pours"), the starter board, and the imported boards the runner hands over in
+// globalThis.__gpuFixtures ({file name: base64}): the KiCad demo board and the PiDP-11 I/O Expander (Altium).
+// Each is drawn at fit, zoomed in, and close enough for pad numbers and net names, in these cases:
+//   base, dim, single (Bottom), flipped, selection (a track, a via, a part), hide (the same left out), highlight, net colours, a light
+//   canvas, the high-contrast canvas, board-shape handles, Board Planning, opacity (tracks and pours 0.5,
+//   Bottom 0.6), and pourDrag: a frame in the middle of a part drag with live pour tile patches.
+//
+// Metrics per case:
+//   interiorPx  pixels away from the 2D frame's edges (a step over 16 levels to a neighbour, widened by one
+//               pixel) whose largest channel differs by more than 24 levels. Anti-aliasing lives on edges;
+//               an interior difference is a missing, extra or recoloured object.
+//   edgeMean    the mean difference on those edge pixels: a shifted, thinner or reordered object raises it.
+//   solidPx     centres of 3×3 blocks all over 48 levels anywhere.
+//   c_<class>   interiorPx split by object class (per-class masks from the frames' colours: hole, sel, top, bottom,
+//               inner, silk, conn, other), each with its own budget.
+//   (over8, over48, meanAbs: for information.)
+// Budgets are per case and per host (tests/canvas/gpu-pixels-budgets.json, o.budgets): 1.2 × the real GPU output's
+// interiorPx, solidPx and c_* + 6 px, 1.1 × its edgeMean + 0.15, from a calibration run (CALIBRATE=1). The runs are
+// deterministic per host (connection lines computed before each view, idle-time 2D indexes built first), so
+// the margins can be that tight. Fault injection (FAULTS=all; app/canvas/canvas-gpu.js fault()) proves each budget
+// set catches: dropped hole colours, a layer offset by 1 px, a layer out of order, missing pad numbers, wrong
+// net colours, missing small vias, selected copper drawn above everything, tracks 10 % thin, unclipped pour
+// patches, missing Board Planning. A case without a calibrated budget uses the global fallback (o.budget):
+// over8 <= 40 %, over48 <= 6 %, solidPx <= 100. Runs of a subset (BOARDS, VIEWS, CASES) can measure a little
+// differently from the full run the budgets come from.
+// A failing case returns its 2D, GPU and diff images (red: interior or solid differences, white over 48
+// levels, grey over 8).
+// Exact signed RGB differences make each admitted raster discrepancy local. Within a
+// 64-pixel square a change in position, intensity or colour changes its fingerprint.
+const RASTER_TILE = 64;
+const rgbDifference = (a, b, i, j = i) => Math.max(Math.abs(a[i]-b[j]), Math.abs(a[i+1]-b[j+1]), Math.abs(a[i+2]-b[j+2]));
+function differentPixels(a, b, threshold) {
+  let count = 0;
+  for (let i = 0; i < a.length; i += 4) if (rgbDifference(a,b,i) > threshold) count++;
+  return count;
+}
+function differentBytes(a, b) {
+  if (a.length !== b.length) return Math.max(a.length,b.length);
+  let count = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) count++;
+  return count;
+}
+function rasterResidual(A, B, width, height) {
+  const cols = Math.ceil(width / RASTER_TILE), rows = Math.ceil(height / RASTER_TILE);
+  const tiles = new Uint32Array(cols * rows).fill(2166136261);
+  for (let y = 0; y < height; y++) {
+    const row = Math.floor(y / RASTER_TILE) * cols;
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = A[i] - B[i], g = A[i + 1] - B[i + 1], b = A[i + 2] - B[i + 2];
+      if (!(r || g || b)) continue;
+      const tile = row + Math.floor(x / RASTER_TILE);
+      const position = (y % RASTER_TILE) * RASTER_TILE + x % RASTER_TILE;
+      const rgb = ((r + 255) << 18) | ((g + 255) << 9) | (b + 255);
+      tiles[tile] = Math.imul(Math.imul(tiles[tile] ^ position, 16777619) ^ rgb, 16777619);
+    }
+  }
+  return {width, height, tiles:Array.from(tiles, hash => hash.toString(16).padStart(8, "0")).join("")};
+}
+
+function changedRasterTiles(current, expected) {
+  if (current.width !== expected.width || current.height !== expected.height || current.tiles.length !== expected.tiles.length)
+    return "backing " + current.width + "×" + current.height + " vs " + expected.width + "×" + expected.height;
+  const changed = [], cols = Math.ceil(current.width / RASTER_TILE);
+  for (let i = 0; i < current.tiles.length; i += 8) {
+    if (current.tiles.slice(i, i + 8) === expected.tiles.slice(i, i + 8)) continue;
+    const tile = i / 8;
+    changed.push([tile % cols * RASTER_TILE, Math.floor(tile / cols) * RASTER_TILE]);
+  }
+  if (changed.length) return changed.length + " changed 64 px tile(s) at " + changed.slice(0, 8).map(p => p.join(",")).join(" / ");
+  return "";
+}
+
+function probeHiddenChunk(GPU) {
+  const host = document.createElement("div"), canvas = document.createElement("canvas");
+  host.style.cssText = "position:fixed;left:-1000px;top:0";
+  canvas.style.cssText = "display:block;width:240px;height:160px";
+  host.append(canvas); document.body.append(host);
+  const view = AtriumCanvas.create(canvas), I = view.internals(), wasEnabled = GPU.enabled();
+  const doc = Atrium.sheet("pcb", "Hidden chunk");
+  doc.outline = [[-6,-4], [6,-4], [6,4], [-6,4]];
+  const track = {id:"moving-track", kind:"track", layer:"Top", width:.45, points:[[0,1.5],[2,1.5]]};
+  const part = {id:"stationary-part", kind:"part", layer:"Top", def:"test-footprint", x:1, y:.5, showRef:false};
+  const pad = {number:"1", layer:"Top", shape:"rect", x:0, y:0, w:.6, h:.6};
+  const defs = new Map([[part.def, {footprint:{shapes:[], pads:[pad]}}]]);
+  doc.items = [track, part];
+  view.restoreCamera({cx:0, cy:0, scale:20, referenceScale:20});
+  const opts = {editorPane:true, noReuse:true, grid:false, origin:false, showUnrouted:false, netNames:false};
+  const sample = (gpu, batched, hide) => {
+    GPU.enable(gpu); I.lodForce = batched; view.render(doc, defs, {...opts, hide});
+    const surface = gpu ? GPU.composite(I) : canvas;
+    if (!surface) throw Error("no GPU frame for hidden chunk");
+    const dpr = I.cam()[6];
+    return [[1,.5], [1,1.5]].map(at => {
+      const pixel = view.worldToScreen(at).map(p => Math.floor(p * dpr));
+      return [...surface.getContext("2d").getImageData(...pixel, 1, 1).data].join(",");
+    });
+  };
+  try {
+    const shown = sample(false, true), lod = I.cache.lod;
+    const chunk = lod?.info.get(track)?.chunk;
+    if (!I.lodUsed || !chunk || lod.info.get(part)?.chunk !== chunk) throw Error("track and footprint did not share a batch");
+    const hide = new Set([track]);
+    const batched = sample(false, true, hide), unbatched = sample(false, false, hide), gpu = sample(true, false, hide);
+    return {shown, batched, unbatched, gpu};
+  } finally {
+    GPU.release(I);
+    GPU.enable(wasEnabled);
+    host.remove();
+  }
+}
+
+function probeBoardProfile(GPU) {
+  const host = document.createElement("div"), canvas = document.createElement("canvas");
+  host.style.cssText = "position:fixed;left:-1000px;top:0";
+  canvas.style.cssText = "display:block;width:320px;height:240px";
+  host.append(canvas); document.body.append(host);
+  const view = AtriumCanvas.create(canvas), I = view.internals(), wasEnabled = GPU.enabled();
+  const doc = Atrium.sheet("pcb", "Nested profile"), defs = new Map(), S = AtriumBoardShape;
+  const shape = S.rect({x:-6, y:5, width:12, height:10});
+  const routing = S.fromPolygon([[4,0],[0,4],[-4,0],[0,-4]]).contour;
+  const hole = [S.arc([0,0],4,0,0,false)], island = [S.arc([0,0],1.25,90,90,true)];
+  S.apply(doc, {...shape, cutouts:[routing]}, "altium");
+  doc.boardShape.cutoutRegions = {0:{version:1, contour:hole, cutouts:[island], sig:S.signature(S.flattenContour(doc.boardShape.cutouts[0]))}};
+  view.restoreCamera({cx:0, cy:0, scale:20, referenceScale:20});
+  const opts = {editorPane:true, noReuse:true, grid:false, origin:false, showUnrouted:false};
+  const sample = gpu => {
+    GPU.enable(gpu); view.render(doc, defs, opts);
+    const surface = gpu ? GPU.composite(I) : canvas;
+    if (!surface) throw Error("no GPU frame for nested profile");
+    return [[5,3],[2.5,2.5],[0,0],[0,2],[-7,0]].map(point => {
+      const pixel = view.worldToScreen(point).map(v => Math.floor(v * I.cam()[6]));
+      return [...surface.getContext("2d").getImageData(...pixel,1,1).data].join(",");
+    });
+  };
+  try {
+    const coverage = ([board, chord, island, voidColor, workspace]) =>
+      [board !== workspace, chord === workspace, island === board, voidColor === workspace];
+    return {canvas:coverage(sample(false)), gpu:coverage(sample(true))};
+  } finally {
+    GPU.release(I); GPU.enable(wasEnabled); host.remove();
+  }
+}
+
+function probeGpuStrokes(GPU, PCB, doc) {
+  const host = document.createElement("div"), canvas = document.createElement("canvas");
+  host.style.cssText = "position:fixed;left:-1000px;top:0";
+  canvas.style.cssText = "display:block;width:400px;height:270px";
+  host.append(canvas); document.body.append(host);
+  // Stay on one raster backend for this readback-heavy alpha-mask probe.
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map();
+  const outline = [[-300,-250], [300,-250], [300,250], [-300,250]];
+  const witness = {kind:"track", id:"witness", net:"base", layer:"Top", width:.43, points:[[500,500],[501,500]]};
+  const board = {...doc, id:"stroke-probes", outline, grid:0, pcbDrawing:{annotations:{}, pours:[]}, items:[witness]};
+  const inspect = AtriumConnectivity.inspect, wasEnabled = GPU.enabled();
+  let wires = [];
+  AtriumConnectivity.inspect = (d, ...args) => d.id === board.id ? {airwires:wires} : inspect(d, ...args);
+  view.restoreCamera({cx:0, cy:0, scale:1, referenceScale:1});
+  const world = p => [p[0] - 200, p[1] - 135];
+  const line = (a, b, net = "base") => ({from:world(a), to:world(b), net});
+  const options = {editorPane:true, noReuse:true, grid:false, origin:false, showUnrouted:true};
+  const draw = (gpu, netColors = null, moving = false) => {
+    GPU.enable(gpu);
+    if (moving) view.moving();
+    view.render(board, defs, {...options, netColors, noReuse:!moving});
+    const c = gpu ? GPU.composite(I) : canvas;
+    if (!c) throw Error("missing WebGL frame");
+    return c.getContext("2d").getImageData(0, 0, c.width, c.height);
+  };
+  const get = (image, x, y) => image.data.subarray((y * image.width + x) * 4, (y * image.width + x + 1) * 4);
+  const inkAt = (image, x, y) => {
+    const rgba = get(image, x, y); return Math.round(rgba[0] * rgba[3] / 255);
+  };
+  try {
+    // Compare alpha masks with a transparent 2D reference here. The dense cases above
+    // still compare the resulting opaque frames, including backdrop compositing.
+    return PCB.withPalette({board:"#00000000", workspace:"#00000000", connection:"#b4b4b4",
+      boardGrid:"#222222", boardGridCoarse:"#cccccc", layers:{Top:"#ff0000"}}, () => {
+      const blank2D = draw(false), blankGPU = draw(true), samples = [], tracks = [];
+      const length = 48;
+      for (const feature of ["wire", "track"]) for (const phase of [.5, 0]) for (const [k, degrees] of [0, 30, 45, 90].entries()) {
+        const angle = degrees * Math.PI / 180, dx = Math.cos(angle), dy = Math.sin(angle), xMajor = degrees <= 45;
+        const x = 12 + k * 95 + (xMajor ? .5 : phase);
+        const y = 9 + (feature === "wire" ? 0 : 116) + (phase ? 0 : 58) + (xMajor ? phase : .5);
+        const geometry = line([x, y], [x + dx * length, y + dy * length]);
+        if (feature === "wire") wires.push(geometry);
+        else tracks.push({...witness, id:"stroke-" + k + "-" + phase, points:[geometry.from, geometry.to]});
+        samples.push({feature, degrees, phase, x, y, dx, dy, xMajor});
+      }
+      board.items = [witness, ...tracks];
+      // The first green wire is outside the viewport. The visible red group must be painted before
+      // the visible green group, even though the untinted connection is last in graph order.
+      const overlap = net => line([20,255.5], [110,255.5], net);
+      wires.push(line([20,-30], [110,-30], "green"), overlap("red"), overlap("green"), overlap("base"));
+      const tints = new Map([["red", "#ff0000"], ["green", "#00ff00"]]);
+      view.invalidate(); view.boardConnectivity(board, defs);
+      const a = draw(false, tints), b = draw(true, tints);
+      const center = image => [...get(image, 65, 255).subarray(0, 3)];
+      const moving = draw(true, tints, true), gestureFrames = GPU.stats(I)?.acc?.gesture || 0;
+      draw(true);
+      const overlapColours = {canvas2d:center(a), gpu:center(b), gpuMoving:center(moving), gpuRestored:center(draw(true, tints))};
+      const coverage = samples.map(({feature, degrees, phase, x, y, dx, dy, xMajor}) => {
+        const strips = new Map();
+        let reference = 0, actual = 0, max = 0;
+        for (let py = Math.floor(y) - 3; py <= Math.ceil(y + dy * length) + 3; py++) {
+          for (let px = Math.floor(x) - 3; px <= Math.ceil(x + dx * length) + 3; px++) {
+            const X = px + .5 - x, Y = py + .5 - y, along = xMajor ? X / dx : Y / dy;
+            if (along < 4 || along > length - 4 || Math.abs(X * dy - Y * dx) > 2) continue;
+            const e = Math.max(0, inkAt(a,px,py) - inkAt(blank2D,px,py));
+            const g = Math.max(0, inkAt(b,px,py) - inkAt(blankGPU,px,py));
+            reference += e; actual += g; max = Math.max(max, Math.abs(e - g));
+            const index = xMajor ? px : py, peaks = strips.get(index) || [0,0];
+            peaks[0] = Math.max(peaks[0], e); peaks[1] = Math.max(peaks[1], g); strips.set(index, peaks);
+          }
+        }
+        const gaps = [...strips.values()].filter(([expected, gpu]) => expected >= 50 && gpu < 50).length;
+        const ideal = feature === "track" ? strips.size * 255 / (xMajor ? dx : dy) : reference;
+        return {feature, degrees, phase, reference, actual, ratio:+(actual / reference).toFixed(4),
+          idealRatio:+(actual / ideal).toFixed(4), max, gaps};
+      });
+      board.grid = 24; options.grid = true; options.showUnrouted = false;
+      // One side of the rounding boundary is less than a GPU float away from the
+      // other. Both axes must still select distinct device pixels on either side.
+      const grid = [-1e-8, 1e-8].map(delta => {
+        view.restoreCamera({cx:-.5-delta, cy:-.5-delta, scale:1, referenceScale:1});
+        const values = image => [...[200,201].map(x => get(image,x,100)[0]), ...[135,136].map(y => get(image,180,y)[0])];
+        return {delta, canvas2d:values(draw(false)), gpu:values(draw(true))};
+      });
+      return {overlapColours, coverage, gestureFrames, grid};
+    });
+  } finally {
+    AtriumConnectivity.inspect = inspect;
+    host.remove();
+    GPU.enable(wasEnabled);
+  }
+}
+
+globalThis.atriumGpuPixels = async function (o = {}) {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const lifecycle = {contextLost, powerVisibility, memoryCap, hidden, parked, splitPane, layoutResize};
+  const selected = o.robustness && new Set(o.robustness);
+  if (selected) for (const name of selected) {
+    if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
+  }
+  const wholeSuite = o.robust !== false && !selected;
+  const robust = name => o.robust !== false && (!selected || selected.has(name));
+  const H = () => AtriumNavHost, cv = () => H().canvas(), GPU = () => globalThis.AtriumCanvasGPU, PCB = AtriumPCBAppearance;
+  const act = a => window.dispatchEvent(new CustomEvent("atrium-command", {detail: a}));
+  const settle = async ms => { await wait(ms); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); };
+  const budget = {over8: 40, over48: 6, solidPx: 100, ...(o.budget || {})};
+  globalThis.confirm = () => true;
+  let startup = null;
+  const startupPower = globalThis.AtriumPower;
+  if (wholeSuite && H().isStarter() && H().doc()?.kind !== "pcb" && startupPower?.visible?.()) {
+    const was = startupPower.state();
+    startupPower.host({battery: true});
+    await settle(650); // Idle while Home or the initial schematic is showing.
+    const settings = globalThis.AtriumCanvasGPUPref;
+    const idle = !GPU() && (!settings || settings.describe() === "No PCB view is using a renderer");
+    const initial = H().currentId(), board = H().project().documents.find(d => d.kind === "pcb");
+    document.querySelector("dialog.sp-dialog[open] [data-start-action=close]")?.click();
+    H().selectDocument(board.id);
+    for (let n = 0; n < 26 && !GPU()?.stats()?.acc?.frames; n++) {
+      await wait(80);
+      if (globalThis.AtriumCanvasGPUPref?.decision().use === false) break;
+    }
+    const mode = globalThis.AtriumCanvasGPUPref?.decision();
+    const demanded = mode && (!mode.use || !!GPU()?.stats()?.acc?.frames);
+    startup = {idle, demanded: !!demanded, hardware: mode?.use ?? false};
+    H().selectDocument(initial);
+    startupPower.host(was);
+  }
+  await AtriumLazy.need(["AtriumRules", "AtriumPCBDraw", "AtriumCanvasFast", "AtriumCanvasGPU", "AtriumViaStack", "AtriumStackup", "AtriumRigidFlex"]);
+  // WebGL2 here at all? (No context: the test is skipped, not failed.)
+  const probe = (() => { try { const g = document.createElement("canvas").getContext("webgl2"); if (!g) return null;
+    const x = g.getExtension("WEBGL_debug_renderer_info"); const r = g.getParameter(x ? x.UNMASKED_RENDERER_WEBGL : g.RENDERER); g.getExtension("WEBGL_lose_context")?.loseContext(); return r; } catch { return null; } })();
+  if (!probe) return {skipped: "no WebGL2 context", ua: navigator.userAgent};
+  globalThis.AtriumDRCMarkers?.setVisible?.(false, H());
+  document.documentElement.setAttribute("data-motion", "off");
+
+  // Object-class masks: an interior difference is counted against the class whose colour the 2D pixel (else the
+  // GPU pixel) has, within 12 levels: holes (via and pad holes, drill edges), the selection colour, Top, Bottom and
+  // inner copper (solid, or poured at the pour opacity over the board), silk and pad text, connection lines; the rest
+  // is "other" (blended, dimmed and highlighted colours, the grid). Each class has its own budget, so a small class
+  // (holes, the selection) cannot hide inside a case's total.
+  const CLASSES = ["hole", "sel", "top", "bottom", "inner", "silk", "conn", "other"];
+  const hexRgb = h => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ""); if (!m) return null; const v = parseInt(m[1], 16); return [v >> 16, (v >> 8) & 255, v & 255]; };
+  const classColours = () => {
+    const S = PCB.system, board = hexRgb(S.board) || [0, 0, 0], pa = PCB.opacity.pour;
+    const poured = c => c && c.map((x, k) => Math.round(x * pa + board[k] * (1 - pa)));
+    const L = l => hexRgb(PCB.color(l)), inner = [1, 2, 3, 4, 5, 6].map(k => L("Inner " + k));
+    const list = [["hole", hexRgb(S.hole)], ["hole", hexRgb(S.padHole)], ["hole", hexRgb(S.drillEdge)], ["sel", hexRgb(S.selection)],
+      ["top", L("Top")], ["top", poured(L("Top"))], ["bottom", L("Bottom")], ["bottom", poured(L("Bottom"))],
+      ...inner.flatMap(c => [["inner", c], ["inner", poured(c)]]), ["silk", L("Silk")], ["silk", L("Bottom silk")], ["silk", hexRgb(S.padText)], ["conn", hexRgb(S.connection)]];
+    return list.filter(x => x[1]);
+  };
+  const classOf = (list, D, i) => { for (const [c, v] of list) if (Math.abs(D[i] - v[0]) <= 12 && Math.abs(D[i + 1] - v[1]) <= 12 && Math.abs(D[i + 2] - v[2]) <= 12) return c; return null; };
+
+  // ---------------------------------------------------------------- boards
+  const PP = globalThis.AtriumPolygonPour, doc0 = () => H().doc();
+  let previousFixture = null;
+  const boards = {
+    async dense() {
+      const p = Atrium.project("Dense", AtriumParts.catalogue), old = p.documents.find(x => x.kind === "pcb");
+      const {d} = makeAtriumBenchmarkBoard(); p.documents = p.documents.map(x => x === old ? d : x);
+      let k = 0;
+      for (const i of d.items) { if (i.kind === "part") i.pinNets = {"1": "N" + (k % 64), "2": "N" + ((k + 1) % 64)}; else i.net = "N" + (k % 64); k++; }
+      // A few objects the plain board lacks: a stacked via, a tented and a filled via, a blind via, a
+      // custom-shape pad, a free pad with a pad stack, large pads (pad numbers and nets), a footprint graphic.
+      const at = (x, y) => [x, y];
+      const extra = [
+        {id: "x-tmb", kind: "via", x: 30, y: 30, diameter: .9, drill: .35, layer: "Multi", net: "N1", stackMode: "tmb", padStack: {Top: {diameter: 1.2}, Mid: {diameter: .7}, Bottom: {diameter: 1.0}}},
+        {id: "x-tent", kind: "via", x: 31.5, y: 30, diameter: .9, drill: .45, layer: "Multi", net: "N2", tent: {top: true, bottom: true}},
+        {id: "x-fill", kind: "via", x: 33, y: 30, diameter: .9, drill: .45, layer: "Multi", net: "N3", ipc4761: "VII"},
+        {id: "x-back", kind: "via", x: 34.5, y: 30, diameter: .9, drill: .45, layer: "Multi", net: "N4", backdrill: {from: "Bottom", to: "Inner 2", diameter: .6}},
+        {id: "x-blind", kind: "via", x: 36, y: 30, diameter: .8, drill: .4, layer: "Multi", net: "N5", fromLayer: "Top", toLayer: "Inner 1"},
+        {id: "x-bur", kind: "via", x: 37.5, y: 30, diameter: .8, drill: .4, layer: "Multi", net: "N6", fromLayer: "Inner 1", toLayer: "Bottom"},
+        {id: "x-cust", kind: "pad", x: 40, y: 30, w: 2, h: 1.4, angle: 30, layer: "Top", shape: "custom", net: "N7", poly: [at(-1, -.7), at(1, -.7), at(1, 0), at(0, .7), at(-1, .7)]},
+        {id: "x-big", kind: "pad", x: 44, y: 30, w: 3, h: 2, angle: 0, layer: "Top", shape: "roundrect", net: "BIGNET"},
+        {id: "x-th", kind: "pad", x: 48, y: 30, w: 2.4, h: 2.4, layer: "Multi", shape: "octagon", drill: 1.1, net: "N8"},
+        {id: "x-np", kind: "pad", x: 51, y: 30, w: 1.5, h: 1.5, layer: "Multi", shape: "round", drill: 1.5},
+        {id: "x-stk", kind: "pad", x: 54, y: 30, w: 1.6, h: 1.6, layer: "Multi", shape: "round", drill: .6, net: "N9", stackMode: "tmb", padStack: {Top: {w: 2.2, h: 1.6}, Bottom: {w: 1.2, h: 1.2}, Mid: {w: 1, h: 1}}},
+        {id: "x-poly", kind: "graphic", layer: "Top", width: .2, fill: true, closed: true, net: "N10", points: [at(57, 28), at(60, 28), at(60, 32), at(57, 32)]}
+      ];
+      d.items.push(...extra);
+      d.stackup = d.stackup || undefined;
+      const rect = (a, b, c, e) => [[a, b], [c, b], [c, e], [a, e]];
+      const polys = [["Top", "GND", rect(1, 1, 180, 270)], ["Top", "VCC", rect(180, 1, 367, 270)], ["Bottom", "GND", rect(1, 1, 367, 140)], ["Bottom", "VCC", rect(1, 140, 367, 270)]];
+      for (let j = 0; j < 6; j++) polys.push([j % 2 ? "Top" : "Bottom", "N" + j, rect(10 + j * 55, 10, 50 + j * 55, 40)]);
+      polys.forEach(([layer, net, ol], j) => d.items.push(PP.make(ol, {layer, net, pourIndex: j, removeDeadCopper: false})));
+      await H().replaceProject(p, {force: true}); H().selectDocument(d.id); await wait(300);
+      H().edit(() => PP.apply(H().doc(), H().defs(), {project: H().project()}));
+      return {close: [26, 27, 58, 33]};
+    },
+    // A small board (900 objects) whose own pours follow a dragged part (live pour tile patches).
+    async pours() {
+      const p = Atrium.project("Pours", AtriumParts.catalogue), old = p.documents.find(x => x.kind === "pcb");
+      const {d} = makeAtriumBenchmarkBoard(30); p.documents = p.documents.map(x => x === old ? d : x);
+      let k = 0;
+      for (const i of d.items) { if (i.kind === "part") i.pinNets = {"1": "N" + (k % 8), "2": "GND"}; else i.net = "N" + (k % 8); k++; }
+      const rect = (a, b, c, e) => [[a, b], [c, b], [c, e], [a, e]];
+      d.items.push(PP.make(rect(1, 1, 68, 50), {layer: "Top", net: "GND", pourIndex: 0, removeDeadCopper: false}), PP.make(rect(1, 1, 68, 50), {layer: "Bottom", net: "N1", pourIndex: 1, removeDeadCopper: false}));
+      if (globalThis.__gpuNoWorker) { PP.tiles.useWorker(false); PP.tiles.reset(); }
+      await H().replaceProject(p, {force: true}); H().selectDocument(d.id); await wait(300);
+      H().edit(() => PP.apply(H().doc(), H().defs(), {project: H().project()}));
+      return {};
+    },
+    async starter() {
+      const p = Atrium.project("Starter", AtriumParts.catalogue);
+      await H().replaceProject(p, {force: true});
+      const d = p.documents.find(x => x.kind === "pcb"); H().selectDocument(d.id); await wait(300);
+      return {};
+    },
+    async fixture(name) {
+      const b64 = globalThis.__gpuFixtures?.[name];
+      if (!b64) return null;
+      const bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const file = new File([bytes], name);
+      const predecessor = previousFixture;
+      // Only discard the recovery draft made by the preceding injected test file.
+      // This choice is distinct from the ordinary project replacement prompt.
+      const accept = setInterval(() => {
+        const draft = H().fileSession().imported;
+        if (predecessor && draft === predecessor.draft && draft.sourceFile === predecessor.file) {
+          const discard = document.querySelector('dialog.foreign-import-close[open] button[data-choice="discard"]:not(:disabled)');
+          if (discard) { discard.click(); return; }
+        }
+        // Keep the comparison in this editor when offered a choice of windows.
+        const button = [...document.querySelectorAll("dialog[open] button")].find(b => ["Open here", "Replace project", "Don’t Save"].includes(b.textContent.trim()));
+        button?.click();
+      }, 50);
+      let opened;
+      try { opened = await H().openFiles([file]); } finally { clearInterval(accept); }
+      if (!opened) return null;
+      const draft = H().fileSession().imported;
+      previousFixture = draft?.sourceFile === file && draft.sourceFiles?.length === 1 && draft.sourceFiles[0] === file
+        ? {file, draft} : null;
+      for (let n = 0; n < 600 && H().doc()?.kind !== "pcb"; n++) {
+        const d = H().project()?.documents?.find(x => x.kind === "pcb");
+        if (d) { H().selectDocument(d.id); break; }
+        await wait(50);
+      }
+      await wait(500);
+      return H().doc()?.kind === "pcb" ? {} : null;
+    }
+  };
+
+  const out = {ua: navigator.userAgent, renderer: probe, pixelRatio: {effective: globalThis.devicePixelRatio},
+    viewport: {width: innerWidth, height: innerHeight}, budget, boards: {}, failures: [], fault: o.fault || null};
+  if (startup) {
+    out.startup = startup;
+    if (!startup.idle || !startup.demanded) out.failures.push("startup GPU demand: " + JSON.stringify(startup));
+  }
+  // Fault injection (app/canvas/canvas-gpu.js fault()): every view is rebuilt with the fault in place.
+  if (o.fault) globalThis.__atriumGpuFault = o.fault; else delete globalThis.__atriumGpuFault;
+  GPU().reset();
+  const list = o.boards || ["dense", "pours", "starter", ...Object.keys(globalThis.__gpuFixtures || {})];
+  for (const name of list) {
+    const t0 = performance.now();
+    const info = await (boards[name] ? boards[name]() : boards.fixture(name));
+    if (!info) { out.boards[name] = {skipped: "board did not open"}; out.failures.push(name + ": board did not open"); continue; }
+    globalThis.AtriumDRCMarkers?.setVisible?.(false, H());
+    act("fit"); await settle(800);
+    for (let n = 0; n < 200 && PP?.live?.busy; n++) await wait(50);
+    // Idle-time indexes and batches of the 2D path (canvas.js LOD, canvas-fast.js pour rings) build after a
+    // quiet period: let them, so a board measures the same first in a page or later.
+    await settle(doc0().items.length > 6000 ? 2500 : 300);
+    // The editor's own render options (navRender's overlays included) for this board.
+    let lastArgs = null;
+    const v = H().view(), r0 = v.render;
+    v.render = (...a) => { lastArgs = a; return r0(...a); };
+    H().redraw(); await settle(100);
+    v.render = r0;
+    if (!lastArgs) {
+      out.boards[name] = {skipped: "no render"};
+      out.failures.push(name + ": no render (" + JSON.stringify(startupPower?.state?.()) + ")");
+      continue;
+    }
+    const doc = H().doc(), defs = H().defs();
+    // Objects for the selection and highlight cases: a track, a via, a part; the busiest net.
+    const visibleNow = () => { const r = cv().getBoundingClientRect(); return i => { const q = v.worldToScreen(i.x != null ? [i.x, i.y] : i.points?.[0] || [0, 0]); return q[0] > 40 && q[1] > 40 && q[0] < r.width - 40 && q[1] < r.height - 40; }; };
+    const nets = new Map(); for (const i of doc.items) if (i.net) nets.set(i.net, (nets.get(i.net) || 0) + 1);
+    const busiest = [...nets].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const pick = test => { const ok = visibleNow(); return doc.items.find(i => test(i) && ok(i)) || doc.items.find(test); };
+    // Close view: the box handed by the board, else around a part with large pads.
+    const bigPart = doc.items.filter(i => i.kind === "part").map(i => ({i, pads: defs.get(i.def)?.footprint?.pads || []})).sort((a, b) => b.pads.length - a.pads.length)[0]?.i;
+    const close = info.close || (bigPart ? [bigPart.x - 6, bigPart.y - 4, bigPart.x + 6, bigPart.y + 4] : null);
+    const ob = doc.outline?.length ? doc.outline.reduce((b, q) => [Math.min(b[0], q[0]), Math.min(b[1], q[1]), Math.max(b[2], q[0]), Math.max(b[3], q[1])], [Infinity, Infinity, -Infinity, -Infinity]) : null;
+    const mid = ob ? [(ob[0] + ob[2]) / 2, (ob[1] + ob[3]) / 2, (ob[2] - ob[0]) / 8, (ob[3] - ob[1]) / 8] : null;
+    const views = {
+      fit: async () => { act("fit"); await settle(500); },
+      zoomed: mid ? async () => { H().zoomTo([mid[0] - mid[2], mid[1] - mid[3], mid[0] + mid[2], mid[1] + mid[3]]); await settle(400); } : null,
+      close: close ? async () => { H().zoomTo(close); await settle(400); } : null
+    };
+    // Cases: option overrides for one render; set/unset change global state around it.
+    const cases = {
+      base: {},
+      dim: {opts: {layerMode: "dim", layer: "Top"}},
+      single: {opts: {layerMode: "single", layer: "Bottom"}},
+      flipped: {set: () => v.setFlipped(true), unset: () => v.setFlipped(false)},
+      selection: {opts: () => { const t = pick(i => i.kind === "track"), w = pick(i => i.kind === "via"), p = pick(i => i.kind === "part"); const ids = new Set([t, w, p].filter(Boolean).map(i => i.id)); return {selected: t?.id ?? null, selectedIds: ids}; }},
+      // A collaborator's edits still animating (collab-object-motion.js): both renderers leave out these objects. The 2D
+      // renderer draws the LOD chunks holding them item by item, so overlapping copper there blends a little differently.
+      hide: {solidPx: 400, opts: () => ({hide: new Set([pick(i => i.kind === "track"), pick(i => i.kind === "via"), pick(i => i.kind === "part")].filter(Boolean))})},
+      highlight: {opts: () => ({highlight: busiest[0] || ""})},
+      netColors: {solidPx: 300, opts: () => ({netColors: new Map(busiest.slice(0, 3).map((n, k) => [n, ["#ff8800", "#22ccff", "#aa44ff"][k]]))})},
+      light: {set: () => AtriumTheme.canvasPalette("pcb", {...AtriumTheme.get(), preset: "light", followSystem: false, canvas: {follow: true, pcbBackground: "#f2f2ee"}})},
+      contrast: {set: () => AtriumTheme.canvasPalette("pcb", {...AtriumTheme.get(), preset: "hc", followSystem: false, canvas: {follow: true}})},
+      // Board-shape edit handles: squares on the outline's vertices, circles on edge midpoints, one active.
+      handles: {opts: () => { const ol = doc.outline || [], hs = [];
+        ol.forEach((p, k) => { const q = ol[(k + 1) % ol.length]; hs.push({type: "vertex", at: p, ref: {contour: 0, index: k}}, {type: "mid", at: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], ref: {contour: 0, index: k}}); });
+        return {boardHandles: hs, boardHandleActive: hs[0] || null}; }},
+      // Board Planning mode (key 1): board regions tinted, with their labels.
+      planning: {set: () => { AtriumStackup.setPlanning(true); }, unset: () => { AtriumStackup.setPlanning(false); }},
+      opacity: {solidPx: 1000, set: () => { PCB.setOpacity("track", .5); PCB.setOpacity("pour", .5); PCB.setLayerOpacity("Bottom", .6); },
+        unset: () => { PCB.setOpacity("track", PCB.defaultOpacity.track); PCB.setOpacity("pour", PCB.defaultOpacity.pour); PCB.setLayerOpacity("Bottom", 1); }}
+    };
+    const only = o.cases ? new Set(o.cases) : null;
+    const R = out.boards[name] = {items: doc.items.length, cases: {}};
+    // One case: the same frame drawn by both renderers and compared (see the header for the metrics).
+    const measureCase = (vname, cname, c, [d0, f0, opts0], record = true) => {
+      const extra = typeof c.opts === "function" ? c.opts() : c.opts || {};
+      const palette = c.set?.();
+      // Caller overlays (DRC markers) are painted by the same code on both paths: left out.
+      const opts = {...opts0, overlay: undefined, ...extra, noReuse: true};
+      const draw = gpu => { GPU().enable(gpu); v.render(d0, f0, opts); };
+      let a, g, W, Hh, comp;
+      let classes = null;
+      const both = () => {
+        classes = classColours();
+        draw(false); W = cv().width; Hh = cv().height; a = cv().getContext("2d").getImageData(0, 0, W, Hh);
+        draw(true);
+        comp = GPU().composite(v.internals());
+        if (comp?.width === W && comp.height === Hh && cv().width === W && cv().height === Hh)
+          g = comp.getContext("2d").getImageData(0, 0, W, Hh);
+      };
+      try { if (palette) PCB.withPalette(palette, both); else both(); }
+      finally { c.unset?.(); }
+      if (!record) return;
+      if (!g) {
+        const error = comp ? `frame backing: 2D ${W}×${Hh}, overlay ${cv().width}×${cv().height}, GPU ${comp.width}×${comp.height}` : "no GPU frame";
+        R.cases[vname + "." + cname] = {error};
+        out.failures.push(name + " " + vname + "." + cname + ": " + error);
+        return;
+      }
+      R.backing ??= {width: W, height: Hh};
+      const n = W * Hh, A = a.data, G = g.data, dm = new Uint8Array(n);
+      let n8 = 0, n48 = 0, sum = 0, solid = 0;
+      for (let i = 0, p = 0; p < n; i += 4, p++) {
+        const d = rgbDifference(A,G,i);
+        dm[p] = d > 48 ? 2 : d > 8 ? 1 : 0; if (d > 8) n8++; if (d > 48) n48++; sum += d;
+      }
+      const solidAt = new Uint8Array(n);
+      for (let y = 1; y + 1 < Hh; y++) for (let x = 1; x + 1 < W; x++) {
+        const p = y * W + x;
+        if (dm[p] === 2 && dm[p - 1] === 2 && dm[p + 1] === 2 && dm[p - W] === 2 && dm[p + W] === 2 && dm[p - W - 1] === 2 && dm[p - W + 1] === 2 && dm[p + W - 1] === 2 && dm[p + W + 1] === 2) { solid++; solidAt[p] = 1; }
+      }
+      // Edge-tolerant comparison: the 2D frame's edges (a channel step over 16 levels to a neighbour), widened by a
+      // pixel, hold all anti-aliasing differences; everywhere else (interiors) the frames must agree to 24 levels.
+      // On the edges the mean difference is kept: a shifted, thinner or thicker object raises it.
+      const edge = new Uint8Array(n), wide = new Uint8Array(n);
+      const step = (p, q) => rgbDifference(A,A,p*4,q*4);
+      for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { const p = y * W + x; if ((x + 1 < W && step(p, p + 1) > 16) || (y + 1 < Hh && step(p, p + W) > 16)) { edge[p] = 1; if (x + 1 < W) edge[p + 1] = 1; if (y + 1 < Hh) edge[p + W] = 1; } }
+      for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) { const p = y * W + x; if (!edge[p]) continue; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < W && Y < Hh) wide[Y * W + X] = 1; } }
+      let interior = 0, eSum = 0, eN = 0;
+      const perClass = {}; for (const c of CLASSES) perClass["c_" + c] = 0;
+      for (let p = 0, i = 0; p < n; p++, i += 4) {
+        const d = rgbDifference(A,G,i);
+        if (wide[p]) { eSum += d; eN++; } else if (d > 24) { interior++; dm[p] = 3; perClass["c_" + (classOf(classes, A, i) || classOf(classes, G, i) || "other")]++; }
+      }
+      const pc = x => +(x / n * 100).toFixed(3);
+      const m = {over8: pc(n8), over48: pc(n48), solid: pc(solid), solidPx: solid, meanAbs: +(sum / n).toFixed(2), interiorPx: interior, edgeMean: +(eN ? eSum / eN : 0).toFixed(2), ...perClass};
+      const key = name + "." + vname + "." + cname;
+      const lim = o.budgets?.[key] || {...budget, ...(c.solidPx && !o.budget?.solidPx ? {solidPx: c.solidPx} : {})};
+      const bad = Object.keys(lim).filter(k => m[k] > lim[k]);
+      const limits = bad.map(k => k + " " + m[k] + " > " + lim[k]);
+      const expectedRaster = o.raster?.[key], captureRaster = o.captureRaster?.includes(key);
+      if (expectedRaster || captureRaster) {
+        const raster = rasterResidual(A, G, W, Hh);
+        if (captureRaster) m.raster = raster;
+        if (expectedRaster) {
+          (out.rasterCases ??= []).push(key);
+          const changed = changedRasterTiles(raster, expectedRaster);
+          if (changed) { bad.push("raster"); limits.push("raster residual: " + changed); }
+        }
+      }
+      if (bad.length) { m.fail = bad; out.failures.push(name + " " + vname + "." + cname + ": " + limits.join(", ")); }
+      if (o.images === true || (bad.length && o.images !== false)) {
+        const dc = document.createElement("canvas"); dc.width = W; dc.height = Hh; const dg = dc.getContext("2d"), di = dg.createImageData(W, Hh);
+        for (let p = 0, i = 0; p < n; p++, i += 4) {
+          const s = solidAt[p] || solidAt[p - 1] || solidAt[p + 1] || solidAt[p - W] || solidAt[p + W];
+          di.data[i] = s || dm[p] === 3 ? 255 : dm[p] === 2 ? 255 : dm[p] ? 90 : 0; di.data[i + 1] = di.data[i + 2] = s || dm[p] === 3 ? 0 : di.data[i]; di.data[i + 3] = 255;
+        }
+        dg.putImageData(di, 0, 0);
+        const c2 = document.createElement("canvas"); c2.width = W; c2.height = Hh; c2.getContext("2d").putImageData(a, 0, 0);
+        (out.images ??= {})[name + "." + vname + "." + cname] = {"2d": c2.toDataURL("image/png"), gpu: comp.toDataURL("image/png"), diff: dc.toDataURL("image/png")};
+      }
+      R.cases[vname + "." + cname] = m;
+    };
+    for (const [vname, go] of Object.entries(views)) {
+      if (!go || (o.views && !o.views.includes(vname))) continue;
+      await go();
+      // Connection lines of a large board follow an edit by an idle pass (canvas.js airwireConnectivity): compute
+      // them now, so both renderers of every case see the same ones.
+      try { v.boardConnectivity?.(doc, defs); } catch {}
+      H().redraw(); await settle(doc.items.length > 6000 ? 600 : 100);
+      // Run the earlier paints and readbacks even when a case is selected. The browser
+      // may choose a different Canvas raster backend after repeated pixel reads.
+      for (const [cname, c] of Object.entries(cases)) measureCase(vname, cname, c, lastArgs, !only || only.has(cname));
+    }
+    // Live pour tile patches (polygon-pour.js): a part dragged inside a pour, compared in the middle of the drag
+    // (pointer down), when the tiles have patched the pours around it.
+    if (doc.pcbDrawing?.pours?.length && PP?.tiles && (!only || only.has("pourDrag")) && (!o.views || o.views.includes("zoomed")) && views.zoomed) {
+      await views.zoomed();
+      const r = cv().getBoundingClientRect(), ok = visibleNow();
+      const scr = w => { const q = v.worldToScreen(w); return [q[0] + r.left, q[1] + r.top]; };
+      const pev = (type, [x, y], e = {}) => cv().dispatchEvent(new PointerEvent(type, {clientX: x, clientY: y, button: 0, buttons: type === "pointerup" ? 0 : 1, pointerId: 1, bubbles: true, cancelable: true, isPrimary: true, pointerType: "mouse", ...e}));
+      // Parts inside a pour, nearest the middle of the view first: a part whose move changes no copper (its pads
+      // already clear of the pour there) gives no patch, so up to four are tried.
+      const mid0 = v.screenToWorld([r.width / 2, r.height / 2]);
+      const parts = doc.items.filter(i => i.kind === "part" && ok(i) && doc.pcbDrawing.pours.some(g => g.bounds && i.x > g.bounds[0] && i.x < g.bounds[2] && i.y > g.bounds[1] && i.y < g.bounds[3]))
+        .sort((x, y) => Math.hypot(x.x - mid0[0], x.y - mid0[1]) - Math.hypot(y.x - mid0[0], y.y - mid0[1])).slice(0, 4);
+      if (!parts.length) R.cases["zoomed.pourDrag"] = {skipped: "no part inside a pour in view"};
+      // Synthetic pointers cannot be captured: the editor's capture calls become no-ops for the drag.
+      const P0 = HTMLCanvasElement.prototype, cap = [P0.setPointerCapture, P0.releasePointerCapture];
+      P0.setPointerCapture = P0.releasePointerCapture = function () {};
+      const tried = [];
+      try {
+        for (const part of parts) {
+          const q = scr([part.x, part.y]), x0 = part.x; H().select([part.id]); await settle(50);
+          pev("pointermove", q, {buttons: 0}); pev("pointerdown", q);
+          let patched = false, last = null;
+          const r0 = v.render; v.render = (...a) => { last = a; return r0(...a); };
+          for (let i = 1; i <= 40 && !patched; i++) { pev("pointermove", [q[0] + i * 2, q[1] + i]); await wait(60); patched = !PP.tiles.busy && !!last?.[2]?.transientGeometry && !!PP.displayPours(doc)?.some(g => g.patch); }
+          await settle(100); v.render = r0;
+          tried.push(part.id + (patched ? " patched" : " (moved " + +(part.x - x0).toFixed(3) + " mm, tile runs " + PP.tiles.history.length + ", follows the drag " + !!PP.tiles.dragVisible?.(doc) + ")"));
+          if (patched && last) { measureCase("zoomed", "pourDrag", {}, last); out.pourDrag = (out.pourDrag || 0) + 1; }
+          pev("pointerup", [q[0] + 120, q[1] + 60]); await settle(400); H().select([]); act("undo"); await settle(800);
+          if (patched) break;
+        }
+      } finally { [P0.setPointerCapture, P0.releasePointerCapture] = cap; }
+      // A board whose pours are too large to follow a drag (the dense board) hides them instead: nothing to compare.
+      if (parts.length && !R.cases["zoomed.pourDrag"]) R.cases["zoomed.pourDrag"] = {skipped: "no live pour patches during the drag: " + tried.join("; ")};
+      R.pourDrag = {tried};
+    }
+    R.seconds = +((performance.now() - t0) / 1000).toFixed(1);
+    GPU().enable(true); H().redraw();
+  }
+  if ((!o.cases || o.cases.includes("pourDrag")) && (!o.views || o.views.includes("zoomed")) && !o.boards && !out.pourDrag) out.failures.push("pourDrag: no board had live pour patches to compare");
+  // A retained edit must match a fresh GPU scene byte for byte, including draw order after a
+  // mid-list insert, repeated changes before paint and undo of both membership and geometry.
+  if (wholeSuite && H().doc()?.kind === "pcb") {
+    const h = H(), doc = h.doc(), v = h.view(), U = globalThis.AtriumUndoStore;
+    const opts = {editorPane: true, noReuse: true, layer: "Top", layerMode: "all", hidden: new Set(["Source pours"]), showUnrouted: false};
+    const [x, y] = v.screenToWorld([cv().clientWidth / 2, cv().clientHeight / 2]), scale = v.camera().scale;
+    const id = "gpu-edit-test-" + Date.now(), size = 20 / scale;
+    const a = {kind: "track", id: id + "a", layer: "Top", width: size / 3, points: [[x - size, y], [x + size, y]]};
+    const b = {kind: "pad", id: id + "b", layer: "Top", w: size, h: size, x, y, shape: "rect", net: "EDIT"};
+    const label = {kind: "label", id: id + "text", x, y: y + size, layer: "Silk", text: "T1", size: size / 2};
+    const via = {kind:"via", id:id+"mask", layer:"Multi", x:x+2*size, y:y+2*size, diameter:size, drill:size*.55, tent:{top:false,bottom:false}};
+    const results = out.incremental = {};
+    const frame = () => {
+      v.render(doc, h.defs(), opts);
+      const image = GPU().composite();
+      if (!image) throw Error("GPU frame unavailable");
+      return image.getContext("2d").getImageData(0, 0, image.width, image.height).data;
+    };
+    const check = (name, mutate, before) => {
+      const builds = GPU().stats().builds;
+      mutate(); U?.sync(); const actual = frame(), retained = GPU().stats();
+      v.invalidate(); const fresh = frame();
+      const diff = differentBytes(actual, fresh);
+      results[name] = {differentBytes: diff, builds: retained.builds - builds, upload: retained.frameUpload, textUpload: retained.textUpload, dead: retained.dead};
+      if (before) results[name].visualChange = differentBytes(before, actual);
+      const localText = !before || results[name].visualChange > 0 && retained.textUpload > 0 && retained.textUpload < actual.length;
+      if (diff || builds !== retained.builds || !localText) out.failures.push("retained edit " + name + ": " + JSON.stringify(results[name]));
+      return actual;
+    };
+    try {
+      GPU().enable(true); U?.mark(h.project()); U?.sync(); v.invalidate(); frame();
+      check("append", () => h.edit(() => doc.items.push(a, b, label)));
+      check("move", () => h.edit(() => { b.x += size / 3; }));
+      check("label", () => h.edit(() => { label.x += size; label.text = "T17"; }));
+      check("grow", () => h.edit(() => { a.points.push([x + size, y + size]); }));
+      check("coalesced", () => {
+        h.edit(() => { b.y -= size; }); U?.sync(); v.hit(doc, h.defs(), [x, y]);
+        h.edit(() => { b.y += size / 2; });
+      });
+      check("remove", () => h.edit(() => doc.items.splice(doc.items.indexOf(a), 1)));
+      check("restoreInOrder", () => act("undo"));
+      check("redo", () => act("redo"));
+      const unselected = frame();
+      const selected = check("selectText", () => { opts.selected = label.id; }, unselected);
+      check("deselectText", () => { opts.selected = null; }, selected);
+      const withoutMark=check("appendVia",()=>h.edit(()=>doc.items.push(via),undefined,[via]));
+      // Tenting draws nothing of its own; filling the via closes its drill (viastack.js paintMarks).
+      const withMark=check("fillVia",()=>h.edit(()=>{via.ipc4761="V";},undefined,[via]));
+      results.fillVia.visualChange=differentBytes(withoutMark,withMark);
+      if(!results.fillVia.visualChange)out.failures.push("filled via edit left the frame unchanged");
+      // Translucent via copper goes through an ordered texture band. Warm the band with
+      // the mark visible before toggling its appearance without a geometry edit.
+      const previousViaOpacity = PCB.opacity.via;
+      try {
+        PCB.setOpacity("via", .5);
+        const shownMark = frame();
+        const hiddenMark = check("hideViaMarks", () => { opts.viaMarks = false; });
+        results.hideViaMarks.visualChange = differentBytes(shownMark, hiddenMark);
+        const restoredMark = check("restoreViaMarks", () => { delete opts.viaMarks; });
+        if (!results.hideViaMarks.visualChange || differentBytes(shownMark, restoredMark))
+          out.failures.push("retained via mark visibility did not change and restore its pixels");
+      } finally { PCB.setOpacity("via", previousViaOpacity); delete opts.viaMarks; }
+      const previousOpacity = PCB.opacity.track;
+      try {
+        PCB.setOpacity("track", .5);
+        const opaqueLabel = frame();
+        check("translucentSelection", () => { opts.selected = label.id; }, opaqueLabel);
+      } finally { PCB.setOpacity("track", previousOpacity); opts.selected = null; }
+      // The origin marks are uploaded once per camera and origin: an unchanged frame (a window
+      // uncovered) sends nothing. A moved origin matches marks rebuilt from scratch.
+      frame(); frame();
+      results.unchangedFrame = {upload: GPU().stats().frameUpload};
+      if (results.unchangedFrame.upload !== 0) out.failures.push("an unchanged GPU frame uploaded " + results.unchangedFrame.upload + " bytes");
+      const origin = doc.origin;
+      try {
+        h.edit(() => { doc.origin = [x + size, y - size]; }); U?.sync();
+        const moved = frame(), upload = GPU().stats().frameUpload;
+        opts.origin = false; frame(); delete opts.origin;
+        results.origin = {upload, differentBytes: differentBytes(moved, frame())};
+        if (results.origin.differentBytes || !upload) out.failures.push("moved origin: " + JSON.stringify(results.origin));
+      } finally { h.edit(() => { doc.origin = origin; }); delete opts.origin; }
+    } catch (e) { out.failures.push("retained edit: " + e.message); }
+    finally { h.edit(() => { for (const i of [a, b, label, via]) if (doc.items.includes(i)) doc.items.splice(doc.items.indexOf(i), 1); }); }
+  }
+  // Robustness on the last board: a lost context is restored (2D meanwhile), the memory cap falls back to 2D
+  // with a reason, a document switch takes the parked scene back, a split pane gets its own context and gives
+  // it back when closed; after each, the GPU frame still matches the 2D frame.
+  const failLifecycle = (name, why) => { out.robust[name] = "FAIL " + why; out.failures.push("robustness " + name + ": " + why); };
+  const okLifecycle = (name, note = "ok") => { out.robust[name] = note; };
+  const same = async (pane = H().panes().find(p => p.active)) => {
+    const {canvas, view: v} = pane, r0 = v.render;
+    let last = null; v.render = (...a) => { last = a; return r0(...a); };
+    if (pane.active) H().redraw(); else H().showInOther(pane.docId);
+    await settle(80); v.render = r0;
+    if (!last) return "no render";
+    const [d, f, op] = last, opts = {...op, overlay: undefined, noReuse: true}, W = canvas.width, Hh = canvas.height;
+    GPU().enable(false); v.render(d, f, opts); const A = canvas.getContext("2d").getImageData(0, 0, W, Hh).data;
+    GPU().enable(true); v.render(d, f, opts);
+    const gpu = canvas.previousElementSibling;
+    if (!gpu?.matches(".atrium-gpu-board") || gpu.style.display === "none") return "no GPU frame";
+    const composite = document.createElement("canvas"); composite.width = W; composite.height = Hh;
+    const ctx = composite.getContext("2d"); ctx.drawImage(gpu, 0, 0); ctx.drawImage(canvas, 0, 0);
+    const B = ctx.getImageData(0, 0, W, Hh).data;
+    const pct = differentPixels(A,B,48) / (W * Hh) * 100;
+    return pct <= budget.over48 ? "" : "over48 " + pct.toFixed(2) + " %";
+  };
+  // A view's first GPU frame is prepared in idle time after a 2D frame (canvas-gpu.js render): wait for it.
+  const ready = async () => { for (let n = 0; n < 60 && !(GPU().stats()?.acc?.frames); n++) { H().redraw(); await settle(50); } };
+  const until = async (predicate, polls = 80) => {
+    for (let n = 0; n < polls; n++) {
+      if (predicate()) return true;
+      await wait(50);
+    }
+    return false;
+  };
+  const lossExtension = () => cv().previousElementSibling?.matches(".atrium-gpu-board") ?
+    cv().previousElementSibling.getContext("webgl2")?.getExtension("WEBGL_lose_context") : null;
+
+  if (Object.keys(lifecycle).some(robust)) {
+    out.robust = {};
+    try {
+      GPU().enable(true); act("fit"); await settle(400); H().redraw(); await settle(100); await ready();
+      for (const [name, check] of Object.entries(lifecycle)) if (robust(name)) await check();
+    } catch (error) { failLifecycle("error", error.message); }
+  }
+
+  // Hold the loss until Canvas2D takes over.
+  async function contextLost() {
+    const contextLoss = lossExtension();
+    if (!contextLoss) okLifecycle("contextLost", "skipped: no WEBGL_lose_context");
+    else {
+      contextLoss.loseContext();
+      await until(() => GPU().stats()?.lost);
+      const lost = GPU().status();
+      contextLoss.restoreContext();
+      await until(() => GPU().stats()?.restored && GPU().status().renderer === "gpu");
+      const back = GPU().status(), st = GPU().stats(), why = await same();
+      if (lost.renderer !== "2d" || !/lost/.test(lost.reason)) failLifecycle("contextLost", "while lost: " + JSON.stringify(lost));
+      else if (back.renderer !== "gpu" || !st?.restored) failLifecycle("contextLost", "not restored: " + JSON.stringify(back));
+      else if (why) failLifecycle("contextLost", "after restore: " + why);
+      else okLifecycle("contextLost");
+    }
+  }
+
+  async function powerVisibility() {
+    const outcome = out.powerVisibility = await gpuPowerVisibility(H(), GPU(), wait, until);
+    if (outcome.ok) okLifecycle("powerVisibility");
+    else failLifecycle("powerVisibility", JSON.stringify(outcome));
+  }
+
+  async function memoryCap() {
+    let capLabel;
+    if ((GPU().stats()?.gpuBytes || 0) <= 1048576) {
+      const v=H().view(), [x,y]=v.screenToWorld([cv().clientWidth/2,cv().clientHeight/2]);
+      capLabel={id:"gpu-cap-"+Date.now(),kind:"label",x,y,layer:"Silk",size:10/v.camera().scale,text:"Memory test"};
+      H().edit(()=>H().doc().items.push(capLabel));
+    }
+    globalThis.__atriumGpuCapMB = 1; GPU().reset(); H().redraw();
+    await until(() => /GPU memory/.test(GPU().status().reason));
+    const capped = GPU().status();
+    delete globalThis.__atriumGpuCapMB; GPU().reset(); H().redraw(); await settle(60); await ready();
+    if (capped.renderer !== "2d" || !/GPU memory/.test(capped.reason)) failLifecycle("memoryCap", JSON.stringify(capped));
+    else if (GPU().status().renderer !== "gpu") failLifecycle("memoryCap", "not back on the GPU after the cap was lifted");
+    else okLifecycle("memoryCap", "2D: " + capped.reason);
+    if(capLabel)H().edit(()=>H().doc().items.splice(H().doc().items.indexOf(capLabel),1));
+  }
+
+  async function hidden() {
+    const pane = H().panes().find(p => p.active), {canvas, view: pv} = pane, r0 = pv.render;
+    const via = H().doc().items.find(i => i.kind === "via");
+    if (!via) okLifecycle("hidden", "skipped: no via");
+    else {
+      GPU().enable(true); H().zoomTo([via.x - 1.5, via.y - 1.5, via.x + 1.5, via.y + 1.5]); await settle(300); await ready();
+      let last = null; pv.render = (...a) => { last = a; return r0(...a); }; H().redraw(); await settle(80); pv.render = r0;
+      const [d, f, op] = last || [], dpr = canvas.width / (canvas.clientWidth || canvas.width);
+      const q = pv.worldToScreen([via.x, via.y]), r = (via.diameter || .6) * pv.camera().scale / 2 * dpr;
+      const box = [Math.floor(q[0] * dpr - r), Math.floor(q[1] * dpr - r), Math.ceil(2 * r), Math.ceil(2 * r)];
+      const grab = (gpu, hide) => {
+        GPU().enable(gpu); pv.render(d, f, {...op, overlay: undefined, noReuse: true, hide});
+        const c = gpu ? GPU().composite() : canvas;
+        return c ? c.getContext("2d").getImageData(...box).data : null;
+      };
+      const shown = grab(true, null), gone = grab(true, new Set([via])), flat = grab(false, new Set([via]));
+      const area = box[2] * box[3];
+      if (!shown || !gone) failLifecycle("hidden", "no GPU frame");
+      else if (differentPixels(shown,gone,48) < area / 4) failLifecycle("hidden", "the GPU frame still draws a hidden via (" + differentPixels(shown,gone,48) + " of " + area + " px changed)");
+      else if (differentPixels(gone,flat,48) > area / 10) failLifecycle("hidden", differentPixels(gone,flat,48) + " of " + area + " px differ from the 2D frame where the via was");
+      else okLifecycle("hidden", "ok (" + differentPixels(shown,gone,48) + " of " + area + " px)");
+      GPU().enable(true); act("fit"); await settle(400); H().redraw(); await settle(60); await ready();
+    }
+  }
+
+  async function parked() {
+    const board = H().doc(), other = H().project().documents.find(x => x !== board);
+    if (!other) okLifecycle("parked", "skipped: one document");
+    else {
+      H().redraw(); await settle(60); const b0 = GPU().stats().builds;
+      H().selectDocument(other.id); await settle(200); H().selectDocument(board.id); await settle(300); H().redraw(); await settle(60);
+      const b1 = GPU().stats().builds, why = await same();
+      if (why) failLifecycle("parked", why); else okLifecycle("parked", b1 === b0 ? "ok (no rebuild)" : "ok, rebuilt (" + (b1 - b0) + ") — canvas-fast.js did not park the cache");
+    }
+  }
+
+  async function splitPane() {
+    const before = document.querySelectorAll(".atrium-gpu-board").length;
+    const pcbDoc = H().doc();
+    H().openSplit("right", pcbDoc.id); await settle(700);
+    const during = [...document.querySelectorAll(".atrium-gpu-board")].filter(c => c.style.display !== "none").length;
+    const splitErrors = [];
+    for (const [i, pane] of H().panes().entries()) {
+      const why = await same(pane);
+      if (why) splitErrors.push("pane " + (i + 1) + ": " + why);
+    }
+    act("split-close"); await settle(400); H().selectDocument(pcbDoc.id); await settle(300); H().redraw(); await settle(200);
+    const after = document.querySelectorAll(".atrium-gpu-board").length, why = await same();
+    const counts = "GPU canvases " + before + " → " + during + " → " + after;
+    if (why || splitErrors.length || before !== 1 || during !== 2 || after !== 1) failLifecycle("splitPane", [...splitErrors, why, counts].filter(Boolean).join("; "));
+    else okLifecycle("splitPane", counts);
+  }
+
+  async function layoutResize() {
+    const canvas = cv(), view = H().view(), I = view.internals(), draw = view.render;
+    const shell = document.body, previousHeight = shell.style.height;
+    const sample = () => {
+      const box = canvas.getBoundingClientRect(), gpu = canvas.previousElementSibling;
+      const gl = gpu?.matches(".atrium-gpu-board") && gpu.style.display !== "none" ? gpu.getContext("webgl2") : null;
+      const gpuBox = gl && gpu.getBoundingClientRect(), comp = gl && GPU().composite(I);
+      const image = comp?.getContext("2d").getImageData(0, 0, comp.width, comp.height);
+      return {css: [box.width, box.height], gpuCss: gpuBox && [gpuBox.width, gpuBox.height], dpr: I.cam()[6],
+        overlay: [canvas.width, canvas.height], gpu: gl && [gpu.width, gpu.height],
+        buffer: gl && [gl.drawingBufferWidth, gl.drawingBufferHeight],
+        readback: image && [image.width, image.height]};
+    };
+    // Read the first painted frame at each size while the WebGL buffer is still live.
+    let frame = null, before, smaller;
+    view.render = (...args) => { const result = draw(...args); frame ??= sample(); return result; };
+    try {
+      H().redraw(); await settle(0);
+      before = frame; frame = null;
+      shell.style.height = (shell.getBoundingClientRect().height - 56) + "px";
+      await settle(0);
+      smaller = frame;
+    } finally {
+      frame = null;
+      shell.style.height = previousHeight;
+      try { await settle(0); } finally { view.render = draw; }
+    }
+    const restored = frame;
+    const aligned = size => size?.readback && size.css.every((n, i) =>
+      n === size.gpuCss[i] && Math.round(n * size.dpr) === size.overlay[i] &&
+      [size.gpu, size.buffer, size.readback].every(b => b[i] === size.overlay[i]));
+    out.layoutResize = {before, smaller, restored};
+    if (![before, smaller, restored].every(aligned) || before.css[0] !== smaller.css[0] || before.css[1] - smaller.css[1] !== 56 ||
+        before.css.some((n, i) => n !== restored.css[i])) failLifecycle("layoutResize", JSON.stringify(out.layoutResize));
+    else okLifecycle("layoutResize", `height ${before.overlay[1]} → ${smaller.overlay[1]} → ${restored.overlay[1]} px`);
+  }
+
+  if (wholeSuite && !o.fault) {
+    try {
+      await AtriumLazy.need("AtriumBoardShapeAuthoring");
+      const profiles = out.boardProfile = probeBoardProfile(GPU());
+      if (Object.values(profiles).some(coverage => coverage.some(match => !match)))
+        out.failures.push("nested board profile: " + JSON.stringify(profiles));
+    } catch (e) { out.failures.push("nested board profile: " + e.message); }
+    try {
+      const pixels = out.hiddenChunk = probeHiddenChunk(GPU());
+      if (pixels.unbatched[0] === pixels.unbatched[1] || pixels.shown[0] !== pixels.unbatched[0] ||
+          pixels.shown[1] === pixels.unbatched[1] ||
+          ![pixels.batched, pixels.gpu].every(p => p.every((color, n) => color === pixels.unbatched[n])))
+        out.failures.push("hidden chunk footprint: " + JSON.stringify(pixels));
+    } catch (e) { out.failures.push("hidden chunk footprint: " + e.message); }
+    try {
+      out.stationaryScope = gpuViewportScope(GPU());
+      for (const [name, row] of Object.entries(out.stationaryScope)) {
+        if (row.queries !== row.expected || row.referenceQueries !== 1 || row.differentBytes || !row.visualChange)
+          out.failures.push("GPU viewport scope " + name + ": " + JSON.stringify(row));
+      }
+    } catch (e) { out.failures.push("GPU viewport scope: " + e.message); }
+    try { out.layerPlan = await probeLayerPlan(GPU()); }
+    catch (e) { out.failures.push("GPU layer plan: " + e.message); }
+    try { out.firstPourLayer = probeFirstPourLayer(GPU()); }
+    catch (e) { out.failures.push("GPU first pour layer: " + e.message); }
+    try {
+      await AtriumLazy.need("AtriumPCBNetLabels");
+      out.netLabelScope = probeNetLabelScope(GPU());
+    } catch (e) { out.failures.push("Net label viewport scope: " + e.message); }
+  }
+  if (wholeSuite && !o.fault) {
+    try {
+      const P = AtriumPCBPours, project = Atrium.project("Mutable stored copper"), d = project.documents.find(doc => doc.kind === "pcb");
+      const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+      const area = x => P.region([rect(x,3,6,6), Array.from({length:96}, (_,i) => {
+        const a = i*Math.PI/48; return [x+3+Math.cos(a)*.4,6+Math.sin(a)*.4];
+      })],"Top","GND");
+      const solid = x => P.region([rect(x,12,6,5)],"Bottom","GND");
+      d.outline = rect(0,0,32,20); d.pcbDrawing = {annotations:{},pours:[area(2),solid(12)]};
+      d.sourcePourSignature = P.signature(d,new Map());
+      await H().replaceProject(project,{force:true}); H().selectDocument(d.id); act("fit"); await settle(200);
+      const h=H(), doc=h.doc(), v=h.view(), regs=doc.pcbDrawing.pours;
+      const paint=()=>{v.render(doc,h.defs(),{editorPane:true,noReuse:true,grid:false,showUnrouted:false});
+        const c=GPU().composite();return c.getContext("2d").getImageData(0,0,c.width,c.height).data;};
+      GPU().enable(true);const before=paint();
+      h.edit(()=>{Object.assign(regs[0],area(12));Object.assign(regs[1],solid(22));});
+      globalThis.AtriumUndoStore?.sync();const after=paint(),uploaded=GPU().stats().coverageUpload;
+      paint();const repeated=GPU().stats().coverageUpload;
+      h.edit(()=>{doc.pcbDrawing.pours=regs.map(r=>({...r}));});
+      P.release(regs,[]);GPU().reset();v.invalidate();const full=paint();
+      out.mutablePours = {changedBytes:differentBytes(before,after),differentBytes:differentBytes(after,full),coverageUpload:uploaded,repeatedUpload:repeated};
+      if (!out.mutablePours.changedBytes || out.mutablePours.differentBytes || !(uploaded>0 && uploaded<after.length) || repeated)
+        out.failures.push("mutable stored copper: "+JSON.stringify(out.mutablePours));
+
+      // A translucent layer initially draws the stored rings. Its cached fill must pick up the
+      // display geometry that finishes in idle, just as it does after an animated Repour All.
+      const previousOpacity=PCB.opacity.track, detail=P.lod;
+      try {
+        const holes=Array.from({length:32},(_,n)=>Array.from({length:96},(_,k)=>{
+          const angle=k*Math.PI/48;
+          return [2+(n%8)*4+1.1*Math.cos(angle),2+Math.floor(n/8)*4+1.1*Math.sin(angle)];
+        }));
+        const region=P.region([rect(0,0,32,18),...holes],"Top","GND");
+        h.edit(()=>{
+          doc.items.push({id:"lod-track",kind:"track",layer:"Top",width:.4,points:[[0,8],[32,8]]});
+          doc.pcbDrawing.pours=[region];doc.sourcePourSignature=P.signature(doc,h.defs());
+        });
+        PCB.setOpacity("track",.5);
+        v.restoreCamera({...v.camera(),cx:16,cy:9,scale:4/window.devicePixelRatio});
+        globalThis.AtriumUndoStore?.sync();P.release([region],[]);v.invalidate();
+        const exact=paint(),version=detail.version,render=v.render;
+        // Capture this exact view again once display detail is ready. A scheduled editor paint
+        // with different visibility options would replace the texture for an unrelated reason.
+        try {
+          v.render=()=>{};
+          for(let n=0;n<100 && detail.version===version;n++)await wait(25);
+        } finally { v.render=render; }
+        const settled=paint();v.invalidate();const rebuilt=paint();
+        out.translucentPourLod={versionChanged:detail.version!==version,changedBytes:differentBytes(exact,rebuilt),differentBytes:differentBytes(settled,rebuilt)};
+        if(!out.translucentPourLod.versionChanged || !out.translucentPourLod.changedBytes || out.translucentPourLod.differentBytes)
+          out.failures.push("translucent pour display detail: "+JSON.stringify(out.translucentPourLod));
+      } finally { PCB.setOpacity("track",previousOpacity); }
+    } catch(e) { out.failures.push("mutable stored copper: "+e.message); }
+  }
+  if (globalThis.devicePixelRatio === 1 && (!o.boards || o.boards.includes("dense")) && (!o.views || o.views.includes("fit"))) {
+    try {
+      const probes = out.strokeProbes = probeGpuStrokes(GPU(), PCB, H().doc());
+      if (!probes.gestureFrames || Object.values(probes.overlapColours).some(rgb => rgb.join(",") !== "0,255,0"))
+        out.failures.push("stroke tint order: " + JSON.stringify(probes.overlapColours));
+      for (const row of probes.grid) {
+        const expected = row.delta < 0 ? "204,0,204,0" : "0,204,0,204";
+        if (row.canvas2d.join(",") !== expected || row.gpu.join(",") !== expected)
+          out.failures.push("grid at half-pixel boundary: " + JSON.stringify(row));
+      }
+      for (const s of probes.coverage) {
+        const ink = s.feature === "track" ? s.idealRatio : s.ratio;
+        if (!s.reference || ink < .96 || ink > 1.04 || s.gaps || (s.feature === "wire" && s.max > 3))
+          out.failures.push("stroke coverage: " + JSON.stringify(s));
+      }
+    } catch (e) { out.failures.push("stroke probes: " + e.message); }
+  }
+  if (o.fault) { delete globalThis.__atriumGpuFault; GPU().reset(); }
+  return out;
+};
+
+// Keep the browser visible so the editor itself has to suppress redraws while covered.
+async function gpuPowerVisibility(host, gpu, wait, until) {
+  const power = globalThis.AtriumPower, {canvas, view} = host.panes().find(pane => pane.active);
+  const viewState = view.internals();
+  const surface = () => {
+    const candidate = canvas.previousElementSibling;
+    return candidate?.matches(".atrium-gpu-board") ? candidate : null;
+  };
+  const stats = () => gpu.stats(viewState);
+  const frames = () => stats()?.acc?.frames || 0;
+  const shown = () => {
+    const current = surface();
+    return power.visible() && current && current.style.display !== "none" &&
+      gpu.status(viewState).renderer === "gpu" && frames() > 0;
+  };
+  if (!power?.visible?.() || !shown()) {
+    return {ok: false, reason: "the active board must start visible on the GPU", power: power?.state(), status: gpu.status(viewState)};
+  }
+
+  const previous = power.state(), warmSurface = surface(), contexts = [];
+  let scriptedState = previous, lastHostState = previous, hostUpdates = 0, renders = 0;
+  const setHost = update => {
+    scriptedState = {...scriptedState, ...update};
+    power.host(scriptedState);
+  };
+  // AppKit may deliver a real window notification during the scripted host signals.
+  // Apply the newest real state when the probe releases control. Browser visibility remains live.
+  const rememberHostState = event => {
+    lastHostState = {...lastHostState, ...event.detail};
+    hostUpdates++;
+    event.stopImmediatePropagation();
+    // The editor's window listener may have already seen this notification.
+    power.host(scriptedState);
+  };
+  window.addEventListener("atrium-power", rememberHostState, true);
+  const render = view.render;
+  view.render = (...args) => { renders++; return render(...args); };
+  const proto = HTMLCanvasElement.prototype, get = proto.getContext;
+  proto.getContext = function (kind, options) {
+    const context = get.apply(this, arguments);
+    if (kind === "webgl2" && options?.powerPreference && this.matches(".atrium-gpu-board")) {
+      contexts.push({hint: options.powerPreference, created: !!context, covered: !power.visible()});
+    }
+    return context;
+  };
+  const covered = () => {
+    const state = power.state(), status = gpu.status(viewState);
+    return !state.visible && state.occluded && !state.hidden && status.renderer === "2d" && /hidden/.test(status.reason);
+  };
+  try {
+    const warmFrames = frames(), warmRenders = renders;
+    setHost({occluded: true, battery: true});
+    host.redraw();
+    await wait(400);
+    const warmPaused = covered() && frames() === warmFrames && renders === warmRenders &&
+      surface() === warmSurface && contexts.length === 0;
+    const restored = stats()?.restored;
+    const loss = warmSurface.getContext("webgl2")?.getExtension("WEBGL_lose_context");
+    let restorePaused = true;
+    if (loss) {
+      loss.loseContext();
+      const lost = await until(() => stats()?.lost === true);
+      loss.restoreContext();
+      const delivered = await until(() => stats()?.lost === false);
+      restorePaused = lost && delivered && covered() && stats()?.restored === restored &&
+        frames() === warmFrames && renders === warmRenders && surface() === warmSurface && contexts.length === 0;
+    }
+    setHost({occluded: false});
+    const restoreResumed = await until(() => shown() && (!loss ||
+      stats()?.restored === restored + 1 && surface() !== warmSurface && !warmSurface.isConnected));
+
+    const made = contexts.length, coldRenders = renders;
+    setHost({occluded: true});
+    gpu.reset();
+    host.redraw();
+    await wait(400);
+    const coldPaused = covered() && !stats() && !surface() && renders === coldRenders && contexts.length === made;
+    const started = performance.now();
+    setHost({occluded: false});
+    // Cold setup runs in browser idle time. One default idle deadline is already 2 s,
+    // and the renderer waits for a real idle slice if that deadline expires during input.
+    const coldDrawn = await until(shown, 120);
+    const hint = globalThis.AtriumPrefs?.get?.("display.renderer") === "gpu" ? "high-performance" : "low-power";
+    const fresh = contexts[made];
+    const coldResumed = coldDrawn && contexts.length === made + 1 && fresh?.created && !fresh.covered && fresh.hint === hint;
+    return {
+      ok: warmPaused && restorePaused && restoreResumed && coldPaused && coldResumed,
+      warmPaused, restorePaused, restoreResumed, coldPaused, coldResumed, lossSupported: !!loss,
+      hostUpdates, contexts, coldMs: Math.round(performance.now() - started), power: power.state(), status: gpu.status(viewState),
+    };
+  } finally {
+    proto.getContext = get;
+    view.render = render;
+    window.removeEventListener("atrium-power", rememberHostState, true);
+    power.host(lastHostState);
+  }
+}
+
+// A stationary tool repaint still draws the board. Its ordered spatial query can be reused
+// until the board or viewport changes. Compare each result with a freshly built GPU scene.
+function gpuViewportScope(GPU) {
+  const surface = document.createElement("div");
+  surface.style.cssText = "position:absolute;left:0;top:0;pointer-events:none";
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "display:block;width:320px;height:200px";
+  surface.append(canvas);
+  document.body.append(surface);
+  const view = AtriumCanvas.create(canvas), I = view.internals();
+  const doc = Atrium.sheet("pcb", "Viewport test"), defs = new Map();
+  const left = {id: "scope-left", kind: "label", x: 20, y: 10, size: 3, text: "Left", layer: "Silk"};
+  const right = {...left, id: "scope-right", x: 77, text: "Right"};
+  const track = {id: "scope-track", kind: "track", layer: "Top", width: .8, points: [[0, 16], [110, 16]]};
+  doc.items.push(left, right, track);
+  const opts = {editorPane: true, netNames: false, viaMarks: false, grid: false, origin: false};
+  const camera = cx => view.restoreCamera({cx, cy: 12, scale: 10, referenceScale: 1});
+  let queries = 0;
+  const query = I.query;
+  I.query = (...args) => { queries++; return query(...args); };
+  function frame(extra) {
+    queries = 0;
+    view.render(doc, defs, {...opts, ...extra});
+    const image = GPU.composite(I);
+    if (!image || !GPU.stats(I).submitted) throw Error("GPU geometry was not drawn");
+    return image.getContext("2d").getImageData(0, 0, image.width, image.height).data;
+  }
+  const results = {};
+  function compare(name, expected, before, extra) {
+    const actual = frame(extra), used = queries;
+    view.invalidate();
+    const fresh = frame(extra);
+    results[name] = {queries: used, expected, referenceQueries: queries, differentBytes: differentBytes(actual, fresh), visualChange: differentBytes(before, actual)};
+    return actual;
+  }
+  try {
+    camera(24);
+    const initial = frame({noReuse: true});
+    compare("stationary tool repaint", 0, initial, {snapAt: [24, 12]});
+    compare("route visibility change", 0, initial, {routePreview: {hidden: [left.id]}, transientGeometry: true});
+    camera(75);
+    const moved = compare("camera moved", 1, initial);
+    left.x = 68;
+    view.invalidate(doc, [left]);
+    compare("label entered the viewport after edit", 1, moved);
+    return results;
+  } finally {
+    surface.remove();
+  }
+}
+
+async function probeLayerPlan(GPU, observe, checkReuse = true) {
+  const canvas = document.createElement("canvas"), PCB = AtriumPCBAppearance, P = AtriumPCBPours;
+  canvas.style.cssText = "position:absolute;left:-1000px;top:0;width:312px;height:192px";
+  document.body.append(canvas);
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map(), enabled = GPU.enabled();
+  const board = Atrium.sheet("pcb", "Layer order"), rect = (a,b,c,d) => [[a,b],[c,b],[c,d],[a,d]];
+  const graphic = (id, layer, a, b, c, d) => ({kind:"graphic", id, layer, fill:true, closed:true, points:rect(a,b,c,d)});
+  const label = (id, layer, x, y) => ({kind:"label", id, layer, x, y, size:1.8, text:"T28"});
+  const track = (id, layer, y) => ({kind:"track", id, layer, width:1, points:[[0,y],[120,y]]});
+  const via = (id, x, fromLayer, toLayer) => ({kind:"via", id, x, y:19, layer:"Multi", fromLayer, toLayer, diameter:2, drill:.7});
+  const stable = [track("top","Top",14), track("bottom","Bottom",16), label("text","Silk",19,4),
+    via("high",17,"Top","Inner 1"), via("low",21,"Inner 2","Bottom")];
+  board.outline = rect(0,0,120,26);
+  board.items = stable.slice();
+  board.pcbDrawing = {pours:[P.region([rect(5,20,115,25),rect(16,21,23,24)],"Inner 1","GND")]};
+  const stamp = doc => { doc.sourcePourSignature = P.signature(doc,defs); };
+  stamp(board);
+  const a = "Mechanical A", b = "Mechanical B";
+  const left = graphic("left",b,6,6,41,13), right = graphic("right",b,79,6,114,13);
+  const tied = {...board, items:[right, graphic("across",a,3,5,117,14), left, label("back-text",a,19,9),
+    label("front-text",b,98,9), ...stable]};
+  stamp(tied);
+  const palette = {layers:{[a]:"#1166ee",[b]:"#ee4411",Top:"#b1192c",Bottom:"#174c99","Inner 1":"#17a45a"}};
+  const counters = () => {
+    const s = GPU.stats(I);
+    return [s.layerPassBuilds || 0,s.layerBandBuilds || 0,s.layerPourPassBuilds || 0];
+  };
+  const rows = {}, different = (x,y) => x.length !== y.length || x.some((v,i) => v !== y[i]);
+  const oldOpacity = PCB.layerAlpha(a), opts = {editorPane:true,noReuse:true,origin:false,grid:false,showUnrouted:false};
+  function draw(name, doc, x, o = {}) {
+    view.restoreCamera({cx:x,cy:12,scale:8,referenceScale:8,flipped:!!o.flipped});
+    return PCB.withPalette(palette, () => {
+      view.render(doc,defs,{...opts,...o});
+      const image = GPU.composite(I), s = GPU.stats(I);
+      if (!image || GPU.status(I).renderer !== "gpu" || !s?.submitted) throw Error(name + ": GPU geometry is missing");
+      const data = image.getContext("2d").getImageData(0,0,image.width,image.height).data;
+      const [px,py] = view.worldToScreen([x,7]).map(v => Math.floor(v * image.width / canvas.clientWidth));
+      const color = [...data.subarray((py * image.width + px) * 4,(py * image.width + px) * 4 + 3)];
+      rows[name] = {color, submitted:s.submitted, counts:counters()};
+      observe?.(name,data);
+      return data;
+    });
+  }
+  try {
+    GPU.enable(true);
+    draw("untied",board,20);
+    const before = counters();
+    for (const x of [21,22,23,24,25,26]) draw("pan-" + x,board,x);
+    const pan = counters().map((n,i) => n - before[i]);
+    if (checkReuse && pan.some(n => n)) throw Error("stable camera motion rebuilt layer plans: " + pan);
+    draw("opposite-side-pour",board,100,{flipped:true});
+    const near = draw("tied-left",tied,20), far = draw("tied-right",tied,100);
+    if (!(rows["tied-left"].color[0] > 200 && rows["tied-right"].color[2] > 200 && different(near,far)))
+      throw Error("viewport-dependent painter ties did not expose different layers: " + JSON.stringify(rows));
+    draw("tied-flipped",tied,100,{flipped:true});
+    draw("single-top",tied,20,{layerMode:"single",layer:"Top"});
+    draw("single-bottom",tied,20,{layerMode:"single",layer:"Bottom"});
+    draw("dim-bottom-flipped",tied,20,{layerMode:"dim",layer:"Bottom",flipped:true});
+    const hidden = new Set([b,"Inner 1"]);
+    const concealed = draw("hidden",tied,20,{hidden});
+    hidden.clear();
+    const revealed = draw("revealed",tied,20,{hidden});
+    if (!different(concealed,revealed) || different(near,revealed)) throw Error("in-place visibility change reused the wrong layers");
+    PCB.setLayerOpacity(a,.65);
+    const blended = draw("translucent",tied,100);
+    PCB.setLayerOpacity(a,oldOpacity);
+    if (!different(blended,far)) throw Error("translucent pass was not exercised");
+    const points = left.points;
+    left.points = rect(7,12,41,13); stamp(tied); view.invalidate(tied,[left]);
+    const edited = draw("edit",tied,20);
+    left.points = points; stamp(tied); view.invalidate(tied,[left]);
+    const undone = draw("restore",tied,20);
+    if (!different(near,edited) || different(near,undone)) throw Error("edit or inverse edit used stale layer geometry");
+    const swapped = draw("same-id-document",board,20);
+    if (!different(near,swapped)) throw Error("same-ID document reused a foreign layer order");
+    const oldGPU = canvas.previousElementSibling, contextLoss = GPU.loseContext(I,80);
+    if (contextLoss) {
+      const deadline = performance.now() + 3500;
+      while ((canvas.previousElementSibling === oldGPU || !GPU.stats(I)?.restored) && performance.now() < deadline) {
+        await new Promise(r => setTimeout(r,16));
+        // A standalone viewport has no editor repaint callback.
+        PCB.withPalette(palette,() => view.render(board,defs,opts));
+      }
+      const restarted = draw("context-restart",board,20);
+      if (canvas.previousElementSibling === oldGPU || different(swapped,restarted)) throw Error("context restart changed the composed frame");
+    }
+    return {rows, pan, contextLoss};
+  } finally {
+    PCB.setLayerOpacity(a,oldOpacity);
+    GPU.release(I);
+    GPU.enable(enabled);
+    canvas.remove();
+  }
+}
+
+function probeFirstPourLayer(GPU, compare = true) {
+  const canvas = document.createElement("canvas"), P = AtriumPCBPours, PCB = AtriumPCBAppearance;
+  canvas.style.cssText = "position:absolute;left:-1000px;top:0;width:320px;height:192px";
+  document.body.append(canvas);
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map(), enabled = GPU.enabled();
+  const live = globalThis.AtriumPolygonPour, animation = globalThis.AtriumPourAnim;
+  const rect = (l,t,r,b) => [[l,t],[r,t],[r,b],[l,b]];
+  const fresh = P.region([rect(4,4,33,20)],"Inner 1","GND"), previous = P.region([rect(2,2,7,20)],"Bottom","GND");
+  const board = Atrium.sheet("pcb", "First visible copper layer");
+  const top = {kind:"track",id:"foreground",layer:"Top",width:2,points:[[6,15],[31,15]]};
+  const text = {kind:"label",id:"buried-text",layer:"Inner 2",x:9,y:8,size:3,text:"INNER",justify:"left"};
+  const mech = ["Mechanical A","Mechanical B"].map((layer,i)=>({kind:"graphic",id:"mechanical"+i,layer,fill:true,points:rect(2+i,21,8+i,23)}));
+  const opts = {editorPane:true,noReuse:true,origin:false,grid:false,showUnrouted:false,netNames:false};
+  const palette = {layers:{Top:"#ee1111","Inner 1":"#22ee22","Inner 2":"#2233ee",Bottom:"#ffaa22",
+    "Mechanical A":"#1166ee","Mechanical B":"#ee4411"}};
+  board.outline = rect(0,0,37,24);
+  view.restoreCamera({cx:18,cy:12,scale:8,referenceScale:8});
+  let showing = false, list;
+  globalThis.AtriumPolygonPour = {...live, displayState: (doc,...rest)=>doc===board?"source":live?.displayState?.(doc,...rest),
+    displayPours: (doc,...rest)=>doc===board?list:live?.displayPours?.(doc,...rest)};
+  globalThis.AtriumPourAnim = {...animation, active: doc=>doc===board?showing:!!animation?.active?.(doc)};
+  const counts = () => {
+    const s = GPU.stats(I);
+    return [s.layerPassBuilds || 0,s.layerBandBuilds || 0,s.layerPourPassBuilds || 0];
+  };
+  const referenceOrder = I.paintOrder;
+  let orderCalls = 0, itemReads = 0;
+  I.paintOrder = (doc, defs, options, items, viewport, pours) => {
+    orderCalls++;
+    const traced = new Proxy(items,{get(target,key,receiver) {
+      if (typeof key === "string" && /^\d+$/.test(key)) itemReads++;
+      return Reflect.get(target,key,receiver);
+    }});
+    return referenceOrder(doc,defs,options,traced,viewport,pours);
+  };
+  function draw(moving = false) {
+    return PCB.withPalette(palette,()=>{
+      if (moving) view.moving();
+      view.render(board,defs,{...opts,noReuse:!moving});
+      const image = GPU.composite(I);
+      if (!image || !GPU.stats(I)?.submitted) throw Error("No GPU geometry for the first-preview probe");
+      return image.getContext("2d").getImageData(0,0,image.width,image.height).data;
+    });
+  }
+  try {
+    GPU.enable(true);
+    const results = {};
+    for (const tied of [false,true]) for (const stored of [false,true]) {
+      board.items = tied ? [top,text,...mech] : [top,text];
+      const original = list = stored ? [previous] : [];
+      board.pcbDrawing = {pours:list};
+      showing = false;
+      view.invalidate();
+      const before = draw(), revision = I.cache.rev;
+      showing = true;
+      list = [...list,fresh];
+      const preview = draw();
+      if (I.cache.rev !== revision) throw Error("Preview unexpectedly invalidated the board cache");
+      const firstCounts = counts();
+      list = list.slice();
+      orderCalls = itemReads = 0;
+      const sameLayers = draw();
+      const rebuilds = counts().map((n,i)=>n-firstCounts[i]);
+      const clonedOrder = {calls:orderCalls,items:itemReads};
+      GPU.release(I);
+      const coldPreview = draw();
+      showing = false;
+      list = original;
+      const cancelled = draw();
+      showing = true;
+      list = [...list,fresh];
+      const moving = draw(true);
+      showing = false;
+      board.pcbDrawing.pours = list;
+      view.invalidate();
+      const committed = draw();
+      const row = {revision, changed:differentBytes(before,preview), warmVsCold:differentBytes(preview,coldPreview),
+        warmVsStored:differentBytes(preview,committed), coldVsStored:differentBytes(coldPreview,committed),
+        cancelled:differentBytes(before,cancelled), moving:differentBytes(moving,committed), sameLayers:differentBytes(preview,sameLayers), rebuilds, clonedOrder};
+      const name = (tied?"tied":"untied")+"/"+(stored?"stored":"empty");
+      results[name] = row;
+      if (!row.changed || compare && (row.warmVsCold || row.warmVsStored || row.coldVsStored || row.cancelled ||
+          row.moving || row.sameLayers || row.rebuilds.some(n=>n) || clonedOrder.calls || clonedOrder.items))
+        throw Error(name + ": " + JSON.stringify(row));
+    }
+    // The newly visible pour already has a scene bucket. It must still move
+    // that bucket ahead of its equally ranked neighbour in the canvas order.
+    board.pcbDrawing.pours = list = [];
+    view.invalidate();
+    const before = draw();
+    showing = true;
+    list = [P.region([rect(90,90,100,100)],"Mechanical B","NONE")];
+    orderCalls = itemReads = 0;
+    const offscreen = draw(), offscreenOrder = {calls:orderCalls,items:itemReads};
+    list = [P.region([rect(12,21,14,23)],"Mechanical B","NONE")];
+    orderCalls = itemReads = 0;
+    const visible = draw(), visibleOrder = {calls:orderCalls,items:itemReads};
+    GPU.release(I);
+    const cold = draw();
+    const index = ([x,y]) => (Math.floor(y) * canvas.width + Math.floor(x)) * 4;
+    const at = index(view.worldToScreen([5,22]).map(value=>value * canvas.width / canvas.clientWidth));
+    const tied = {before:[...before.subarray(at,at+3)], after:[...visible.subarray(at,at+3)],
+      offscreen:differentBytes(before,offscreen), cold:differentBytes(visible,cold), offscreenOrder, visibleOrder};
+    if (compare && (tied.before.join() !== "238,68,17" || tied.after.join() !== "17,102,238" ||
+        tied.offscreen || tied.cold || offscreenOrder.calls || offscreenOrder.items || visibleOrder.calls !== 1 || !visibleOrder.items))
+      throw Error("visible contribution to an existing tied layer: " + JSON.stringify(tied));
+    results.tiedVisibility = tied;
+    return results;
+  } finally {
+    globalThis.AtriumPolygonPour = live;
+    globalThis.AtriumPourAnim = animation;
+    GPU.release(I);
+    GPU.enable(enabled);
+    canvas.remove();
+  }
+}
+
+function probeNetLabelScope(GPU) {
+  const surface = document.createElement("div"), canvas = document.createElement("canvas");
+  surface.style.cssText = "position:absolute;left:-1000px;top:0;pointer-events:none";
+  canvas.style.cssText = "display:block;width:360px;height:216px";
+  surface.append(canvas);
+  document.body.append(surface);
+  const view = AtriumCanvas.create(canvas), I = view.internals(), enabled = GPU.enabled();
+  const doc = Atrium.sheet("pcb", "Net label viewport");
+  const def = AtriumParts.catalogue.find(part => part.id === "std-r"), defs = new Map([[def.id, def]]);
+  const leftTrack = {id:"scope-left-track", kind:"track", layer:"Top", width:2, net:"LEFT", points:[[0,15],[42,15]]};
+  const rightTrack = {...leftTrack, id:"scope-right-track", net:"RIGHT", points:[[44,15],[80,15]]};
+  const part = {id:"scope-obstacle", kind:"part", def:def.id, x:19, y:8, angle:0, showRef:false};
+  doc.items.push(leftTrack, rightTrack, part);
+  doc.outline = [[0,0],[80,0],[80,28],[0,28]];
+  const P = AtriumPCBPours;
+  doc.pcbDrawing = {pours:[P.region([doc.outline], "Top", "GND")]};
+  const stamp = () => { doc.sourcePourSignature = P.signature(doc, defs); };
+  const opts = {editorPane:true, noReuse:true, grid:false, origin:false, showUnrouted:false};
+  const create = AtriumSpatial.create, result = {};
+  let viewportQueries = 0;
+  AtriumSpatial.create = (...args) => {
+    const index = create(...args), query = index.query;
+    index.query = box => {
+      if (I.artworkViewport().every((edge, i) => edge === box[i])) viewportQueries++;
+      return query(box);
+    };
+    return index;
+  };
+  function frame(cx, extra) {
+    view.restoreCamera({cx, cy:12, scale:12, referenceScale:1});
+    viewportQueries = 0;
+    view.render(doc, defs, {...opts, ...extra});
+    const labels = I.netLabels();
+    return {queries:viewportQueries, tracks:labels.filter(l => l.kind === "track").map(l => l.text), pours:labels.filter(l => l.kind === "pour")};
+  }
+  try {
+    for (const mode of ["gpu", "2d"]) {
+      GPU.enable(mode === "gpu");
+      view.invalidate();
+      part.x = 19; stamp();
+      const left = frame(24), right = frame(56);
+      if (GPU.status(I).renderer !== mode || mode === "gpu" && !GPU.stats(I)?.submitted) throw Error(mode + " geometry was not drawn");
+      const hidden = {routePreview:{hidden:[leftTrack.id, part.id]}};
+      const routed = frame(24, hidden);
+      // The router hides the painted track and part. The part still reserves its label obstacle.
+      part.x = 24; stamp(); view.invalidate(doc, [part]);
+      const blocked = frame(24, hidden);
+      part.x = 19; stamp(); view.invalidate(doc, [part]);
+      const restored = frame(24, hidden);
+      const rows = result[mode] = {left, right, routed, blocked, restored};
+      if (Object.values(rows).some(row => row.queries !== 1) || left.tracks.join() !== "LEFT" ||
+          right.tracks.join() !== "RIGHT" || left.pours.length !== 1 || right.pours.length !== 1 ||
+          routed.tracks.length || blocked.tracks.length || blocked.pours.length || restored.tracks.length ||
+          JSON.stringify(routed.pours) !== JSON.stringify(left.pours) ||
+          JSON.stringify(restored.pours) !== JSON.stringify(left.pours))
+        throw Error(mode + ": " + JSON.stringify(rows));
+    }
+    if (JSON.stringify(result.gpu) !== JSON.stringify(result["2d"])) throw Error("Renderer label plans differ");
+    return result;
+  } finally {
+    AtriumSpatial.create = create;
+    GPU.release(I);
+    GPU.enable(enabled);
+    surface.remove();
+  }
+}

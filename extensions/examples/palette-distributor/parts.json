@@ -1,0 +1,5 @@
+[
+  {"id":"rc0603-10k","label":"RC0603 · 10 kΩ","detail":"0603 thick-film resistor","stock":8200,"price":"$0.02","warehouses":[["west","West warehouse",6000],["east","East warehouse",2200]]},
+  {"id":"cc0603-100n","label":"CC0603 · 100 nF","detail":"0603 X7R capacitor","stock":4100,"price":"$0.04","warehouses":[["west","West warehouse",3100],["east","East warehouse",1000]]},
+  {"id":"rc0402-1k","label":"RC0402 · 1 kΩ","detail":"0402 thick-film resistor","stock":6000,"price":"$0.01","warehouses":[["west","West warehouse",6000]]}
+]

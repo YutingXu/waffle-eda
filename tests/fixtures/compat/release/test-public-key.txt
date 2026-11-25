@@ -1,0 +1,4 @@
+Test fixtures for app/update-check.js (tests/update-check.cjs), made with scripts/release-manifest.py.
+The Ed25519 test public key below is NOT trusted by the app; its private key was discarded.
+The three "builds" are placeholder text files.
+030f84d2bccfe5462acc3b081c2765c7d0ce13c0d8e0ff6e775a6a64dbf11741

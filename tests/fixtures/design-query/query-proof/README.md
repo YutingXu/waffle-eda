@@ -1,0 +1,18 @@
+# Query proof
+
+This original 2.0 project contains two boards and two unconnected schematic sheets. All dimensions below are in millimetres.
+
+| Measurement | Authored values | Expected result |
+| --- | --- | --- |
+| Track widths on Analog layout | Top `Rail` widths are 0.12, 0.20 and 0.35. Bottom `rail` is 0.12. Three tracks belonging to the pair fixture are each 0.20. | Below 0.20 on Top selects only `rail-thin`. Across both layers the count below 0.15 is two. |
+| Track widths on Control layout | Two `Rail` tracks measure 0.12 and 0.35. | One is below the project’s 0.25 minimum. Across both boards three tracks are below 0.15. |
+| Analog rule change | The project’s minimum on `Rail` is 0.25. The higher-priority Analog rule has a minimum of 0.18 and initially targets `Guard`. | After changing the Analog scope to `track where net.name = "Rail" and width < 0.2`, the 0.12 track violates the local minimum. The 0.20 track still violates the project minimum. Lowercase `rail` is outside both rules. |
+| Paired clearance | The `Pair+` and `Pair-` centre lines are 0.35 apart, with 0.10 half-width each. A third `PairSpare` track is equally close to `Pair-`. | Only `pair-plus` and `pair-minus` violate the named pair’s 0.30 minimum. The copper gap is 0.15. |
+| Courtyard and placement origin | U3 at (30,20) rotates its offset courtyard by 90°. Its world extent is [29,24] to [31,28]. TP1, TP2 and TP3 are 1 mm square pads centred at (32.5,26), (31.5,20) and (32.501,26). TP1 has a plated hole. | At an inclusive radius of 1, TP1 reaches the courtyard on both copper layers. TP2 reaches the placement origin. TP3 misses the courtyard by 0.001. |
+| Repeated pad number | TP1 also has a Bottom-only land at (38.5,26). Both lands use electrical pin 1. The remote land comes first in the footprint. | Selecting the whole TP1 finds two distinct lands. Only its plated land at (32.5,26) is within 1 mm of U3’s courtyard. |
+| Values and ERC | On Power, R1 is 470 Ω, R2 is 1 kΩ and C1 is 470 nF. On Monitor, R9 is 47 Ω. Each symbol has two open passive pins. | Only R1 matches the Power-sheet resistance threshold. Both its open pins are fatal. The remaining six open pins retain their default warning. |
+| Calculation | The count block on Power uses `count(resistor where value < 1k)`. | The result is one piece, and the assertion against `1 ea` passes. |
+
+The native editor acceptance test opens disposable copies of these ten members. Run `node tests/checks/browser-apricot-native-query.cjs` with Playwright, Chrome and the native folder writer available. The test opens the project, edits and saves the rule through the current menus with Labs off, then opens the saved folder in a fresh editor. An optional first argument selects another product checkout, so the fixture and expected measurements can verify a release independently. Set `CHROME` to choose a Chrome executable. Set `QUERY_PROOF_STAGE=count` to run only the count check against a newly opened project and verify that it leaves the Undo shadow empty. On macOS the checks build the native folder test host from source unless `WAFFLE_FOLDER_MCP_HOST` points to an existing host. On Linux they use the checkout’s folder service.
+
+Run `python3 tests/checks/apricot-query-cross-cli.py` for the published `run_command query` and `calculate` commands. It accepts the same optional checkout argument. The query uses the ordinary CLI connection. The saved calculation and its invalid-unit example use a read-only connection. Each invocation checks that every native member retains its original digest. The browser and command-line tests use the same authored fixture.

@@ -1,0 +1,59 @@
+:root {--shortcut-font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+
+.ui-shortcut {
+  position:relative;
+  display:inline-flex;
+  flex:none;
+  align-items:center;
+  gap:var(--s-8);
+  direction:ltr;
+  color:var(--shortcut-ink,var(--muted));
+  font:var(--fw-medium) var(--fs-11)/1 var(--shortcut-font);
+  letter-spacing:normal;
+  white-space:nowrap;
+  vertical-align:baseline;
+}
+.ui-shortcut:empty {display:none}
+.ui-shortcut-step {display:inline-flex;align-items:center;gap:var(--s-4)}
+.ui-shortcut-cap {display:inline-flex;align-items:center;justify-content:center}
+.ui-shortcut-glyph {display:inline-block}
+.ui-shortcut:is([data-variant=keycap],[data-variant=inline-keycap]) .ui-shortcut-cap {
+  box-sizing:border-box;
+  min-inline-size:var(--keycap-size);
+  min-block-size:var(--keycap-size);
+  padding:var(--s-2) var(--keycap-padding);
+  border:1px solid var(--line);
+  border-radius:var(--keycap-radius);
+  background:var(--field);
+  box-shadow:var(--keycap-shadow);
+  color:var(--text);
+}
+
+/* A compact keycap shares the surrounding text baseline. */
+.ui-shortcut[data-variant=inline-keycap],
+.ui-shortcut[data-variant=inline-keycap] :is(.ui-shortcut-step,.ui-shortcut-cap) {align-items:baseline}
+.ui-shortcut[data-variant=inline-keycap] .ui-shortcut-cap {
+  min-inline-size:var(--s-16);
+  min-block-size:var(--s-16);
+  padding:var(--s-2) var(--s-4) 0;
+}
+
+/* AppKit ink sits on the same text baseline without changing the reserved width. */
+.ui-shortcut-cap[data-native-rendered] .ui-shortcut-visual {visibility:hidden}
+.native-shortcut-baseline {position:relative;display:inline-block;inline-size:0;block-size:0;vertical-align:baseline}
+.native-shortcut-ink {
+  position:absolute;inset-inline-end:0;inset-block-end:calc(-1 * var(--shortcut-descent));
+  inline-size:var(--shortcut-width);block-size:var(--shortcut-height);
+  background:currentColor;pointer-events:none;
+  -webkit-mask:var(--shortcut-image) no-repeat center / contain;
+  mask:var(--shortcut-image) no-repeat center / contain;
+}
+/* In a keycap, AppKit's ink is centred in the cap, not hung on the text baseline: its box is the
+   font's ascent plus descent, so centring the box centres the symbol and letters alike. */
+.ui-shortcut[data-variant=keycap] .ui-shortcut-cap[data-native-rendered] {position:relative}
+.ui-shortcut[data-variant=keycap] .ui-shortcut-cap[data-native-rendered] .native-shortcut-baseline {position:static}
+.ui-shortcut[data-variant=keycap] .ui-shortcut-cap[data-native-rendered] .native-shortcut-ink {inset:0;margin:auto}
+@media (forced-colors:active) {
+  .ui-shortcut-cap[data-native-rendered] .ui-shortcut-visual {visibility:visible}
+  .native-shortcut-ink {display:none}
+}

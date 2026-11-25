@@ -1,0 +1,6 @@
+{"kind":"schematic","formatVersion":"2.0","id":"power"}
+{"kind":"part","id":"c-small","angle":0,"at":[15000000,35000000],"def":"capacitive","order":"a","ref":"C1","value":"470n"}
+{"kind":"calculation","id":"count-resistors","at":[50000000,35000000],"calculation":{"assertions":[{"id":"one-resistor","bindings":[],"source":"assert count(resistor where value < 1k) = 1 ea"}],"bindings":[],"languageVersion":1,"name":"Resistors below 1 kΩ"},"h":16000000,"order":"m","text":"count(resistor where value < 1k)","w":60000000}
+{"kind":"documentSettings","id":"power/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"part","id":"r-bound","angle":0,"at":[35000000,15000000],"def":"ohmic","order":"O","parameters":{"Power":"2 W","Tolerance":"1%"},"ref":"R2","value":"1k"}
+{"kind":"part","id":"r-small","angle":0,"at":[15000000,15000000],"def":"ohmic","order":"C","parameters":{"Power":"0.5 W","Tolerance":"5%"},"ref":"R1","value":"470"}

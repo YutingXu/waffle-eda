@@ -1,0 +1,21 @@
+{"kind":"schematic","formatVersion":"2.0","id":"sch"}
+{"kind":"part","id":"amwnqtyrvd0id37fpsh","angle":0,"at":[0,0],"def":"std-j3","link":"amwnqtyrvq2pxpbh770t","order":"36","ref":"J1","value":"1 × 03"}
+{"kind":"part","id":"amwnqtys3kdgslhiavg","angle":0,"at":[20320000,0],"def":"std-r","link":"amwnqtys3kzqgs66yt3c","order":"6C","ref":"R1","value":"10 kΩ"}
+{"kind":"part","id":"amwnqtys7cnq2qhnzdap","angle":0,"at":[35560000,7620000],"def":"std-c","link":"amwnqtys75nwpge0x2b","order":"9I","ref":"C1","value":"100 nF"}
+{"kind":"part","id":"amwnqtys9si1z713ern","angle":0,"at":[55880000,0],"def":"std-r","link":"amwnqtys9ngw1aa9wk1","order":"CO","ref":"R2","value":"10 kΩ"}
+{"kind":"part","id":"amwnqtysd7n0w2ofb0b7","angle":0,"at":[55880000,20320000],"def":"std-c","link":"amwnqtysdfjxa0gscnxq","order":"FU","ref":"C2","value":"100 nF"}
+{"kind":"part","id":"amwnqtysijo554r9pb3k","angle":0,"at":[81280000,0],"def":"std-j3","link":"amwnqtysiedrotmbmfbt","order":"Ia","ref":"J2","value":"1 × 03"}
+{"kind":"wire","id":"amwnqtysoycvs66tfto","order":"Lg","points":[[7620000,0],[15240000,0]]}
+{"kind":"netlabel","id":"amwnqtyssm5r2rocnpss","at":[25400000,0],"order":"Om","text":"FILT"}
+{"kind":"netlabel","id":"amwnqtysxq4xd4bqulad","at":[30480000,7620000],"order":"Rs","text":"FILT"}
+{"kind":"netlabel","id":"amwnqtyt1xirctirs128","at":[50800000,0],"order":"Uy","text":"FILT"}
+{"kind":"netlabel","id":"amwnqtyt4vy9wy88a8v","at":[60960000,0],"order":"Y4","text":"OUT"}
+{"kind":"netlabel","id":"amwnqtyt8a5bao4q4cxl","at":[88900000,0],"order":"bA","text":"OUT"}
+{"kind":"power","id":"amwnqtytb5nb4a84rrxs","at":[7620000,-5080000],"direction":1,"order":"eG","showName":true,"style":"bar","text":"+5V"}
+{"kind":"power","id":"amwnqtytea2teeyaqxhj","at":[88900000,-5080000],"direction":1,"order":"hM","showName":true,"style":"bar","text":"+5V"}
+{"kind":"power","id":"amwnqtytio3wv4ffx1xi","at":[50800000,20320000],"direction":1,"order":"kS","showName":true,"style":"bar","text":"+5V"}
+{"kind":"power","id":"amwnqtytnrq06b6xkndh","at":[7620000,5080000],"direction":3,"order":"nY","showName":true,"style":"gnd","text":"GND"}
+{"kind":"power","id":"amwnqtytqr563ego6ym","at":[40640000,7620000],"direction":3,"order":"qe","showName":true,"style":"gnd","text":"GND"}
+{"kind":"power","id":"amwnqtytwhizva0n6mn4","at":[60960000,20320000],"direction":3,"order":"tk","showName":true,"style":"gnd","text":"GND"}
+{"kind":"power","id":"amwnqtytzj7ex1hkiyrn","at":[88900000,5080000],"direction":3,"order":"wq","showName":true,"style":"gnd","text":"GND"}
+{"kind":"documentSettings","id":"sch/settings","value":{"grid":1270000,"notes":[],"outline":[]}}

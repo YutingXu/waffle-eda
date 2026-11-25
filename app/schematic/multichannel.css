@@ -1,0 +1,19 @@
+/* Multichannel and Copy Room Formats dialogs. Builds on .work-dialog from workflows.css. */
+.work-dialog.mc-dialog {width:min(640px, calc(100vw - 32px))}
+.mc-dialog .mc-form {display:grid;grid-template-columns:1fr;gap:6px}
+.mc-dialog .mc-form label {display:grid;grid-template-columns:140px 1fr;align-items:center;gap:8px}
+.mc-dialog .mc-form label[hidden] {display:none}
+.mc-dialog .mc-preview {font-variant-numeric:tabular-nums;color:var(--ink)}
+.mc-dialog .mc-table {border:1px solid var(--line);border-radius:var(--r-sm);max-height:240px;overflow:auto;margin:6px 0}
+.mc-dialog .mc-row {display:grid;grid-template-columns:1.4fr 1.4fr .6fr .8fr 1fr;gap:8px;padding:4px 8px;border-top:1px solid var(--line);
+  font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.mc-dialog .mc-row span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-dialog .mc-head {border-top:0;color:var(--muted);background:var(--soft);position:sticky;top:0}
+.mc-dialog fieldset {border:1px solid var(--line);border-radius:var(--r-sm);margin:8px 0;padding:6px 8px;display:grid;gap:4px}
+.mc-dialog fieldset.mc-targets {grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));max-height:160px;overflow:auto}
+.mc-dialog legend {color:var(--muted);padding:0 4px}
+.mc-dialog .mc-check {display:flex;align-items:center;gap:6px;min-width:0}
+.mc-dialog .mc-check span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-dialog .mc-report {min-height:1.5em;max-height:180px;overflow:auto;font-size:var(--fs-12)}
+.mc-dialog .mc-report ul {margin:4px 0 0;padding-left:18px;color:var(--muted)}
+@media (max-width:620px) {.mc-dialog .mc-form label {grid-template-columns:1fr}.mc-dialog .mc-row {grid-template-columns:1fr 1fr .6fr}.mc-dialog .mc-row span:nth-child(n+4) {display:none}}

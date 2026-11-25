@@ -1,0 +1,5 @@
+{"kind":"schematic","formatVersion":"2.0","id":"55ae18dc-084a-4586-9fd5-cbdcf77edd59"}
+{"kind":"part","id":"16172f37-c82b-4ad8-96d7-7ef18237f287","angle":0,"at":[30000000,0],"def":"std-r","link":"db43676f-5c8f-47f5-afe2-29e528ec38b1","order":"F","pinNets":{},"ref":"R2","value":"10 kΩ"}
+{"kind":"sheetsymbol","id":"44a4af99-4897-4e06-80e6-fdf76ae1da59","at":[-10000000,-10000000],"entries":[{"id":"6f654f63-b1f5-4441-a708-61079333955f","io":"unspecified","name":"Net-R1_CH1-2","offset":10000000,"side":"right"}],"h":20000000,"name":"Filter","order":"j","sheet":"ca4f8c5b-6aa0-42c2-bb81-2045432a850d","w":20000000}
+{"kind":"documentSettings","id":"55ae18dc-084a-4586-9fd5-cbdcf77edd59/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"wire","id":"89f22dab-5529-4a89-a0bd-4c60c0fbdd41","order":"U","points":[[10000000,0],[24920000,0]]}

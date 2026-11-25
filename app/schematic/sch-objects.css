@@ -1,0 +1,29 @@
+/* Schematic place objects (AtriumSchObjects): placement dialogs, sheet symbol entries,
+   the part Parameters grid, and the hierarchy indent in the Projects panel. */
+.sch-ask {min-width:min(380px,92vw)}
+.sch-ask .field-row {display:flex;align-items:center;gap:8px;margin:6px 0}
+.sch-ask .field-row > span {width:110px}
+.sch-ask .field-row input,.sch-ask .field-row select,.sch-ask .field-row textarea {flex:1;min-width:0}
+.sch-ask .side-note {margin:0 0 8px;max-width:46ch}
+.sch-quick {display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px}
+.sch-quick > .ui-button {min-inline-size:56px}
+
+#inspector .sch-subhead {margin:8px 0 2px;font-size:var(--fs-11);font-weight:600;color:var(--muted)}
+#inspector .sch-entries {display:flex;flex-direction:column;gap:2px}
+#inspector .sch-entry-row {display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) 20px;gap:4px;align-items:center}
+#inspector .sch-entry-row input,#inspector .sch-entry-row select {min-width:0;width:100%;height:var(--ctl-h)}
+#inspector .sch-entry-remove {width:20px;height:20px;padding:0;border-radius:var(--r-sm);color:var(--muted);line-height:1}
+#inspector .sch-entry-remove:hover:not(:disabled) {background:var(--hover);color:var(--ink)}
+#inspector .sch-entry-remove:disabled {visibility:hidden}
+
+#inspector .sch-param-grid {display:grid;grid-template-columns:34px minmax(0,.9fr) minmax(0,1.4fr) 20px;gap:4px 4px;align-items:center}
+#inspector .sch-param-head {font-size:var(--fs-10);color:var(--faint);text-transform:uppercase;letter-spacing:.03em}
+#inspector .sch-param-identity {display:flex;align-items:center;flex-wrap:wrap;gap:2px 4px;min-width:0}
+#inspector .sch-param-name {min-width:0;overflow-wrap:anywhere;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh-tight)}
+#inspector .sch-param-grid input[type=checkbox] {margin:0;justify-self:center}
+#inspector .sch-param-grid input:not([type]) {min-width:0;width:100%;height:var(--ctl-h)}
+#inspector .sch-param-inherited {font-style:italic;color:var(--muted)}
+#inspector .sch-param-add {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;margin-top:6px}
+#inspector .sch-param-add select {grid-column:1 / -1;height:var(--ctl-h)}
+#inspector .sch-param-add input {min-width:0;height:var(--ctl-h)}
+#inspector .sch-param-add button {grid-column:1 / -1}

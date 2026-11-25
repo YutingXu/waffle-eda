@@ -1,0 +1,19 @@
+{
+  "v": 1,
+  "name": "Mine",
+  "areas": {
+    "left": [
+      {
+        "tabs": [
+          "projects"
+        ],
+        "active": "projects"
+      }
+    ],
+    "right": [],
+    "bottom": []
+  },
+  "floats": [],
+  "sizes": {},
+  "hide": {}
+}

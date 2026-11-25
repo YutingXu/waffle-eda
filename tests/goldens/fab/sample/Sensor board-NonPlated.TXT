@@ -1,0 +1,23 @@
+M48
+;DRILL file {Waffle 1.0} date <date>
+;Board: Sensor board
+;FORMAT={-:-/ absolute / metric / decimal}
+; #@! TF.CreationDate,<date>
+; #@! TF.GenerationSoftware,Waffle,Waffle,1.0
+; #@! TF.FileFunction,NonPlated,1,2,NPTH
+; #@! TF.FilePolarity,Positive
+;TYPE=NON_PLATED
+;LAYER_PAIR=Top - Bottom
+;ORIGIN=board lower-left corner
+METRIC
+T01C2.400
+%
+G90
+G05
+T01
+X2.6Y2.6
+X33.4Y2.6
+X2.6Y19.4
+X33.4Y19.4
+T0
+M30

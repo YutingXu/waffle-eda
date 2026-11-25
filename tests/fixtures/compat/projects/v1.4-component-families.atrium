@@ -1,0 +1,109 @@
+{
+  "componentFamilies": [
+    {
+      "id": "family-demo",
+      "members": [
+        {"defId":"a-q","part":"A"},
+        {"defId":"b-q","part":"B"},
+        {"defId":"b-g","part":"B"}
+      ],
+      "name": "Analogue front ends"
+    }
+  ],
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "schematic",
+      "items": [
+        {"angle":0,"def":"b-g","id":"u1","kind":"part","link":"u1-link","pinNets":{},"ref":"U1","schPaint":{"parameters":{"MPN":{"at":[0,-3],"caption":"MPN","size":1.2,"text":"b-g-order"}}},"value":"Demo B","x":10,"y":10},
+        {"id":"sense","kind":"netlabel","text":"SENSE","x":10,"y":10}
+      ],
+      "kind": "schematic",
+      "name": "Schematic",
+      "notes": [],
+      "outline": []
+    },
+    {
+      "grid": 0.25,
+      "id": "pcb",
+      "items": [
+        {"angle":0,"def":"b-g","id":"u1-board","kind":"part","link":"u1-link","pinNets":{"B3":"SENSE"},"ref":"U1","value":"Demo B","x":10,"y":10}
+      ],
+      "kind": "pcb",
+      "name": "Board layout",
+      "notes": [],
+      "outline": [
+        [0,0],
+        [20,0],
+        [20,15],
+        [0,15]
+      ]
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.4",
+  "library": [
+    {
+      "footprint": {
+        "name": "QFN",
+        "pads": [{"h":1,"number":"1","shape":"rect","w":1,"x":0,"y":0},{"h":1,"number":"2","shape":"rect","w":1,"x":2,"y":0}],
+        "shapes": []
+      },
+      "id": "a-q",
+      "name": "Demo A",
+      "parameters": {
+        "MPN": "a-q-order",
+        "Manufacturer": "Example"
+      },
+      "prefix": "U",
+      "sourceName": "Test parts.SchLib",
+      "symbol": {
+        "pins": [{"name":"EN","number":"1","x":0,"y":0},{"name":"SENSE","number":"2","x":0,"y":2.54}],
+        "shapes": [{"closed":true,"kind":"path","points":[[-2,-1],[0,-1],[0,3],[-2,3]],"style":"body"}]
+      },
+      "value": "Demo A"
+    },
+    {
+      "footprint": {
+        "name": "QFN",
+        "pads": [{"h":1,"number":"1","shape":"rect","w":1,"x":0,"y":0},{"h":1,"number":"2","shape":"rect","w":1,"x":2,"y":0}],
+        "shapes": []
+      },
+      "id": "b-q",
+      "name": "Demo B",
+      "parameters": {
+        "MPN": "b-q-order",
+        "Manufacturer": "Example"
+      },
+      "prefix": "U",
+      "sourceName": "Test parts.SchLib",
+      "symbol": {
+        "pins": [{"name":"SENSE","number":"1","x":0,"y":0},{"name":"EN","number":"2","x":0,"y":2.54}],
+        "shapes": [{"closed":true,"kind":"path","points":[[-2,-1],[0,-1],[0,3],[-2,3]],"style":"body"}]
+      },
+      "value": "Demo B"
+    },
+    {
+      "footprint": {
+        "name": "BGA",
+        "pads": [{"h":1,"number":"B3","shape":"rect","w":1,"x":0,"y":0},{"h":1,"number":"A1","shape":"rect","w":1,"x":2,"y":0}],
+        "shapes": []
+      },
+      "id": "b-g",
+      "name": "Demo B",
+      "parameters": {
+        "MPN": "b-g-order",
+        "Manufacturer": "Example"
+      },
+      "prefix": "U",
+      "sourceName": "Test parts.SchLib",
+      "symbol": {
+        "pins": [{"name":"SENSE","number":"B3","x":0,"y":0},{"name":"EN","number":"A1","x":0,"y":2.54}],
+        "shapes": [{"closed":true,"kind":"path","points":[[-2,-1],[0,-1],[0,3],[-2,3]],"style":"body"}]
+      },
+      "value": "Demo B"
+    }
+  ],
+  "name": "Component families",
+  "version": 1
+}

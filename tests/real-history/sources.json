@@ -1,0 +1,101 @@
+[
+  {
+    "id": "snes-tap",
+    "url": "https://github.com/defparam/snes-tap",
+    "license": "MIT",
+    "licenseFile": "LICENSE",
+    "head": "077a5c6763dcb347dad2b30f85d84aebaf9b1488",
+    "otherTips": [],
+    "design": "altium/maxout_conn.PrjPcb"
+  },
+  {
+    "id": "garganturam",
+    "url": "https://github.com/Ternary-Computer-System/GargantuRAM",
+    "license": "CERN-OHL-P-2.0",
+    "licenseFile": "README.md",
+    "head": "7d48745b4b1027b681f03a2f810d2202c69f7508",
+    "otherTips": [],
+    "design": "Altium Project/GargantuRAM_1_5_PRE_GITHUB.PrjPcb"
+  },
+  {
+    "id": "pidp11-io-expander",
+    "url": "https://github.com/sstallion/PCB-PiDP11IOExpander",
+    "license": "BSD-2-Clause",
+    "licenseFile": "LICENSE.txt",
+    "head": "d97b81645091da8404661b37f75e4872c1788f79",
+    "otherTips": [],
+    "design": "PCB-PiDP11IOExpander.PrjPcb"
+  },
+  {
+    "id": "esp32c3-haptic",
+    "url": "https://github.com/HDwayne/esp32c3-haptic-motor-controller",
+    "license": "CERN-OHL-P-2.0",
+    "licenseFile": "README.md",
+    "head": "b4e8dbe455286089c4bbfbf0b1348886112ec994",
+    "otherTips": [],
+    "design": "esp32c3-haptic-motor-controller.PrjPcb"
+  },
+  {
+    "id": "cm4-5-shim",
+    "url": "https://github.com/KWAC-EE/CM4-5-Shim",
+    "license": "CERN-OHL-P-2.0",
+    "licenseFile": "README.md",
+    "head": "e6177f6c34380cf98977ed652572ec0b436b5b6f",
+    "otherTips": [],
+    "design": null
+  },
+  {
+    "id": "midas-communication",
+    "url": "https://github.com/midas-hand-org/midas_hand_communication_board",
+    "license": "CERN-OHL-P-2.0",
+    "licenseFile": "readme.md",
+    "head": "2ffc166dc3783158e0b00906e13b2d650d676887",
+    "otherTips": [],
+    "design": null
+  },
+  {
+    "id": "corne",
+    "url": "https://github.com/foostan/crkbd",
+    "license": "CC-BY-4.0 / MIT",
+    "licenseFile": "LICENSE_CC",
+    "head": "1747b2623b018a7b5acc6d1f7e316debad96a727",
+    "otherTips": [
+      "267aa05e5066b98eb5736bdee8ffc90fc2936d43",
+      "6e3710c2deaafc3ad207dfe7ba5be8ead9b92440",
+      "dc73e3fd0bce21240639975607bc2be0cbf227c2"
+    ],
+    "design": "pcbs/corne-cherry/hotswap/corne-cherry.kicad_pcb"
+  },
+  {
+    "id": "sofle",
+    "url": "https://github.com/josefadamcik/SofleKeyboard",
+    "license": "MIT",
+    "licenseFile": "LICENSE",
+    "head": "fb294f7c58d0f91c379a9ef339159d4d056643e9",
+    "otherTips": [
+      "0e0b438665c3cb617e78c8a0dfd2a3c4c502091a",
+      "4ae33e53379721ca72868abb17685c4bdc910bae",
+      "8f512d4516fc3ce4e556feca6e4b702fe5e57532",
+      "95bbfb7050c45544869d10452707684e2a49439a",
+      "a14726180fa15960e52ada7f20ce43aaf3326a1f",
+      "d0df8fbb02858d6af6c64cdcc16ac7c21caae9bf",
+      "fe029cd72702ebc6fcefb516ebf3a43eda58308d"
+    ],
+    "design": "Sofle_RGB/PCB/SofleKeyboard.kicad_pcb"
+  },
+  {
+    "id": "lily58",
+    "url": "https://github.com/kata0510/Lily58",
+    "license": "MIT",
+    "licenseFile": "LICENSE",
+    "head": "58c649797c185b7b32b9928d4546665153cfacfd",
+    "otherTips": [
+      "150f8f67d9f8553b470670a28b12d7d551ceb48e",
+      "1c875fac9ead3c5b1dc7aa0b09ed30669a86bc10",
+      "2c0d949dd763954dee9a0ae015d4d7e9bff29923",
+      "a09f651b912372297c7f32727c4d8487bd53747c",
+      "ff0ff034520c6359b628e8b3b5113d898558f855"
+    ],
+    "design": "Lite_Rev3/Lily58_Lite_Rev3.kicad_pcb"
+  }
+]

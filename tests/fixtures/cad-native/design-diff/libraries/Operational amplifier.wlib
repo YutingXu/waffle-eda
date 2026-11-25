@@ -1,0 +1,23 @@
+{"kind":"library","formatVersion":"2.0","id":"std-opamp","name":"Operational amplifier"}
+{"kind":"pad","id":"std-opamp/pad/1","order":"A","value":{"angle":0,"drill":0,"h":620000,"number":"1","shape":"roundrect","w":1050000,"x":-1250000,"y":-950000}}
+{"kind":"pad","id":"std-opamp/pad/2","order":"K","value":{"angle":0,"drill":0,"h":620000,"number":"2","shape":"roundrect","w":1050000,"x":-1250000,"y":0}}
+{"kind":"pad","id":"std-opamp/pad/3","order":"U","value":{"angle":0,"drill":0,"h":620000,"number":"3","shape":"roundrect","w":1050000,"x":-1250000,"y":950000}}
+{"kind":"pad","id":"std-opamp/pad/4","order":"e","value":{"angle":0,"drill":0,"h":620000,"number":"4","shape":"roundrect","w":1050000,"x":1250000,"y":950000}}
+{"kind":"pad","id":"std-opamp/pad/5","order":"o","value":{"angle":0,"drill":0,"h":620000,"number":"5","shape":"roundrect","w":1050000,"x":1250000,"y":-950000}}
+{"kind":"pin","id":"std-opamp/pin/1","order":"A","value":{"name":"OUT","number":"1","x":7620000,"y":0}}
+{"kind":"pin","id":"std-opamp/pin/2","order":"K","value":{"name":"V−","number":"2","x":0,"y":7620000}}
+{"kind":"pin","id":"std-opamp/pin/3","order":"U","value":{"name":"+IN","number":"3","x":-7620000,"y":-2540000}}
+{"kind":"pin","id":"std-opamp/pin/4","order":"e","value":{"name":"−IN","number":"4","x":-7620000,"y":2540000}}
+{"kind":"pin","id":"std-opamp/pin/5","order":"o","value":{"name":"V+","number":"5","x":0,"y":-7620000}}
+{"kind":"librarySettings","id":"std-opamp/settings","value":{"category":"Amplifiers","footprint":{"name":"SOT-23-5","pads":[],"shapes":[]},"prefix":"U","schDrawing":{"pins":[{"direction":[1,0],"end":[7620000,0],"name":"","number":"1","start":[5080000,0]},{"direction":[0,1],"end":[0,7620000],"name":"","number":"2","start":[0,2857500]},{"direction":[-1,0],"end":[-7620000,-2540000],"name":"","number":"3","start":[-5080000,-2540000]},{"direction":[-1,0],"end":[-7620000,2540000],"name":"","number":"4","start":[-5080000,2540000]},{"direction":[0,-1],"end":[0,-7620000],"name":"","number":"5","start":[0,-2857500]}]},"symbol":{"pins":[],"shapes":[]},"value":"Op amp"}}
+{"kind":"shape","id":"std-opamp/shape/1","order":"6","side":"symbol","value":{"kind":"path","closed":true,"fill":true,"points":[[-5080000,-5715000],[5080000,0],[-5080000,5715000]],"style":"body"}}
+{"kind":"shape","id":"std-opamp/shape/1-2","order":"K","side":"footprint","value":{"kind":"path","closed":true,"fill":true,"points":[[-800000,-1450000],[800000,-1450000],[800000,1450000],[-800000,1450000]],"style":"package"}}
+{"kind":"shape","id":"std-opamp/shape/2","order":"C","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-7620000,-2540000],[-5080000,-2540000]],"style":"pin"}}
+{"kind":"shape","id":"std-opamp/shape/2-2","order":"e","side":"footprint","value":{"kind":"circle","fill":true,"r":130000,"style":"silk","x":-440000,"y":-1020000}}
+{"kind":"shape","id":"std-opamp/shape/3","order":"I","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-7620000,2540000],[-5080000,2540000]],"style":"pin"}}
+{"kind":"shape","id":"std-opamp/shape/4","order":"O","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[7620000,0],[5080000,0]],"style":"pin"}}
+{"kind":"shape","id":"std-opamp/shape/5","order":"U","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[0,-7620000],[0,-2857500]],"style":"pin"}}
+{"kind":"shape","id":"std-opamp/shape/6","order":"a","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[0,7620000],[0,2857500]],"style":"pin"}}
+{"kind":"shape","id":"std-opamp/shape/7","order":"g","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-4254500,-2540000],[-2794000,-2540000]],"style":"body"}}
+{"kind":"shape","id":"std-opamp/shape/8","order":"m","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-3517900,-3263900],[-3517900,-1816100]],"style":"body"}}
+{"kind":"shape","id":"std-opamp/shape/9","order":"s","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-4254500,2540000],[-2794000,2540000]],"style":"body"}}

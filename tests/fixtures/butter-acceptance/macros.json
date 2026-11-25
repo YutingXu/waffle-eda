@@ -1,0 +1,321 @@
+{
+  "cases": {
+    "list": {
+      "args": {},
+      "expectPaths": {
+        "untrusted_design_text.records": []
+      }
+    },
+    "record-start": {
+      "args": {},
+      "expectPaths": {
+        "untrusted_design_text.status": "ready"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "recording"
+      },
+      "afterWrite": {
+        "id": "record-status",
+        "args": {},
+        "expect": {
+          "count": 0
+        },
+        "expectPaths": {
+          "untrusted_design_text.status": "recording"
+        }
+      }
+    },
+    "record-status": {
+      "args": {},
+      "expect": {
+        "count": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "idle"
+      }
+    },
+    "record-stop": {
+      "args": {},
+      "expectPaths": {
+        "untrusted_design_text.status": "idle",
+        "untrusted_design_text.steps": []
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "stopped",
+        "untrusted_design_text.steps": []
+      }
+    },
+    "save": {
+      "args": {
+        "macro": {
+          "format": "waffle-macro",
+          "version": 1,
+          "id": "01952010-a000-7000-8000-000000000401",
+          "alias": "exact-track-width",
+          "name": "Exact track width",
+          "selectionOnly": true,
+          "parameters": [
+            {
+              "name": "width",
+              "type": "number",
+              "default": 0.36
+            }
+          ],
+          "steps": [
+            {
+              "id": "01952010-a000-7000-8000-000000000411",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": 0.4,
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            },
+            {
+              "id": "01952010-a000-7000-8000-000000000412",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": {
+                  "$parameter": "width"
+                },
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "expectPaths": {
+        "untrusted_design_text.macro.alias": "exact-track-width"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.macro.id": "01952010-a000-7000-8000-000000000401"
+      }
+    },
+    "remove": {
+      "args": {
+        "id": "01952010-a000-7000-8000-000000000401"
+      },
+      "expect": {
+        "removed": false
+      },
+      "expectWrite": {
+        "removed": true
+      },
+      "afterWrite": {
+        "id": "list",
+        "args": {},
+        "expectPaths": {
+          "untrusted_design_text.records": []
+        }
+      }
+    },
+    "run": {
+      "args": {
+        "macro": {
+          "format": "waffle-macro",
+          "version": 1,
+          "id": "01952010-a000-7000-8000-000000000401",
+          "alias": "exact-track-width",
+          "name": "Exact track width",
+          "selectionOnly": true,
+          "parameters": [
+            {
+              "name": "width",
+              "type": "number",
+              "default": 0.36
+            }
+          ],
+          "steps": [
+            {
+              "id": "01952010-a000-7000-8000-000000000411",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": 0.4,
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            },
+            {
+              "id": "01952010-a000-7000-8000-000000000412",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": {
+                  "$parameter": "width"
+                },
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            }
+          ]
+        },
+        "documentId": "pcb",
+        "selection": [
+          "history-1111111111111111111111111111111111111111111111111111111111111111-10"
+        ]
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "ready"
+      },
+      "changedMembers": [
+        "Sensor board.wpcb"
+      ],
+      "expectWritePaths": {
+        "untrusted_design_text.status": "ready"
+      }
+    },
+    "run-step": {
+      "args": {
+        "macro": {
+          "format": "waffle-macro",
+          "version": 1,
+          "id": "01952010-a000-7000-8000-000000000402",
+          "alias": "single-track-width",
+          "name": "Exact track width",
+          "selectionOnly": true,
+          "parameters": [],
+          "steps": [
+            {
+              "id": "01952010-a000-7000-8000-000000000413",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": 0.42,
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            }
+          ]
+        },
+        "documentId": "pcb",
+        "selection": [
+          "history-1111111111111111111111111111111111111111111111111111111111111111-10"
+        ],
+        "index": 0
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "ready"
+      },
+      "changedMembers": [
+        "Sensor board.wpcb"
+      ],
+      "expectWritePaths": {
+        "untrusted_design_text.status": "ready"
+      }
+    },
+    "export": {
+      "args": {
+        "macro": {
+          "format": "waffle-macro",
+          "version": 1,
+          "id": "01952010-a000-7000-8000-000000000401",
+          "alias": "exact-track-width",
+          "name": "Exact track width",
+          "selectionOnly": true,
+          "parameters": [
+            {
+              "name": "width",
+              "type": "number",
+              "default": 0.36
+            }
+          ],
+          "steps": [
+            {
+              "id": "01952010-a000-7000-8000-000000000411",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": 0.4,
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            },
+            {
+              "id": "01952010-a000-7000-8000-000000000412",
+              "command": "butter.macros.set-track-width",
+              "args": {
+                "width": {
+                  "$parameter": "width"
+                },
+                "ids": {
+                  "$context": "selection"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "expectPaths": {
+        "untrusted_design_text.name": "exact-track-width.waffle-extension"
+      },
+      "outputFile": "Board-outputs/macro-extension/exact-track-width.waffle-extension",
+      "expectWritePaths": {
+        "untrusted_design_text.name": "exact-track-width.waffle-extension"
+      }
+    },
+    "set-track-width": {
+      "args": {
+        "documentId": "pcb",
+        "width": 0.51,
+        "ids": [
+          "history-1111111111111111111111111111111111111111111111111111111111111111-10"
+        ]
+      },
+      "expect": {
+        "changes": 1
+      },
+      "changedMembers": [
+        "Sensor board.wpcb"
+      ],
+      "expectWritePaths": {
+        "untrusted_design_text.documentId": "pcb"
+      }
+    },
+    "check-design-rules": {
+      "args": {
+        "documentId": "pcb",
+        "rules": [
+          "width"
+        ]
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.documentId": "pcb"
+      }
+    },
+    "place-power-port": {
+      "args": {
+        "documentId": "sch",
+        "ids": [
+          "s-C1"
+        ],
+        "pin": "1",
+        "net": "GND"
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.net": "GND"
+      },
+      "changedMembers": [
+        "Analog front end.wsch"
+      ],
+      "expectWritePaths": {
+        "untrusted_design_text.net": "GND"
+      }
+    }
+  }
+}

@@ -1,0 +1,492 @@
+{
+ "dfm_check": {
+  "by_check": {
+   "acid": 2,
+   "sliver": 1,
+   "text": 4
+  },
+  "document_id": "<pcb1>",
+  "errors": 1,
+  "issues": [
+   {
+    "at": [
+     5,
+     18
+    ],
+    "check": "sliver",
+    "fix": "Widen the copper or remove it: raise the pour's minimum width or remove necks, and repour.",
+    "id": "<pcb1:35>",
+    "level": "error",
+    "text": "Track: copper 0.05 mm wide is below 0.1 mm."
+   },
+   {
+    "at": [
+     13.3,
+     16.2
+    ],
+    "check": "acid",
+    "fix": "Open the corner to 90\u00b0 or more: route with 45\u00b0 corners, or add a teardrop or fillet where the tracks meet.",
+    "id": "<pcb1:23>",
+    "level": "warning",
+    "text": "Copper angle of 45\u00b0 on Bottom (below 90\u00b0)."
+   },
+   {
+    "at": [
+     17.9,
+     11.6
+    ],
+    "check": "acid",
+    "fix": "Open the corner to 90\u00b0 or more: route with 45\u00b0 corners, or add a teardrop or fillet where the tracks meet.",
+    "id": "<pcb1:23>",
+    "level": "warning",
+    "text": "Copper angle of 45\u00b0 on Bottom (below 90\u00b0)."
+   },
+   {
+    "at": [
+     5.6000000000000005,
+     3.9899999999999993
+    ],
+    "check": "text",
+    "fix": "Use the fab's minimum text height and stroke width.",
+    "id": "<pcb1:31>",
+    "level": "warning",
+    "text": "Text \u201cAFE  /  REV A\u201d: height 0.56 mm is below 1 mm."
+   },
+   {
+    "at": [
+     2.1,
+     16.22
+    ],
+    "check": "text",
+    "fix": "Use the fab's minimum text height and stroke width.",
+    "id": "<pcb1:32>",
+    "level": "warning",
+    "text": "Text \u201cANALOG IN\u201d: height 0.53 mm is below 1 mm."
+   },
+   {
+    "at": [
+     31.295833333333334,
+     13.745833333333332
+    ],
+    "check": "text",
+    "fix": "Use the fab's minimum text height and stroke width.",
+    "id": "<pcb1:33>",
+    "level": "warning",
+    "text": "Text \u201cOUT\u201d: height 0.65 mm is below 1 mm."
+   },
+   {
+    "at": [
+     27.038333333333334,
+     18.848333333333333
+    ],
+    "check": "text",
+    "fix": "Use the fab's minimum text height and stroke width.",
+    "id": "<pcb1:34>",
+    "level": "warning",
+    "text": "Text \u201cWAFFLE\u201d: height 0.74 mm is below 1 mm."
+   }
+  ],
+  "notes": [],
+  "preset": "jlcpcb-2l",
+  "truncated": false,
+  "warnings": 6
+ },
+ "drc_waivers": {
+  "current": 0,
+  "document_id": "<pcb1>",
+  "items": [],
+  "next_offset": null,
+  "total": 0,
+  "untrusted_design_text": {
+   "waivers": []
+  }
+ },
+ "list_insights": {
+  "by_check": {
+   "acuteAngle": 2
+  },
+  "checks": [
+   {
+    "id": "neck",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Narrow neck in a pour"
+   },
+   {
+    "id": "returnPlane",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Return path interrupted"
+   },
+   {
+    "id": "acuteAngle",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Acute copper angle"
+   },
+   {
+    "id": "stub",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Stub on a high-speed net"
+   },
+   {
+    "id": "widthCurrent",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Track width for the current"
+   },
+   {
+    "id": "thermalCurrent",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Thermal relief starves the current"
+   },
+   {
+    "id": "viaInPad",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Via in pad without fill"
+   },
+   {
+    "id": "decap",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Decoupling capacitor far from its pin"
+   },
+   {
+    "id": "diffPair",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Differential pair coupling"
+   },
+   {
+    "id": "crosstalk",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Long parallel run (crosstalk)"
+   },
+   {
+    "id": "silk",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Silkscreen over a pad"
+   },
+   {
+    "id": "ringMin",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Annular ring at the minimum"
+   },
+   {
+    "id": "deadCopper",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Dead copper in a pour"
+   },
+   {
+    "id": "pourFailed",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Pour could not be refilled"
+   },
+   {
+    "id": "edgeCopper",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Copper close to the board edge"
+   },
+   {
+    "id": "openSheetTodo",
+    "kind": "schematic",
+    "severity": "tip",
+    "title": "Open sheet to-do"
+   },
+   {
+    "id": "netTypo",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Net name looks like a typo"
+   },
+   {
+    "id": "decoupling",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Power pin without decoupling"
+   },
+   {
+    "id": "i2cPullup",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "I\u00b2C net without a pull-up"
+   },
+   {
+    "id": "wireNearPin",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Wire end near a pin"
+   },
+   {
+    "id": "singlePin",
+    "kind": "schematic",
+    "severity": "tip",
+    "title": "Net with one pin"
+   },
+   {
+    "id": "floatingInput",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Floating input"
+   },
+   {
+    "id": "placeholder",
+    "kind": "schematic",
+    "severity": "tip",
+    "title": "Placeholder not resolved"
+   },
+   {
+    "id": "pairSwap",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Differential pair swapped at a pin"
+   },
+   {
+    "id": "pairOrphan",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Pair member without its partner"
+   },
+   {
+    "id": "railConflict",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Two rail names on one net"
+   },
+   {
+    "id": "railPinMismatch",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Pin voltage differs from its rail"
+   },
+   {
+    "id": "capRating",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Capacitor voltage rating"
+   },
+   {
+    "id": "busGap",
+    "kind": "schematic",
+    "severity": "tip",
+    "title": "Gap in a bus"
+   },
+   {
+    "id": "isolationBridge",
+    "kind": "schematic",
+    "severity": "advice",
+    "title": "Isolation barrier bridged"
+   },
+   {
+    "id": "isolationRating",
+    "kind": "schematic",
+    "severity": "tip",
+    "title": "Isolation barrier without a rated creepage"
+   },
+   {
+    "id": "nameSuggestion",
+    "kind": "schematic",
+    "severity": "tip",
+    "title": "Signal suggested by net names"
+   },
+   {
+    "id": "creepage",
+    "kind": "pcb",
+    "severity": "tip",
+    "title": "Creepage and clearance by voltage"
+   },
+   {
+    "id": "isolationBridgeBoard",
+    "kind": "pcb",
+    "severity": "advice",
+    "title": "Isolation barrier bridged"
+   }
+  ],
+  "dismissed": 0,
+  "items": [
+   {
+    "at": [
+     17.9,
+     11.6
+    ],
+    "check": "acuteAngle",
+    "document_id": "<pcb1>",
+    "fix": "Cut the corner",
+    "key": "acuteAngle:<hash>",
+    "kind": "pcb",
+    "layer": "Bottom",
+    "message": "This Bottom Layer track turns through a 45\u00b0 corner.",
+    "net": "GND",
+    "objects": [
+     "<pcb1:23>"
+    ],
+    "severity": "tip",
+    "title": "Acute copper angle",
+    "value": 45,
+    "why": "Etchant pools in the narrow wedge of an acute angle (an acid trap) and can eat into the copper; the sharp corner also concentrates current and field. Use corners of 90\u00b0 or more, or 45\u00b0 bends."
+   },
+   {
+    "at": [
+     13.3,
+     16.2
+    ],
+    "check": "acuteAngle",
+    "document_id": "<pcb1>",
+    "key": "acuteAngle:<hash>",
+    "kind": "pcb",
+    "layer": "Bottom",
+    "message": "Tracks of GND meet at 45\u00b0 on Bottom Layer.",
+    "net": "GND",
+    "objects": [
+     "<pcb1:23>",
+     "<pcb1:25>"
+    ],
+    "severity": "tip",
+    "title": "Acute copper angle",
+    "value": 45,
+    "why": "Etchant pools in the narrow wedge of an acute angle (an acid trap) and can eat into the copper; the sharp corner also concentrates current and field. Use corners of 90\u00b0 or more, or 45\u00b0 bends."
+   }
+  ],
+  "next_offset": null,
+  "note": "Design insights are advice, never violations: DRC, ERC and Release do not count them. Messages and object names come from the design (untrusted text).",
+  "notes": [],
+  "total": 2,
+  "untrusted_design_text": true
+ },
+ "run_drc": {
+  "document_id": "<pcb1>",
+  "items": [
+   {
+    "actual": 0.05,
+    "at": [
+     7,
+     18
+    ],
+    "id": "<pcb1:35>",
+    "limit": "min",
+    "required": 0.15,
+    "rule": "Width",
+    "rule_id": "width-1",
+    "title": "Track (Top Layer) GND",
+    "type": "width"
+   },
+   {
+    "actual": 3.6069,
+    "at": [
+     13.3,
+     13.5
+    ],
+    "detail": "Un-routed connection",
+    "id": "<pcb1:2>",
+    "other_at": [
+     10.7,
+     11
+    ],
+    "other_id": "<pcb1:1>",
+    "rule": "UnRoutedNet",
+    "rule_id": "unrouted-1",
+    "title": "Net FILTER between C1.1 and R1.2",
+    "type": "unrouted"
+   },
+   {
+    "actual": 4.0626,
+    "at": [
+     13.3,
+     13.5
+    ],
+    "detail": "Un-routed connection",
+    "id": "<pcb1:2>",
+    "other_at": [
+     17.25,
+     12.55
+    ],
+    "other_id": "<pcb1:3>",
+    "rule": "UnRoutedNet",
+    "rule_id": "unrouted-1",
+    "title": "Net FILTER between C1.1 and U1.3",
+    "type": "unrouted"
+   },
+   {
+    "actual": 4.6186,
+    "at": [
+     3.8,
+     13.54
+    ],
+    "detail": "Un-routed connection",
+    "id": "<pcb1:0>",
+    "other_at": [
+     5,
+     18
+    ],
+    "other_id": "<pcb1:35>",
+    "rule": "UnRoutedNet",
+    "rule_id": "unrouted-1",
+    "title": "Net GND between J1.3 and Track",
+    "type": "unrouted"
+   }
+  ],
+  "matching": 4,
+  "next_offset": null,
+  "notes": [],
+  "rule_set": null,
+  "rules": [
+   {
+    "count": 3,
+    "id": "unrouted-1",
+    "name": "UnRoutedNet",
+    "type": "unrouted"
+   },
+   {
+    "count": 1,
+    "id": "width-1",
+    "name": "Width",
+    "type": "width"
+   }
+  ],
+  "rules_checked": 13,
+  "rules_source": "defaults",
+  "total": 4,
+  "units": "mm",
+  "waived": 0
+ },
+ "run_erc": {
+  "by_check": {
+   "unannotated": 1
+  },
+  "classes": {
+   "Error": {
+    "items": [
+     {
+      "at": [
+       104.14,
+       78.74
+      ],
+      "check": "unannotated",
+      "document_id": "<schematic0>",
+      "object_id": "<schematic0:1>",
+      "text": "Component R? Resistor has not been annotated"
+     }
+    ],
+    "total": 1
+   }
+  },
+  "counts": {
+   "Error": 1,
+   "Fatal": 0,
+   "Info": 0,
+   "Warning": 0
+  },
+  "passed": false,
+  "sheets": 1,
+  "summary": "Compiled 1 schematic sheet: 1 error"
+ }
+}

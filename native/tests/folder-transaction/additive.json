@@ -1,0 +1,201 @@
+{
+  "manifest": "Sensor.waffle",
+  "projectId": "p1",
+  "member": "Power.wsch",
+  "opaque": "Wave.wwave",
+  "files": {
+    "Sensor.waffle": "{\"kind\":\"project\",\"formatVersion\":\"2.1\",\"id\":\"p1\",\"name\":\"Forward sensor\"}\n{\"kind\":\"document\",\"id\":\"d1\",\"docKind\":\"schematic\",\"name\":\"Power\",\"path\":\"Power.wsch\"}\n{\"kind\":\"document\",\"id\":\"f1\",\"docKind\":\"waveform\",\"name\":\"Wave\",\"path\":\"Wave.wwave\"}\n",
+    "Power.wsch": "{\"kind\":\"schematic\",\"formatVersion\":\"2.1\",\"id\":\"d1\"}\n{\"kind\":\"netlabel\",\"id\":\"n1\",\"at\":[1000,2000],\"future\":{\"nested\":[\"preserved\",{\"measurement\":21}]},\"text\":\"SENSE\"}\n{\"kind\":\"futureTrace\",\"id\":\"n2\",\"points\":[[1,2],[3,4]]}\n",
+    "Wave.wwave": "{\"kind\":\"waveform\",\"formatVersion\":\"2.1\",\"id\":\"f1\"}\n{\"kind\":\"futureData\",\"id\":\"sample\",\"samples\":[2,4]}\n"
+  },
+  "expected": "9fe6f685af49173b0d906e502b7fb037c754459ca7d4218486d0dd79a898acad",
+  "desired": "90eb6e9ab849b7298083ba130f42a6719f6d6fed0f556747893efaf428ae78a2",
+  "edit": {
+    "from": "{\"kind\":\"netlabel\",\"id\":\"n1\",\"at\":[1000,2000],\"future\":{\"nested\":[\"preserved\",{\"measurement\":21}]},\"text\":\"SENSE\"}\n",
+    "to": "{\"kind\":\"netlabel\",\"id\":\"n1\",\"at\":[1100,2200],\"future\":{\"nested\":[\"preserved\",{\"measurement\":21}]},\"text\":\"DRIVE\"}\n"
+  },
+  "policy": {
+    "scalarFields": [
+      "order",
+      "text",
+      "name",
+      "label",
+      "ref",
+      "value",
+      "x",
+      "y",
+      "z",
+      "w",
+      "h",
+      "width",
+      "height",
+      "size",
+      "length",
+      "radius",
+      "diameter",
+      "thickness",
+      "rotation",
+      "angle",
+      "sweep",
+      "layer",
+      "hidden",
+      "locked"
+    ],
+    "coordinateFields": [
+      "at",
+      "start",
+      "end",
+      "points"
+    ],
+    "documentRecords": [
+      "part",
+      "wire",
+      "track",
+      "graphic",
+      "label",
+      "netlabel",
+      "junction",
+      "via",
+      "pad",
+      "polygon",
+      "power",
+      "port",
+      "offsheet",
+      "sheetsymbol",
+      "bus",
+      "busentry",
+      "noerc",
+      "textframe",
+      "image",
+      "frame",
+      "richtext",
+      "math",
+      "calculation",
+      "widget",
+      "imageMarkup",
+      "notesLayer",
+      "sticky",
+      "callout",
+      "reviewItem",
+      "inkStroke",
+      "documentSettings",
+      "panelCell",
+      "drawingView",
+      "drawingDimension",
+      "boardBody",
+      "modelAlias",
+      "layer",
+      "copperRegion"
+    ],
+    "libraryRecords": [
+      "librarySettings",
+      "pin",
+      "pad",
+      "shape",
+      "boardBody",
+      "modelAlias"
+    ],
+    "blockRecords": [
+      "part",
+      "wire",
+      "track",
+      "graphic",
+      "label",
+      "netlabel",
+      "junction",
+      "via",
+      "pad",
+      "polygon",
+      "power",
+      "port",
+      "offsheet",
+      "sheetsymbol",
+      "bus",
+      "busentry",
+      "noerc",
+      "textframe",
+      "image",
+      "frame",
+      "richtext",
+      "math",
+      "calculation",
+      "widget",
+      "imageMarkup",
+      "notesLayer",
+      "sticky",
+      "callout",
+      "reviewItem",
+      "inkStroke",
+      "blockSettings",
+      "blockLibrary"
+    ]
+  },
+  "refuse": [
+    {
+      "name": "unknownNestedValue",
+      "file": "desired",
+      "find": "\"measurement\":21",
+      "replace": "\"measurement\":22"
+    },
+    {
+      "name": "unknownNestedValueEncoding",
+      "file": "desired",
+      "find": "\"preserved\"",
+      "replace": "\"pre\\u0073erved\""
+    },
+    {
+      "name": "unknownRow",
+      "file": "desired",
+      "find": "[[1,2],[3,4]]",
+      "replace": "[[1,2],[3,5]]"
+    },
+    {
+      "name": "ownerIdentity",
+      "file": "desired",
+      "find": "\"id\":\"d1\"",
+      "replace": "\"id\":\"another\""
+    },
+    {
+      "name": "ownerStamp",
+      "file": "desired",
+      "find": "\"2.1\"",
+      "replace": "\"2.0\""
+    },
+    {
+      "name": "changedKnownRowIdentityWithOpaqueField",
+      "file": "desired",
+      "find": "\"id\":\"n1\"",
+      "replace": "\"id\":\"n9\""
+    },
+    {
+      "name": "unsupportedOwnerRequirement",
+      "file": "owner",
+      "find": "\"id\":\"d1\"",
+      "replace": "\"id\":\"d1\",\"requires\":[\"future\"]"
+    },
+    {
+      "name": "unsupportedProjectRequirement",
+      "file": "project",
+      "find": "\"name\":\"Forward sensor\"",
+      "replace": "\"name\":\"Forward sensor\",\"requires\":[\"future\"]"
+    },
+    {
+      "name": "noncanonicalMinor",
+      "file": "project",
+      "find": "\"2.1\"",
+      "replace": "\"2.01\""
+    },
+    {
+      "name": "memberNeedsLaterMinor",
+      "file": "owner",
+      "find": "\"2.1\"",
+      "replace": "\"2.2\""
+    },
+    {
+      "name": "foreignMember",
+      "file": "project",
+      "find": "\"id\":\"d1\"",
+      "replace": "\"id\":\"other\""
+    }
+  ]
+}

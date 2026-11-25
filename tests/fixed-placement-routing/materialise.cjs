@@ -1,0 +1,10 @@
+"use strict";
+const fs = require("node:fs");
+const {entries,read} = require("./sources.cjs");
+const {imported} = require("./runtime.cjs");
+const {strip} = require("./strip.cjs");
+const [id, output] = process.argv.slice(2), entry = entries.find(b => b.id === id);
+if (!entry || !output?.endsWith(".waffle")) throw Error("Usage: node materialise.cjs BOARD NEW_FILE.waffle");
+const p = strip(imported(read(entry),id));
+Atrium.validate(p);
+fs.writeFileSync(output,JSON.stringify(p,null,2)+"\n",{flag:"wx"});

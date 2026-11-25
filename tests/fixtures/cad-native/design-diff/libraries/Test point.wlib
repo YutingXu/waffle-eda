@@ -1,0 +1,6 @@
+{"kind":"library","formatVersion":"2.0","id":"std-tp","name":"Test point"}
+{"kind":"pad","id":"std-tp/pad/1","order":"V","value":{"angle":0,"drill":0,"h":1500000,"number":"1","shape":"round","w":1500000,"x":0,"y":0}}
+{"kind":"pin","id":"std-tp/pin/1","order":"V","value":{"name":"1","number":"1","x":0,"y":2540000}}
+{"kind":"librarySettings","id":"std-tp/settings","value":{"category":"Test","footprint":{"name":"TestPoint_1.5mm","pads":[],"shapes":[]},"prefix":"TP","symbol":{"pins":[],"shapes":[]},"value":"Test point"}}
+{"kind":"shape","id":"std-tp/shape/1","order":"K","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[0,2540000],[0,-1016000]],"style":"pin"}}
+{"kind":"shape","id":"std-tp/shape/2","order":"e","side":"symbol","value":{"kind":"circle","r":800000,"style":"body","x":0,"y":-1800000}}

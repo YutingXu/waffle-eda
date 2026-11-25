@@ -1,0 +1,40 @@
+/* Via Fencing panel (AtriumViaFence.open). A non-modal panel docked over the
+   right of the editor so the canvas preview stays visible. Builds on
+   .work-dialog (workflows.css) and the theme variables in style.css. */
+.via-fence-panel {position:fixed;inset:56px 12px auto auto;margin:0;width:min(400px,calc(100vw - 24px));max-height:calc(100vh - 96px);
+  display:flex;flex-direction:column;gap:8px;padding:12px 12px;overflow:auto;overscroll-behavior:contain;z-index:var(--z-popover);box-shadow:var(--elev-2)}
+.via-fence-panel:not([open]) {display:none}
+.via-fence-panel .vf-head {display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.via-fence-panel .vf-head h2 {margin:0;font-size:var(--fs-14)}
+.via-fence-panel .vf-head small {color:var(--muted);font-size:var(--fs-11);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.via-fence-panel .vf-body {display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.via-fence-panel .vf-col {display:flex;flex-direction:column;gap:8px;min-width:0}
+.via-fence-panel .vf-section {margin:0;padding:4px 8px 6px;border:1px solid var(--line);border-radius:var(--r-sm);min-width:0}
+.via-fence-panel .vf-section legend {padding:0 4px;font-size:var(--fs-11);font-weight:600;color:var(--muted)}
+.via-fence-panel .vf-section:focus-within legend {color:var(--accent-text)}
+.via-fence-panel .vf-field {display:grid;grid-template-columns:minmax(92px,.85fr) minmax(0,1fr);align-items:center;gap:6px;min-height:26px;font-size:var(--fs-12)}
+.via-fence-panel .vf-field > :is(select,input),.via-fence-panel .vf-pick select {width:100%;min-width:0}
+.via-fence-panel .vf-pick {display:block;min-width:0}
+.via-fence-panel .vf-check {display:flex;align-items:center;gap:6px;min-height:22px;font-size:var(--fs-12)}
+.via-fence-panel .vf-note {display:block;font-size:var(--fs-10);color:var(--muted);line-height:1.4;padding:2px 0}
+.via-fence-panel .vf-stats {display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);font:var(--fs-11)/1.5 var(--mono);color:var(--muted)}
+.via-fence-panel .vf-stats strong {color:var(--ok-ink);font-size:var(--fs-12)}
+.via-fence-panel .vf-stats[data-state=partial] strong {color:var(--accent-text)}
+.via-fence-panel .vf-stats[data-state=error] {color:var(--bad-ink)}
+.via-fence-panel .vf-stats small {flex-basis:100%;font-size:var(--fs-10)}
+.via-fence-panel .vf-existing summary {font-size:var(--fs-11);font-weight:600;color:var(--muted);cursor:default;padding:2px 0}
+.via-fence-panel .vf-table {width:100%;border-collapse:collapse;font-size:var(--fs-11);table-layout:fixed}
+.via-fence-panel .vf-table th {text-align:left;font-weight:500;color:var(--muted);padding:4px 6px;border-bottom:1px solid var(--line)}
+.via-fence-panel .vf-table th:nth-child(2) {width:72px}
+.via-fence-panel .vf-table th:nth-child(3) {width:44px}
+.via-fence-panel .vf-table th:last-child {width:178px}
+.via-fence-panel .vf-table td {padding:4px 6px;border-bottom:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.via-fence-panel .vf-table td:last-child {text-align:right}
+.via-fence-panel .vf-table button {font-size:var(--fs-11);min-height:var(--ctl-h);padding:1px 6px;margin-left:4px}
+.via-fence-panel .vf-badge {margin-inline-end:var(--s-2)}
+.via-fence-panel .vf-actions {display:flex;justify-content:flex-end;gap:6px;margin-top:2px}
+.via-fence-panel .vf-primary {border-color:var(--accent)}
+.via-fence-panel input:focus-visible,.via-fence-panel select:focus-visible,.via-fence-panel button:focus-visible {outline:1px solid var(--accent);outline-offset:0}
+@media (max-width:680px){
+  .via-fence-panel {inset:auto 8px 8px 8px;width:auto;max-height:70vh}
+}

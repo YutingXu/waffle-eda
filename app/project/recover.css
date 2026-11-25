@@ -1,0 +1,20 @@
+/* Recovery prompt, File › Recover… and the autosave warning (autosave.js). Builds on .work-dialog (workflows.css). */
+.recover-dialog {width:min(640px,calc(100vw - 32px))}
+.recover-list,.recover-groups {display:flex;flex-direction:column;gap:2px;max-height:min(46vh,420px);overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm);padding:4px;background:var(--app)}
+.recover-groups {gap:8px;padding:6px 8px}
+.recover-group h3 {margin:4px 0 4px;overflow-wrap:anywhere}
+.recover-row {display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:var(--r-sm);min-height:26px}
+.recover-row:hover {background:var(--soft)}
+.recover-prompt .recover-row {cursor:default}
+.recover-name {font-weight:600;flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recover-meta {flex:1 1 auto;min-width:0;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.recover-row button {flex:none}
+.recover-usage {margin-top:8px}
+.recover-empty {margin:6px 2px}
+.diagnostics-log {width:100%;min-height:10em;height:min(42vh,22em);resize:vertical;box-sizing:border-box;
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:8px;background:var(--app);color:var(--ink);font:inherit}
+.work-dialog .work-actions .recover-link {margin-right:auto;background:transparent;border-color:transparent;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.work-dialog .work-actions .recover-link:hover {color:var(--ink);text-decoration:underline}
+/* The storage warning is a floating library notice (.ui-notice[data-floating]); this places it. */
+.recover-warning {position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:var(--z-alert)}
+@media (max-width:620px) {.recover-name {max-width:none} .recover-row {flex-wrap:wrap}}

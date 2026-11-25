@@ -1,0 +1,4 @@
+{"kind":"project","formatVersion":"2.0","id":"widget-demand-fixture","entryDocument":"electrical-sheet","name":"Demand loading"}
+{"kind":"document","id":"checklist-sheet","docKind":"schematic","name":"Checklist sheet","order":"U","path":"Checklist sheet.wsch"}
+{"kind":"document","id":"electrical-sheet","docKind":"schematic","name":"Electrical sheet","order":"F","path":"Electrical sheet.wsch"}
+{"kind":"document","id":"extension-sheet","docKind":"schematic","name":"Inspection sheet","order":"j","path":"Inspection sheet.wsch"}

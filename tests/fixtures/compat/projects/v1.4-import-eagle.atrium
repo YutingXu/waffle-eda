@@ -1,0 +1,612 @@
+{
+  "documents": [
+    {
+      "grid": 2.54,
+      "id": "amwpix2jn9dp6lhxva8",
+      "items": [
+        {"angle":0,"def":"amwpix2jorrxn2x34lik","id":"amwpix2jonemxyqtcj6","kind":"part","link":"eagle-R1","pinNets":{},"ref":"R1","refAt":[-3.81,-1.4986],"value":"10k","valueAt":[-3.81,3.302],"x":20.32,"y":-50.8},
+        {"angle":-90,"def":"amwpix2jorrxn2x34lik","id":"amwpix2jomv354usu9fl","kind":"part","link":"eagle-R2","pinNets":{},"ref":"R2","refAt":[-3.81,-1.4986],"value":"1k","valueAt":[-3.81,3.302],"x":40.64,"y":-45.72},
+        {"angle":0,"def":"amwpix2jop63qinabbk","id":"amwpix2jo2tkdkw6x9zo","kind":"part","link":"eagle-IC1","pinNets":{},"ref":"IC1","refAt":[2.54,-3.81],"unit":1,"value":"DUALAMPD","x":60.96,"y":-50.8},
+        {"angle":0,"def":"amwpix2jop63qinabbk","id":"amwpix2jokxy1f0d13va","kind":"part","link":"eagle-IC1","mirror":true,"pinNets":{},"ref":"IC1","refAt":[2.54,-3.81],"unit":2,"value":"DUALAMPD","x":60.96,"y":-25.4},
+        {"direction":3,"id":"amwpix2jo151fkbkv8r1","kind":"power","style":"gnd","text":"GND","x":40.64,"y":-38.1},
+        {"id":"amwpix2jo92giwypvxmc","kind":"wire","net":"SIG","points":[[25.4,-50.8],[40.64,-50.8]]},
+        {"id":"amwpix2joubah96816t","kind":"wire","net":"SIG","points":[[40.64,-50.8],[40.64,-53.34]]},
+        {"id":"amwpix2jowwwzi8597l","kind":"wire","net":"SIG","points":[[40.64,-53.34],[53.34,-53.34]]},
+        {"id":"amwpix2jo27w10r77a2z","kind":"junction","x":40.64,"y":-50.8},
+        {"angle":0,"id":"amwpix2jov3y4qys5j7r","kind":"netlabel","text":"SIG","x":45.72,"y":-53.34},
+        {"id":"amwpix2jo0qfdwyiz4rm","kind":"wire","net":"GND","points":[[40.64,-40.64],[40.64,-38.1]]},
+        {"id":"amwpix2joq6d760etlf","kind":"wire","net":"N$1","points":[[68.58,-50.8],[76.2,-50.8]]},
+        {"id":"amwpix2joakjyay1f1ek","kind":"wire","net":"N$1","points":[[76.2,-50.8],[76.2,-17.78]]},
+        {"id":"amwpix2joyxd375lo6f","kind":"wire","net":"N$1","points":[[76.2,-17.78],[53.34,-17.78]]},
+        {"id":"amwpix2johqb2lc230zd","kind":"wire","net":"N$1","points":[[53.34,-17.78],[53.34,-25.4]]},
+        {"angle":0,"id":"amwpix2jo5i5f0jn9mr4","kind":"label","size":2.54,"text":"Atrium Eagle fixture","x":10.16,"y":-81.28},
+        {"closed":true,"fill":false,"id":"amwpix2josr1ta9c4pb","kind":"graphic","points":[[0,0],[100,0],[100,-90],[0,-90],[0,0]],"width":0.254}
+      ],
+      "kind": "schematic",
+      "name": "demo-eagle 1",
+      "notes": [
+        "Each Eagle sheet became a schematic document. Nets join across sheets by name"
+      ],
+      "outline": [],
+      "sourceName": "demo-eagle.sch"
+    },
+    {
+      "grid": 2.54,
+      "id": "amwpix2jok7lslo74oc",
+      "items": [
+        {"angle":0,"def":"amwpix2jorrxn2x34lik","id":"amwpix2joeb3ddurdylt","kind":"part","link":"eagle-R3","pinNets":{},"ref":"R3","refAt":[-3.81,-1.4986],"value":"22k","valueAt":[-3.81,3.302],"x":20.32,"y":-20.32},
+        {"id":"amwpix2jovvlxt53rj2","kind":"wire","net":"SIG","points":[[25.4,-20.32],[33.02,-20.32]]},
+        {"angle":0,"id":"amwpix2jos37takfu7tp","kind":"netlabel","text":"SIG","x":27.94,"y":-20.32}
+      ],
+      "kind": "schematic",
+      "name": "demo-eagle 2",
+      "notes": [
+        "Each Eagle sheet became a schematic document. Nets join across sheets by name"
+      ],
+      "outline": [],
+      "sourceName": "demo-eagle.sch"
+    },
+    {
+      "boardShape": {
+        "contour": [{"a":[0,0],"b":[50,0],"kind":"line"},{"a":[50,0],"b":[50,-30],"kind":"line"},{"a":[50,-30],"b":[10,-30],"kind":"line"},{"c":[9.999928,-20.000072],"ccw":true,"end":-179.999586864,"kind":"arc","r":9.999928,"start":89.999586864},{"a":[0,-20],"b":[0,0],"kind":"line"}],
+        "cutouts": [[{"c":[25,-15],"ccw":false,"end":0,"kind":"arc","r":3,"start":0}]],
+        "source": "import",
+        "version": 1
+      },
+      "grid": 0.25,
+      "id": "amwpix2joutqphujwk6m",
+      "items": [
+        {"angle":-90,"def":"amwpix2jokqd21kvplb","id":"amwpix2jo5zrsyb91xze","kind":"part","layer":"Top","link":"eagle-R1","pinNets":{"1":"SIG","2":"GND"},"ref":"R1","refAt":[-1,-1],"value":"10k","x":20,"y":-10},
+        {"angle":0,"def":"amwpix2jooh7ge3ffe1","id":"amwpix2joogvzarjb0oj","kind":"part","layer":"Bottom","link":"eagle-J1","pinNets":{"1":"SIG","2":"GND"},"ref":"J1","value":"","x":35,"y":-10},
+        {"id":"amwpix2joehk7s5a9y0i","kind":"track","layer":"Top","net":"SIG","points":[[20,-9.2],[20,-5]],"width":0.254},
+        {"id":"amwpix2jo0bysh0hazoc8","kind":"track","layer":"Bottom","net":"SIG","points":[[20,-5],[35,-5]],"width":0.254},
+        {"id":"amwpix2joltozo6uyf4q","kind":"track","layer":"Inner 1","net":"SIG","points":[[35,-5],[35,-10]],"width":0.254},
+        {"diameter":0.8064,"drill":0.4,"id":"amwpix2jofktgs3kfm0s","kind":"via","layer":"Multi","net":"SIG","x":20,"y":-5},
+        {"diameter":0.6,"drill":0.3,"fromLayer":"Top","id":"amwpix2jotir8wxohqoe","kind":"via","layer":"Multi","net":"SIG","toLayer":"Inner 1","x":35,"y":-5},
+        {"clearance":0.4,"closed":true,"connectStyle":"relief","fillMode":"solid","id":"amwpix2joa78czzc7plf","kind":"polygon","layer":"Bottom","net":"GND","points":[[1,-1],[49,-1],[49,-29],[1,-29]],"pourIndex":1,"pourOverSameNet":true,"removeDeadCopper":true,"viaConnectStyle":"direct"},
+        {"drill":3.2,"h":3.2,"id":"amwpix2jpmis4mybde4l","kind":"pad","layer":"Multi","number":"","plated":false,"shape":"round","w":3.2,"x":45,"y":-25},
+        {"angle":0,"id":"amwpix2jpk2441z7g73","kind":"label","layer":"Silk","size":1.27,"text":"ATRIUM","x":5,"y":-5}
+      ],
+      "kind": "pcb",
+      "name": "demo-eagle",
+      "notes": [
+        "Signal polygons import as polygon pours. Eagle files store no fill, so Atrium pours them when the board is first opened, as Eagle's Ratsnest does",
+        "Eagle layer setup (1*2*15*16) imported as 3 copper layers; set the stack thicknesses in Layer Stack Manager"
+      ],
+      "outline": [
+        [0,0],
+        [50,0],
+        [50,-30],
+        [10,-30],
+        [9.372094,-29.980272],
+        [8.746665,-29.921155],
+        [8.126182,-29.822884],
+        [7.513095,-29.685846],
+        [6.909821,-29.510582],
+        [6.318744,-29.297784],
+        [5.742194,-29.048291],
+        [5.182449,-28.763088],
+        [4.641716,-28.443301],
+        [4.122129,-28.090192],
+        [3.625741,-27.705154],
+        [3.154508,-27.289708],
+        [2.710292,-26.845492],
+        [2.294846,-26.374259],
+        [1.909808,-25.877871],
+        [1.556699,-25.358284],
+        [1.236912,-24.817551],
+        [0.951709,-24.257806],
+        [0.702216,-23.681256],
+        [0.489418,-23.090179],
+        [0.314154,-22.486905],
+        [0.177116,-21.873818],
+        [0.078845,-21.253335],
+        [0.019728,-20.627906],
+        [0,-20]
+      ],
+      "pcbDrawing": {
+        "annotations": {},
+        "sourceFill": "pour"
+      },
+      "sourceName": "demo-eagle.brd"
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.4",
+  "importNotes": [
+    "Each Eagle sheet became a schematic document. Nets join across sheets by name",
+    "Signal polygons import as polygon pours. Eagle files store no fill, so Atrium pours them when the board is first opened, as Eagle's Ratsnest does",
+    "Eagle layer setup (1*2*15*16) imported as 3 copper layers; set the stack thicknesses in Layer Stack Manager"
+  ],
+  "library": [
+    {
+      "category": "Eagle symbols",
+      "footprintName": "R0603",
+      "id": "amwpix2jorrxn2x34lik",
+      "name": "R0603",
+      "parameters": {},
+      "prefix": "R",
+      "sourceName": "demo-eagle.sch",
+      "symbol": {
+        "pins": [{"electrical":4,"hidden":false,"name":"1","number":"1","x":-5.08,"y":0},{"electrical":4,"hidden":false,"name":"2","number":"2","x":5.08,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[-2.54,0.889],[2.54,0.889]],"style":"body","width":0.254},{"closed":false,"fill":false,"kind":"path","points":[[2.54,-0.889],[-2.54,-0.889]],"style":"body","width":0.254},{"closed":false,"fill":false,"kind":"path","points":[[2.54,0.889],[2.54,-0.889]],"style":"body","width":0.254},{"closed":false,"fill":false,"kind":"path","points":[[-2.54,0.889],[-2.54,-0.889]],"style":"body","width":0.254},{"closed":false,"fill":false,"kind":"path","points":[[-5.08,0],[-2.54,0]],"style":"body","width":0.1524},{"closed":false,"fill":false,"kind":"path","points":[[5.08,0],[2.54,0]],"style":"body","width":0.1524}]
+      },
+      "value": "10k"
+    },
+    {
+      "category": "Eagle symbols",
+      "footprintName": "SO8",
+      "id": "amwpix2jop63qinabbk",
+      "name": "DUALAMPD",
+      "parameters": {},
+      "prefix": "IC",
+      "sourceName": "demo-eagle.sch",
+      "symbol": {
+        "parts": 2,
+        "pins": [{"electrical":0,"hidden":false,"name":"-IN","number":"2","part":1,"x":-7.62,"y":2.54},{"electrical":0,"hidden":false,"name":"+IN","number":"3","part":1,"x":-7.62,"y":-2.54},{"electrical":2,"hidden":false,"name":"OUT","number":"1","part":1,"x":7.62,"y":0},{"electrical":0,"hidden":false,"name":"-IN","number":"6","part":2,"x":-7.62,"y":2.54},{"electrical":0,"hidden":false,"name":"+IN","number":"5","part":2,"x":-7.62,"y":-2.54},{"electrical":2,"hidden":false,"name":"OUT","number":"7","part":2,"x":7.62,"y":0}],
+        "shapes": [
+          {"closed":false,"fill":false,"kind":"path","part":1,"points":[[-5.08,-5.08],[5.08,0]],"style":"body","width":0.4064},
+          {"closed":false,"fill":false,"kind":"path","part":1,"points":[[5.08,0],[-5.08,5.08]],"style":"body","width":0.4064},
+          {"closed":false,"fill":false,"kind":"path","part":1,"points":[[-5.08,5.08],[-5.08,-5.08]],"style":"body","width":0.4064},
+          {"closed":false,"fill":false,"kind":"path","part":1,"points":[[-7.62,2.54],[-5.08,2.54]],"style":"body","width":0.1524},
+          {"closed":false,"fill":false,"kind":"path","part":1,"points":[[-7.62,-2.54],[-5.08,-2.54]],"style":"body","width":0.1524},
+          {"closed":false,"fill":false,"kind":"path","part":1,"points":[[7.62,0],[5.08,0]],"style":"body","width":0.1524},
+          {"closed":false,"fill":false,"kind":"path","part":2,"points":[[-5.08,-5.08],[5.08,0]],"style":"body","width":0.4064},
+          {"closed":false,"fill":false,"kind":"path","part":2,"points":[[5.08,0],[-5.08,5.08]],"style":"body","width":0.4064},
+          {"closed":false,"fill":false,"kind":"path","part":2,"points":[[-5.08,5.08],[-5.08,-5.08]],"style":"body","width":0.4064},
+          {"closed":false,"fill":false,"kind":"path","part":2,"points":[[-7.62,2.54],[-5.08,2.54]],"style":"body","width":0.1524},
+          {"closed":false,"fill":false,"kind":"path","part":2,"points":[[-7.62,-2.54],[-5.08,-2.54]],"style":"body","width":0.1524},
+          {"closed":false,"fill":false,"kind":"path","part":2,"points":[[7.62,0],[5.08,0]],"style":"body","width":0.1524}
+        ]
+      },
+      "value": "DUALAMPD"
+    },
+    {
+      "category": "Eagle footprints",
+      "footprint": {
+        "name": "R0603",
+        "pads": [{"angle":0,"drill":0,"h":0.9,"layer":"Top","number":"1","shape":"roundrect","w":0.9,"x":-0.8,"y":0},{"angle":0,"drill":0,"h":0.9,"layer":"Top","number":"2","shape":"roundrect","w":0.9,"x":0.8,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","layer":"Silk","points":[[-1.5,-0.7],[1.5,-0.7]],"style":"silk","width":0.127},{"closed":false,"fill":false,"kind":"path","points":[[-0.8,0.4],[0.8,0.4]],"style":"package","width":0.1}]
+      },
+      "id": "amwpix2jokqd21kvplb",
+      "name": "R0603",
+      "prefix": "R",
+      "sourceName": "demo-eagle.brd",
+      "value": "R0603"
+    },
+    {
+      "category": "Eagle footprints",
+      "footprint": {
+        "name": "HDR2",
+        "pads": [{"angle":0,"drill":1,"h":1.508,"layer":"Multi","number":"1","shape":"rect","w":1.508,"x":0,"y":0},{"angle":0,"drill":1,"h":1.508,"layer":"Multi","number":"2","shape":"round","w":1.508,"x":-2.54,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","layer":"Bottom silk","points":[[1.27,-1.27],[-3.81,-1.27]],"style":"silk","width":0.127}]
+      },
+      "id": "amwpix2jooh7ge3ffe1",
+      "name": "HDR2",
+      "prefix": "J",
+      "sourceName": "demo-eagle.brd",
+      "value": "HDR2"
+    }
+  ],
+  "name": "Eagle demo",
+  "rules": {
+    "format": "atrium-rules",
+    "list": [
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.3,
+        "id": "clearance-1",
+        "name": "Clearance_GND",
+        "priority": 1,
+        "scope": {"kind":"net","value":"GND"},
+        "scope2": {"kind":"all"},
+        "type": "clearance"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.2032,
+        "id": "clearance-2",
+        "name": "Clearance",
+        "priority": 2,
+        "scope": {"kind":"all"},
+        "scope2": {"kind":"all"},
+        "type": "clearance"
+      },
+      {
+        "allowed": false,
+        "comment": "",
+        "enabled": true,
+        "id": "short-1",
+        "name": "ShortCircuit",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "scope2": {"kind":"all"},
+        "type": "short"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "unrouted-1",
+        "name": "UnRoutedNet",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "unrouted"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "width-1",
+        "max": null,
+        "min": 0.5,
+        "name": "Width_GND",
+        "preferred": null,
+        "priority": 1,
+        "scope": {"kind":"net","value":"GND"},
+        "type": "width"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "width-2",
+        "max": null,
+        "min": 0.254,
+        "name": "Width",
+        "preferred": null,
+        "priority": 2,
+        "scope": {"kind":"all"},
+        "type": "width"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingTopology-1",
+        "name": "RoutingTopology",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "topology": "shortest",
+        "type": "routingTopology"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingPriority-1",
+        "name": "RoutingPriority",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "routingPriority",
+        "value": 0
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "excluded": [],
+        "id": "routingLayers-1",
+        "name": "RoutingLayers",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "routingLayers"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingCorners-1",
+        "name": "RoutingCorners",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "setbackMax": 2.54,
+        "setbackMin": 2.54,
+        "style": "45",
+        "type": "routingCorners"
+      },
+      {
+        "comment": "",
+        "diameterMax": null,
+        "diameterMin": null,
+        "diameterPreferred": null,
+        "enabled": true,
+        "holeMax": null,
+        "holeMin": 0.4,
+        "holePreferred": null,
+        "id": "viaStyle-1",
+        "name": "RoutingVias_GND",
+        "priority": 1,
+        "scope": {"kind":"net","value":"GND"},
+        "type": "viaStyle"
+      },
+      {
+        "comment": "",
+        "diameterMax": null,
+        "diameterMin": null,
+        "diameterPreferred": null,
+        "enabled": true,
+        "holeMax": null,
+        "holeMin": 0.35,
+        "holePreferred": null,
+        "id": "viaStyle-2",
+        "name": "RoutingVias",
+        "priority": 2,
+        "scope": {"kind":"all"},
+        "type": "viaStyle"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-1",
+        "name": "Fanout_BGA",
+        "package": "bga",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "centered"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-2",
+        "name": "Fanout_LCC",
+        "package": "lcc",
+        "priority": 2,
+        "scope": {"kind":"all"},
+        "style": "staggeredOut",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-3",
+        "name": "Fanout_SOIC",
+        "package": "soic",
+        "priority": 3,
+        "scope": {"kind":"all"},
+        "style": "inline",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "outThenIn",
+        "enabled": true,
+        "id": "fanoutControl-4",
+        "name": "Fanout_Small",
+        "package": "small",
+        "priority": 4,
+        "scope": {"kind":"all"},
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-5",
+        "name": "Fanout_Default",
+        "package": "default",
+        "priority": 5,
+        "scope": {"kind":"all"},
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gapMax": 0.3,
+        "gapMin": 0.1,
+        "gapPreferred": 0.15,
+        "id": "diffPairsRouting-1",
+        "layers": {},
+        "maxUncoupled": 6.35,
+        "name": "DiffPairsRouting",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "diffPairsRouting",
+        "widthMax": 0.3,
+        "widthMin": 0.1,
+        "widthPreferred": 0.15
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "expansion": 0.1016,
+        "id": "solderMask-1",
+        "name": "SolderMaskExpansion",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "solderMask"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "expansion": 0,
+        "id": "pasteMask-1",
+        "name": "PasteMaskExpansion",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "pasteMask"
+      },
+      {
+        "airGap": 0.254,
+        "angle": 90,
+        "comment": "",
+        "conductorWidth": 0.254,
+        "enabled": true,
+        "entries": 4,
+        "id": "polygonConnect-1",
+        "kinds": {},
+        "minEntries": 2,
+        "name": "PolygonConnect",
+        "powerWidth": 0.5,
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "style": "polygon",
+        "tempRise": 10,
+        "type": "polygonConnect"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "annularRing-1",
+        "min": 0.1,
+        "name": "MinimumAnnularRing",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "annularRing"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "holeSize-1",
+        "max": 6.35,
+        "min": 0.025,
+        "name": "HoleSize",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "holeSize"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.254,
+        "id": "holeToHole-1",
+        "name": "HoleToHoleClearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "holeToHole"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.1,
+        "id": "silkToMask-1",
+        "name": "SilkToSolderMaskClearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "silkToMask"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.1,
+        "id": "silkToSilk-1",
+        "name": "SilkToSilkClearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "silkToSilk"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "flexLayers-1",
+        "name": "RegionLayers",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "flexLayers"
+      },
+      {
+        "allowInFlex": false,
+        "bendKeepout": 1,
+        "comment": "",
+        "enabled": true,
+        "id": "flexVias-1",
+        "name": "FlexViaKeepout",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "flexVias"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "bendKeepout-1",
+        "keepout": 0.5,
+        "name": "BendZoneKeepout",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "bendKeepout"
+      },
+      {
+        "comment": "",
+        "cornerAngle": 30,
+        "enabled": true,
+        "id": "bendCrossing-1",
+        "name": "BendLineCrossing",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "tolerance": 10,
+        "type": "bendCrossing"
+      },
+      {
+        "comment": "",
+        "dynamic1": 100,
+        "dynamic2": 150,
+        "dynamicMulti": 200,
+        "enabled": true,
+        "id": "bendRadius-1",
+        "name": "MinimumBendRadius",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "static1": 6,
+        "static2": 10,
+        "staticMulti": 15,
+        "type": "bendRadius"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "flexCopper-1",
+        "name": "FlexCopperHatching",
+        "priority": 1,
+        "requireHatch": true,
+        "scope": {"kind":"all"},
+        "type": "flexCopper"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "stiffener-1",
+        "minPads": 6,
+        "name": "StiffenerPlacement",
+        "priority": 1,
+        "requireBacking": true,
+        "scope": {"kind":"all"},
+        "type": "stiffener"
+      },
+      {
+        "bendTermination": true,
+        "comment": "",
+        "enabled": true,
+        "id": "flexRouting-1",
+        "minStackRun": 0.5,
+        "name": "FlexRouting",
+        "priority": 1,
+        "requireTeardrops": true,
+        "scope": {"kind":"all"},
+        "staggerLayers": true,
+        "type": "flexRouting"
+      },
+      {
+        "comment": "",
+        "coverlayExpansion": 0.1,
+        "enabled": true,
+        "id": "flexBuild-1",
+        "minWeb": 0.25,
+        "name": "FlexConstruction",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "stiffenerGap": 1,
+        "transition": 1.5,
+        "type": "flexBuild"
+      }
+    ],
+    "units": "mm",
+    "version": 3
+  },
+  "version": 1
+}

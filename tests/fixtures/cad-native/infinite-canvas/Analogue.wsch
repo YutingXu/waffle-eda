@@ -1,0 +1,7 @@
+{"kind":"schematic","formatVersion":"2.0","id":"analogue","sheet":{"infinite":true,"params":{"Title":"Analogue inputs"},"size":"A3","titleBlock":"ansi"}}
+{"kind":"documentSettings","id":"analogue/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"frame","id":"frame-a","at":[-75000000,-40000000],"h":65000000,"name":"Analogue inputs","order":"A","w":90000000}
+{"kind":"offsheet","id":"off-bi","at":[-30000000,5000000],"io":"bidirectional","order":"U","text":"DATA"}
+{"kind":"offsheet","id":"off-implicit","at":[10000000,25000000],"order":"e","text":"AUX"}
+{"kind":"offsheet","id":"off-out","at":[-60000000,-25000000],"io":"output","order":"K","text":"SENSE"}
+{"kind":"wire","id":"sense-wire","order":"o","points":[[-60000000,-25000000],[-40000000,-25000000]]}

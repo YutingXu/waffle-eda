@@ -1,0 +1,41 @@
+/* Signals panel (signals-panel.js): signals, legs, tags, suggestions and issues. */
+.panel-signals {flex:1 1 0;display:flex;flex-direction:column;min-height:140px;border-top:1px solid var(--divider)}
+.panel-signals[hidden] {display:none}
+.sig-close {margin-left:auto}
+.sig-tools, .sig-actions, .sig-input {display:flex;flex-wrap:wrap;gap:4px;padding:4px 6px;align-items:center}
+.sig-tools .sig-find {flex:1 1 140px;min-width:0}
+.sig-input-label {color:var(--muted);font-size:var(--fs-11)}
+.sig-input input {flex:1 1 120px;min-width:0}
+.sig-list {flex:1 1 0;overflow:auto;outline-offset:-2px}
+.sig-list:focus-visible {outline:1px solid var(--focus)}
+.sig-row {padding:2px 6px;border-bottom:1px solid var(--soft);cursor:default;font-size:var(--fs-12)}
+.sig-row.is-selected {background:var(--selection);color:var(--selection-ink)}
+.sig-line {display:flex;flex-wrap:wrap;gap:4px;align-items:baseline}
+.sig-twisty {border:0;background:none;padding:0 2px;color:inherit}
+.sig-name {font-weight:600}
+.sig-span, .sig-nets {color:var(--muted);overflow-wrap:anywhere}
+.sig-row.is-selected .sig-span, .sig-row.is-selected .sig-nets {color:inherit}
+.sig-leg {display:flex;flex-wrap:wrap;gap:4px;align-items:baseline;padding-left:18px}
+.sig-pol {font-weight:600;width:1em;text-align:center}
+.sig-paths, .sig-more {padding-left:18px;display:flex;flex-wrap:wrap;gap:4px;color:var(--muted)}
+.sig-issue {color:var(--ink)}
+/* Signals | Naming tabs; suggestion groups and offers (net-intent-index.js); naming.css styles the Naming view. */
+.sig-tools[hidden], .sig-actions[hidden], .sig-list[hidden] {display:none}
+.sig-naming {flex:1 1 0;overflow:auto;padding:6px 8px 12px;font-size:var(--fs-12);line-height:var(--lh)}
+.sig-naming[hidden] {display:none}
+.sig-group {display:flex;align-items:center;gap:6px;padding:6px 6px 2px}
+.sig-group > span {color:var(--muted);font-size:var(--fs-11);font-weight:var(--fw-semibold);text-transform:uppercase;letter-spacing:.04em}
+.sig-group .sig-btn {margin-left:auto}
+.sig-why {display:block;color:var(--muted);font-size:var(--fs-11)}
+.sig-offer {display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px 6px;background:var(--tint-info);border-bottom:1px solid var(--soft);font-size:var(--fs-11)}
+
+/* Create from nets (inline chooser). */
+.sig-create {display:flex;flex-direction:column;gap:4px;padding:6px;margin:0 6px 4px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--raised);font-size:var(--fs-12)}
+.sig-create[hidden] {display:none}
+.sig-create-row {display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sig-value-row {align-items:baseline}
+.sig-create-row input[type=text] {flex:1 1 120px;min-width:0}
+.sig-radio {display:inline-flex;gap:4px;align-items:center}
+.sig-create-nets {max-height:160px;overflow:auto;border:1px solid var(--soft);border-radius:var(--r-sm);background:var(--field);padding:2px 4px}
+.sig-create-net {display:flex;gap:6px;align-items:center;font:var(--fs-11) var(--mono)}
+.sig-create-preview {min-height:1.4em;color:var(--muted);font:var(--fs-11) var(--mono);overflow-wrap:anywhere}

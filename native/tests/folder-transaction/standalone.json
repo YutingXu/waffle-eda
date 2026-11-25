@@ -1,0 +1,9 @@
+{
+  "filename": "RÉSUMÉ.WSCH",
+  "projectId": "owner-scope",
+  "transaction": "4675a32d-7cea-47ec-b02a-807c8f36ef32",
+  "before": "{\"kind\":\"schematic\",\"formatVersion\":\"2.0\",\"id\":\"owner-scope\"}\n{\"kind\":\"netlabel\",\"id\":\"n1\",\"at\":[1270000,2540000],\"text\":\"SENSE\"}\n",
+  "after": "{\"kind\":\"schematic\",\"formatVersion\":\"2.0\",\"id\":\"owner-scope\"}\n{\"kind\":\"netlabel\",\"id\":\"n1\",\"at\":[1397000,2540000],\"text\":\"SENSE\"}\n",
+  "journal": ".waffle/journal/member-ca7ed0e1f4fd592f1134d93a6992bc1f7c415cb1c64bf1a80a77b5802804c401",
+  "active": "WAFFLE-TXN 1\n812d18d39a37d1eb8bf9e0080f38aa334736bef433af53e37ee53299d7cfa981\n{\"plan\":[{\"desired\":{\"length\":130,\"sha256\":\"006940a6e5e0135e82dcb43076c48e9819dde2933ea31ef865a8e4a6d3110d76\"},\"expected\":\"c8c03e58c66d6cf55983e46af81832de48d73ef6b2b5a42ae68fa1574fb60f74\",\"path\":\"RÉSUMÉ.WSCH\"}],\"projectId\":\"owner-scope\",\"transaction\":\"4675a32d-7cea-47ec-b02a-807c8f36ef32\"}\n"
+}

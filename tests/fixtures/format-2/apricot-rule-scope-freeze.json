@@ -1,0 +1,53 @@
+{
+  "baseline": "15cce862958f80f0ceecf5034658940366f5ac66",
+  "files": {
+    "tests/fixtures/bus/ddr4-byte-lane/Ddr.waffle": {
+      "rules": 33,
+      "scopes": 35,
+      "beforeManifest": "143d704ea379280ebbacf8d4835cbae58779977b3d0e7fb4a8173a2cbb7b12a0",
+      "afterManifest": "4364aba20bc84bc7e2463549c29f722e2e321b7784ff934745bf6adc0cfe978a",
+      "beforeClosure": "422d1c41aeec4f4de3d6ff01f5d8e54b8c6ecbb5b4630ebe4be4c64d43929330",
+      "afterClosure": "9357ab4918c2044f8e20d540dfa5ea1242f5a8dfbc41d9033b25004d77ac5ae0"
+    },
+    "tests/fixtures/cad-native/signal-board/Project.waffle": {
+      "rules": 32,
+      "scopes": 34,
+      "beforeManifest": "6cea8c5fe2daae7027a1b4f026d31552c9a791cf25e5f87f5bad2ca0a3a03b5c",
+      "afterManifest": "6095c06e53a2083a83e7d53519cd32b31b7d1fb748a387a2a89f3af7ad7a33c4",
+      "beforeClosure": "b4f13dfcd6e48e613f397235b8f577a2bc2a2fa2030b81958130e8ad712ae205",
+      "afterClosure": "f5dfe044310bace7458e5203599f9f346d7f00eef18d8d7fca3b4a1348ff4a89"
+    },
+    "tests/fixtures/format-2/future/Future.waffle": {
+      "rules": 1,
+      "scopes": 2,
+      "beforeManifest": "c263f2df99a33e90a5e3b8dbdf2d8935a0d818551dcaa3733b8bc0a61e3e32bf",
+      "afterManifest": "6448d09997cc51ceeed0afdb7108f61753b1f48109a2d1f839a119247183dd1f",
+      "beforeClosure": "a8a1cb86d985eefcd76bd835a14c61dced61e9dc3b32e5f4efb4933cd3cc5262",
+      "afterClosure": "980ffcf2c667c44279b9251f1865037d3985782510fcb08e13f303456b1a14ae"
+    },
+    "tests/fixtures/format-2/notebook/Notebook.waffle": {
+      "rules": 1,
+      "scopes": 1,
+      "beforeManifest": "a72c2c55608cc75467b8480f1c760cd77a842273cb67c4279e12b2a968bb8e97",
+      "afterManifest": "f72c8e4575c3656eecda986153a8a0071552151e3575c7bcbfc5e55c0a88c4ad",
+      "beforeClosure": "c740e989d080e085c100dd25a09e98ce21056a660d90dd3fa1b38bc461d4d213",
+      "afterClosure": "16b4469296e1bf5ee23059be39c24d00629f2e6ddc9e8d0fd95ce8ba1adcc421"
+    },
+    "tests/fixtures/format-2/workshop/Reference.waffle": {
+      "rules": 1,
+      "scopes": 2,
+      "beforeManifest": "d2b1357500af0579977f6010726853cab8fad0283e917dee699447af74b690e5",
+      "afterManifest": "133648863f5b28e152ed1d66e4e6becd7e6f478e1e48201c4e24c9ae15269061",
+      "beforeClosure": "12590b84677ad363670f12c1000b6cce6a4102038b212b6aa02c85eee1c78a79",
+      "afterClosure": "a673c37c80cefe28fe5ec19648fe71e065e0176bd9acbc0c08d8dd543a0c691b"
+    },
+    "tests/fixtures/signals/signal-board/Signals.waffle": {
+      "rules": 32,
+      "scopes": 34,
+      "beforeManifest": "a2e759db6361f98c7395bff9131cef168a241883dbf8b1b8485570754de3316b",
+      "afterManifest": "3e3abda0789eca53d1ca6ea2d984eba9d839017d293bbaad2cc49aaa1df86e30",
+      "beforeClosure": "852652c704d10014f6f68f84baac943f850e384bd6a137eb410c0e1f812ed1bf",
+      "afterClosure": "56acda2c75d9eba2f6b39612820acf98803cceffaf40a7335a23c28cc055a863"
+    }
+  }
+}

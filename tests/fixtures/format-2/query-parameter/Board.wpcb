@@ -1,0 +1,4 @@
+{"kind":"pcb","formatVersion":"2.0","id":"board"}
+{"kind":"documentSettings","id":"board/settings","value":{}}
+{"kind":"track","id":"thin","layer":"Top","net":"SIG","order":"K","points":[[0,0],[1000000,0]],"width":120000}
+{"kind":"track","id":"wide","layer":"Top","net":"SIG","order":"e","points":[[0,1000000],[1000000,1000000]],"width":250000}

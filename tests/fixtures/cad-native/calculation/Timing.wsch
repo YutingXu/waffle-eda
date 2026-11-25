@@ -1,0 +1,5 @@
+{"kind":"schematic","formatVersion":"2.0","id":"timing"}
+{"kind":"part","id":"c3","at":[20000000,10000000],"def":"def-c","order":"U","ref":"C3","value":"1n"}
+{"kind":"calculation","id":"corner","at":[10000000,20000000],"calculation":{"assertions":[],"bindings":[{"id":"use-r","name":"R5","span":[12,14],"target":{"docId":"timing","field":"value","itemId":"r5","scope":"item"}},{"id":"use-c","name":"C3","span":[15,17],"target":{"docId":"timing","field":"value","itemId":"c3","scope":"item"}}],"languageVersion":1},"h":16000000,"order":"j","text":"f_c = 1/(2π·R5·C3)","w":58000000}
+{"kind":"part","id":"r5","at":[10000000,10000000],"def":"def-r","order":"F","ref":"R5","value":"10k"}
+{"kind":"documentSettings","id":"timing/settings","value":{"grid":2540000,"notes":[],"outline":[]}}

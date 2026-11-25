@@ -1,0 +1,3 @@
+{"kind":"schematic","formatVersion":"2.0","id":"018cc251-f400-7001-8000-000000000003","requires":[]}
+{"kind":"port","id":"018cc251-f400-7001-8000-000000000009","angle":0,"at":[0,0],"io":"input","order":"V","text":"SENSE"}
+{"kind":"documentSettings","id":"018cc251-f400-7001-8000-000000000015","value":{"grid":1270000,"notes":[],"outline":[]}}

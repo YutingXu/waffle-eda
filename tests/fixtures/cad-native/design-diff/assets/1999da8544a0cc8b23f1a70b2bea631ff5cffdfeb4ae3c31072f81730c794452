@@ -1,0 +1,29 @@
+{"kind":"schematic","formatVersion":"2.0","id":"amwmqqymcvjqh0taq6if"}
+{"kind":"netlabel","id":"amwmqqymc1dkm1rcf2s7","at":[157480000,71120000],"order":"dm","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"netlabel","id":"amwmqqymc26irfz9wd0t","at":[134620000,101600000],"order":"op","text":"BUF"}
+{"kind":"netlabel","id":"amwmqqymc8honpsg9dcw","at":[86360000,73660000],"order":"FT","schPaint":{"direction":1,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":2,"type":"power"},"text":"aaaaaaaaaaaaaaaaaaaaaaaaaa!"}
+{"kind":"netlabel","id":"amwmqqymc8obda7n9oc","at":[121920000,78740000],"order":"Uw","text":"FILTER"}
+{"kind":"netlabel","id":"amwmqqymcbmcvyaqmelk","at":[119380000,93980000],"order":"X9","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"wire","id":"amwmqqymceeb52uxhzan","order":"OJ","points":[[109220000,78740000],[134620000,78740000]]}
+{"kind":"netlabel","id":"amwmqqymcfr8sc85mqcj","at":[86360000,83820000],"order":"Hg","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"netlabel","id":"amwmqqymci9x8ve90nzd","at":[182880000,86360000],"order":"vS","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"wire","id":"amwmqqymckh8r8e4b3js","order":"kP","points":[[134620000,83820000],[132080000,83820000],[132080000,101600000],[154940000,101600000],[154940000,81280000]]}
+{"kind":"wire","id":"amwmqqymclgjubx88wj","order":"QW","points":[[119380000,78740000],[119380000,83820000]]}
+{"kind":"wire","id":"amwmqqymco6uoaxy2f5h","order":"r2","points":[[170180000,81280000],[182880000,81280000]]}
+{"kind":"netlabel","id":"amwmqqymcp09gnxfrzh","at":[142240000,60960000],"order":"bZ","schPaint":{"direction":1,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":2,"type":"power"},"text":"VDD"}
+{"kind":"junction","id":"amwmqqymcpkiep77w1kg","at":[154940000,81280000],"order":"mc"}
+{"kind":"netlabel","id":"amwmqqymcpw2qxu3dhk","at":[142240000,88900000],"order":"fz","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2032000,"style":4,"type":"power"},"text":"GND"}
+{"kind":"wire","id":"amwmqqymcqkbxirv7em","order":"iC","points":[[149860000,81280000],[160020000,81280000]]}
+{"kind":"netlabel","id":"amwmqqymcryvwyr94ppc","at":[88900000,78740000],"order":"M6","text":"VIN"}
+{"kind":"wire","id":"amwmqqymcvhqfwwwyrci","order":"Jt","points":[[86360000,78740000],[99060000,78740000]]}
+{"kind":"documentSettings","id":"amwmqqymcvjqh0taq6if/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"wire","id":"amwmqqymcw5a1zmotwj","order":"ZM","points":[[142240000,73660000],[142240000,60960000],[157480000,60960000]]}
+{"kind":"junction","id":"amwmqqymcxl9403qy9t","at":[119380000,78740000],"order":"Sj"}
+{"kind":"netlabel","id":"amwmqqymcxwn9deenrhs","at":[172720000,81280000],"order":"tF","text":"VOUT"}
+{"kind":"part","id":"s-C1","angle":270000000000,"at":[119380000,88900000],"def":"std-c","link":"link-C1","order":"6d","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","refAt":[-635000,-3302000],"value":"10 nF","valueAt":[2921000,-3302000]}
+{"kind":"part","id":"s-J1","angle":0,"at":[78740000,78740000],"def":"std-j3","link":"link-J1","order":"2D","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","refAt":[-2159000,-8890000],"value":"Input","valueAt":[-2159000,10414000]}
+{"kind":"part","id":"s-J2","angle":0,"at":[190500000,83820000],"def":"std-j2","link":"link-J2","order":"DG","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","refAt":[-2159000,-6350000],"value":"Output","valueAt":[-2159000,7874000]}
+{"kind":"part","id":"s-R1","angle":0,"at":[104140000,78740000],"def":"std-r","link":"link-R1","order":"4Q","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R?","refAt":[-2540000,-1905000],"value":"10 kΩ","valueAt":[-2540000,3810000]}
+{"kind":"part","id":"s-R2","angle":0,"at":[165100000,81280000],"def":"std-r","link":"link-R2","order":"B3","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","refAt":[-2540000,-1905000],"value":"100 Ω","valueAt":[-2540000,3810000]}
+{"kind":"part","id":"s-R9","angle":0,"at":[200000000,100000000],"def":"std-r","link":"link-R9","order":"xf","pinNets":{"1":"VOUT","2":"SENSE"},"ref":"R9","value":"1 kΩ"}
+{"kind":"part","id":"s-U1","angle":0,"at":[142240000,81280000],"def":"std-opamp","link":"link-U1","order":"8q","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","refAt":[3810000,-5842000],"value":"Buffer","valueAt":[3302000,7366000]}

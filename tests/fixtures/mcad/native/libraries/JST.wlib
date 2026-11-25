@@ -1,0 +1,6 @@
+{"kind":"library","formatVersion":"2.0","id":"conn","name":"JST"}
+{"kind":"pad","id":"conn/pad/1","order":"F","value":{"drill":900000,"h":1600000,"number":"1","w":1600000,"x":-1000000,"y":0}}
+{"kind":"pad","id":"conn/pad/2","order":"U","value":{"drill":900000,"h":1600000,"number":"2","w":1600000,"x":1000000,"y":0}}
+{"kind":"pad","id":"conn/pad/3","order":"j","value":{"drill":1200000,"h":1200000,"number":"","plated":false,"w":1200000,"x":0,"y":2000000}}
+{"kind":"librarySettings","id":"conn/settings","value":{"footprint":{"height":6000000,"name":"JST-2","pads":[],"shapes":[]},"prefix":"J"}}
+{"kind":"shape","id":"conn/shape/1","order":"V","side":"footprint","value":{"kind":"path","closed":true,"layer":"Mechanical 13","points":[[-3000000,-2250000],[3000000,-2250000],[3000000,2250000],[-3000000,2250000]]}}

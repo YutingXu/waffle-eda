@@ -1,0 +1,55 @@
+{
+  "fixture": "tests/fixtures/butter-acceptance/saved-views",
+  "manifest": "Saved-view study.waffle",
+  "cases": {
+    "providers": {
+      "args": {},
+      "expect": {"changes": 0}
+    },
+    "policy": {
+      "args": {},
+      "expect": {"allowed": false},
+      "expectPaths": {"untrusted_design_text.tools": []}
+    },
+    "set-policy": {
+      "args": {"allowed": true, "tools": ["inspect_component"]},
+      "expect": {"allowed": true},
+      "expectWrite": {"allowed": true},
+      "afterWrite": {"id": "policy", "args": {}, "expect": {"allowed": true},
+        "expectPaths": {"untrusted_design_text.tools": ["inspect_component"]}}
+    },
+    "ask": {
+      "args": {
+        "provider": "waffle.stub",
+        "prompt": "Inspect the selected test point.",
+        "documentId": "board",
+        "selection": ["probe"],
+        "read": {"tool": "inspect_component", "args": {"component_id": "probe"}}
+      },
+      "expectPaths": {"untrusted_design_text.status": "opted-out"},
+      "expectWrite": {"tools": 1},
+      "expectWritePaths": {"untrusted_design_text.status": "answered", "untrusted_design_text.text": "Verified 1 tool rows."}
+    },
+    "draft": {
+      "args": {"documentId": "board", "componentId": "probe", "field": "value", "value": "AI reviewed"},
+      "expect": {"changes": 1},
+      "expectWrite": {"changes": 1},
+      "changedMembers": ["Board.wpcb"]
+    },
+    "activity": {
+      "args": {},
+      "expectPaths": {"untrusted_design_text.requests": []}
+    },
+    "clear-activity": {
+      "args": {},
+      "expectPaths": {"untrusted_design_text.status": "plan"},
+      "expectWritePaths": {"untrusted_design_text.status": "cleared"},
+      "afterWrite": {"id": "activity", "args": {}, "expectPaths": {"untrusted_design_text.requests": []}}
+    },
+    "credential": {
+      "args": {"provider": "waffle.stub", "operation": "status"},
+      "expect": {"available": false},
+      "expectWrite": {"available": false}
+    }
+  }
+}

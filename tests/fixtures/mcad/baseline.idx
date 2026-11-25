@@ -1,0 +1,943 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<foundation:EDMDDataSet xmlns:foundation="http://www.prostep.org/EDMD/3.0/foundation" xmlns:pdm="http://www.prostep.org/EDMD/3.0/pdm" xmlns:d2="http://www.prostep.org/EDMD/3.0/geometry.d2" xmlns:property="http://www.prostep.org/EDMD/3.0/property" xmlns:computational="http://www.prostep.org/EDMD/3.0/computational" xmlns:administration="http://www.prostep.org/EDMD/3.0/administration" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <foundation:Header xsi:type="foundation:EDMDHeader">
+    <foundation:Description>Waffle IDX baseline: Board</foundation:Description>
+    <foundation:CreatorName></foundation:CreatorName>
+    <foundation:CreatorCompany></foundation:CreatorCompany>
+    <foundation:CreatorSystem>Waffle</foundation:CreatorSystem>
+    <foundation:GlobalUnitLength>UNIT_MM</foundation:GlobalUnitLength>
+    <foundation:CreationDateTime>2026-11-19T12:00:00</foundation:CreationDateTime>
+    <foundation:ModifiedDateTime>2026-11-19T12:00:00</foundation:ModifiedDateTime>
+  </foundation:Header>
+  <foundation:Body xsi:type="foundation:EDMDDataSetBody">
+    <foundation:CartesianPoint id="CP_1" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>0</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>0</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_2" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>0</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-40</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_3" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>60</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-40</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_4" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>60</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-5</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_1" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_1</d2:Point>
+      <d2:Point>CP_2</d2:Point>
+      <d2:Point>CP_3</d2:Point>
+      <d2:Point>CP_4</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CartesianPoint id="CP_5" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>58.535534</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-1.464466</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_6" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>55</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>0</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:Arc id="AR_1" xsi:type="d2:EDMDArc">
+      <d2:StartPoint>CP_4</d2:StartPoint>
+      <d2:MidPoint>CP_5</d2:MidPoint>
+      <d2:EndPoint>CP_6</d2:EndPoint>
+    </foundation:Arc>
+    <foundation:PolyLine id="PL_2" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_6</d2:Point>
+      <d2:Point>CP_1</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CompositeCurve id="CU_1" xsi:type="d2:EDMDCompositeCurve">
+      <d2:Curve>PL_1</d2:Curve>
+      <d2:Curve>AR_1</d2:Curve>
+      <d2:Curve>PL_2</d2:Curve>
+    </foundation:CompositeCurve>
+    <foundation:CurveSet2d id="CS_1" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>1.6003</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>CU_1</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_1">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>false</pdm:Inverted>
+      <pdm:DefiningShape>CS_1</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:CartesianPoint id="CP_7" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>20</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-15</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_8" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>30</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-15</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_9" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>30</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-22</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_10" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>20</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-22</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_3" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_7</d2:Point>
+      <d2:Point>CP_8</d2:Point>
+      <d2:Point>CP_9</d2:Point>
+      <d2:Point>CP_10</d2:Point>
+      <d2:Point>CP_7</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CurveSet2d id="CS_2" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>1.6003</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>PL_3</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_2">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>true</pdm:Inverted>
+      <pdm:DefiningShape>CS_2</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_1">
+      <foundation:Name>Board</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:Shape>SE_1</pdm:Shape>
+      <pdm:Shape>SE_2</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_2" geometryType="BOARD_OUTLINE">
+      <foundation:Name>Board</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>board</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_1">
+        <pdm:Item>IT_1</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>Board</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>0</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>0</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+        <pdm:zOffset>
+          <property:Value>0</property:Value>
+        </pdm:zOffset>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>THICKNESS</foundation:ObjectName>
+        </property:Key>
+        <property:Value>1.6003</property:Value>
+      </foundation:UserProperty>
+    </foundation:Item>
+    <foundation:CartesianPoint id="CP_11" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>-0.8</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>0.4</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_12" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>-0.8</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-0.4</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_13" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>0.8</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-0.4</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_14" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>0.8</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>0.4</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_4" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_11</d2:Point>
+      <d2:Point>CP_12</d2:Point>
+      <d2:Point>CP_13</d2:Point>
+      <d2:Point>CP_14</d2:Point>
+      <d2:Point>CP_11</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CurveSet2d id="CS_3" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>0.5</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>PL_4</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_3">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>false</pdm:Inverted>
+      <pdm:DefiningShape>CS_3</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_3">
+      <foundation:Name>R0603</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:PackageName>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:ObjectName>R0603</foundation:ObjectName>
+      </pdm:PackageName>
+      <pdm:Shape>SE_3</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_4" geometryType="COMPONENT">
+      <foundation:Name>R1</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>pR1</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_2">
+        <pdm:Item>IT_3</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>R1</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>10</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>-10</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+        <pdm:zOffset>
+          <property:Value>1.6003</property:Value>
+        </pdm:zOffset>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>REFDES</foundation:ObjectName>
+        </property:Key>
+        <property:Value>R1</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>VALUE</foundation:ObjectName>
+        </property:Key>
+        <property:Value>10k</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>SIDE</foundation:ObjectName>
+        </property:Key>
+        <property:Value>TOP</property:Value>
+      </foundation:UserProperty>
+    </foundation:Item>
+    <foundation:CartesianPoint id="CP_15" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>-1.5</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>1.5</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_16" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>-1.5</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-1.5</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_17" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>1.5</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-1.5</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_18" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>1.5</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>1.5</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_5" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_15</d2:Point>
+      <d2:Point>CP_16</d2:Point>
+      <d2:Point>CP_17</d2:Point>
+      <d2:Point>CP_18</d2:Point>
+      <d2:Point>CP_15</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CurveSet2d id="CS_4" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>0.9</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>PL_5</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_4">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>false</pdm:Inverted>
+      <pdm:DefiningShape>CS_4</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_5">
+      <foundation:Name>QFN16</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:PackageName>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:ObjectName>QFN16</foundation:ObjectName>
+      </pdm:PackageName>
+      <pdm:Shape>SE_4</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_6" geometryType="COMPONENT">
+      <foundation:Name>U1</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>pU1</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_3">
+        <pdm:Item>IT_5</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>U1</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>0</pdm:xx>
+          <pdm:xy>-1</pdm:xy>
+          <pdm:yx>-1</pdm:yx>
+          <pdm:yy>0</pdm:yy>
+          <pdm:tx>
+            <property:Value>40</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>-12</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+        <pdm:zOffset>
+          <property:Value>0</property:Value>
+        </pdm:zOffset>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>REFDES</foundation:ObjectName>
+        </property:Key>
+        <property:Value>U1</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>VALUE</foundation:ObjectName>
+        </property:Key>
+        <property:Value>MCU</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>SIDE</foundation:ObjectName>
+        </property:Key>
+        <property:Value>BOTTOM</property:Value>
+      </foundation:UserProperty>
+    </foundation:Item>
+    <foundation:CartesianPoint id="CP_19" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>-3</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>2.25</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_20" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>-3</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-2.25</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_21" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>3</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-2.25</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_22" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>3</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>2.25</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_6" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_19</d2:Point>
+      <d2:Point>CP_20</d2:Point>
+      <d2:Point>CP_21</d2:Point>
+      <d2:Point>CP_22</d2:Point>
+      <d2:Point>CP_19</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CurveSet2d id="CS_5" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>6</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>PL_6</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_5">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>false</pdm:Inverted>
+      <pdm:DefiningShape>CS_5</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_7">
+      <foundation:Name>JST-2</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:PackageName>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:ObjectName>JST-2</foundation:ObjectName>
+      </pdm:PackageName>
+      <pdm:Shape>SE_5</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_8" geometryType="COMPONENT">
+      <foundation:Name>J1</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>pJ1</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_4">
+        <pdm:Item>IT_7</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>J1</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>-1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>-1</pdm:yy>
+          <pdm:tx>
+            <property:Value>45</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>-32</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+        <pdm:zOffset>
+          <property:Value>1.6003</property:Value>
+        </pdm:zOffset>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>REFDES</foundation:ObjectName>
+        </property:Key>
+        <property:Value>J1</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>VALUE</foundation:ObjectName>
+        </property:Key>
+        <property:Value>PWR</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>SIDE</foundation:ObjectName>
+        </property:Key>
+        <property:Value>TOP</property:Value>
+      </foundation:UserProperty>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>LOCKED</foundation:ObjectName>
+        </property:Key>
+        <property:Value>true</property:Value>
+      </foundation:UserProperty>
+    </foundation:Item>
+    <foundation:CircleCenter id="CC_1" xsi:type="d2:EDMDCircleCenter">
+      <d2:CenterPoint>CP_1</d2:CenterPoint>
+      <d2:Diameter>
+        <property:Value>1.2</property:Value>
+      </d2:Diameter>
+    </foundation:CircleCenter>
+    <foundation:CurveSet2d id="CS_6" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>1.6003</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>CC_1</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_6">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>true</pdm:Inverted>
+      <pdm:DefiningShape>CS_6</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_9">
+      <foundation:Name>NPTH 1.2</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:Shape>SE_6</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_10" geometryType="HOLE_NON_PLATED">
+      <foundation:Name>J1 </foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>pJ1/</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_5">
+        <pdm:Item>IT_9</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>pJ1/</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>45</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>-30</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:CircleCenter id="CC_2" xsi:type="d2:EDMDCircleCenter">
+      <d2:CenterPoint>CP_1</d2:CenterPoint>
+      <d2:Diameter>
+        <property:Value>3.2</property:Value>
+      </d2:Diameter>
+    </foundation:CircleCenter>
+    <foundation:CurveSet2d id="CS_7" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>1.6003</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>CC_2</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_7">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>true</pdm:Inverted>
+      <pdm:DefiningShape>CS_7</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_11">
+      <foundation:Name>NPTH 3.2</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:Shape>SE_7</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_12" geometryType="HOLE_NON_PLATED">
+      <foundation:Name>Hole</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>h1</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_6">
+        <pdm:Item>IT_11</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>h1</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>4</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>-36</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:CircleCenter id="CC_3" xsi:type="d2:EDMDCircleCenter">
+      <d2:CenterPoint>CP_1</d2:CenterPoint>
+      <d2:Diameter>
+        <property:Value>3</property:Value>
+      </d2:Diameter>
+    </foundation:CircleCenter>
+    <foundation:CurveSet2d id="CS_8" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>1.6003</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>CC_3</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_8">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>true</pdm:Inverted>
+      <pdm:DefiningShape>CS_8</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_13">
+      <foundation:Name>PTH 3</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:Shape>SE_8</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_14" geometryType="HOLE_PLATED">
+      <foundation:Name>Hole</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>h2</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_7">
+        <pdm:Item>IT_13</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>h2</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>56</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>-36</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:CartesianPoint id="CP_23" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>5</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-20</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_24" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>15</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-20</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_25" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>15</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-30</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_26" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>5</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-30</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_7" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_23</d2:Point>
+      <d2:Point>CP_24</d2:Point>
+      <d2:Point>CP_25</d2:Point>
+      <d2:Point>CP_26</d2:Point>
+      <d2:Point>CP_23</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CurveSet2d id="CS_9" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>2.5</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>PL_7</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_9">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>false</pdm:Inverted>
+      <pdm:DefiningShape>CS_9</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_15">
+      <foundation:Name>Area k1</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:Shape>SE_9</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_16" geometryType="KEEPOUT_AREA_COMPONENT">
+      <foundation:Name>Keep-out k1</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>k1</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_8">
+        <pdm:Item>IT_15</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>k1</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>0</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>0</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>LAYER</foundation:ObjectName>
+        </property:Key>
+        <property:Value>Keepout</property:Value>
+      </foundation:UserProperty>
+    </foundation:Item>
+    <foundation:CartesianPoint id="CP_27" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>35</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-25</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_28" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>40</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-25</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_29" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>40</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-30</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:CartesianPoint id="CP_30" xsi:type="d2:EDMDCartesianPoint">
+      <d2:X>
+        <property:Value>35</property:Value>
+      </d2:X>
+      <d2:Y>
+        <property:Value>-30</property:Value>
+      </d2:Y>
+    </foundation:CartesianPoint>
+    <foundation:PolyLine id="PL_8" xsi:type="d2:EDMDPolyLine">
+      <d2:Point>CP_27</d2:Point>
+      <d2:Point>CP_28</d2:Point>
+      <d2:Point>CP_29</d2:Point>
+      <d2:Point>CP_30</d2:Point>
+      <d2:Point>CP_27</d2:Point>
+    </foundation:PolyLine>
+    <foundation:CurveSet2d id="CS_10" xsi:type="d2:EDMDCurveSet2d">
+      <pdm:ShapeDescriptionType>GeometricModel</pdm:ShapeDescriptionType>
+      <d2:LowerBound>
+        <property:Value>0</property:Value>
+      </d2:LowerBound>
+      <d2:UpperBound>
+        <property:Value>0</property:Value>
+      </d2:UpperBound>
+      <d2:DetailedGeometricModelElement>PL_8</d2:DetailedGeometricModelElement>
+    </foundation:CurveSet2d>
+    <foundation:ShapeElement id="SE_10">
+      <pdm:ShapeElementType>FeatureShapeElement</pdm:ShapeElementType>
+      <pdm:Inverted>false</pdm:Inverted>
+      <pdm:DefiningShape>CS_10</pdm:DefiningShape>
+    </foundation:ShapeElement>
+    <foundation:Item id="IT_17">
+      <foundation:Name>Area k2</foundation:Name>
+      <pdm:ItemType>single</pdm:ItemType>
+      <pdm:Shape>SE_10</pdm:Shape>
+      <pdm:BaseLine>true</pdm:BaseLine>
+    </foundation:Item>
+    <foundation:Item id="IT_18" geometryType="KEEPOUT_AREA_ROUTE">
+      <foundation:Name>Keep-out k2</foundation:Name>
+      <pdm:ItemType>assembly</pdm:ItemType>
+      <pdm:Identifier>
+        <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+        <foundation:Number>k2</foundation:Number>
+        <foundation:Version>1</foundation:Version>
+        <foundation:Revision>0</foundation:Revision>
+        <foundation:Sequence>0</foundation:Sequence>
+      </pdm:Identifier>
+      <pdm:ItemInstance id="II_9">
+        <pdm:Item>IT_17</pdm:Item>
+        <pdm:InstanceName>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>k2</foundation:ObjectName>
+        </pdm:InstanceName>
+        <pdm:Transformation>
+          <pdm:TransformationType>d2</pdm:TransformationType>
+          <pdm:xx>1</pdm:xx>
+          <pdm:xy>0</pdm:xy>
+          <pdm:yx>0</pdm:yx>
+          <pdm:yy>1</pdm:yy>
+          <pdm:tx>
+            <property:Value>0</property:Value>
+          </pdm:tx>
+          <pdm:ty>
+            <property:Value>0</property:Value>
+          </pdm:ty>
+        </pdm:Transformation>
+      </pdm:ItemInstance>
+      <pdm:BaseLine>true</pdm:BaseLine>
+      <foundation:UserProperty xsi:type="property:EDMDUserSimpleProperty">
+        <property:Key>
+          <foundation:SystemScope>ATRIUM</foundation:SystemScope>
+          <foundation:ObjectName>LAYER</foundation:ObjectName>
+        </property:Key>
+        <property:Value>Top</property:Value>
+      </foundation:UserProperty>
+    </foundation:Item>
+  </foundation:Body>
+  <foundation:ProcessInstruction xsi:type="computational:EDMDProcessInstructionSendInformation"/>
+</foundation:EDMDDataSet>

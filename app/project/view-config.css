@@ -1,0 +1,41 @@
+/* View Configuration panel (Altium's Ctrl+L panel) for the 2D board view. */
+.vc-panel{
+  position:fixed;top:84px;right:calc(var(--properties) + 34px);z-index:var(--z-alert);
+  width:300px;max-height:calc(100vh - 140px);display:flex;flex-direction:column;
+  font-size:var(--fs-12);line-height:var(--lh);
+}
+.vc-panel[hidden]{display:none}
+.vc-head{display:flex;align-items:center;min-height:28px;padding:0 4px 0 8px;background:var(--panel-head);border-radius:var(--r-lg) var(--r-lg) 0 0;
+  border-bottom:1px solid var(--line);cursor:move;-webkit-user-select:none;user-select:none}
+.vc-title{flex:1;font-weight:600}
+.vc-close:not(.ui-button){height:22px;border:0;background:none;color:var(--muted);cursor:default}
+.vc-tabs .ui-tab{flex:1}
+.vc-body{flex:1;overflow:auto;padding:2px 0 6px}
+.vc-group-head{display:flex;align-items:center;gap:2px;height:24px;padding:0 6px;margin-top:4px;background:var(--soft)}
+.vc-disclose{flex:1;display:flex;align-items:center;gap:6px;height:22px;border:0;background:none;color:var(--ink);font:600 var(--fs-12)/1 inherit;font-family:inherit;text-align:left;cursor:default;padding:0 2px}
+.vc-disclose::before{content:"";width:0;height:0;border:4px solid transparent;border-top-color:currentColor;border-bottom:0;margin-top:2px}
+.vc-disclose[aria-expanded=false]::before{border:4px solid transparent;border-left-color:currentColor;border-right:0;margin:0 1px 0 2px}
+.vc-rows[hidden]{display:none}
+.vc-row,.vc-field{display:flex;align-items:center;gap:6px;min-height:22px;padding:1px 8px 1px 6px}
+.vc-row:hover,.vc-field:hover{background:var(--hover)}
+.vc-row.current{background:color-mix(in srgb,var(--selection) 55%,transparent)}
+.vc-row.off .vc-name,.vc-row.off .vc-swatch{opacity:.45}
+.vc-eye,.vc-eye-space{flex:none;width:22px;height:20px}
+.vc-eye{display:grid;place-items:center;border:0;padding:0;background:none;color:var(--ink);cursor:default;border-radius:var(--r-sm)}
+.vc-eye[aria-pressed=false]{color:var(--faint)}
+.vc-eye:hover{background:var(--raised)}
+.vc-eye svg{width:14px;height:14px}
+.vc-swatch{flex:none;width:30px;height:13px;padding:0;border:1px solid var(--swatch-line);border-radius:var(--r-sm);cursor:default}
+.vc-swatch.custom{outline:1px dashed var(--accent);outline-offset:1px}
+.vc-swatch:hover{border-color:var(--ink-bright)}
+.vc-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vc-tag{color:var(--accent-text);font-size:var(--fs-11)}
+.vc-slider input{flex:none;width:110px;accent-color:var(--accent)}
+.vc-value{flex:none;width:34px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.vc-foot{display:flex;justify-content:flex-end;padding:6px 8px;border-top:1px solid var(--line);background:var(--chrome);border-radius:0 0 var(--r-lg) var(--r-lg)}
+.vc-panel input:focus-visible{outline:1px solid var(--focus);outline-offset:-1px}
+.vc-picker{position:fixed;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0;pointer-events:none}
+@media (max-width:700px){.vc-panel{left:8px!important;right:8px!important;width:auto}}
+/* Layer opacity (multiplies the object transparency in View Options); quiet until the row is hovered or focused. */
+.vc-alpha{flex:none;width:64px;height:14px;margin:0;accent-color:var(--accent);opacity:.35}
+.vc-alpha.custom,.vc-row:hover .vc-alpha,.vc-alpha:focus-visible{opacity:1}

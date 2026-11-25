@@ -1,0 +1,562 @@
+/* Waffle UI library: the component families beyond the form controls in controls.css.
+   Each family root is one class (specificity 0,1,0), so it beats element resets such as button {}
+   while a feature can still place it with its own class.
+   docs/ui-library.md documents each class; app/ui/gallery.js renders every state (index.html#ui-gallery).
+   Change a family's look here, never per feature. */
+
+/* ---- Icon button: a square, borderless button around one 16 px icon, drawn in --ink -------------- */
+:is(.ui-icon-button):is(button,a) {
+  box-sizing:border-box;display:inline-grid;place-items:center;flex:none;
+  inline-size:var(--ui-control-height,var(--ctl-h));block-size:var(--ui-control-height,var(--ctl-h));
+  min-inline-size:var(--ui-control-height,var(--ctl-h));padding:0;
+  border:0;border-radius:var(--chrome-control-radius);background:transparent;color:var(--ink);
+  transition:background-color var(--motion-instant) linear,color var(--motion-instant) linear;
+}
+:is(.ui-icon-button)[data-size=sm] {--ui-control-height:var(--ctl-h-sm)}
+:is(.ui-icon-button)[data-size=lg] {--ui-control-height:var(--ctl-h-lg)}
+:is(.ui-icon-button) > :where(.icon) {inline-size:var(--s-16);block-size:var(--s-16)}
+:where(:root:not([data-pointer=touch])) :is(.ui-icon-button):hover:not(:disabled) {background:var(--button-face-hover,var(--hover));color:var(--ink)}
+:is(.ui-icon-button):active:not(:disabled) {background:var(--button-face-pressed,var(--pressed))}
+:is(.ui-icon-button):is([aria-pressed=true],[aria-expanded=true]) {background:var(--selection);color:var(--selection-ink)}
+:is(.ui-icon-button):disabled {opacity:.45}
+:is(.ui-icon-button):focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
+
+/* Menu choices share the highlighted row; a trigger may supply its own indicator. */
+.action-menu-button:where(:not([data-menu-indicator=custom]))::after {content:"";display:inline-block;margin-inline-start:var(--s-6);vertical-align:middle;border-inline:3px solid transparent;border-top:4px solid currentColor}
+:is(.nav-menu-item,.menu-items button,.ui-menu-buttons > button,.ui-menu-picks button,.ui-chrome-action-compact) {border-radius:var(--r-sm)}
+:is(.nav-menu-item,.menu-items button,.ui-menu-item):is(:hover:not(:disabled),:focus-visible),
+:is(.ui-menu-picks,#library-list) button:is(:hover,:focus-visible,.selected),
+.ui-menu-buttons > button:hover {background:var(--selection);color:var(--ui-menu-active-ink,var(--selection-ink))}
+.ui-menu-buttons {--ui-menu-active-ink:var(--ink)}
+.menu-items button:focus-visible,:is(.ui-menu-picks,#library-list) button:focus-visible {outline-color:var(--selection-ink)}
+:is(.nav-menu-item,.ui-menu-item):hover:not(:disabled),:is(.nav-menu-item,.ui-menu-item):focus-visible {outline:none}
+:is(.nav-menu-item,.menu-items button):is(:hover:not(:disabled),:focus-visible) > .ui-shortcut {--shortcut-ink:var(--sel-sub-ink)}
+
+/* ---- Close button: the shared close icon (16 px, 1.6 stroke, currentColor) ---------------------
+   The "×" text stays in the DOM for assistive technology; only its glyph is hidden. Flex, not grid: in a
+   grid the hidden text becomes a second row and pushes the icon up. Button-qualified (0,1,1) so it wins
+   over a feature's own close class, which keeps only placement and hit size. */
+.ui-close:is(button,a) {
+  display:inline-flex;align-items:center;justify-content:center;min-width:var(--ctl-h);min-height:var(--ctl-h);padding:0;font-size:0!important;line-height:0;color:var(--icon-ink);border-radius:var(--r-sm)}
+:is(.ui-close:is(button,a),.ui-dismiss-glyph)::before {
+  content:"";width:var(--ui-dismiss-size,16px);height:var(--ui-dismiss-size,16px);background:currentColor;
+  -webkit-mask:var(--icon-close) center/contain no-repeat;mask:var(--icon-close) center/contain no-repeat}
+.vc-close,.sm-panel .vc-close {width:24px;padding-inline:0;font-size:var(--fs-16);line-height:1}
+.ui-close:is(button,a):hover:not(:disabled),
+[data-hover=ink]:hover {color:var(--ink);background:var(--hover)}
+.ui-dismiss-glyph {--ui-dismiss-size:var(--chrome-glyph-dense)}
+.ui-dismiss-glyph-small {--ui-dismiss-size:12px}
+.ui-chrome-action {border-radius:var(--chrome-control-radius)}
+.ui-chrome-action[data-fill=soft] {background:var(--soft)}
+.ui-chrome-action:where(:not(.ui-layer-action,[data-hover=bright],[data-hover=focus],[data-hover=raised])):hover:not(:disabled),
+:where(:root:not([data-pointer=touch])) .ui-chrome-action:where([data-hover=bright],[data-hover=focus]):hover,
+.ui-chrome-action:where([data-hover=focus]):focus-visible {background:var(--hover)}
+:where(:root:not([data-pointer=touch])) .ui-chrome-action:where([data-hover=bright]):hover {color:var(--ink-bright)}
+
+details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(--raised);color:var(--ink-bright)}
+@media (hover:hover) and (pointer:fine) {[data-hover=raised]:hover:not(:disabled) {background:var(--raised);color:var(--ink-bright)}}
+[data-hover=raised-ink]:hover {background:var(--raised);color:var(--ink)}
+.ui-layer-action {border:1px solid transparent;color:var(--dim-ink)}
+.ui-layer-action[aria-expanded] {color:var(--ink);border-color:var(--button-face-line,var(--line));background:var(--button-face,transparent)}
+@media (hover:hover) {.ui-layer-action[aria-expanded]:hover {background:var(--button-face-hover,var(--hover))}}
+.ui-layer-action:is(.copper[aria-pressed=true],[aria-expanded=true]) {background:var(--layer-on);border-color:var(--line-strong);color:var(--ink-bright)}
+.ui-layer-action:not(.copper,[aria-expanded])[aria-pressed=false] {color:var(--faint)}
+.ui-layer-action:not(.copper,[aria-expanded])[aria-pressed=false] .layer-swatch {background:transparent!important;border-color:var(--faint)}
+@media (hover:hover) and (pointer:fine) {
+  .ui-layer-action:is([aria-expanded=false]:hover:not(:disabled),:not([aria-expanded],.copper[aria-pressed=true]):hover) {background:var(--hover);color:var(--ink-bright)}
+}
+.ui-layer-action:not(.copper,[aria-expanded])[aria-current=true] {box-shadow:inset 0 calc(-1 * var(--s-2)) 0 var(--accent);color:var(--ink-bright)}
+
+/* ---- Chip: a compact toggle or token (filters, scopes, picked values) ---------------------------
+   22 px, the control radius, a hairline when off and a raised neutral fill when on. Never a pill and
+   never an accent fill (the settled Properties selection filter). */
+:is(.ui-chip) {
+  box-sizing:border-box;position:relative;display:inline-flex;align-items:center;gap:var(--s-4);flex:none;
+  min-block-size:var(--chrome-pill-height);max-inline-size:100%;padding:0 var(--s-8);
+  border:1px solid var(--line);border-radius:var(--chrome-control-radius);background:transparent;
+  color:var(--muted);font:var(--fw-medium) var(--fs-11)/1 var(--font-ui);white-space:nowrap;
+}
+:is(.ui-chip) > :is(.ui-chip-label) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis}
+@media (hover:hover) and (pointer:fine) {
+  :is(button.ui-chip,.ui-chip[role=checkbox],.ui-chip[role=option]):hover:not(:disabled,[aria-pressed=true],[aria-checked=true],[aria-selected=true]) {border-color:var(--line-strong)}
+}
+:is(.ui-chip):is([aria-pressed=true],[aria-checked=true],[aria-selected=true],.is-on) {border-color:transparent;background:var(--raised);color:var(--ink)}
+:is(.ui-chip):disabled,:is(.ui-chip[aria-disabled=true]) {opacity:.45}
+:is(.ui-chip)[data-invalid=true] {border-color:var(--error);color:var(--error)}
+:is(.ui-chip):focus-visible {outline:var(--focus-w) solid var(--accent);outline-offset:1px}
+:is(.ui-chip-remove) {
+  display:inline-grid;place-items:center;flex:none;inline-size:var(--s-16);block-size:var(--s-16);margin-inline:var(--s-2) calc(-1 * var(--s-4));
+  padding:0;border:0;border-radius:var(--r-sm);background:transparent;color:var(--faint);font-size:0;line-height:0;
+}
+:is(.ui-chip-remove)::before {content:"";inline-size:var(--s-12);block-size:var(--s-12);background:currentColor;
+  -webkit-mask:var(--icon-close) center/12px no-repeat;mask:var(--icon-close) center/12px no-repeat}
+:is(.ui-chip-remove):hover {background:var(--hover);color:var(--ink)}
+:is(.ui-chips) {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4);min-inline-size:0}
+@media (any-pointer:coarse) {:is(.ui-chip)::after {content:"";position:absolute;inset:calc(-1 * var(--s-2))}}
+
+/* ---- Badge, count and status dot --------------------------------------------------------------- */
+/* A badge labels state (Draft, Stale, Offline): status ink on its tint, one pill shape and size. */
+:is(.ui-badge):where(:not([data-outline])) {
+  --ui-tone:var(--muted);--ui-tone-fill:var(--button-face,var(--soft));
+  display:inline-flex;align-items:center;gap:var(--s-4);flex:none;box-sizing:border-box;min-block-size:var(--s-16);
+  padding-inline:var(--s-6);border-radius:var(--r-pill);background:var(--ui-tone-fill);color:var(--ui-tone);
+  font:var(--fw-medium) var(--fs-11)/var(--lh-tight) var(--font-ui);white-space:nowrap;vertical-align:baseline;
+}
+.ui-badge[data-outline] {align-self:flex-start;font-size:var(--fs-10);color:var(--accent-text);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 var(--s-4)}
+.ui-row[aria-selected=true] .ui-badge[data-outline] {color:var(--selection-ink);border-color:var(--badge-line)}
+:is(.ui-badge,.ui-count,.ui-dot,.ui-notice,.ui-status-line,.ui-step)[data-tone=info] {--ui-tone:var(--info);--ui-tone-fill:var(--tint-info)}
+:is(.ui-badge,.ui-count,.ui-dot,.ui-notice,.ui-status-line,.ui-step)[data-tone=success] {--ui-tone:var(--success);--ui-tone-fill:var(--tint-success)}
+:is(.ui-badge,.ui-count,.ui-dot,.ui-notice,.ui-status-line,.ui-step)[data-tone=warning] {--ui-tone:var(--warning);--ui-tone-fill:var(--tint-warning)}
+:is(.ui-badge,.ui-count,.ui-dot,.ui-notice,.ui-status-line,.ui-step)[data-tone=danger] {--ui-tone:var(--error);--ui-tone-fill:var(--tint-danger)}
+:is(.ui-badge,.ui-count,.ui-dot,.ui-notice,.ui-status-line,.ui-step)[data-tone=accent] {--ui-tone:var(--accent-text);--ui-tone-fill:var(--tint-accent)}
+/* Design Insights and hint-tier problems: the violet the canvas markers use. */
+:is(.ui-dot)[data-tone=insight] {--ui-tone:var(--insight)}
+/* A count is a number beside a label or tab: tabular figures, never wider than its digits need. */
+:is(.ui-count) {
+  --ui-tone:var(--muted);--ui-tone-fill:var(--button-face,var(--soft));
+  display:inline-grid;place-items:center;flex:none;box-sizing:border-box;min-inline-size:var(--s-16);block-size:var(--s-16);
+  padding-inline:var(--s-4);border-radius:var(--r-pill);background:var(--ui-tone-fill);color:var(--ui-tone);
+  font:var(--fw-medium) var(--fs-10)/1 var(--font-ui);font-variant-numeric:tabular-nums;
+}
+:is(.ui-count)[data-tone=danger][data-strong] {--ui-tone:var(--on-danger);--ui-tone-fill:var(--danger-fill)}
+:is(.ui-dot) {--ui-tone:var(--muted);display:inline-block;flex:none;inline-size:var(--s-8);block-size:var(--s-8);border-radius:var(--r-pill);background:var(--ui-tone)}
+:is(.ui-dot)[data-pulse] {outline:var(--s-2) solid color-mix(in srgb,var(--ui-tone) 30%,transparent)}
+
+/* ---- Avatar: a person's initials (presence) or a monogram (extensions) -------------------------
+   An identity colour, not a status: data-hue 0-4 picks ink on its tint from a stable hash of the id.
+   Round with a hairline ring; data-shape=square is a monogram without one. data-state=active rings it in
+   its own ink (editing), away fades it (viewing), stale fades and strikes it (a lock left behind). */
+:is(.ui-avatar) {
+  --ui-avatar-size:var(--s-24);
+  box-sizing:border-box;display:inline-grid;grid-template:minmax(0,1fr) / minmax(0,1fr);place-items:center;flex:none;
+  inline-size:var(--ui-avatar-size);block-size:var(--ui-avatar-size);padding:0;overflow:hidden;
+  border-radius:var(--r-pill);background:var(--raised);color:var(--ink);outline:1px solid var(--line-strong);outline-offset:0;
+  font:var(--fw-semibold) var(--fs-11)/1 var(--font-ui);white-space:nowrap;
+}
+:is(.ui-avatar)[data-size=sm] {--ui-avatar-size:14px;font-size:var(--fs-10)}
+:is(.ui-avatar)[data-size=lg] {--ui-avatar-size:32px;font-size:var(--fs-12)}
+:is(.ui-avatar)[data-shape=square] {border-radius:var(--r-md);outline:0}
+:is(.ui-avatar)[data-hue="0"] {color:var(--accent-text);background:var(--tint-accent)}
+:is(.ui-avatar)[data-hue="1"] {color:var(--info);background:var(--tint-info)}
+:is(.ui-avatar)[data-hue="2"] {color:var(--success);background:var(--tint-success)}
+:is(.ui-avatar)[data-hue="3"] {color:var(--insight-ink);background:var(--tint-insight)}
+:is(.ui-avatar)[data-hue="4"] {color:var(--danger);background:var(--tint-danger)}
+:is(.ui-avatar)[data-state=active] {outline:1.5px solid currentColor}
+:is(.ui-avatar)[data-state=away] {opacity:.8}
+:is(.ui-avatar)[data-state=stale] {opacity:.55;text-decoration:line-through}
+
+/* ---- Overlay label: a short label over artwork (a template's layer count, a page number) ---------
+   The solid floating surface (--overlay), so it reads over any drawing. It sits in the artwork's end corner; the artwork is the
+   positioned box. */
+:is(.ui-overlay-label) {
+  position:absolute;inset-inline-end:var(--s-6);inset-block-end:var(--s-6);box-sizing:border-box;max-inline-size:calc(100% - 2 * var(--s-6));
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-inline:var(--s-6);border-radius:var(--r-pill);
+  color:var(--ink);font:var(--fw-semibold) var(--fs-11)/18px var(--font-ui);pointer-events:none;
+}
+:is(.ui-overlay-label,.ui-close:where([data-fill=overlay])) {background:var(--overlay)}
+
+/* ---- Data swatch: a colour that is the content (a net, a layer, a theme token, an authored fill) ----
+   Script sets --swatch (style.setProperty("--swatch", colour)), never a face; the paint stays here. The
+   !important keeps the precedence the inline style had: only a feature's own !important rule beats it. */
+:is([style*="--swatch:"]) {background:var(--swatch)!important}
+
+/* ---- Radio: a native radio in a row label, like the checkbox ----------------------------------- */
+:is(.ui-radio) {accent-color:var(--accent);flex:none;margin:0}
+:is(.ui-radio-row) {display:flex;align-items:center;gap:var(--s-6);min-block-size:var(--ctl-h)}
+:is(.ui-radio-group) {display:grid;gap:0;border:0;margin:0;padding:0;min-inline-size:0}
+:is(.ui-radio):focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:var(--s-2)}
+@media (any-pointer:coarse) {:is(.ui-radio-row) {min-block-size:var(--ctl-h-touch)}}
+
+/* ---- Search field: a magnifier inside the field and a clear button once it has text ------------- */
+:is(.ui-search) {position:relative;display:flex;align-items:center;min-inline-size:0}
+.ui-search[data-size=compact] > input {min-block-size:0;block-size:var(--ui-search-height,var(--ctl-h-sm))}
+:is(.ui-search) > input.ui-field {flex:1 1 auto;min-inline-size:0;inline-size:100%;padding-inline-start:calc(var(--s-8) + var(--s-16) + var(--s-4))}
+:is(.ui-search) > input.ui-field:not(:placeholder-shown) {padding-inline-end:calc(var(--s-4) + var(--s-16) + var(--s-4))}
+:is(.ui-search) > :where(.icon) {position:absolute;z-index:1;inset-inline-start:var(--s-8);inline-size:var(--s-16);block-size:var(--s-16);color:var(--muted);pointer-events:none}
+:is(.ui-search-clear) {position:absolute;inset-inline-end:var(--s-4);--ui-control-height:var(--s-16)}
+:is(.ui-search) > :where(input:placeholder-shown) ~ :is(.ui-search-clear) {display:none}
+:is(.ui-search) > :where(input)::-webkit-search-cancel-button {display:none}
+:is(.ui-search-count) {position:absolute;inset-inline-end:calc(var(--s-4) + var(--s-16) + var(--s-6));color:var(--muted);font-size:var(--fs-11);font-variant-numeric:tabular-nums;pointer-events:none}
+:is(.ui-search-count):empty {display:none}
+:is(.ui-search) > :where(input:placeholder-shown) ~ :is(.ui-search-count) {inset-inline-end:var(--s-8)}
+/* The query never runs under the count: the field's end inset grows by the count's width (set by the kit). */
+:is(.ui-search):has(> .ui-search-count:not(:empty)) > input.ui-field {padding-inline-end:calc(var(--s-4) + var(--s-16) + var(--s-6) + var(--ui-search-count-w,6ch) + var(--s-4))}
+
+/* ---- Section header: a heading with its actions on the same row and a hairline under it ---------- */
+:is(.ui-section) {min-inline-size:0}
+:is(.ui-section) + :is(.ui-section) {margin-block-start:var(--s-12)}
+:is(.ui-section-head) {
+  min-block-size:var(--ctl-h);margin:0 0 var(--s-4);border-block-end:1px solid var(--line);color:var(--head-ink);
+}
+.ui-section-head, #inspector :is(.inspect-section > h3,.inspect-section-heading,.inspector-disclosure > summary) {display:flex;align-items:center;gap:var(--s-6)}
+.ui-section-head[data-bleed], #inspector :is(.inspect-section > h3,.inspect-section-heading,.inspector-disclosure > summary) {
+  margin:0 calc(-1 * var(--s-8)) var(--ui-section-tail,var(--s-4));padding:0 var(--s-8);min-block-size:var(--chrome-tab-height);
+  font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--ink);background:linear-gradient(var(--divider),var(--divider)) bottom/100% 1px no-repeat;
+}
+:is(.ui-section-title) {flex:1 1 auto;min-inline-size:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font:var(--fw-semibold) var(--fs-12)/var(--lh) var(--font-ui)}
+:is(.ui-section-head) > :is(.ui-section-actions) {display:flex;align-items:center;gap:var(--s-2);flex:none}
+:is(.ui-section-head):is([data-quiet],[data-bleed]) {border-block-end:0}
+:is(.ui-section-note) {margin:0 0 var(--s-8);color:var(--muted);font-size:var(--fs-11);line-height:var(--lh-loose)}
+
+/* ---- Property row: caption and value side by side (Properties, inspectors, settings) ------------ */
+:is(.ui-prop-row) {
+  display:grid;grid-template-columns:minmax(0,var(--ui-prop-label,42%)) minmax(0,1fr);align-items:baseline;column-gap:var(--s-8);
+  min-block-size:var(--ctl-h);padding-block:var(--s-2);
+}
+:is(.ui-prop-row) > :where(:first-child) {min-inline-size:0;overflow-wrap:anywhere;color:var(--muted);font-size:var(--fs-12)}
+:is(.ui-prop-row) > :is(.ui-prop-value) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+:is(.ui-prop-row):has(> :is(.ui-switch-row,input[type=checkbox])) {align-items:center}
+:is(.ui-prop-row)[data-stacked] {grid-template-columns:minmax(0,1fr);row-gap:var(--s-2)}
+:is(.ui-prop-row) > :is(.ui-prop-error) {grid-column:2;color:var(--error);font-size:var(--fs-11)}
+@media (any-pointer:coarse) {:is(.ui-prop-row) {min-block-size:var(--ctl-h-touch);align-content:center}}
+
+/* ---- List row and tree row --------------------------------------------------------------------- */
+/* One row: [leading icon] title + optional detail line, [meta], [actions shown on hover or focus]. */
+:is(.ui-list) {display:grid;align-content:start;gap:0;min-inline-size:0;margin:0;padding:0;list-style:none}
+.ui-list[data-layout=flush] {display:var(--ui-list-display,block)}
+.ui-list[data-layout=stacked] {display:flex;flex-direction:column;gap:var(--s-2)}
+.ui-list[data-layout=flush][tabindex="0"] {outline:none}
+.ui-list[data-layout=flush][tabindex="0"]:focus-visible {outline:var(--ui-list-outline,1px solid var(--focus));outline-offset:-2px}
+:is(.ui-row):not(:where(.ui-list:is([data-layout=flush],[data-layout=stacked]) .ui-row)) {
+  --ui-depth:0;
+  box-sizing:border-box;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;column-gap:var(--s-6);
+  inline-size:100%;min-block-size:var(--chrome-row-height);padding-block:var(--s-2);
+  padding-inline:calc(var(--s-8) + var(--ui-depth) * var(--s-16)) var(--s-8);
+  border:0;border-radius:var(--chrome-control-radius);background:transparent;color:var(--ink);
+  font:var(--fs-12)/var(--lh) var(--font-ui);text-align:start;
+}
+:where(.ui-list[data-layout=flush]) .ui-row {display:var(--ui-row-display,flex);align-items:center;cursor:default}
+/* Framed rows and native detail cards share the hairline and four-pixel corner. */
+:is(.ui-card-row,.ui-disclosure-card) {border:1px solid var(--line);border-radius:var(--r-md)}
+.ui-disclosure-card {box-sizing:border-box;display:flex;align-items:center;min-height:44px;padding:var(--s-4) var(--s-8);cursor:default}
+.ui-card-row {gap:var(--s-8);margin:0 var(--s-6) var(--s-4);padding:var(--s-4) var(--s-6);background:var(--ui-card-fill,var(--surface));user-select:none;-webkit-user-select:none}
+.ui-card-row[aria-selected=true] {border-color:var(--accent);box-shadow:var(--sel-bar)}
+:where(.ui-list[data-layout=stacked]) .ui-row {display:flex;flex-direction:column;gap:1px;padding:var(--ui-row-pad,var(--s-4)) var(--s-8);border-radius:var(--r-sm);cursor:default}
+:where(.ui-list[data-layout=stacked]) .ui-row[aria-selected=true] {box-shadow:var(--ui-row-marker,none)}
+:where(.ui-list[data-layout=stacked][data-row-focus]) .ui-row:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+:is(.ui-row) > :is(.ui-row-icon) {grid-column:1;inline-size:var(--s-16);block-size:var(--s-16);color:var(--icon-ink)}
+:is(.ui-row) > :is(.ui-row-text) {grid-column:2;display:grid;min-inline-size:0}
+:is(.ui-row-title,.ui-row-detail) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+:is(.ui-row-detail,.ui-row-subtitle) {color:var(--muted);font-size:var(--fs-11)}
+:is(.ui-row) > :is(.ui-row-meta) {grid-column:3;color:var(--muted);font-size:var(--fs-11);font-variant-numeric:tabular-nums;white-space:nowrap}
+:is(.ui-row) > :is(.ui-row-actions) {grid-column:4;display:flex;gap:var(--s-2);--ui-control-height:var(--ctl-h-sm)}
+:where(:root:not([data-pointer=touch])) :is(.ui-row):not(:hover,:focus-within,[aria-selected=true],[aria-current=true],[aria-checked=true]) > :is(.ui-row-actions[data-reveal]) {visibility:hidden}
+:where(:root:not([data-pointer=touch])) :is(.ui-row):not(:where(.ui-list:is([data-layout=flush],[data-layout=stacked]) .ui-row)):is(button,a,[role=option],[role=treeitem],[tabindex]):hover:not(:disabled,[aria-disabled=true]),
+.ui-project-row:not([aria-current=true]):hover,.ui-project-more:hover,
+:where(.ui-list[data-select-on-focus]:not(:focus)) .ui-row[aria-selected=true]:hover,
+:where(.ui-list[data-layout=flush]) .ui-row[role=option]:hover:not([aria-selected=true]) {background:var(--ui-row-hover,var(--hover))}
+:where(.ui-list[data-layout=stacked]) .ui-row[role=option]:hover:not([aria-selected=true]) {background:var(--ui-row-hover,transparent)}
+/* Project tree rows retain their document and collaboration columns. */
+.ui-project-row {
+  display:grid;grid-template-columns:var(--s-12) var(--s-16) minmax(0,1fr) auto auto;align-items:center;column-gap:var(--s-4);
+  block-size:var(--chrome-row-height);min-block-size:var(--chrome-row-height);margin-inline:var(--s-6);list-style:none;
+  padding-inline:calc(var(--s-4) + 14px * var(--project-row-depth,0)) var(--project-row-end,var(--s-4));
+  border-radius:var(--chrome-control-radius);color:var(--chrome-ink);font-size:var(--fs-12);text-align:start;cursor:default;
+}
+.ui-project-row::-webkit-details-marker {display:none}
+.ui-project-row > .tree-label {grid-column:3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ui-project-row > .tree-icon {grid-column:2;width:var(--s-16);height:var(--s-16);color:var(--icon-sch)}
+:is(.ui-row,.ui-project-row):where(:not(.ui-list[data-select-on-focus]:not(:focus) .ui-row)):is([aria-selected=true],[aria-current=true],[aria-pressed=true],[aria-checked=true]) {background:var(--ui-row-selected-fill,var(--selection));color:var(--ui-row-selected-ink,var(--selection-ink))}
+:is(.ui-row):where(:not(.ui-list[data-select-on-focus]:not(:focus) .ui-row)):is([aria-selected=true],[aria-current=true],[aria-pressed=true],[aria-checked=true]) :is(.ui-row-detail,.ui-row-subtitle,.ui-row-meta,.ui-row-icon) {color:var(--ui-row-selected-meta,inherit)}
+:is(.ui-row):is(:disabled,[aria-disabled=true]) {color:var(--ui-row-disabled-ink,var(--muted))}
+:is(.ui-row)[data-state=broken] :is(.ui-row-title) {color:var(--error);text-decoration:line-through var(--error)}
+:is(.ui-row)[data-state=pending] {color:var(--muted)}
+:is(.ui-row):not(:where(.ui-list[data-layout=stacked] .ui-row)):focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
+:is(.ui-row):not(:where(.ui-list[data-layout=stacked] .ui-row)):is([aria-selected=true],[aria-current=true],[aria-checked=true]):focus-visible {outline-color:var(--selection-ink)}
+/* Tree rows add a disclosure chevron in the leading column; --ui-depth indents by 16 px a level. */
+:is(.ui-tree-row) {grid-template-columns:var(--s-12) auto minmax(0,1fr) auto auto}
+:is(.ui-tree-row) > :is(.ui-disclosure) {grid-column:1}
+:is(.ui-tree-row) > :is(.ui-row-icon) {grid-column:2}
+:is(.ui-tree-row) > :is(.ui-row-text) {grid-column:3}
+:is(.ui-tree-row) > :is(.ui-row-meta) {grid-column:4}
+:is(.ui-tree-row) > :is(.ui-row-actions) {grid-column:5}
+:is(.ui-disclosure) {inline-size:var(--s-12);block-size:var(--s-12);color:var(--muted);
+  transition:transform calc(var(--motion-base) * var(--motion-move)) var(--ease-decelerate)}
+:is(.ui-disclosure,.ui-disclosure-marker)::before {content:"";border:solid currentColor;border-width:0 1.3px 1.3px 0;transform:rotate(45deg)}
+:is(.ui-disclosure)::before {display:block;inline-size:var(--s-4);block-size:var(--s-4);margin:var(--s-2) auto 0}
+.ui-disclosure-marker::before {width:4px;height:4px;margin:0 4px 0 1px;color:var(--muted);transition:transform calc(var(--motion-base) * var(--motion-move)) var(--ease-decelerate)}
+:is(details:not([open]) > .ui-disclosure-marker,.ui-disclosure-marker[aria-expanded=false])::before {transform:rotate(-45deg)}
+:where([aria-expanded=false]) > :is(.ui-disclosure) {transform:rotate(-90deg)}
+:where([dir=rtl] [aria-expanded=false]) > :is(.ui-disclosure) {transform:rotate(90deg)}
+:is(.ui-tree-row:not([aria-expanded])) > :is(.ui-disclosure) {visibility:hidden}
+@media (any-pointer:coarse) {:is(.ui-row):not(:where(.ui-list:is([data-layout=flush],[data-layout=stacked]) .ui-row)) {min-block-size:var(--ctl-h-lg)}}
+
+button.ui-choice {--ui-checked-line:var(--accent);border:1px solid transparent;border-radius:var(--r-sm);background:var(--surface)}
+button.ui-choice-marker {--ui-checked-fill:var(--accent);--ui-checked-ink:currentColor;width:20px;height:14px;padding:0;border-color:var(--button-line);background:var(--field)}
+button.ui-choice-marker:hover {background:var(--hover)}
+button.ui-choice[data-size=touch] {display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 auto;
+  min-inline-size:var(--ctl-h-touch);min-block-size:var(--ctl-h-touch);padding:var(--s-2) var(--s-4);touch-action:manipulation;
+  color:var(--text);font:inherit;font-size:var(--fs-11);line-height:1.25}
+button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);outline-offset:-3px}
+.ui-choice:is([aria-checked=true],[aria-pressed=true],:has(> input:checked)) {border-color:var(--ui-checked-line,currentColor);box-shadow:var(--ui-checked-halo,none)}
+.ui-choice-tinted:is([aria-checked=true],[aria-pressed=true],:has(> input:checked)) {--shortcut-ink:var(--ui-checked-ink,var(--selection-ink));background:var(--ui-checked-fill,var(--selection));color:var(--shortcut-ink)}
+.ui-choice:has(> input:checked) .ui-choice-meta {color:inherit}
+.ui-choice-focus:has(> input:focus-visible) {outline:var(--ui-choice-focus-width,var(--focus-w)) solid var(--focus);outline-offset:var(--ui-choice-focus-offset,2px)}
+/* ---- Table: a plain data table (lists with columns; the editable grid is ui/spreadsheet.css) ---- */
+:is(.ui-table) {inline-size:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-12);line-height:var(--lh);font-variant-numeric:tabular-nums}
+:is(.ui-table) :where(th,td) {padding:var(--s-2) var(--s-8);text-align:start;border-block-end:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:is(.ui-table) :where(thead th) {position:sticky;inset-block-start:0;z-index:var(--z-sticky);background:var(--panel-head);color:var(--muted);font-size:var(--fs-11);font-weight:var(--fw-medium)}
+:is(.ui-table) :where(td.is-number,th.is-number) {text-align:end}
+:is(.ui-table) :where(tbody tr[aria-selected=true]) > :where(td) {background:var(--selection);color:var(--selection-ink)}
+:where(:root:not([data-pointer=touch])) :is(.ui-table) :where(tbody tr:hover:not([aria-selected=true])) > :where(td) {background:var(--hover)}
+:is(.ui-table) :where(td)[data-state=error] {color:var(--error);box-shadow:inset var(--s-2) 0 var(--error)}
+:is(.ui-table) :where(td)[data-state=stale] {color:var(--muted);font-style:italic}
+
+/* Viewport chrome for the editor canvases and the overlaid orbit surface. */
+.ui-viewport {--ui-cursor-pan:grab;--ui-cursor-panning:grabbing;width:100%;height:100%;display:block;touch-action:none;outline:none}
+.ui-viewport[data-interaction=design] {user-select:none;-webkit-user-select:none}
+.ui-viewport:where([data-interaction=orbit]) {position:absolute;inset:0;cursor:var(--ui-cursor-pan)}
+.ui-viewport:where([data-interaction=orbit]):active {cursor:var(--ui-cursor-panning)}
+.ui-viewport-layer {position:absolute;inset:0;z-index:1;overflow:hidden}
+.ui-canvas-tools {position:absolute;top:var(--s-6);display:flex;gap:1px;border:1px solid var(--bar-line);background:var(--bar-bg);border-radius:var(--ui-canvas-tools-radius,var(--s-8));box-shadow:var(--ui-canvas-tools-elevation,var(--elev-1))}
+.ui-canvas-tools[data-canvas-tools=center] {z-index:2;left:50%;transform:translateX(-50%);align-items:center;padding:calc(var(--s-6) / 2);max-width:calc(100% - var(--s-16));overflow-x:auto;scrollbar-width:none;
+  left:round(nearest,50%,1px);transform:translateX(round(down,-50%,1px));
+  --ui-canvas-tools-hover:var(--button-face-hover,var(--raised));--ui-canvas-tools-hover-ink:var(--ink-bright)}
+.ui-canvas-tools[data-canvas-tools=center]::-webkit-scrollbar {display:none}
+.ui-canvas-tools[data-canvas-tools=right] {right:var(--s-6);padding:var(--s-2);--ui-canvas-tools-radius:var(--r-md);--ui-canvas-tools-elevation:var(--elev-canvas-tools)}
+.ui-canvas-tools:where([data-canvas-tools=right]) > :where(button) {min-width:28px;height:var(--ctl-h);padding:0 var(--s-8);border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--tool-ink);font:inherit;font-size:var(--fs-12);cursor:default}
+:where(:root:not([data-pointer=touch]) .ui-canvas-tools) > button:hover:not(:disabled) {background:var(--ui-canvas-tools-hover,var(--button-hover));color:var(--ui-canvas-tools-hover-ink,var(--tool-ink))}
+.ui-canvas-tools:where([data-canvas-tools=right]) > :where(button):focus-visible {outline:2px solid var(--focus);outline-offset:-1px}
+.ui-canvas-tools:where([data-canvas-tools=right]) > :where(button):is(.is-on,[aria-expanded=true]) {background:var(--pressed);border-color:var(--line-strong);color:var(--ink-strong)}
+
+.ui-editor-tab-strip {display:flex;align-items:stretch;flex:none;height:var(--chrome-tab-height)}
+.ui-editor-tab-strip:where([data-tab-strip=documents],[data-tab-strip=pane]) {gap:1px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;background:var(--app);padding:0 1px}
+.ui-editor-tab-strip:where([data-tab-strip=documents],[data-tab-strip=pane])::-webkit-scrollbar {display:none}
+.ui-editor-tab-strip[data-tab-strip=pane] {background:linear-gradient(var(--line),var(--line)) bottom/100% 1px no-repeat var(--app)}
+.ui-editor-tab-strip[data-tab-strip=dock] {position:relative;height:calc(30px + var(--d-bar));overflow:hidden;background:var(--tab-bg);box-shadow:var(--chrome-rule-bottom) var(--divider)}
+.ui-editor-tab-strip:where([data-tab-strip=dock]).editor-chrome-tabs {height:var(--chrome-tab-height);box-shadow:none;background:linear-gradient(var(--divider),var(--divider)) bottom/100% 1px no-repeat var(--surface)}
+.ui-document-tab[aria-selected=true] {background:var(--panel-head);color:var(--ink-bright)}
+.ui-document-tab:hover:not([aria-selected=true]) {background:var(--tab-hover);color:var(--tab-hover-ink)}
+/* ---- Toolbar ----------------------------------------------------------------------------------- */
+:is(.ui-toolbar) {display:flex;align-items:center;gap:var(--s-4);flex-wrap:nowrap;min-block-size:var(--chrome-tab-height);min-inline-size:0;padding-inline:var(--s-8)}
+:is(.ui-toolbar-sep) {flex:none;inline-size:1px;block-size:var(--s-16);margin-inline:var(--ui-toolbar-sep-margin,var(--s-2));background:var(--line-strong)}
+:is(.ui-toolbar-spacer) {flex:1 1 var(--ui-spacer-basis,auto)}
+:is(.ui-toolbar):where(:not([data-table])) > :is(.ui-search) {flex:0 1 var(--search-w)}
+.ui-toolbar[data-table] {--ui-spacer-basis:0%;gap:var(--s-6);flex:none;min-height:28px;padding:0 var(--s-4) 0 var(--s-8);background:var(--panel-head);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.ui-toolbar[data-table] > h2 {margin:0;font-size:var(--fs-12);font-weight:600;white-space:nowrap}
+:is(.ui-toolbar-actions > button,.ui-toolbar-actions > details > summary) {height:20px;padding:0 var(--s-8);border-radius:var(--r-sm);white-space:nowrap;color:var(--ink);border:1px solid transparent}
+:is(.ui-toolbar-actions > button,.ui-toolbar-actions > details > summary):hover:not(:disabled),.ui-toolbar-filter-actions > button:hover {background:var(--hover)}
+.ui-toolbar-actions[data-feature-actions] > button:first-child:not(:only-child) {border-color:var(--primary-line)}
+/* Floating toolbar (proposed 2026-11-23): the presentation bar over the canvas. It rests at the
+   bottom of the stage, fades after a still pointer (data-idle) and returns on any pointer, key or focus. */
+:is(.ui-toolbar)[data-floating] {gap:var(--ui-float-gap,var(--s-4));min-block-size:var(--ui-float-height,calc(var(--ctl-h) + var(--s-8)));padding-inline:var(--ui-float-padding,var(--s-8));
+  color:var(--ink);background:var(--ui-float-fill,var(--overlay));border:1px solid var(--ui-float-line,var(--line-strong));
+  border-radius:var(--ui-float-radius,var(--r-lg));box-shadow:var(--ui-float-shadow,var(--elev-2))}
+:is(.ui-toolbar)[data-floating]:where(:not([data-floating=editing])) {transition:opacity var(--motion-base) var(--ease-decelerate),translate var(--motion-base) var(--ease-decelerate)}
+.ui-toolbar[data-floating=editing] {--ui-float-gap:3px;--ui-float-height:44px;--ui-float-padding:4px;--ui-float-fill:var(--menu-bg);--ui-float-line:var(--line);--ui-float-radius:var(--r-note-palette);--ui-float-shadow:var(--elev-note-formatting);padding-block:2px;font:13px var(--font-ui,system-ui)}
+:where(.ui-toolbar)[data-floating=editing] :is(button,select,label) {min-width:40px;min-height:36px;padding:5px 9px;color:inherit;background:transparent;border:0;border-radius:var(--r-note-tool);cursor:default;font:inherit}
+:where(.ui-toolbar)[data-floating=editing] :is(button[aria-pressed=true],button:hover,select:hover) {background:var(--soft)}
+@media(pointer:coarse) {:where(.ui-toolbar)[data-floating=editing] :is(button,select,label) {min-width:44px;min-height:44px}}
+:is(.ui-toolbar)[data-floating][data-idle]:not(:focus-within) {opacity:0;translate:0 calc(var(--s-8) * var(--motion-move,1));pointer-events:none}
+:is(.ui-toolbar)[data-floating] > :is(.ui-toolbar-title) {min-inline-size:0;max-inline-size:32ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:var(--fs-12);font-weight:var(--fw-medium)}
+
+/* ---- Panel: heading, scrolling body and an optional footer (dock panels, list-detail panes) ----- */
+:is(.ui-panel,.ui-drawer,.panel) {display:flex;flex-direction:column;min-block-size:0}
+:is(.ui-panel) {min-inline-size:0;background:var(--surface);color:var(--ink)}
+.ui-drawer {box-shadow:var(--ui-drawer-shadow,none)}
+:is(.ui-panel-head) {display:flex;align-items:center;gap:var(--s-6);flex:none;min-block-size:var(--chrome-tab-height);padding:0 var(--s-8);box-shadow:var(--chrome-rule-bottom) var(--divider)}
+:is(.ui-panel-title) {flex:1 1 auto;min-inline-size:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--head-ink);font:var(--fw-semibold) var(--fs-12)/var(--lh) var(--font-ui)}
+:is(.ui-panel-body) {flex:1 1 auto;min-block-size:0;overflow:auto;overscroll-behavior:contain;padding:var(--s-8)}
+:is(.ui-panel-foot) {display:flex;align-items:center;gap:var(--s-8);flex:none;min-block-size:var(--chrome-tab-height);padding:0 var(--s-8);box-shadow:var(--chrome-rule-top) var(--divider)}
+/* A list-detail split: a list column and a detail column, divided by a hairline, never a box. */
+:is(.ui-split) {display:grid;grid-template-columns:minmax(160px,var(--ui-split-list,32%)) 1px minmax(0,1fr);min-block-size:0}
+:is(.ui-split) > :is(.ui-splitter) {block-size:auto}
+
+/* ---- Splitter: a 1 px divider with a 4 px hit area that lights on hover, drag and keyboard focus - */
+:is(.ui-splitter) {position:relative;flex:none;inline-size:1px;align-self:stretch;background:var(--divider);touch-action:none;cursor:ew-resize}
+:is(.ui-splitter)[aria-orientation=horizontal] {inline-size:auto;block-size:1px;cursor:ns-resize}
+:is(.ui-splitter)::after {content:"";position:absolute;inset:0 calc(-1 * var(--s-2))}
+:is(.ui-splitter)[aria-orientation=horizontal]::after {inset:calc(-1 * var(--s-2)) 0}
+:is(.ui-splitter):is(:hover,.is-dragging,:focus-visible) {background:var(--focus);outline:none}
+@media (any-pointer:coarse) {:is(.ui-splitter)::after {inset:0 calc(-1 * var(--s-8))} :is(.ui-splitter)[aria-orientation=horizontal]::after {inset:calc(-1 * var(--s-8)) 0}}
+
+/* ---- Drag handle and drop target --------------------------------------------------------------- */
+/* Handles keep the arrow cursor (no grab hand on chrome); the six dots say "this lifts". */
+:is(.ui-drag-handle) {
+  display:inline-block;flex:none;inline-size:var(--s-8);block-size:var(--s-12);cursor:default;touch-action:none;color:var(--faint);
+  background:radial-gradient(circle,currentColor 1px,transparent 1.2px) 0 0/4px 4px;
+}
+:is(.ui-drag-handle):hover {color:var(--muted)}
+:is(.ui-dragging) {opacity:.55}
+/* A drop target says what it will do. ready: it can take the drag; over: the drag is on it;
+   denied: it cannot (its reason shows in the status line); busy: reading or preparing.
+   The ring is inset and the fill is a tint, so readable cells and geometry stay visible. */
+:is(.ui-drop-target) {position:relative}
+:is(.ui-drop-target)::after {content:"";position:absolute;inset:0;z-index:var(--z-sticky);pointer-events:none;border-radius:inherit;opacity:0;
+  transition:opacity var(--motion-instant) linear}
+:is(.ui-drop-target)[data-drop=ready]::after {opacity:1;outline:1px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:-1px}
+:is(.ui-drop-target)[data-drop=over]::after {opacity:1;background:var(--tint-accent);box-shadow:inset 0 0 0 var(--focus-w) var(--accent)}
+:is(.ui-drop-target)[data-drop=denied]::after {opacity:1;outline:1px solid var(--line-strong);outline-offset:-1px}
+:is(.ui-drop-target)[data-drop=busy]::after {opacity:1;background:var(--tint-accent)}
+:is(.ui-drop-line) {block-size:var(--s-2);margin-block:calc(-1 * var(--s-2) / 2);border-radius:var(--r-pill);background:var(--accent);pointer-events:none}
+
+/* ---- Notice: an inline message about a surface's state (stale, offline, read-only, partial) ----- */
+:is(.ui-notice) {
+  --ui-tone:var(--muted);--ui-tone-fill:var(--button-face,var(--soft));
+  display:flex;align-items:flex-start;gap:var(--s-8);min-inline-size:0;margin:0;padding:var(--s-6) var(--s-8);
+  border-radius:var(--r-md);background:var(--ui-tone-fill);color:var(--ink);font-size:var(--fs-12);line-height:var(--lh);
+}
+:is(.ui-notice) > :is(.ui-dot) {margin-block-start:calc((1em * var(--lh) - var(--s-8)) / 2);background:var(--ui-tone)}
+:is(.ui-notice-text) {flex:1 1 auto;min-inline-size:0}
+:is(.ui-notice-title) {font-weight:var(--fw-semibold)}
+:is(.ui-notice-actions) {display:flex;flex-wrap:wrap;gap:var(--s-4);flex:none;margin-block:calc(-1 * var(--s-2));--ui-control-height:var(--ctl-h-sm)}
+/* A floating notice (data-floating) is a banner over the canvas: the tone's tint over a solid surface, at
+   --elev-2, so the drawing never shows through. The feature places it (position, inset, layer). */
+:is(.ui-notice)[data-floating] {
+  flex-wrap:wrap;align-items:center;box-sizing:border-box;max-inline-size:calc(100vw - 2 * var(--s-16));padding-block:var(--s-6);padding-inline:var(--s-12) var(--s-6);
+  background:linear-gradient(var(--ui-tone-fill),var(--ui-tone-fill)) var(--surface);box-shadow:var(--elev-2);
+}
+:is(.ui-notice)[data-floating] > :is(.ui-dot) {margin-block-start:0}
+:is(.ui-notice)[data-floating] > :is(.ui-notice-text) {flex-basis:16em}
+
+/* ---- Empty state: what is missing and the one action that fills it ----------------------------- */
+:is(.ui-empty) {display:grid;justify-items:start;gap:var(--s-4);margin:var(--s-8);color:var(--muted);font-size:var(--fs-12);line-height:var(--lh-loose)}
+:is(.ui-empty)[data-centred] {justify-items:center;align-content:center;text-align:center;min-block-size:120px}
+:is(.ui-empty-title) {margin:0;color:var(--ink);font-weight:var(--fw-semibold)}
+:is(.ui-empty) > :where(p) {margin:0;max-inline-size:44ch}
+:is(.ui-empty-actions) {display:flex;flex-wrap:wrap;gap:var(--s-8);margin-block-start:var(--s-4)}
+
+/* ---- Progress bar and spinner ------------------------------------------------------------------- */
+/* role=progressbar; set --ui-progress (0–1) or data-indeterminate. Loading indicators are the one
+   exception to "motion finishes within 300 ms" (docs/motion.md): the spinner turns and the
+   indeterminate bar sweeps until the wait ends. Reduced motion holds them still (a still third and a
+   still arc), and Off stops every animation (style.css). tests/motion.cjs allows a loop only here. */
+:is(.ui-progress) {--ui-progress:0;position:relative;flex:none;inline-size:100%;block-size:var(--s-4);overflow:hidden;border-radius:var(--r-pill);background:var(--button-face,var(--soft))}
+:is(.ui-progress)::before {content:"";position:absolute;inset-block:0;inset-inline-start:0;inline-size:calc(var(--ui-progress) * 100%);border-radius:inherit;background:var(--accent)}
+:is(.ui-progress)[data-indeterminate]::before {inline-size:33%;opacity:.6;animation:ui-progress-sweep 1400ms var(--ease-standard) infinite}
+:where([dir=rtl]) :is(.ui-progress) {--ui-sweep:-1}
+:is(.ui-progress)[data-tone=danger]::before {background:var(--error)}
+:is(.ui-progress-row) {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--s-4) var(--s-8);min-inline-size:0}
+:is(.ui-progress-row) > :is(.ui-progress) {grid-column:1 / -1}
+:is(.ui-progress-label) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-12)}
+:is(.ui-progress-value) {color:var(--muted);font-size:var(--fs-11);font-variant-numeric:tabular-nums}
+:is(.ui-spinner) {display:inline-block;flex:none;box-sizing:border-box;inline-size:var(--s-16);block-size:var(--s-16);border-radius:var(--r-pill);
+  border:2px solid color-mix(in srgb,currentColor 22%,transparent);border-block-start-color:currentColor;color:var(--muted);
+  animation:ui-spin 800ms linear infinite}
+:is(.ui-spinner)[data-size=sm] {inline-size:var(--s-12);block-size:var(--s-12);border-width:1.5px}
+@keyframes ui-spin {to {rotate:1turn}}
+@keyframes ui-progress-sweep {from {translate:calc(var(--ui-sweep,1) * -100%) 0} to {translate:calc(var(--ui-sweep,1) * 300%) 0}}
+:root[data-motion=reduce] :is(.ui-spinner),:root[data-motion=reduce] :is(.ui-progress)[data-indeterminate]::before {animation:none}
+@media (prefers-reduced-motion:reduce) {:is(.ui-spinner),:is(.ui-progress)[data-indeterminate]::before {animation:none}}
+/* A placeholder for content that is still rendering (a page raster, a thumbnail). */
+:is(.ui-skeleton) {border-radius:var(--r-md);background:var(--button-face,var(--soft))}
+
+/* ---- Full-window surface: covers the whole window, app bar included (the component gallery) ------
+   Its bar is a title-bar row: under the macOS host's transparent title bar it takes the app bar's
+   caption insets and height, so the window controls never sit on its content. Every other surface
+   pinned to the top starts at --window-safe-top (docs/ui-library.md, Window safe area). */
+:is(.ui-fullwindow) {position:fixed;inset:0;z-index:var(--z-alert);overflow:auto;overscroll-behavior:contain;background:var(--app);color:var(--ink)}
+:root[data-atrium-native-titlebar=macos] :is(.ui-fullwindow-bar) {
+  padding-inline-start:max(var(--ui-bar-inset,var(--s-8)),var(--macos-caption-inset,0px));
+  padding-inline-end:max(var(--ui-bar-inset,var(--s-8)),var(--macos-caption-right-inset,0px));
+  min-block-size:max(var(--ui-bar-height,var(--chrome-tab-height)),var(--window-caption-height))}
+
+/* ---- Toast: brief feedback after an action (AtriumToast.show, nav-common.js) ---------------------
+   One at a time, never focused. Its kind shows as a status dot, the same way a notice shows its tone. */
+:is(.ui-toast) {
+  --ui-tone:var(--info);
+  position:fixed;z-index:var(--z-toast);inset-inline-end:var(--s-16);inset-block-end:calc(36px + var(--d-bar));display:flex;align-items:flex-start;gap:var(--s-8);
+  max-inline-size:min(420px,calc(100vw - 32px));padding:var(--s-6) var(--s-12);border:1px solid var(--line-strong);border-radius:var(--r-md);
+  background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-12);line-height:var(--lh);
+  opacity:0;transform:translateY(calc(25% * var(--motion-move)));pointer-events:none;
+  transition:opacity var(--motion-instant) var(--ease-decelerate),transform calc(var(--motion-instant) * var(--motion-move)) var(--ease-decelerate),display var(--motion-instant) allow-discrete}
+:is(.ui-toast)::before {content:"";flex:none;inline-size:var(--s-8);block-size:var(--s-8);margin-block-start:calc((1em * var(--lh) - var(--s-8)) / 2);border-radius:var(--r-pill);background:var(--ui-tone)}
+:is(.ui-toast)[data-kind=ok] {--ui-tone:var(--success)}
+:is(.ui-toast)[data-kind=warn] {--ui-tone:var(--warning)}
+:is(.ui-toast)[data-kind=error] {--ui-tone:var(--error)}
+:is(.ui-toast).is-shown {opacity:1;transform:none;transition-duration:var(--motion-fast),calc(var(--motion-fast) * var(--motion-move)),var(--motion-fast)}
+:is(.ui-toast)[hidden] {display:none}
+@starting-style {
+  :is(.ui-toast).is-shown {opacity:0;transform:translateY(calc(25% * var(--motion-move)))}
+}
+
+/* ---- Status line: one muted line of state inside a panel or dialog (counts, progress words) ------ */
+:is(.ui-status-line) {--ui-tone:var(--muted);display:flex;align-items:center;gap:var(--s-6);min-inline-size:0;min-block-size:var(--ctl-h-sm);
+  color:var(--ui-tone);font-size:var(--fs-11);line-height:var(--lh)}
+:is(.ui-status-line) > :is(.ui-status-text) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- Thumbnail: a page, slide, history step or view preview with its caption --------------------- */
+:is(.ui-thumb) {display:grid;gap:var(--s-4);justify-items:center;min-inline-size:0;padding:var(--s-4);border:0;border-radius:var(--r-md);background:transparent;color:var(--muted);font-size:var(--fs-11)}
+:is(.ui-thumb) > :is(.ui-thumb-art) {box-sizing:border-box;inline-size:100%;aspect-ratio:var(--ui-thumb-ratio,1.414 / 1);overflow:hidden;border-radius:var(--r-sm);
+  background:var(--paper);outline:1px solid var(--line);outline-offset:-1px}
+:is(.ui-thumb) > :is(.ui-thumb-art) > :where(img,canvas,svg) {display:block;inline-size:100%;block-size:100%;object-fit:contain}
+:is(.ui-thumb) > :is(.ui-thumb-label) {max-inline-size:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+:where(:root:not([data-pointer=touch])) :is(.ui-thumb):hover {background:var(--hover)}
+:is(.ui-thumb):is([aria-current=true],[aria-selected=true]) {color:var(--ink)}
+:is(.ui-thumb):is([aria-current=true],[aria-selected=true]) > :is(.ui-thumb-art) {outline:var(--focus-w) solid var(--accent);outline-offset:0}
+:is(.ui-thumb)[data-state=pending] > :is(.ui-thumb-art) {background:var(--button-face,var(--soft))}
+:is(.ui-thumb)[data-state=failed] > :is(.ui-thumb-art) {outline-color:var(--error)}
+:is(.ui-thumbs) {display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--ui-thumb-min,96px),1fr));gap:var(--s-4);align-content:start}
+/* Strip (proposed 2026-11-23): one scrolling line of thumbnails for pages, slides and views. Column by
+   default (a side rail), data-strip=row for a horizontal filmstrip. Only the visible tiles render art. */
+:is(.ui-thumbs)[data-strip] {display:flex;flex-direction:column;gap:var(--s-2);overflow:auto;overscroll-behavior:contain;min-block-size:0;padding:var(--s-4)}
+:is(.ui-thumbs)[data-strip=row] {flex-direction:row;align-items:start}
+:is(.ui-thumbs)[data-strip] > :is(.ui-thumb) {flex:none;inline-size:var(--ui-thumb-size,100%)}
+:is(.ui-thumbs)[data-strip=row] > :is(.ui-thumb) {inline-size:var(--ui-thumb-size,120px)}
+:is(.ui-thumbs)[data-strip=row] > :is(.ui-drop-line) {flex:none;align-self:stretch;inline-size:var(--s-2);block-size:auto;margin-block:0;margin-inline:calc(-1 * var(--s-2) / 2)}
+
+.ui-page-art {background:var(--printed-paper);box-shadow:var(--elev-print-tile)}
+.ui-page-zoom .ui-page-art {box-shadow:var(--elev-print-zoom)}
+
+/* ---- Pager (proposed 2026-11-23): one way to step pages, slides, views, matches and history ------- */
+:is(.ui-pager) {display:inline-flex;align-items:center;gap:var(--s-2);flex:none}
+:is(.ui-pager) > :is(.ui-pager-position) {min-inline-size:7ch;padding-inline:var(--s-2);color:var(--muted);font-size:var(--fs-11);
+  text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+:is(.ui-pager)[data-state=end] > :is(.ui-pager-position) {color:var(--ink)}
+:is(.ui-pager) > :is(.ui-icon-button):first-child > :where(.icon) {scale:-1 1}
+:is(.ui-pager):dir(rtl) > :is(.ui-icon-button) > :where(.icon) {scale:-1 1}
+:is(.ui-pager):dir(rtl) > :is(.ui-icon-button):first-child > :where(.icon) {scale:1 1}
+
+/* ---- Steps: an ordered list of work (macro steps, a job's stages) with each step's state --------- */
+:is(.ui-steps) {display:grid;gap:0;margin:0;padding:0;list-style:none;counter-reset:ui-step}
+:is(.ui-step) {--ui-tone:var(--faint);counter-increment:ui-step;display:grid;grid-template-columns:var(--s-24) minmax(0,1fr) auto;align-items:center;column-gap:var(--s-6);
+  min-block-size:var(--chrome-row-height);padding-inline:var(--s-4) var(--s-8);border-radius:var(--chrome-control-radius);font-size:var(--fs-12)}
+:is(.ui-step)::before {content:counter(ui-step);justify-self:end;color:var(--ui-tone);font-size:var(--fs-11);font-variant-numeric:tabular-nums}
+:is(.ui-step)[data-state=running] {--ui-tone:var(--accent-text);background:var(--tint-accent)}
+:is(.ui-step)[data-state=done] {--ui-tone:var(--success)}
+:is(.ui-step)[data-state=skipped] {--ui-tone:var(--muted);color:var(--muted)}
+:is(.ui-step)[data-state=failed] {--ui-tone:var(--error)}
+:is(.ui-step) > :is(.ui-step-result) {color:var(--ui-tone);font-size:var(--fs-11);white-space:nowrap}
+
+/* ---- Before and after values (proposals, diffs, macro previews) --------------------------------- */
+:is(.ui-diff) {display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:var(--s-4);min-inline-size:0;font-variant-numeric:tabular-nums}
+:is(.ui-diff-before) {color:var(--muted);text-decoration:line-through color-mix(in srgb,var(--error) 70%,transparent)}
+:is(.ui-diff-after) {color:var(--ink);background:var(--tint-success);border-radius:var(--r-sm);padding-inline:var(--s-2)}
+:is(.ui-diff-arrow) {color:var(--faint)}
+
+/* ---- Inline error span (query text, formulas, expressions) and inline code ---------------------- */
+:is(.ui-error-span) {text-decoration:underline wavy var(--error);text-decoration-skip-ink:none;text-underline-offset:var(--s-2)}
+:is(.ui-code) {font:var(--fs-11)/var(--lh) var(--mono);padding-inline:var(--s-2);border-radius:var(--r-sm);background:var(--button-face,var(--soft))}
+
+/* ---- Transcript: AI requests and answers, tool evidence and citations --------------------------- */
+:is(.ui-transcript) {display:grid;gap:var(--s-12);align-content:start;min-inline-size:0}
+:is(.ui-turn) {display:grid;gap:var(--s-4);min-inline-size:0;font-size:var(--fs-12);line-height:var(--lh-loose)}
+:is(.ui-turn-role) {color:var(--muted);font-size:var(--fs-11);font-weight:var(--fw-medium)}
+:is(.ui-turn)[data-role=user] > :is(.ui-turn-body) {justify-self:end;max-inline-size:85%;padding:var(--s-6) var(--s-8);border-radius:var(--r-lg);background:var(--button-face,var(--soft))}
+:is(.ui-turn)[data-role=tool] {color:var(--muted);font-size:var(--fs-11)}
+:is(.ui-cite) {display:inline-grid;place-items:center;min-inline-size:var(--s-16);block-size:var(--s-16);padding-inline:var(--s-2);vertical-align:text-top;
+  border:0;border-radius:var(--r-sm);background:var(--tint-accent);color:var(--accent-text);font:var(--fw-medium) var(--fs-10)/1 var(--font-ui)}
+:is(.ui-cite):hover {background:var(--selection);color:var(--selection-ink)}
+
+/* ---- Recording indicator (macros, capture): a dot and a short state, in the status bar ----------- */
+:is(.ui-recording) {display:inline-flex;align-items:center;gap:var(--s-6);color:var(--ink);font-size:var(--fs-11)}
+:is(.ui-recording) > :is(.ui-dot) {--ui-tone:var(--error)}
+
+/* Overlay scrollbars (2026-11-23): scrolling never changes layout width. No native scrollbar takes space
+   or paints a track; ui/overlay-scroll.js (lazy) draws one thin thumb over the edge of what scrolls while
+   it scrolls, wider while a mouse or pen is at that edge (it can be dragged), and fades it after a pause. */
+:root,:root * {scrollbar-width:none !important}
+:root ::-webkit-scrollbar,:root::-webkit-scrollbar {width:0;height:0;background:transparent}
+.ui-scroll-thumb {
+  z-index:var(--z-top);box-sizing:border-box;inline-size:6px;block-size:6px;translate:-100% 0;
+  border-radius:var(--r-pill);background:color-mix(in srgb, var(--ink) 38%, transparent);
+  opacity:0;pointer-events:none;transition:opacity var(--motion-fast) var(--ease-standard);
+}
+.ui-scroll-thumb[data-axis=h] {translate:0 -100%}
+.ui-scroll-thumb[data-shown] {opacity:1}
+.ui-scroll-thumb[data-hot] {inline-size:10px;pointer-events:auto;background:color-mix(in srgb, var(--ink) 52%, transparent)}
+.ui-scroll-thumb[data-axis=h][data-hot] {inline-size:auto;block-size:10px}
+@media (prefers-reduced-motion:reduce) {.ui-scroll-thumb {transition:none}}

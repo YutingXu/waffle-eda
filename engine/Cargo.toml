@@ -1,0 +1,17 @@
+[package]
+name = "atrium-engine"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+publish = false
+# No dependencies, by design: the kernels and their ABI are hand-written (see src/lib.rs).
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

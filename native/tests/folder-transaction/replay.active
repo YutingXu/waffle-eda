@@ -1,0 +1,3 @@
+WAFFLE-TXN 1
+c1cca57e0a9f40d97370a31192bca9b1af73dc618cee4ceaedf010b6a40cd6a0
+{"plan":[{"desired":{"length":7,"sha256":"328975f24457d58da82eb3d42151ced7f78a04209724bc41f20c51ce49e45c0b"},"expected":null,"path":"assets/328975f24457d58da82eb3d42151ced7f78a04209724bc41f20c51ce49e45c0b"},{"desired":{"length":265,"sha256":"596bab73cbbe3d8612852962892bcaefeeeb32e8aa40508d5aa16af1619dc67f"},"expected":"563571111e747517279664a80b596552ad3081e21a084d8f4088795bc9b8d039","path":"Power.wsch"}],"projectId":"p1","transaction":"9c4ee281-25f7-492d-8a51-e1163ec087b1"}

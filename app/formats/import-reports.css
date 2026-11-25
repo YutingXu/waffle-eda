@@ -1,0 +1,23 @@
+.import-report {overflow:auto;background:var(--surface);color:var(--ink)}
+.import-report article {width:100%;align-self:flex-start;box-sizing:border-box;padding:var(--s-16);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.import-report h2,.import-report h3 {margin:0 0 var(--s-6);font-size:var(--fs-16)}
+.import-report h3,.import-report caption {font-size:var(--fs-13);font-weight:var(--fw-semibold)}
+.import-report p {margin:0 0 var(--s-12)}
+.import-report-actions {display:flex;flex-wrap:wrap;gap:var(--s-8);margin-block-end:var(--s-16)}
+.import-report-actions > .ui-button {max-inline-size:100%}
+
+.import-report section {margin:0 0 var(--s-12)}
+.import-report table {width:100%;table-layout:fixed;min-inline-size:44em;border-collapse:collapse;font-size:var(--fs-12)}
+.import-report-col-kind {width:22%}
+.import-report-col-count {width:18%}
+.import-report-references > td {padding-block-start:0}
+.import-report thead th {overflow-wrap:normal}
+.import-report caption {text-align:left;margin-bottom:var(--s-6)}
+.import-report td,.import-report th {padding:var(--s-6);text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+.import-report thead {background:var(--panel)}
+.import-report td {font-variant-numeric:tabular-nums}
+.import-report summary {cursor:default}
+.import-report ul {margin:var(--s-6) 0;padding-inline-start:var(--s-16)}
+.import-report li {margin-block:var(--s-4)}
+.import-report-warning,.import-report-warnings h3 {color:var(--warn-ink)}
+.import-report-warnings {border-inline-start:3px solid var(--warn-ink);padding-inline-start:var(--s-8)}

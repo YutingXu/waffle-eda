@@ -1,0 +1,7 @@
+{"kind":"library","formatVersion":"2.0","id":"a-q","name":"Demo A"}
+{"kind":"pad","id":"a-q/pad/1","order":"K","value":{"h":1000000,"number":"1","shape":"rect","w":1000000,"x":0,"y":0}}
+{"kind":"pad","id":"a-q/pad/2","order":"e","value":{"h":1000000,"number":"2","shape":"rect","w":1000000,"x":2000000,"y":0}}
+{"kind":"pin","id":"a-q/pin/1","order":"K","value":{"name":"EN","number":"1","x":0,"y":0}}
+{"kind":"pin","id":"a-q/pin/2","order":"e","value":{"name":"SENSE","number":"2","x":0,"y":2540000}}
+{"kind":"librarySettings","id":"a-q/settings","value":{"footprint":{"name":"QFN","pads":[],"shapes":[]},"parameters":{"MPN":"a-q-order","Manufacturer":"Example"},"prefix":"U","symbol":{"pins":[],"shapes":[]},"value":"Demo A"}}
+{"kind":"shape","id":"a-q/shape/1","order":"V","side":"symbol","value":{"kind":"path","closed":true,"points":[[-2000000,-1000000],[0,-1000000],[0,3000000],[-2000000,3000000]],"style":"body"}}

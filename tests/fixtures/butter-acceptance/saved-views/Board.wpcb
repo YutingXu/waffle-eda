@@ -1,0 +1,11 @@
+{"kind":"pcb","formatVersion":"2.0","id":"board"}
+{"kind":"layer","id":"board/layer/1","order":"7","value":{"material":"","name":"Top Overlay","thickness":0,"type":"Overlay"}}
+{"kind":"layer","id":"board/layer/2","order":"E","value":{"dk":"3.5","material":"Solder Resist","name":"Top Solder","thickness":10160,"type":"Solder Mask"}}
+{"kind":"layer","id":"board/layer/3","order":"L","value":{"key":"Top","material":"Copper","name":"Top Layer","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"board/layer/4","order":"S","value":{"df":"0.02","dielectric":"Core","dk":"4.8","material":"FR-4","name":"Dielectric 1","thickness":1510000,"type":"Dielectric"}}
+{"kind":"layer","id":"board/layer/5","order":"Z","value":{"key":"Bottom","material":"Copper","name":"Bottom Layer","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"board/layer/6","order":"g","value":{"dk":"3.5","material":"Solder Resist","name":"Bottom Solder","thickness":10160,"type":"Solder Mask"}}
+{"kind":"layer","id":"board/layer/7","order":"n","value":{"material":"","name":"Bottom Overlay","thickness":0,"type":"Overlay"}}
+{"kind":"documentSettings","id":"board/settings","value":{"grid":250000,"notes":[],"outline":[[0,0],[10000000,0],[10000000,8000000],[0,8000000]],"stackup":{"drillPairs":[],"layers":[],"version":1}}}
+{"kind":"part","id":"probe","angle":0,"at":[2540000,4000000],"def":"sense-pad","order":"K","ref":"TP1","value":"SENSE"}
+{"kind":"track","id":"run","layer":"Top","net":"SENSE","order":"e","points":[[2540000,4000000],[5080000,4000000],[6000000,5000000]],"width":250000}

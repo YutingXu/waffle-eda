@@ -1,0 +1,74 @@
+/* Review comments and canvas annotation. Tokens only. */
+.rc-close {margin-left:auto}
+.rc-tools {display:flex;flex-direction:column;gap:var(--s-4);padding:var(--s-4) var(--s-6) var(--s-6);border-bottom:1px solid var(--line)}
+.rc-actions,.rc-row {display:flex;gap:var(--s-4);min-width:0}
+.rc-actions .rc-add {flex:1 1 auto}
+.rc-row select {flex:1 1 0;min-width:0}
+.rc-tools > .ui-search {min-width:0}
+.rc-show {display:flex;align-items:center;gap:var(--s-6);color:var(--muted);font-size:var(--fs-11)}
+.rc-group h3 {margin:var(--s-6) var(--s-8) var(--s-4);font-size:var(--fs-11);font-weight:var(--fw-semibold);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.rc-thread {margin:0 var(--s-6) var(--s-6);padding:var(--s-6) var(--s-8);border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
+.rc-thread.is-selected {border-color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+.rc-thread[data-status=resolved] {opacity:.8}
+.rc-head {display:flex;align-items:center;gap:var(--s-6);width:100%;min-width:0;padding:0;border:0;background:none;color:var(--ink);font:inherit;text-align:left;cursor:default}
+.rc-head:focus-visible {outline:1px solid var(--focus);outline-offset:2px}
+.rc-pin {flex:none;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 var(--s-4);border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs-11);font-weight:var(--fw-semibold);font-variant-numeric:tabular-nums}
+.rc-thread[data-status=resolved] .rc-pin {background:var(--raised);color:var(--muted)}
+.rc-anchor {flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:var(--fw-medium)}
+.rc-badge {flex:none}
+.rc-meta {display:flex;gap:var(--s-6);align-items:baseline;margin-top:var(--s-4);color:var(--muted);font-size:var(--fs-11)}
+.rc-meta strong {color:var(--ink);font-weight:var(--fw-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-text {margin:var(--s-2) 0 0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:var(--lh);color:var(--ink)}
+.rc-mention {color:var(--accent-text);font-weight:var(--fw-medium)}
+.rc-replies-count,.rc-note {margin:var(--s-4) 0 0;color:var(--muted);font-size:var(--fs-11)}
+.rc-reply {margin-top:var(--s-6);padding-left:var(--s-8);border-left:2px solid var(--line)}
+.rc-input {display:block;width:100%;margin-top:var(--s-6);min-height:44px;resize:vertical}
+.rc-buttons {display:flex;justify-content:flex-end;gap:var(--s-4);margin-top:var(--s-4)}
+.rc-buttons .rc-delete {margin-right:auto;color:var(--error)}
+.rc-empty {margin:var(--s-12);color:var(--muted);font-size:var(--fs-12);line-height:var(--lh-loose)}
+.rc-dialog {width:min(460px,calc(100vw - 48px))}
+.rc-dialog .rc-form > .work-row:has(> span:first-child + .ui-field) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
+.rc-dialog .rc-form > .work-row:has(> span:first-child + textarea) {align-items:start}
+.rc-dialog .work-row > span {flex:0 0 88px}
+/* The multiline caption shares the first line's padding and field border. */
+.rc-dialog .work-row:has(> textarea) > span {padding-block-start:calc(var(--s-4) + 1px)}
+.rc-dialog .work-row > :is(select,input,textarea) {flex:1 1 auto;min-width:0}
+.rc-dialog .rc-input {margin-top:0;min-height:88px}
+.rc-status {min-height:1.4em;margin:var(--s-4) 0 0;color:var(--muted)}
+
+.rc-form {display:flex;flex-direction:column;gap:var(--s-4)}
+.rc-form .work-row {min-height:0;padding:0}
+
+/* Annotate mode (review-annotate.js): the composer beside the target, the area hint, the
+   status-bar chip and the live region. The hover box and its label are drawn on the canvas
+   from --accent, --overlay, --ink, --muted and --line. Motion stops under reduced motion
+   (style.css, theme.css) like every other animation. */
+.ann-composer {position:absolute;z-index:var(--z-float);width:min(320px,calc(100% - 16px));box-sizing:border-box;
+  padding:var(--s-12);font-size:var(--fs-12)}
+.ann-composer[hidden] {display:none}
+.ann-composer[data-side=left] {transform-origin:right center}
+.ann-composer[data-side=right] {transform-origin:left center}
+.ann-composer[data-side=below] {transform-origin:center top}
+.ann-composer[data-side=above] {transform-origin:center bottom}
+.ann-c-form {display:flex;flex-direction:column;gap:var(--s-8)}
+/* One quiet caption, only when the target needs naming (not for an area). */
+.ann-c-title {margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh-tight)}
+.ann-c-title:empty {display:none}
+.ann-c-text {display:block;width:100%;box-sizing:border-box;min-height:64px;resize:vertical}
+.ann-c-foot {display:flex;align-items:center;justify-content:flex-end;gap:var(--s-8);min-width:0}
+.ann-c-foot button {flex:none}
+/* The primary button carries its own shortcut: an outlined keycap in the button's ink. */
+.ann-c-post {display:inline-flex;align-items:center;gap:var(--s-6)}
+.ann-c-post .ui-shortcut {--shortcut-ink:currentColor;gap:var(--s-2)}
+.ann-c-post .ui-shortcut-step {gap:var(--s-2)}
+.ann-c-post .ui-shortcut[data-variant=keycap] .ui-shortcut-cap {min-inline-size:var(--s-16);min-block-size:var(--s-16);padding:0 var(--s-2);
+  border-color:color-mix(in srgb,currentColor 50%,transparent);background:transparent;box-shadow:none;color:currentColor;font-size:var(--fs-10)}
+.ann-c-status {margin:0;color:var(--error);font-size:var(--fs-11)}
+.ann-c-status:empty {display:none}
+.ann-hint {position:absolute;left:0;top:0;z-index:var(--z-float);padding:var(--s-2) var(--s-8);border:1px solid var(--line);border-radius:var(--r-pill);background:var(--overlay);color:var(--ink);
+  box-shadow:var(--elev-1);font-size:var(--fs-11);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity var(--motion) var(--ease)}
+.ann-hint.is-shown {opacity:1}
+.ann-chip-dot {width:6px;height:6px;border-radius:var(--r-pill);background:var(--accent)}
+/* Reduced motion: the dot stays lit instead of breathing (an infinite animation keeps compositing). */
+@media (prefers-reduced-motion:reduce) {:root:not([data-motion=full]) .ann-chip-dot {animation:none}}
+:root[data-motion=reduce] .ann-chip-dot {animation:none}

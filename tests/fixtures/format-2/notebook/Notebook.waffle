@@ -1,0 +1,7 @@
+{"kind":"project","formatVersion":"2.0","id":"notebook-project","entryDocument":"notebook-sheet","name":"Notebook"}
+{"kind":"projectSetting","id":"notebook-project/setting/review","key":"review","value":{"version":1}}
+{"kind":"projectSetting","id":"notebook-project/setting/rules","key":"rules","value":{"calculationTolerances":{"resistor":{"$number":"0.01"}},"format":"atrium-rules","units":"mm","version":3}}
+{"kind":"document","id":"notebook-sheet","docKind":"schematic","name":"Notebook","order":"V","path":"Notebook.wsch"}
+{"kind":"rule","id":"rail-rule","order":"V","value":{"id":"rail-rule","enabled":true,"name":"Review rail","origin":{"kind":"calculation","assertion":"rail-assertion","object":"rail-calc","sheet":"notebook-sheet"},"priority":1,"scope":{"languageVersion":1,"source":"object"},"severity":"error","sheets":["notebook-sheet"],"type":"ercCalculationAssertion","where":"schematic"}}
+{"kind":"reviewReply","id":"review-reply","order":"V","value":{"id":"review-reply","author":"Author","created":"2026-01-01T00:01:00.000Z","text":"Checked","thread":"review-thread","type":"reply"}}
+{"kind":"reviewThread","id":"review-thread","order":"V","value":{"id":"review-thread","anchor":{"kind":"item","id":"plain-label","at":[8000000,16000000]},"author":"Reviewer","created":"2026-01-01T00:00:00.000Z","doc":"notebook-sheet","resolved":{"at":"2026-01-01T00:02:00.000Z","by":"Reviewer"},"status":"resolved","text":"Confirm the rail","type":"thread"}}

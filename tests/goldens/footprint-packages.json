@@ -1,0 +1,2606 @@
+{
+ "silkWidth": 0.18,
+ "families": [
+  "chip",
+  "melf",
+  "sod",
+  "sot23",
+  "sot223",
+  "gullwing",
+  "nolead",
+  "bga",
+  "header",
+  "dip",
+  "smdheader",
+  "chiparray",
+  "molded",
+  "capae",
+  "sodfl",
+  "sotfl",
+  "sotx",
+  "sot143",
+  "sot89",
+  "dpak",
+  "jlead",
+  "lcc",
+  "qfp",
+  "sop",
+  "qfn",
+  "qfn2row",
+  "lga",
+  "csp",
+  "inductor",
+  "xtal",
+  "led",
+  "tact",
+  "buzzer",
+  "testpad",
+  "castellated",
+  "axial",
+  "radial",
+  "to92",
+  "to220",
+  "tocan",
+  "sip",
+  "pga",
+  "connector",
+  "xtaltht",
+  "fuseholder",
+  "pingrid",
+  "mounting",
+  "fiducial",
+  "cardedge",
+  "nettie"
+ ],
+ "packages": [
+  {
+   "family": "chiparray",
+   "preset": "0402×4 (2010)",
+   "name": "RESCAV50P200X100X45-8N",
+   "height": 0.45,
+   "courtyard": [
+    -1.3,
+    -1.3,
+    1.3,
+    1.3
+   ],
+   "Z": 2.05,
+   "G": 0.55,
+   "X": 0.25,
+   "hole": null,
+   "land": null,
+   "pads": 8,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -0.65,
+     -0.75,
+     0.75,
+     0.25,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -0.65,
+     -0.25,
+     0.75,
+     0.25,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "8",
+    0.65,
+    -0.75,
+    0.75,
+    0.25
+   ]
+  },
+  {
+   "family": "molded",
+   "preset": "Tantalum B (3528-21)",
+   "name": "CAPMP3528X210N",
+   "height": 2.1,
+   "courtyard": [
+    -2.6,
+    -1.75,
+    2.6,
+    1.75
+   ],
+   "Z": 4.7,
+   "G": 1.1,
+   "X": 2.25,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.45,
+     0,
+     1.8,
+     2.25,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     1.45,
+     0,
+     1.8,
+     2.25,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    1.45,
+    0,
+    1.8,
+    2.25
+   ]
+  },
+  {
+   "family": "molded",
+   "preset": "SMA (DO-214AC)",
+   "name": "DIOM5226X244N",
+   "height": 2.44,
+   "courtyard": [
+    -3.55,
+    -1.75,
+    3.55,
+    1.75
+   ],
+   "Z": 6.6,
+   "G": 1.95,
+   "X": 1.55,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.1375,
+     0,
+     2.325,
+     1.55,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     2.1375,
+     0,
+     2.325,
+     1.55,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    2.1375,
+    0,
+    2.325,
+    1.55
+   ]
+  },
+  {
+   "family": "capae",
+   "preset": "6.3×5.4 (D)",
+   "name": "CAPAE660X570N",
+   "height": 5.7,
+   "courtyard": [
+    -4.8,
+    -3.8,
+    4.8,
+    3.8
+   ],
+   "Z": 8.6,
+   "G": 1.8,
+   "X": 1.6,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.6,
+     0,
+     3.4,
+     1.6,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     2.6,
+     0,
+     3.4,
+     1.6,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    2.6,
+    0,
+    3.4,
+    1.6
+   ]
+  },
+  {
+   "family": "sodfl",
+   "preset": "SOD-123F",
+   "name": "SODFL3617X110N",
+   "height": 1.1,
+   "courtyard": [
+    -2.25,
+    -1.05,
+    2.25,
+    1.05
+   ],
+   "Z": 4.2,
+   "G": 1.85,
+   "X": 1.05,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.5125,
+     0,
+     1.175,
+     1.05,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     1.5125,
+     0,
+     1.175,
+     1.05,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    1.5125,
+    0,
+    1.175,
+    1.05
+   ]
+  },
+  {
+   "family": "sotfl",
+   "preset": "SOT-563",
+   "name": "SOTFL50P160X60-6N",
+   "height": 0.6,
+   "courtyard": [
+    -1.25,
+    -1,
+    1.25,
+    1
+   ],
+   "Z": 2.15,
+   "G": 1,
+   "X": 0.35,
+   "hole": null,
+   "land": null,
+   "pads": 6,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -0.7875,
+     -0.5,
+     0.575,
+     0.35,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -0.7875,
+     0,
+     0.575,
+     0.35,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "6",
+    0.7875,
+    -0.5,
+    0.575,
+    0.35
+   ]
+  },
+  {
+   "family": "sotx",
+   "preset": "SOT-363 (SC-70-6)",
+   "name": "SOT65P210X110-6N",
+   "height": 1.1,
+   "courtyard": [
+    -1.75,
+    -1.35,
+    1.75,
+    1.35
+   ],
+   "Z": 2.95,
+   "G": 0.55,
+   "X": 0.4,
+   "hole": null,
+   "land": null,
+   "pads": 6,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -0.875,
+     -0.65,
+     1.2,
+     0.4,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -0.875,
+     0,
+     1.2,
+     0.4,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "6",
+    0.875,
+    -0.65,
+    1.2,
+    0.4
+   ]
+  },
+  {
+   "family": "sotx",
+   "preset": "SOT-23-8",
+   "name": "SOT65P280X145-8N",
+   "height": 1.45,
+   "courtyard": [
+    -2.1,
+    -1.75,
+    2.1,
+    1.75
+   ],
+   "Z": 3.7,
+   "G": 0.9,
+   "X": 0.5,
+   "hole": null,
+   "land": null,
+   "pads": 8,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.15,
+     -0.975,
+     1.4,
+     0.5,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.15,
+     -0.325,
+     1.4,
+     0.5,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "8",
+    1.15,
+    -0.975,
+    1.4,
+    0.5
+   ]
+  },
+  {
+   "family": "sot143",
+   "preset": "SOT-143",
+   "name": "SOT190P237X112-4N",
+   "height": 1.12,
+   "courtyard": [
+    -1.95,
+    -1.8,
+    1.95,
+    1.8
+   ],
+   "Z": 3.35,
+   "G": 0.4,
+   "X": 0.6,
+   "hole": null,
+   "land": null,
+   "pads": 4,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -0.9375,
+     -0.7575,
+     1.475,
+     1,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -0.9375,
+     0.95,
+     1.475,
+     0.6,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "4",
+    0.9375,
+    -0.95,
+    1.475,
+    0.6
+   ]
+  },
+  {
+   "family": "sot89",
+   "preset": "SOT-89-3",
+   "name": "SOT150P409X160-3N",
+   "height": 1.6,
+   "courtyard": [
+    -2.75,
+    -2.55,
+    2.75,
+    2.55
+   ],
+   "Z": 4.95,
+   "G": 1.05,
+   "X": 0.6,
+   "hole": null,
+   "land": null,
+   "pads": 4,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.5,
+     -1.5,
+     1.95,
+     0.6,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.5,
+     0,
+     1.95,
+     0.6,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    0.4875,
+    0,
+    3.975,
+    1.9
+   ]
+  },
+  {
+   "family": "dpak",
+   "preset": "TO-252-2 (DPAK)",
+   "name": "TO228P990X238-3N",
+   "height": 2.38,
+   "courtyard": [
+    -5.8,
+    -3.65,
+    5.8,
+    3.65
+   ],
+   "Z": 11.1,
+   "G": 6.15,
+   "X": 0.95,
+   "hole": null,
+   "land": null,
+   "pads": 3,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -4.3125,
+     -2.28,
+     2.475,
+     0.95,
+     0,
+     "roundrect"
+    ],
+    [
+     "3",
+     -4.3125,
+     2.28,
+     2.475,
+     0.95,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    2.25,
+    0,
+    6.6,
+    5.55
+   ]
+  },
+  {
+   "family": "dpak",
+   "preset": "TO-263-5 (D2PAK-5)",
+   "name": "TO170P1524X483-6N",
+   "height": 4.83,
+   "courtyard": [
+    -8.55,
+    -5.6,
+    8.55,
+    5.6
+   ],
+   "Z": 16.6,
+   "G": 9,
+   "X": 1,
+   "hole": null,
+   "land": null,
+   "pads": 6,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -6.4,
+     -3.4,
+     3.8,
+     1,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -6.4,
+     -1.7,
+     3.8,
+     1,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "6",
+    3.7,
+    0,
+    9.2,
+    8.05
+   ]
+  },
+  {
+   "family": "jlead",
+   "preset": "PLCC-44",
+   "name": "PLCC127P1752X1752X457-44N",
+   "height": 4.57,
+   "courtyard": [
+    -9.1,
+    -9.1,
+    9.1,
+    9.1
+   ],
+   "Z": 17.65,
+   "G": 14.3,
+   "X": 0.6,
+   "hole": null,
+   "land": null,
+   "pads": 44,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     0,
+     -7.9875,
+     0.6,
+     1.675,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.27,
+     -7.9875,
+     0.6,
+     1.675,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "44",
+    1.27,
+    -7.9875,
+    0.6,
+    1.675
+   ]
+  },
+  {
+   "family": "jlead",
+   "preset": "SOJ-26 (300 mil)",
+   "name": "SOJ127P851X375-26N",
+   "height": 3.75,
+   "courtyard": [
+    -4.6,
+    -8.9,
+    4.6,
+    8.9
+   ],
+   "Z": 8.65,
+   "G": 4.75,
+   "X": 0.6,
+   "hole": null,
+   "land": null,
+   "pads": 26,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -3.35,
+     -7.62,
+     1.95,
+     0.6,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -3.35,
+     -6.35,
+     1.95,
+     0.6,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "26",
+    3.35,
+    -7.62,
+    1.95,
+    0.6
+   ]
+  },
+  {
+   "family": "lcc",
+   "preset": "LCC-28",
+   "name": "LCC127P1143X1143X254-28N",
+   "height": 2.54,
+   "courtyard": [
+    -6.65,
+    -6.65,
+    6.65,
+    6.65
+   ],
+   "Z": 12.8,
+   "G": 8.6,
+   "X": 0.65,
+   "hole": null,
+   "land": null,
+   "pads": 28,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     0,
+     -5.35,
+     0.65,
+     2.1,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.27,
+     -5.35,
+     0.65,
+     2.1,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "28",
+    1.27,
+    -5.35,
+    0.65,
+    2.1
+   ]
+  },
+  {
+   "family": "qfp",
+   "preset": "LQFP-144 20×20 0.5",
+   "name": "QFP50P2200X2200X160-144N",
+   "height": 1.6,
+   "courtyard": [
+    -11.7,
+    -11.7,
+    11.7,
+    11.7
+   ],
+   "Z": 22.85,
+   "G": 19.85,
+   "X": 0.3,
+   "hole": null,
+   "land": null,
+   "pads": 144,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -10.675,
+     -8.75,
+     1.5,
+     0.3,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -10.675,
+     -8.25,
+     1.5,
+     0.3,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "144",
+    -8.75,
+    -10.675,
+    0.3,
+    1.5
+   ]
+  },
+  {
+   "family": "qfp",
+   "preset": "PQFP-100 14×20 0.65",
+   "name": "QFP65P1720X2320X340-100N",
+   "height": 3.4,
+   "courtyard": [
+    -9.35,
+    -12.35,
+    9.35,
+    12.35
+   ],
+   "Z": 18.15,
+   "G": 14.4,
+   "X": 0.5,
+   "hole": null,
+   "land": null,
+   "pads": 100,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -8.1375,
+     -9.425,
+     1.875,
+     0.5,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -8.1375,
+     -8.775,
+     1.875,
+     0.5,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "100",
+    -6.175,
+    -11.1375,
+    0.5,
+    1.875
+   ]
+  },
+  {
+   "family": "qfp",
+   "preset": "HTQFP-64 10×10 0.5 EP",
+   "name": "QFP50P1200X1200X120-65N",
+   "height": 1.2,
+   "courtyard": [
+    -6.7,
+    -6.7,
+    6.7,
+    6.7
+   ],
+   "Z": 12.9,
+   "G": 9.8,
+   "X": 0.3,
+   "hole": null,
+   "land": null,
+   "pads": 65,
+   "vias": 25,
+   "first": [
+    [
+     "1",
+     -5.675,
+     -3.75,
+     1.55,
+     0.3,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -5.675,
+     -3.25,
+     1.55,
+     0.3,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "65",
+    0,
+    0,
+    6,
+    6
+   ]
+  },
+  {
+   "family": "sop",
+   "preset": "TSSOP-16",
+   "name": "SOP65P640X120-16N",
+   "height": 1.2,
+   "courtyard": [
+    -3.9,
+    -2.8,
+    3.9,
+    2.8
+   ],
+   "Z": 7.3,
+   "G": 4.15,
+   "X": 0.4,
+   "hole": null,
+   "land": null,
+   "pads": 16,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.8625,
+     -2.275,
+     1.575,
+     0.4,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -2.8625,
+     -1.625,
+     1.575,
+     0.4,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "16",
+    2.8625,
+    -2.275,
+    1.575,
+    0.4
+   ]
+  },
+  {
+   "family": "sop",
+   "preset": "MSOP-10",
+   "name": "SOP50P490X110-10N",
+   "height": 1.1,
+   "courtyard": [
+    -3.15,
+    -1.8,
+    3.15,
+    1.8
+   ],
+   "Z": 5.75,
+   "G": 2.85,
+   "X": 0.25,
+   "hole": null,
+   "land": null,
+   "pads": 10,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.15,
+     -1,
+     1.45,
+     0.25,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -2.15,
+     -0.5,
+     1.45,
+     0.25,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "10",
+    2.15,
+    -1,
+    1.45,
+    0.25
+   ]
+  },
+  {
+   "family": "sop",
+   "preset": "TSOP-II-44 400 mil",
+   "name": "SOP80P1176X120-44N",
+   "height": 1.2,
+   "courtyard": [
+    -6.6,
+    -9.55,
+    6.6,
+    9.55
+   ],
+   "Z": 12.7,
+   "G": 9.8,
+   "X": 0.55,
+   "hole": null,
+   "land": null,
+   "pads": 44,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -5.625,
+     -8.4,
+     1.45,
+     0.55,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -5.625,
+     -7.6,
+     1.45,
+     0.55,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "44",
+    5.625,
+    -8.4,
+    1.45,
+    0.55
+   ]
+  },
+  {
+   "family": "sop",
+   "preset": "SOIC-8 EP",
+   "name": "SOIC127P600X175-9N",
+   "height": 1.75,
+   "courtyard": [
+    -3.7,
+    -2.75,
+    3.7,
+    2.75
+   ],
+   "Z": 6.9,
+   "G": 3,
+   "X": 0.6,
+   "hole": null,
+   "land": null,
+   "pads": 9,
+   "vias": 4,
+   "first": [
+    [
+     "1",
+     -2.475,
+     -1.905,
+     1.95,
+     0.6,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -2.475,
+     -0.635,
+     1.95,
+     0.6,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "9",
+    0,
+    0,
+    2.4,
+    3.3
+   ]
+  },
+  {
+   "family": "qfn",
+   "preset": "QFN-24 4×4 0.5",
+   "name": "QFN50P400X400X100-25N",
+   "height": 1,
+   "courtyard": [
+    -2.65,
+    -2.65,
+    2.65,
+    2.65
+   ],
+   "Z": 4.75,
+   "G": 3,
+   "X": 0.25,
+   "hole": null,
+   "land": null,
+   "pads": 25,
+   "vias": 4,
+   "first": [
+    [
+     "1",
+     -1.9375,
+     -1.25,
+     0.875,
+     0.25,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.9375,
+     -0.75,
+     0.875,
+     0.25,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "25",
+    0,
+    0,
+    2.6,
+    2.6
+   ]
+  },
+  {
+   "family": "qfn",
+   "preset": "PQFN-12 4×4 0.65 (pull-back)",
+   "name": "PQFN65P400X400X100-13N",
+   "height": 1,
+   "courtyard": [
+    -2.3,
+    -2.3,
+    2.3,
+    2.3
+   ],
+   "Z": 3.95,
+   "G": 2.8,
+   "X": 0.4,
+   "hole": null,
+   "land": null,
+   "pads": 13,
+   "vias": 4,
+   "first": [
+    [
+     "1",
+     -1.6875,
+     -0.65,
+     0.575,
+     0.4,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.6875,
+     0,
+     0.575,
+     0.4,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "13",
+    0,
+    0,
+    2.4,
+    2.4
+   ]
+  },
+  {
+   "family": "qfn2row",
+   "preset": "QFN-2ROW-84 7×7 0.5",
+   "name": "QFN50P700X700X90-85N",
+   "height": 0.9,
+   "courtyard": [
+    -4.15,
+    -4.15,
+    4.15,
+    4.15
+   ],
+   "Z": 7.75,
+   "G": 6.25,
+   "X": 0.25,
+   "hole": null,
+   "land": null,
+   "pads": 85,
+   "vias": 9,
+   "first": [
+    [
+     "A1",
+     -3.5,
+     -2.5,
+     0.75,
+     0.25,
+     0,
+     "roundrect"
+    ],
+    [
+     "A2",
+     -3.5,
+     -2,
+     0.75,
+     0.25,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "EP",
+    0,
+    0,
+    3.5,
+    3.5
+   ]
+  },
+  {
+   "family": "lga",
+   "preset": "LGA-16 3×3 0.65",
+   "name": "LGA16P65P4X4_300X300X100N",
+   "height": 1,
+   "courtyard": [
+    -1.8,
+    -1.8,
+    1.8,
+    1.8
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": 0.35,
+   "pads": 16,
+   "vias": 0,
+   "first": [
+    [
+     "A1",
+     -0.975,
+     -0.975,
+     0.35,
+     0.35,
+     0,
+     "rect"
+    ],
+    [
+     "A2",
+     -0.325,
+     -0.975,
+     0.35,
+     0.35,
+     0,
+     "rect"
+    ]
+   ],
+   "last": [
+    "D4",
+    0.975,
+    0.975,
+    0.35,
+    0.35
+   ]
+  },
+  {
+   "family": "csp",
+   "preset": "WLCSP-16 0.4",
+   "name": "BGA16C40P4X4_160X160X50N",
+   "height": 0.5,
+   "courtyard": [
+    -1.8,
+    -1.8,
+    1.8,
+    1.8
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": 0.2,
+   "pads": 16,
+   "vias": 0,
+   "first": [
+    [
+     "A1",
+     -0.6,
+     -0.6,
+     0.2,
+     0.2,
+     0,
+     "round"
+    ],
+    [
+     "A2",
+     -0.2,
+     -0.6,
+     0.2,
+     0.2,
+     0,
+     "round"
+    ]
+   ],
+   "last": [
+    "D4",
+    0.6,
+    0.6,
+    0.2,
+    0.2
+   ]
+  },
+  {
+   "family": "csp",
+   "preset": "BGA-81 0.8 staggered",
+   "name": "BGA77C80P9X9_800X800X120N",
+   "height": 1.2,
+   "courtyard": [
+    -5,
+    -5,
+    5,
+    5
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": 0.3,
+   "pads": 77,
+   "vias": 0,
+   "first": [
+    [
+     "A1",
+     -3.2,
+     -3.2,
+     0.3,
+     0.3,
+     0,
+     "round"
+    ],
+    [
+     "A2",
+     -2.4,
+     -3.2,
+     0.3,
+     0.3,
+     0,
+     "round"
+    ]
+   ],
+   "last": [
+    "J9",
+    3.2,
+    3.2,
+    0.3,
+    0.3
+   ]
+  },
+  {
+   "family": "inductor",
+   "preset": "Power 4040 (4×4×2)",
+   "name": "INDM4040X200N",
+   "height": 2,
+   "courtyard": [
+    -2.85,
+    -2.35,
+    2.85,
+    2.35
+   ],
+   "Z": 5.2,
+   "G": 1,
+   "X": 3.3,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.55,
+     0,
+     2.1,
+     3.3,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     1.55,
+     0,
+     2.1,
+     3.3,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    1.55,
+    0,
+    2.1,
+    3.3
+   ]
+  },
+  {
+   "family": "inductor",
+   "preset": "Wire-wound 0603 (1608)",
+   "name": "INDC1711X110N",
+   "height": 1.1,
+   "courtyard": [
+    -1.55,
+    -0.85,
+    1.55,
+    0.85
+   ],
+   "Z": 2.6,
+   "G": 0.85,
+   "X": 0.85,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -0.8625,
+     0,
+     0.875,
+     0.85,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     0.8625,
+     0,
+     0.875,
+     0.85,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    0.8625,
+    0,
+    0.875,
+    0.85
+   ]
+  },
+  {
+   "family": "xtal",
+   "preset": "4-pad 3225",
+   "name": "OSCCC320X250X80-4N",
+   "height": 0.8,
+   "courtyard": [
+    -2,
+    -1.55,
+    2,
+    1.55
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 4,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.125,
+     -0.8,
+     1.2,
+     0.95,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -1.125,
+     0.8,
+     1.2,
+     0.95,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "4",
+    1.125,
+    -0.8,
+    1.2,
+    0.95
+   ]
+  },
+  {
+   "family": "xtal",
+   "preset": "2-pad 3215 (32.768 kHz)",
+   "name": "XTAL320X150X90-2N",
+   "height": 0.9,
+   "courtyard": [
+    -1.95,
+    -1,
+    1.95,
+    1
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.175,
+     0,
+     1,
+     1.35,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     1.175,
+     0,
+     1,
+     1.35,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    1.175,
+    0,
+    1,
+    1.35
+   ]
+  },
+  {
+   "family": "led",
+   "preset": "PLCC-2 3528",
+   "name": "LEDSC350X280X190-2N",
+   "height": 1.9,
+   "courtyard": [
+    -2.3,
+    -1.65,
+    2.3,
+    1.65
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.475,
+     0,
+     1.1,
+     2.35,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     1.475,
+     0,
+     1.1,
+     2.35,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    1.475,
+    0,
+    1.1,
+    2.35
+   ]
+  },
+  {
+   "family": "led",
+   "preset": "PLCC-6 5050",
+   "name": "LEDSC500X500X160-6N",
+   "height": 1.6,
+   "courtyard": [
+    -3.35,
+    -2.75,
+    3.35,
+    2.75
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 6,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.375,
+     -1.6,
+     1.4,
+     1.05,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -2.375,
+     0,
+     1.4,
+     1.05,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "6",
+    2.375,
+    -1.6,
+    1.4,
+    1.05
+   ]
+  },
+  {
+   "family": "tact",
+   "preset": "6×6 SMD, 4 leads",
+   "name": "SWT600X600X430-4N",
+   "height": 4.3,
+   "courtyard": [
+    -4.9,
+    -3.25,
+    4.9,
+    3.25
+   ],
+   "Z": 9.3,
+   "G": 5.2,
+   "X": 0.9,
+   "hole": null,
+   "land": null,
+   "pads": 4,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -3.625,
+     -2.25,
+     2.05,
+     0.9,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -3.625,
+     2.25,
+     2.05,
+     0.9,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "4",
+    3.625,
+    -2.25,
+    2.05,
+    0.9
+   ]
+  },
+  {
+   "family": "buzzer",
+   "preset": "Magnetic 9×9 SMD",
+   "name": "BUZZER960X960X500-2N",
+   "height": 5,
+   "courtyard": [
+    -5.05,
+    -5.05,
+    5.05,
+    5.35
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -3.5,
+     4.275,
+     1.95,
+     1.6,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     3.5,
+     4.275,
+     1.95,
+     1.6,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "2",
+    3.5,
+    4.275,
+    1.95,
+    1.6
+   ]
+  },
+  {
+   "family": "testpad",
+   "preset": "Round 1.0",
+   "name": "TESTPADR100N",
+   "height": 0.035,
+   "courtyard": [
+    -0.75,
+    -0.75,
+    0.75,
+    0.75
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": 1,
+   "pads": 1,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     0,
+     0,
+     1,
+     1,
+     0,
+     "round"
+    ]
+   ],
+   "last": [
+    "1",
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  {
+   "family": "castellated",
+   "preset": "Module 18×25.5, 1.27, 3 sides (14+10+14)",
+   "name": "MODLAND127P1800X2550X320-38N",
+   "height": 3.2,
+   "courtyard": [
+    -9.9,
+    -13.1,
+    9.9,
+    13.65
+   ],
+   "Z": 19.3,
+   "G": 14.35,
+   "X": 0.95,
+   "hole": null,
+   "land": null,
+   "pads": 38,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -8.4125,
+     -8.255,
+     2.475,
+     0.95,
+     0,
+     "roundrect"
+    ],
+    [
+     "2",
+     -8.4125,
+     -6.985,
+     2.475,
+     0.95,
+     0,
+     "roundrect"
+    ]
+   ],
+   "last": [
+    "38",
+    8.4125,
+    -8.255,
+    2.475,
+    0.95
+   ]
+  },
+  {
+   "family": "axial",
+   "preset": "DIN0207 P10.16",
+   "name": "RESAD1016W60L630D250N",
+   "height": 2.5,
+   "courtyard": [
+    -6.05,
+    -1.5,
+    6.05,
+    1.5
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.85,
+   "land": 1.35,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -5.08,
+     0,
+     1.35,
+     1.35,
+     0.85,
+     "round"
+    ],
+    [
+     "2",
+     5.08,
+     0,
+     1.35,
+     1.35,
+     0.85,
+     "round"
+    ]
+   ],
+   "last": [
+    "2",
+    5.08,
+    0,
+    1.35,
+    1.35
+   ]
+  },
+  {
+   "family": "axial",
+   "preset": "DO-41 standing P5.08",
+   "name": "DIOAV508W78L520D270N",
+   "height": 7.2,
+   "courtyard": [
+    -4.15,
+    -1.6,
+    3.6,
+    1.6
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 1.1,
+   "land": 1.6,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.54,
+     0,
+     1.6,
+     1.6,
+     1.1,
+     "rect"
+    ],
+    [
+     "2",
+     2.54,
+     0,
+     1.6,
+     1.6,
+     1.1,
+     "round"
+    ]
+   ],
+   "last": [
+    "2",
+    2.54,
+    0,
+    1.6,
+    1.6
+   ]
+  },
+  {
+   "family": "radial",
+   "preset": "Can D6.3 P2.5",
+   "name": "CAPPRD250W50D630H1100N",
+   "height": 11,
+   "courtyard": [
+    -3.4,
+    -3.4,
+    3.4,
+    3.4
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.75,
+   "land": 1.25,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.25,
+     0,
+     1.25,
+     1.25,
+     0.75,
+     "rect"
+    ],
+    [
+     "2",
+     1.25,
+     0,
+     1.25,
+     1.25,
+     0.75,
+     "round"
+    ]
+   ],
+   "last": [
+    "2",
+    1.25,
+    0,
+    1.25,
+    1.25
+   ]
+  },
+  {
+   "family": "radial",
+   "preset": "Box 13×4 P10",
+   "name": "CAPRR1000W60L1300T400H950N",
+   "height": 9.5,
+   "courtyard": [
+    -6.75,
+    -2.25,
+    6.75,
+    2.25
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.85,
+   "land": 1.35,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -5,
+     0,
+     1.35,
+     1.35,
+     0.85,
+     "round"
+    ],
+    [
+     "2",
+     5,
+     0,
+     1.35,
+     1.35,
+     0.85,
+     "round"
+    ]
+   ],
+   "last": [
+    "2",
+    5,
+    0,
+    1.35,
+    1.35
+   ]
+  },
+  {
+   "family": "to92",
+   "preset": "TO-92 inline 1.27",
+   "name": "TO92127P480X360X533-3N",
+   "height": 5.33,
+   "courtyard": [
+    -2.65,
+    -2.65,
+    2.65,
+    1.45
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.65,
+   "land": 1.05,
+   "pads": 3,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.27,
+     0,
+     1.05,
+     1.05,
+     0.65,
+     "rect"
+    ],
+    [
+     "2",
+     0,
+     0,
+     1.05,
+     1.05,
+     0.65,
+     "round"
+    ]
+   ],
+   "last": [
+    "3",
+    1.27,
+    0,
+    1.05,
+    1.05
+   ]
+  },
+  {
+   "family": "to220",
+   "preset": "TO-220-3 vertical",
+   "name": "TO254P1016X460X1900-3VN",
+   "height": 19,
+   "courtyard": [
+    -5.35,
+    -3.05,
+    5.35,
+    2.05
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 1.35,
+   "land": 1.85,
+   "pads": 3,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.54,
+     0,
+     1.85,
+     2.7,
+     1.35,
+     "rect"
+    ],
+    [
+     "2",
+     0,
+     0,
+     1.85,
+     2.7,
+     1.35,
+     "oval"
+    ]
+   ],
+   "last": [
+    "3",
+    2.54,
+    0,
+    1.85,
+    2.7
+   ]
+  },
+  {
+   "family": "to220",
+   "preset": "TO-247-3 horizontal",
+   "name": "TO545P1590X2050X500-3HN",
+   "height": 5,
+   "courtyard": [
+    -8.2,
+    -23.75,
+    8.2,
+    2
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 1.85,
+   "land": 2.35,
+   "pads": 4,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -5.45,
+     0,
+     2.35,
+     3.45,
+     1.85,
+     "rect"
+    ],
+    [
+     "2",
+     0,
+     0,
+     2.35,
+     3.45,
+     1.85,
+     "oval"
+    ]
+   ],
+   "last": [
+    "",
+    0,
+    -18,
+    3.6,
+    3.6
+   ]
+  },
+  {
+   "family": "tocan",
+   "preset": "TO-5 (8 leads)",
+   "name": "TOCAN508D940H470-8N",
+   "height": 4.7,
+   "courtyard": [
+    -4.95,
+    -4.95,
+    4.95,
+    4.95
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.75,
+   "land": 1.15,
+   "pads": 8,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.346654,
+     -0.972016,
+     1.15,
+     1.15,
+     0.75,
+     "rect"
+    ],
+    [
+     "2",
+     -2.346654,
+     0.972016,
+     1.15,
+     1.15,
+     0.75,
+     "round"
+    ]
+   ],
+   "last": [
+    "8",
+    -0.972016,
+    -2.346654,
+    1.15,
+    1.15
+   ]
+  },
+  {
+   "family": "sip",
+   "preset": "SIP-8",
+   "name": "SIP254P2032X300X800-8N",
+   "height": 8,
+   "courtyard": [
+    -10.45,
+    -1.75,
+    10.45,
+    1.75
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.8,
+   "land": 1.3,
+   "pads": 8,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -8.89,
+     0,
+     1.3,
+     1.9,
+     0.8,
+     "rect"
+    ],
+    [
+     "2",
+     -6.35,
+     0,
+     1.3,
+     1.9,
+     0.8,
+     "oval"
+    ]
+   ],
+   "last": [
+    "8",
+    8.89,
+    0,
+    1.3,
+    1.9
+   ]
+  },
+  {
+   "family": "pga",
+   "preset": "PGA-68 11×11 2.54 (2 rows)",
+   "name": "PGA72P254_11X11_2800X350N",
+   "height": 3.5,
+   "courtyard": [
+    -14.25,
+    -14.25,
+    14.25,
+    14.25
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.75,
+   "land": 1.25,
+   "pads": 72,
+   "vias": 0,
+   "first": [
+    [
+     "A1",
+     -12.7,
+     -12.7,
+     1.25,
+     1.25,
+     0.75,
+     "rect"
+    ],
+    [
+     "A2",
+     -10.16,
+     -12.7,
+     1.25,
+     1.25,
+     0.75,
+     "round"
+    ]
+   ],
+   "last": [
+    "L11",
+    12.7,
+    12.7,
+    1.25,
+    1.25
+   ]
+  },
+  {
+   "family": "connector",
+   "preset": "IDC box header 2×5 2.54",
+   "name": "BOXV10P254_2X5_K_H900N",
+   "height": 9,
+   "courtyard": [
+    -4.45,
+    -10.4,
+    4.45,
+    10.4
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 1.15,
+   "land": null,
+   "pads": 10,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -1.27,
+     -5.08,
+     1.65,
+     1.65,
+     1.15,
+     "rect"
+    ],
+    [
+     "2",
+     1.27,
+     -5.08,
+     1.65,
+     1.65,
+     1.15,
+     "round"
+    ]
+   ],
+   "last": [
+    "10",
+    1.27,
+    5.08,
+    1.65,
+    1.65
+   ]
+  },
+  {
+   "family": "xtaltht",
+   "preset": "HC-49/S",
+   "name": "XTAL488W43L1105D465H360N",
+   "height": 3.6,
+   "courtyard": [
+    -5.8,
+    -2.6,
+    5.8,
+    2.6
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.7,
+   "land": 1.2,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -2.44,
+     0,
+     1.2,
+     1.2,
+     0.7,
+     "round"
+    ],
+    [
+     "2",
+     2.44,
+     0,
+     1.2,
+     1.2,
+     0.7,
+     "round"
+    ]
+   ],
+   "last": [
+    "2",
+    2.44,
+    0,
+    1.2,
+    1.2
+   ]
+  },
+  {
+   "family": "fuseholder",
+   "preset": "5×20 holder, 22.5 mm",
+   "name": "FUSH2250W110L2700W850H1000N",
+   "height": 10,
+   "courtyard": [
+    -13.75,
+    -4.5,
+    13.75,
+    4.5
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 1.4,
+   "land": 1.9,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -11.25,
+     0,
+     1.9,
+     1.9,
+     1.4,
+     "round"
+    ],
+    [
+     "2",
+     11.25,
+     0,
+     1.9,
+     1.9,
+     1.4,
+     "round"
+    ]
+   ],
+   "last": [
+    "2",
+    11.25,
+    0,
+    1.9,
+    1.9
+   ]
+  },
+  {
+   "family": "pingrid",
+   "preset": "Relay DPDT, 8 pins (signal)",
+   "name": "PINGRID8_1400X950X1000N",
+   "height": 10,
+   "courtyard": [
+    -7.25,
+    -6,
+    7.25,
+    6
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 0.8,
+   "land": 1.3,
+   "pads": 8,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -3.81,
+     -5.08,
+     1.3,
+     1.3,
+     0.8,
+     "rect"
+    ],
+    [
+     "2",
+     -3.81,
+     0,
+     1.3,
+     1.3,
+     0.8,
+     "round"
+    ]
+   ],
+   "last": [
+    "8",
+    3.81,
+    -5.08,
+    1.3,
+    1.3
+   ]
+  },
+  {
+   "family": "mounting",
+   "preset": "M3 plated, 8 vias",
+   "name": "MTGP600H320V8",
+   "height": null,
+   "courtyard": [
+    -3.25,
+    -3.25,
+    3.25,
+    3.25
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": 3.2,
+   "land": 6,
+   "pads": 1,
+   "vias": 8,
+   "first": [
+    [
+     "1",
+     0,
+     0,
+     6,
+     6,
+     3.2,
+     "round"
+    ]
+   ],
+   "last": [
+    "1",
+    0,
+    0,
+    6,
+    6
+   ]
+  },
+  {
+   "family": "fiducial",
+   "preset": "1.0 dot, 2.0 opening",
+   "name": "FID100M200",
+   "height": null,
+   "courtyard": [
+    -1.25,
+    -1.25,
+    1.25,
+    1.25
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": 1,
+   "pads": 1,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     0,
+     0,
+     1,
+     1,
+     0,
+     "round"
+    ]
+   ],
+   "last": [
+    "1",
+    0,
+    0,
+    1,
+    1
+   ]
+  },
+  {
+   "family": "cardedge",
+   "preset": "Card edge 2×10 1.27",
+   "name": "EDGEVS20P127_2X10N",
+   "height": 0.035,
+   "courtyard": [
+    -6.35,
+    -2.25,
+    6.35,
+    2.25
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 20,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -5.715,
+     0,
+     0.762,
+     4,
+     0,
+     "rect"
+    ],
+    [
+     "2",
+     -5.715,
+     0,
+     0.762,
+     4,
+     0,
+     "rect"
+    ]
+   ],
+   "last": [
+    "20",
+    5.715,
+    0,
+    0.762,
+    4
+   ]
+  },
+  {
+   "family": "nettie",
+   "preset": "2 pads, 0.5",
+   "name": "NETTIE2P50G25",
+   "height": null,
+   "courtyard": [
+    -0.9,
+    -0.5,
+    0.9,
+    0.5
+   ],
+   "Z": null,
+   "G": null,
+   "X": null,
+   "hole": null,
+   "land": null,
+   "pads": 2,
+   "vias": 0,
+   "first": [
+    [
+     "1",
+     -0.375,
+     0,
+     0.5,
+     0.5,
+     0,
+     "rect"
+    ],
+    [
+     "2",
+     0.375,
+     0,
+     0.5,
+     0.5,
+     0,
+     "rect"
+    ]
+   ],
+   "last": [
+    "2",
+    0.375,
+    0,
+    0.5,
+    0.5
+   ]
+  }
+ ]
+}

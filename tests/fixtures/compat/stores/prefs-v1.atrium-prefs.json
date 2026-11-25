@@ -1,0 +1,13 @@
+{
+  "format": "atrium-prefs",
+  "version": 1,
+  "values": {
+    "general.units": "mil",
+    "pcb.grid": 0.127,
+    "pcb.hud": true,
+    "schematic.grid": 2.54,
+    "custom.module.key": {
+      "kept": true
+    }
+  }
+}

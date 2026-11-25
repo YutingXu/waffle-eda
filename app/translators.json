@@ -1,0 +1,106 @@
+[
+  {
+    "id": "altium", "label": "Altium Designer", "import": true, "export": true,
+    "adapter": {"import": "design", "export": "exchange"},
+    "extensions": [".prjpcb", ".schdoc", ".pcbdoc", ".schlib", ".pcblib"],
+    "projectExtensions": [".prjpcb"], "libraryExtensions": [".schlib", ".pcblib"],
+    "group": "design", "companions": ["step"],
+    "modules": {"import": ["import-formats", "import-rules"], "export": ["translator-precision", "altium-export", "library-store", "polygon-pour"]}
+  },
+  {
+    "id": "altium-source-copy", "label": "Altium binary source copy", "requiresOriginal": true, "import": false, "export": true,
+    "adapter": {"export": "exchange"},
+    "extensions": [".schdoc", ".pcbdoc"], "modules": {"export": ["translator-precision", "source-copy", "polygon-pour"]}
+  },
+  {
+    "id": "kicad", "label": "KiCad", "import": true, "export": true,
+    "adapter": {"import": "design", "export": "exchange"},
+    "extensions": [".kicad_pro", ".kicad_sch", ".kicad_pcb", ".kicad_dru", ".kicad_sym", ".kicad_mod"],
+    "projectExtensions": [".kicad_pro"], "libraryExtensions": [".kicad_sym", ".kicad_mod"],
+    "group": "design", "modules": {"import": ["import-formats"], "export": ["translator-precision", "kicad-schematic"]}
+  },
+  {
+    "id": "eagle", "label": "Eagle XML", "import": true, "export": true,
+    "adapter": {"import": "design", "export": "exchange"},
+    "extensions": [".sch", ".brd"], "group": "design",
+    "modules": {"import": ["import-formats"], "export": ["export-eagle"]}
+  },
+  {
+    "id": "easyeda", "label": "EasyEDA Standard and Pro", "import": true, "export": true,
+    "adapter": {"import": "design", "export": "exchange"},
+    "extensions": [".json", ".epro", ".esch", ".epcb", ".eprj"], "group": "design",
+    "modules": {"import": ["import-formats"], "export": ["export-easyeda"]}
+  },
+  {
+    "id": "step", "label": "STEP mechanical model", "import": true, "export": true,
+    "adapter": {"import": "manufacturing", "export": "manufacturing"},
+    "extensions": [".step", ".stp"],
+    "modules": {"import": ["model", "step-import", "mcad-step", "source-file"], "export": ["step-export", "variants", "bom", "viastack", "panel"]}
+  },
+  {
+    "id": "idf", "label": "IDF mechanical exchange", "import": true, "export": true,
+    "adapter": {"import": "manufacturing", "export": "manufacturing"},
+    "extensions": [".emn", ".idf", ".emp", ".brd"], "modules": {"import": ["mcad-idf", "source-file"], "export": ["mcad-idf"]}
+  },
+  {
+    "id": "dxf", "label": "DXF board geometry", "import": true, "export": true,
+    "adapter": {"import": "manufacturing", "export": "manufacturing"},
+    "extensions": [".dxf"], "modules": {"import": ["dxf", "board-shape-sources", "source-file"], "export": ["dxf", "pcb-draw", "pcb-text", "pcb-appearance"]}
+  },
+  {
+    "id": "idx", "label": "IDX mechanical exchange", "import": true, "export": true,
+    "adapter": {"import": "manufacturing", "export": "manufacturing"},
+    "extensions": [".idx", ".xml"], "modules": {"import": ["mcad-idx", "source-file"], "export": ["mcad-idx"]}
+  },
+  {
+    "id": "glb", "label": "Binary glTF model", "import": false, "export": true,
+    "adapter": {"export": "manufacturing"},
+    "extensions": [".glb"], "modules": {"export": ["step-export", "variants", "bom", "viastack", "panel"]}
+  },
+  {
+    "id": "gerber", "label": "Gerber artwork", "import": false, "export": true,
+    "adapter": {"export": "manufacturing"},
+    "extensions": [".gbr", ".gtl", ".gbl", ".gts", ".gbs", ".gtp", ".gbp", ".gto", ".gbo", ".gko", ".gm1"],
+    "modules": {"export": ["translator-precision", "fab-outputs", "variants", "bom", "rigid-flex", "viastack", "panel"]}
+  },
+  {
+    "id": "excellon", "label": "Excellon NC drill", "import": false, "export": true,
+    "adapter": {"export": "manufacturing"},
+    "extensions": [".drl", ".xln"], "modules": {"export": ["fab-outputs", "variants", "bom", "rigid-flex", "viastack", "panel"]}
+  },
+  {
+    "id": "fabrication", "label": "Fabrication outputs", "import": false, "export": true,
+    "adapter": {"export": "manufacturing"},
+    "extensions": [".zip"], "modules": {"export": ["translator-precision", "fab-outputs", "variants", "bom", "rigid-flex", "viastack", "panel"]}
+  },
+  {
+    "id": "ipc2581", "label": "IPC-2581 revision B", "import": false, "export": true,
+    "adapter": {"export": "manufacturing"},
+    "extensions": [".xml"], "modules": {"export": ["ipc2581", "variants", "bom", "rigid-flex", "viastack", "impedance", "panel"]}
+  },
+  {
+    "id": "odb", "label": "ODB++ Design 8.1", "import": false, "export": true,
+    "adapter": {"export": "manufacturing"},
+    "extensions": [".odb", ".tgz"], "modules": {"export": ["odb", "translator-precision"]}
+  },
+  {
+    "id": "waffle-library", "label": "Waffle component library", "import": true, "export": true,
+    "adapter": {"import": "exchange", "export": "exchange"},
+    "extensions": [".atrlib"], "libraryExtensions": [".atrlib"], "modules": {"import": ["library", "source-file"], "export": ["library"]}
+  },
+  {
+    "id": "netlist-kicad", "label": "KiCad netlist", "import": true, "export": true,
+    "adapter": {"import": "exchange", "export": "exchange"},
+    "extensions": [".net", ".txt"], "modules": {"import": ["netlist", "source-file"], "export": ["netlist", "multichannel", "erc"]}
+  },
+  {
+    "id": "netlist-protel", "label": "Protel netlist", "import": true, "export": true,
+    "adapter": {"import": "exchange", "export": "exchange"},
+    "extensions": [".net", ".frp", ".txt"], "modules": {"import": ["netlist", "source-file"], "export": ["netlist", "multichannel"]}
+  },
+  {
+    "id": "netlist-csv", "label": "CSV netlist", "import": true, "export": true,
+    "adapter": {"import": "exchange", "export": "exchange"},
+    "extensions": [".csv", ".txt"], "modules": {"import": ["netlist", "source-file"], "export": ["netlist", "multichannel"]}
+  }
+]

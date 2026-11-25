@@ -1,0 +1,4 @@
+{"kind":"project","formatVersion":"2.0","id":"calculation","name":"RC notebook"}
+{"kind":"library","id":"def-c","order":"e","path":"libraries/Capacitor.wlib"}
+{"kind":"library","id":"def-r","order":"K","path":"libraries/Resistor.wlib"}
+{"kind":"document","id":"timing","docKind":"schematic","name":"Timing","order":"V","path":"Timing.wsch"}

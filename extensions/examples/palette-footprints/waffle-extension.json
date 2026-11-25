@@ -1,0 +1,5 @@
+{
+  "id": "example.footprints", "name": "Footprint browser", "version": "1.0.0", "apiVersion": 1, "main": "main.js",
+  "icon": "chip", "permissions": ["ui:command", "read:project", "propose:edits"],
+  "contributes": {"insertItems": [{"id": "footprint", "name": "Choose footprint", "icon": "chip", "description": "Browse footprints in this project's library", "contexts": ["pcb"], "keywords": ["package", "pads", "land pattern"], "preview": "View pad layouts and place the selected footprint.", "command": "footprints.browse"}]}
+}

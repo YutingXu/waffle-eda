@@ -1,0 +1,47 @@
+/* Matched-length manager (AtriumLength.open). Builds on .work-dialog from workflows.css. */
+.length-dialog {width:min(940px,calc(100vw - 40px));max-height:min(86vh,860px);display:flex;flex-direction:column;padding:16px 20px}
+.length-dialog[open] {display:flex}
+.length-head {display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.length-head h2 {margin:0}
+.length-dialog .length-summary {margin:4px 0 8px;font-size:var(--fs-12)}
+.length-tools {display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 0;border-block:1px solid var(--line)}
+.length-options {display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;padding:8px 0}
+.length-options input[type=search] {flex:1 1 180px;min-width:140px}
+.length-tools select:disabled,.length-tools input:disabled,.length-prop :disabled {opacity:.55}
+.length-properties {width:min(390px,calc(100vw - 32px))}
+.length-properties .length-prop {display:grid;grid-template-columns:minmax(100px,1fr) minmax(0,1.12fr);align-items:center;gap:12px;margin-block:8px;font-size:var(--fs-12)}
+.length-prop select {inline-size:100%;min-inline-size:0}
+.length-properties .work-actions {display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.length-field,.length-check {display:flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--muted)}
+.length-field input[type=number] {width:var(--field-number-width);font-variant-numeric:tabular-nums}
+.length-list {flex:1 1 auto;min-height:120px;overflow:auto;overscroll-behavior:contain;padding-top:4px}
+.length-group {padding:8px 0 8px;border-bottom:1px solid var(--line)}
+.length-group-head {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 0 6px}
+.length-group-head strong {display:block;font-size:var(--fs-13);font-weight:600}
+.length-group-head small {display:block;font-size:var(--fs-11);color:var(--muted);margin-top:2px}
+.length-group-actions {display:flex;gap:4px;flex:none}
+.length-dialog .length-group-actions button,.length-dialog .length-table button {font-size:var(--fs-11);min-height:var(--ctl-h);padding:2px 8px}
+.length-table {width:100%;border-collapse:collapse;table-layout:fixed;font-size:var(--fs-12)}
+.length-table th {font-size:var(--fs-11);font-weight:500;color:var(--muted);text-align:right;padding:4px 8px;border-bottom:1px solid var(--line);background:var(--panel-head);position:sticky;top:0}
+.length-table th:first-child,.length-table td:first-child {text-align:left;width:auto}
+.length-table th:nth-child(2),.length-table th:nth-child(3),.length-table th:nth-child(4) {width:86px}
+.length-table th:nth-child(5) {width:44px}
+.length-table th:nth-child(6) {width:86px}
+.length-table th:last-child {width:66px}
+.length-table td {padding:4px 8px;border-bottom:1px solid var(--line);text-align:right;font:var(--fs-11)/1.4 var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.length-table td:first-child {font-family:inherit;font-size:var(--fs-12)}
+.length-table td small {color:var(--faint);font-size:var(--fs-10)}
+.length-table tbody tr:hover {background:var(--soft)}
+.length-table tr[data-status=pass] td:nth-child(3) {color:var(--muted)}
+.length-status {display:inline-block;min-width:54px;text-align:center;padding:1px 6px;border-radius:var(--r-sm);font:500 var(--fs-10)/1.5 var(--mono);border:1px solid var(--line);color:var(--muted)}
+.length-status[data-status=pass] {color:var(--ok-ink);border-color:var(--ok-line)}
+.length-status[data-status=short],.length-status[data-status=skew] {color:var(--accent-text);border-color:var(--warn-line)}
+.length-status[data-status=long],.length-status[data-status=length],.length-status[data-status=unrouted] {color:var(--bad-ink);border-color:var(--bad-line)}
+.length-report {font-size:var(--fs-12);color:var(--muted);max-height:18vh;overflow:auto}
+.length-report p {margin:8px 0 4px}
+.length-report ul {margin:0;padding-left:18px;font-size:var(--fs-11)}
+@media(max-width:680px){
+  .length-dialog {width:calc(100vw - 16px);padding:12px}
+  .length-table th:nth-child(4),.length-table td:nth-child(4),.length-table th:nth-child(5),.length-table td:nth-child(5) {display:none}
+  .length-group-head {flex-wrap:wrap}
+}

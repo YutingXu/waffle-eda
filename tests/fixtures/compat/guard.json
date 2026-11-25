@@ -1,0 +1,346 @@
+{
+ "corpus": "2910bcc2bbc8f5245d4b49655b0c7c6ee9001255fc5b74f81833e90d95a08afc",
+ "files": {
+  "stores/clip-history-v1.json": "98b2c3a0b48c19aad69f05874dd2350f63033b7f8eb4a9e422a5e4662a5c6f68",
+  "stores/extension-manifest-api1.json": "1a0a54e5146c459978e1ae3cca6e0cf834fbb63a602b961e40e6192f8a499b8d",
+  "stores/fab-preset-v1.json": "d8bf8592a3a45ebbf9c7c778138b6bbd901f1a8ac01bff7c1b653c9a1edfa73d",
+  "stores/keymap-unversioned.atrium-keys": "4bef6dbd77ddc11bbe95d1b3aba890dccef07d62f114b2ea75561a13657a8793",
+  "stores/keymap-v1.atrium-keys": "dfb4b25857cae9f8731dda5f1207205a27fc52e5fe986b4f4991f36fbb7551a2",
+  "stores/layout-unversioned.json": "1c73426e1f025e673c5f7496d03e376106ad882e30f2f1a582cf0fa833942f1e",
+  "stores/layout-v1.json": "abcc57715f13e4a25c7ff2668ef641a0656be4d06bed0a1fa0aebcfb22874dab",
+  "stores/library-folder-index-v1.json": "3606a5f40e8ae41c7ac0e712297ee6728fff7300bd3447083e44015052e3fad3",
+  "stores/prefs-v1.atrium-prefs.json": "d6a0191085aa9326b1806cf69ca6e5866c8b6ca3d103bedea413c2798e35574d",
+  "stores/settings-v1.atrium-settings.json": "db6dc7959912466657aa02b3ab88b9b77f2347eb7b04a19f8512a5318dd5616c",
+  "stores/settings-v2-newer.atrium-settings.json": "14fd156bc4e7f04c04093fed22c41ac7a1ee0cd238614112ef0142aaa636984e",
+  "stores/theme-unversioned.json": "b1ec91742de70e835548613baea63f4525f691ed0f5951502fea545de7861bae",
+  "stores/theme-v1.atrium-theme.json": "1073117b39c2d3b2e1d300e2499dbdb41cd962f37196afa5a02dbaedf06dd6c8",
+  "v1.3-inline-step-models.atrium": "d9983458e33445f113804e4fcd62aaa648a868d98e5e6e5e109cf2c1a7fb912a",
+  "v1.4-altium-schematic-captions.atrium": "3de0feb81da740326a268943b070b80ef46b199f05c3edfeca7501fd1518f946",
+  "v1.4-calculation-frame.waffle": "272522609e737dc9c3e66371f3bff0c800c794cef3facdde6d4bd0028b29d95f",
+  "v1.4-coming-soon.atrium": "5cbbdc8428da099ec22525410d3dd3a1e57898d3cb166415ed07cb4297c1d83d",
+  "v1.4-component-families.atrium": "2af51cea71bceb6b88f39b77b525aeca17a5639d07418d678685b1ba6f290519",
+  "v1.4-frame-channel-net-hyphen.waffle": "eb4825cfd1b7a7cd72d19a37b69fd2aa802e7b91b623607999dc67a3d68359e2",
+  "v1.4-frame-channel-net-underscore.waffle": "a165ac6ed32e59e84b3d8c4f292f92195ef57a6cade5dafad2642ff3c3a30955",
+  "v1.4-generic-parts.atrium": "11353f0d492ea7498abcd355b45b97e0d191441de29fd5178ccfc462cabb1d59",
+  "v1.4-import-altium.atrium": "935fb634a101f7daf347785dff76ba06aea61e168bb8d1915c44b5c1d593931b",
+  "v1.4-import-eagle.atrium": "ce9ab905de76e1586508c38ec66e20c435c05a56ed83b46db12f356bdadebf2f",
+  "v1.4-import-easyeda.atrium": "3bff923fbe3a90ff4f2839e8f3689d1b3a61e7c9afbb703b3a0ec8e34560f39a",
+  "v1.4-import-kicad.atrium": "fc3deefe2f5dd0e435bc37db2f21038dfb21e9eaeaf4023bfdcb359f34e1d1c5",
+  "v1.4-library-blobs.atrium": "fa7920df5f243dcd094251cce01a0db680807b95a99a1bd868c65b617225bb20",
+  "v1.4-newer-minor-rules-drawing.atrium": "e4437d4a78d737e9f829f780236931e13967bd6ffec9ea45e348d1795ac7b2c3",
+  "v1.4-newer-minor-sections.atrium": "8f6e77142a4856b1cb0da6b1ee7f8e6df39b7c5ca845547b7858e29499fa4655",
+  "v1.4-newer-minor.atrium": "2ec950cdaf9a3ad652aa3e5b3e40a18340a0b900235a75e94691d0d886d0a2a9",
+  "v1.4-notebook.waffle": "5f3968ff05b8f0c2f2627aaf62cf12e6198d7a70825189c8073797f5733f3a40",
+  "v1.4-project-rules.atrium": "f40a16e609a8058b3a61c4b1114bb60e4160d2f639b63069a0da20876c7fb4ec",
+  "v1.4-sample.atrium": "c485ba5d606bbb9f292d304556a68efb4cbdc936cc0f868a2d11a78c6014dd16",
+  "v1.4-schematic-canvas.waffle": "c988cce2d60a06c816aa1e1a582feac338ee371277e256b567bb0a300015482c",
+  "v1.4-signals.atrium": "a112f00732fc95c2ae03cc6277552cea38256a15db6d98360ec84f175f05bd8c",
+  "v1.5-altium-geometry.waffle": "c9aadc0fb2c311ee34ac0f0a8dff41310a1b4e68d9336eee1592838543a78b6e",
+  "v1.5-altium-source-metadata.waffle": "d86fedee1b394c9b918f8603f951671bf2d51d837ce92b0570965426db41d5c7",
+  "v1.5-imported-rule-ledger.waffle": "176d81d285d11f4fb16af868294b9f42ccc37181caf2e1b632803ea1b25b8d08",
+  "v1.5-newer-project-rules.atrium": "5798e3b56cf6e006519725534bd7929082277d42d0e86e928a887e8a2d24f849",
+  "v1.5-newer-signals-store.atrium": "736dbcbf5f95f947c78c35de936bd5496abb173f640d0c86937f048b1be05cfe",
+  "v1.5-newer-signals.atrium": "47f0411d92427163791e57f37a5258d8acb753d850b26899e1ff79a7a0ce4aec",
+  "v1.5-replaced-source-rules.waffle": "d6fb9f624a7a1b69082fa5dd43302583509e8cb346c4d855255c7cf1eee3350e",
+  "v1.6-newer-frame-channel-net.waffle": "18a0f93e34818f9f230a42f46e404c2538ba7e926f58e0e04944f90cb7d02573",
+  "v1.6-newer-schematic-canvas.waffle": "226bb3d923a8af7535d3c6b076473a4a8b106f84e4ae401131c3c26e71f1b19c",
+  "v2.0-newer-major-compatible.atrium": "de95965511fa1c8ca333d754e798133c90bc9b221ae97d72a4fec9f2da1a19ac",
+  "v2.0-newer-major.atrium": "d3e32fd3e3b0235bbad19b663b73738d0e86f54b0b38e59fbb819bedec7ba7e5",
+  "v3.0-newer-major-unreadable.atrium": "5bd0225d56aceefb9915d2d0d6750e8eb9b02882e3a2045d1dcaf981cf9bac08"
+ },
+ "folder": {
+  "contract": "b97dd1f21ec1e21e4c92a9a7472011c6802affed79d930f8c762318fc57e4e5d",
+  "files": {
+   "native/tests/folder-transaction/additive.json": "717b36e415c53491c0cbfc97b67414278fa68edc7bd846dcebfafbcc5a76f45c",
+   "tests/fixtures/format-2/apricot-rule-scope-freeze.json": "f46d86e31ce382a003c33f7d78d9a46e9e9645897a0008ffc0d9c68f630736b2",
+   "tests/fixtures/format-2/butter-project-metadata/Input.wsch": "04d7f03e775da57ff1aac498ee6e0f64532d662d502f7aabad8e0f877a8e908c",
+   "tests/fixtures/format-2/butter-project-metadata/Project Metadata.waffle": "07606291e8caae3302b29088761f21c16c6befc9135b68940fd2fa78450a65ed",
+   "tests/fixtures/format-2/butter-project-metadata/libraries/Resistor.wlib": "4fa8472da0e167e137dcae3e4f9783ccef6a5f93b306a11adc66b514c2120d16",
+   "tests/fixtures/format-2/butter-query/Power.wpcb": "7894f58ece3280eb2a55b039786a49f1575f9cb602543366a364f66607a23191",
+   "tests/fixtures/format-2/butter-query/Saved Query.waffle": "7fcc243530a48fb86e70c95e8d5e1b9e067f481bb5b22c3254fa3b007275febb",
+   "tests/fixtures/format-2/butter-table-query/Parts.wsch": "40f5e8d62043c757dea7e86a831ac6afafba461663d170e942f9dd068b455813",
+   "tests/fixtures/format-2/butter-table-query/Table and Query.waffle": "95d65fd41e54effa1698bb8ca73d176025b5aebe2e098e4e3b55d18242d7cb57",
+   "tests/fixtures/format-2/durable-preset/Board.wpcb": "9b9868b76564a26c32ebc241de5188e4b1dad770c16c60c17c4c321ec7073e67",
+   "tests/fixtures/format-2/durable-preset/Durable Preset.waffle": "eb97418743e7c4aa7a72f6696289099c8a926262b009ba7290ed4a95a7734662",
+   "tests/fixtures/format-2/extension/Calibration.waffle": "dfcb6faad54a640367e67c0f2e2ff70c2ed9557a45e95d8c1e436403ca86e55b",
+   "tests/fixtures/format-2/extension/Input.wsch": "1f4bf76fb3d6d7e64371075732c07968ade2d1e4c7edab9de9f57edbd7e0a149",
+   "tests/fixtures/format-2/forward-bytes/Forward.waffle": "e49a4d4d74af83c29bf63cdb185c79a8ba8542a0633fec9ffb032dfe7ffb9d28",
+   "tests/fixtures/format-2/forward-bytes/Sensor.wsch": "b89cc1798769bc7cf24c8f4208800eac9694ab9aa86fbe182deee4a35aefb463",
+   "tests/fixtures/format-2/forward-bytes/libraries/Probe.wlib": "953c2f1744d15bf67913b090dc23514fa49c17da665c1711a159e1b016386962",
+   "tests/fixtures/format-2/future-label.waffle-ai": "be4a4772c9f6497c534cbb92a7160357ef837cc3d78faa9f820bcd757b99e5b8",
+   "tests/fixtures/format-2/future/Assembly.wdraw": "39c4509f9cc938ac8ccd4866e60535fa3e52a2167a8cf5f2552a24ec41bb47b9",
+   "tests/fixtures/format-2/future/Future.waffle": "6448d09997cc51ceeed0afdb7108f61753b1f48109a2d1f839a119247183dd1f",
+   "tests/fixtures/format-2/future/Logic.wsch": "b8b69b62112f2707ccedbe02ced8f1aac48aaf8f8920887a85789a89c9029579",
+   "tests/fixtures/format-2/future/Wave.wwave": "f200b5da9b2c29eca8c40bdf45b86f36f0137be27cebd00109d5c60a313f1ea3",
+   "tests/fixtures/format-2/future/libraries/Probe.wlib": "aa5fceaa8a8dcac1293c3fb5d4b3a8f0c8d461e26c0ff5b20421d098d8a9553b",
+   "tests/fixtures/format-2/golden/Power.wsch": "97ff75921360fc03cc25687c26d8635d8ab222241d0fa2cfe1af94e8f2300e7c",
+   "tests/fixtures/format-2/golden/Sensor Board.waffle": "068633bdaba11ad7c937d5ba1ed74409eba4c7fcbc8afc44629222925d79865e",
+   "tests/fixtures/format-2/instrument/.waffle/.gitignore": "d455dd26a4e16b2794e5351d62a88d5f630bf202b36dbaa2439e23df1629ca91",
+   "tests/fixtures/format-2/instrument/.waffle/imports/f59070c89f598613b7bc0927f58b30559659fabd63e7d0f6b6c7e79475c85fe7/bindings-amwqtkfa3tgdakjjp22n.json": "e19077d1bd038b846326dd897fa427f70ae6d038f513ef69f4a651bc2c363e37",
+   "tests/fixtures/format-2/instrument/.waffle/imports/f59070c89f598613b7bc0927f58b30559659fabd63e7d0f6b6c7e79475c85fe7/source": "f59070c89f598613b7bc0927f58b30559659fabd63e7d0f6b6c7e79475c85fe7",
+   "tests/fixtures/format-2/instrument/Instrument.waffle": "9972548539028426f9755afefb4c659caadf35147fc65fdb5883b1da08545dbd",
+   "tests/fixtures/format-2/instrument/Instrument.wpcb": "647d9e3eed99a67c5e2258993408976c6921b715f630bd23882857ea1d4933cf",
+   "tests/fixtures/format-2/instrument/Schematic.wsch": "8dd18af95b5a44d73559723f409cf8c5928dcf8aa7c5b258044740d483bb03c9",
+   "tests/fixtures/format-2/instrument/assets/310c3b9a8a93d213fe9b90b5338537670614659094aa41a22cab783c0fe08402": "310c3b9a8a93d213fe9b90b5338537670614659094aa41a22cab783c0fe08402",
+   "tests/fixtures/format-2/instrument/assets/394b90ea3a45d69230862e74850e51145d23040cb6e18b1b8f5b1466cd37f0af": "394b90ea3a45d69230862e74850e51145d23040cb6e18b1b8f5b1466cd37f0af",
+   "tests/fixtures/format-2/instrument/assets/4d1c85d3fac5d31a19d39a254fa26b7e95e0d0635acf5ea30efbe394c25759b2": "4d1c85d3fac5d31a19d39a254fa26b7e95e0d0635acf5ea30efbe394c25759b2",
+   "tests/fixtures/format-2/instrument/assets/8dd18af95b5a44d73559723f409cf8c5928dcf8aa7c5b258044740d483bb03c9": "8dd18af95b5a44d73559723f409cf8c5928dcf8aa7c5b258044740d483bb03c9",
+   "tests/fixtures/format-2/instrument/assets/b0cd3b437c58b45918073df96986ae75213cef687faa75378cf3e54a3b8aa654": "b0cd3b437c58b45918073df96986ae75213cef687faa75378cf3e54a3b8aa654",
+   "tests/fixtures/format-2/instrument/assets/ed6bc593f8cef56ed93ac70ab6f0907b97dcd336d2b7aa5295c5536cf3207ca7": "ed6bc593f8cef56ed93ac70ab6f0907b97dcd336d2b7aa5295c5536cf3207ca7",
+   "tests/fixtures/format-2/instrument/libraries/Precision.wlib": "5ea9191171e3de2258907a9a1131a673bd81f0ec77cc4204d76cd67bbd679dfc",
+   "tests/fixtures/format-2/instrument/models/2eaa6337beeac5d1384c1ec9393fceb9839a4ad5d977f2ae15ea5b256641460c.step.gz": "43ffbafd7be169fe36b4a69234916dc3ea57476f39369abc61f17ba65e2b4d38",
+   "tests/fixtures/format-2/notebook/Notebook.waffle": "f72c8e4575c3656eecda986153a8a0071552151e3575c7bcbfc5e55c0a88c4ad",
+   "tests/fixtures/format-2/notebook/Notebook.wsch": "30c252f57b44e39292d9667588a5457e4346c712a26c70aac3898c63737a967f",
+   "tests/fixtures/format-2/notebook/assets/3f398475326a2f4eb876a239f691a7e20eb7c308c41ff80620f0f314adcf7104": "3f398475326a2f4eb876a239f691a7e20eb7c308c41ff80620f0f314adcf7104",
+   "tests/fixtures/format-2/notebook/assets/7f2f9088c8f90652a6aaa45e69623b55316b6d080c2213d29819976b71454840": "7f2f9088c8f90652a6aaa45e69623b55316b6d080c2213d29819976b71454840",
+   "tests/fixtures/format-2/projects.json": "f1ca2b8b09c36c29e47752f577c3c1843c07fc9086224138baf5cd507be86354",
+   "tests/fixtures/format-2/query-parameter/Board.wpcb": "185bc24573c4a6215d3d29766879f45ecd73337a374d9d3433f7db65fef73625",
+   "tests/fixtures/format-2/query-parameter/Parameters.waffle": "962544db6cdeb6dfdbe884e66d7ecd44c883c74d462e4d584b76ca4c2ab86647",
+   "tests/fixtures/format-2/version-cases.json": "471d7ce5f50d753455f6a96646d670637e08d9400b9feba5feaf2551376cbf09",
+   "tests/fixtures/format-2/workshop/Assembly.wdraw": "f8be028e4aac9910285c319098909cb88796ee54891307f5eec5e1a3346e14a4",
+   "tests/fixtures/format-2/workshop/Board.wpcb": "68129213776ff106388e1ac75a26071a4ebf3a157287397c6dc28f5edcea2573",
+   "tests/fixtures/format-2/workshop/Panel.wpanel": "985bcca27c67567602fcbd0c0adeaaea883f49101af64b572e706bd969226f8c",
+   "tests/fixtures/format-2/workshop/Reference.waffle": "133648863f5b28e152ed1d66e4e6becd7e6f478e1e48201c4e24c9ae15269061",
+   "tests/fixtures/format-2/workshop/Sensor.wsch": "f12d005c0c0d5591fecb56b6a70827a7c6bf58d48a1c03f86901d48b61642b1c",
+   "tests/fixtures/format-2/workshop/Top.wsch": "94e7e02e2e5c89f78b2bebf0fc38c6176c2ee3ef4b6d712607789734880e9196",
+   "tests/fixtures/format-2/workshop/libraries/Sense pad.wlib": "813e92a50c1bdbc256e1e4fad60dbbbd85a78404e7f5f02560e03a54314c9de8",
+   "tests/fixtures/format-2/workshop/libraries/Test stub.wblock": "ad278e5a915ed92519128f2cb012a7b438a275d97fd10896fb57655e2c2e41f7"
+  },
+  "schema": "c5e285219e7926aded29f936468125737aed7ce206f478b4fa6bbbf9a650d8e5",
+  "version": "2.0"
+ },
+ "folderHistory": [
+  {
+   "contract": "a22759130b80572d",
+   "version": "2.0",
+   "why": "native baseline"
+  },
+  {
+   "contract": "a22759130b80572d",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "a22759130b80572d",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "a22759130b80572d",
+   "version": "2.0",
+   "why": "Lock pre-release files as negative fixtures and add the native Apricot notebook"
+  },
+  {
+   "contract": "7ad309d5c37f53ff",
+   "version": "2.0",
+   "why": "Approved first-publication Apricot v1 rule scopes; six unreleased manifests and both closure digests per project are accounted for in apricot-rule-scope-freeze.json."
+  },
+  {
+   "contract": "0d31ee186828eea2",
+   "version": "2.0",
+   "why": "Apricot 2.0 native query bindings now accept stable typed parameterId; two new closure members exercise an actual parameter rename."
+  },
+  {
+   "contract": "a602c8951f69af73",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "c0c67d0477098bcf",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "f911faf10e4a7bcb",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "77482b0aef7ed17c",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "f06dc7cdec646e53",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "c0c67d0477098bcf",
+   "version": "2.0",
+   "why": "Match the generated rule schema to existing native optional quantities and the physically locked preset"
+  },
+  {
+   "contract": "f06dc7cdec646e53",
+   "version": "2.0",
+   "why": "Combine the qualified Preview rule schema with Butter native record kinds"
+  },
+  {
+   "contract": "c4b042d5ba52d3a2",
+   "version": "2.0",
+   "why": "native compatibility corpus updated"
+  },
+  {
+   "contract": "b97dd1f21ec1e21e",
+   "version": "2.0",
+   "why": "Task 58 relocated the protected table-data and table-format loaders to notebook and the design-query-record loader to checks. All other guarded bytes, the native schema and the pinned fixtures were verified unchanged."
+  }
+ ],
+ "history": [
+  {
+   "formatVersion": "1.5",
+   "validators": "b4f8cc305e3d4923",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.1",
+   "validators": "6586cdb71ea62740",
+   "why": "format version 1.1"
+  },
+  {
+   "formatVersion": "1.1",
+   "validators": "6586cdb71ea62740",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.2",
+   "validators": "a46670ca1329e454",
+   "why": "format version 1.2"
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "489514bd759b2ae2",
+   "why": "format version 1.3"
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "489514bd759b2ae2",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "489514bd759b2ae2",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "489514bd759b2ae2",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "d05bae22f506a8cf",
+   "why": "Forward compatibility for the 0.5.0 preview: in files from a newer format (p.atriumCompat.newer/readOnly) validationSteps passes lenient to the sheet, item, PCB text, panel and multichannel validators and accepts unknown sheet-frame shape kinds, board-drawing annotation fields and pour layer names; files of this format are validated exactly as before (tests/compat-newer.cjs strict checks)."
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "32f6e6fb733b58ff",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.3",
+   "validators": "92090e5ea0b891a0",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "c7c5552edc19ab3b",
+   "why": "format version 1.4"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "c7c5552edc19ab3b",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "cd3df83ca64fd45e",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "cd3df83ca64fd45e",
+   "why": "pre-release: Pre-release formats 1.0-1.3 are not supported: the corpus keeps the current format, newer files and importer outputs"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "dcac232d118089b0",
+   "why": "pre-release: Board rules move into the project rule book (project.rules); fixtures regenerated or converted, DRC/ERC/render unchanged"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "dcac232d118089b0",
+   "why": "pre-release: Board rules move into the project rule book (project.rules); fixtures regenerated or converted, DRC/ERC unchanged"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "dcac232d118089b0",
+   "why": "pre-release: xSignals live only in the signals store; the lengthTuning xSignal mirror is gone"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "dcac232d118089b0",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "9df5fa5ba9259c07",
+   "why": "User-facing validator messages now name Waffle; project validation and serialization are unchanged."
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "d74be2bb0b299bdf",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.4",
+   "validators": "78dfc13c16e2888e",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "6908a88d7b328d4b",
+   "why": "format version 1.5"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "6908a88d7b328d4b",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "1ce830a3a3e37a19",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "27ccb861ddedec3f",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "1c584f99647864c7",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "e09708ad5af9c7ad",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "cfcf798579f2d1c4",
+   "why": "corpus updated"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "15ee420c65f2082a",
+   "why": "Share the existing image and markup shape checks in the model for renderer-free validation"
+  },
+  {
+   "formatVersion": "1.5",
+   "validators": "3bef4fffa3a27041",
+   "why": "Keep authored native images with unspecified intrinsic pixel dimensions editable without modifying their representations"
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+M48
+;DRILL file {Waffle 1.0} date 2026-11-18T10:30:00+00:00
+;Board: HDI
+;FORMAT={-:-/ absolute / metric / decimal}
+; #@! TF.CreationDate,2026-11-18T10:30:00+00:00
+; #@! TF.GenerationSoftware,Waffle,Waffle,1.0
+; #@! TF.FileFunction,Plated,3,6,Buried
+; #@! TF.FilePolarity,Positive
+;TYPE=PLATED
+;LAYER_PAIR=Inner 2 - Inner 5
+;DRILL_PAIR=Mid-Layer 2 - Mid-Layer 5 (buried)
+;ORIGIN=board lower-left corner
+METRIC
+T01C0.300
+%
+G90
+G05
+T01
+X12.0Y26.0
+T0
+M30

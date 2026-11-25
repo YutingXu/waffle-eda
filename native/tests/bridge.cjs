@@ -1,0 +1,154 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+async function main() {
+  const calls = [];
+  const events = [];
+  const window = {webkit:{messageHandlers:{atriumHost:{postMessage(s){calls.push(JSON.parse(s));}}}}, dispatchEvent(e){events.push(e);}};
+  const CustomEvent = class {constructor(type,init){this.type=type;this.detail=init?.detail;}};
+  const bridgeSource = fs.readFileSync(path.join(__dirname, "../bridge.js"), "utf8");
+  const child = {...window, top: window};
+  vm.runInNewContext(bridgeSource, {window: child, File, atob, btoa, Uint8Array, CustomEvent});
+  assert.equal(child.AtriumHost, undefined, "the WebKit bridge is available only to the top frame");
+  window.top = window;
+  vm.runInNewContext(bridgeSource, {window, File, atob, btoa, Uint8Array, CustomEvent});
+  const gtk = {...window};
+  delete gtk.AtriumHost;
+  gtk.top = gtk;
+  const authenticated = [];
+  vm.runInNewContext(bridgeSource, {window: gtk, File, atob, btoa, Uint8Array, CustomEvent, __waffleTopFramePost: s => authenticated.push(JSON.parse(s))});
+  gtk.AtriumHost.setDirty(true, "Fixture");
+  assert.equal(authenticated[0].action, "dirty", "GTK sends top-frame requests on its bound native channel");
+  const host = window.AtriumHost;
+  const reply = (result,error) => window.__atriumReceive(calls.at(-1).id,result,error);
+
+  assert.equal(calls.length,0);
+  const clipboardPacket={summary:"Waffle PCB · 1 object · R1",data:'{"format":"atrium-selection"}'};
+  const written=host.writeSelection(clipboardPacket);
+  assert.equal(calls.at(-1).action,"writeSelection");assert.equal(calls.at(-1).data,clipboardPacket.data);reply(true);assert.equal(await written,true);
+  const pasted=host.readSelection();assert.equal(calls.at(-1).action,"readSelection");reply(clipboardPacket);assert.equal((await pasted).data,clipboardPacket.data);
+  assert.equal(host.folderGitGrant,null);
+  await assert.rejects(host.gitHead(),/Save or open/);
+  const descriptor={grant:"selected-A",manifest:"A.waffle",name:"A"};
+  const open = host.open();
+  reply([{name:"A.waffle",folderProject:descriptor}]);
+  const [file] = await open;
+  assert.equal(host.folderGitGrant,null);
+  const adopt=host.folderAdopt({grant:file.folderProject.grant});
+  assert.equal(calls.at(-1).action,"folderAdopt");assert.equal(calls.at(-1).grant,"selected-A");
+  reply(true);await adopt;assert.equal(host.folderGitGrant,"selected-A");
+  const compare=host.gitHead();assert.equal(calls.at(-1).action,"gitHead");assert.ok(!("path" in calls.at(-1)));assert.equal(calls.at(-1).token,"selected-A");
+  reply({revision:"abc",path:"design/A.waffle"});
+  assert.equal((await compare).revision,"abc");
+  const commit="0123456789abcdef0123456789abcdef01234567";
+  const history=host.gitHistory();assert.equal(calls.at(-1).action,"gitHistory");assert.equal(calls.at(-1).token,"selected-A");assert.ok(!("path" in calls.at(-1)));
+  reply({commits:[{revision:commit,subject:"Imported",date:"2026-01-01T00:00:00Z"}],path:"design/A.waffle"});
+  assert.equal((await history).commits[0].revision,commit);
+  await assert.rejects(host.gitRevision("HEAD"),/full commit/);
+  const prior=host.gitRevision(commit);assert.equal(calls.at(-1).revision,commit);assert.equal(calls.at(-1).action,"gitRevision");
+  reply({revision:commit,path:"design/A.waffle"});assert.equal((await prior).revision,commit);
+  // gitQuery: an allowlisted operation with an object of arguments, bound to the project token.
+  await assert.rejects(host.gitQuery("push",{}),/does not run/);
+  await assert.rejects(host.gitQuery("log",[1]),/must be an object/);
+  await assert.rejects(host.gitQuery("log",null),/must be an object/);
+  const query=host.gitQuery("log",{limit:20,search:"Ana"});
+  assert.equal(calls.at(-1).action,"gitQuery");assert.equal(calls.at(-1).op,"log");assert.equal(calls.at(-1).token,"selected-A");
+  assert.deepEqual(calls.at(-1).args,{limit:20,search:"Ana"});assert.ok(!("path" in calls.at(-1)));
+  reply({commits:[],path:"design/A.waffle"});assert.deepEqual((await query).commits,[]);
+  const failing=host.gitQuery("refs");reply(null,"Git is unavailable.");await assert.rejects(failing,/Git is unavailable/);
+  const detached=host.open(undefined,{into:true});reply([{name:"Other.waffle",folderProject:{grant:"detached-other",manifest:"Other.waffle",name:"Other"}}]);
+  assert.equal((await detached)[0].name,"Other.waffle");assert.equal(host.folderGitGrant,"selected-A");
+  const picked=host.pickFile([".schdoc"]);reply([{name:"design.SchDoc",data:"/wA=",sourceToken:"open-source"}]);
+  const source=await picked;
+  const content=Uint8Array.from({length:73731},(_,i)=>i%256).subarray(5,73719);
+  const exporting=host.exportBinaryCopy("design-edited.SchDoc",content,source),packet=calls.at(-1);
+  assert.equal(packet.action,"exportBinaryCopy");assert.equal(packet.sourceToken,"open-source");
+  assert.deepEqual(Buffer.from(packet.data,"base64"),Buffer.from(content));
+  reply(true);assert.equal(await exporting,true);
+  const impostor = new File(["wrong"],"design.SchDoc");impostor.sourceToken="open-source";
+  await assert.rejects(host.exportBinaryCopy("copy.SchDoc",content,impostor),/original Altium/);
+
+
+  const cancelled=host.chooseProjectFolder({mode:"create",name:"Copy.waffle"});reply(false);
+  assert.equal(await cancelled,false);assert.equal(host.folderGitGrant,"selected-A");
+  const owner='{"kind":"schematic","formatVersion":"2.0","id":"owner"}\n';
+  const plan=[{path:"Main.wsch",expected:"e".repeat(64),text:owner}];
+  const conflict=host.folderCommit({grant:"selected-A",projectId:"project",manifest:"A.waffle",plan});
+  assert.equal(calls.at(-1).plan[0].path,"Main.wsch");reply(null,"changed on disk");
+  await assert.rejects(conflict,/changed on disk/);assert.equal(host.folderGitGrant,"selected-A");
+
+  const copy=host.chooseProjectFolder({mode:"create",name:"Copy.waffle"});
+  reply({manifest:"Copy.waffle",grant:"copy",name:"Copy"});const target=await copy;
+  const commitCopy=host.folderCommit({grant:target.grant,manifest:target.manifest,projectId:"project",plan});
+  reply({saved:true});assert.equal((await commitCopy).saved,true);
+  const acceptCopy=host.folderAdopt({grant:target.grant});reply(true);await acceptCopy;
+  const exportFile=host.exportFile("board.csv","A,B");reply(true);assert.equal(await exportFile,true);
+  assert.equal(host.folderGitGrant,"copy");
+  const staleCompare=host.gitHead(),lookupId=calls.at(-1).id;assert.equal(calls.at(-1).token,"copy");
+  const late=host.folderAdopt({grant:"stale-selected-copy"}),saveId=calls.at(-1).id;
+  host.clearProjectPath();assert.equal(calls.at(-1).action,"clearGitProject");
+  window.__atriumReceive(lookupId,{revision:commit},null);await assert.rejects(staleCompare,/active project changed/);
+  window.__atriumReceive(saveId,true,null);await assert.rejects(late,/active project changed/);
+  assert.equal(host.folderGitGrant,null);
+
+  const denied=host.folderAdopt({grant:"unselected"});reply(null,"Folder grant expired.");
+  await assert.rejects(denied,/expired/);assert.equal(host.folderGitGrant,null);
+  const againA=host.folderAdopt({grant:"selected-A"});reply(true);await againA;
+  assert.equal(events.at(-1).type,"atrium-git-binding");
+  const lease=host.folderReadLease({grant:"selected-A"});reply({lease:"snapshot-1"});
+  const read=host.folderRead({grant:"selected-A",lease:(await lease).lease,paths:["Main.wsch"]});
+  assert.equal(calls.at(-1).paths[0],"Main.wsch");assert.ok(!("path" in calls.at(-1)));
+  reply({files:[{path:"Main.wsch",text:owner}]});assert.equal((await read).files[0].text,owner);
+  const release=host.folderRelease({grant:"selected-A",lease:"snapshot-1"});reply(true);assert.equal(await release,true);
+  const local=host.folderLocalState({grant:"selected-A",localState:{activeDocument:"owner"}});
+  assert.equal(calls.at(-1).grant,"selected-A");reply({activeDocument:"owner"});assert.equal((await local).activeDocument,"owner");
+  const draft=host.folderRestoreDraftAsset({grant:"selected-A",ownerId:"owner",proof:"expired",data:"eA=="});
+  assert.ok(!("path" in calls.at(-1)));reply(null,"The private draft proof expired.");await assert.rejects(draft,/proof expired/);
+  const listed=host.refreshRecentFiles();assert.equal(calls.at(-1).action,"recentFiles");
+  reply([{name:"A.waffle",path:"/design/A.waffle",openedAt:1}]);
+  assert.equal((await listed)[0].path,"/design/A.waffle");
+  const metadata=host.refreshRecentFiles({metadataOnly:true});assert.equal(calls.at(-1).metadataOnly,true);
+  reply([{name:"B.waffle",path:"/design/B.waffle",openedAt:2}]);
+  assert.equal((await metadata)[0].path,"/design/B.waffle");
+  const reopened=host.openRecent({path:"/design/A.waffle"});
+  assert.equal(calls.at(-1).action,"openRecent");assert.equal(calls.at(-1).path,"/design/A.waffle");
+  reply([{name:"A.waffle",folderProject:{...descriptor,grant:"recent-A"}}]);
+  const [again]=await reopened;const recentAdopt=host.folderAdopt({grant:again.folderProject.grant});
+  assert.equal(calls.at(-1).action,"folderAdopt");assert.equal(calls.at(-1).grant,"recent-A");reply(true);
+  await recentAdopt;assert.equal(host.folderGitGrant,"recent-A");
+  // Library sources: picked files carry their path; readFile sends only absolute paths.
+  await assert.rejects(host.readFile("../parts.atrlib"),/library file path/);
+  await assert.rejects(host.readFile({path:"/x"}),/library file path/);
+  const lib=host.pickFile([".atrlib",".json"]);reply([{name:"parts.atrlib",data:"e30=",path:"/libs/parts.atrlib"}]);
+  assert.equal((await lib).path,"/libs/parts.atrlib");
+  const reread=host.readFile("/libs/parts.atrlib");assert.equal(calls.at(-1).action,"readFile");assert.equal(calls.at(-1).path,"/libs/parts.atrlib");
+  reply({name:"parts.atrlib",path:"/libs/parts.atrlib",text:'{"defs":[]}'});
+  const reloaded=await reread;assert.equal(reloaded.path,"/libs/parts.atrlib");assert.equal(await reloaded.text(),'{"defs":[]}');
+  console.log("Passed native folder leases, private draft checks, recent files and library reload requests.");
+  // Preferences › External Tools: the tool id travels as toolId; the request id is always the bridge's
+  // own number (a payload "id" once overwrote it, so Choose…, Use <path> and Forget never completed).
+  const ids=new Set(calls.map(c=>c.id));
+  const forgot=host.externalToolForget("kicad-cli");
+  assert.equal(calls.at(-1).action,"externalToolForget");assert.equal(typeof calls.at(-1).id,"number");assert.ok(!ids.has(calls.at(-1).id));
+  assert.equal(calls.at(-1).toolId,"kicad-cli");reply(true);assert.equal(await forgot,true);
+  const chose=host.externalToolChoose({id:"kicad-cli",name:"KiCad CLI"});
+  assert.equal(calls.at(-1).action,"externalToolChoose");assert.equal(typeof calls.at(-1).id,"number");
+  assert.equal(calls.at(-1).toolId,"kicad-cli");assert.equal(calls.at(-1).name,"KiCad CLI");assert.ok(!("path" in calls.at(-1)));
+  reply({path:"/usr/bin/kicad-cli"});assert.equal((await chose).path,"/usr/bin/kicad-cli");
+  const used=host.externalToolChoose({id:"kicad-cli",name:"KiCad CLI",path:"/opt/kicad/bin/kicad-cli"});
+  assert.equal(typeof calls.at(-1).id,"number");assert.equal(calls.at(-1).toolId,"kicad-cli");assert.equal(calls.at(-1).path,"/opt/kicad/bin/kicad-cli");
+  reply(null);assert.equal(await used,null);
+  // No payload can name the request id or action: every request's id is a fresh number, its action the method's.
+  const numbered=calls.filter(c=>"id" in c);
+  assert.ok(numbered.every(c=>typeof c.id==="number"),"request ids are numbers");
+  assert.equal(new Set(numbered.map(c=>c.id)).size,numbered.length,"request ids are unique");
+  const stray=host.writeSelection({id:"clip-7",action:"open",summary:"x",data:"{}"});
+  assert.equal(calls.at(-1).action,"writeSelection");assert.equal(typeof calls.at(-1).id,"number");reply(true);assert.equal(await stray,true);
+  console.log("Passed external tool requests (toolId) and request ids no payload can override.");
+  console.log("Passed accepted native Git project binding, two-way binary transfer, stale responses, revision picking and file identity.");
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,31 @@
+/* 3D layout view (view3d.js). Loaded with the module on first use. */
+.v3d {background:var(--canvas-bg);--v3d-selection:var(--focus)}
+.split-pane:has(>.v3d)>.active-bar,#canvas-stage:has(>.v3d)>.active-bar {display:none}
+:has(> .doc-view:not([hidden])) > .v3d {visibility:hidden}
+.v3d-canvas.is-measuring {cursor:crosshair}
+:root[data-focus-nav=keys] .v3d-canvas:focus-visible {box-shadow:inset 0 0 0 2px var(--focus)}
+.v3d-overlay {position:absolute;inset:0;pointer-events:none;overflow:visible}
+.v3d-overlay line {stroke:var(--accent);stroke-width:2}
+.v3d-overlay circle {fill:var(--accent);stroke:var(--canvas-bg);stroke-width:1.5}
+.v3d-overlay text {fill:var(--ink-bright);paint-order:stroke;stroke:var(--canvas-bg);stroke-width:3px;font:600 var(--fs-12) system-ui,sans-serif}
+.v3d-2d {font-weight:600}
+.v3d-pop {position:absolute;top:40px;right:6px;width:min(248px,calc(100% - 12px));max-height:calc(100% - 52px);overflow:auto;padding:var(--s-8);font-size:var(--fs-12)}
+.v3d-sec {margin:8px 0 4px;color:var(--muted);font-size:.92em;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.v3d-sec:first-child {margin-top:0}
+.v3d-row {display:flex;align-items:center;gap:6px;min-height:24px}
+.v3d-row>span {flex:1}
+.v3d-row input[type=range] {flex:1;min-width:0}
+.v3d-row select {max-width:90px}
+.v3d-row input[type=color] {width:28px;height:20px;padding:0;background:none}
+.v3d-seg {margin:var(--s-2) 0}
+.v3d-pop-actions {display:flex;flex-wrap:wrap;gap:var(--s-4);margin:var(--s-2) 0}
+.v3d-num {min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+.v3d-stats {margin-top:8px;padding-top:6px;border-top:1px solid var(--line);color:var(--faint);font-size:.92em;line-height:1.35}
+.v3d-hud {position:absolute;left:50%;bottom:8px;transform:translateX(-50%);max-width:calc(100% - 24px);padding:2px 8px;border-radius:var(--r-sm);background:var(--bar-bg);color:var(--ink);
+  font-size:var(--fs-12);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;font-variant-numeric:tabular-nums}
+.v3d-hud:empty {display:none}
+.v3d-fallback {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 32px));padding:var(--s-16) var(--s-20)}
+.v3d-fallback h2 {margin:0 0 6px;font-size:1.1em}
+.v3d-fallback p {margin:0 0 12px;color:var(--muted);line-height:1.4}
+.v3d-actions {display:flex;justify-content:flex-end;gap:6px}
+@media (prefers-reduced-motion:reduce) {.v3d-pop {transition:none}}

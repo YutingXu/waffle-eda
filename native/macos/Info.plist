@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>Waffle</string>
+<key>CFBundleIdentifier</key><string>org.waffle.editor</string>
+<key>CFBundleIconFile</key><string>Waffle.icns</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleName</key><string>Waffle</string>
+<key>CFBundleDisplayName</key><string>Waffle EDA</string>
+<key>NSHumanReadableCopyright</key><string>Copyright © 2026 Yuting Xu. Released under the MIT License.</string>
+<key>CFBundleShortVersionString</key><string>0.8.0</string>
+<key>CFBundleVersion</key><string>8</string>
+<key>LSMinimumSystemVersion</key><string>12.0</string>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSLocalNetworkUsageDescription</key><string>Waffle uses your local network only while you share a live session as “Visible on this network”, or look for one, so that people near you can join with its code.</string>
+<key>NSBonjourServices</key><array><string>_waffle._tcp</string></array>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>org.waffle.editor.record</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>CFBundleURLSchemes</key><array><string>waffle</string></array>
+</dict></array>
+<key>CFBundleDocumentTypes</key><array><dict>
+<key>CFBundleTypeName</key><string>Waffle EDA Project</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.project</string></array>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Altium Designer Design</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.import.prjpcb</string><string>org.waffle.import.pcbdoc</string><string>org.waffle.import.schdoc</string></array>
+</dict><dict>
+<key>CFBundleTypeName</key><string>KiCad Design</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.import.kicad-pro</string><string>org.waffle.import.kicad-pcb</string><string>org.waffle.import.kicad-sch</string></array>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Archived Design</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>LSHandlerRank</key><string>Alternate</string>
+<key>LSItemContentTypes</key><array><string>public.zip-archive</string></array>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Waffle EDA PCB Document</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.document.pcb</string></array>
+<key>LSTypeIsPackage</key><false/>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Waffle EDA Schematic Document</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.document.schematic</string></array>
+<key>LSTypeIsPackage</key><false/>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Waffle EDA Library</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.document.library</string></array>
+<key>LSTypeIsPackage</key><false/>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Waffle EDA Drawing</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.document.drawing</string></array>
+<key>LSTypeIsPackage</key><false/>
+</dict><dict>
+<key>CFBundleTypeName</key><string>Waffle EDA Panel Layout</string>
+<key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSHandlerRank</key><string>Owner</string>
+<key>LSItemContentTypes</key><array><string>org.waffle.document.panel</string></array>
+<key>LSTypeIsPackage</key><false/>
+</dict></array>
+<key>UTImportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.import.prjpcb</string>
+<key>UTTypeDescription</key><string>Altium Designer Project</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>prjpcb</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.import.pcbdoc</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>pcbdoc</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.import.schdoc</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>schdoc</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.import.kicad-pro</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>kicad_pro</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.import.kicad-pcb</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>kicad_pcb</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.import.kicad-sch</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>kicad_sch</string></array></dict>
+</dict></array>
+<key>UTExportedTypeDeclarations</key><array><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.project</string>
+<key>UTTypeDescription</key><string>Waffle EDA Project</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>waffle</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.document.pcb</string>
+<key>UTTypeDescription</key><string>Waffle EDA PCB Document</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>wpcb</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.document.schematic</string>
+<key>UTTypeDescription</key><string>Waffle EDA Schematic Document</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>wsch</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.document.library</string>
+<key>UTTypeDescription</key><string>Waffle EDA Library</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>wlib</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.document.drawing</string>
+<key>UTTypeDescription</key><string>Waffle EDA Drawing</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>wdraw</string></array></dict>
+</dict><dict>
+<key>UTTypeIdentifier</key><string>org.waffle.document.panel</string>
+<key>UTTypeDescription</key><string>Waffle EDA Panel Layout</string>
+<key>UTTypeConformsTo</key><array><string>public.data</string></array>
+<key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>wpanel</string></array></dict>
+</dict></array>
+</dict></plist>

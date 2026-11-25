@@ -1,0 +1,41 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "future-sheet",
+      "items": [
+        {"futureTerminal":{"order":2},"id":"future-off","io":"clocked","kind":"offsheet","text":"CLK","x":15,"y":12},
+        {"h":16,"id":"future-role","kind":"textframe","role":"reservation","text":"Reserved region","w":32,"x":0,"y":0},
+        {"id":"opaque-item","kind":"foldline","offset":15},
+        {"futureFrame":{"edge":"double"},"h":28,"id":"future-frame","kind":"textframe","role":"frame","text":"Control","w":42,"x":-40,"y":-20}
+      ],
+      "kind": "schematic",
+      "name": "Future sheet",
+      "notes": [],
+      "outline": [],
+      "sheet": {
+        "futureBounds": {"edge":"ink"},
+        "infinite": true
+      }
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.6",
+  "library": [],
+  "name": "Future schematic fields",
+  "outputJobs": [
+    {
+      "folder": "{project}-{rev}-{date}",
+      "name": "Schematic pages",
+      "outputs": [
+        {"enabled":true,"id":"future-layout","kind":"pdf","options":{"fold":{"axis":"y"},"infiniteLayout":"foldout","infiniteScale":0.625}}
+      ],
+      "package": {
+        "mode": "folder"
+      },
+      "version": 2,
+      "zip": false
+    }
+  ],
+  "version": 1
+}

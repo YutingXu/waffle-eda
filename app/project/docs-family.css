@@ -1,0 +1,61 @@
+/* Placement for the documents family (docs-family.js, views-panel.js, datasheet-reader.js). Faces come
+   from the UI library; this file only places and sizes them. */
+
+/* Presentation mode: the canvas takes the window; the floating bar rests at the bottom centre. */
+:root[data-presenting] #workbench {--sidebar:0px;--properties:0px}
+:root[data-presenting] :is(.appbar,#navigator,#properties,#dock-bottom,.dock-float,body > .statusbar,#document-tabs,.editor-tabbar,.pane-tabs,.active-bar,.layer-bar) {display:none}
+.docs-stage-bar {position:fixed;inset-inline:0;inset-block-end:var(--s-24);z-index:var(--z-float);inline-size:max-content;max-inline-size:calc(100vw - 2 * var(--s-16));margin-inline:auto}
+.docs-notes {position:fixed;inset-inline:0;inset-block-end:calc(var(--s-24) + var(--ctl-h) + var(--s-16));z-index:var(--z-float);
+  box-sizing:border-box;inline-size:min(520px,calc(100vw - 2 * var(--s-16)));max-block-size:40vh;margin-inline:auto;padding:var(--s-8) var(--s-12);overflow:auto;overscroll-behavior:contain}
+.docs-notes-text {white-space:pre-wrap;font-size:var(--fs-13);line-height:var(--lh-loose)}
+.docs-notes-text[data-empty=true] {color:var(--muted)}
+
+/* Dock panels of the family: tab strip, toolbar, notice, scrolling body, status line. */
+.docs-panel {display:flex;flex-direction:column;min-block-size:0}
+.docs-panel > .ui-tabs {flex:none}
+.docs-pane {display:flex;flex-direction:column;flex:1 1 auto;min-block-size:0}
+.docs-pane[hidden] {display:none}
+.docs-pane > .ui-toolbar {flex:none}
+.docs-pane > .ui-notice {flex:none;margin:0 var(--s-8) var(--s-4)}
+.docs-pane > .ui-list,.docs-pane > .docs-scroll {flex:1 1 auto;min-block-size:0;overflow:auto;overscroll-behavior:contain}
+.docs-pane > .ui-list {padding:var(--s-2) var(--s-4)}
+.docs-pane > .ui-status-line,.docs-pane > .ui-progress-row {flex:none;padding:var(--s-2) var(--s-8) var(--s-4)}
+.docs-pane > .ui-empty,.docs-empty-slot > .ui-empty,.docs-scroll > .ui-empty {padding:var(--s-16) var(--s-8)}
+.docs-pane > .ui-empty[hidden] {display:none}
+.docs-pane > .docs-strip[data-strip=row] {flex:none;--ui-thumb-size:128px;padding-inline:var(--s-8);border-block-end:1px solid var(--line)}
+.docs-detail {flex:1 1 auto;min-block-size:0;overflow:auto;overscroll-behavior:contain;padding:0 var(--s-8) var(--s-8)}
+.docs-detail > .ui-section {padding-block-start:var(--s-8)}
+.docs-detail textarea.ui-field {inline-size:100%;box-sizing:border-box;min-block-size:72px;resize:vertical}
+.docs-detail .ui-row {padding-inline:0}
+.docs-detail .ui-prop-row > .ui-segmented {justify-self:start}
+.docs-rename {inline-size:100%;min-inline-size:0}
+.docs-strip[data-strip=row] .ui-thumb {justify-items:stretch;text-align:start}
+.docs-empty-slot[hidden] {display:none}
+
+/* Datasheet reader: page rail, splitter, pages. The rail hides when the panel is narrow. */
+.docs-find {display:flex;align-items:center;gap:var(--s-4);padding:0 var(--s-8) var(--s-4)}
+.docs-find[hidden] {display:none}
+.docs-find > .ui-search {flex:1 1 auto}
+.docs-zoom {inline-size:calc(9ch + var(--s-24));min-inline-size:0;flex:none}
+.docs-notice-slot[hidden] {display:none}
+.docs-reader {--docs-rail:84px;display:grid;grid-template-columns:var(--docs-rail) 1px minmax(0,1fr);flex:1 1 auto;min-block-size:0;border-block-start:1px solid var(--line)}
+.docs-reader[hidden] {display:none}
+.docs-reader > .docs-strip {--ui-thumb-size:100%;padding:var(--s-8) var(--s-4)}
+@container (max-width:300px) {.docs-reader {grid-template-columns:0 0 minmax(0,1fr)} .docs-reader > :is(.docs-strip,.ui-splitter) {visibility:hidden}}
+.panel-datasheet {container-type:inline-size}
+.docs-pages {display:flex;flex-direction:column;align-items:center;gap:var(--s-12);min-block-size:0;overflow:auto;overscroll-behavior:contain;padding:var(--s-12);background:var(--app);outline:none}
+.docs-page {position:relative;flex:none;inline-size:var(--docs-page-w,100%);aspect-ratio:var(--docs-page-ratio,1 / 1.294);background:var(--paper);box-shadow:var(--elev-1)}
+.docs-page[data-state=pending] {background:var(--button-face,var(--soft))}
+.docs-page[data-state=failed] {display:grid;place-items:center;outline:1px solid var(--error);outline-offset:-1px}
+.docs-page > img {display:block;inline-size:100%;block-size:100%;-webkit-user-drag:none}
+.docs-pages[data-snip=true] .docs-page:not([data-state]) {cursor:crosshair;touch-action:none}
+.docs-snip-mark {position:absolute;outline:var(--focus-w) solid var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);pointer-events:none}
+.docs-snip-card {position:absolute;inset-inline-start:var(--s-8);inset-block-start:var(--s-8);z-index:var(--z-popover);inline-size:min(280px,calc(100% - 2 * var(--s-8)));padding:var(--s-8);display:grid;gap:var(--s-6)}
+.docs-snip-art {min-block-size:64px;display:grid;place-items:center;background:var(--paper);border-radius:var(--r-sm)}
+.docs-snip-art > img {display:block;max-inline-size:100%;max-block-size:200px}
+.docs-snip-actions {display:flex;justify-content:flex-end;gap:var(--s-4)}
+.docs-scroll {padding:0 var(--s-8)}
+.docs-scroll[hidden] {display:none}
+.docs-foot {flex:none;display:flex;align-items:center;gap:var(--s-4);padding:var(--s-2) var(--s-8) var(--s-4) var(--s-4);border-block-start:1px solid var(--line)}
+.docs-foot > .ui-status-line {flex:1 1 auto;min-inline-size:0}
+.docs-foot > .ui-pager[hidden] {display:none}

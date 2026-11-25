@@ -1,0 +1,23 @@
+{
+  "id": "atrium-samples.unconnected-pins",
+  "name": "Unconnected Pins",
+  "publisher": "Waffle samples",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Lists the pins of the selected components that connect to nothing: no net, or a net with no other pin. Works on schematics and boards. Click a row to select the part.",
+  "main": "main.js",
+  "activationEvents": ["onCommand:unconnectedPins.find", "onView:unconnectedPins"],
+  "permissions": ["read:project", "ui:command", "ui:panel"],
+  "contributes": {
+    "commands": [
+      {"command": "unconnectedPins.find", "title": "Find Unconnected Pins on Selected Part", "when": "selection"},
+      {"command": "unconnectedPins.locate", "title": "Select Part"}
+    ],
+    "menus": {"tools": [{"command": "unconnectedPins.find", "when": "selection"}]},
+    "keybindings": [{"command": "unconnectedPins.find", "key": "ctrl+alt+u", "when": "selection"}],
+    "panels": [{"id": "unconnectedPins", "title": "Unconnected Pins", "location": "right"}],
+    "settings": [
+      {"key": "singlePinNets", "type": "boolean", "default": true, "title": "Count a net with only this pin as unconnected"}
+    ]
+  }
+}

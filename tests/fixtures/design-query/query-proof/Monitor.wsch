@@ -1,0 +1,3 @@
+{"kind":"schematic","formatVersion":"2.0","id":"monitor"}
+{"kind":"documentSettings","id":"monitor/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"part","id":"r-control","angle":0,"at":[15000000,15000000],"def":"ohmic","order":"V","ref":"R9","value":"47"}

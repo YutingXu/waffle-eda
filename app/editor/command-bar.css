@@ -1,0 +1,9 @@
+/* Coordinate entry / command line (command-bar.js): a non-modal bar at the bottom of the canvas. */
+.cmdbar {position:absolute;left:50%;bottom:var(--s-24);transform:translateX(-50%);margin:0;z-index:var(--z-float);width:min(520px,calc(100% - 32px));
+  padding:var(--s-8) var(--s-12);background:var(--panel);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--r-md)}
+.cmdbar-form {display:flex;align-items:baseline;gap:var(--s-8)}
+.cmdbar-form > .cmdbar-close {align-self:center}
+.cmdbar-label {color:var(--muted);font:var(--fs-12)/var(--lh) var(--font-ui);white-space:nowrap}
+.cmdbar-input {flex:1 1 auto;min-width:0}
+.cmdbar-note {margin:var(--s-4) 0 0;min-height:1.2em;font-size:var(--fs-11);color:var(--muted)}
+.cmdbar-note:empty {display:none}

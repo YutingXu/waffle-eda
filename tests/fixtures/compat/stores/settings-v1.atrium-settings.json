@@ -1,0 +1,44 @@
+{
+  "format": "atrium-settings",
+  "version": 1,
+  "prefs": {
+    "general.units": "mil",
+    "pcb.smartGuides": false,
+    "workbench.layouts": [
+      {
+        "v": 1,
+        "name": "Mine",
+        "areas": {
+          "left": [],
+          "right": [],
+          "bottom": []
+        },
+        "floats": [],
+        "sizes": {},
+        "hide": {}
+      }
+    ]
+  },
+  "theme": {
+    "atrium-theme": 1,
+    "preset": "dark",
+    "density": "compact"
+  },
+  "keymap": {
+    "format": "atrium-keys",
+    "version": 1,
+    "preset": "altium",
+    "bindings": {
+      "save": [
+        {
+          "key": "Mod+Shift+S"
+        }
+      ]
+    }
+  },
+  "layout": {
+    "collapsedSections": {
+      "props": true
+    }
+  }
+}

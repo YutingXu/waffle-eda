@@ -1,0 +1,4 @@
+{"kind":"library","formatVersion":"2.0","id":"019ab000-0000-7000-8000-000000000003","name":"Probe","requires":[]}
+{"kind":"librarySettings","id":"019ab000-0000-7000-8000-000000000009","value":{"symbol":{"pins":[],"shapes":[],"futureTolerances" : {"step":0.250, "caption":"Ω"}}}}
+{"kind":"pin","id":"019ab000-0000-7000-8000-00000000000a","order":"V","value":{"number":"1","x":1000000,"x-fab" : { "width":2.30, "label":"\u0064atum" },"y":0}}
+{"kind":"testSocketBand","id":"019ab000-0000-7000-8000-00000000000b","limits": [0.00, 1e2]}

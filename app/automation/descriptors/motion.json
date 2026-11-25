@@ -1,0 +1,65 @@
+{
+  "feature": "motion",
+  "title": "Motion",
+  "modules": {"editor": ["AtriumMotion"], "mcp": ["motion"]},
+  "commands": [
+    {
+      "id": "policy",
+      "title": "Inspect motion eligibility",
+      "kind": "read",
+      "properties": {
+        "requested": {"enum": ["system", "full", "reduce", "off"], "type": "string"},
+        "input": {"enum": ["keyboard", "pointer"], "type": "string"},
+        "visibility": {"enum": ["visible", "hidden", "occluded"], "type": "string"},
+        "osReduced": {"type": "boolean"},
+        "efficient": {"type": "boolean"},
+        "pointerHover": {"type": "boolean"}
+      },
+      "required": []
+    },
+    {
+      "id": "plan",
+      "title": "Plan a motion timing",
+      "kind": "read",
+      "properties": {
+        "kind": {"enum": ["fade", "travel", "camera"], "type": "string"},
+        "duration": {"enum": ["instant", "fast", "base", "slow", "ambient"], "type": "string"},
+        "durationMs": {"type": "number", "minimum": 0},
+        "curve": {"enum": ["standard", "decelerate", "accelerate", "spring", "drawer", "linear"], "type": "string"},
+        "level": {"enum": ["full", "reduced", "off"], "type": "string"},
+        "visibility": {"enum": ["visible", "hidden", "occluded"], "type": "string"}
+      },
+      "required": []
+    },
+    {
+      "id": "sample",
+      "title": "Sample a motion track",
+      "kind": "read",
+      "properties": {
+        "kind": {"enum": ["fade", "travel", "camera"], "type": "string"},
+        "from": {"type": "number"},
+        "to": {"type": "number"},
+        "elapsedMs": {"type": "number", "minimum": 0},
+        "durationMs": {"type": "number", "minimum": 0},
+        "curve": {"enum": ["standard", "decelerate", "accelerate", "spring", "drawer", "linear"], "type": "string"}
+      },
+      "required": ["from", "to", "elapsedMs", "durationMs"]
+    },
+    {
+      "id": "retarget",
+      "title": "Retarget a motion track from its displayed value",
+      "kind": "read",
+      "properties": {
+        "kind": {"enum": ["fade", "travel", "camera"], "type": "string"},
+        "from": {"type": "number"},
+        "previousTarget": {"type": "number"},
+        "to": {"type": "number"},
+        "elapsedMs": {"type": "number", "minimum": 0},
+        "durationMs": {"type": "number", "minimum": 0},
+        "nextDurationMs": {"type": "number", "minimum": 0},
+        "curve": {"enum": ["standard", "decelerate", "accelerate", "spring", "drawer", "linear"], "type": "string"}
+      },
+      "required": ["from", "previousTarget", "to", "elapsedMs", "durationMs"]
+    }
+  ]
+}

@@ -1,0 +1,270 @@
+{
+  "format": "atrium-fab-preset",
+  "version": 1,
+  "vendor": "JLCPCB",
+  "dataVersion": "2026.11.19",
+  "retrieved": "2026-11-19",
+  "notice": "Values were read from JLCPCB's public pages on the date given with each source. Values marked unverified could not be confirmed from those pages and use a conservative default. Fab capabilities change without notice: check JLCPCB's current pages before ordering. No prices are stored.",
+  "sources": {
+    "cap": {"url": "https://jlcpcb.com/capabilities/pcb-capabilities", "title": "JLCPCB PCB Capabilities", "retrieved": "2026-11-19"},
+    "imp": {"url": "https://jlcpcb.com/impedance", "title": "JLCPCB Controlled Impedance PCB Layer Stackup", "retrieved": "2026-11-19"},
+    "calc": {"url": "https://jlcpcb.com/help/article/User-Guide-to-the-JLCPCB-Impedance-Calculator", "title": "User Guide to the JLCPCB Impedance Calculator", "retrieved": "2026-11-19"},
+    "bom": {"url": "https://jlcpcb.com/help/article/bill-of-materials-for-pcb-assembly", "title": "Bill of Materials for PCB Assembly", "retrieved": "2026-11-19"},
+    "bomSample": {"url": "https://s3.amazonaws.com/helpscout.net/docs/assets/59f1de7804286313cffbb22c/attachments/60ee4acd9e87cb3d0124d284/Sample-BOM_JLCSMT.xlsx", "title": "Sample-BOM_JLCSMT.xlsx (linked from the BOM article)", "retrieved": "2026-11-19"},
+    "cpl": {"url": "https://jlcpcb.com/help/article/pick-place-file-for-pcb-assembly", "title": "Pick & Place File for PCB Assembly", "retrieved": "2026-11-19"},
+    "cplSample": {"url": "https://s3.amazonaws.com/helpscout.net/docs/assets/59f1de7804286313cffbb22c/attachments/5d83250e04286364bc8f4c5e/Sample-CPL_JLCSMT.xlsx", "title": "Sample-CPL_JLCSMT.xlsx (linked from the CPL article)", "retrieved": "2026-11-19"},
+    "naming": {"url": "https://jlcpcb.com/help/article/suggested-naming-patterns", "title": "Suggested Naming Patterns", "retrieved": "2026-11-19"},
+    "altium": {"url": "https://jlcpcb.com/help/article/how-to-export-altium-pcb-to-gerber-files", "title": "How to Generate Gerber Files in Altium Designer", "retrieved": "2026-11-19"},
+    "qa794": {"url": "https://jlcpcb.com/help/answers/detail/794-Clarification-on-Coplanar-Single-Ended-Impedance-Calculation", "title": "JLCPCB Q&A 794 (user-reported calculator result)", "retrieved": "2026-11-19"},
+    "qa331": {"url": "https://jlc3dp.com/help/answers/detail/331-Coplanar-and-non-coplanar-Impedance-calculator", "title": "JLC Q&A 331 (user-reported calculator result)", "retrieved": "2026-11-19"}
+  },
+  "outputs": {
+    "jlc": {
+      "gerber": {"format": {"v": "RS-274X", "src": "altium", "q": "The accepted format is RS-274X, extended Gerber with embedded apertures."},
+        "x2": {"v": false, "src": "altium", "q": "X2 embeds extra layer attributes that are not required, and may be rejected at CAM review."},
+        "units": {"v": "mm", "src": "altium", "q": "Units: Millimeters"},
+        "naming": {"v": "protel", "src": "naming", "q": "boardname.GTL / .GBL / .GTS / .GBS / .GTO / .GBO / .GKO/GM1; Altium inner layers .G1, .G2"},
+        "extensions": {"Top": "GTL", "Bottom": "GBL", "Top mask": "GTS", "Bottom mask": "GBS", "Silk": "GTO", "Bottom silk": "GBO", "Top paste": "GTP", "Bottom paste": "GBP", "Outline": "GKO / GM1", "Inner n": "Gn"},
+        "zip": {"v": "{stem}-Gerber.zip", "src": "altium", "q": "Accepted archive types are .zip and .rar; the structure must be flat."}},
+      "drill": {"format": {"v": "Excellon", "src": "naming", "q": "Altium: Drill files often use .TXT, which is accepted."},
+        "units": {"v": "mm", "note": "JLCPCB's KiCad guide uses millimetres with decimal zeros; its Altium guide uses inches 2:5. Both are accepted per those guides; Waffle writes millimetres."},
+        "zeros": "decimal", "origin": "absolute", "files": "{stem}-Plated.TXT, {stem}-NonPlated.TXT"},
+      "bom": {"style": "jlc", "format": "csv", "name": "BOM-{stem}.csv",
+        "columns": {"v": ["Comment", "Designator", "Footprint", "LCSC Part #"], "src": "bom", "q": "The BOM must contain Comment, Designator and Footprint; the sample's fourth column is the JLCPCB/LCSC part number (C + digits)."},
+        "sampleHeader": {"v": ["Comment", "Designator", "Footprint", "JLCPCB Part #（optional）"], "src": "bomSample"},
+        "designatorSeparator": {"v": ",", "src": "bomSample", "q": "R5,R6"},
+        "partNumber": {"v": "^C\\d{3,10}$", "src": "bomSample", "q": "C16133, C22809"},
+        "fileTypes": {"v": [".csv", ".xls", ".xlsx"], "src": "bom"}},
+      "cpl": {"style": "jlc", "name": "CPL-{stem}.csv",
+        "columns": {"v": ["Designator", "Mid X", "Mid Y", "Layer", "Rotation"], "src": "cplSample"},
+        "units": {"v": "mm", "src": "cpl", "q": "Required units: Metric(mm)."},
+        "unitSuffix": {"v": "mm", "src": "cplSample", "q": "95.0518mm"},
+        "decimals": {"v": 4, "src": "cplSample"},
+        "layer": {"v": ["Top", "Bottom"], "src": "cpl", "q": "Top / Bottom, the board side where the component should be placed. (The sample file writes T and B.)"},
+        "rotation": {"v": "degrees, positive counter-clockwise", "src": "cpl", "q": "The rotation of the component given in degrees. Positive values are counter clockwise."},
+        "rotationZero": {"v": "footprint orientation", "unverified": true, "note": "JLCPCB does not state the zero orientation; its library orientation can differ from the footprint. Check the placement preview on the order page."},
+        "origin": {"v": "board origin", "unverified": true, "note": "The CPL article does not state an origin; Waffle uses the board origin (Edit › Origin) or the outline's lower-left corner."}}
+    }
+  },
+  "common": {
+    "limits": {
+      "pthRingRecommended2L": {"v": 0.25, "src": "cap", "q": "PTH, 2-layer, 1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm."},
+      "viaDrill": {"v": 0.15, "src": "cap", "q": "Min via hole/diameter: 0.15/0.25mm (standard); 0.1/0.2 mm extra cost."},
+      "viaDiameter": {"v": 0.25, "src": "cap", "q": "Min via hole/diameter: 0.15/0.25mm."},
+      "viaRing": {"v": 0.05, "src": "cap", "q": "Via diameter should be 0.1mm (0.15mm preferred) larger than the hole.", "derived": "(diameter - hole) / 2"},
+      "viaDrillPreferred": {"v": 0.3, "unverified": true, "note": "Waffle's default routing via; a 0.3 mm drill stays well above JLCPCB's 0.15 mm minimum."},
+      "viaDiameterPreferred": {"v": 0.6, "unverified": true, "note": "0.3 mm drill + 0.15 mm preferred ring each side (JLCPCB: 0.15 mm preferred over the hole)."},
+      "minHole": {"v": 0.15, "src": "cap", "q": "Drill range: 2-layer and multilayer 0.15 – 6.3 mm."},
+      "maxHole": {"v": 6.3, "src": "cap", "q": "0.15 – 6.3 mm"},
+      "drillTolPlus": {"v": 0.13, "src": "cap", "q": "Drill tolerance, through-holes: +0.13 / -0.08 mm."},
+      "drillTolMinus": {"v": 0.08, "src": "cap", "q": "+0.13 / -0.08 mm"},
+      "holePosition": {"v": 0.075, "src": "cap", "q": "Hole position: ±0.075 mm."},
+      "npthMin": {"v": 0.5, "src": "cap", "q": "Min NPTH: 0.50mm."},
+      "npthSlotMin": {"v": 1.0, "src": "cap", "q": "Non-plated slot min: 1.0mm."},
+      "holeToHoleVia": {"v": 0.2, "src": "cap", "q": "Hole-to-hole: via 0.2mm."},
+      "holeToHolePad": {"v": 0.45, "src": "cap", "q": "Hole-to-hole: pad hole 0.45mm."},
+      "viaToTrack": {"v": 0.2, "src": "cap", "q": "Via hole to track: 0.2mm."},
+      "pthToTrack": {"v": 0.28, "src": "cap", "q": "PTH to track: 0.28mm (0.35 mm recommended)."},
+      "npthToTrack": {"v": 0.2, "src": "cap", "q": "NPTH to track: 0.2mm."},
+      "innerViaToCopper": {"v": 0.2, "src": "cap", "q": "Inner-layer via hole to copper: 0.2mm."},
+      "innerPthToCopper": {"v": 0.3, "src": "cap", "q": "Inner-layer PTH pad to copper: 0.3mm."},
+      "padToTrack": {"v": 0.1, "src": "cap", "q": "Pad to track (1 oz): 0.1mm."},
+      "smdPadToPad": {"v": 0.15, "src": "cap", "q": "SMD pad to pad (different nets): 0.15mm."},
+      "holeToEdge": {"v": 0.5, "unverified": true, "note": "Not published for plain holes (castellated holes need 1 mm). Conservative default."},
+      "edgeClearance": {"v": 0.2, "src": "cap", "q": "Routed copper clearance from edge: ≧0.2 mm."},
+      "vScoreClearance": {"v": 0.4, "src": "cap", "q": "V-cut copper clearance: ≧0.4 mm."},
+      "mouseBiteClearance": {"v": 0.2, "src": "cap", "q": "Mouse bite: edge clearance ≧0.2 mm."},
+      "maskExpansion": {"v": 0, "src": "cap", "q": "Solder mask expansion: 1:1 (openings equal to the pads)."},
+      "maskToTrace": {"v": 0.09, "src": "cap", "q": "Clearance between openings and traces: at least 0.09 mm."},
+      "maskWeb": {"v": 0.1, "src": "cap", "q": "Bridge/dam, 1 oz: 0.10 mm (green, red, yellow, blue, purple); 0.13 mm (black, white). 2 oz: 0.20 mm."},
+      "maskWebBlackWhite": {"v": 0.13, "src": "cap", "q": "0.13 mm (black, white)"},
+      "silkWidth": {"v": 0.15, "src": "cap", "q": "Min line width: ≥0.15mm."},
+      "silkHeight": {"v": 1.0, "src": "cap", "q": "Min text height: 40 mil (1.0mm)."},
+      "silkRatio": {"v": 6, "src": "cap", "q": "Width:height ratio: 1:6.", "derived": "stroke width >= text height / 6"},
+      "silkToPad": {"v": 0.15, "src": "cap", "q": "Pad to silkscreen: 0.15mm."},
+      "acidTrapAngle": {"v": 90, "unverified": true, "note": "JLCPCB publishes no acid-trap angle. Copper corners sharper than 90° are reported (common practice)."},
+      "copperSliver": {"v": 0.1, "unverified": true, "note": "No sliver width is published; the minimum track width is used."},
+      "thermalSpokes": {"v": 2, "unverified": true, "note": "No minimum is published; a relief with fewer than 2 connected spokes is reported as starved."},
+      "impedanceTolerance": {"v": 10, "src": "cap", "q": "Standard tolerance: ±10%."}
+    },
+    "board": {
+      "minSize": {"v": [3, 3], "src": "cap", "q": "Min size: FR4 3 × 3 mm (thinner boards need manual review)."},
+      "thicknessTolerance": {"v": "±10% (≥1.0 mm), ±0.1 mm (<1.0 mm)", "src": "cap"},
+      "panelMin": {"v": [70, 70], "src": "cap", "q": "V-cut panel size 70 × 70 mm to 475 × 475 mm."},
+      "panelMax": {"v": [475, 475], "src": "cap"},
+      "vScoreLineGap": {"v": 2, "src": "cap", "q": "Min spacing between V-cuts: 2mm (3mm is recommended)."}
+    },
+    "capabilities": {
+      "blind": {"v": false, "src": "cap", "q": "Blind vias are laser-drilled copper-filled HDI (0.075–0.15 mm): a separate HDI service, not in these presets."},
+      "buried": {"v": false, "src": "cap", "q": "Buried vias 0.15–0.55 mm: HDI service, not in these presets."},
+      "microvia": {"v": false, "src": "cap", "q": "HDI service, not in these presets."},
+      "viaInPad": {"v": false, "unverified": true, "note": "Via-in-pad (filled and capped) was not confirmed on the capability page; off by default. Plugged vias must be no wider than 0.5 mm."},
+      "backdrill": {"v": false, "src": "cap", "q": "Backdrill: 4–32 layers, ≥0.8 mm, hole 0.2-0.5mm (special option, not in these presets)."},
+      "castellated": {"v": false, "src": "cap", "q": "Castellated holes ≥ 0.5 mm, hole to edge ≥ 1 mm, board ≥ 10 × 10 mm and ≥ 0.6 mm thick (option, not in these presets)."}
+    }
+  },
+  "presets": [
+    {
+      "id": "jlcpcb-2l",
+      "name": "JLCPCB 2-layer (cheapest)",
+      "layers": 2,
+      "costTier": "base",
+      "summary": "JLCPCB's standard lowest-cost options: 2-layer FR-4, 1.6 mm, 1 oz copper, HASL, green mask, standard tolerances.",
+      "build": {"material": "FR-4", "thickness": {"v": 1.6, "src": "cap", "q": "FR4 options: 0.4/0.6/0.8/1.0/1.2/1.6/2.0 mm"}, "outerCopper": {"v": 1, "src": "cap", "q": "Outer: 2-layer 1 oz / 2 oz / 2.5 oz / 3.5 oz / 4.5oz"},
+        "finish": {"v": "HASL", "src": "cap", "q": "HASL (leaded / lead-free), ENIG, OSP."}, "mask": "Green", "silk": "White"},
+      "limits": {
+        "track": {"v": 0.1, "src": "cap", "q": "1 oz, 1–2 layer: 0.10 / 0.10 mm (4 / 4 mil)"},
+        "space": {"v": 0.1, "src": "cap", "q": "1 oz, 1–2 layer: 0.10 / 0.10 mm (4 / 4 mil)"},
+        "pthRing": {"v": 0.18, "src": "cap", "q": "PTH, 2-layer, 1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm."},
+        "pthSlotMin": {"v": 0.5, "src": "cap", "q": "Plated slot min width: 2-layer: 0.5mm."}
+      },
+      "board": {"maxSize": {"v": [670, 600], "src": "cap", "q": "Max size, FR4 2-layer: 670 × 600 mm (the page also lists 1020 × 600 mm; the smaller is used)."}},
+      "stackup": {
+        "name": "JLCPCB 2-layer 1.6 mm",
+        "layers": [
+          {"type": "Overlay", "name": "Top Overlay", "material": "", "thickness": 0},
+          {"type": "Solder Mask", "name": "Top Solder", "material": "Solder Resist", "thickness": 0.03048, "dk": 3.8},
+          {"type": "Signal", "name": "Top Layer", "material": "Copper", "thickness": 0.035},
+          {"type": "Dielectric", "name": "Core", "material": "FR-4", "dielectric": "Core", "thickness": 1.53, "dk": 4.6},
+          {"type": "Signal", "name": "Bottom Layer", "material": "Copper", "thickness": 0.035},
+          {"type": "Solder Mask", "name": "Bottom Solder", "material": "Solder Resist", "thickness": 0.03048, "dk": 3.8},
+          {"type": "Overlay", "name": "Bottom Overlay", "material": "", "thickness": 0}
+        ],
+        "sourceNotes": [
+          {"key": "core", "unverified": true, "note": "JLCPCB does not publish a 2-layer build-up; the core is the board thickness less the copper, with the 4.6 Dk JLCPCB lists for cores (NP-155F)."},
+          {"key": "mask", "src": "calc", "q": "Base soldermask thickness 1.2 mil; soldermask dielectric constant 3.8."}
+        ]
+      },
+      "impedanceChecks": [
+        {"id": "qa331-microstrip", "src": "qa331", "type": "single", "layer": "Top", "reference": [null, "Bottom"], "width": 2.7178, "target": 50, "note": "User-reported JLC calculator result: 107 mil for 50 Ω, standard 2-layer 1.6 mm, 1 oz."},
+        {"id": "qa331-cpwg", "src": "qa331", "type": "cpw", "layer": "Top", "reference": [null, "Bottom"], "width": 2.1082, "ground": 0.762, "target": 50, "note": "User-reported JLC calculator result: 83 mil with 30 mil to copper, 50 Ω."}
+      ],
+      "outputs": "jlc"
+    },
+    {"id": "jlcpcb-2l-0.8", "extends": "jlcpcb-2l", "variant": "0.8 mm", "name": "JLCPCB 2-layer, 0.8 mm", "costTier": {"v": "standard", "unverified": true, "note": "No price data is stored; JLCPCB offers 0.8 mm as a standard FR-4 option."},
+      "build": {"thickness": {"v": 0.8, "src": "cap", "q": "FR4 options: 0.4/0.6/0.8/1.0/1.2/1.6/2.0 mm"}}, "stackup": {"name": "JLCPCB 2-layer 0.8 mm", "core": 0.73}},
+    {"id": "jlcpcb-2l-1.0", "extends": "jlcpcb-2l", "variant": "1.0 mm", "name": "JLCPCB 2-layer, 1.0 mm", "costTier": {"v": "standard", "unverified": true, "note": "No price data is stored."},
+      "build": {"thickness": {"v": 1.0, "src": "cap", "q": "FR4 options: 0.4/0.6/0.8/1.0/1.2/1.6/2.0 mm"}}, "stackup": {"name": "JLCPCB 2-layer 1.0 mm", "core": 0.93}},
+    {"id": "jlcpcb-2l-1.2", "extends": "jlcpcb-2l", "variant": "1.2 mm", "name": "JLCPCB 2-layer, 1.2 mm", "costTier": {"v": "standard", "unverified": true, "note": "No price data is stored."},
+      "build": {"thickness": {"v": 1.2, "src": "cap", "q": "FR4 options: 0.4/0.6/0.8/1.0/1.2/1.6/2.0 mm"}}, "stackup": {"name": "JLCPCB 2-layer 1.2 mm", "core": 1.13}},
+    {"id": "jlcpcb-2l-enig", "extends": "jlcpcb-2l", "variant": "ENIG", "name": "JLCPCB 2-layer, ENIG", "costTier": {"v": "extra", "unverified": true, "note": "ENIG is a finish option; no price data is stored."},
+      "build": {"finish": {"v": "ENIG", "src": "cap", "q": "HASL (leaded / lead-free), ENIG, OSP."}}},
+    {
+      "id": "jlcpcb-4l",
+      "name": "JLCPCB 4-layer (JLC04161H-7628)",
+      "layers": 4,
+      "costTier": "base",
+      "summary": "JLCPCB's default 4-layer 1.6 mm build-up (the stack-up used when no impedance stack-up is requested), 1 oz outer, 0.5 oz inner, HASL, green mask.",
+      "build": {"material": "FR-4 (Nan Ya NP-155F)", "thickness": {"v": 1.6, "src": "imp", "q": "0.8mm 1.0mm 1.2mm 1.6mm 2.0mm"}, "outerCopper": {"v": 1, "src": "imp"}, "innerCopper": {"v": 0.5, "src": "cap", "q": "Inner: 0.5 oz / 1 oz / 2 oz (default 0.5 oz)."},
+        "finish": {"v": "HASL", "src": "cap"}, "mask": "Green", "silk": "White"},
+      "limits": {
+        "track": {"v": 0.09, "src": "cap", "q": "1 oz, multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil)"},
+        "space": {"v": 0.09, "src": "cap", "q": "1 oz, multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil)"},
+        "pthRing": {"v": 0.15, "src": "cap", "q": "PTH, multilayer, 1 oz: Recommended 0.20 mm or above; absolute minimum 0.15 mm."},
+        "pthSlotMin": {"v": 0.35, "src": "cap", "q": "Plated slot min width: Multi-layer: 0.35mm."}
+      },
+      "board": {"maxSize": {"v": [663, 593], "src": "cap", "q": "Max size, FR4 4-layer: 663 × 593 mm (also 1016 × 596 mm; the smaller is used)."}},
+      "stackup": {
+        "name": "JLC04161H-7628",
+        "layers": [
+          {"type": "Overlay", "name": "Top Overlay", "material": "", "thickness": 0},
+          {"type": "Solder Mask", "name": "Top Solder", "material": "Solder Resist", "thickness": 0.03048, "dk": 3.8},
+          {"type": "Signal", "name": "Top Layer", "material": "Copper", "thickness": 0.035},
+          {"type": "Dielectric", "name": "Prepreg 7628×1", "material": "7628", "dielectric": "Prepreg", "thickness": 0.2104, "dk": 4.4},
+          {"type": "Plane", "name": "Inner Layer L2 (GND)", "material": "Copper", "thickness": 0.0152},
+          {"type": "Dielectric", "name": "Core 1.1 mm H/HOZ", "material": "Core", "dielectric": "Core", "thickness": 1.065, "dk": 4.6},
+          {"type": "Plane", "name": "Inner Layer L3 (PWR)", "material": "Copper", "thickness": 0.0152},
+          {"type": "Dielectric", "name": "Prepreg 7628×1", "material": "7628", "dielectric": "Prepreg", "thickness": 0.2104, "dk": 4.4},
+          {"type": "Signal", "name": "Bottom Layer", "material": "Copper", "thickness": 0.035},
+          {"type": "Solder Mask", "name": "Bottom Solder", "material": "Solder Resist", "thickness": 0.03048, "dk": 3.8},
+          {"type": "Overlay", "name": "Bottom Overlay", "material": "", "thickness": 0}
+        ],
+        "sourceNotes": [
+          {"key": "layers", "src": "imp", "q": "JLC04161H-7628: Top 0.035 mm; Prepreg 7628*1 0.21040mm; L2 0.0152mm; Core 1.065mm (1.1mm H/HOZ with copper); L3 0.0152mm; Prepreg 7628*1 0.21040mm; Bottom 0.035mm. Dk 7628 4.4, core 4.6."},
+          {"key": "mask", "src": "calc", "q": "Base soldermask thickness 1.2 mil; soldermask dielectric constant 3.8."},
+          {"key": "planes", "unverified": true, "note": "JLCPCB does not assign layer roles; GND and PWR planes on L2/L3 follow Waffle's 4-layer default."}
+        ]
+      },
+      "impedance": {
+        "etchMil": {"v": 0.7, "src": "calc", "q": "Trace top width: Trace base width – 0.7 mil"},
+        "profiles": [
+          {"id": "jlc-se50", "name": "50 Ω single-ended", "type": "single", "target": 50},
+          {"id": "jlc-diff90", "name": "90 Ω differential (USB)", "type": "diff", "target": 90, "gap": 0.127},
+          {"id": "jlc-diff100", "name": "100 Ω differential", "type": "diff", "target": 100, "gap": 0.2}
+        ],
+        "note": "Widths are solved from the stack-up with JLCPCB's calculator inputs (etch, mask). JLCPCB's calculator takes the pair gap as an input: 0.127 mm (5 mil) for 90 Ω and 0.2 mm (8 mil) for 100 Ω are Waffle's choice."
+      },
+      "impedanceChecks": [
+        {"id": "qa794-cpwg", "src": "qa794", "type": "cpw", "layer": "Top", "reference": [null, "Inner 2"], "width": 1.0767, "ground": 0.254, "target": 50, "note": "User-reported JLC calculator result on JLC04161H-7628: Layer 1 over Layer 3, 42.39 mil trace, 10 mil gap, 50 Ω."}
+      ],
+      "outputs": "jlc"
+    },
+    {"id": "jlcpcb-4l-3313", "extends": "jlcpcb-4l", "variant": "JLC04161H-3313", "name": "JLCPCB 4-layer (JLC04161H-3313)", "costTier": {"v": "standard", "unverified": true, "note": "Impedance stack-ups are chosen at order time; no price data is stored."},
+      "stackup": {"name": "JLC04161H-3313", "replace": {"Prepreg 7628×1": {"name": "Prepreg 3313×1", "material": "3313", "thickness": 0.0994, "dk": 4.1}, "Core 1.1 mm H/HOZ": {"name": "Core 1.3 mm H/HOZ", "thickness": 1.265}},
+        "sourceNotes": [{"key": "layers", "src": "imp", "q": "JLC04161H-3313: prepreg 3313*1 0.09940mm (Dk 4.1) above and below a 1.265mm core (1.3mm H/HOZ with copper)."}]}},
+    {"id": "jlcpcb-4l-2116", "extends": "jlcpcb-4l", "variant": "JLC04161H-2116", "name": "JLCPCB 4-layer (JLC04161H-2116)", "costTier": {"v": "standard", "unverified": true, "note": "No price data is stored."},
+      "stackup": {"name": "JLC04161H-2116", "replace": {"Prepreg 7628×1": {"name": "Prepreg 2116×1", "material": "2116", "thickness": 0.1164, "dk": 4.16}, "Core 1.1 mm H/HOZ": {"name": "Core 1.3 mm H/HOZ", "thickness": 1.265}},
+        "sourceNotes": [{"key": "layers", "src": "imp", "q": "JLC04161H-2116: prepreg 2116*1 0.11640mm (Dk 4.16) above and below a 1.265mm core (1.3mm H/HOZ with copper)."}]}},
+    {"id": "jlcpcb-4l-enig", "extends": "jlcpcb-4l", "variant": "ENIG", "name": "JLCPCB 4-layer (JLC04161H-7628), ENIG", "costTier": {"v": "extra", "unverified": true, "note": "No price data is stored."},
+      "build": {"finish": {"v": "ENIG", "src": "cap"}}},
+    {
+      "id": "jlcpcb-6l",
+      "name": "JLCPCB 6-layer (JLC06161H-3313)",
+      "layers": 6,
+      "costTier": "base",
+      "summary": "JLCPCB 6-layer 1.6 mm option with the JLC06161H-3313 impedance stack-up, 1 oz outer, 0.5 oz inner, ENIG (HASL is not offered on 6 layers or more), green mask.",
+      "build": {"material": "FR-4 (Nan Ya NP-155F)", "thickness": {"v": 1.6, "src": "imp"}, "outerCopper": {"v": 1, "src": "imp"}, "innerCopper": {"v": 0.5, "src": "cap"},
+        "finish": {"v": "ENIG", "src": "cap", "q": "HASL is excluded for FR-4/HDI boards with 6 or more layers."}, "mask": "Green", "silk": "White"},
+      "limits": {
+        "track": {"v": 0.09, "src": "cap", "q": "1 oz, multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil)"},
+        "space": {"v": 0.09, "src": "cap", "q": "1 oz, multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil)"},
+        "pthRing": {"v": 0.15, "src": "cap", "q": "PTH, multilayer, 1 oz: Recommended 0.20 mm or above; absolute minimum 0.15 mm."},
+        "pthSlotMin": {"v": 0.35, "src": "cap", "q": "Plated slot min width: Multi-layer: 0.35mm."}
+      },
+      "board": {"maxSize": {"v": [656, 586], "src": "cap", "q": "Max size, FR4 6-layer+: 656 × 586 mm."}},
+      "stackup": {
+        "name": "JLC06161H-3313",
+        "layers": [
+          {"type": "Overlay", "name": "Top Overlay", "material": "", "thickness": 0},
+          {"type": "Solder Mask", "name": "Top Solder", "material": "Solder Resist", "thickness": 0.03048, "dk": 3.8},
+          {"type": "Signal", "name": "Top Layer", "material": "Copper", "thickness": 0.035},
+          {"type": "Dielectric", "name": "Prepreg 3313×1", "material": "3313", "dielectric": "Prepreg", "thickness": 0.0994, "dk": 4.1},
+          {"type": "Plane", "name": "Inner Layer L2 (GND)", "material": "Copper", "thickness": 0.0152},
+          {"type": "Dielectric", "name": "Core 0.55 mm H/H", "material": "Core", "dielectric": "Core", "thickness": 0.55, "dk": 4.6},
+          {"type": "Signal", "name": "Inner Layer L3", "material": "Copper", "thickness": 0.0152},
+          {"type": "Dielectric", "name": "Prepreg 2116×1", "material": "2116", "dielectric": "Prepreg", "thickness": 0.1088, "dk": 4.16},
+          {"type": "Signal", "name": "Inner Layer L4", "material": "Copper", "thickness": 0.0152},
+          {"type": "Dielectric", "name": "Core 0.55 mm H/H", "material": "Core", "dielectric": "Core", "thickness": 0.55, "dk": 4.6},
+          {"type": "Plane", "name": "Inner Layer L5 (PWR)", "material": "Copper", "thickness": 0.0152},
+          {"type": "Dielectric", "name": "Prepreg 3313×1", "material": "3313", "dielectric": "Prepreg", "thickness": 0.0994, "dk": 4.1},
+          {"type": "Signal", "name": "Bottom Layer", "material": "Copper", "thickness": 0.035},
+          {"type": "Solder Mask", "name": "Bottom Solder", "material": "Solder Resist", "thickness": 0.03048, "dk": 3.8},
+          {"type": "Overlay", "name": "Bottom Overlay", "material": "", "thickness": 0}
+        ],
+        "sourceNotes": [
+          {"key": "layers", "src": "imp", "q": "JLC06161H-3313: Top 0.035mm; Prepreg 3313*1 0.09940mm; L2 0.0152; Core 0.55mm (H/H without copper); L3 0.0152; Prepreg 2116*1 0.1088mm; L4 0.0152; Core 0.55mm; L5 0.0152; Prepreg 3313*1 0.09940mm; Bottom 0.035mm. Dk 3313 4.1, 2116 4.16, core 4.6."},
+          {"key": "total", "note": "The listed layers add up to about 1.48 mm without solder mask; JLCPCB names it a 1.6 mm (161) stack-up."},
+          {"key": "planes", "unverified": true, "note": "JLCPCB does not assign layer roles; GND on L2 and PWR on L5 follow Waffle's 6-layer default."}
+        ]
+      },
+      "impedance": {
+        "etchMil": {"v": 0.7, "src": "calc", "q": "Trace top width: Trace base width – 0.7 mil"},
+        "profiles": [
+          {"id": "jlc-se50", "name": "50 Ω single-ended", "type": "single", "target": 50},
+          {"id": "jlc-diff90", "name": "90 Ω differential (USB)", "type": "diff", "target": 90, "gap": 0.127},
+          {"id": "jlc-diff100", "name": "100 Ω differential", "type": "diff", "target": 100, "gap": 0.2}
+        ],
+        "note": "Outer layers reference L2/L5; L3 and L4 are striplines between L2 and L5. JLCPCB's calculator takes the pair gap as an input: 0.127 mm (5 mil) for 90 Ω and 0.2 mm (8 mil) for 100 Ω are Waffle's choice."
+      },
+      "outputs": "jlc"
+    },
+    {"id": "jlcpcb-6l-1080a", "extends": "jlcpcb-6l", "variant": "JLC06161H-1080A", "name": "JLCPCB 6-layer (JLC06161H-1080A)", "costTier": {"v": "standard", "unverified": true, "note": "No price data is stored."},
+      "stackup": {"name": "JLC06161H-1080A", "replaceAt": {"3": {"name": "Prepreg 1080×1", "material": "1080", "thickness": 0.0764, "dk": 3.91}, "5": {"name": "Core 0.6 mm H/HOZ", "thickness": 0.6},
+        "7": {"name": "Prepreg 3313×1", "material": "3313", "thickness": 0.0994, "dk": 4.1}, "9": {"name": "Core 0.6 mm H/HOZ", "thickness": 0.6}, "11": {"name": "Prepreg 1080×1", "material": "1080", "thickness": 0.0764, "dk": 3.91}},
+        "sourceNotes": [{"key": "layers", "src": "imp", "q": "JLC06161H-1080A: Prepreg 1080*1 0.07640mm; Core 0.6mm; Prepreg 3313*1 0.09940mm; Core 0.6mm; Prepreg 1080*1 0.07640mm. Dk 1080 3.91."}]}},
+    {"id": "jlcpcb-6l-7628", "extends": "jlcpcb-6l", "variant": "JLC06161H-7628", "name": "JLCPCB 6-layer (JLC06161H-7628)", "costTier": {"v": "standard", "unverified": true, "note": "No price data is stored."},
+      "stackup": {"name": "JLC06161H-7628", "replaceAt": {"3": {"name": "Prepreg 7628×1", "material": "7628", "thickness": 0.2104, "dk": 4.4}, "5": {"name": "Core 0.4 mm H/HOZ", "thickness": 0.4},
+        "7": {"name": "Prepreg 7628×1", "material": "7628", "thickness": 0.2028, "dk": 4.4}, "9": {"name": "Core 0.4 mm H/HOZ", "thickness": 0.4}, "11": {"name": "Prepreg 7628×1", "material": "7628", "thickness": 0.2104, "dk": 4.4}},
+        "sourceNotes": [{"key": "layers", "src": "imp", "q": "JLC06161H-7628: Prepreg 7628*1 0.21040mm; Core 0.4mm; Prepreg 7628*1 0.2028mm; Core 0.4mm; Prepreg 7628*1 0.21040mm."}]}}
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "documents": [
+    {
+      "appliedSourceRuleRecords": [
+        2
+      ],
+      "bodyModelVersion": 1,
+      "bodyModels": [
+        {"checksum":4294967295,"file":"Synthetic.step","id":"metadata-step","stepText":"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;"}
+      ],
+      "grid": 0.25,
+      "id": "metadata-board",
+      "items": [
+        {"closed":true,"hatchPitch":0.508,"hatchWidth":0.2032,"id":"metadata-pour","kind":"polygon","layer":"Top","net":"GND","points":[[2,2],[6,2],[6,5],[2,5]],"pourOverSameNet":false,"removeDeadCopper":false,"sourcePourOver":{"sameNet":false,"style":2}},
+        {"angle":0,"boardLabels":[{"angle":0,"at":[0,-1],"field":"ref","layer":"Silk","mirrored":false,"size":0.8,"sourceTextBox":{"height":0.8,"mode":"ink","size":0.8,"sourceJustify":"bottom-left","text":"U1","width":1.2,"writingOffset":[-0.2,0.35]}}],"bodies3d":[{"angle":0,"at":[0,0],"dz":0,"identifier":"Synthetic","layer":"Mechanical 1","maxZ":1,"minZ":0,"modelId":"metadata-step","ownerSide":"Top","rings":[[[-0.5,-0.5],[0.5,-0.5],[0.5,0.5],[-0.5,0.5]]],"rotation":[0,0,0],"side":"Top","sourceRecord":"componentbodies6/data#0","type":"step"}],"def":"metadata-footprint","hiddenBoardLabels":[{"angle":0,"at":[0,1],"field":"value","layer":"Silk","mirrored":false,"size":0.8,"sourceTextBox":{"height":0.8,"mode":"ink","size":0.8,"sourceJustify":"bottom-left","text":"Synthetic","width":1.2,"writingOffset":[-0.2,0.35]}}],"id":"metadata-placement","kind":"part","layer":"Top","pinNets":{"1":"SIG"},"ref":"U1","value":"Synthetic","x":10,"y":6}
+      ],
+      "kind": "pcb",
+      "name": "Metadata board",
+      "notes": [],
+      "outline": [
+        [0,0],
+        [14,0],
+        [14,10],
+        [0,10]
+      ],
+      "pcbDrawing": {
+        "annotations": {},
+        "nativeText": true,
+        "pourSignatureVersion": 4,
+        "pourSignatures": {"metadata-pour":"4:e59bd9f829389d6a"},
+        "pours": [{"bounds":[2,2,6,5],"count":1,"data":"BAAAADOZTCaTByhBM5lMJpMHKMHmcrlcrgVCQTOZTCaTByjB5nK5XK4FQkGAv9/vdwk+wTOZTCaTByhBgL/f73cJPsE=","layer":"Top","links":[],"net":"GND","polygon":"metadata-pour","source":"altium","subPolygonIndex":4}]
+      },
+      "sourcePourSignature": "5aca5f48c484a9c6",
+      "sourceRules": [
+        "RECORD=Rule|RULEKIND=Clearance|NAME=Original clearance|ENABLED=TRUE|PRIORITY=1|SCOPE1EXPRESSION=All|SCOPE2EXPRESSION=All|GAP=0.2mm",
+        "RECORD=Rule|RULEKIND=Width|NAME=Original width|ENABLED=TRUE|PRIORITY=1|SCOPE1EXPRESSION=All|MINWIDTH=0.1mm|MAXWIDTH=0.5mm|PREFERREDWIDTH=0.2mm"
+      ]
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.5",
+  "library": [
+    {
+      "footprint": {
+        "pads": [{"h":1,"layer":"Top","number":"1","shape":"round","w":1,"x":0,"y":0}],
+        "shapes": []
+      },
+      "id": "metadata-footprint",
+      "name": "Metadata test footprint"
+    }
+  ],
+  "name": "Altium source metadata",
+  "version": 1
+}

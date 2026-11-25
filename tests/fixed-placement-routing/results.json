@@ -1,0 +1,1994 @@
+{
+  "originalEngine": "ff5ef78a56e3948deb955e679eee4b048dac4b2f",
+  "correctedEngine": "cb5a05dc2c9ce59b3f774aec5d230fd7f521d2fb",
+  "repeats": 3,
+  "routeColumns": [
+    "connections",
+    "opens",
+    "vias",
+    "trackMm",
+    "medianRouteMs",
+    "expansions",
+    "withheldNets"
+  ],
+  "referenceColumns": [
+    "opens",
+    "vias",
+    "trackMm"
+  ],
+  "boards": {
+    "tpl5110": {
+      "family": "adafruit",
+      "revision": "f1967694bc20333d31b167e4eeaff58742e37bba",
+      "source": {
+        "parts": 17,
+        "bottom": 3,
+        "pads": 37,
+        "tracks": 72,
+        "arcs": 0,
+        "vias": 7,
+        "polygons": 1,
+        "fills": 0,
+        "pouredRegions": 1,
+        "embeddedVias": 0,
+        "footprintCopper": 2,
+        "keepouts": 12,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripped": {
+        "parts": 17,
+        "bottom": 3,
+        "pads": 37,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 2,
+        "keepouts": 12,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripSha256": "48a2580b679d8babb2919810f45db3fe8d8007a708c5d6dbf1a98daaf79004eb",
+      "inputOpens": 23,
+      "placementIssues": {
+        "clearance": 8,
+        "silkToMask": 44
+      },
+      "reference": [
+        0,
+        7,
+        110.368
+      ],
+      "referenceNewIssues": {},
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Bottom": 221.922
+      },
+      "pouredNetsWithoutTracks": [],
+      "choice": "direct",
+      "trainingBoards": [
+        "qwiic-button",
+        "qwiic-buzzer",
+        "pidp11-io-expander",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          23,
+          0,
+          10,
+          103.718,
+          29,
+          18379,
+          0
+        ],
+        "v2": [
+          23,
+          0,
+          10,
+          103.86,
+          35,
+          34044,
+          0
+        ],
+        "single": [
+          23,
+          0,
+          10,
+          103.86,
+          24,
+          34044,
+          0
+        ],
+        "margin": [
+          23,
+          0,
+          12,
+          107.748,
+          26,
+          31554,
+          0
+        ],
+        "escape": [
+          23,
+          0,
+          9,
+          106.249,
+          22,
+          34234,
+          0
+        ],
+        "direct": [
+          23,
+          0,
+          9,
+          106.702,
+          24,
+          48698,
+          0
+        ],
+        "congestion": [
+          23,
+          0,
+          9,
+          108.136,
+          24,
+          27125,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "e93278265078618bc9c0f801f49ebf0703cdbaef757b8faf926f51e6efa1861f",
+        "v2": "5c1d298090828580ef3ecad4858d8a681217bb09f38810c36633142add7616e5",
+        "single": "5c1d298090828580ef3ecad4858d8a681217bb09f38810c36633142add7616e5",
+        "margin": "4ac7d2f0c5ebf9e02849a3af714aeb8423657f34e5a6ea71d58fca5a04ae1c53",
+        "escape": "2e49ff8695f6bf228919570629c87b9ba7e826467bb1c603ee1835fdae5dccf6",
+        "direct": "bcfd334eb9a8848409805a2835582f45ee48614688e7bdb37a013d273333da73",
+        "congestion": "ff2103e5d30c7eca8c5e47c8abf68e60a2020e96d3ae12594e82ce2d6c576548"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 10,
+          "trackMm": 103.86,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        },
+        "edge": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 10,
+          "trackMm": 103.86,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            0,
+            10,
+            103.718
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "v2": {
+          "accepted": [
+            0,
+            10,
+            103.86
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "single": {
+          "accepted": [
+            0,
+            10,
+            103.86
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "margin": {
+          "accepted": [
+            0,
+            12,
+            107.748
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "escape": {
+          "accepted": [
+            0,
+            9,
+            106.249
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "direct": {
+          "accepted": [
+            0,
+            9,
+            106.702
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "congestion": {
+          "accepted": [
+            0,
+            9,
+            108.136
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        }
+      }
+    },
+    "tmp117": {
+      "family": "adafruit",
+      "revision": "874b3a5b27792d4d166547bab075cb963e1bdb32",
+      "source": {
+        "parts": 20,
+        "bottom": 4,
+        "pads": 48,
+        "tracks": 113,
+        "arcs": 0,
+        "vias": 10,
+        "polygons": 2,
+        "fills": 0,
+        "pouredRegions": 13,
+        "embeddedVias": 0,
+        "footprintCopper": 2,
+        "keepouts": 17,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 36
+      },
+      "stripped": {
+        "parts": 20,
+        "bottom": 4,
+        "pads": 48,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 2,
+        "keepouts": 17,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 36
+      },
+      "stripSha256": "5dd72960295ada4c0237b4756e06a3a4ba9c877b7114c44731753cf7518a61ba",
+      "inputOpens": 35,
+      "placementIssues": {
+        "clearance": 3,
+        "silkToMask": 44
+      },
+      "reference": [
+        1,
+        10,
+        183.467
+      ],
+      "referenceNewIssues": {
+        "clearance": 26,
+        "polygonConnect": 2,
+        "footprintKeepout": 6
+      },
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Top": 221.069,
+        "Bottom": 279.039
+      },
+      "pouredNetsWithoutTracks": [],
+      "choice": "direct",
+      "trainingBoards": [
+        "qwiic-button",
+        "qwiic-buzzer",
+        "pidp11-io-expander",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          19,
+          16,
+          4,
+          71.553,
+          34,
+          4092,
+          0
+        ],
+        "v2": [
+          19,
+          16,
+          0,
+          83.477,
+          252,
+          12204,
+          0
+        ],
+        "single": [
+          19,
+          16,
+          2,
+          80.548,
+          44,
+          5870,
+          0
+        ],
+        "margin": [
+          19,
+          16,
+          1,
+          83.157,
+          27,
+          2864,
+          0
+        ],
+        "escape": [
+          19,
+          16,
+          2,
+          71.806,
+          64,
+          9233,
+          0
+        ],
+        "direct": [
+          19,
+          16,
+          1,
+          74.3,
+          33,
+          4246,
+          0
+        ],
+        "congestion": [
+          19,
+          16,
+          2,
+          80.548,
+          42,
+          3579,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "cd251b103e1e855fb5a9ee5fd26baf95d10be9bc573174db5719d149f4d49421",
+        "v2": "57587c33e482019add33166017ee858a8964b8ab053acbfe5438fa94a62e72c9",
+        "single": "458b1f4871b62d560b28d8ec9c3fb49aa6339d8d83ad7103482807ba7f4e50e0",
+        "margin": "be8c49496720d8cf54bedac2cd954a231265ce9b8df54afd27383e538318f627",
+        "escape": "2d627c28a169625c3e84354175ab5988ecac2dea6655fc3d02b33223cc92f8fb",
+        "direct": "678c08755dd86768a42f340af52cf632daf840ef14c427ff91cf70aecfcd13cc",
+        "congestion": "7f66466dd1a20625e58fceb9bef2099901a0dbfe1ef961e615f70442dee18418"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 16,
+          "opens": 16,
+          "vias": 2,
+          "trackMm": 80.548,
+          "calls": 12,
+          "cells": 56580,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 23
+        },
+        "edge": {
+          "initialOpens": 16,
+          "opens": 16,
+          "vias": 2,
+          "trackMm": 80.548,
+          "calls": 12,
+          "cells": 52962,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 18
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            16,
+            4,
+            71.553
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        },
+        "v2": {
+          "accepted": [
+            16,
+            0,
+            83.477
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        },
+        "single": {
+          "accepted": [
+            16,
+            2,
+            80.548
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        },
+        "margin": {
+          "accepted": [
+            16,
+            1,
+            83.157
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        },
+        "escape": {
+          "accepted": [
+            16,
+            2,
+            71.806
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        },
+        "direct": {
+          "accepted": [
+            16,
+            1,
+            74.3
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        },
+        "congestion": {
+          "accepted": [
+            16,
+            2,
+            80.548
+          ],
+          "rawOpens": 16,
+          "rawNewIssues": {}
+        }
+      }
+    },
+    "qwiic-button": {
+      "family": "sparkfun-qwiic",
+      "revision": "e89a82fe2ddb293bfe0d6d9f63ccf4782a77c359",
+      "source": {
+        "parts": 48,
+        "bottom": 23,
+        "pads": 78,
+        "tracks": 193,
+        "arcs": 0,
+        "vias": 38,
+        "polygons": 2,
+        "fills": 0,
+        "pouredRegions": 12,
+        "embeddedVias": 0,
+        "footprintCopper": 3,
+        "keepouts": 8,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripped": {
+        "parts": 48,
+        "bottom": 23,
+        "pads": 78,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 3,
+        "keepouts": 8,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripSha256": "edfc04f014963d01e6b13317c8326640a2016bd6f526e56d7deb26eb87b88a4d",
+      "inputOpens": 46,
+      "placementIssues": {
+        "silkToMask": 247,
+        "silkToSilk": 3
+      },
+      "reference": [
+        0,
+        38,
+        294.075
+      ],
+      "referenceNewIssues": {
+        "clearance": 9
+      },
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Top": 299.57,
+        "Bottom": 430.56
+      },
+      "pouredNetsWithoutTracks": [
+        "GND"
+      ],
+      "choice": "direct",
+      "trainingBoards": [
+        "tpl5110",
+        "tmp117",
+        "pidp11-io-expander",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          41,
+          5,
+          33,
+          333.385,
+          78,
+          124318,
+          0
+        ],
+        "v2": [
+          41,
+          5,
+          22,
+          345.951,
+          444,
+          169451,
+          0
+        ],
+        "single": [
+          41,
+          5,
+          25,
+          340.925,
+          81,
+          154383,
+          0
+        ],
+        "margin": [
+          41,
+          5,
+          26,
+          384.663,
+          106,
+          209559,
+          0
+        ],
+        "escape": [
+          41,
+          5,
+          25,
+          336.746,
+          113,
+          237719,
+          0
+        ],
+        "direct": [
+          41,
+          5,
+          22,
+          322.533,
+          83,
+          174659,
+          0
+        ],
+        "congestion": [
+          40,
+          6,
+          22,
+          332.841,
+          82,
+          136806,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "705729ec06fefbbd6ad75b926ec1dc82484a4890e7b8deb29a5c62e8e7b288ce",
+        "v2": "1c0aa5c543a66e16787c9f82b9ab1ddc0d3028e1b691dbaaf2c0dfca6ac70e00",
+        "single": "18524eea787e3c1f521ffd375319311e4dbb82fc96e813f9f9f5e722172e7c1c",
+        "margin": "456c051b819f611f304ae9a5b4896e8387bea3ccdf509110d9950bb7d5559f6b",
+        "escape": "6cbe914d51f83f398f199567fae713cd444bcd8a83e3c533cd0372a14011b086",
+        "direct": "0cfcf1a2662dfbbe51ca2803643855c2f42fb508f06d1372881c67ae48af7bd2",
+        "congestion": "3aeb16664db132762ad6797fd23c04a0fdddbdd709dafc646fe37fdd021314e1"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 5,
+          "opens": 5,
+          "vias": 25,
+          "trackMm": 340.925,
+          "calls": 10,
+          "cells": 45868,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 23
+        },
+        "edge": {
+          "initialOpens": 5,
+          "opens": 0,
+          "vias": 30,
+          "trackMm": 359.389,
+          "calls": 5,
+          "cells": 20882,
+          "acceptedOffers": 5,
+          "rejectedOffers": 0,
+          "medianMs": 70
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            5,
+            33,
+            333.385
+          ],
+          "rawOpens": 5,
+          "rawNewIssues": {}
+        },
+        "v2": {
+          "accepted": [
+            5,
+            22,
+            345.951
+          ],
+          "rawOpens": 5,
+          "rawNewIssues": {}
+        },
+        "single": {
+          "accepted": [
+            5,
+            25,
+            340.925
+          ],
+          "rawOpens": 5,
+          "rawNewIssues": {}
+        },
+        "margin": {
+          "accepted": [
+            5,
+            26,
+            384.663
+          ],
+          "rawOpens": 5,
+          "rawNewIssues": {}
+        },
+        "escape": {
+          "accepted": [
+            5,
+            25,
+            336.746
+          ],
+          "rawOpens": 5,
+          "rawNewIssues": {}
+        },
+        "direct": {
+          "accepted": [
+            5,
+            22,
+            322.533
+          ],
+          "rawOpens": 5,
+          "rawNewIssues": {}
+        },
+        "congestion": {
+          "accepted": [
+            6,
+            22,
+            332.841
+          ],
+          "rawOpens": 6,
+          "rawNewIssues": {}
+        }
+      }
+    },
+    "qwiic-buzzer": {
+      "family": "sparkfun-qwiic",
+      "revision": "c6be60f1dea6db2bfb4b55cf7b543160fb68c8b6",
+      "source": {
+        "parts": 63,
+        "bottom": 23,
+        "pads": 107,
+        "tracks": 343,
+        "arcs": 0,
+        "vias": 61,
+        "polygons": 2,
+        "fills": 0,
+        "pouredRegions": 18,
+        "embeddedVias": 0,
+        "footprintCopper": 9,
+        "keepouts": 16,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripped": {
+        "parts": 63,
+        "bottom": 23,
+        "pads": 107,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 9,
+        "keepouts": 16,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripSha256": "11c5e438752df4d6d67e12ba046731da9cb8b85024934ab9394364d6d61f05f1",
+      "inputOpens": 62,
+      "placementIssues": {
+        "silkToMask": 43,
+        "silkToSilk": 12
+      },
+      "reference": [
+        0,
+        61,
+        456.92
+      ],
+      "referenceNewIssues": {
+        "clearance": 2,
+        "silkToMask": 6,
+        "polygonConnect": 2
+      },
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Top": 219.443,
+        "Bottom": 334.961
+      },
+      "pouredNetsWithoutTracks": [],
+      "choice": "direct",
+      "trainingBoards": [
+        "tpl5110",
+        "tmp117",
+        "pidp11-io-expander",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          50,
+          12,
+          39,
+          404.794,
+          107,
+          233366,
+          0
+        ],
+        "v2": [
+          50,
+          12,
+          31,
+          393.007,
+          674,
+          495840,
+          0
+        ],
+        "single": [
+          50,
+          12,
+          34,
+          428.892,
+          163,
+          418619,
+          0
+        ],
+        "margin": [
+          50,
+          12,
+          33,
+          435.533,
+          127,
+          288641,
+          0
+        ],
+        "escape": [
+          50,
+          12,
+          47,
+          422.324,
+          209,
+          539297,
+          0
+        ],
+        "direct": [
+          50,
+          12,
+          29,
+          400.932,
+          156,
+          392614,
+          0
+        ],
+        "congestion": [
+          50,
+          12,
+          39,
+          416.468,
+          174,
+          353132,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "989213f952c36d59988337c2d5459964f95a4ee8aa7848093a1d1049ccf76802",
+        "v2": "ba0c64991a052d94c6bca91be158421db625602b9d1da23ff6b7648dcd900dda",
+        "single": "cb3f2463053ffada3b1f466131e6087cd60e6b879d5416f522ece2611c917127",
+        "margin": "9332193d7672d01a1e00e8999c048720818137a54525d6b8c632109c485badde",
+        "escape": "c7e3b1db15e05bf7e8fe3e41d8229e086778b317e77c84c1e5e200b23b435175",
+        "direct": "ced9f911693f3d8e4c1bb9a547f36f2dff080c71de9fd956ee2ad108433744ad",
+        "congestion": "33bee364a910a5624fee3090824380982fb1bec9459ef39363fbb0d2026cbc08"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 12,
+          "opens": 12,
+          "vias": 34,
+          "trackMm": 428.892,
+          "calls": 12,
+          "cells": 55724,
+          "acceptedOffers": 0,
+          "rejectedOffers": 1,
+          "medianMs": 46
+        },
+        "edge": {
+          "initialOpens": 12,
+          "opens": 6,
+          "vias": 40,
+          "trackMm": 458.26,
+          "calls": 12,
+          "cells": 52134,
+          "acceptedOffers": 6,
+          "rejectedOffers": 1,
+          "medianMs": 144
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            12,
+            39,
+            404.794
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        },
+        "v2": {
+          "accepted": [
+            12,
+            31,
+            393.007
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        },
+        "single": {
+          "accepted": [
+            12,
+            34,
+            428.892
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        },
+        "margin": {
+          "accepted": [
+            12,
+            33,
+            435.533
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        },
+        "escape": {
+          "accepted": [
+            12,
+            47,
+            422.324
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        },
+        "direct": {
+          "accepted": [
+            12,
+            29,
+            400.932
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        },
+        "congestion": {
+          "accepted": [
+            12,
+            39,
+            416.468
+          ],
+          "rawOpens": 12,
+          "rawNewIssues": {}
+        }
+      }
+    },
+    "pidp11-io-expander": {
+      "family": "pidp11-io-expander",
+      "revision": "3a4fe6f68b1ae437ce63bfbbe1f34fabaf4faacd",
+      "source": {
+        "parts": 23,
+        "bottom": 0,
+        "pads": 100,
+        "tracks": 194,
+        "arcs": 0,
+        "vias": 59,
+        "polygons": 2,
+        "fills": 1,
+        "pouredRegions": 5,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 0,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 42
+      },
+      "stripped": {
+        "parts": 23,
+        "bottom": 0,
+        "pads": 100,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 0,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 42
+      },
+      "stripSha256": "a18222a388cab15211ec3f680350b326b04ef85b5f9b725d924a8fe42fef0953",
+      "inputOpens": 65,
+      "placementIssues": {},
+      "reference": [
+        2,
+        59,
+        644.539
+      ],
+      "referenceNewIssues": {},
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Bottom": 992.598,
+        "Top": 872.291
+      },
+      "pouredNetsWithoutTracks": [
+        "GND"
+      ],
+      "choice": "escape",
+      "trainingBoards": [
+        "tpl5110",
+        "tmp117",
+        "qwiic-button",
+        "qwiic-buzzer",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          65,
+          0,
+          43,
+          690.158,
+          256,
+          498584,
+          0
+        ],
+        "v2": [
+          65,
+          0,
+          31,
+          699.913,
+          490,
+          968340,
+          0
+        ],
+        "single": [
+          65,
+          0,
+          31,
+          699.913,
+          471,
+          968340,
+          0
+        ],
+        "margin": [
+          65,
+          0,
+          27,
+          717.297,
+          344,
+          698469,
+          0
+        ],
+        "escape": [
+          65,
+          0,
+          32,
+          688.003,
+          386,
+          790268,
+          0
+        ],
+        "direct": [
+          65,
+          0,
+          29,
+          697.508,
+          541,
+          1229042,
+          0
+        ],
+        "congestion": [
+          65,
+          0,
+          36,
+          693.727,
+          460,
+          850149,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "82726a67abf656ddcc5227496f719d9b54b1a77cc48c1ef676a567db789fc5cc",
+        "v2": "0c4e0d264322db092d57ebcacb4d0b72bca813abe5867a951ddb866b073bda1b",
+        "single": "0c4e0d264322db092d57ebcacb4d0b72bca813abe5867a951ddb866b073bda1b",
+        "margin": "1c519f0a25575181949681721c02ea43bfe891179e0cbfafaa7d52acedfb2097",
+        "escape": "6fa6b648106793f36fae993fd4711b3d355d6e4726d735591ef3f38f5c2051c7",
+        "direct": "3504c455928738969a2f4cd7a7264083003caf3a999fbeac3baf0d8c57be18f4",
+        "congestion": "27af215b6d21f13fc70ffe87fbf3760b2fb0202da9cd8015a3956eeb9083a03d"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 31,
+          "trackMm": 699.913,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        },
+        "edge": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 31,
+          "trackMm": 699.913,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            0,
+            43,
+            690.158
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "v2": {
+          "accepted": [
+            0,
+            31,
+            699.913
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "single": {
+          "accepted": [
+            0,
+            31,
+            699.913
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "margin": {
+          "accepted": [
+            0,
+            27,
+            717.297
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "escape": {
+          "accepted": [
+            0,
+            32,
+            688.003
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "direct": {
+          "accepted": [
+            0,
+            29,
+            697.508
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "congestion": {
+          "accepted": [
+            0,
+            36,
+            693.727
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        }
+      }
+    },
+    "midas-communication": {
+      "family": "midas-communication",
+      "revision": "2ffc166dc3783158e0b00906e13b2d650d676887",
+      "source": {
+        "parts": 10,
+        "bottom": 0,
+        "pads": 37,
+        "tracks": 12,
+        "arcs": 0,
+        "vias": 35,
+        "polygons": 3,
+        "fills": 0,
+        "pouredRegions": 3,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 4,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 39
+      },
+      "stripped": {
+        "parts": 10,
+        "bottom": 0,
+        "pads": 37,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 4,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 39
+      },
+      "stripSha256": "bffa20c3c8b30d5c43c9f813fb32c971a87a1ce29159fe1e9138102b70eb0416",
+      "inputOpens": 25,
+      "placementIssues": {},
+      "reference": [
+        0,
+        35,
+        77.657
+      ],
+      "referenceNewIssues": {
+        "annularRing": 35,
+        "polygonConnect": 8
+      },
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Bottom": 946.983,
+        "Top": 938.816
+      },
+      "pouredNetsWithoutTracks": [
+        "GND",
+        "NetJ1_2"
+      ],
+      "choice": "escape",
+      "trainingBoards": [
+        "tpl5110",
+        "tmp117",
+        "qwiic-button",
+        "qwiic-buzzer",
+        "pidp11-io-expander"
+      ],
+      "routes": {
+        "v1": [
+          25,
+          0,
+          11,
+          178.31,
+          31,
+          30450,
+          0
+        ],
+        "v2": [
+          25,
+          0,
+          11,
+          179.919,
+          43,
+          58643,
+          0
+        ],
+        "single": [
+          25,
+          0,
+          11,
+          179.919,
+          30,
+          58643,
+          0
+        ],
+        "margin": [
+          25,
+          0,
+          7,
+          184.436,
+          25,
+          42257,
+          0
+        ],
+        "escape": [
+          25,
+          0,
+          10,
+          179.552,
+          25,
+          41432,
+          0
+        ],
+        "direct": [
+          25,
+          0,
+          10,
+          172.459,
+          30,
+          67786,
+          0
+        ],
+        "congestion": [
+          25,
+          0,
+          8,
+          185.872,
+          28,
+          35678,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "00eaa0931250881487349e52974710adda4bbcf93172fdf22311d65d0336bbd4",
+        "v2": "828ea134eafe16143203122bb727c21944f358df5ec2b9e24c39eef294952dac",
+        "single": "828ea134eafe16143203122bb727c21944f358df5ec2b9e24c39eef294952dac",
+        "margin": "30d4ec7b63ddf9c31e32963a89542af82b888d6114b883d8022e6cac7f2229ec",
+        "escape": "a65130058bc21fe64f25e1db048fd75ac5e2945b9974e2ca24e266733fb25f6e",
+        "direct": "bf5e1958a3c23ba5eef29817d743bb215611224c25a8772f581467a1951c85d3",
+        "congestion": "7e2943eed44d42bd7731abe7e9a0066bdebe1053b40abf3bb80968e0bba8a40d"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 11,
+          "trackMm": 179.919,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        },
+        "edge": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 11,
+          "trackMm": 179.919,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            20,
+            0,
+            50.331
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 11
+          }
+        },
+        "v2": {
+          "accepted": [
+            20,
+            0,
+            51.21
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 11
+          }
+        },
+        "single": {
+          "accepted": [
+            20,
+            0,
+            51.21
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 11
+          }
+        },
+        "margin": {
+          "accepted": [
+            25,
+            0,
+            0
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 7
+          }
+        },
+        "escape": {
+          "accepted": [
+            25,
+            0,
+            0
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 10
+          }
+        },
+        "direct": {
+          "accepted": [
+            10,
+            0,
+            78.341
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 10
+          }
+        },
+        "congestion": {
+          "accepted": [
+            10,
+            0,
+            84.659
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "annularRing": 8
+          }
+        }
+      }
+    },
+    "tmc2209": {
+      "family": "watterott-stepstick",
+      "revision": "098b7518b0de31e6a12fda78c68ae2666b81fbb6",
+      "source": {
+        "parts": 25,
+        "bottom": 2,
+        "pads": 86,
+        "tracks": 181,
+        "arcs": 0,
+        "vias": 57,
+        "polygons": 15,
+        "fills": 0,
+        "pouredRegions": 16,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 2,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Inner 1",
+          "Inner 2",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripped": {
+        "parts": 25,
+        "bottom": 2,
+        "pads": 86,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 2,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Inner 1",
+          "Inner 2",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripSha256": "c1b4f905b388368554747276d00e6ae036559349717ec85d73ab2266dc05438d",
+      "inputOpens": 53,
+      "placementIssues": {
+        "silkToMask": 181,
+        "silkToSilk": 17
+      },
+      "reference": [
+        0,
+        57,
+        187.926
+      ],
+      "referenceNewIssues": {
+        "silkToMask": 1,
+        "unassignedPadClearance": 1
+      },
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Inner 2": 195.944,
+        "Inner 1": 238.287,
+        "Bottom": 208.465,
+        "Top": 193.085
+      },
+      "pouredNetsWithoutTracks": [
+        "BRA",
+        "BRB",
+        "OA1",
+        "OA2",
+        "OB1",
+        "OB2"
+      ],
+      "choice": "direct",
+      "trainingBoards": [
+        "tpl5110",
+        "tmp117",
+        "qwiic-button",
+        "qwiic-buzzer",
+        "pidp11-io-expander",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          53,
+          0,
+          25,
+          252.622,
+          92,
+          192686,
+          0
+        ],
+        "v2": [
+          53,
+          0,
+          23,
+          265.876,
+          168,
+          383666,
+          0
+        ],
+        "single": [
+          53,
+          0,
+          23,
+          265.876,
+          142,
+          383666,
+          0
+        ],
+        "margin": [
+          52,
+          1,
+          23,
+          261.352,
+          175,
+          506279,
+          0
+        ],
+        "escape": [
+          50,
+          3,
+          19,
+          215.423,
+          344,
+          999761,
+          0
+        ],
+        "direct": [
+          53,
+          0,
+          23,
+          259.317,
+          170,
+          447125,
+          0
+        ],
+        "congestion": [
+          53,
+          0,
+          21,
+          261.418,
+          119,
+          233493,
+          0
+        ]
+      },
+      "geometrySha256": {
+        "v1": "83ad3fbc108c3d1cd4b7024fcad74eefd3d04d18a6acbe673904819314ae883d",
+        "v2": "a005d0928305d8f85e45d9bb2a32cb7556fef310c1bf37c3ed80ba5e9a78545a",
+        "single": "a005d0928305d8f85e45d9bb2a32cb7556fef310c1bf37c3ed80ba5e9a78545a",
+        "margin": "f81a25e1cc3944513a499feb4e4f994cce10e4d6832d8e7408083e3ce1dc98d5",
+        "escape": "9ede186afa67eeabca76a7e08f1051a497c1598e6647b96fa7d380fc51187a04",
+        "direct": "1ec11d21ecca1f2ae327f60c1073edc76ef5a81d0fd46c52f8314ac433f5872c",
+        "congestion": "58199b1c0b10fbb52dfdcb66558be459bfd4177447fa2defa8e8b5e89713cca3"
+      },
+      "rawIssues": {},
+      "fallback": {
+        "centre": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 23,
+          "trackMm": 265.876,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        },
+        "edge": {
+          "initialOpens": 0,
+          "opens": 0,
+          "vias": 23,
+          "trackMm": 265.876,
+          "calls": 0,
+          "cells": 0,
+          "acceptedOffers": 0,
+          "rejectedOffers": 0,
+          "medianMs": 0
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            0,
+            25,
+            252.622
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "v2": {
+          "accepted": [
+            0,
+            23,
+            265.876
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "single": {
+          "accepted": [
+            0,
+            23,
+            265.876
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "margin": {
+          "accepted": [
+            1,
+            23,
+            261.352
+          ],
+          "rawOpens": 1,
+          "rawNewIssues": {}
+        },
+        "escape": {
+          "accepted": [
+            3,
+            19,
+            215.423
+          ],
+          "rawOpens": 3,
+          "rawNewIssues": {}
+        },
+        "direct": {
+          "accepted": [
+            0,
+            23,
+            259.317
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        },
+        "congestion": {
+          "accepted": [
+            0,
+            21,
+            261.418
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {}
+        }
+      }
+    },
+    "stepstick-protector": {
+      "family": "watterott-stepstick",
+      "revision": "098b7518b0de31e6a12fda78c68ae2666b81fbb6",
+      "source": {
+        "parts": 16,
+        "bottom": 3,
+        "pads": 43,
+        "tracks": 48,
+        "arcs": 0,
+        "vias": 7,
+        "polygons": 2,
+        "fills": 0,
+        "pouredRegions": 4,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 2,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripped": {
+        "parts": 16,
+        "bottom": 3,
+        "pads": 43,
+        "tracks": 0,
+        "arcs": 0,
+        "vias": 0,
+        "polygons": 0,
+        "fills": 0,
+        "pouredRegions": 0,
+        "embeddedVias": 0,
+        "footprintCopper": 0,
+        "keepouts": 2,
+        "cutouts": 0,
+        "layers": [
+          "Top",
+          "Bottom"
+        ],
+        "rules": 32
+      },
+      "stripSha256": "a50aa2b934a31bee0e7ffe54a08a813e26228044874b037502fa2e10d61bdbc2",
+      "inputOpens": 23,
+      "placementIssues": {
+        "silkToMask": 51
+      },
+      "reference": [
+        0,
+        7,
+        82.928
+      ],
+      "referenceNewIssues": {
+        "footprintKeepout": 2
+      },
+      "referenceShorts": 0,
+      "poursMm2ByLayer": {
+        "Bottom": 198.8,
+        "Top": 150.687
+      },
+      "pouredNetsWithoutTracks": [
+        "GND"
+      ],
+      "choice": "direct",
+      "trainingBoards": [
+        "tpl5110",
+        "tmp117",
+        "qwiic-button",
+        "qwiic-buzzer",
+        "pidp11-io-expander",
+        "midas-communication"
+      ],
+      "routes": {
+        "v1": [
+          16,
+          7,
+          1,
+          74.624,
+          29,
+          19050,
+          1
+        ],
+        "v2": [
+          16,
+          7,
+          1,
+          75.31,
+          47,
+          56694,
+          1
+        ],
+        "single": [
+          16,
+          7,
+          1,
+          75.31,
+          31,
+          56694,
+          1
+        ],
+        "margin": [
+          16,
+          7,
+          1,
+          74.924,
+          26,
+          44899,
+          1
+        ],
+        "escape": [
+          16,
+          7,
+          3,
+          76.416,
+          41,
+          96044,
+          1
+        ],
+        "direct": [
+          16,
+          7,
+          1,
+          74.782,
+          42,
+          109152,
+          1
+        ],
+        "congestion": [
+          16,
+          7,
+          3,
+          74.439,
+          35,
+          61036,
+          1
+        ]
+      },
+      "geometrySha256": {
+        "v1": "9a297ced8dc2bf944cc3fd82e01213aa9897025d80ee3e6892d671dc3eb604e6",
+        "v2": "af4ba8727f84c5ef9c6af3f00548c3393cedada2122d2ebeadcca0a327314460",
+        "single": "af4ba8727f84c5ef9c6af3f00548c3393cedada2122d2ebeadcca0a327314460",
+        "margin": "cb2270b1f17517b2fbfaf5c26373158e68b9ceb6ec01ab29d67968755adac04a",
+        "escape": "9ef588fa9bb72d4e0a1e63a732ab5313921de5a343c2b920c0db92746d9f5c77",
+        "direct": "9aa461660927d8d8cab33dcecba8aba4d3027989381f0110e723c22a7e299b00",
+        "congestion": "9279a943c3ffe7214413305f24ccc794ae1738a2f64ae39f3c13a8ca91dbbb93"
+      },
+      "rawIssues": {
+        "v1": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        },
+        "v2": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        },
+        "single": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        },
+        "margin": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        },
+        "escape": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        },
+        "direct": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        },
+        "congestion": {
+          "opens": 0,
+          "issues": {
+            "footprintKeepout": 1
+          }
+        }
+      },
+      "fallback": {
+        "centre": {
+          "initialOpens": 7,
+          "opens": 1,
+          "vias": 7,
+          "trackMm": 104.689,
+          "calls": 8,
+          "cells": 43620,
+          "acceptedOffers": 6,
+          "rejectedOffers": 2,
+          "medianMs": 32
+        },
+        "edge": {
+          "initialOpens": 7,
+          "opens": 1,
+          "vias": 7,
+          "trackMm": 99.666,
+          "calls": 8,
+          "cells": 39778,
+          "acceptedOffers": 6,
+          "rejectedOffers": 2,
+          "medianMs": 23
+        }
+      },
+      "originalRoutes": {
+        "v1": {
+          "accepted": [
+            7,
+            1,
+            74.624
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        },
+        "v2": {
+          "accepted": [
+            7,
+            1,
+            75.31
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        },
+        "single": {
+          "accepted": [
+            7,
+            1,
+            75.31
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        },
+        "margin": {
+          "accepted": [
+            7,
+            1,
+            74.924
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        },
+        "escape": {
+          "accepted": [
+            7,
+            3,
+            76.416
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        },
+        "direct": {
+          "accepted": [
+            7,
+            1,
+            74.782
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        },
+        "congestion": {
+          "accepted": [
+            7,
+            3,
+            74.439
+          ],
+          "rawOpens": 0,
+          "rawNewIssues": {
+            "footprintKeepout": 1
+          }
+        }
+      }
+    }
+  }
+}

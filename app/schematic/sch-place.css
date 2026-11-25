@@ -1,0 +1,47 @@
+/* Placement popover (sch-place.js), Find and Replace (find-replace.js) and Paste Special
+   (paste-special.js). Colours come from the theme tokens in style.css / theme.css. */
+.sp-pop {position:fixed;z-index:var(--z-top);width:min(270px,calc(100vw - 32px));padding:var(--s-8) var(--s-8) var(--s-6);
+  font-size:var(--fs-12)}
+/* Tab while placing: the same form, docked at the top of the Properties pane. */
+.sp-pop.sp-docked {position:static;z-index:auto;width:auto;border-width:0 0 1px;border-radius:0;background:transparent;box-shadow:none}
+.sp-pop h3 {margin:0 0 6px;font-size:var(--fs-12);font-weight:600;color:var(--head-ink)}
+.sp-row {display:flex;align-items:center;gap:8px;margin:4px 0}
+:is(.sp-pop,#inspector) .sp-row:has(> .ui-field) {align-items:baseline}
+.sp-row > span {width:92px;flex:none;color:var(--muted)}
+.sp-row input[type=text],.sp-row select {flex:1;min-width:0}
+.sp-row input[type=checkbox] {margin:0}
+.sp-quick {display:flex;flex-wrap:wrap;gap:4px;margin:0 0 6px}
+.sp-quick-button {min-width:44px;font-family:var(--mono)}
+.sp-quick-button:focus-visible,.fr-hit:focus-visible {outline:2px solid var(--focus);outline-offset:1px}
+.sp-actions {display:flex;justify-content:flex-end;margin-top:6px}
+.sp-note {margin:4px 0 0;color:var(--faint);font-size:var(--fs-10)}
+
+.fr-dialog {position:fixed;inset:64px 16px auto auto;margin:0;width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 96px);padding:0;
+  display:flex;flex-direction:column;z-index:var(--z-top)}
+.fr-dialog:not([open]) {display:none}
+.fr-head {display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:var(--panel-head);border-bottom:1px solid var(--line)}
+.fr-head h2 {margin:0;font-size:var(--fs-12);font-weight:600}
+.fr-form {padding:8px 8px 4px}
+.fr-row {display:flex;align-items:center;gap:8px;margin:4px 0}
+.fr-row > span {width:92px;flex:none;color:var(--muted)}
+.fr-row input,.fr-row select {flex:1;min-width:0}
+.fr-options {display:flex;flex-wrap:wrap;gap:4px 12px;margin:6px 0}
+.fr-fields {display:flex;flex-wrap:wrap;gap:4px 12px;margin:4px 0;padding:4px 8px 6px;border:1px solid var(--line);border-radius:var(--r-sm)}
+.fr-fields legend {padding:0 4px;color:var(--muted);font-size:var(--fs-11)}
+.fr-actions {display:flex;justify-content:flex-end;gap:6px;margin:8px 0 2px}
+.fr-summary {margin:0;padding:2px 8px 4px;color:var(--muted);font-size:var(--fs-11)}
+.fr-summary.fr-error {color:var(--error-ink)}
+.fr-results {list-style:none;margin:0;padding:0 4px 6px;overflow:auto;min-height:0;flex:1}
+.fr-hit {display:grid;grid-template-columns:minmax(70px,auto) minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:4px 6px;border-radius:var(--r-sm);text-align:left}
+.fr-hit:hover,.fr-hit[aria-current=true] {background:var(--selection);color:var(--selection-ink)}
+.fr-kind,.fr-doc {color:var(--muted);font-size:var(--fs-11);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.fr-hit[aria-current=true] .fr-kind,.fr-hit[aria-current=true] .fr-doc,.fr-hit:hover .fr-kind,.fr-hit:hover .fr-doc {color:inherit}
+.fr-text {font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr-text mark {background:var(--accent);color:var(--on-accent);border-radius:var(--r-sm)}
+.fr-more {padding:4px 6px;color:var(--faint)}
+
+.ps-dialog {min-width:min(360px,92vw)}
+.ps-row {display:flex;align-items:center;gap:8px;margin:6px 0}
+.ps-row > span {width:150px;flex:none}
+.ps-row input[type=text],.ps-row select {flex:1;min-width:0}
+.ps-note {min-height:1em;color:var(--error-ink)}

@@ -1,0 +1,2 @@
+{"kind":"project","formatVersion":"2.0","id":"p1","name":"Sensor Board"}
+{"kind":"document","id":"s1","docKind":"schematic","name":"Power","path":"Power.wsch"}

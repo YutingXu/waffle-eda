@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a new capability or an improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work in Waffle? Menus, keys, MCP/CLI equivalent.
+  - type: dropdown
+    id: vision
+    attributes:
+      label: Which project goal does it serve?
+      multiple: true
+      options: [Lighter / faster, macOS and Linux, AI via MCP, Modern interface, Customisation, Open community, Altium parity]
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched the documentation and existing issues.
+        - label: The idea is within scope (schematic capture and PCB layout; no IC packaging, harness or cloud features).

@@ -1,0 +1,5 @@
+{"kind":"project","formatVersion":"2.0","id":"019ab000-0000-7000-8000-000000000001","name":"Forward","x-provenance" : {"symbol":"\u00b5", "revision":1.20}}
+{"kind":"document","id":"019ab000-0000-7000-8000-000000000002","docKind":"schematic","name":"Sensor","order":"V","path":"Sensor.wsch"}
+{"kind":"library","id":"019ab000-0000-7000-8000-000000000003","order":"V","path":"libraries/Probe.wlib"}
+{"kind":"projectSetting","id":"019ab000-0000-7000-8000-000000000004","key":"parameters","value":{"Sensor":"PT100"},"futureSignOff" : { "contact":"Zoë", "gain":6.000 }}
+{"kind":"sourceQualification","id":"019ab000-0000-7000-8000-000000000005","record" : {"scale":1e-3,"status":"\u006fpen"}}

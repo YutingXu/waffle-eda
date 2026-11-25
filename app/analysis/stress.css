@@ -1,0 +1,23 @@
+/* Tools › Component Stress… (stress.js). Builds on .work-dialog. */
+.stress-dialog {width:min(1180px,calc(100vw - 32px));max-height:min(88vh,860px);display:flex;flex-direction:column}
+.stress-dialog:not([open]) {display:none}
+.stress-head h2 {margin:0}
+.stress-summary {margin:4px 0 6px}
+.stress-tools {display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.stress-field {display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-12)}
+.stress-unit {color:var(--muted);font-size:var(--fs-11)}
+.stress-table-wrap {overflow:auto;flex:1 1 auto;min-height:0;margin-top:8px;border:1px solid var(--line);border-radius:var(--r-sm)}
+.stress-table td.n {text-align:right;font-variant-numeric:tabular-nums}
+.stress-table td.stress-detail {white-space:normal;min-width:240px;color:var(--muted)}
+.stress-table tr:focus-visible {outline:2px solid var(--focus);outline-offset:-2px}
+.stress-fail .stress-status {color:var(--error-ink);font-weight:600}
+.stress-warn .stress-status {color:var(--warn-ink);font-weight:600}
+.stress-missing .stress-status {color:var(--warn-ink)}
+.stress-ok .stress-status {color:var(--ok-ink)}
+.stress-unknown .stress-status,.stress-empty {color:var(--muted)}
+.stress-empty {text-align:center;padding:16px}
+.stress-nets {margin-top:8px}
+.stress-nets-body {max-height:22vh;overflow:auto}
+.stress-net-grid {display:grid;grid-template-columns:minmax(80px,max-content) 7em 1fr;gap:4px 8px;align-items:center;font-size:var(--fs-12);padding:4px 0}
+.stress-net-name {font-family:var(--mono)}
+.stress-dialog .work-actions {margin-top:8px}

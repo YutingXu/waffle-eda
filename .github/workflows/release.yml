@@ -1,0 +1,364 @@
+# Release builds on the self-hosted runners. Builds and uploads artifacts on every v* tag and on
+# manual dispatch. A GitHub Release is created ONLY when dispatched by hand with publish=true (as a
+# draft, for a maintainer to review and publish). See docs/ci.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create a draft GitHub Release from the artifacts
+        type: boolean
+        default: false
+      tag:
+        description: Release tag (required with publish, e.g. v0.7.0; must already exist)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  privacy:
+    name: Check release source
+    runs-on: [self-hosted, macOS, ARM64, atrium]
+    environment: release
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    outputs:
+      qualified_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.publish && inputs.tag != '' && format('refs/tags/{0}', inputs.tag) || github.sha }}
+          persist-credentials: false
+      - name: Validate the release index
+        id: source
+        env:
+          WAFFLE_PRIVACY_POLICY_JSON: ${{ secrets.WAFFLE_PRIVACY_POLICY_JSON }}
+          WAFFLE_PRIVACY_POLICY_SHA256: ${{ secrets.WAFFLE_PRIVACY_POLICY_SHA256 }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          PUBLISH_RELEASE: ${{ inputs.publish }}
+        run: |
+          python3 -I -B - <<'PYTHON'
+          import hashlib
+          import os
+          from pathlib import Path
+          import stat
+          import subprocess
+          import sys
+
+          # Pin the reviewed public scanner in this trusted controller workflow.
+          approved_sha = "511bb66d0b6de456e2027da97343394c5d368df0a13ee7d7b7bdd1b710dd8d55"
+
+          def qualify():
+              root = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
+              candidate = root / "scripts" / "check-public-tree.py"
+              if candidate.resolve(strict=True) != candidate:
+                  raise SystemExit("The release scanner must be a regular file.")
+              fd = os.open(candidate, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+              with os.fdopen(fd, "rb") as source:
+                  if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                      raise SystemExit("The release scanner must be a regular file.")
+                  scanner = source.read(1024 * 1024 + 1)
+              if len(scanner) > 1024 * 1024 or hashlib.sha256(scanner).hexdigest() != approved_sha:
+                  raise SystemExit("The release scanner does not match the reviewed digest.")
+
+              payload = os.environ.pop("WAFFLE_PRIVACY_POLICY_JSON", "")
+              policy_sha = os.environ.pop("WAFFLE_PRIVACY_POLICY_SHA256", "")
+              if not payload or not policy_sha:
+                  raise SystemExit("Provision the private policy and its expected SHA-256 in the release environment.")
+              for name in tuple(os.environ):
+                  if name.startswith(("GIT_", "WAFFLE_PRIVACY_POLICY_")):
+                      os.environ.pop(name)
+              os.environ.update(GIT_NO_REPLACE_OBJECTS="1", GIT_OPTIONAL_LOCKS="0")
+
+              def git(*args):
+                  return subprocess.check_output(["git", *args], cwd=root, stderr=subprocess.DEVNULL).strip()
+
+              if Path(os.fsdecode(git("rev-parse", "--show-toplevel"))).resolve() != root:
+                  raise SystemExit("The release checkout does not match the workspace.")
+              checked_sha = git("rev-parse", "HEAD")
+              if os.environ.get("PUBLISH_RELEASE") == "true":
+                  tag = os.environ.get("RELEASE_TAG", "")
+                  if len(tag) < 2 or not tag.startswith("v"):
+                      raise SystemExit("Set the release tag input.")
+                  revision = "refs/tags/" + tag
+              else:
+                  revision = os.environ["GITHUB_SHA"]
+              if git("rev-parse", "--verify", revision + "^{commit}") != checked_sha:
+                  raise SystemExit("The release checkout does not match the selected commit.")
+              git("diff", "--cached", "--quiet", "--no-ext-diff", "--no-textconv", checked_sha.decode(), "--")
+
+              policy_dir = Path(os.environ["RUNNER_TEMP"]) / (
+                  "waffle-privacy-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]
+              )
+              policy_file = policy_dir / "policy.json"
+              policy_dir.mkdir(mode=0o700)
+              try:
+                  fd = os.open(policy_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                  with os.fdopen(fd, "wb") as destination:
+                      destination.write(payload.encode("utf-8"))
+                  os.environ["WAFFLE_PRIVACY_POLICY_FILE"] = str(policy_file)
+                  os.environ["WAFFLE_PRIVACY_POLICY_SHA256"] = policy_sha
+                  sys.argv = ["check-public-tree.py", "--require-policy"]
+                  namespace = {"__file__": str(candidate), "__name__": "verified_release_scanner"}
+                  exec(compile(scanner, str(candidate), "exec"), namespace)
+                  result = namespace["main"](root, show_locations=False)
+                  if result:
+                      raise SystemExit(result)
+                  with open(os.environ["GITHUB_OUTPUT"], "ab") as output:
+                      output.write(b"sha=" + checked_sha + b"\n")
+              finally:
+                  policy_file.unlink(missing_ok=True)
+                  policy_dir.rmdir()
+
+          try:
+              qualify()
+          except (KeyError, OSError, ValueError, subprocess.SubprocessError):
+              raise SystemExit("Could not verify the release checkout or staged index.") from None
+          PYTHON
+      - name: Remove temporary policy
+        if: always()
+        run: |
+          policy_dir="$RUNNER_TEMP/waffle-privacy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [ -d "$policy_dir" ] && [ ! -L "$policy_dir" ]; then
+            rm -f "$policy_dir/policy.json"
+            rmdir "$policy_dir"
+          fi
+      - name: Clean workspace
+        if: always()
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+
+  macos:
+    needs: privacy
+    name: macOS app (universal, ad hoc signed)
+    runs-on: [self-hosted, macOS, ARM64, atrium]
+    timeout-minutes: 30
+    concurrency:
+      group: release-macos-${{ github.ref }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: zsh {0}
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.privacy.outputs.qualified_sha }}
+          persist-credentials: false
+      - name: Install the pinned Rust toolchain for application assets
+        run: scripts/ci/install-rust.sh
+      - name: Configure the signed release feed
+        run: python3 scripts/release-manifest.py configure "$GITHUB_REPOSITORY"
+      - name: Version and generated assets match their sources
+        env:
+          BUILD_RELEASE_TAG: ${{ inputs.publish && inputs.tag || github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          set -e
+          version=$(python3 -B scripts/release-version.py --check)
+          if [ -n "$BUILD_RELEASE_TAG" ] && [ "$BUILD_RELEASE_TAG" != "v$version" ]; then
+            print -u2 "The release tag must be v$version for this source tree."
+            exit 1
+          fi
+          python3 scripts/prepare-assets.py --check-untracked
+          python3 scripts/prepare-assets.py
+          python3 scripts/prepare-assets.py --check
+          python3 scripts/gen-shortcuts.py --check
+      - name: Build Waffle.app (arm64 + x86_64, ad hoc signature)
+        run: |
+          flavour=$(python3 -B scripts/release-version.py --flavour)
+          WAFFLE_RELEASE_FLAVOUR="$flavour" scripts/build-mac.sh dist
+      - name: Build the disk image (drag to Applications, Read Me First, .sha256)
+        run: scripts/build-dmg.sh dist/Waffle.app dist
+      # Developer ID signing and notarisation: not configured yet. When the secrets exist, add a
+      # step here that imports the certificate into a temporary keychain, re-signs with hardened
+      # runtime, and runs `xcrun notarytool submit --wait` + `xcrun stapler staple`. Secret names
+      # reserved for it (unused today; do not create them until the step exists):
+      #   MACOS_DEVELOPER_ID_P12          base64 Developer ID Application certificate (.p12)
+      #   MACOS_DEVELOPER_ID_P12_PASSWORD password of that .p12
+      #   MACOS_SIGNING_IDENTITY          e.g. "Developer ID Application: NAME (TEAMID)"
+      #   MACOS_NOTARY_APPLE_ID, MACOS_NOTARY_TEAM_ID, MACOS_NOTARY_PASSWORD (app-specific password)
+      #   (or MACOS_NOTARY_API_KEY_P8, MACOS_NOTARY_API_KEY_ID, MACOS_NOTARY_API_ISSUER for an API key)
+      - name: Cross-build the Windows portable zip (pinned .NET 8 SDK in user space)
+        run: DOTNET=$(scripts/ci/install-dotnet.sh) scripts/build-windows.sh dist
+      - name: Package (app zip, portable bundle with sources, .deb and Windows zip, checksums)
+        run: |
+          set -e
+          version=$(python3 -B scripts/release-version.py --check)
+          ditto -c -k --keepParent dist/Waffle.app "dist/Waffle-$version-macOS.zip"
+          python3 scripts/package-release.py
+          cp "$(python3 -B scripts/release-version.py --notes)" dist/Release-Notes.md
+          cd dist && shasum -a 256 Waffle-*.dmg "Waffle-$version-macOS.zip" "Waffle-$version-with-sources.zip" "Waffle-$version-windows.zip" Release-Notes.md > SHA256SUMS-macos.txt && cat SHA256SUMS-macos.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: waffle-macos
+          path: |
+            dist/Waffle-*.dmg
+            dist/Waffle-*.dmg.sha256
+            dist/Waffle-*-macOS.zip
+            dist/Waffle-*-with-sources.zip
+            dist/Waffle-*-windows.zip
+            dist/SHA256SUMS-macos.txt
+            dist/Release-Notes.md
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean workspace
+        if: always()
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+
+  linux:
+    needs: privacy
+    name: Linux .deb (built and installed in containers)
+    runs-on: [self-hosted, Linux, ARM64, atrium]
+    timeout-minutes: 30
+    concurrency:
+      group: release-linux-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.privacy.outputs.qualified_sha }}
+          persist-credentials: false
+      - name: Configure the signed release feed
+        run: python3 scripts/release-manifest.py configure "$GITHUB_REPOSITORY"
+      - name: Build, inspect and test-install the .deb
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/deb"
+          OUT="$RUNNER_TEMP/deb" scripts/ci-linux.sh images deb
+          cd "$RUNNER_TEMP/deb" && rm -rf ui-shots && sha256sum ./*.deb > SHA256SUMS-linux.txt && cat SHA256SUMS-linux.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: waffle-linux
+          path: |
+            ${{ runner.temp }}/deb/*.deb
+            ${{ runner.temp }}/deb/SHA256SUMS-linux.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean workspace
+        if: always()
+        run: |
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+          rm -rf "$RUNNER_TEMP/deb"
+
+  windows:
+    needs: privacy
+    name: Windows package
+    # Off until a Windows runner is registered: set the repository variable WINDOWS_RUNNER=true.
+    if: vars.WINDOWS_RUNNER == 'true'
+    runs-on: [self-hosted, Windows, X64, atrium]
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    concurrency:
+      group: release-windows-${{ github.ref }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Clean workspace
+        run: Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.privacy.outputs.qualified_sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 8.0.x
+      - name: Install the pinned Rust toolchain for application assets
+        run: rustup toolchain install 1.91.1 --profile minimal --target wasm32-unknown-unknown --no-self-update
+      # WINDOWS-HOST: tests, then the portable zip. Authenticode signing slot (unused): pass
+      # -CertificateThumbprint to scripts/build-windows.ps1 once a code-signing certificate exists
+      # (secret names reserved: WINDOWS_SIGNING_CERT_PFX, WINDOWS_SIGNING_CERT_PASSWORD).
+      - name: Configure the signed release feed
+        run: python scripts/release-manifest.py configure "$env:GITHUB_REPOSITORY"
+      - name: Windows host core tests
+        run: dotnet run --project native/windows/tests -c Release
+      - name: Build and package the Windows host
+        run: |
+          dotnet build native/windows/Waffle.Windows.csproj -c Release -t:WafflePackage "-p:WaffleDist=$PWD/dist"
+          Get-ChildItem dist/Waffle-*-windows.zip | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path -Leaf $_.Path)" } | Set-Content dist/SHA256SUMS-windows.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: waffle-windows-native   # verification build; the release uses the macOS job's cross-built zip
+          path: |
+            dist/Waffle-*-windows.zip
+            dist/SHA256SUMS-windows.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean workspace
+        if: always()
+        run: Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+
+  publish:
+    name: Draft GitHub Release
+    needs: [privacy, macos, linux, windows]
+    # Only a manual dispatch with publish=true. A skipped Windows job (no runner yet) does not block it.
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && inputs.publish &&
+      needs.privacy.result == 'success' && needs.macos.result == 'success' && needs.linux.result == 'success' &&
+      (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+    runs-on: [self-hosted, macOS, ARM64, atrium]
+    # The "release" environment can require a reviewer before the write token is issued
+    # (Settings › Environments; see docs/ci.md).
+    environment: release
+    timeout-minutes: 15
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write   # create the release
+    defaults:
+      run:
+        shell: zsh {0}
+    steps:
+      - name: Clean workspace
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ format('refs/tags/{0}', inputs.tag) }}
+          path: checked-tag
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: waffle-macos
+          path: ${{ github.workspace }}/release
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: waffle-linux
+          path: ${{ github.workspace }}/release
+          merge-multiple: true
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ github.repository }}
+          QUALIFIED_SHA: ${{ needs.privacy.outputs.qualified_sha }}
+        run: |
+          set -e
+          [[ $TAG == v* ]] || { print -u2 "Set the tag input (e.g. v0.7.0) to publish."; exit 1; }
+          [[ "$(git -C checked-tag rev-parse HEAD)" == "$QUALIFIED_SHA" ]] || {
+            print -u2 "The release tag changed after source verification."
+            exit 1
+          }
+          cd release && ls -l
+          gh release create "$TAG" --repo "$REPO" --verify-tag --draft --title "Waffle $TAG" --generate-notes ./*
+      - name: Clean workspace
+        if: always()
+        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete

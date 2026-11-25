@@ -1,0 +1,16 @@
+{
+  "format": "atrium-keys",
+  "version": 1,
+  "preset": "kicad",
+  "bindings": {
+    "save": [
+      "Mod+S"
+    ],
+    "undo": [
+      {
+        "key": "Mod+Z",
+        "when": "canvas"
+      }
+    ]
+  }
+}

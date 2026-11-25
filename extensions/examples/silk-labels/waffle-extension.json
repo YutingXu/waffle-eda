@@ -1,0 +1,24 @@
+{
+  "id": "atrium-samples.silk-labels",
+  "name": "Silkscreen Label Generator",
+  "publisher": "Waffle samples",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Places silkscreen text under each selected component (or every component), filled from a template such as \"{ref} {value}\" or \"{param:MPN}\". Every run is a proposal you review, and applies as one undo step.",
+  "main": "main.js",
+  "activationEvents": ["onCommand:silkLabels.generate", "onCommand:silkLabels.remove"],
+  "permissions": ["read:project", "propose:edits", "ui:command"],
+  "contributes": {
+    "commands": [
+      {"command": "silkLabels.generate", "title": "Generate Silkscreen Labels…", "when": "pcb"},
+      {"command": "silkLabels.remove", "title": "Remove Generated Silkscreen Labels", "when": "pcb"}
+    ],
+    "menus": {"place": [{"command": "silkLabels.generate"}], "tools": [{"command": "silkLabels.remove"}]},
+    "settings": [
+      {"key": "template", "type": "string", "default": "{value}", "title": "Label text", "description": "Fields: {ref}, {value}, {footprint}, {param:<Name>}. A label whose fields are all empty is skipped."},
+      {"key": "size", "type": "number", "default": 0.8, "title": "Text height (mm)"},
+      {"key": "gap", "type": "number", "default": 0.4, "title": "Gap below the pads (mm)"},
+      {"key": "ask", "type": "boolean", "default": true, "title": "Ask for the text each time"}
+    ]
+  }
+}

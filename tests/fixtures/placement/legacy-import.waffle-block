@@ -1,0 +1,28 @@
+{
+  "format": "atrium-block",
+  "version": 1,
+  "name": "Imported resistor",
+  "size": [10, 10],
+  "library": [{
+    "id": "footprint-1",
+    "name": "R",
+    "category": "KiCad footprints",
+    "prefix": "R",
+    "value": "R",
+    "footprint": {
+      "name": "R",
+      "pads": [{"number": "1", "x": 0, "y": 0, "w": 1, "h": 1, "drill": 0, "shape": "rect", "angle": 0,
+        "layer": "Top", "tent": {"top": true}, "noPaste": true, "pasteExpansion": -0.5}],
+      "shapes": []
+    },
+    "sourceName": "Identity.kicad_pcb"
+  }],
+  "items": [{
+    "id": "item-1", "kind": "part", "def": "footprint-1", "ref": "R5", "value": "10k", "x": 5, "y": 5, "angle": 0,
+    "layer": "Top", "pinNets": {"1": "GND"},
+    "kicadSourceId": "15a74096-22a5-4f23-9d9b-14f2cb390881", "kicadPath": "/15a74096-22a5-4f23-9d9b-14f2cb390881"
+  }, {
+    "id": "item-2", "kind": "track", "points": [[5, 5], [6, 5]], "layer": "Top", "width": 0.25, "net": "GND",
+    "kicadSourceId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+  }]
+}

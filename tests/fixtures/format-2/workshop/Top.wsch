@@ -1,0 +1,5 @@
+{"kind":"schematic","formatVersion":"2.0","id":"top"}
+{"kind":"netlabel","id":"label","at":[1270000,2540000],"order":"U","text":"SENSE"}
+{"kind":"wire","id":"net-wire","order":"j","points":[[1270000,2540000],[10000000,2540000]]}
+{"kind":"sheetsymbol","id":"to-sensor","at":[10000000,0],"entries":[{"id":"sense-entry","io":"input","name":"SENSE","offset":2540000,"side":"left"}],"h":10000000,"name":"Sensor","order":"F","sheet":"sub","w":15000000}
+{"kind":"documentSettings","id":"top/settings","value":{"grid":1270000,"notes":[],"outline":[]}}

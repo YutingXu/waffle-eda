@@ -1,0 +1,11 @@
+{"kind":"library","formatVersion":"2.0","id":"std-c","name":"Capacitor"}
+{"kind":"pad","id":"std-c/pad/1","order":"K","value":{"angle":0,"drill":0,"h":950000,"number":"1","shape":"roundrect","w":900000,"x":-800000,"y":0}}
+{"kind":"pad","id":"std-c/pad/2","order":"e","value":{"angle":0,"drill":0,"h":950000,"number":"2","shape":"roundrect","w":900000,"x":800000,"y":0}}
+{"kind":"pin","id":"std-c/pin/1","order":"K","value":{"name":"1","number":"1","x":-5080000,"y":0}}
+{"kind":"pin","id":"std-c/pin/2","order":"e","value":{"name":"2","number":"2","x":5080000,"y":0}}
+{"kind":"librarySettings","id":"std-c/settings","value":{"category":"Passives","footprint":{"name":"C_0603","pads":[],"shapes":[]},"prefix":"C","symbol":{"pins":[],"shapes":[]},"value":"100 nF"}}
+{"kind":"shape","id":"std-c/shape/1","order":"C","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-5080000,0],[-508000,0]],"style":"pin"}}
+{"kind":"shape","id":"std-c/shape/1-2","order":"V","side":"footprint","value":{"kind":"path","closed":true,"fill":true,"points":[[-550000,-420000],[550000,-420000],[550000,420000],[-550000,420000]],"style":"package"}}
+{"kind":"shape","id":"std-c/shape/2","order":"O","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[5080000,0],[508000,0]],"style":"pin"}}
+{"kind":"shape","id":"std-c/shape/3","order":"a","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[-508000,-2032000],[-508000,2032000]],"style":"body","width":380000}}
+{"kind":"shape","id":"std-c/shape/4","order":"m","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[508000,-2032000],[508000,2032000]],"style":"body","width":380000}}

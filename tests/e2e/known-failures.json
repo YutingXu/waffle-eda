@@ -1,0 +1,85 @@
+{
+ "comment": "Gating end-to-end checks that fail today, each with the bug it shows. A listed check that passes fails the suite until its entry is removed (tests/e2e/run.py prints FIXED). Bug IDs are the report's.",
+ "failures": [
+  {
+   "project": "cm4-5-shim",
+   "check": "plot.G1",
+   "bug": "T5: cm4-5-shim inner films add copper Altium's lack (G1/G2 plot ~52 mm2; render: ~90 discs of ~0.2 mm2 near via and pad sites), unchanged since before 93a4fa23 once the pour-state bug was fixed: needs triage"
+  },
+  {
+   "project": "cm4-5-shim",
+   "check": "plot.G2",
+   "bug": "T5: cm4-5-shim inner films add copper Altium's lack (G1/G2 plot ~52 mm2; render: ~90 discs of ~0.2 mm2 near via and pad sites), unchanged since before 93a4fa23 once the pour-state bug was fixed: needs triage"
+  },
+  {
+   "project": "cm4-5-shim",
+   "check": "render.G1",
+   "bug": "T5: cm4-5-shim inner films add copper Altium's lack (G1/G2 plot ~52 mm2; render: ~90 discs of ~0.2 mm2 near via and pad sites), unchanged since before 93a4fa23 once the pour-state bug was fixed: needs triage"
+  },
+  {
+   "project": "cm4-5-shim",
+   "check": "render.G2",
+   "bug": "T5: cm4-5-shim inner films add copper Altium's lack (G1/G2 plot ~52 mm2; render: ~90 discs of ~0.2 mm2 near via and pad sites), unchanged since before 93a4fa23 once the pour-state bug was fixed: needs triage"
+  },
+  {
+   "project": "nanocomp",
+   "check": "plot.GTP",
+   "bug": "H: Waffle's paste film never plots drilled pads, but KiCad plots paste on through-hole pads that list F.Paste (pin-in-paste): nanoComp's four USB shield pads S1 (*.Cu *.Mask F.Paste, 1.1 x 1.7 mm capsules, 4 x 1.61 mm2 = 6.44 mm2). Needs a native paste opening on drilled pads (model field + fab-outputs.js); the KiCad importer has nowhere to put it"
+  },
+  {
+   "project": "midas-communication",
+   "check": "pnp",
+   "bug": "T1: Pick-and-place centre differs from Altium's Center-X/Y for parts whose origin is not their centre (midas J2/J6 ~4 mm, cm4 U1 3.5 mm, esp32 J1 0.4 mm): needs triage"
+  },
+  {
+   "project": "cm4-5-shim",
+   "check": "pnp",
+   "bug": "T1: Pick-and-place centre differs from Altium's Center-X/Y for parts whose origin is not their centre (midas J2/J6 ~4 mm, cm4 U1 3.5 mm, esp32 J1 0.4 mm): needs triage"
+  },
+  {
+   "project": "esp32c3-haptic",
+   "check": "pnp",
+   "bug": "T1: Pick-and-place centre differs from Altium's Center-X/Y for parts whose origin is not their centre (midas J2/J6 ~4 mm, cm4 U1 3.5 mm, esp32 J1 0.4 mm): needs triage"
+  },
+  {
+   "project": "esp32c3-haptic",
+   "check": "plot.GP1",
+   "bug": "T2: Negative plane films GP1/GP2 miss 0.8-0.9 mm2 against Altium's: needs triage"
+  },
+  {
+   "project": "esp32c3-haptic",
+   "check": "plot.GP2",
+   "bug": "T2: Negative plane films GP1/GP2 miss 0.8-0.9 mm2 against Altium's: needs triage"
+  },
+  {
+   "project": "garganturam",
+   "check": "plot.GTL",
+   "bug": "T3: garganturam copper and mask films differ by 0.4-2.5 mm2 per layer (baseline recorded the same): needs triage"
+  },
+  {
+   "project": "garganturam",
+   "check": "plot.GBL",
+   "bug": "T3: garganturam copper and mask films differ by 0.4-2.5 mm2 per layer (baseline recorded the same): needs triage"
+  },
+  {
+   "project": "garganturam",
+   "check": "plot.G1",
+   "bug": "T3: garganturam copper and mask films differ by 0.4-2.5 mm2 per layer (baseline recorded the same): needs triage"
+  },
+  {
+   "project": "garganturam",
+   "check": "plot.G2",
+   "bug": "T3: garganturam copper and mask films differ by 0.4-2.5 mm2 per layer (baseline recorded the same): needs triage"
+  },
+  {
+   "project": "garganturam",
+   "check": "plot.GTS",
+   "bug": "T3: garganturam copper and mask films differ by 0.4-2.5 mm2 per layer (baseline recorded the same): needs triage"
+  },
+  {
+   "project": "cm4-5-shim",
+   "check": "drill",
+   "bug": "T4: cm4-5-shim: four 2.7 mm non-plated mounting holes are in Waffle's drill output but not in the one shipped NC drill file (Altium likely wrote them to an unshipped NPTH file): needs triage"
+  }
+ ]
+}

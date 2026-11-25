@@ -1,0 +1,8 @@
+{"kind":"pcb","formatVersion":"2.0","id":"pcb"}
+{"kind":"part","id":"amwnqtyu4bpibpo2p4vw","angle":270000000000,"at":[14000000,20000000],"def":"std-c","link":"amwnqtys75nwpge0x2b","order":"8","pinNets":{"1":"FILT","2":"GND"},"ref":"C1","value":"100 nF"}
+{"kind":"part","id":"amwnqtyu4ctoad9gt7dg","angle":0,"at":[14000000,10000000],"def":"std-r","link":"amwnqtys3kzqgs66yt3c","order":"e","pinNets":{"1":"Net-J1-2","2":"FILT"},"ref":"R1","value":"10 kΩ"}
+{"kind":"part","id":"amwnqtyu4jjxqxk33ojo","angle":0,"at":[5000000,15000000],"def":"std-j3","link":"amwnqtyrvq2pxpbh770t","order":"O","pinNets":{"1":"+5V","2":"Net-J1-2","3":"GND"},"ref":"J1","value":"1 × 03"}
+{"kind":"part","id":"amwnqtyu4rjlp8j1mmoh","angle":0,"at":[24000000,23000000],"def":"std-c","link":"amwnqtysdfjxa0gscnxq","order":"G","pinNets":{"1":"+5V","2":"GND"},"ref":"C2","value":"100 nF"}
+{"kind":"part","id":"amwnqtyu4t7kcjoujqbj","angle":0,"at":[35000000,15000000],"def":"std-j3","link":"amwnqtysiedrotmbmfbt","order":"W","pinNets":{"1":"+5V","2":"OUT","3":"GND"},"ref":"J2","value":"1 × 03"}
+{"kind":"part","id":"amwnqtyu4w7ob9bu6ud","angle":0,"at":[24000000,12000000],"def":"std-r","link":"amwnqtys9ngw1aa9wk1","order":"m","pinNets":{"1":"FILT","2":"OUT"},"ref":"R2","value":"10 kΩ"}
+{"kind":"documentSettings","id":"pcb/settings","value":{"grid":250000,"notes":[],"outline":[[0,0],[40000000,0],[40000000,30000000],[0,30000000]]}}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Waffle minimap repaint checks</title></head>
+<body>
+<div id="stage"><canvas id="view" width="800" height="600"></canvas></div>
+<pre id="result">Running…</pre>
+<script src="../../app/core/uuid-v7.js"></script>
+<script src="../../app/core/model.js"></script>
+<script src="../../app/library/parts.js"></script>
+<script src="../../app/core/spatial.js"></script>
+<script src="../../app/pcb/pcb-appearance.js"></script>
+<script src="../../app/schematic/sch-appearance.js"></script>
+<script src="../../app/history/undo-store.js"></script>
+<script src="../../app/editor/nav-common.js"></script>
+<script src="../pcb/dense-board.js"></script>
+<script src="minimap-damage.js"></script>
+<script src="../../app/canvas/minimap.js"></script>
+<script>
+const result=document.getElementById("result");
+try {
+  result.textContent=JSON.stringify(checkAtriumMinimap(globalThis.minimapBaselineOnly));
+  result.dataset.status="pass";
+} catch(error) {
+  result.textContent=error.message+"\n"+error.stack;
+  result.dataset.status="fail";
+}
+</script>
+</body>
+</html>

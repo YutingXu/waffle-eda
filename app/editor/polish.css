@@ -1,0 +1,86 @@
+/* UX polish layer: consistency fixes for modules whose own files are owned elsewhere.
+   CSS only, tokens only (style.css :root / theme.css). shell.js keeps this sheet last,
+   after stylesheets that lazily loaded modules add. Each block names the defect it fixes
+   in the editor chrome. */
+
+/* ---- Shared dialog pattern (F13, #14) ------------------------------------------- */
+.shell-dialog ul {margin:0 0 4px;padding-inline-start:19px}
+.shell-dialog > p,.shell-dialog > form > p {margin:0 0 8px}
+.shell-dialog > form > input,.shell-dialog > input {display:block;width:100%}
+
+/* ---- Numbers use the UI font with tabular figures (#4, #13) ------------------------ */
+.polygon-pour-dialog .pp-status,.via-fence-panel .vf-stats,
+.le-unit,.length-table td,.fab-drill small,.rev-values tbody td,.rule-properties {
+  font-family:inherit!important;font-variant-numeric:tabular-nums}
+.ps-dialog input:not([type=checkbox]),.sp-pop input:not([type=checkbox]) {font-variant-numeric:tabular-nums} /* UX review 2 */
+
+/* Disabled radios stay readable (contrast >= 4.5:1 on the panel). */
+.polygon-pour-dialog input::placeholder {color:var(--muted)}
+
+/* ---- Focus is always visible (#20) -------------------------------------------------- */
+.msg-grid:focus-visible,.bom-grid-wrap:focus-visible,.lib-list:focus-visible,.fe-canvas:focus-visible,
+.v3d-canvas:focus-visible,.print-form:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-2px}
+.script-editor textarea:focus-visible {box-shadow:inset 0 0 0 var(--focus-w) var(--focus)}
+.nav-menu-item:focus-visible {outline:var(--focus-w) solid var(--selection-ink);outline-offset:-2px}
+.layer-tab:focus-visible,.tool:focus-visible,.command-link:focus-visible,.document-tab:focus-visible,
+.nav-rows button:focus-visible,.section-toggle:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-2px}
+:is(.nav-rows button[aria-current=true],.nav-rows button[aria-selected=true]):focus-visible {outline-color:var(--selection-ink)}
+:is(.work-dialog,.lib-dialog) button.sp-primary:focus-visible {outline-color:var(--on-primary)}
+/* The design canvas is the main work surface and draws its own selection, so focus never
+   rings the whole sheet: not for pointer focus, nor when a shortcut (/, Escape, Ctrl+Tab, a
+   closed dialog) hands focus back. When Tab reaches it (shell.js sets data-focus-nav), a rule
+   along the pane's top edge (like the split view's active-pane rule) says where focus is; its
+   dark under-edge keeps it visible over light paper and dark board pixels alike. */
+:root[data-focus-nav=keys] .split-pane:has(> :is(#canvas,#canvas-2):focus-visible)::after {content:"";position:absolute;z-index:3;top:0;left:0;right:0;
+  height:var(--focus-w);pointer-events:none;background:var(--focus);border-bottom:1px solid var(--focus-edge-dark)}
+/* Focus rings follow keyboard navigation, app-wide (docs/design-system.md, Native behaviour).
+   Browsers count any focus() after a key press as :focus-visible, so a shortcut, Escape or a
+   closed dialog handing focus back would ring buttons, tabs, menus, lists and panels. Rings show
+   only while shell.js marks keyboard navigation (Tab, or arrow keys on a control); text fields
+   keep theirs, as native text fields do. Box-shadow rings opt in with the same attribute. */
+:root:not([data-focus-nav=keys]) :focus-visible:not(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=button],[type=submit],[type=reset],[type=file],[type=image]),textarea,[contenteditable]:not([contenteditable=false])) {outline:none!important}
+
+/* ---- Empty states ------------------------------------------------------------------ */
+/* Nets panel with nothing to list: say why and what to do (nets-panel.js has no message). */
+.panel-nets .nets-scroll:not(:has(tr[data-r]))::after {content:"No nets yet. Nets appear once wires or tracks connect component pins.";display:block;margin:8px;color:var(--muted);font-size:var(--fs-11);line-height:1.5}
+/* Polygon Pour: give the control column room for "All Same Net Objects" next to the unit slot. */
+.polygon-pour-dialog .pp-field {grid-template-columns:minmax(118px,.75fr) minmax(0,1fr)}
+
+/* ---- Design system: shared components (docs/design-system.md) ---------------------- */
+/* Close buttons are the library's .ui-close (ui/components.css). */
+button.sch-entry-remove {display:inline-flex;align-items:center;justify-content:center;padding:0;font-size:0;line-height:0}
+/* Empty states: muted 12 px text, relaxed leading, wherever a module shows one. */
+:is(.ui-empty,.empty-state,.ann-empty,.ds-empty,.eco-empty,.km-empty,.nav-palette-empty,.pm-empty,.navp-empty,.si-empty,.stress-empty,.sp-empty,.recover-empty) {
+  color:var(--muted);font-size:var(--fs-12);line-height:var(--lh-loose)}
+/* Pills and badges: one shape and one size. */
+
+/* ---- Motion (docs/design-system.md › Motion) --------------------------------------- */
+/* Tokens and levels live in style.css :root. Every rule here animates opacity and translate/scale
+   only, with tokens only (tests/css-tokens.py); Reduced keeps the fade (--motion-move is 0), Off stills it.
+   Exits are faster than entrances and never hold input. */
+/* Coach cards rise into place. The shared tooltip manages hover intent. */
+.tut-card:not([hidden]) {animation:atrium-rise var(--motion-base) var(--ease-decelerate)}
+/* Preferences: the new page fades in on a page switch (prefs.js marks it); searching does not animate. */
+.prf-page-body.prf-enter {animation:atrium-reveal var(--motion-fast) var(--ease-decelerate)}
+@media (hover:hover) and (pointer:fine) {
+  .dv-row,.rev-option,.prf-nav-item {transition:background-color var(--motion-instant) ease,color var(--motion-instant) ease}
+}
+/* Floating panels pop out of the dock. */
+.dock-float {animation:atrium-pop var(--motion-fast) var(--ease-decelerate)}
+/* Split view: the second pane fades in when the editor splits. */
+.editor-panes.is-split > .split-pane:last-child {animation:atrium-fade var(--motion-fast) linear}
+/* The outgoing workspace fades above the live, interactive editor. */
+:root[data-theme-live] {view-transition-name:none}
+:root[data-theme-fading]::view-transition {pointer-events:none}
+:root[data-theme-fading]::view-transition-group(root) {animation:none}
+:root[data-theme-fading]::view-transition-old(root) {
+  z-index:1;mix-blend-mode:normal;animation:atrium-theme-out var(--motion-base) var(--ease-standard) both}
+@keyframes atrium-theme-out {from{opacity:1}to{opacity:0}}
+
+/* Keep contextual status notices from pushing the controls out of the row. */
+.statusbar .status-tool {flex:0 1 auto;max-width:14em}
+.statusbar :is(.route-feel-chip,.status-sync) {flex:0 1 auto;min-width:0;overflow:hidden}
+.statusbar :is(.route-feel-text,.sync-text) {min-width:0;overflow:hidden;text-overflow:ellipsis}
+.statusbar .sync-dot {flex:none}
+/* The hatch controls apply to hatched fills. */
+.polygon-pour-dialog .pp-fill:not(:has(> .pp-check:nth-child(2) input:checked)) .pp-hatch {opacity:.38;pointer-events:none}

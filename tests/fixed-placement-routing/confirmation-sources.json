@@ -1,0 +1,40 @@
+[
+  {
+    "id": "tmc2209",
+    "family": "watterott-stepstick",
+    "repo": "watterott/SilentStepStick",
+    "revision": "098b7518b0de31e6a12fda78c68ae2666b81fbb6",
+    "license": "CC-BY-SA-4.0",
+    "files": [
+      {
+        "role": "board",
+        "path": "hardware/SilentStepStick-TMC2209_v20.brd",
+        "sha256": "f38962e4ffdbf5a78e0af8cec959a07292a39dc50c8acc12db933ff420e07e7a"
+      },
+      {
+        "role": "license",
+        "path": "README.md",
+        "sha256": "deaa46a6b668637ed462ae9bd488db35bcaace26209e91b0661f60052ac0858c"
+      }
+    ]
+  },
+  {
+    "id": "stepstick-protector",
+    "family": "watterott-stepstick",
+    "repo": "watterott/SilentStepStick",
+    "revision": "098b7518b0de31e6a12fda78c68ae2666b81fbb6",
+    "license": "CC-BY-SA-4.0",
+    "files": [
+      {
+        "role": "board",
+        "path": "hardware/StepStick-Protector_v20.brd",
+        "sha256": "24ab97f6aa8d6ff8e5745737f96ea152ed7e3a8d856a3403088b8841783f4ae9"
+      },
+      {
+        "role": "license",
+        "path": "README.md",
+        "sha256": "deaa46a6b668637ed462ae9bd488db35bcaace26209e91b0661f60052ac0858c"
+      }
+    ]
+  }
+]

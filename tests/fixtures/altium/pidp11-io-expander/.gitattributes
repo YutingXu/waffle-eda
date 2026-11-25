@@ -1,0 +1,2 @@
+# Unmodified upstream files: keep the exact bytes (CRLF included) so the SHA-256 values in NOTICE hold on every checkout.
+* -text

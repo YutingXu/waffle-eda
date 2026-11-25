@@ -1,0 +1,22 @@
+{
+  "format": "atrium",
+  "version": 1,
+  "name": "Public v1 power tracks",
+  "units": "mm",
+  "library": [],
+  "documents": [
+    {
+      "id": "019b0000-0000-7000-8000-000000000001",
+      "kind": "pcb",
+      "name": "Power board",
+      "grid": 0.25,
+      "outline": [[0, 0], [30, 0], [30, 20], [0, 20]],
+      "notes": [],
+      "items": [
+        {"id":"019b0000-0000-7000-8000-000000000002","kind":"track","layer":"Top","net":"GND","width":0.2,"points":[[3,3],[10,3]]},
+        {"id":"019b0000-0000-7000-8000-000000000003","kind":"track","layer":"Top","net":"CLK","width":0.125,"points":[[3,6],[10,6]]},
+        {"id":"019b0000-0000-7000-8000-000000000004","kind":"track","layer":"Top","net":"VDD","width":0.75,"points":[[3,9],[10,9]]}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+.query-field-assist, .query-field-declaration { display: flex; align-items: center; flex-wrap: wrap; gap: .4em; }
+.query-field-assist[hidden] { display: none; }
+.query-field-ghost { color: var(--muted); font-size: .9em; }
+.query-field-assist button, .query-field-declaration button { font: inherit; color: var(--ink); }
+.query-field-assist button:focus-visible, .query-field-declaration :focus-visible { outline: 2px solid var(--focus); }

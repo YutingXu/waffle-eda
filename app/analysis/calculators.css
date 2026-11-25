@@ -1,0 +1,51 @@
+/* Calculators panel (calculators.js): docked using the workspace layout. Colours come from theme tokens. */
+.panel-calc {flex:1 1 0;min-height:160px;border-top:1px solid var(--divider);background:var(--paper);color:var(--ink);container-type:inline-size}
+.panel-calc[hidden] {display:none}
+.panel-calc.dock-tabbed > .calc-head {display:none}
+.calc-head h2 {flex:1}
+.calc-icon {min-width:22px;height:20px;padding:0 4px;border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--muted);font-size:var(--fs-13);line-height:1}
+.calc-icon:hover {background:var(--hover);color:var(--ink)}
+.calc-icon:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:1px}
+.calc-tools {display:flex;align-items:center;gap:6px;flex:none;padding:6px 8px;border-bottom:1px solid var(--line)}
+.calc-pick {flex:1;width:0}
+.calc-button[aria-pressed="true"] {--ui-button-fill:var(--soft)}
+.calc-proposal {display:flex;align-items:baseline;justify-content:space-between;gap:6px;margin-bottom:8px;font-size:var(--fs-12)}
+.calc-proposal[hidden] {display:none}
+.calc-proposal span {min-width:0;overflow-wrap:anywhere}
+.panel-calc .ui-field {min-width:0}
+.calc-body {flex:1;min-height:0;overflow:auto;padding:6px 8px 8px}
+.calc-form {display:grid;gap:4px}
+.calc-board {margin:0 0 4px;font-size:var(--fs-11);color:var(--muted)}
+.calc-row {display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,90px) 38px;align-items:baseline;gap:6px;font-size:var(--fs-12)}
+.calc-label {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.calc-row input {text-align:right;font-variant-numeric:tabular-nums}
+.calc-row select {grid-column:2 / 4}
+.calc-row select + .calc-unit {display:none}
+.calc-unit {font-size:var(--fs-11);color:var(--muted)}
+.calc-out {margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.calc-results {width:100%;border-collapse:collapse;font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.calc-results th {padding:2px 6px 2px 0;font-weight:400;text-align:left;color:var(--muted)}
+.calc-results td {padding:2px 0;text-align:right;white-space:nowrap}
+.calc-results tr.primary th,.calc-results tr.primary td {color:var(--ink);font-weight:600}
+.calc-results tr + tr.primary th,.calc-results tr + tr.primary td {border-top:1px solid var(--line)}
+.calc-warn,.calc-error {margin:6px 0 0;padding:4px 6px;border-left:3px solid var(--warn-mark);font-size:var(--fs-11);color:var(--warn-ink);background:var(--soft)}
+.calc-error {border-left-color:var(--err-mark);color:var(--error-ink)}
+.calc-notes {margin-top:8px;font-size:var(--fs-11);color:var(--muted)}
+.calc-notes summary {cursor:default;color:var(--ink)}
+.calc-formula {margin:6px 0;padding:6px;border-radius:var(--r-md);background:var(--soft);color:var(--ink);font-family:var(--mono);font-size:var(--fs-10);white-space:pre-wrap;overflow-wrap:anywhere}
+.calc-notes h3 {margin:6px 0 2px;font-size:var(--fs-11)}
+.calc-notes ul {margin:2px 0;padding-left:16px}
+.calc-notes li {margin:2px 0}
+/* Narrow dock: labels above their fields. */
+@container (max-width:330px) {
+  .calc-row {grid-template-columns:minmax(0,1fr) 34px;row-gap:1px}
+  .calc-label {grid-column:1 / -1;white-space:normal}
+  .calc-row select {grid-column:1 / -1}
+  .calc-row input {text-align:left}
+}
+/* UX review 2: in the narrow docked panel a result row stacks (label, then the value right-
+   aligned and free to wrap) instead of squeezing labels to one word per line and clipping values. */
+.panel-calc .calc-results,.panel-calc .calc-results tbody {display:block}
+.panel-calc .calc-results tr {display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;padding:2px 0}
+.panel-calc .calc-results th {flex:1 1 9em;padding:0}
+.panel-calc .calc-results td {flex:0 1 auto;margin-left:auto;padding:0;white-space:normal;overflow-wrap:anywhere}

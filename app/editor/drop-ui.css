@@ -1,0 +1,6 @@
+/* butter.drop status (drop-ui.js): placement only. The line, dot, spinner, bar and button are the
+   library's (ui/components.css); the status bar keeps its settled face. */
+.statusbar .drop-status {flex:0 1 auto;min-inline-size:0;gap:var(--s-6)}
+.statusbar .drop-status .ui-status-text {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.statusbar .drop-status .ui-progress {flex:none;inline-size:round(calc(var(--s-16) * 5), 1px)}
+.statusbar .drop-status .ui-button {flex:none}

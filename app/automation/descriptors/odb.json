@@ -1,0 +1,61 @@
+{
+  "feature": "odb",
+  "title": "ODB++ Design",
+  "mcpAdapter": true,
+  "commands": [
+    {
+      "id": "export",
+      "title": "Export ODB++ Design",
+      "kind": "output",
+      "outputKind": "odb",
+      "surfaces": [
+        "editor",
+        "mcp"
+      ],
+      "properties": {
+        "board": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "panel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "units": {
+          "type": "string",
+          "enum": [
+            "mm",
+            "in"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "absolute",
+            "outline"
+          ]
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 32
+        },
+        "omitUnconnectedMidLayerPads": {
+          "type": "boolean"
+        },
+        "variant": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        }
+      },
+      "required": [],
+      "mcpAdapter": true
+    }
+  ]
+}

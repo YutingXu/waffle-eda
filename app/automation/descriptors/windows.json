@@ -1,0 +1,16 @@
+{
+  "feature": "windows",
+  "title": "Window",
+  "modules": {"editor": ["AtriumProjectWindowClient"], "mcp": ["window-workspace"]},
+  "commands": [
+    {"id":"list-windows", "title":"List Windows", "kind":"read", "mcpAdapter":true, "properties":{}, "required":[]},
+    {"id":"move-tab-to-new-window", "title":"Move Tab to New Window", "kind":"state", "mcpAdapter":true,
+      "properties":{"tab":{"type":"string","minLength":1}}, "required":[]},
+    {"id":"merge-all-windows", "title":"Merge All Windows", "kind":"state", "mcpAdapter":true, "properties":{}, "required":[]},
+    {"id":"list-workspace-layouts", "title":"List Workspace Layouts", "kind":"read", "mcpAdapter":true, "properties":{}, "required":[]},
+    {"id":"save-workspace-layout", "title":"Save Workspace Layout", "kind":"state", "mcpAdapter":true,
+      "properties":{"name":{"type":"string","minLength":1,"maxLength":64}}, "required":["name"]},
+    {"id":"restore-workspace-layout", "title":"Restore Workspace Layout", "kind":"state", "mcpAdapter":true,
+      "properties":{"name":{"type":"string","minLength":1,"maxLength":64}}, "required":["name"]}
+  ]
+}

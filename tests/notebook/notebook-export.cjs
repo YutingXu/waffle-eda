@@ -1,0 +1,16 @@
+"use strict";
+const assert=require("node:assert/strict");
+for(const n of ["model","parts","sch-objects","sch-appearance","hierarchy","note-fields","notebook","sch-import","altium-export","kicad-export","kicad-schematic"])require(require("../support/app-source-paths.cjs").appFile(n+".js"));
+const p=Atrium.project("Outputs",[]),d=p.documents[0];d.name="Gain";d.parameters={Author:"Bench"};
+const i={id:"a1",kind:"textframe",x:3,y:4,w:30,h:16,border:true,text:"Owner {sheet.Author}",richText:{font:"serif",blocks:[{style:"h2",runs:[{type:"text",text:"Owner"}]},{style:"paragraph",runs:[{type:"field",expression:"sheet.Author",binding:{scope:"sheet",docId:d.id,field:"author"}}]}]}};
+d.items.push(i);
+const al=AtriumAltiumExport.exportSchematic(p,d),ki=AtriumKiCadSchematic.exportSheet(p,d);
+assert.match(al.content,/\|RECORD=28\|[^\r\n]*\|TEXT=Owner~1Bench/);assert.match(ki.content,/\(text_box "Owner\\nBench"/);
+assert.equal(al.counts.graphics,1);
+const read=AtriumSCH.read("Fixture.SchDoc",null,al.content).documents[0],back=read.items.find(v=>v.kind==="textframe");
+assert.equal(back.text,"Owner\nBench");assert.ok(Math.abs(back.w-30)<.02&&Math.abs(back.h-16)<.02);
+for(const output of [al,ki])assert.ok(output.diagnostics.some(x=>JSON.stringify(x).includes("current field values")));
+const imported=AtriumSCH.read("Dates.SchDoc",null,"|HEADER=Protel for Windows - Schematic Capture Ascii File Version 5.0\n|RECORD=31\n|RECORD=4|TEXT==Title|LOCATION.X=5|LOCATION.Y=6\n|RECORD=28|TEXT==CurrentDate|LOCATION.X=2|LOCATION.Y=3|CORNER.X=13|CORNER.Y=10").documents[0];
+const values=imported.items.map(i=>[i.richText.blocks[0].runs[0].expression,i.richText.blocks[0].runs[0].binding.docId]);
+assert.deepEqual(values,[["sheet.Title",imported.id],["sheet.CurrentDate",imported.id]]);
+console.log("PASS Altium and KiCad static notes and diagnostics, Altium frame round trip and stable special fields");

@@ -1,0 +1,437 @@
+{
+  "feature": "datasheets",
+  "title": "Datasheets",
+  "editorActions": [
+    {"id":"reader","title":"Datasheet Reader","module":"AtriumDatasheetReader"},
+    {"id":"open-pdf","title":"Open Datasheet PDF…","module":"AtriumDatasheetReader"}
+  ],
+  "mcpAdapter": true,
+  "modules": {
+    "editor": [
+      "AtriumDatasheetRecord",
+      "AtriumLinkRecord"
+    ],
+    "mcp": [
+      "datasheet-record",
+      "link-record"
+    ]
+  },
+  "commands": [
+    {
+      "id": "list",
+      "title": "List Datasheets",
+      "kind": "read",
+      "properties": {
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": []
+    },
+    {
+      "id": "reference",
+      "title": "Reference Datasheet",
+      "kind": "edit",
+      "properties": {
+        "grant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "sourceURL": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "existingId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "embed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "grant"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    },
+    {
+      "id": "assign-part",
+      "title": "Assign Part Datasheet",
+      "kind": "edit",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "definitionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        }
+      },
+      "required": [
+        "id",
+        "definitionId"
+      ]
+    },
+    {
+      "id": "page-link",
+      "title": "Link Datasheet Page",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "id",
+        "page"
+      ]
+    },
+    {
+      "id": "annotate",
+      "title": "Annotate Datasheet Page",
+      "kind": "edit",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "region": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "note",
+            "ink",
+            "highlight"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "minItems": 2,
+          "maxItems": 4096
+        }
+      },
+      "required": [
+        "id",
+        "page",
+        "region",
+        "type"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    },
+    {
+      "id": "list-annotations",
+      "title": "List Datasheet Annotations",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    {
+      "id": "info",
+      "title": "Inspect Datasheet",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    },
+    {
+      "id": "text",
+      "title": "Extract Datasheet Text",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "region": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        }
+      },
+      "required": [
+        "id",
+        "page"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    },
+    {
+      "id": "search",
+      "title": "Search Datasheet Text",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "maxPages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "id",
+        "query"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    },
+    {
+      "id": "pin-table",
+      "title": "Send Datasheet Pin Table to Symbol Wizard",
+      "kind": "read",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "region": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8192
+        }
+      },
+      "required": [
+        "id",
+        "page",
+        "region"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    },
+    {
+      "id": "snip",
+      "title": "Export Datasheet Region",
+      "kind": "output",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "region": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "side": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        }
+      },
+      "required": [
+        "id",
+        "page",
+        "region"
+      ],
+      "mcpAdapter": true,
+      "modules": {
+        "editor": [
+          "AtriumDatasheets"
+        ]
+      },
+      "outputKind": "datasheet-snips",
+      "surfaces": [
+        "editor",
+        "mcp"
+      ]
+    }
+  ]
+}

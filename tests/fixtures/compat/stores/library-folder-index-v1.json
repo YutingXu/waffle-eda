@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "files": {
+    "Lab_Package.pretty/TestPad_Test.kicad_mod": {
+      "size": 556,
+      "mtime": 1,
+      "sha256": "04a50f9e4117623f437f57b1a5044b37e148bf435973c0f6dd11c4cc08acd1c1",
+      "kind": "kicad-mod",
+      "rows": [
+        {
+          "t": "fp",
+          "n": "TestPad_Test",
+          "lib": "Lab_Package",
+          "d": "Hand-made 1 mm test pad that no symbol names",
+          "kw": "",
+          "pads": [
+            [
+              "1",
+              0
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

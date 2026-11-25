@@ -1,0 +1,63 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "analogue",
+      "items": [
+        {"h":65,"id":"frame-a","kind":"textframe","role":"frame","text":"Analogue inputs","w":90,"x":-75,"y":-40},
+        {"id":"off-out","io":"output","kind":"offsheet","text":"SENSE","x":-60,"y":-25},
+        {"id":"off-bi","io":"bidirectional","kind":"offsheet","text":"DATA","x":-30,"y":5},
+        {"id":"off-implicit","kind":"offsheet","text":"AUX","x":10,"y":25},
+        {"id":"sense-wire","kind":"wire","points":[[-60,-25],[-40,-25]]}
+      ],
+      "kind": "schematic",
+      "name": "Analogue",
+      "notes": [],
+      "outline": [],
+      "sheet": {
+        "infinite": true,
+        "params": {"Title":"Analogue inputs"},
+        "size": "A3",
+        "titleBlock": "ansi"
+      }
+    },
+    {
+      "grid": 1.27,
+      "id": "controller",
+      "items": [
+        {"id":"off-in","io":"input","kind":"offsheet","text":"SENSE","x":15,"y":15},
+        {"id":"off-explicit","io":"unspecified","kind":"offsheet","text":"AUX","x":5,"y":5},
+        {"h":12,"id":"ordinary-note","kind":"textframe","text":"Assembly note","w":50,"x":0,"y":30},
+        {"h":24,"id":"frame-b","kind":"textframe","role":"frame","text":"Diagnostics","w":35,"x":60,"y":20}
+      ],
+      "kind": "schematic",
+      "name": "Controller",
+      "notes": [],
+      "outline": [],
+      "sheet": {
+        "size": "A4"
+      }
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.4",
+  "library": [],
+  "name": "Connector directions and frames",
+  "outputJobs": [
+    {
+      "folder": "{project}-{rev}-{date}",
+      "name": "Schematic pages",
+      "outputs": [
+        {"enabled":true,"id":"whole","kind":"pdf","options":{}},
+        {"enabled":true,"id":"per-frame","kind":"pdf","options":{"infiniteLayout":"frames"}},
+        {"enabled":true,"id":"scaled","kind":"pdf","options":{"infiniteLayout":"tile","infiniteScale":0.75}}
+      ],
+      "package": {
+        "mode": "folder"
+      },
+      "version": 2,
+      "zip": false
+    }
+  ],
+  "version": 1
+}

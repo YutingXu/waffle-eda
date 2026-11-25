@@ -1,0 +1,82 @@
+/* Generic parts and the connector generator (generic-parts-ui.js). Builds on the library dialog shell (library-panel.css). */
+.gp-dialog {max-width:1280px}
+.gp-body {flex:1;min-height:0;display:grid;grid-template-columns:200px minmax(300px,1fr) minmax(320px,1.2fr)}
+.gp-body-conn {grid-template-columns:minmax(340px,1fr) minmax(360px,1.3fr)}
+.gp-families {display:flex;flex-direction:column;gap:2px;padding:8px;border-right:1px solid var(--line);overflow:auto}
+.gp-families hr {width:100%;border:0;border-top:1px solid var(--line);margin:4px 0}
+.lib-dialog .gp-tile {text-align:left;justify-content:flex-start;border-color:transparent;background:transparent;transition:background-color var(--motion-fast) var(--ease-standard)}
+.lib-dialog .gp-tile:hover {background:var(--button-hover)}
+.lib-dialog .gp-tile[aria-checked=true] {background:var(--selection);border-color:var(--accent);color:var(--selection-ink)}
+.lib-dialog .gp-tile-link {color:var(--accent-text)}
+.gp-types {display:flex;flex-wrap:wrap;gap:4px}
+.gp-types .gp-tile {flex:1 1 140px}
+.gp-form {display:flex;flex-direction:column;gap:8px;padding:8px 12px;overflow:auto;border-right:1px solid var(--line);min-width:0}
+.gp-form h3 {margin:0;font-size:var(--fs-13);font-weight:var(--fw-medium)}
+.gp-field {display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;gap:8px;font-size:var(--fs-12)}
+.gp-field > span:first-child {color:var(--muted)}
+.gp-field-value {align-items:start}
+.gp-field-value > span:first-child {padding-top:4px}
+.gp-field select,.gp-field input {width:100%;min-width:0}
+.gp-grid2 {display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+.gp-grid2 .gp-field {grid-template-columns:96px minmax(0,1fr)}
+.gp-inline {display:flex;gap:4px}
+.gp-inline [hidden] {display:none}
+.gp-flags {display:flex;gap:12px;flex-wrap:wrap}
+.gp-check {display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-12);color:var(--ink);cursor:default}
+.gp-value {display:grid;gap:4px;min-width:0}
+.gp-value-row input {width:100%;font-family:var(--mono)}
+.gp-hint {margin:0;font-size:var(--fs-11);color:var(--muted);line-height:var(--lh);transition:color var(--motion-fast) var(--ease-standard)}
+.gp-hint.is-warning {color:var(--warn-ink)}
+.gp-hint.is-error {color:var(--error-ink)}
+.gp-snaps {display:flex;gap:4px;flex-wrap:wrap}
+.gp-snaps:empty {display:none}
+.gp-snap {font-size:var(--fs-11)}
+.gp-preview {display:flex;flex-direction:column;gap:8px;padding:8px 12px;min-height:0;min-width:0}
+.gp-figure {flex:1;display:flex;flex-direction:column;gap:2px;margin:0;min-height:0}
+.gp-figure figcaption {font-size:var(--fs-11);color:var(--muted)}
+.gp-canvas {flex:1;min-height:160px;width:100%;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--canvas-bg)}
+.gp-gates {display:flex;gap:4px;flex-wrap:wrap}
+.gp-gates:empty {display:none}
+.gp-warnings {display:grid;gap:4px}
+.gp-warn {margin:0;padding:4px 6px;border-radius:var(--r-sm);background:var(--tint-warning);font-size:var(--fs-12);color:var(--ink)}
+.gp-warn.is-danger {background:var(--tint-danger)}
+.gp-note {margin:0;font-size:var(--fs-11);color:var(--muted);line-height:var(--lh)}
+.gp-status {margin:0 auto 0 0;font-size:var(--fs-12);color:var(--muted)}
+.gp-status.is-error {color:var(--error-ink)}
+.gp-bind-body {display:grid;gap:8px;padding:12px;overflow:auto}
+/* Matching parts: library .ui-row options; .lib-dialog's adopted button height must not clip the two lines. */
+.lib-dialog .gp-candidate {height:auto}
+/* Properties panel section */
+.gp-inspector {display:grid;gap:4px;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.gp-inspector-head {margin:0;font-size:var(--fs-12);color:var(--muted)}
+.gp-inspector-head strong {color:var(--ink);font-weight:var(--fw-medium)}
+.gp-inspector .gp-field {grid-template-columns:minmax(72px,40%) minmax(0,1fr)}
+.gp-actions {display:flex;gap:4px;flex-wrap:wrap}
+@media (max-width: 900px) {
+  .gp-body,.gp-body-conn {grid-template-columns:1fr;grid-auto-rows:max-content;overflow:auto} /* rows keep their content height and the body scrolls (stretched rows squeezed the previews onto each other) */
+  .gp-canvas {flex:none;height:200px} /* a fixed stage height: a content-sized row and a self-sizing canvas looped the ResizeObserver */
+  .gp-families,.gp-form {border-right:0;border-bottom:1px solid var(--line)}
+  .gp-families {flex-direction:row;flex-wrap:wrap}
+}
+.gp-inspector .gp-field-value {grid-template-columns:1fr}
+.gp-inspector .gp-value-row input,.gp-inspector .gp-value select {width:100%}
+.lib-dialog .gp-snaps .gp-snap,.gp-inspector .gp-snaps .gp-snap {width:auto;flex:0 0 auto}
+
+/* ---------------- placeholders: Resolve… (placeholder-ui.js) */
+.lib-dialog.ph-dialog {width:min(1100px,var(--dialog-avail-w));height:min(780px,var(--dialog-avail-h))}
+.ph-body {flex:1;min-height:0;display:grid;grid-template-columns:minmax(220px,320px) minmax(0,1fr);gap:0}
+.ph-list {overflow:auto;border-right:1px solid var(--line);padding:8px}
+.ph-group {display:grid;gap:2px;margin-bottom:8px}
+.ph-group > strong {font-size:var(--fs-11);color:var(--muted)}
+/* Candidates are library .ui-row options; the detail wraps under the title. */
+.lib-dialog .ph-row {height:auto}
+.ph-row .ui-row-detail {white-space:normal}
+.ph-view {overflow:auto;padding:8px 12px;font-size:var(--fs-12)}
+.ph-draw {border:1px solid var(--line);border-radius:var(--r-md);background:var(--field);padding:4px;max-height:360px;overflow:auto}
+.ph-map {width:100%;font:var(--fs-11) var(--mono)}
+.ph-map text {fill:var(--ink)}
+.ph-map text.ph-idle {fill:var(--muted)}
+.ph-map text.ph-bad {fill:var(--error-ink);font-weight:600}
+.ph-map .ph-line {stroke:var(--accent);stroke-width:1.2}
+.ph-map .ph-inferred {stroke-dasharray:4 3}
+.ph-table tr.ph-bad td:first-child {color:var(--error-ink);font-weight:600}

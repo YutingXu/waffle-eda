@@ -1,0 +1,32 @@
+M48
+;DRILL file {Waffle 1.0} date <date>
+;Board: Sensor board
+;FORMAT={-:-/ absolute / metric / decimal}
+; #@! TF.CreationDate,<date>
+; #@! TF.GenerationSoftware,Waffle,Waffle,1.0
+; #@! TF.FileFunction,Plated,1,2,PTH
+; #@! TF.FilePolarity,Positive
+;TYPE=PLATED
+;LAYER_PAIR=Top - Bottom
+;DRILL_PAIR=Top Layer - Bottom Layer (through)
+;ORIGIN=board lower-left corner
+METRIC
+T01C0.400
+T02C1.000
+%
+G90
+G05
+T01
+X13.3Y5.8
+X16.1Y10.4
+X21.4Y11.35
+X21.55Y15.2
+X19.7Y16.9
+T02
+X3.8Y8.46
+X32.2Y10.43
+X3.8Y11.0
+X32.2Y12.97
+X3.8Y13.54
+T0
+M30

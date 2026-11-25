@@ -1,0 +1,76 @@
+# Performance history travels through Actions artifacts. Only successful default-branch
+# ancestor runs supply baselines. The same-repository gate matches the self-hosted CI jobs.
+name: Performance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Keep every main push. A newer commit supersedes pending checks on the same pull request.
+  group: performance-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  performance:
+    name: Performance (macOS arm64)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, atrium]
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Clean workspace
+        run: |
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+          rm -rf "$RUNNER_TEMP/waffle-performance"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up pinned Node
+        timeout-minutes: 3
+        run: |
+          PREFIX="$RUNNER_TEMP/waffle-performance/node" scripts/ci/install-node.sh
+          printf '%s\n' "$RUNNER_TEMP/waffle-performance/node/bin" >> "$GITHUB_PATH"
+      - name: Prepare generated editor assets
+        run: |
+          scripts/ci/install-rust.sh
+          python3 scripts/prepare-assets.py
+      - name: Check the performance gate
+        timeout-minutes: 2
+        run: python3 -m unittest discover -s scripts/ci -p 'test_performance.py'
+      - name: Restore default-branch performance history
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 scripts/ci/performance_history.py --output "$RUNNER_TEMP/waffle-performance/prior.json"
+      - name: Measure and compare
+        id: measure
+        run: |
+          output="$RUNNER_TEMP/waffle-performance/results"
+          status=0
+          python3 scripts/ci/performance.py --history "$RUNNER_TEMP/waffle-performance/prior.json" --output "$output" || status=$?
+          if [ -f "$output/result.json" ]; then
+            printf 'ready=true\n' >> "$GITHUB_OUTPUT"
+          fi
+          exit "$status"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() && steps.measure.outputs.ready == 'true' }}
+        with:
+          name: waffle-performance-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/waffle-performance/results/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Clean workspace
+        if: always()
+        run: |
+          find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+          rm -rf "$RUNNER_TEMP/waffle-performance"

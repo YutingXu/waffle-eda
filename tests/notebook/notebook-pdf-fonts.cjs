@@ -1,0 +1,31 @@
+"use strict";
+// An authoring face can register before print is loaded. Ordinary sheets must stay on their
+// own metrics and a document embeds only the fonts, weights and glyphs it used.
+const assert=require("node:assert/strict");
+for (const n of ["path-record","pdf","vendor/dejavu-sans","vendor/stix-two-math","math-font"]) require(require("../support/app-source-paths.cjs").appFile(n+".js"));
+const P=AtriumPDF;
+let loads=0;
+P.registerTypeface("Sheet serif",()=>{loads++;return AtriumMathFont.bytes();});
+for (const n of ["pdf-fonts","print"]) require(require("../support/app-source-paths.cjs").appFile(n+".js"));
+const normal=P.fontOf("14px Helvetica");
+assert.equal(normal.key,"H");assert.equal(loads,0);
+const type=P.fontOf('bold italic 14px "Sheet serif", serif');
+assert(type.synthBold && type.synthItalic);
+assert.deepEqual(P.fontOf('14px "SHEET SERIF"').key,type.key);
+const target=AtriumPDFFonts.typeface(type.key);assert(target);assert.equal(loads,0);
+const rec=P.recorder(200,90), c=rec.ctx;c.font='18px "Sheet serif"';
+const glyph=target.font().gid(65);
+assert.equal(c.measureText("A").width,18*target.font().advance(glyph)/target.font().unitsPerEm);
+c.fillText("AV",8,30);c.font='bold italic 18px "Sheet serif"';c.fillText("AV",70,30);
+c.font="16px sans-serif";c.fillText("Ω",10,65);
+assert.equal(loads,1);assert(rec.list[1].synthBold);assert(rec.list[1].m[2] > 0);
+const svg=P.svg(200,90,rec.list);assert.match(svg,/@font-face/);
+const font64=svg.match(/base64,([A-Za-z0-9+/=]+)/)[1];
+const subset=AtriumPDFFonts.parse(Buffer.from(font64,"base64"));
+assert.equal(subset.name,target.font().name);assert.equal(subset.gid(65),glyph);
+const d=P.document();d.page(200,90,rec.list);
+const out=Buffer.from(d.bytes({compress:false})).toString("latin1");
+assert.match(out,/\+STIXTwoMath-Regular/);assert.match(out,/\+DejaVuSans/);
+assert.match(out,/BT \/F1 1 Tf 2 Tr/);assert.match(out,/BT \/U 1 Tf/);
+assert(!P.svg(30,30,[]).includes("@font-face"));
+console.log("PASS notebook typefaces register lazily, retain measured advances and embed per-face subsets in PDF and SVG");

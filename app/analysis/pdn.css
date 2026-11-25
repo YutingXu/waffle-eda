@@ -1,0 +1,9 @@
+/* PDN Analyzer additions to ui/analysis-panels.css. AtriumPDN draws the heat-map ramp. */
+.pdn-remove::before {width:12px;height:12px;-webkit-mask-size:12px;mask-size:12px}
+.pdn-bar .pdn-field {gap:6px}
+.pdn-sub {margin:4px 0 0;font-size:var(--fs-12);font-weight:var(--fw-semibold)}
+.pdn-note {margin:6px 0 0;font-size:var(--fs-11);color:var(--muted);line-height:var(--lh-loose)}
+.pdn-loads td input[type="text"] {width:6em}
+.pdn-loads td select {max-width:9em}
+.pdn-loads td:nth-child(3) {display:flex;align-items:center;gap:4px}
+.pdn-results {display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:8px}

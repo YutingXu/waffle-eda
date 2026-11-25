@@ -1,0 +1,11 @@
+{
+  "dynamicSuite": "tests/history/butter-visual-history-mcp.py",
+  "sessionOnlyCli": [
+    "session-list",
+    "session-preview",
+    "session-compare",
+    "session-thumbnail",
+    "clipboard-list",
+    "clipboard-preview"
+  ]
+}

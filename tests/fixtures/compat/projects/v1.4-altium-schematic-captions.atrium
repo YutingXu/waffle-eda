@@ -1,0 +1,78 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "sheet-0",
+      "items": [
+        {"id":"item-0","kind":"netlabel","schPaint":{"align":"left","angle":0,"baseline":"bottom","bold":false,"crossReferences":[{"align":"left","angle":180,"at":[18.8595,-1.27],"baseline":"middle","bold":false,"family":"Times New Roman","ink":"#000080","italic":false,"size":2.032,"text":"MCU[3D]","underline":false}],"direction":0,"family":"Arial","ink":"#ff0000","italic":false,"offSheet":true,"showName":true,"size":2.032,"style":0,"type":"power","underline":false},"schSource":{"record":1,"role":"netlabel"},"text":"SDA","x":25.4,"y":-12.7},
+        {"id":"item-1","kind":"wire","points":[[15.24,-2.54],[15.24,-10.16]],"schPaint":{"fill":"#ffffb0","ink":"#000080","width":0.1},"schSource":{"record":6,"role":"wire"}},
+        {"id":"item-2","kind":"netlabel","schPaint":{"align":"left","angle":270,"baseline":"bottom","bold":false,"direction":1,"family":"Arial","ink":"#000080","italic":false,"showName":true,"size":2.032,"style":2,"type":"power","underline":false},"schSource":{"record":7,"role":"netlabel"},"text":"VOUT","x":190.5,"y":-127},
+        {"angle":270,"def":"symbol","id":"item-3","kind":"part","link":"part-link","pinNets":{},"ref":"U1","refAt":[1.524,0.508],"schPaint":{"designatorUnit":2,"ref":{"align":"left","angle":90,"baseline":"bottom","bold":false,"family":"Arial","ink":"#000080","italic":false,"size":2.032,"underline":false}},"schSource":{"record":8,"role":"part"},"showRef":true,"value":"Probe","x":12.7,"y":-10.16},
+        {"id":"item-4","kind":"netlabel","schPaint":{"align":"center","angle":0,"baseline":"bottom","bold":false,"crossReferences":[{"align":"left","angle":0,"at":[5.08,-0.508],"baseline":"bottom","bold":false,"family":"Times New Roman","ink":"#000080","italic":false,"size":2.032,"text":"Child[1B]","underline":false}],"family":"Arial","height":2.54,"ink":"#800000","italic":false,"offset":[-10.16,0],"paper":"#ffff80","size":2.032,"style":0,"textInk":"#800000","type":"port","underline":false,"width":10.16},"schSource":{"record":4,"role":"portLabel"},"text":"DATA","x":15.24,"y":-2.54}
+      ],
+      "kind": "schematic",
+      "name": "Crossing",
+      "notes": [
+        "Ports connect across sheets as Project Options → Net identifier scope sets."
+      ],
+      "outline": [],
+      "schDrawing": {
+        "border": true,
+        "font": [{"bold":false,"family":"Times New Roman","italic":false,"size":2.032,"underline":false},{"bold":false,"family":"Arial","italic":false,"size":2.032,"underline":false}],
+        "frame": [],
+        "grid": 2.54,
+        "height": 193.04,
+        "paper": "#fffff8",
+        "showGrid": true,
+        "textPlacement": 2,
+        "width": 292.1,
+        "zones": true,
+        "zonesX": 6,
+        "zonesY": 4
+      },
+      "sourceName": "Crossing.SchDoc",
+      "sourceSha256": "74c24c0c56c402287b3c84ee3229471353ce7a0655755895211dfb4dc0b26efe"
+    },
+    {
+      "grid": 0.25,
+      "id": "sheet-1",
+      "importPlaceholder": {
+        "grid": 0.25,
+        "name": "Board layout"
+      },
+      "items": [],
+      "kind": "pcb",
+      "name": "Board layout",
+      "notes": [],
+      "outline": []
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.4",
+  "importNotes": [
+    "Ports connect across sheets as Project Options → Net identifier scope sets."
+  ],
+  "library": [
+    {
+      "category": "Imported symbols",
+      "description": "",
+      "footprintName": "",
+      "id": "symbol",
+      "name": "Probe",
+      "parameters": {},
+      "prefix": "U",
+      "schDrawing": {
+        "pinFont": {"bold":false,"family":"Arial","italic":false,"size":2.032,"underline":false},
+        "pins": [{"direction":[0,1],"end":[0,5.08],"name":"CLK","nameFont":{"bold":false,"family":"Times New Roman","italic":false,"size":2.032,"underline":false},"number":"9","start":[0,2.54]}]
+      },
+      "sourceName": "Crossing.SchDoc",
+      "symbol": {
+        "pins": [{"electrical":4,"hidden":false,"name":"CLK","number":"9","x":0,"y":5.08}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[0,2.54],[0,5.08]],"schPaint":{"fill":"#ffffb0","ink":"#000000","width":0.18},"style":"body"},{"kind":"text","schPaint":{"pinNameFallback":true},"size":1.35,"style":"body","text":"CLK","x":-0.4,"y":-0.2}]
+      },
+      "value": "Probe"
+    }
+  ],
+  "name": "Off-sheet connector",
+  "version": 1
+}

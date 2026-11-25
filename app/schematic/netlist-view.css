@@ -1,0 +1,18 @@
+.netlist-document {flex-direction:column;background:var(--surface)}
+.netlist-tools {display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-8);padding:var(--s-8) var(--s-12);border-bottom:1px solid var(--line);background:var(--panel)}
+.netlist-tools h2 {font-size:var(--fs-13);margin:0}
+.netlist-tools > span {color:var(--muted);font-size:var(--fs-12);margin-right:auto}
+.netlist-source {flex:1;min-height:0;overflow:auto;white-space:pre;tab-size:4;margin:0;padding:var(--s-12) var(--s-12) var(--s-12) 5.5ch;font:var(--fs-13)/1.65 var(--mono);color:var(--ink);user-select:text;-webkit-user-select:text}
+.netlist-source code {font:inherit}
+.netlist-row {position:relative}
+.netlist-row::before {position:absolute;right:calc(100% + 1.2ch);color:var(--muted);text-align:right;content:attr(data-line);font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}
+.netlist-source [role=link] {cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.netlist-source [role=link]:hover,.netlist-source [role=link]:focus-visible {text-decoration-style:solid}
+.nt-keyword {color:var(--insight-ink);font-weight:var(--fw-semibold)}
+.nt-net,.nt-signal,.nt-tag {color:var(--info)}
+.nt-value {color:var(--ok-ink)}
+.nt-punct,.nt-type {color:var(--muted)}
+.netlist-status,.netlist-diagnostics {font-size:var(--fs-12);padding:var(--s-6) var(--s-12);background:var(--panel);margin:0}
+.netlist-status {border-top:1px solid var(--line);color:var(--muted)}
+.netlist-diagnostics {border-bottom:1px solid var(--line);max-height:30%;overflow:auto}
+.netlist-diagnostics ul:empty {display:none}

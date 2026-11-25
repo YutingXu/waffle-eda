@@ -1,0 +1,131 @@
+// Win32 declarations used by the Windows host. Kept to the few calls .NET Framework lacks.
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+namespace Waffle.Windows
+{
+    static class Native
+    {
+        public const uint GENERIC_READ = 0x80000000;
+        public const uint FILE_READ_ATTRIBUTES = 0x80;
+        public const uint FILE_SHARE_READ = 1, FILE_SHARE_WRITE = 2, FILE_SHARE_DELETE = 4;
+        public const uint OPEN_EXISTING = 3;
+        public const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+        public const uint FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
+        public const uint FILE_ATTRIBUTE_DIRECTORY = 0x10;
+        public const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
+        public const uint FILE_TYPE_DISK = 1;
+        public const uint MOVEFILE_REPLACE_EXISTING = 1, MOVEFILE_WRITE_THROUGH = 8;
+        public const int ERROR_FILE_NOT_FOUND = 2, ERROR_PATH_NOT_FOUND = 3;
+        public const uint IO_REPARSE_TAG_NAME_SURROGATE = 0x20000000;
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security,
+                                                         uint disposition, uint flags, IntPtr template);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern uint GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder path, uint size, uint flags);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BY_HANDLE_FILE_INFORMATION
+        {
+            public uint Attributes;
+            public System.Runtime.InteropServices.ComTypes.FILETIME Created, Accessed, Written;
+            public uint VolumeSerial, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetFileInformationByHandle(SafeFileHandle handle, out BY_HANDLE_FILE_INFORMATION info);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FILE_ATTRIBUTE_TAG_INFO { public uint Attributes; public uint ReparseTag; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FILE_ID_INFO { public ulong VolumeSerial; public ulong IdLow; public ulong IdHigh; }
+
+        public const int FileAttributeTagInfo = 9, FileIdInfo = 18;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int kind, out FILE_ATTRIBUTE_TAG_INFO info, uint size);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int kind, out FILE_ID_INFO info, uint size);
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetFileType(SafeFileHandle handle);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool MoveFileExW(string from, string to, uint flags);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool DeleteFileW(string path);
+
+        public const int ERROR_FILE_EXISTS = 80, ERROR_ALREADY_EXISTS = 183;
+
+        /// Writes the file's buffered data and metadata to the drive (FileStream.Flush(true) calls it too).
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool FlushFileBuffers(SafeFileHandle handle);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WIN32_FIND_DATA
+        {
+            public uint Attributes;
+            public System.Runtime.InteropServices.ComTypes.FILETIME Created, Accessed, Written;
+            public uint SizeHigh, SizeLow, Reserved0, Reserved1;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string FileName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 14)] public string AlternateName;
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr FindFirstFileW(string path, out WIN32_FIND_DATA data);
+
+        [DllImport("kernel32.dll")]
+        public static extern bool FindClose(IntPtr handle);
+
+        // ------------------------------------------------------------------ shell and windows
+
+        public const uint SHARD_PATHW = 3;
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        public static extern void SHAddToRecentDocs(uint flags, string path);
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        public static extern int SetCurrentProcessExplicitAppUserModelID(string id);
+
+        public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmGetColorizationColor(out uint color, out bool opaque);
+        public const int WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320;
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetSystemMenu(IntPtr hwnd, bool revert);
+
+        public const uint MF_STRING = 0, MF_SEPARATOR = 0x800, MF_GRAYED = 1;
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern bool AppendMenuW(IntPtr menu, uint flags, UIntPtr id, string text);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr CreatePopupMenu();
+
+        [DllImport("user32.dll")]
+        public static extern bool DestroyMenu(IntPtr menu);
+
+        public const uint TPM_RETURNCMD = 0x100, TPM_NONOTIFY = 0x80;
+        [DllImport("user32.dll")]
+        public static extern int TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr hwnd, IntPtr reserved);
+
+        [DllImport("user32.dll")]
+        public static extern short GetKeyState(int key);
+
+        [DllImport("user32.dll")]
+        public static extern bool MessageBeep(uint type);
+
+        public const int WM_SYSCOMMAND = 0x0112, WM_SETTINGCHANGE = 0x001A, WM_MOVE = 0x0003, WM_MOVING = 0x0216;
+        public const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12;
+
+        public static bool Down(int key) => (GetKeyState(key) & 0x8000) != 0;
+    }
+}

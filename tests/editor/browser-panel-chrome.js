@@ -1,0 +1,159 @@
+"use strict";
+
+// Panel chrome the user reported (2026-11-23):
+//  - every dock panel header's trailing buttons, and their icons, sit on the title row's centre line;
+//  - scrolling never changes layout width: no native scrollbar takes space or paints a track (overlay
+//    thumbs, ui/overlay-scroll.js), checked with Chrome's classic scrollbars turned on;
+//  - Properties shows only properties: an imported design's report lives in Reports › Import Report and the
+//    project's ⋯ menu, not in a Properties section.
+// Run standalone or with integration-browser.cjs --panel-chrome-only.
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const {pathToFileURL} = require("node:url");
+
+const APP = path.join(__dirname, "../../app");
+
+async function boot(browser, viewport = {width:1400, height:900}) {
+  const page = await browser.newPage({viewport, reducedMotion:"reduce"});
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.setDefaultTimeout(8000);
+  await page.goto(pathToFileURL(path.join(APP, "index.html")).href);
+  const demo = page.locator("dialog.sp-dialog[open]").getByRole("button", {name:"Try the Demo", exact:true});
+  await demo.click();
+  await page.locator("#doc-name", {hasText:"Sensor board"}).waitFor();
+  await page.waitForFunction(() => !!globalThis.AtriumDock?.current?.() && !!globalThis.AtriumNavHost);
+  return {page, errors};
+}
+
+// Each dock panel header: its title row's centre (the heading, or the first tab when a dock tab names
+// the panel), and every button on that row with its icon.
+function headerGeometry() {
+  const out = [];
+  for (const p of document.querySelectorAll("[data-dock-panel]")) {
+    if (!p.getClientRects().length || p.hidden || p.classList.contains("dock-inactive")) continue;
+    const head = p.querySelector(":scope > header, :scope > .pane-heading, :scope > .msg-head, :scope > .script-bar");
+    if (!head?.getClientRects().length) continue;
+    const shown = n => n.getClientRects().length && n.getBoundingClientRect().height > 0;
+    const title = [...head.querySelectorAll("h2, [role=tab]")].find(shown);
+    if (!title) continue;
+    const tr = title.getBoundingClientRect(), centre = tr.top + tr.height / 2;
+    for (const b of head.querySelectorAll("button")) {
+      if (!shown(b) || b.matches("[role=tab]") || title.contains(b)) continue;
+      const r = b.getBoundingClientRect(), c = r.top + r.height / 2;
+      if (Math.abs(c - centre) > tr.height) continue; // a wrapped second row (the compact Messages header)
+      const icon = b.querySelector(":scope > svg");
+      const ir = icon?.getBoundingClientRect();
+      out.push({panel:p.dataset.dockPanel, button:b.getAttribute("aria-label") || b.textContent.trim(),
+        off:+(c - centre).toFixed(2), iconOff:ir ? +(ir.top + ir.height / 2 - centre).toFixed(2) : 0});
+    }
+  }
+  return out;
+}
+
+async function headers(browser) {
+  const {page, errors} = await boot(browser);
+  try {
+    const actions = await page.evaluate(() => [...document.querySelectorAll("#sub-window-panels [data-action]")].map(n => n.dataset.action));
+    const seen = new Map();
+    for (const action of actions) {
+      await page.evaluate(a => AtriumNavHost.act(a), action);
+      await page.waitForFunction(a => AtriumLazy.has(AtriumLazy.forAction(a, AtriumNavHost.doc().kind) || []), action);
+      for (const g of await page.evaluate(headerGeometry)) seen.set(g.panel + " · " + g.button, g);
+    }
+    const panels = new Set([...seen.values()].map(g => g.panel));
+    assert.ok(panels.size >= 8 && panels.has("messages"), "header buttons measured on " + [...panels].join(", "));
+    const off = [...seen.entries()].filter(([, g]) => Math.abs(g.off) > .5 || Math.abs(g.iconOff) > .5).map(([k, g]) => k + " " + g.off + "/" + g.iconOff);
+    assert.deepEqual(off, [], "every header button and its icon sit on the title row's centre (±0.5 px)");
+    assert.deepEqual(errors, [], "no page errors");
+  } finally { await page.close(); }
+}
+
+// Every scroll container: no width taken by a scrollbar.
+function gutters() {
+  const out = [];
+  for (const n of document.querySelectorAll("*")) {
+    if (!n.getClientRects().length || n.classList.contains("ui-scroll-thumb")) continue;
+    const s = getComputedStyle(n);
+    if (!/auto|scroll/.test(s.overflowY + s.overflowX)) continue;
+    const v = n.offsetWidth - n.clientWidth - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
+    const h = n.offsetHeight - n.clientHeight - parseFloat(s.borderTopWidth) - parseFloat(s.borderBottomWidth);
+    if (Math.round(v) > 0 || Math.round(h) > 0) out.push((n.id ? "#" + n.id : n.tagName.toLowerCase() + "." + String(n.className).split(" ")[0]) + " " + Math.round(v) + "/" + Math.round(h));
+  }
+  return out;
+}
+
+async function scrollbars(browser) {
+  // Chrome hides scrollbars in headless runs; turn them back on, as WebKit shows them with a mouse attached.
+  const at = process.argv.indexOf("--executable"), type = browser.browserType();
+  const classic = await type.launch({headless:true, ignoreDefaultArgs:["--hide-scrollbars"],
+    ...(at > 0 ? {executablePath:process.argv[at + 1]} : {channel:"chrome"})});
+  try {
+    const {page, errors} = await boot(classic, {width:1400, height:1000});
+    const fieldWidth = () => page.evaluate(() => document.querySelector("#inspector .field-row .ui-field")?.getBoundingClientRect().width);
+    const overflowing = () => page.evaluate(() => { const i = document.getElementById("inspector"); return i.scrollHeight > i.clientHeight; });
+    await page.evaluate(() => { const h = AtriumNavHost; h.select([h.doc().items.find(i => i.kind === "via").id]); });
+    await page.locator("#inspector .field-row .ui-field").first().waitFor();
+    assert.equal(await overflowing(), false, "Properties fits a tall window");
+    const before = await fieldWidth();
+    await page.setViewportSize({width:1400, height:420});
+    await page.waitForFunction(() => { const i = document.getElementById("inspector"); return i.scrollHeight > i.clientHeight; });
+    assert.equal(await fieldWidth(), before, "Properties keeps its width when its content starts to scroll");
+    // Other scrolling surfaces: Messages, the Library and Preferences.
+    for (const a of ["messages", "library-panel"]) await page.evaluate(a => AtriumNavHost.act(a), a);
+    await page.evaluate(async () => { await AtriumLazy.need("AtriumPrefs"); AtriumPrefs.open("general"); });
+    await page.getByRole("dialog", {name:"Preferences", exact:true}).waitFor();
+    for (const id of ["messages", "library"]) await page.locator(`[data-dock-panel="${id}"]`).waitFor({state:"attached"});
+    assert.deepEqual(await page.evaluate(gutters), [], "no scroll container gives width to a scrollbar");
+    await page.keyboard.press("Escape");
+    // Scrolling shows an overlay thumb on the scroller's edge; it fades once the scrolling stops.
+    const box = await page.locator("#inspector").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 160);
+    await page.waitForFunction(() => [...document.querySelectorAll(".ui-scroll-thumb[data-shown]")].length > 0);
+    await page.mouse.move(box.x + 20, box.y + 20);
+    await page.waitForFunction(() => !document.querySelector(".ui-scroll-thumb[data-shown]"), null, {timeout:3000});
+    assert.deepEqual(errors, [], "no page errors");
+    await page.close();
+  } finally { await classic.close(); }
+}
+
+async function importReport(browser) {
+  const {page, errors} = await boot(browser);
+  try {
+    await page.evaluate(() => {
+      const h = AtriumNavHost, p = h.project(), d = h.doc();
+      h.edit(() => { p.importNotes = ["Imported 3 polygons as outlines."]; d.sourceName = "Sensor.PcbDoc"; });
+      h.select([]);
+    });
+    await page.locator("#inspector :is(h3, summary)").first().waitFor();
+    const headings = await page.locator("#inspector :is(h3, summary)").allTextContents();
+    assert.ok(!headings.some(h => /import/i.test(h)), "Properties has no import section: " + headings.join(", "));
+    // The project's ⋯ menu leads to the report.
+    await page.locator('[data-project-menu="more"]').click();
+    const item = page.locator(".nav-menu [role=menuitem]", {hasText:"Import Report"});
+    await item.waitFor();
+    await item.click();
+    const sheet = page.locator("dialog[open]", {hasText:"Import details"});
+    await sheet.waitFor();
+    assert.ok((await sheet.textContent()).includes("Imported 3 polygons as outlines."), "the import notes are in the report");
+    assert.deepEqual(errors, [], "no page errors");
+  } finally { await page.close(); }
+}
+
+module.exports = async function panelChrome(browser) {
+  await headers(browser);
+  await scrollbars(browser);
+  await importReport(browser);
+  console.log("panel chrome: header buttons centred, overlay scrollbars, import report out of Properties: ok");
+};
+
+if (require.main === module) {
+  require("../support/standalone-chromium.cjs")(
+    () => {
+      const at = process.argv.indexOf("--executable");
+      return {headless:true, ...(at > 0 ? {executablePath:process.argv[at + 1]} : {channel:"chrome"})};
+    },
+    browser => module.exports(browser),
+    error => { console.error(error); process.exit(1); });
+}

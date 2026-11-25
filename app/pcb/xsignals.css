@@ -1,0 +1,16 @@
+/* xSignals Wizard (AtriumXSignals.open). Builds on .work-dialog / .work-form from workflows.css. */
+.xs-dialog {width:min(860px,calc(100vw - 40px));max-height:min(86vh,820px);display:flex;flex-direction:column;padding:16px 24px}
+.xs-dialog[open] {display:flex}
+.xs-head h2 {margin:0}
+.xs-note {margin:4px 0 8px;font-size:var(--fs-12);color:var(--muted)}
+.xs-form select[multiple] {min-height:72px}
+.xs-check {display:flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--muted)}
+.xs-status {margin:8px 0 4px;font-size:var(--fs-12);color:var(--muted)}
+.xs-status.bad {color:var(--error)}
+.xs-preview {flex:1 1 auto;min-height:120px;overflow:auto;overscroll-behavior:contain;border-top:1px solid var(--line)}
+.xs-table {width:100%;border-collapse:collapse;font-size:var(--fs-12)}
+.xs-table th {position:sticky;top:0;z-index:var(--z-sticky);background:var(--panel-head);color:var(--muted);font-size:var(--fs-11);font-weight:var(--fw-medium);text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}
+.xs-table td {padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xs-table tr[data-role=other] td:first-child {color:var(--faint)}
+.xs-sub {margin:8px 0 4px;font-size:var(--fs-12);font-weight:var(--fw-semibold)}
+.xs-rules {margin:0 0 8px;padding-left:18px;font-size:var(--fs-11);color:var(--muted)}

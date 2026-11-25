@@ -1,0 +1,5 @@
+{"kind":"project","formatVersion":"2.0","id":"imported-captions","name":"Off-sheet connector"}
+{"kind":"projectSetting","id":"imported-captions/setting/importNotes","key":"importNotes","value":["Ports connect across sheets as Project Options → Net identifier scope sets."]}
+{"kind":"document","id":"sheet-0","docKind":"schematic","name":"Crossing","order":"K","path":"Crossing.wsch"}
+{"kind":"document","id":"sheet-1","docKind":"pcb","name":"Board layout","order":"e","path":"Board layout.wpcb"}
+{"kind":"library","id":"symbol","order":"V","path":"libraries/Probe.wlib"}

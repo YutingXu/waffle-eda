@@ -1,0 +1,34 @@
+/* Your First Board tutorial (tutorial.js): the coach card docked at the top of Properties, and
+   the highlight on the control a step uses. Design tokens only (docs/design-system.md). */
+.tut-card {flex:none;margin:var(--s-8);padding:var(--s-8) var(--s-12) var(--s-12);border:1px solid var(--primary-line);border-left:3px solid var(--accent);
+  border-radius:var(--r-md);background:var(--surface);color:var(--text);font-size:var(--fs-12);line-height:var(--lh);box-shadow:var(--elev-1);
+  max-height:55vh;overflow:auto}
+.tut-card[hidden] {display:none}
+.tut-card:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+.tut-head {display:flex;align-items:center;gap:var(--s-8);margin-bottom:var(--s-4)}
+.tut-name {flex:1;margin:0;font-size:var(--fs-11);font-weight:var(--fw-semibold);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tut-tools {display:flex;gap:var(--s-2)}
+.tut-icon {display:inline-flex;align-items:center;justify-content:center;width:var(--ctl-h-sm);height:var(--ctl-h-sm);padding:0;border:0;border-radius:var(--r-sm);
+  background:transparent;color:var(--muted);font-size:var(--fs-13);line-height:1}
+.tut-icon:hover {background:var(--hover);color:var(--text)}
+.tut-close {font-size:0}
+.tut-close::before {content:"";width:12px;height:12px;background:currentColor;-webkit-mask:var(--icon-close) center/contain no-repeat;mask:var(--icon-close) center/contain no-repeat}
+.tut-count {margin:0;color:var(--muted);font-size:var(--fs-11)}
+.tut-meter {height:4px;margin:var(--s-4) 0 var(--s-8);border-radius:var(--r-pill);background:var(--raised);overflow:hidden}
+.tut-meter-bar {display:block;width:100%;height:100%;background:var(--accent)}
+.tut-title {margin:0 0 var(--s-4);font-size:var(--fs-14);font-weight:var(--fw-semibold)}
+.tut-text {margin:0 0 var(--s-8);line-height:var(--lh-loose)}
+.tut-how {margin:0 0 var(--s-8);display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s-2)}
+.tut-note {margin:0 0 var(--s-8);padding:var(--s-4) var(--s-8);border-radius:var(--r-sm);background:var(--tint-info);color:var(--text);line-height:var(--lh-loose)}
+.tut-wait {margin:0 0 var(--s-8);color:var(--muted)}
+.tut-error {margin:0 0 var(--s-8);padding:var(--s-4) var(--s-8);border-radius:var(--r-sm);background:var(--tint-danger);color:var(--text)}
+.tut-link {padding:0;border:0;background:none;color:var(--accent-text);font:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer;height:auto}
+.tut-link:hover {text-decoration-thickness:2px}
+.tut-path {font-weight:var(--fw-medium);text-align:left}
+.tut-actions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--s-6);margin-top:var(--s-4)}
+.tut-actions .tut-quiet {margin-inline-end:auto}
+.tut-tracks {margin:0 0 var(--s-8);padding:0;border:0;display:grid;gap:var(--s-2)}
+.tut-tracks legend {padding:0;margin-bottom:var(--s-4);color:var(--muted);font-size:var(--fs-11)}
+.tut-track {display:flex;align-items:center;gap:var(--s-6)}
+/* The control the current step uses. */
+[data-tut-highlight] {outline:2px solid var(--accent)!important;outline-offset:1px;border-radius:var(--r-sm)}

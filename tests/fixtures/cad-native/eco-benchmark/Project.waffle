@@ -1,0 +1,6 @@
+{"kind":"project","formatVersion":"2.0","id":"eco-benchmark","name":"Buffer"}
+{"kind":"document","id":"pcb","docKind":"pcb","name":"Buffer board","order":"e","path":"Buffer board.wpcb"}
+{"kind":"document","id":"sch","docKind":"schematic","name":"Input stage","order":"K","path":"Input stage.wsch"}
+{"kind":"library","id":"std-c","order":"j","path":"libraries/Capacitor.wlib"}
+{"kind":"library","id":"std-j3","order":"F","path":"libraries/3-pin header.wlib"}
+{"kind":"library","id":"std-r","order":"U","path":"libraries/Resistor.wlib"}

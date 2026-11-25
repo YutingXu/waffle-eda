@@ -1,0 +1,11 @@
+(footprint "TestPad_Test"
+	(version 20240108)
+	(generator "atrium_test_fixture")
+	(layer "F.Cu")
+	(descr "Hand-made 1 mm test pad that no symbol names")
+	(property "Reference" "REF**" (at 0 -1.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))
+	(property "Value" "TestPad_Test" (at 0 1.5 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))
+	(attr smd)
+	(fp_circle (center 0 0) (end 0.75 0) (stroke (width 0.05) (type solid)) (fill none) (layer "F.CrtYd"))
+	(pad "1" smd circle (at 0 0) (size 1 1) (layers "F.Cu" "F.Mask"))
+)

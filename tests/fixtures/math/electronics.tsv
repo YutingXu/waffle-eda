@@ -1,0 +1,101 @@
+id	group	mode	title	tex
+ohm	dc	inline	Ohm's law	V=IR
+joule	dc	inline	Resistor dissipation	P=I^2R
+capacitor-charge	dc	inline	Capacitor charge	Q=CV
+capacitor-energy	dc	display	Capacitor stored energy	E_C=\frac{1}{2}CV^2
+inductor-energy	dc	display	Inductor stored energy	E_L=\frac{1}{2}LI^2
+parallel-resistance	dc	display	Parallel resistance	\frac{1}{R_\mathrm{eq}}=\sum_{k=1}^{n}\frac{1}{R_k}
+divider	dc	display	Unloaded voltage divider	V_\mathrm{out}=V_\mathrm{in}\frac{R_2}{R_1+R_2}
+current-divider	dc	display	Two-branch current divider	I_1=I_\mathrm{in}\frac{R_2}{R_1+R_2}
+kcl	dc	inline	Kirchhoff current law	\sum_{k=1}^{n}I_k=0
+kvl	dc	inline	Kirchhoff voltage law	\sum_{k=1}^{n}V_k=0
+rc-time	transient	inline	RC time constant	\tau=RC
+rl-time	transient	display	RL time constant	\tau=\frac{L}{R}
+rc-charge	transient	display	Charging capacitor step response	v_C(t)=V_S\left(1-e^{-t/(RC)}\right)
+rc-discharge	transient	inline	Capacitor discharge	v_C(t)=V_0 e^{-t/(RC)}
+rl-step	transient	display	Series RL step response	i_L(t)=\frac{V_S}{R}\left(1-e^{-tR/L}\right)
+lc-resonance	transient	display	LC natural frequency	\omega_0=\frac{1}{\sqrt{LC}}
+rlc-damping	transient	display	Series RLC damping ratio	\zeta=\frac{R}{2}\sqrt{\frac{C}{L}}
+capacitor-current	transient	display	Capacitor current	i_C=C\frac{dv_C}{dt}
+inductor-voltage	transient	display	Inductor voltage	v_L=L\frac{di_L}{dt}
+step-settling	transient	display	First-order settling to fractional error	t_s=-\tau\ln\epsilon
+resistor-impedance	ac	inline	Resistance in phasor form	Z_R=R
+inductor-impedance	ac	inline	Inductive reactance	Z_L=j\omega L
+capacitor-impedance	ac	display	Capacitive reactance	Z_C=\frac{1}{j\omega C}
+rlc-impedance	ac	display	Series RLC impedance	Z=R+j\left(\omega L-\frac{1}{\omega C}\right)
+phasor-peak	ac	inline	Phasor from magnitude and phase	\hat{V}=V_\mathrm{p}e^{j\phi}
+admittance	ac	display	Impedance and admittance	Y=\frac{1}{Z}=G+jB
+ac-real-power	ac	inline	AC real power	P=V_\mathrm{rms}I_\mathrm{rms}\cos\phi
+ac-reactive-power	ac	inline	AC reactive power	Q=V_\mathrm{rms}I_\mathrm{rms}\sin\phi
+ac-apparent-power	ac	inline	Apparent power	S=\sqrt{P^2+Q^2}
+sine-rms	ac	display	Sinusoidal RMS	V_\mathrm{rms}=\frac{V_\mathrm{p}}{\sqrt{2}}
+low-pass	filters	display	RC low-pass transfer	H(s)=\frac{1}{1+sRC}
+high-pass	filters	display	RC high-pass transfer	H(s)=\frac{sRC}{1+sRC}
+rc-cutoff	filters	display	Single-pole cutoff frequency	f_c=\frac{1}{2\pi RC}
+butterworth	filters	display	Butterworth amplitude	|H(j\omega)|=\frac{1}{\sqrt{1+(\omega/\omega_c)^{2n}}}
+second-lp	filters	display	Normalized second-order low-pass	H(s)=\frac{\omega_0^2}{s^2+2\zeta\omega_0s+\omega_0^2}
+series-q	filters	display	Series RLC quality factor	Q=\frac{\omega_0L}{R}
+bandwidth-q	filters	display	Quality factor and bandwidth	Q=\frac{f_0}{f_2-f_1}
+resonant-notch	filters	display	Unity-gain notch filter	H(s)=\frac{s^2+\omega_0^2}{s^2+(\omega_0/Q)s+\omega_0^2}
+voltage-db	filters	display	Voltage gain in decibels	A_\mathrm{dB}=20\log_{10}\left|\frac{V_\mathrm{out}}{V_\mathrm{in}}\right|
+cascade	filters	display	Cascaded stage transfer	H_\mathrm{tot}(s)=\prod_{k=1}^{n}H_k(s)
+inv-gain	opamps	display	Inverting gain	A_v=-\frac{R_f}{R_\mathrm{in}}
+noninv-gain	opamps	display	Non-inverting gain	A_v=1+\frac{R_f}{R_g}
+balanced-differential	opamps	display	Balanced difference amplifier	V_\mathrm{out}=\frac{R_2}{R_1}(V_2-V_1)
+feedback	opamps	display	Negative-feedback closed-loop gain	A_\mathrm{cl}=\frac{A}{1+A\beta}
+transimpedance	opamps	inline	Ideal transimpedance stage	V_\mathrm{out}=-R_f I_\mathrm{in}
+integrator	opamps	display	Ideal inverting integrator	V_\mathrm{out}(t)=-\frac{1}{RC}\int_0^t V_\mathrm{in}(\tau)\,d\tau
+differentiator	opamps	display	Ideal inverting differentiator	V_\mathrm{out}=-RC\frac{dV_\mathrm{in}}{dt}
+cmrr	opamps	display	Common-mode rejection in decibels	\mathrm{CMRR}=20\log_{10}\left|\frac{A_d}{A_\mathrm{cm}}\right|
+sine-slew	opamps	display	Sine-wave slew requirement	\mathrm{SR}_{\min}=2\pi fV_\mathrm{p}
+comparator	opamps	display	Ideal comparator states	V_o=\begin{cases}V_\mathrm{H}&V_+>V_-\\V_\mathrm{L}&V_+<V_-\end{cases}
+line-z0	rf	display	Lossless line impedance	Z_0=\sqrt{\frac{L'}{C'}}
+line-velocity	rf	display	Lossless line wave velocity	v_\mathrm{p}=\frac{1}{\sqrt{L'C'}}
+wavelength	rf	display	Wavelength	\lambda=\frac{v_\mathrm{p}}{f}
+reflection	rf	display	Load reflection coefficient	\Gamma_L=\frac{Z_L-Z_0}{Z_L+Z_0}
+vswr	rf	display	Voltage standing-wave ratio	\mathrm{VSWR}=\frac{1+|\Gamma_L|}{1-|\Gamma_L|}
+line-input	rf	display	Lossless line input impedance	Z_\mathrm{in}=Z_0\frac{Z_L+jZ_0\tan(\beta\ell)}{Z_0+jZ_L\tan(\beta\ell)}
+return-loss	rf	inline	Return loss	\mathrm{RL}=-20\log_{10}|\Gamma_L|
+group-delay	rf	display	Group delay	\tau_g=-\frac{d\phi}{d\omega}
+abcd	rf	display	ABCD two-port relationship	\begin{bmatrix}V_1\\I_1\end{bmatrix}=\begin{bmatrix}A&B\\C&D\end{bmatrix}\begin{bmatrix}V_2\\-I_2\end{bmatrix}
+scattering	rf	display	Two-port scattering matrix	\begin{pmatrix}b_1\\b_2\end{pmatrix}=\begin{pmatrix}S_{11}&S_{12}\\S_{21}&S_{22}\end{pmatrix}\begin{pmatrix}a_1\\a_2\end{pmatrix}
+shockley	power	display	Shockley diode equation	I_D=I_S\left(e^{V_D/(nV_T)}-1\right)
+thermal-voltage	power	display	Thermal voltage	V_T=\frac{k_\mathrm{B}T}{q}
+mos-saturation	power	display	Long-channel MOSFET saturation	I_D=\frac{1}{2}\mu_n C_\mathrm{ox}\frac{W}{L}(V_\mathrm{GS}-V_T)^2
+mos-triode	power	display	Long-channel MOSFET triode	I_D=\mu_n C_\mathrm{ox}\frac{W}{L}\left((V_\mathrm{GS}-V_T)V_\mathrm{DS}-\frac{V_\mathrm{DS}^2}{2}\right)
+buck	power	inline	Ideal continuous-mode buck	V_o=DV_\mathrm{in}
+boost	power	display	Ideal continuous-mode boost	V_o=\frac{V_\mathrm{in}}{1-D}
+inverting-buckboost	power	display	Ideal inverting buck-boost	V_o=-\frac{D}{1-D}V_\mathrm{in}
+switching-loss	power	display	Linear transition loss estimate	P_\mathrm{sw}\approx\frac{1}{2}V_\mathrm{DS}I_D(t_r+t_f)f_s
+thermal-rise	power	inline	Steady-state junction temperature	T_j=T_a+P_D\theta_\mathrm{JA}
+buck-ripple	power	display	Buck inductor current ripple	\Delta I_L=\frac{(V_\mathrm{in}-V_o)D}{Lf_s}
+nyquist	sampling	inline	Nyquist sampling condition	f_s>2f_{\max}
+adc-lsb	sampling	display	ADC nominal quantization step	V_\mathrm{LSB}=\frac{V_\mathrm{FS}}{2^N}
+adc-enob	sampling	display	Effective number of bits	\mathrm{ENOB}=\frac{\mathrm{SINAD}-1.76\,\mathrm{dB}}{6.02\,\mathrm{dB}}
+quantization-snr	sampling	inline	Ideal sine-wave quantization SNR	\mathrm{SNR}=6.02N+1.76\,\mathrm{dB}
+quantization-noise	sampling	display	Uniform quantization error RMS	\sigma_q=\frac{\Delta}{\sqrt{12}}
+adc-ideal-code	sampling	display	Ideal ADC code within range	k=\left\lfloor\frac{V_\mathrm{in}-V_\mathrm{min}}{V_\mathrm{LSB}}\right\rfloor
+zero-order-hold	sampling	display	Normalized zero-order hold	H(f)=e^{-j\pi fT}\frac{\sin(\pi fT)}{\pi fT}
+jitter-snr	sampling	inline	Aperture jitter noise limit	\mathrm{SNR}_j=-20\log_{10}(2\pi f_\mathrm{in}\sigma_t)
+average-filter	sampling	display	Moving average	y[n]=\frac{1}{M}\sum_{k=0}^{M-1}x[n-k]
+dft	sampling	display	Discrete Fourier transform	X[k]=\sum_{n=0}^{N-1}x[n]e^{-j2\pi kn/N}
+johnson-noise	noise	display	Johnson noise over bandwidth	v_n=\sqrt{4k_\mathrm{B}TR\Delta f}
+shot-noise	noise	display	Shot noise over bandwidth	i_n=\sqrt{2qI\Delta f}
+flicker-density	noise	display	Ideal voltage flicker PSD	S_v(f)=\frac{K}{f}
+friis	noise	display	Three-stage Friis noise factor	F_\mathrm{tot}=F_1+\frac{F_2-1}{G_1}+\frac{F_3-1}{G_1G_2}
+rss	noise	display	Independent noise RMS addition	\sigma_\mathrm{tot}=\sqrt{\sum_{k=1}^{n}\sigma_k^2}
+meas-average	noise	display	Sample mean	\bar{x}=\frac{1}{N}\sum_{k=1}^{N}x_k
+integrated-psd	noise	display	Integrated one-sided noise spectrum	v_\mathrm{rms}=\sqrt{\int_{f_1}^{f_2}S_v(f)\,df}
+log-noise	noise	inline	Noise figure from linear noise factor	\mathrm{NF}=10\log_{10}F
+lc-matching	noise	display	Uncertainty in LC resonant frequency	\frac{\sigma_f}{f_0}=\frac{1}{2}\sqrt{\left(\frac{\sigma_L}{L}\right)^2+\left(\frac{\sigma_C}{C}\right)^2}
+decade-variance	noise	display	Flicker noise variance in a decade	\int_{f_0}^{10f_0}\frac{K}{f}\,df=K\ln 10
+symbol-bitrate	digital	inline	Uncoded bit and symbol rates	R_b=R_s\log_2M
+binary-weight	digital	display	Unsigned binary positional value	D=\sum_{k=0}^{N-1}b_k2^k
+sampling-period	digital	display	Clock period	T_\mathrm{clk}=\frac{1}{f_\mathrm{clk}}
+pwm-average	digital	inline	PWM average voltage	\bar{V}=DV_\mathrm{H}+(1-D)V_\mathrm{L}
+setup-timing	digital	inline	Synchronous register setup budget	T_\mathrm{clk}\ge t_\mathrm{CQ}+t_\mathrm{logic}+t_\mathrm{setup}
+hold-timing	digital	inline	Synchronous register hold budget	t_{\mathrm{CQ,min}}+t_{\mathrm{logic,min}}\ge t_\mathrm{hold}
+quadrature	digital	display	In-phase and quadrature carrier	v(t)=I(t)\cos(\omega_ct)-Q(t)\sin(\omega_ct)
+sample-rms	digital	display	RMS of sampled voltage	V_\mathrm{rms}=\sqrt{\frac{1}{N}\sum_{k=0}^{N-1}v_k^2}
+lumped-units	digital	display	Resistance and frequency examples	R=4.7\,\mathrm{k}\Omega\qquad f_s=48\,\mathrm{kHz}
+rise-fall-window	digital	display	Pulse level as a time window	v(t)=\begin{cases}V_\mathrm{H}&0\le t<D T\\V_\mathrm{L}&D T\le t<T\end{cases}

@@ -1,0 +1,16 @@
+{"kind":"library","formatVersion":"2.0","id":"xyebannd4yz0emrvftv","name":"3-pin header"}
+{"kind":"pad","id":"xyebannd4yz0emrvftv/pad/1","order":"F","value":{"angle":0,"drill":1000000,"h":1750000,"number":"1","shape":"rect","w":1750000,"x":0,"y":-2540000}}
+{"kind":"pad","id":"xyebannd4yz0emrvftv/pad/2","order":"U","value":{"angle":0,"drill":1000000,"h":1750000,"number":"2","shape":"round","w":1750000,"x":0,"y":0}}
+{"kind":"pad","id":"xyebannd4yz0emrvftv/pad/3","order":"j","value":{"angle":0,"drill":1000000,"h":1750000,"number":"3","shape":"round","w":1750000,"x":0,"y":2540000}}
+{"kind":"pin","id":"xyebannd4yz0emrvftv/pin/1","order":"F","value":{"name":"1","number":"1","x":7620000,"y":-5080000}}
+{"kind":"pin","id":"xyebannd4yz0emrvftv/pin/2","order":"U","value":{"name":"2","number":"2","x":7620000,"y":0}}
+{"kind":"pin","id":"xyebannd4yz0emrvftv/pin/3","order":"j","value":{"name":"3","number":"3","x":7620000,"y":5080000}}
+{"kind":"librarySettings","id":"xyebannd4yz0emrvftv/settings","value":{"category":"Connectors","footprint":{"name":"PinHeader_1×03_2.54mm","pads":[],"shapes":[]},"prefix":"J","schDrawing":{"pins":[{"direction":[1,0],"end":[7620000,-5080000],"name":"","number":"1","start":[2159000,-5080000]},{"direction":[1,0],"end":[7620000,0],"name":"","number":"2","start":[2159000,0]},{"direction":[1,0],"end":[7620000,5080000],"name":"","number":"3","start":[2159000,5080000]}]},"symbol":{"pins":[],"shapes":[]},"value":"1 × 03"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/1","order":"7","side":"symbol","value":{"kind":"path","closed":true,"fill":true,"points":[[-2159000,-7620000],[2159000,-7620000],[2159000,7620000],[-2159000,7620000]],"style":"body"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/1-2","order":"V","side":"footprint","value":{"kind":"path","closed":true,"fill":false,"points":[[-1490000,-3810000],[1490000,-3810000],[1490000,3810000],[-1490000,3810000]],"style":"silk"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/2","order":"E","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[7620000,-5080000],[2159000,-5080000]],"style":"pin"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/3","order":"L","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[2159000,-5080000],[539750,-5080000]],"style":"body"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/4","order":"S","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[7620000,0],[2159000,0]],"style":"pin"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/5","order":"Z","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[2159000,0],[539750,0]],"style":"body"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/6","order":"g","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[7620000,5080000],[2159000,5080000]],"style":"pin"}}
+{"kind":"shape","id":"xyebannd4yz0emrvftv/shape/7","order":"n","side":"symbol","value":{"kind":"path","closed":false,"fill":false,"points":[[2159000,5080000],[539750,5080000]],"style":"body"}}

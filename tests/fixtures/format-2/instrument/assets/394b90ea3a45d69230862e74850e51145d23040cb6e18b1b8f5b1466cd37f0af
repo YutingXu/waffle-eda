@@ -1,0 +1,6 @@
+{"kind":"project","formatVersion":"2.0","id":"release-a/snapshot","name":"Instrument"}
+{"kind":"library","id":"amwqtkf8u57qyvuhe4mf","order":"V","path":"libraries/Precision.wlib"}
+{"kind":"document","id":"amwqtkf8uzgkfqlplv9t","docKind":"pcb","name":"Instrument","order":"e","path":"Instrument.wpcb"}
+{"kind":"document","id":"amwqtkf8xybbog9ug3m9","docKind":"schematic","name":"Schematic","order":"K","path":"Schematic.wsch"}
+{"kind":"projectSetting","id":"release-a/snapshot/setting/importNotes","key":"importNotes","value":["Instrument.kicad_pcb — No board outline (edge cuts) was found.","Instrument.kicad_pcb — Imported 1 footprints, 0 tracks, 0 vias and 0 zones"]}
+{"kind":"projectSetting","id":"release-a/snapshot/setting/revision","key":"revision","value":{"date":"2026-01-01","letter":"A","status":"released"}}

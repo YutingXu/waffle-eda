@@ -1,0 +1,23 @@
+{
+ "format": "atrium",
+ "version": 1,
+ "formatVersion": "1.4",
+ "name": "RC notebook",
+ "library": [
+  {"id":"def-r","name":"Resistor","prefix":"R","symbol":{"pins":[],"shapes":[]}},
+  {"id":"def-c","name":"Capacitor","prefix":"C","symbol":{"pins":[],"shapes":[]}}
+ ],
+ "documents": [{
+  "id":"timing","kind":"schematic","name":"Timing","grid":2.54,"outline":[],"notes":[],
+  "items":[
+   {"kind":"part","id":"r5","ref":"R5","def":"def-r","x":10,"y":10,"value":"10k"},
+   {"kind":"part","id":"c3","ref":"C3","def":"def-c","x":20,"y":10,"value":"1n"},
+   {"kind":"textframe","id":"corner","x":10,"y":20,"w":58,"h":16,"text":"f_c = 1/(2π·R5·C3)","calculation":{
+    "languageVersion":1,"bindings":[
+     {"id":"use-r","name":"R5","span":[12,14],"target":{"scope":"item","docId":"timing","itemId":"r5","field":"value"}},
+     {"id":"use-c","name":"C3","span":[15,17],"target":{"scope":"item","docId":"timing","itemId":"c3","field":"value"}}
+    ],"assertions":[]}}
+  ]
+ }]
+}
+

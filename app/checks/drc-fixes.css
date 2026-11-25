@@ -1,0 +1,21 @@
+/* Suggested DRC fixes (drc-fixes.js): the fix popover, the tooltip hint and the Messages row button. */
+.drc-fix-pop {position:fixed;z-index:var(--z-popover);width:min(340px,calc(100vw - 12px));max-height:calc(100vh - 12px);overflow:auto;
+  padding:var(--s-8);font-size:var(--fs-12);display:flex;flex-direction:column;gap:var(--s-6)}
+.drc-fix-pop strong {font-weight:600}
+.drc-fix-measure {color:var(--error-ink);font-variant-numeric:tabular-nums}
+.drc-fix-list {display:flex;flex-direction:column;gap:4px}
+.drc-fix-button {display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:var(--s-8);width:100%;text-align:left}
+.drc-fix-verdict {font-weight:700}
+.drc-fix-button[data-state="ok"] .drc-fix-verdict {color:var(--ok-ink)}
+.drc-fix-button[data-state="warn"] .drc-fix-verdict {color:var(--warn-ink)}
+.drc-fix-button[data-state="bad"] {opacity:.75}
+.drc-fix-button[data-state="bad"] .drc-fix-verdict {color:var(--bad-ink)}
+.drc-fix-status {margin:0;padding:4px 6px;border-left:3px solid var(--line-strong);color:var(--soft-ink, var(--ink));line-height:1.35}
+.drc-fix-status[data-state="ok"] {border-left-color:var(--ok-line)}
+.drc-fix-status[data-state="warn"] {border-left-color:var(--warn-line)}
+.drc-fix-status[data-state="bad"] {border-left-color:var(--bad-line)}
+.drc-fix-foot {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.drc-fix-foot small {color:var(--muted)}
+.drc-fix-hint {color:var(--primary);font-weight:600}
+.drc-fix-row {margin-inline-end:var(--s-6);vertical-align:baseline}
+.msg-panel tr[aria-selected="true"] .drc-fix-row {color:inherit;border-color:currentColor}

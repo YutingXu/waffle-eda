@@ -1,0 +1,192 @@
+{
+  "fixture": "tests/fixtures/butter-acceptance/links",
+  "manifest": "Link Board.waffle",
+  "cases": {
+    "copy-link": {
+      "args": {
+        "objectId": "01952010-a000-7000-8000-000000000003"
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found",
+        "untrusted_design_text.url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003",
+        "untrusted_design_text.label": "Rail"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "found",
+        "untrusted_design_text.url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+      },
+      "expectWrite": {
+        "copied": false
+      }
+    },
+    "resolve": {
+      "args": {
+        "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found"
+      }
+    },
+    "backlinks": {
+      "args": {
+        "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+      },
+      "expect": {
+        "changes": 0,
+        "total": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found"
+      }
+    },
+    "list": {
+      "args": {},
+      "expect": {
+        "changes": 0,
+        "total": 1
+      },
+      "expectPaths": {}
+    },
+    "status": {
+      "args": {
+        "recordId": "01952010-a000-7000-8000-000000000006"
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found"
+      }
+    },
+    "create": {
+      "args": {
+        "sourceId": "01952010-a000-7000-8000-000000000005",
+        "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003",
+        "label": "Board power"
+      },
+      "changedMembers": [
+        "Link Board.waffle"
+      ],
+      "afterWrite": {
+        "id": "backlinks",
+        "args": {
+          "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+        },
+        "expectPaths": {},
+        "expect": {
+          "total": 2
+        }
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+      }
+    },
+    "rebind": {
+      "args": {
+        "recordId": "01952010-a000-7000-8000-000000000006",
+        "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000004"
+      },
+      "changedMembers": [
+        "Link Board.waffle"
+      ],
+      "afterWrite": {
+        "id": "backlinks",
+        "args": {
+          "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000004"
+        },
+        "expectPaths": {},
+        "expect": {
+          "total": 1
+        }
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000004"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000004"
+      }
+    },
+    "remove": {
+      "args": {
+        "recordId": "01952010-a000-7000-8000-000000000006"
+      },
+      "changedMembers": [
+        "Link Board.waffle"
+      ],
+      "afterWrite": {
+        "id": "backlinks",
+        "args": {
+          "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000004"
+        },
+        "expectPaths": {},
+        "expect": {
+          "total": 0
+        }
+      },
+      "expect": {
+        "changes": 1
+      },
+      "expectPaths": {
+        "untrusted_design_text.recordId": "01952010-a000-7000-8000-000000000006"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.recordId": "01952010-a000-7000-8000-000000000006"
+      }
+    },
+    "anchor": {
+      "args": {
+        "kind": "net",
+        "documentId": "01952010-a000-7000-8000-000000000002",
+        "ownerId": "01952010-a000-7000-8000-000000000003"
+      },
+      "changedMembers": [
+        "Link Board.waffle"
+      ],
+      "expect": {
+        "changes": 1,
+        "created": true
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "found"
+      },
+      "expectWrite": {
+        "created": true
+      }
+    },
+    "open": {
+      "args": {
+        "url": "waffle://01952010-a000-7000-8000-000000000001/01952010-a000-7000-8000-000000000003"
+      },
+      "expect": {
+        "changes": 0
+      },
+      "expectPaths": {
+        "untrusted_design_text.status": "found"
+      },
+      "expectWritePaths": {
+        "untrusted_design_text.status": "found"
+      },
+      "expectWrite": {
+        "opened": false
+      }
+    }
+  }
+}

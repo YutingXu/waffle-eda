@@ -1,0 +1,68 @@
+{
+ "jlcpcb-4l": {
+  "jlc-se50 Top": 0.3555,
+  "jlc-se50 Bottom": 0.3555,
+  "jlc-diff90 Top": 0.222,
+  "jlc-diff90 Bottom": 0.222,
+  "jlc-diff100 Top": 0.2252,
+  "jlc-diff100 Bottom": 0.2252
+ },
+ "jlcpcb-4l-3313": {
+  "jlc-se50 Top": 0.1581,
+  "jlc-se50 Bottom": 0.1581,
+  "jlc-diff90 Top": 0.1268,
+  "jlc-diff90 Bottom": 0.1268,
+  "jlc-diff100 Top": 0.1198,
+  "jlc-diff100 Bottom": 0.1198
+ },
+ "jlcpcb-4l-2116": {
+  "jlc-se50 Top": 0.1887,
+  "jlc-se50 Bottom": 0.1887,
+  "jlc-diff90 Top": 0.1451,
+  "jlc-diff90 Bottom": 0.1451,
+  "jlc-diff100 Top": 0.1392,
+  "jlc-diff100 Bottom": 0.1392
+ },
+ "jlcpcb-6l": {
+  "jlc-se50 Top": 0.1581,
+  "jlc-se50 Inner 2": 0.5201,
+  "jlc-se50 Inner 3": 0.5201,
+  "jlc-se50 Bottom": 0.1581,
+  "jlc-diff90 Top": 0.1268,
+  "jlc-diff90 Inner 2": 0.1924,
+  "jlc-diff90 Inner 3": 0.1924,
+  "jlc-diff90 Bottom": 0.1268,
+  "jlc-diff100 Top": 0.1198,
+  "jlc-diff100 Inner 2": 0.2124,
+  "jlc-diff100 Inner 3": 0.2124,
+  "jlc-diff100 Bottom": 0.1198
+ },
+ "jlcpcb-6l-1080a": {
+  "jlc-se50 Top": 0.1188,
+  "jlc-se50 Inner 2": 0.5611,
+  "jlc-se50 Inner 3": 0.5611,
+  "jlc-se50 Bottom": 0.1188,
+  "jlc-diff90 Top": 0.1011,
+  "jlc-diff90 Inner 2": 0.1948,
+  "jlc-diff90 Inner 3": 0.1948,
+  "jlc-diff90 Bottom": 0.1011,
+  "jlc-diff100 Top": 0.0933,
+  "jlc-diff100 Inner 2": 0.2162,
+  "jlc-diff100 Inner 3": 0.2162,
+  "jlc-diff100 Bottom": 0.0933
+ },
+ "jlcpcb-6l-7628": {
+  "jlc-se50 Top": 0.3555,
+  "jlc-se50 Inner 2": 0.415,
+  "jlc-se50 Inner 3": 0.415,
+  "jlc-se50 Bottom": 0.3555,
+  "jlc-diff90 Top": 0.222,
+  "jlc-diff90 Inner 2": 0.1833,
+  "jlc-diff90 Inner 3": 0.1833,
+  "jlc-diff90 Bottom": 0.222,
+  "jlc-diff100 Top": 0.2252,
+  "jlc-diff100 Inner 2": 0.1986,
+  "jlc-diff100 Inner 3": 0.1986,
+  "jlc-diff100 Bottom": 0.2252
+ }
+}

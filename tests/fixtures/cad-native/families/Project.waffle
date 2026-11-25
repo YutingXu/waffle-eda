@@ -1,0 +1,7 @@
+{"kind":"project","formatVersion":"2.0","id":"families","name":"Component families"}
+{"kind":"library","id":"a-q","order":"F","path":"libraries/Demo A.wlib"}
+{"kind":"library","id":"b-g","order":"j","path":"libraries/Demo B (2).wlib"}
+{"kind":"library","id":"b-q","order":"U","path":"libraries/Demo B.wlib"}
+{"kind":"projectSetting","id":"families/setting/componentFamilies","key":"componentFamilies","value":[{"id":"family-demo","members":[{"defId":"a-q","part":"A"},{"defId":"b-q","part":"B"},{"defId":"b-g","part":"B"}],"name":"Analogue front ends"}]}
+{"kind":"document","id":"pcb","docKind":"pcb","name":"Board layout","order":"e","path":"Board layout.wpcb"}
+{"kind":"document","id":"schematic","docKind":"schematic","name":"Schematic","order":"K","path":"Schematic.wsch"}

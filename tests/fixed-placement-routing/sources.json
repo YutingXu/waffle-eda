@@ -1,0 +1,108 @@
+[
+  {
+    "id": "tpl5110",
+    "family": "adafruit",
+    "repo": "adafruit/Adafruit-TPL5110-Power-Timer-Breakout-PCB",
+    "revision": "f1967694bc20333d31b167e4eeaff58742e37bba",
+    "license": "CC-BY-SA-3.0",
+    "files": [
+      {
+        "role": "board",
+        "path": "Adafruit TPL5110.brd",
+        "sha256": "b061846be953bc507fd5a4ce2a502eb1391170cfa7c20995650e8a8ce8e6d3d1"
+      },
+      {
+        "role": "license",
+        "path": "license.txt",
+        "sha256": "1f63e1f4676a433423b2c2ff1ccd9e80093f341f10b81f0ac0106342bc7bbe89"
+      },
+      {
+        "role": "notice",
+        "path": "README.md",
+        "sha256": "d512f0e2e3fad5ddda206dcae09e6d6ea0d3404dee2692a6b74229eb3293af25"
+      }
+    ]
+  },
+  {
+    "id": "tmp117",
+    "family": "adafruit",
+    "repo": "adafruit/Adafruit-TMP117-PCB",
+    "revision": "874b3a5b27792d4d166547bab075cb963e1bdb32",
+    "license": "CC-BY-SA-3.0",
+    "files": [
+      {
+        "role": "board",
+        "path": "Adafruit_TMP117.brd",
+        "sha256": "a91de3882d9278d157ef3526270b1798f74daa4b8450b1aaf1b60809dfb68cbb"
+      },
+      {
+        "role": "license",
+        "path": "license.txt",
+        "sha256": "075dad5e5fc96c27014fabc269f4f5732909cffd178a486f546d982b6cf86b74"
+      },
+      {
+        "role": "notice",
+        "path": "README.md",
+        "sha256": "b14b1733d56b2e8d0c31b31566a835a9582acd0b72a4e207dda27482903272a2"
+      }
+    ]
+  },
+  {
+    "id": "qwiic-button",
+    "family": "sparkfun-qwiic",
+    "repo": "sparkfun/Qwiic_Button",
+    "revision": "e89a82fe2ddb293bfe0d6d9f63ccf4782a77c359",
+    "license": "CC-BY-SA-4.0",
+    "files": [
+      {
+        "role": "board",
+        "path": "Hardware/Qwiic_Button.brd",
+        "sha256": "c2783580884e2a6cfbae09d2224165c3b5d5da435c00d818f0dd3c50dadfbce4"
+      },
+      {
+        "role": "license",
+        "path": "LICENSE.md",
+        "sha256": "6532771f09b24eadc3e75b9c2ecb035c38ebea295542833e892fab9018c678da"
+      },
+      {
+        "role": "notice",
+        "path": "README.md",
+        "sha256": "0d603ee2fd8598b1d0b5600cc5e43d7ad9475e29d6af3aea212c69327b8d9c09"
+      }
+    ]
+  },
+  {
+    "id": "qwiic-buzzer",
+    "family": "sparkfun-qwiic",
+    "repo": "sparkfun/SparkFun_Qwiic_Buzzer",
+    "revision": "c6be60f1dea6db2bfb4b55cf7b543160fb68c8b6",
+    "license": "CC-BY-SA-4.0",
+    "files": [
+      {
+        "role": "board",
+        "path": "Hardware/SparkFun_Qwiic_Buzzer.brd",
+        "sha256": "e5e46c245674914d3f59f238a9e397f25eeeccbdb441b10d31dbbcb325a3dd10"
+      },
+      {
+        "role": "license",
+        "path": "LICENSE.md",
+        "sha256": "6532771f09b24eadc3e75b9c2ecb035c38ebea295542833e892fab9018c678da"
+      },
+      {
+        "role": "notice",
+        "path": "README.md",
+        "sha256": "32b5ebed240837f622d9c5b9e0dd6904bb1fe8f17dd476124d922a6edfd4737d"
+      }
+    ]
+  },
+  {
+    "id": "pidp11-io-expander",
+    "family": "pidp11-io-expander",
+    "fidelity": true
+  },
+  {
+    "id": "midas-communication",
+    "family": "midas-communication",
+    "fidelity": true
+  }
+]

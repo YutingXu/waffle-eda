@@ -1,0 +1,46 @@
+# Build output (CI release builds produce these)
+dist/
+# OS / editor / tooling noise
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+.vscode/
+.idea/
+# Local CI/runner state; never commit tokens
+actions-runner*/
+.env
+.env.*
+# WebKit UI probes install the harness app here (native/tests/macos-harness/ui.sh, HARNESS_INSTALL)
+native/tests/macos-harness/target/
+.claude/worktrees/
+
+# Generated application assets (python3 scripts/prepare-assets.py)
+/app/worker-source.js
+/app/folder-*-worker-source.js
+/app/calculation-worker-source.js
+/app/datasheet-worker-source.js
+/app/translator-table.js
+/app/translator-worker-modules.js
+/app/extensions/bundled.js
+/app/extensions/manifests.js
+/app/extensions/packages/
+/app/locales/*.js
+/app/locales/en-XA.*
+/app/engine-core.js
+/app/engine-mvp.js
+/app/engine-simd128.js
+/app/extension-template.js
+/app/fab-presets/*.js
+/app/search-data.js
+/app/getting-started-guide.js
+/app/automation/command-catalog.js
+/app/automation/legacy-command-contract.js
+/app/vendor/notebook-fonts/faces.js
+
+# Generated end-to-end fidelity manifest (python3 scripts/prepare-assets.py)
+/tests/e2e/modules.cjs
+
+# Generated collaboration deployment scripts (python3 scripts/gen-collab-launch.py)
+/deploy/collab-server/launch-script.sh
+/deploy/collab-server/waffle-setup.sh

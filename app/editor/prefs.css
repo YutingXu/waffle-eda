@@ -1,0 +1,224 @@
+/* The modeless Preferences window shares the editor’s dialog and control styles. */
+.prf-dialog {
+  --prf-content:color-mix(in srgb,var(--panel) 70%,var(--app));
+  --prf-window-width:960px;
+  --prf-window-height:640px;
+  --prf-control-width:240px;
+  --prf-row-height:44px;
+  --prf-help-row-height:56px;
+  --prf-caption-line:max(18px,calc(18px * var(--fs-scale)));
+  --prf-help-line:max(14px,calc(14px * var(--fs-scale)));
+  --prf-help-pad:10px;
+  --prf-section-gap:32px;
+  --prf-stepper-width:max(132px,calc(132px * var(--fs-scale)));
+  box-sizing:border-box;
+  container-type:inline-size;
+  inline-size:min(var(--prf-window-width),var(--dialog-avail-w));
+  block-size:min(var(--prf-window-height),var(--dialog-avail-h));
+  min-inline-size:min(420px,var(--dialog-avail-w));
+  min-block-size:min(400px,var(--dialog-avail-h));
+  max-inline-size:var(--dialog-avail-w);
+  max-block-size:var(--dialog-avail-h);
+  position:fixed;z-index:var(--z-alert);
+  --prf-preferred-x:max(var(--dialog-margin),calc((100vw - var(--prf-window-width)) / 2));
+  --prf-preferred-y:max(var(--dialog-safe-top),calc(var(--dialog-safe-top) + (var(--dialog-avail-h) - var(--prf-window-height)) / 2));
+  inset:var(--prf-window-y,var(--prf-center-y,var(--prf-preferred-y))) auto auto
+    var(--prf-window-x,var(--prf-center-x,var(--prf-preferred-x)));
+  margin:0;padding:0;
+  display:none;
+  box-shadow:var(--elev-3);
+  flex-direction:column;
+  overflow:hidden;
+  resize:both;
+}
+@supports (top:round(1px,1px)) {
+  .prf-dialog {
+    --prf-center-x:round(var(--prf-preferred-x),1px);
+    --prf-center-y:round(var(--prf-preferred-y),1px);
+  }
+}
+.prf-dialog[open] {display:flex}
+:root[data-theme=dark] .prf-dialog {--prf-content:var(--app)}
+.prf-body {display:flex;min-height:0;flex:1}
+.prf-nav {
+  flex:none;inline-size:220px;box-sizing:border-box;
+  display:flex;flex-direction:column;overflow:hidden;padding:0 10px 12px;
+  background:var(--chrome);border-inline-end:1px solid var(--line);
+}
+.prf-window-head {display:flex;align-items:center;flex:none;gap:8px;min-block-size:52px;padding-inline:4px}
+.work-dialog.prf-dialog .prf-title {flex:1;margin:0;font:600 var(--fs-13)/18px var(--font-ui)}
+.work-dialog .prf-window-head .prf-close {inline-size:28px;min-block-size:28px;justify-content:center;padding:0}
+.prf-close .icon {inline-size:14px;block-size:14px}
+@media(hover:hover) and (pointer:fine) {.prf-window-head {cursor:move;user-select:none}}
+.prf-search-box {flex:none}
+.prf-nav ul {list-style:none;margin:0;padding:0}
+.prf-page-groups {overflow:auto;min-block-size:0}
+.prf-nav-label {padding:14px 8px 4px;color:var(--muted);font:600 var(--fs-11)/14px var(--font-ui)}
+.prf-page-picker {display:none}
+.work-dialog .prf-nav button:not(.ui-search *) {
+  --ui-control-focus:var(--focus);--ui-button-hover:var(--ui-button-fill);
+  display:flex;gap:8px;inline-size:100%;min-block-size:28px;padding:0 8px;
+  border:0;text-align:start;font-size:var(--fs-13);transition:none;
+}
+.prf-nav-item .icon {flex:none;inline-size:16px;block-size:16px;color:var(--muted)}
+.prf-nav-item span {overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.prf-nav-item[aria-current=page] .icon {color:inherit}
+.prf-page {flex:1;min-width:0;overflow:auto;background:var(--prf-content);padding:28px 32px 32px}
+/* No cards: headings and hairlines group the rows on the page background. Every heading,
+   row and help line starts at the page title's inline edge; trailing controls share one column. */
+.prf-page-body {max-inline-size:600px;margin-inline:auto}
+.prf-page-body,.prf-page-section,.prf-group,.prf-card,.prf-links {display:grid;grid-template-columns:minmax(0,1fr)}
+:is(.prf-page-body,.prf-page-section) > :not(:first-child) {margin-block-start:var(--prf-section-gap)}
+.prf-page-body > .prf-content-head + * {margin-block-start:var(--s-24)}
+.prf-page-body > .prf-content-head + :not(.prf-group,.prf-page-section,.prf-appearance) {margin-block-start:var(--s-16)}
+/* Rows that follow a list without a heading continue that list. */
+:is(.prf-group,.prf-links,.prf-row) + :is(.prf-links,.prf-row) {margin-block-start:0}
+.prf-page-body > .prf-page-footer {margin-block-start:var(--s-24)}
+.prf-page-footer {display:flex;justify-content:flex-end}
+.prf-page-section[hidden] {display:none}
+.prf-dialog .prf-page-title {margin:0;font:600 calc(var(--fs-20) * 1.1)/28px var(--font-ui);letter-spacing:-.01em}
+.work-dialog .prf-restore-link {
+  min-block-size:28px;flex:none;padding:0 4px;border:0;background:transparent;color:var(--accent);
+}
+.work-dialog .prf-restore-link:hover {background:transparent;text-decoration:underline}
+.prf-dialog :is(.prf-heading,.prf-appearance .thp-group > .thp-heading) {
+  margin:0 0 var(--s-8);padding:0;font:600 var(--fs-16)/22px var(--font-ui);
+}
+.prf-row {
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr) var(--prf-control-width);
+  align-items:center;align-content:center;min-block-size:var(--prf-row-height);
+  gap:var(--s-4) var(--s-12);font:var(--fs-13)/var(--prf-caption-line) var(--font-ui);
+}
+.prf-row:not(.prf-link):has(> .prf-help) {
+  min-block-size:var(--prf-help-row-height);padding-block:var(--prf-help-pad);
+}
+.prf-row.prf-link {padding-block:var(--s-8)}
+/* One hairline above every row, including the first under its heading. */
+.prf-dialog .prf-row:not([hidden])::before,
+.prf-appearance .thp-card > :is(.thp-field,.thp-check,.thp-swatches)::before,.prf-appearance .thp-follow > .thp-field::before {
+  content:"";position:absolute;inset-block-start:0;inset-inline:0;block-size:1px;background:var(--line);pointer-events:none;
+}
+.prf-row.prf-check,.prf-row.prf-link {grid-template-columns:minmax(0,1fr)}
+.prf-link:has(> .prf-button:only-of-type) {grid-template-columns:minmax(0,1fr) minmax(0,min(240px,55%))}
+.prf-link > .prf-button:only-of-type {grid-area:1 / 2;justify-self:end;max-inline-size:100%;white-space:normal}
+.prf-link:has(> .prf-button:only-of-type) > .prf-help {grid-area:1 / 1}
+.prf-label {grid-area:1 / 1}
+/* Every trailing control is centred on its whole row, beside the caption and its help lines. */
+.prf-control {grid-area:1 / 2;display:flex;align-items:center;align-self:center;justify-content:flex-end;gap:6px;min-width:0}
+.prf-row:has(> .prf-help) > .prf-control {grid-row:1 / span 2}
+.prf-row:has(> .prf-help ~ .prf-help) > .prf-control {grid-row:1 / span 3}
+/* Values share the caption's system type and line box, including at larger UI sizes. */
+.prf-control :is(select,input[type=number],input[data-numeric-native]) {font-size:var(--fs-13);line-height:var(--prf-caption-line)}
+.prf-control > :is(select,input) {inline-size:100%;min-inline-size:0}
+.prf-control > input:is([type=number],[data-numeric-native]) {inline-size:var(--prf-stepper-width)}
+.prf-dialog .prf-help,.prf-appearance .thp-hint {
+  grid-column:1 / -1;color:var(--muted);font-size:calc((var(--fs-11) + var(--fs-12)) / 2);line-height:var(--prf-help-line);
+  min-inline-size:0;overflow-wrap:anywhere;
+}
+/* Leave room for the painted keycap around the 14px help line. */
+.prf-help .ui-shortcut[data-variant=inline-keycap] {
+  margin-block:calc(-1 * var(--s-2)) calc(-1 * var(--s-2) / 2);
+}
+.prf-row:not(.prf-check,.prf-link) > .prf-help {grid-area:2 / 1}
+/* A live status line (the renderer in use, whether Efficiency is in effect) stacks under the help. */
+.prf-row:not(.prf-check,.prf-link) > .prf-help ~ .prf-help {grid-area:3 / 1;margin-block-start:calc(-1 * var(--s-2))}
+/* A row of help alone (a note in a group) is one ordinary line. */
+.prf-row:not(.prf-link):has(> .prf-help:only-child) {min-block-size:var(--prf-row-height);padding-block:var(--s-8)}
+.prf-row:not(.prf-link) > .prf-help:only-child {grid-area:1 / 1 / auto / -1}
+.prf-check > .prf-help {grid-area:2 / 1;margin-inline-end:calc(var(--ui-switch-w) + var(--s-8))}
+.prf-stepper {
+  display:grid;grid-template-columns:minmax(0,1fr) 24px 24px;align-items:baseline;box-sizing:border-box;flex:none;
+  inline-size:var(--prf-stepper-width);min-block-size:var(--field-height);border:1px solid var(--input-line);border-radius:var(--r-lg);background:var(--field);
+}
+.prf-stepper:focus-within {outline:1px solid var(--focus);outline-offset:-1px}
+.prf-step-value {
+  display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;align-content:center;column-gap:var(--s-6);
+  min-inline-size:0;padding-inline:var(--s-8);
+}
+.prf-step-value input:is([type=number],[data-numeric-native]) {
+  appearance:textfield;flex:1 1 3ch;inline-size:0;min-inline-size:0;min-block-size:0;
+  block-size:calc(var(--field-height) - 2px);padding:0;border:0;
+  background:transparent;text-align:end;font-variant-numeric:tabular-nums;
+}
+.prf-step-value input::-webkit-inner-spin-button,.prf-step-value input::-webkit-outer-spin-button {appearance:none;margin:0}
+.prf-step-value .prf-unit {
+  flex:none;max-inline-size:100%;overflow-wrap:anywhere;color:var(--muted);font-size:var(--fs-11);line-height:var(--prf-help-line);
+}
+.prf-button {justify-self:start}
+.prf-note {color:var(--muted);margin:0}
+.prf-inline-actions {display:flex;gap:8px;flex-wrap:wrap}
+.prf-page-body > .prf-appearance + .prf-inline-actions {margin-block-start:var(--s-24)}
+.prf-page-body > .prf-inline-actions + .prf-inline-actions {margin-block-start:var(--s-8)}
+.prf-dialog .prf-appearance {padding:0;overflow:visible}
+.prf-appearance .thp-group ~ .thp-group {border:0;margin-block-start:var(--prf-section-gap);padding:0}
+.prf-appearance :is(.thp-group,.thp-card) {row-gap:0}
+.prf-appearance .thp-card {padding:0;border:0;background:none}
+.prf-appearance .thp-card.thg-gallery {padding:var(--s-4) 0 0;row-gap:var(--s-8)}
+.prf-appearance .thg-group > .thg-tools {padding-inline-end:0;margin-block-end:var(--s-8)}
+/* The heading spans its toolbar's line and centres its text there, so the gallery starts 8 px under both. */
+.prf-appearance .thg-group > .thp-heading {align-self:stretch;display:flex;align-items:center}
+.prf-appearance .thp-card > :is(.thp-field,.thp-check,.thp-swatches),.prf-appearance .thp-follow > .thp-field {position:relative;min-block-size:var(--prf-row-height);align-content:center}
+.prf-appearance .thp-swatches {padding-block:var(--s-8) var(--s-4)}
+.prf-appearance .thp-derived {margin:0;padding-block-end:var(--s-8)}
+.prf-appearance .thp-field:has(> .thp-hint) {padding-block:var(--prf-help-pad)}
+.prf-appearance .thp-field > .thp-label {grid-area:1 / 1;align-self:center}
+.prf-appearance :is(.thp-field > .thp-label,.thp-check) {color:var(--ink);font:var(--fs-13)/var(--prf-caption-line) var(--font-ui)}
+.prf-appearance .thp-field > .thp-hint {grid-area:2 / 1}
+.prf-appearance .thp-field > :not(.thp-label,.thp-hint) {grid-area:1 / 2;justify-self:end;align-self:center}
+.prf-appearance .thp-field:has(> .thp-hint) > :not(.thp-label,.thp-hint) {grid-row:1 / span 2}
+.prf-appearance .thp-field > select {inline-size:100%;font-size:var(--fs-13);line-height:var(--prf-caption-line)}
+.prf-appearance .thp-status:empty {display:none}
+.prf-status {min-height:18px;color:var(--muted);font-size:var(--fs-11);margin:0;padding:6px 16px 0}
+.prf-status.prf-status-error {color:var(--error-ink)}
+.prf-row[hidden],.prf-group[hidden],.prf-reset[hidden],.prf-page-body [data-search][hidden],.prf-card [hidden] {display:none}
+.prf-status:empty {display:none}
+
+/* Switches use the shared component (ui/controls.css). The caption's label covers the complete
+   row so the whole row is the pointer target, and the switch centres on the row, not the caption. */
+.prf-dialog .prf-check > label.ui-switch-row {
+  grid-area:1 / 1;display:block;position:static;min-block-size:0;
+}
+.prf-dialog .prf-check > label.ui-switch-row > span {display:block}
+.prf-dialog .prf-check > label.ui-switch-row::before {content:"";position:absolute;inset:0}
+
+.prf-row[data-modified]::after {
+  content:"";position:absolute;inset-inline-start:-12px;inset-block-start:calc(50% - 3px);
+  inline-size:6px;block-size:6px;border-radius:var(--r-pill);background:var(--accent);pointer-events:none;
+}
+.prf-row[data-modified] :is(.prf-label, label > span) {padding-inline-end:52px}
+.work-dialog .prf-reset {
+  position:absolute;inset-inline-end:calc(var(--prf-control-width) + 12px);inset-block-start:50%;transform:translateY(-50%);
+  min-block-size:22px;padding:0 4px;border:0;background:none;color:var(--accent-text);border-radius:var(--r-md);
+}
+.work-dialog .prf-check .prf-reset {z-index:1;inset-inline-end:calc(var(--ui-switch-w) + var(--s-8))}
+.work-dialog .prf-reset:hover {background:none;text-decoration:underline}
+.prf-dialog .prf-page-body.prf-enter {animation:atrium-fade var(--motion-fast) var(--ease-decelerate)}
+@media (hover:hover) and (pointer:fine) {
+  .work-dialog .prf-nav button:not(.ui-search *,[aria-current=page]) {--ui-button-hover:var(--hover)}
+  .prf-reset {opacity:0;pointer-events:none;transition:opacity var(--motion-menu-in) var(--ease-decelerate)}
+  .prf-row:is(:hover,:focus-within) .prf-reset {opacity:1;pointer-events:auto}
+}
+@container (max-width:700px) {
+  .prf-nav {inline-size:174px}
+  .prf-page {padding-inline:18px}
+}
+@container (max-width:620px) {
+  :is(.prf-row,.prf-appearance .thp-field) {grid-template-columns:minmax(0,1fr)}
+  :is(.prf-row:has(> .prf-help),.prf-row:has(> .prf-help ~ .prf-help)) > .prf-control {grid-row:auto}
+  .prf-appearance .thp-field > :not(.thp-label,.thp-hint) {grid-area:3 / 1}
+  .prf-control {grid-area:3 / 1}
+  .work-dialog .prf-row:not(.prf-check) .prf-reset {inset-inline-end:0;inset-block-start:0;transform:none}
+}
+@container (max-width:460px) {
+  .prf-body {flex-direction:column}
+  .prf-nav {inline-size:auto;padding:8px 12px;border-inline-end:0;border-block-end:1px solid var(--line)}
+  .prf-window-head {min-block-size:32px;padding:0}
+  .prf-nav .prf-page-groups {display:none}
+  .prf-page-picker {display:grid;align-content:center;margin-block-start:4px}
+  .prf-page-select {inline-size:100%}
+  .prf-page {padding:16px 12px}
+}
+@media (any-pointer:coarse) {
+  .prf-dialog {resize:none}
+  .work-dialog .prf-nav button:not(.ui-search *) {min-block-size:var(--ctl-h-touch)}
+}

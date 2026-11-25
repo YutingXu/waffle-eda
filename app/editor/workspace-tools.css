@@ -1,0 +1,60 @@
+/* Placement only for the Ask AI, Query, Macros and Links surfaces (butter-intel-ui.js).
+   Every face comes from the UI library (app/ui/components.css, app/ui/controls.css). */
+.intel-panel {display:flex;flex-direction:column;min-block-size:0}
+.intel-panel[hidden] {display:none}
+.intel-panel > .pane-heading {gap:var(--s-4)}
+.intel-head-actions {display:flex;align-items:center;gap:var(--s-4);margin-inline-start:auto}
+.intel-head-actions:empty {display:none}
+.intel-panel > .intel-strip {flex:none}
+.intel-panel > .intel-notice {flex:none;padding:var(--s-8) var(--s-12) 0}
+.intel-panel > .intel-body {flex:1 1 auto;min-block-size:0;overflow:auto;overscroll-behavior:contain;
+  display:grid;align-content:start;gap:var(--s-12);padding:var(--s-8) var(--s-12) var(--s-12)}
+.intel-panel > .intel-foot {flex:none;display:grid;gap:var(--s-6);padding:var(--s-8) var(--s-12);border-block-start:1px solid var(--line)}
+.intel-panel [hidden] {display:none}
+
+/* Ask AI */
+.intel-composer-input {inline-size:100%;min-block-size:calc(var(--field-height) * 1.75);resize:vertical}
+.intel-composer-row {display:flex;align-items:center;gap:var(--s-8)}
+.intel-composer-context {flex:1 1 auto;min-inline-size:0;color:var(--muted);font-size:var(--fs-11);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.intel-composer-row > select {max-inline-size:45%}
+.intel-turn-context {justify-self:end}
+.intel-answer {margin:0}
+.intel-answer > .ui-cite {margin-inline:var(--s-2)}
+.intel-transcript .ui-section {margin-block-start:var(--s-4)}
+.intel-row-badges {display:inline-flex;flex-wrap:wrap;gap:var(--s-4);min-inline-size:0}
+.intel-checks {display:grid;gap:0}
+.intel-proposal-state:empty {display:none}
+.intel-proposal-state {margin-block-start:var(--s-6)}
+
+/* Review sheet shared by AI suggestions and macro replays */
+.intel-review-dialog {inline-size:min(34rem,var(--dialog-avail-w,92vw))}
+.intel-review {display:grid;gap:var(--s-8);min-inline-size:0}
+.intel-review-list {max-block-size:min(18rem,40vh);overflow:auto;overscroll-behavior:contain;grid-auto-rows:max-content}
+.intel-review-message:empty {display:none}
+
+/* Status bar while a macro records */
+.intel-recording {display:inline-flex;align-items:center;gap:var(--s-4);margin-inline:var(--s-8)}
+
+/* Query */
+.intel-query-editor {display:grid;gap:var(--s-4)}
+.intel-panel .intel-query-source {inline-size:100%;font-family:var(--mono);resize:vertical;min-block-size:calc(var(--field-height) * 1.75)}
+.intel-query-echo {font-family:var(--mono);font-size:var(--fs-11);white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.intel-query-actions {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4)}
+.intel-query-actions > .ui-segmented {margin-inline-end:auto}
+.intel-query-results {display:grid;align-content:start;gap:var(--s-8);min-inline-size:0}
+.intel-completion {position:relative;inset:auto;inline-size:100%;max-block-size:12rem;overflow:auto}
+.intel-columns {font-variant-numeric:tabular-nums}
+
+/* Macros */
+.intel-macro-form {display:grid;gap:0}
+.intel-step-args {display:grid;gap:0;padding-inline-start:var(--s-24)}
+.intel-step-actions {display:flex;gap:var(--s-4);flex-wrap:wrap}
+.intel-step-value {display:grid;gap:var(--s-4);min-inline-size:0}
+.intel-step-value > :is(select,input) {inline-size:100%;min-inline-size:0;box-sizing:border-box}
+
+/* Links in Properties */
+.intel-links .inspector-disclosure-body {display:grid;gap:var(--s-8)}
+.intel-link-address {font-family:var(--mono);font-size:var(--fs-11);overflow-wrap:anywhere}
+.intel-picker {display:grid;gap:var(--s-8);min-inline-size:min(28rem,80vw)}
+.intel-picker > .ui-list {max-block-size:min(18rem,45vh);overflow:auto;overscroll-behavior:contain;grid-auto-rows:max-content}

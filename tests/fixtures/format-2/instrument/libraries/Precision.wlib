@@ -1,0 +1,3 @@
+{"kind":"library","formatVersion":"2.0","id":"amwqtkf8u57qyvuhe4mf","name":"Precision"}
+{"kind":"pad","id":"amwqtkf8u57qyvuhe4mf/pad/1","order":"V","value":{"angle":0,"drill":0,"h":1000000,"layer":"Top","number":"1","shape":"rect","w":1250000,"x":0,"y":0}}
+{"kind":"librarySettings","id":"amwqtkf8u57qyvuhe4mf/settings","value":{"category":"KiCad footprints","footprint":{"name":"Precision","pads":[],"shapes":[]},"prefix":"U","value":"Precision"}}

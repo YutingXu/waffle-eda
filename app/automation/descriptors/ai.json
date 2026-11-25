@@ -1,0 +1,105 @@
+{
+  "feature": "ai",
+  "title": "AI Providers",
+  "modules": {"editor": ["AtriumAIProvidersDesktop"], "mcp": ["ai-provider-mcp"]},
+  "mcpAdapter": true,
+  "commands": [
+    {
+      "id": "providers",
+      "title": "List AI Providers",
+      "kind": "read",
+      "surfaces": ["editor", "mcp"],
+      "properties": {},
+      "required": [],
+      "mcpAdapter": true
+    },
+    {
+      "id": "policy",
+      "title": "Read Project AI Policy",
+      "kind": "read",
+      "surfaces": ["editor", "mcp"],
+      "properties": {},
+      "required": []
+    },
+    {
+      "id": "set-policy",
+      "title": "Set Project AI Policy",
+      "kind": "state",
+      "surfaces": ["editor", "mcp"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "proposeEdits": {"type": "boolean"},
+        "tools": {"type": "array", "maxItems": 8, "uniqueItems": true,
+          "items": {"enum": ["query", "inspect_component", "run_erc", "run_drc", "evaluate_calculation", "compare_revisions", "list_library", "project_history"]}}
+      },
+      "required": ["allowed"]
+    },
+    {
+      "id": "ask",
+      "title": "Ask an Approved AI Provider",
+      "kind": "state",
+      "surfaces": ["editor", "mcp"],
+      "mcpAdapter": true,
+      "modules": {"editor": ["AtriumAI"], "mcp": ["butter-query-service", "calculations"]},
+      "properties": {
+        "provider": {"type": "string", "pattern": "^[a-zA-Z0-9_.:-]{1,128}$"},
+        "prompt": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "selection": {"type": "array", "maxItems": 8, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+        "read": {"type": "object", "additionalProperties": false, "required": ["tool"], "properties": {
+          "tool": {"enum": ["query", "inspect_component", "run_erc", "run_drc", "evaluate_calculation", "compare_revisions", "list_library", "project_history"]},
+          "args": {"type": "object", "additionalProperties": false, "properties": {
+            "scope": {"type": "string", "minLength": 1, "maxLength": 768},
+            "component_id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "calculation_id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "before": {"type": "string", "minLength": 1, "maxLength": 80},
+            "after": {"type": "string", "minLength": 1, "maxLength": 80},
+            "query": {"type": "string", "minLength": 1, "maxLength": 128}
+          }}
+        }}
+      },
+      "required": ["provider", "prompt"]
+    },
+    {
+      "id": "draft",
+      "title": "Review AI Component Edit",
+      "kind": "edit",
+      "surfaces": ["editor", "mcp"],
+      "properties": {
+        "componentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "documentId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "field": {"enum": ["ref", "value", "x", "y", "angle"]},
+        "value": {"type": ["string", "number"], "maxLength": 160}
+      },
+      "required": ["componentId", "field", "value"]
+    },
+    {
+      "id": "activity",
+      "title": "List AI Activity",
+      "kind": "read",
+      "surfaces": ["editor", "mcp"],
+      "properties": {},
+      "required": []
+    },
+    {
+      "id": "clear-activity",
+      "title": "Clear AI Activity",
+      "kind": "state",
+      "surfaces": ["editor", "mcp"],
+      "properties": {},
+      "required": []
+    },
+    {
+      "id": "credential",
+      "title": "Manage Provider Credential",
+      "kind": "state",
+      "surfaces": ["editor", "mcp"],
+      "properties": {
+        "provider": {"type": "string", "pattern": "^[a-zA-Z0-9_.:-]{1,128}$"},
+        "operation": {"enum": ["status", "configure", "forget"]}
+      },
+      "required": ["provider", "operation"]
+    }
+  ]
+}

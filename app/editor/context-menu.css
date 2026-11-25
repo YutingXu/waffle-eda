@@ -1,0 +1,40 @@
+/* Menu structure (index.html): submenus inside the menu bar and the Window › Panels list,
+   the object context menu's submenus (context-menu.js), the status-bar tool readout and the
+   Properties empty-state hint. Uses the shared tokens only. */
+.menu-items.has-submenu {overflow:visible;max-height:none}
+.submenu {position:relative}
+.submenu > .submenu-trigger::after,.nav-menu .nav-sub > .nav-menu-item::after {content:"›";content:"›" / "";font-size:var(--fs-12);color:currentColor;margin-left:8px}
+.submenu > .menu-items {display:none;top:-5px;left:calc(100% - 2px);z-index:7}
+.submenu.open > .menu-items {display:block}
+.submenu.open > .submenu-trigger {background:var(--selection);color:var(--selection-ink)}
+.appbar .work-menu:nth-last-child(-n+3) .submenu > .menu-items,.submenu.flip > .menu-items {left:auto;right:calc(100% - 2px)}
+.menu-items [data-slot] {display:none}
+/* Context menu: a header naming the object, and nested submenus. */
+.nav-menu-portal {display:contents}
+.nav-menu .nav-menu-head {padding:4px 8px 4px;font-size:var(--fs-11);line-height:round(up,calc(var(--fs-11) * var(--lh)),1px);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-menu .nav-sub {position:relative}
+.nav-menu .nav-sub > .nav-menu {width:max-content;position:absolute;display:none;top:-5px;left:calc(100% - 2px)}
+.nav-menu .nav-sub.flip > .nav-menu {left:auto;right:calc(100% - 2px)}
+.nav-menu .nav-sub.open > .nav-menu {display:block}
+/* Check gutter: the same 22 px inset and 7 px check as the menu bar (style.css .menu-items button). */
+.nav-menu:has(> :is([role=menuitemcheckbox],[role=menuitemradio])) > .nav-menu-item,
+.nav-menu:has(> :is([role=menuitemcheckbox],[role=menuitemradio])) > .nav-sub > .nav-menu-item {position:relative;padding-inline-start:22px}
+.nav-menu .nav-menu-item[aria-checked=true]::before {content:"✓";content:"✓" / "";position:absolute;left:7px;font-size:var(--fs-11);color:currentColor}
+/* Status bar: the active tool, between the snap controls and the hint text. */
+.statusbar .status-tool {flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:0 6px;color:var(--muted);white-space:nowrap}
+.statusbar .status-tool:empty {display:none}
+/* Properties: what to do next on an empty sheet or board. */
+#inspector .empty-hint {margin:6px 0 4px;color:var(--muted)}
+/* What's New and Learn */
+.whats-new-list {margin:0;padding:0 0 0 18px;max-height:min(60vh,520px);overflow:auto}
+.whats-new-list li {margin:0 0 8px}
+.whats-new-list li strong {display:block;color:var(--ink)}
+.whats-new-list li span {color:var(--muted)}
+.nav-menu .nav-menu-item > span {white-space:nowrap}
+/* menu-fit (AtriumContextMenu.fitMenu): a menu taller than the window scrolls; shadows at the top and
+   bottom edge appear only while there is more to scroll to (local covers slide over fixed shadows). */
+.menu-items.menu-scroll,.nav-menu.menu-scroll {overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(var(--menu-bg) 30%,transparent) top/100% 20px no-repeat local,linear-gradient(transparent,var(--menu-bg) 70%) bottom/100% 20px no-repeat local,radial-gradient(farthest-side at 50% 0,var(--shadow-lg),transparent) top/100% 14px no-repeat,radial-gradient(farthest-side at 50% 100%,var(--shadow-lg),transparent) bottom/100% 14px no-repeat,var(--menu-bg)}
+.work-dialog .whats-new-list .whats-new-go {min-height:0;height:auto;padding:0;border:0;background:none;color:var(--focus);font-size:inherit;text-decoration:underline;text-underline-offset:2px;cursor:default}
+.work-dialog .whats-new-list .whats-new-go:hover {color:var(--ink)}
+
+.action-menu .nav-menu-item {border:0;background:transparent;justify-content:flex-start}

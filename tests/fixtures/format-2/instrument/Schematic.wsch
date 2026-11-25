@@ -1,0 +1,4 @@
+{"kind":"schematic","formatVersion":"2.0","id":"amwqtkf8xybbog9ug3m9"}
+{"kind":"documentSettings","id":"amwqtkf8xybbog9ug3m9/settings","value":{"grid":1270000,"notes":[],"outline":[]}}
+{"kind":"image","id":"inspection","asset":{"byteLength":82,"mediaType":"image/png","sha256":"b0cd3b437c58b45918073df96986ae75213cef687faa75378cf3e54a3b8aa654"},"h":8000000,"name":"Inspection.png","order":"K","w":8000000,"x":1000000,"y":2000000}
+{"kind":"netlabel","id":"reference-label","at":[12700000,5080000],"order":"e","text":"TEST"}

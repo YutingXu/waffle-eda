@@ -1,0 +1,82 @@
+{
+ "Sensor board panel.GTL": {
+  "sha256": "2bd97ce6d77b185936ed788eb8ad23efd49a23ebacb2cd1fef1f33118f8f25fe",
+  "bytes": 15684,
+  "lines": 760
+ },
+ "Sensor board panel.GBL": {
+  "sha256": "e83e677840a4a5036e9b5912b230a8cdbbb4d5136437a799ec140103b63a71fe",
+  "bytes": 11775,
+  "lines": 556
+ },
+ "Sensor board panel.GTO": {
+  "sha256": "8d7af6a130894acd7f0cde7322a5553ff4f75d2cf67d1e301b087f678f007cb5",
+  "bytes": 37380,
+  "lines": 1661
+ },
+ "Sensor board panel.GTS": {
+  "sha256": "6ee2c617e7cea5ecba1cb48b1acf274a06b4ba03fede2dc010f954c2c64a9f96",
+  "bytes": 3771,
+  "lines": 200
+ },
+ "Sensor board panel.GBS": {
+  "sha256": "ba7d6a81416282b57ae0f3c9d3847b739ae917a166ef2cd90707eddeecde8a0d",
+  "bytes": 1406,
+  "lines": 80
+ },
+ "Sensor board panel.GTP": {
+  "sha256": "f6c93701a6e29aa4dfbd6a67fd991dfaf7d2a8327c9e802ee94211b27e916d83",
+  "bytes": 2632,
+  "lines": 132
+ },
+ "Sensor board panel.GM1": {
+  "sha256": "0029ddd143d9f38895304ae9269b67dc452f076b3726c14cbb3c4c5772210823",
+  "bytes": 8076,
+  "lines": 378
+ },
+ "Sensor board panel-Plated.TXT": {
+  "sha256": "f8a7faf2f29d43e6f62c2d81242ae9fc02717c028ada21e9a0af4c78721122bd",
+  "bytes": 887,
+  "lines": 63
+ },
+ "Sensor board panel-NonPlated.TXT": {
+  "sha256": "f4b8eb59a8aaf5e5860f659c4806c8489376b13882c00376bdfb08c9a4b93172",
+  "bytes": 2182,
+  "lines": 172
+ },
+ "Sensor board panel.GD1": {
+  "sha256": "734cf894414f7b526010beaf7afe60de4e886a8babd583ba5cff3ee50e26502f",
+  "bytes": 97920,
+  "lines": 4252
+ },
+ "Sensor board panel-DrillReport.txt": {
+  "sha256": "472e80a027554670a71fdb8af9f635470cf6c03bd602fd4a6936792f4ae95707",
+  "bytes": 1178,
+  "lines": 26
+ },
+ "Pick Place for Sensor board panel.csv": {
+  "sha256": "243a39e211f909e93392be4e1809728c6660256cf2a3dfd5c05e24a86cd71c33",
+  "bytes": 2713,
+  "lines": 43
+ },
+ "Sensor board panel-Assembly-Top.svg": {
+  "sha256": "0d1f1e914f3806f31d33f309645e3bbc4a20e7d58066282b8eeaa5f158c6dce3",
+  "bytes": 46280,
+  "lines": 177
+ },
+ "Sensor board panel-Fabrication-Readme.txt": {
+  "sha256": "4cd2846e9cf3b161cf63b696137502935eddec8d33d6d48f00ac814c84579144",
+  "bytes": 1805,
+  "lines": 29
+ },
+ "Sensor board panel-Panel.txt": {
+  "sha256": "ee71008bbd72081099f76db622beab9bec1989bcf3acd056ff56b084187b4759",
+  "bytes": 925,
+  "lines": 19
+ },
+ "Sensor board panel-Panel-Drawing.svg": {
+  "sha256": "ba916d7cf7f5c33a591b889a3293ccd55d3ad83b617e21250247ad6dfc93eacb",
+  "bytes": 20475,
+  "lines": 230
+ }
+}

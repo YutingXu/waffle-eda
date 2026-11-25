@@ -1,0 +1,28 @@
+.touch-surface { position:relative }
+.touch-modifiers {
+  position:absolute; z-index:4; inset-inline-start:8px; inset-block-end:8px; display:flex; align-items:center;
+  max-width:calc(100% - 16px); overflow-x:auto; padding:2px; gap:1px; background:var(--surface);
+  color:var(--text); border:1px solid var(--line-strong); border-radius:var(--r-md); box-shadow:var(--elev-2);
+}
+.touch-modifiers svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8 }
+.touch-loupe {
+  position:absolute; z-index:5; left:0; top:0; width:88px; height:88px; border-radius:50%; box-sizing:border-box;
+  overflow:hidden; border:2px solid var(--line-strong); box-shadow:var(--elev-2); background:var(--canvas-bg);
+  pointer-events:none; contain:strict;
+}
+.touch-loupe canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none }
+.touch-loupe i { position:absolute; inset:50% auto auto 50%; width:10px; height:10px; translate:-50% -50%;
+  border:2px solid var(--accent); outline:1px solid var(--surface); border-radius:50%; box-sizing:border-box }
+.touch-loupe span { position:absolute; inset:auto 0 0; padding:1px 0 4px; text-align:center;
+  background:var(--surface); color:var(--text); font:var(--fs-11)/1.2 var(--mono) }
+.touch-snap-point { position:absolute; z-index:4; width:12px; height:12px; box-sizing:border-box; pointer-events:none;
+  border:2px solid var(--accent); outline:1px solid var(--surface); translate:-50% -50%; rotate:45deg; }
+.touch-snap-point[hidden],.touch-loupe[hidden],.touch-modifiers[hidden] { display:none }
+body.touch-keyboard { max-height:var(--touch-viewport-bottom); }
+dialog.touch-keyboard-dialog { box-sizing:border-box; inset-block:var(--touch-dialog-top) auto; margin-block:0;
+  max-block-size:calc(var(--touch-viewport-bottom) - var(--touch-dialog-top) - 4px); overflow:auto; }
+/* Keep contextual actions discoverable after a finger opens the workbench or a dialog.
+   Buttons retain their disabled state and continue to use the command's normal handler. */
+.touch-controls :is(.cam-minimap-close,.thg-remove,.hist-btn,.eco-never,.pane-tab-close,.pane-close,.dock-tab-close,.mcad-row .mcad-btn,.clip-actions) { opacity:1 }
+.touch-controls .dv-row-tools { visibility:visible }
+.touch-controls .clip-item.is-pinned .clip-actions > :not(.clip-pin) { display:revert }

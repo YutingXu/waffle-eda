@@ -1,0 +1,10 @@
+{"kind":"project","formatVersion":"2.2","id":"fu","name":"Future"}
+{"kind":"projectSetting","id":"fRules","key":"rules","value":{"format":"atrium-rules","units":"mm","version":3}}
+{"kind":"projectSetting","id":"fSignals","key":"signals","value":{"version":1}}
+{"kind":"document","id":"fd","docKind":"drawing","name":"Assembly","path":"Assembly.wdraw"}
+{"kind":"projectSetting","id":"fe","key":"projectExtensions","value":{"org.example.calibration":{"future":{"limits":[0,null,{"exact":[17,"pF"]}],"mode":"μ"}}}}
+{"kind":"signal","id":"fg","order":"K","value":{"kind":"single","id":"fg","legs":[{"future":{"limits":[0,null,{"exact":[13,"ohm"]}],"mode":"μ"},"nets":["SENSE"]}],"name":"SENSE","tags":[]}}
+{"kind":"library","id":"fl","path":"libraries/Probe.wlib"}
+{"kind":"rule","id":"fr","order":"K","value":{"id":"fr","enabled":true,"gap":200000,"name":"Clearance","priority":1,"scope":{"future":{"limits":[0,null,{"exact":[11,"nm"]}],"mode":"μ"},"languageVersion":1,"source":"object"},"scope2":{"languageVersion":1,"source":"object"},"type":"clearance"}}
+{"kind":"document","id":"fs","docKind":"schematic","name":"Logic","path":"Logic.wsch"}
+{"kind":"document","id":"fw","docKind":"waveform","name":"Wave","path":"Wave.wwave"}

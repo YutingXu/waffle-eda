@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Platform-independent tests for src/Core: path rules, navigation policy, bridge message
+       handling, project write rules. Runs anywhere .NET 8 runs: dotnet run with this project. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Waffle.Windows.Tests</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../tests/folder-transaction/standalone.json" Link="fixtures/standalone.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../tests/folder-transaction/additive.json" Link="fixtures/additive.json" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="../src/Core/*.cs" />
+    <Compile Include="../src/Win/WinFolderFs.cs" />
+    <Compile Include="../src/Win/Native.cs" />
+    <Compile Include="../src/Win/WorkspaceWindows.cs" />
+  </ItemGroup>
+</Project>

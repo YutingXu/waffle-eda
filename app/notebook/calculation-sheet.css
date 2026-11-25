@@ -1,0 +1,12 @@
+.calculation-dialog{width:min(34rem,calc(100vw - 2rem));max-height:90dvh;overflow:auto}
+.calculation-dialog label{display:grid;gap:4px;margin:10px 0}
+.calculation-dialog .ui-field{width:100%}
+.calculation-dialog textarea,.calculation-dialog output,.calculation-inspector output{font-family:var(--mono,monospace)}
+.calculation-dialog output,.calculation-inspector output{display:block;white-space:pre-wrap;overflow-wrap:anywhere}
+.calculation-dialog button,.calculation-inspector button{min-height:44px}
+.calculation-inputs{display:flex;gap:6px;flex-wrap:wrap}
+.calculation-inputs details{position:relative;max-width:100%}
+.calculation-input-detail{padding:0 6px 6px;overflow-wrap:anywhere}
+.calculation-warning,.calculation-status{color:var(--muted);overflow-wrap:anywhere}
+.calculation-clauses>div{display:flex;align-items:end;gap:6px}.calculation-clauses label{flex:1}
+.calculation-inspector small{display:block;color:var(--muted)}

@@ -1,0 +1,12 @@
+{
+  "cases": {
+    "export": {
+      "args": {"units": "mm", "date": "2026-11-22"},
+      "expect": {"mode": "plan", "changes": 0},
+      "expectPaths": {"untrusted_design_text.format": "ODB++ Design 8.1", "untrusted_design_text.target": "Sensor board"},
+      "expectWrite": {"mode": "write", "command": "butter.odb.export"},
+      "expectWritePaths": {"untrusted_design_text.format": "ODB++ Design 8.1", "untrusted_design_text.target": "Sensor board"},
+      "outputFile": "Board-outputs/odb/Sensor board.tgz"
+    }
+  }
+}

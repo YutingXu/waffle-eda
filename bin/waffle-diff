@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Compare two Waffle designs with the design-diff engine (app/diff.js) and print a report.
+
+  bin/waffle-diff BEFORE_PROJECT AFTER_PROJECT [--format text|markdown|html|json] [--severity electrical|mechanical|cosmetic]
+  bin/waffle-diff --project board.waffle --before HEAD~1 [--after saved|REF|FILE]   (Git refs of a project)
+
+Each project argument selects a native project folder or its .waffle manifest. For a Git
+revision, use --project with --before so that its manifest and members come from one tree.
+
+/dev/null on either side (a file added or deleted) is an empty design. Design text in the report
+is escaped for its format. Exit status: 0 no changes, 1 changes, 2 error (like diff(1)); with
+--exit-zero always 0 unless there is an error.
+"""
+import argparse
+import json
+from pathlib import Path
+import sys
+
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "mcp"))
+
+
+def text_report(result):
+    u = result["untrusted_design_text"]
+    s = result.get("summary", {})
+    lines = [u.get("before", "before") + " -> " + u.get("after", "after") + ": " + (u.get("summary_text") or "")]
+    for c in u.get("changes", []):
+        lines.append("  " + c["severity"][:4].upper() + "  " + c["text"])
+    if result.get("next_offset") is not None:
+        lines.append("  ... " + str(result["total"] - result["next_offset"]) + " more (use --limit)")
+    st = result.get("stats", {})
+    if st:
+        m = st.get("matched", {})
+        lines.append("matched %s objects (id %s, designator %s, net+geometry %s, geometry %s) in %s ms" % (
+            m.get("total"), m.get("id"), m.get("designator"), m.get("net-geometry"), m.get("geometry"), st.get("ms")))
+    return "\n".join(lines) + "\n"
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("files", nargs="*", help="BEFORE AFTER (native project directories or .waffle manifests, /dev/null for an empty side)")
+    p.add_argument("--project", type=Path, help="Bound project for Git refs (--before/--after).")
+    p.add_argument("--before", help="Git ref, 'saved' or a native project manifest (with --project).")
+    p.add_argument("--after", default="saved", help="Git ref, 'saved' or a native project manifest (with --project). Default: saved.")
+    p.add_argument("--format", choices=["text", "markdown", "html", "json"], default="text")
+    p.add_argument("--severity", choices=["electrical", "mechanical", "cosmetic"])
+    p.add_argument("--limit", type=int, default=200)
+    p.add_argument("--options", help="Engine options as JSON, e.g. '{\"drc\": true, \"tolerance\": 0.001}'.")
+    p.add_argument("--exit-zero", action="store_true", help="Exit 0 even when the designs differ.")
+    a = p.parse_args(argv)
+    request = {"format": "summary" if a.format == "text" else a.format, "limit": max(1, min(a.limit, 200))}
+    if a.severity:
+        request["severity"] = a.severity
+    try:
+        if a.options:
+            options = json.loads(a.options)
+            if not isinstance(options, dict):
+                raise ValueError("--options must be a JSON object")
+            request["options"] = options
+        if a.project:
+            if a.files or not a.before:
+                p.error("--project takes --before (and optionally --after), not file arguments")
+            from server import Server
+            server = Server(a.project)
+            try:
+                args = {k: v for k, v in request.items()}
+                args.update(before=a.before, after=a.after)
+                result = server.call("diff_designs", args)
+            finally:
+                server.close()
+        else:
+            if len(a.files) != 2:
+                p.error("give BEFORE and AFTER native projects, or --project with --before")
+            from diff_designs import diff_files
+            result = diff_files(a.files[0], a.files[1], request)
+    except Exception as error:  # every failure is exit 2, never 1 ("designs differ")
+        from obsolete_project import ObsoleteProject
+        sys.stderr.write(("" if isinstance(error, ObsoleteProject) else "waffle-diff: ") + str(error) + "\n")
+        return 2
+    if a.format == "text":
+        sys.stdout.write(text_report(result))
+    elif a.format == "json":
+        sys.stdout.write(json.dumps(result["untrusted_design_text"]["report"], ensure_ascii=False, indent=2) + "\n")
+    else:
+        sys.stdout.write(result["untrusted_design_text"]["report"])
+    changed = not result.get("summary", {}).get("identical", False)
+    return 1 if changed and not a.exit_zero else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

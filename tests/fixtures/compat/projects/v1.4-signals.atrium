@@ -1,0 +1,667 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "adef6e8e-eeee-4ee6-834e-d11ab12c880b",
+      "items": [
+        {"angle":0,"def":"std-j3","id":"s-J1","kind":"part","link":"link-J1","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","refAt":[-2.159,-8.89],"value":"Input","valueAt":[-2.159,10.414],"x":78.74,"y":78.74},
+        {"angle":0,"def":"std-r","id":"s-R1","kind":"part","link":"link-R1","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R1","refAt":[-2.54,-1.905],"value":"10 kΩ","valueAt":[-2.54,3.81],"x":104.14,"y":78.74},
+        {"angle":90,"def":"std-c","id":"s-C1","kind":"part","link":"link-C1","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","refAt":[-0.635,-3.302],"value":"10 nF","valueAt":[2.921,-3.302],"x":119.38,"y":88.9},
+        {"angle":0,"def":"std-opamp","id":"s-U1","kind":"part","link":"link-U1","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","refAt":[3.81,-5.842],"value":"Buffer","valueAt":[3.302,7.366],"x":142.24,"y":81.28},
+        {"angle":0,"def":"std-r","id":"s-R2","kind":"part","link":"link-R2","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","refAt":[-2.54,-1.905],"value":"100 Ω","valueAt":[-2.54,3.81],"x":165.1,"y":81.28},
+        {"angle":0,"def":"std-j2","id":"s-J2","kind":"part","link":"link-J2","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","refAt":[-2.159,-6.35],"value":"Output","valueAt":[-2.159,7.874],"x":190.5,"y":83.82},
+        {"angle":90,"def":"std-c","id":"s-C2","kind":"part","link":"link-C2","pinNets":{"1":"VDD","2":"GND"},"ref":"C2","refAt":[-0.635,-3.302],"value":"100 nF","valueAt":[2.921,-3.302],"x":157.48,"y":66.04},
+        {"at":"above","id":"68584e33-48d1-4da6-a1e2-5267ba300de2","kind":"netlabel","schPaint":{"direction":1,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":2,"type":"power"},"text":"VDD","x":86.36,"y":73.66},
+        {"at":"below","id":"d3e3f3e2-0c80-412a-8cc3-e9b0a7cf6849","kind":"netlabel","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":4,"type":"power"},"text":"GND","x":86.36,"y":83.82},
+        {"id":"75b4a74f-4fb6-44f1-b257-18493ce811f9","kind":"wire","points":[[86.36,78.74],[99.06,78.74]]},
+        {"at":"above","id":"57127091-deb1-43b7-b93e-964be7adb43d","kind":"netlabel","text":"VIN","x":88.9,"y":78.74},
+        {"id":"f3897dd5-cca4-433d-adf4-83d217558788","kind":"wire","points":[[109.22,78.74],[134.62,78.74]]},
+        {"id":"ac586a5b-673f-4990-83d4-3619a408a326","kind":"wire","points":[[119.38,78.74],[119.38,83.82]]},
+        {"id":"2ba38865-f1d1-4900-8f45-b1fc275c0d15","kind":"junction","x":119.38,"y":78.74},
+        {"at":"above","id":"881913ed-2153-416e-97d4-e14aba925a41","kind":"netlabel","text":"FILTER","x":121.92,"y":78.74},
+        {"at":"below","id":"edb4c038-ebe8-4673-966a-538aaf48da2c","kind":"netlabel","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":4,"type":"power"},"text":"GND","x":119.38,"y":93.98},
+        {"id":"257c1930-1fc6-450e-bc15-2469872d9ae7","kind":"wire","points":[[142.24,73.66],[142.24,60.96],[157.48,60.96]]},
+        {"at":"above","id":"2f9cf8fa-8d9f-4157-bfa1-8a846cc502a0","kind":"netlabel","schPaint":{"direction":1,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":2,"type":"power"},"text":"VDD","x":142.24,"y":60.96},
+        {"at":"below","id":"d6dc37f4-7ab7-45a3-8c49-93d3d80e5af1","kind":"netlabel","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":4,"type":"power"},"text":"GND","x":157.48,"y":71.12},
+        {"at":"below","id":"288ded3e-574f-446c-80d0-0364378217c0","kind":"netlabel","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":4,"type":"power"},"text":"GND","x":142.24,"y":88.9},
+        {"id":"89d743d7-a53a-4d5b-ab2f-244ca2ccf874","kind":"wire","points":[[149.86,81.28],[160.02,81.28]]},
+        {"id":"db0dd800-97f3-4040-8d39-17a7ce3c1153","kind":"wire","points":[[134.62,83.82],[132.08,83.82],[132.08,101.6],[154.94,101.6],[154.94,81.28]]},
+        {"id":"4662c9af-8b52-4738-bc6b-9325565f9ef1","kind":"junction","x":154.94,"y":81.28},
+        {"at":"above","id":"9c15dbfa-6b82-4fd8-b9a7-0fb8bd75f3dc","kind":"netlabel","text":"BUF","x":134.62,"y":101.6},
+        {"id":"e5704d4a-12ee-4bef-af2f-0bda87c9f095","kind":"wire","points":[[170.18,81.28],[182.88,81.28]]},
+        {"at":"above","id":"57c5f149-ffd5-43eb-a33b-60133186852b","kind":"netlabel","text":"VOUT","x":172.72,"y":81.28},
+        {"at":"below","id":"4a345a7b-82e3-46b5-8575-71b49575fb37","kind":"netlabel","schPaint":{"direction":3,"family":"Times New Roman","ink":"#800000","showName":true,"size":2.032,"style":4,"type":"power"},"text":"GND","x":182.88,"y":86.36}
+      ],
+      "kind": "schematic",
+      "name": "Analog front end",
+      "notes": [],
+      "outline": []
+    },
+    {
+      "grid": 0.25,
+      "id": "097c0530-aeb7-40f8-be92-cd30fc8b4702",
+      "items": [
+        {"angle":0,"def":"std-j3","id":"b-J1","kind":"part","link":"link-J1","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","value":"Input","x":3.8,"y":11},
+        {"angle":0,"def":"std-r","id":"b-R1","kind":"part","link":"link-R1","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R1","value":"10 kΩ","x":9.9,"y":11},
+        {"angle":90,"def":"std-c","id":"b-C1","kind":"part","link":"link-C1","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","value":"10 nF","x":13.3,"y":14.3},
+        {"angle":0,"def":"std-opamp","id":"b-U1","kind":"part","link":"link-U1","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","value":"Buffer","x":18.5,"y":11.6},
+        {"angle":0,"def":"std-r","id":"b-R2","kind":"part","link":"link-R2","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","value":"100 Ω","x":25.2,"y":9},
+        {"angle":0,"def":"std-j2","id":"b-J2","kind":"part","link":"link-J2","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","value":"Output","x":32.2,"y":10.3},
+        {"angle":0,"def":"std-c","id":"b-C2","kind":"part","link":"link-C2","pinNets":{"1":"VDD","2":"GND"},"ref":"C2","value":"100 nF","x":19.4,"y":6.8},
+        {"id":"6151be43-0635-48ac-98dc-ba5057123cb2","kind":"track","layer":"Top","net":"VIN","points":[[3.8,11],[9.1,11]],"width":0.32},
+        {"id":"b94e2868-3d6a-4501-85b3-b14b8747cc44","kind":"track","layer":"Top","net":"FILTER","points":[[10.7,11],[12,11],[13.3,12.3],[13.3,13.5]],"width":0.32},
+        {"id":"29e37643-0676-4550-b2c1-b6c7ee88ccc6","kind":"track","layer":"Top","net":"FILTER","points":[[13.3,13.5],[15.3,13.5],[16.25,12.55],[17.25,12.55]],"width":0.32},
+        {"id":"60638950-c18d-41e4-a097-afd2340645dc","kind":"track","layer":"Top","net":"BUF","points":[[17.25,10.65],[16.2,10.65],[15.2,9.65],[15.2,8.2],[16.2,7.2],[17,7.2],[19.2,9.4],[21,9.4],[21.4,9],[24.4,9]],"width":0.32},
+        {"id":"9e91df9d-629d-46c1-901e-3b2ca42abfd6","kind":"track","layer":"Top","net":"BUF","points":[[19.75,12.55],[21.6,12.55],[22.6,11.55],[22.6,10.1],[23.7,9],[24.4,9]],"width":0.32},
+        {"id":"dd9c19c2-6a61-4350-bb4b-fb1d84ab5b06","kind":"track","layer":"Top","net":"VOUT","points":[[26,9],[29.6,9],[29.63,9.03],[32.2,9.03]],"width":0.32},
+        {"diameter":0.84,"drill":0.4,"id":"9fcf995f-96aa-4667-a5c5-7f2bbda06483","kind":"via","layer":"Multi","net":"VDD","x":19.7,"y":5.1},
+        {"id":"ea19a0d8-0dbf-43e1-8b7d-17042cc8367a","kind":"track","layer":"Bottom","net":"VDD","points":[[3.8,8.46],[7.2,8.46],[9.16,6.5],[14.5,6.5],[15.9,5.1],[19.7,5.1]],"width":0.48},
+        {"id":"8774a67a-7abc-46c7-80d2-1ac8025f9ecb","kind":"track","layer":"Top","net":"VDD","points":[[19.7,5.1],[18.6,6.2],[18.6,6.8]],"width":0.48},
+        {"diameter":0.84,"drill":0.4,"id":"42917531-df19-466d-a0c9-63669861d93a","kind":"via","layer":"Multi","net":"VDD","x":21.4,"y":10.65},
+        {"id":"00ec6788-4515-48dc-abfb-c4a80be00b31","kind":"track","layer":"Bottom","net":"VDD","points":[[19.7,5.1],[19.7,8.95],[21.4,10.65]],"width":0.48},
+        {"id":"2ec5cdac-6eda-4fa0-8dbb-9eb3a13c7c54","kind":"track","layer":"Top","net":"VDD","points":[[21.4,10.65],[19.75,10.65]],"width":0.48},
+        {"diameter":0.84,"drill":0.4,"id":"138a2e8a-de74-4f42-93f3-50886aadd9fa","kind":"via","layer":"Multi","net":"GND","x":16.1,"y":11.6},
+        {"id":"c7f56de7-f967-4db2-96f0-5af590f861ce","kind":"track","layer":"Top","net":"GND","points":[[17.25,11.6],[16.1,11.6]],"width":0.48},
+        {"diameter":0.84,"drill":0.4,"id":"c10c25af-53fd-478f-83c9-ceed12ad8a4a","kind":"via","layer":"Multi","net":"GND","x":21.55,"y":6.8},
+        {"id":"8254f832-b9f0-41b0-9b1a-aad9a79b5e5a","kind":"track","layer":"Top","net":"GND","points":[[20.2,6.8],[21.55,6.8]],"width":0.48},
+        {"diameter":0.84,"drill":0.4,"id":"41583690-7adb-4128-95d2-3d480b05bdd1","kind":"via","layer":"Multi","net":"GND","x":13.3,"y":16.2},
+        {"id":"452d33da-bec3-4f2a-bbd1-b6eec34e4c96","kind":"track","layer":"Top","net":"GND","points":[[13.3,15.1],[13.3,16.2]],"width":0.48},
+        {"id":"a9d5baf1-b01e-4d67-9b53-422a7e938c19","kind":"track","layer":"Bottom","net":"GND","points":[[3.8,13.54],[6.3,13.54],[8.96,16.2],[13.3,16.2],[17.9,11.6],[16.1,11.6]],"width":0.48},
+        {"id":"7925081d-f093-4c25-a63d-0f052e4e690c","kind":"track","layer":"Bottom","net":"GND","points":[[17.9,11.6],[19.5,13.2],[22.9,13.2],[23.3,12.8],[23.3,8.1],[22,6.8],[21.55,6.8]],"width":0.48},
+        {"id":"23b90711-161e-4103-997f-085aef700899","kind":"track","layer":"Bottom","net":"GND","points":[[13.3,16.2],[26.2,16.2],[30.83,11.57],[32.2,11.57]],"width":0.48},
+        {"drill":2.4,"h":2.4,"id":"77bbee81-1b27-47af-ba08-f324524f3eb8","kind":"pad","layer":"Mechanical","net":"","number":"","shape":"round","w":2.4,"x":2.6,"y":2.6},
+        {"drill":2.4,"h":2.4,"id":"a6cf1fbc-2981-4f99-bed2-00f2a7cf534b","kind":"pad","layer":"Mechanical","net":"","number":"","shape":"round","w":2.4,"x":33.4,"y":2.6},
+        {"drill":2.4,"h":2.4,"id":"9f59ce76-f6a1-4b2a-8ea7-9d206df190e2","kind":"pad","layer":"Mechanical","net":"","number":"","shape":"round","w":2.4,"x":2.6,"y":19.4},
+        {"drill":2.4,"h":2.4,"id":"b48f2eec-8fc8-49d0-9566-28c44795c8a0","kind":"pad","layer":"Mechanical","net":"","number":"","shape":"round","w":2.4,"x":33.4,"y":19.4},
+        {"id":"10399727-fd0d-4f65-a741-675b31c118ed","kind":"label","layer":"Silk","size":1.05,"text":"SENSOR INTERFACE","x":5.6,"y":3.05},
+        {"id":"38e887cb-e0a1-46bb-b59a-bffe00514f8d","kind":"label","layer":"Silk","size":0.56,"text":"AFE  /  REV A","x":5.65,"y":4.6},
+        {"id":"9dad0c8e-4aee-49a5-b07f-584ccc4fae7b","kind":"label","layer":"Silk","size":0.53,"text":"ANALOG IN","x":2.15,"y":16.8},
+        {"id":"16bf2d84-c4e4-4fef-9d6b-14b5a337dee4","kind":"label","layer":"Silk","size":0.65,"text":"OUT","x":31.35,"y":14.45},
+        {"id":"98b8388e-5ebe-4f2d-8649-e0e2accb280d","kind":"label","layer":"Silk","size":0.74,"text":"ATRIUM","x":27.1,"y":19.65},
+        {"angle":0,"def":"std-j2","id":"sig-J3","kind":"part","link":"link-J2","pinNets":{"1":"TX_P","2":"TX_N"},"ref":"J3","value":"Output","x":5,"y":40},
+        {"angle":90,"def":"std-c","id":"sig-C3","kind":"part","link":"link-C1","pinNets":{"1":"TX_P","2":"TX_P_C"},"ref":"C3","value":"10 nF","x":15,"y":38},
+        {"angle":90,"def":"std-c","id":"sig-C4","kind":"part","link":"link-C1","pinNets":{"1":"TX_N","2":"TX_N_C"},"ref":"C4","value":"10 nF","x":15,"y":42},
+        {"angle":0,"def":"std-j2","id":"sig-J4","kind":"part","link":"link-J2","pinNets":{"1":"TX_P_C","2":"TX_N_C"},"ref":"J4","value":"Output","x":25,"y":40}
+      ],
+      "kind": "pcb",
+      "name": "Sensor board",
+      "notes": [],
+      "outline": [
+        [1.5,0],
+        [34.5,0],
+        [36,1.5],
+        [36,20.5],
+        [34.5,22],
+        [1.5,22],
+        [0,20.5],
+        [0,1.5]
+      ]
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.4",
+  "library": [
+    {
+      "category": "Resistors",
+      "footprint": {
+        "courtyard": [-1.5,-0.75,1.5,0.75],
+        "name": "R_0603",
+        "pads": [{"angle":0,"drill":0,"h":0.95,"number":"1","shape":"roundrect","w":0.9,"x":-0.8,"y":0},{"angle":0,"drill":0,"h":0.95,"number":"2","shape":"roundrect","w":0.9,"x":0.8,"y":0}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-0.55,-0.42],[0.55,-0.42],[0.55,0.42],[-0.55,0.42]],"style":"package"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.5,-0.75],[1.5,-0.75],[1.5,0.75],[-1.5,0.75]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-r",
+      "name": "Resistor",
+      "prefix": "R",
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":-5.08,"y":0},{"name":"2","number":"2","x":5.08,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[-5.08,0],[-2.54,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-2.54,0],[-2.1209,-1.016],[-1.27,1.016],[-0.4191,-1.016],[0.4191,1.016],[1.27,-1.016],[2.1209,1.016],[2.54,0]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[5.08,0],[2.54,0]],"style":"pin"}]
+      },
+      "value": "10 kΩ"
+    },
+    {
+      "category": "Capacitors",
+      "footprint": {
+        "courtyard": [-1.5,-0.75,1.5,0.75],
+        "name": "C_0603",
+        "pads": [{"angle":0,"drill":0,"h":0.95,"number":"1","shape":"roundrect","w":0.9,"x":-0.8,"y":0},{"angle":0,"drill":0,"h":0.95,"number":"2","shape":"roundrect","w":0.9,"x":0.8,"y":0}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-0.55,-0.42],[0.55,-0.42],[0.55,0.42],[-0.55,0.42]],"style":"package"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.5,-0.75],[1.5,-0.75],[1.5,0.75],[-1.5,0.75]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-c",
+      "name": "Capacitor",
+      "prefix": "C",
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":-5.08,"y":0},{"name":"2","number":"2","x":5.08,"y":0}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[-5.08,0],[-0.508,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[5.08,0],[0.508,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-0.508,-2.032],[-0.508,2.032]],"style":"body","width":0.38},{"closed":false,"fill":false,"kind":"path","points":[[0.508,-2.032],[0.508,2.032]],"style":"body","width":0.38}]
+      },
+      "value": "100 nF"
+    },
+    {
+      "category": "Amplifiers",
+      "footprint": {
+        "courtyard": [-2.05,-1.7,2.05,1.7],
+        "name": "SOT-23-5",
+        "pads": [{"angle":0,"drill":0,"h":0.62,"number":"1","shape":"roundrect","w":1.05,"x":-1.25,"y":-0.95},{"angle":0,"drill":0,"h":0.62,"number":"2","shape":"roundrect","w":1.05,"x":-1.25,"y":0},{"angle":0,"drill":0,"h":0.62,"number":"3","shape":"roundrect","w":1.05,"x":-1.25,"y":0.95},{"angle":0,"drill":0,"h":0.62,"number":"4","shape":"roundrect","w":1.05,"x":1.25,"y":0.95},{"angle":0,"drill":0,"h":0.62,"number":"5","shape":"roundrect","w":1.05,"x":1.25,"y":-0.95}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-0.8,-1.45],[0.8,-1.45],[0.8,1.45],[-0.8,1.45]],"style":"package"},{"fill":true,"kind":"circle","r":0.13,"style":"silk","x":-0.3,"y":-1.02},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-2.05,-1.7],[2.05,-1.7],[2.05,1.7],[-2.05,1.7]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-opamp",
+      "name": "Operational amplifier",
+      "prefix": "U",
+      "schDrawing": {
+        "pins": [{"direction":[1,0],"end":[7.62,0],"name":"","number":"1","start":[5.08,0]},{"direction":[0,1],"end":[0,7.62],"name":"","number":"2","start":[0,2.8575]},{"direction":[-1,0],"end":[-7.62,-2.54],"name":"","number":"3","start":[-5.08,-2.54]},{"direction":[-1,0],"end":[-7.62,2.54],"name":"","number":"4","start":[-5.08,2.54]},{"direction":[0,-1],"end":[0,-7.62],"name":"","number":"5","start":[0,-2.8575]}]
+      },
+      "symbol": {
+        "pins": [{"name":"OUT","number":"1","x":7.62,"y":0},{"name":"V−","number":"2","x":0,"y":7.62},{"name":"+IN","number":"3","x":-7.62,"y":-2.54},{"name":"−IN","number":"4","x":-7.62,"y":2.54},{"name":"V+","number":"5","x":0,"y":-7.62}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-5.08,-5.715],[5.08,0],[-5.08,5.715]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[-7.62,-2.54],[-5.08,-2.54]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-7.62,2.54],[-5.08,2.54]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,0],[5.08,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[0,-7.62],[0,-2.8575]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[0,7.62],[0,2.8575]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-4.2545,-2.54],[-2.794,-2.54]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[-3.5179,-3.2639],[-3.5179,-1.8161]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[-4.2545,2.54],[-2.794,2.54]],"style":"body"}]
+      },
+      "value": "Op amp"
+    },
+    {
+      "category": "Connectors",
+      "footprint": {
+        "courtyard": [-1.75,-4.1,1.75,4.1],
+        "name": "PinHeader_1×03_2.54mm",
+        "pads": [{"angle":0,"drill":1,"h":1.75,"number":"1","shape":"rect","w":1.75,"x":0,"y":-2.54},{"angle":0,"drill":1,"h":1.75,"number":"2","shape":"round","w":1.75,"x":0,"y":0},{"angle":0,"drill":1,"h":1.75,"number":"3","shape":"round","w":1.75,"x":0,"y":2.54}],
+        "shapes": [{"closed":true,"fill":false,"kind":"path","points":[[-1.49,-3.81],[1.49,-3.81],[1.49,3.81],[-1.49,3.81]],"style":"silk"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.75,-4.1],[1.75,-4.1],[1.75,4.1],[-1.75,4.1]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-j3",
+      "name": "3-pin header",
+      "prefix": "J",
+      "schDrawing": {
+        "pins": [{"direction":[1,0],"end":[7.62,-5.08],"name":"","number":"1","start":[2.159,-5.08]},{"direction":[1,0],"end":[7.62,0],"name":"","number":"2","start":[2.159,0]},{"direction":[1,0],"end":[7.62,5.08],"name":"","number":"3","start":[2.159,5.08]}]
+      },
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":7.62,"y":-5.08},{"name":"2","number":"2","x":7.62,"y":0},{"name":"3","number":"3","x":7.62,"y":5.08}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-2.159,-7.62],[2.159,-7.62],[2.159,7.62],[-2.159,7.62]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,-5.08],[2.159,-5.08]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[2.159,-5.08],[0.53975,-5.08]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,0],[2.159,0]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[2.159,0],[0.53975,0]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[7.62,5.08],[2.159,5.08]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[2.159,5.08],[0.53975,5.08]],"style":"body"}]
+      },
+      "value": "1 × 03"
+    },
+    {
+      "category": "Connectors",
+      "footprint": {
+        "courtyard": [-1.75,-2.8,1.75,2.8],
+        "name": "PinHeader_1×02_2.54mm",
+        "pads": [{"angle":0,"drill":1,"h":1.75,"number":"1","shape":"rect","w":1.75,"x":0,"y":-1.27},{"angle":0,"drill":1,"h":1.75,"number":"2","shape":"round","w":1.75,"x":0,"y":1.27}],
+        "shapes": [{"closed":true,"fill":false,"kind":"path","points":[[-1.49,-2.54],[1.49,-2.54],[1.49,2.54],[-1.49,2.54]],"style":"silk"},{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1.75,-2.8],[1.75,-2.8],[1.75,2.8],[-1.75,2.8]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-j2",
+      "name": "2-pin header",
+      "prefix": "J",
+      "schDrawing": {
+        "pins": [{"direction":[-1,0],"end":[-7.62,-2.54],"name":"","number":"1","start":[-2.159,-2.54]},{"direction":[-1,0],"end":[-7.62,2.54],"name":"","number":"2","start":[-2.159,2.54]}]
+      },
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":-7.62,"y":-2.54},{"name":"2","number":"2","x":-7.62,"y":2.54}],
+        "shapes": [{"closed":true,"fill":true,"kind":"path","points":[[-2.159,-5.08],[2.159,-5.08],[2.159,5.08],[-2.159,5.08]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[-7.62,-2.54],[-2.159,-2.54]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-2.159,-2.54],[-0.53975,-2.54]],"style":"body"},{"closed":false,"fill":false,"kind":"path","points":[[-7.62,2.54],[-2.159,2.54]],"style":"pin"},{"closed":false,"fill":false,"kind":"path","points":[[-2.159,2.54],[-0.53975,2.54]],"style":"body"}]
+      },
+      "value": "1 × 02"
+    },
+    {
+      "category": "Test points",
+      "footprint": {
+        "courtyard": [-1,-1,1,1],
+        "name": "TestPoint_1.5mm",
+        "pads": [{"angle":0,"drill":0,"h":1.5,"number":"1","shape":"round","w":1.5,"x":0,"y":0}],
+        "shapes": [{"closed":true,"kind":"path","layer":"Mechanical 15","points":[[-1,-1],[1,-1],[1,1],[-1,1]],"style":"courtyard","width":0.05}]
+      },
+      "id": "std-tp",
+      "name": "Test point",
+      "prefix": "TP",
+      "symbol": {
+        "pins": [{"name":"1","number":"1","x":0,"y":2.54}],
+        "shapes": [{"closed":false,"fill":false,"kind":"path","points":[[0,2.54],[0,-1.016]],"style":"pin"},{"kind":"circle","r":0.8,"style":"body","x":0,"y":-1.8}]
+      },
+      "value": "Test point"
+    }
+  ],
+  "name": "Sensor interface",
+  "rules": {
+    "format": "atrium-rules",
+    "list": [
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.2,
+        "id": "clearance-1",
+        "name": "Clearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "scope2": {"kind":"all"},
+        "type": "clearance"
+      },
+      {
+        "allowed": false,
+        "comment": "",
+        "enabled": true,
+        "id": "short-1",
+        "name": "ShortCircuit",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "scope2": {"kind":"all"},
+        "type": "short"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "unrouted-1",
+        "name": "UnRoutedNet",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "unrouted"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "width-1",
+        "max": null,
+        "min": 0.15,
+        "name": "Width",
+        "preferred": null,
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "width"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingTopology-1",
+        "name": "RoutingTopology",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "topology": "shortest",
+        "type": "routingTopology"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingPriority-1",
+        "name": "RoutingPriority",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "routingPriority",
+        "value": 0
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "excluded": [],
+        "id": "routingLayers-1",
+        "name": "RoutingLayers",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "routingLayers"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "routingCorners-1",
+        "name": "RoutingCorners",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "setbackMax": 2.54,
+        "setbackMin": 2.54,
+        "style": "45",
+        "type": "routingCorners"
+      },
+      {
+        "comment": "",
+        "diameterMax": null,
+        "diameterMin": null,
+        "diameterPreferred": null,
+        "enabled": true,
+        "holeMax": null,
+        "holeMin": 0.3,
+        "holePreferred": null,
+        "id": "viaStyle-1",
+        "name": "RoutingVias",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "viaStyle"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-1",
+        "name": "Fanout_BGA",
+        "package": "bga",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "centered"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-2",
+        "name": "Fanout_LCC",
+        "package": "lcc",
+        "priority": 2,
+        "scope": {"kind":"all"},
+        "style": "staggeredOut",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-3",
+        "name": "Fanout_SOIC",
+        "package": "soic",
+        "priority": 3,
+        "scope": {"kind":"all"},
+        "style": "inline",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "outThenIn",
+        "enabled": true,
+        "id": "fanoutControl-4",
+        "name": "Fanout_Small",
+        "package": "small",
+        "priority": 4,
+        "scope": {"kind":"all"},
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "direction": "alternating",
+        "enabled": true,
+        "id": "fanoutControl-5",
+        "name": "Fanout_Default",
+        "package": "default",
+        "priority": 5,
+        "scope": {"kind":"all"},
+        "style": "auto",
+        "type": "fanoutControl",
+        "viaPlacement": "close"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gapMax": 0.3,
+        "gapMin": 0.1,
+        "gapPreferred": 0.15,
+        "id": "diffPairsRouting-1",
+        "layers": {},
+        "maxUncoupled": 6.35,
+        "name": "DiffPairsRouting",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "diffPairsRouting",
+        "widthMax": 0.3,
+        "widthMin": 0.1,
+        "widthPreferred": 0.15
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "expansion": 0.1016,
+        "id": "solderMask-1",
+        "name": "SolderMaskExpansion",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "solderMask"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "expansion": 0,
+        "id": "pasteMask-1",
+        "name": "PasteMaskExpansion",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "pasteMask"
+      },
+      {
+        "airGap": 0.254,
+        "angle": 90,
+        "comment": "",
+        "conductorWidth": 0.254,
+        "enabled": true,
+        "entries": 4,
+        "id": "polygonConnect-1",
+        "kinds": {},
+        "minEntries": 2,
+        "name": "PolygonConnect",
+        "powerWidth": 0.5,
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "style": "polygon",
+        "tempRise": 10,
+        "type": "polygonConnect"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "annularRing-1",
+        "min": 0.1,
+        "name": "MinimumAnnularRing",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "annularRing"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "holeSize-1",
+        "max": 6.35,
+        "min": 0.025,
+        "name": "HoleSize",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "holeSize"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.254,
+        "id": "holeToHole-1",
+        "name": "HoleToHoleClearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "holeToHole"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.1,
+        "id": "silkToMask-1",
+        "name": "SilkToSolderMaskClearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "silkToMask"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "gap": 0.1,
+        "id": "silkToSilk-1",
+        "name": "SilkToSilkClearance",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "silkToSilk"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "flexLayers-1",
+        "name": "RegionLayers",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "flexLayers"
+      },
+      {
+        "allowInFlex": false,
+        "bendKeepout": 1,
+        "comment": "",
+        "enabled": true,
+        "id": "flexVias-1",
+        "name": "FlexViaKeepout",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "flexVias"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "bendKeepout-1",
+        "keepout": 0.5,
+        "name": "BendZoneKeepout",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "type": "bendKeepout"
+      },
+      {
+        "comment": "",
+        "cornerAngle": 30,
+        "enabled": true,
+        "id": "bendCrossing-1",
+        "name": "BendLineCrossing",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "tolerance": 10,
+        "type": "bendCrossing"
+      },
+      {
+        "comment": "",
+        "dynamic1": 100,
+        "dynamic2": 150,
+        "dynamicMulti": 200,
+        "enabled": true,
+        "id": "bendRadius-1",
+        "name": "MinimumBendRadius",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "static1": 6,
+        "static2": 10,
+        "staticMulti": 15,
+        "type": "bendRadius"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "flexCopper-1",
+        "name": "FlexCopperHatching",
+        "priority": 1,
+        "requireHatch": true,
+        "scope": {"kind":"all"},
+        "type": "flexCopper"
+      },
+      {
+        "comment": "",
+        "enabled": true,
+        "id": "stiffener-1",
+        "minPads": 6,
+        "name": "StiffenerPlacement",
+        "priority": 1,
+        "requireBacking": true,
+        "scope": {"kind":"all"},
+        "type": "stiffener"
+      },
+      {
+        "bendTermination": true,
+        "comment": "",
+        "enabled": true,
+        "id": "flexRouting-1",
+        "minStackRun": 0.5,
+        "name": "FlexRouting",
+        "priority": 1,
+        "requireTeardrops": true,
+        "scope": {"kind":"all"},
+        "staggerLayers": true,
+        "type": "flexRouting"
+      },
+      {
+        "comment": "",
+        "coverlayExpansion": 0.1,
+        "enabled": true,
+        "id": "flexBuild-1",
+        "minWeb": 0.25,
+        "name": "FlexConstruction",
+        "priority": 1,
+        "scope": {"kind":"all"},
+        "stiffenerGap": 1,
+        "transition": 1.5,
+        "type": "flexBuild"
+      }
+    ],
+    "units": "mm",
+    "version": 3
+  },
+  "signals": {
+    "conventions": {
+      "pairs": [
+        "_P/_N"
+      ]
+    },
+    "declined": {
+      "diff:example": {
+        "date": "2026-11-20",
+        "kind": "diff"
+      }
+    },
+    "nets": {
+      "VDD": {
+        "tags": ["Power"]
+      }
+    },
+    "series": {
+      "b-C2": false
+    },
+    "signals": [
+      {
+        "comment": "AC-coupled lane: one signal across C3 and C4.",
+        "id": "s-link",
+        "intent": {"role":"pairMember","source":"name"},
+        "kind": "diff",
+        "legs": [{"nets":["TX_P"],"polarity":1},{"nets":["TX_N"],"polarity":-1}],
+        "name": "LINK",
+        "stages": ["LINK","LINK_C"],
+        "tags": ["HS"]
+      },
+      {
+        "exclude": [],
+        "id": "s-out",
+        "kind": "single",
+        "legs": [{"nets":["BUF"]}],
+        "name": "OUT",
+        "paths": [{"from":{"part":"b-U1","pin":"1"},"name":"OUT_U1_J2","tags":["Analog"],"to":{"part":"b-J2","pin":"1"}}],
+        "tags": ["Analog"],
+        "through": []
+      },
+      {
+        "id": "s-bus",
+        "kind": "bus",
+        "members": ["s-link"],
+        "name": "LINKS",
+        "tags": ["Serial"]
+      }
+    ],
+    "tags": [
+      {
+        "color": "#4cc9f0",
+        "comment": "High speed",
+        "name": "HS"
+      },
+      {
+        "name": "Analog"
+      },
+      {
+        "name": "Serial"
+      },
+      {
+        "as": {"net":"Power","pair":null,"xsignal":null},
+        "name": "Power"
+      }
+    ],
+    "version": 1
+  },
+  "version": 1
+}

@@ -1,0 +1,494 @@
+/* Waffle shell — modelled on Altium Designer's dark-grey workspace: a compact
+   menu row, docked panels with title bars, an Active Bar floating over the
+   canvas, PCB layer tabs under the editor and a dense status bar. */
+:root {
+  color-scheme:dark;
+  --app:#1d1d1d;--chrome:#2b2b2b;--panel:#303030;--panel-head:#3b3b3b;--raised:#464646;--hover:#3d3d3d;--field:#222;
+  --ink:#e2e2e2;--muted:#b9b9b9;--faint:#a9a9a9;--line:#474747;--line-strong:#5a5a5a;--paper:var(--panel);--soft:#393939;
+  --accent:#0a84ff;--accent-text:#89c4ff;--accent-strong:var(--accent);--on-accent-strong:var(--focus-edge-light);
+  --selection:#205387;--selection-ink:#fff;--focus:#45a2ff;--primary:#0974e0;
+  /* Theme tokens (theme.css overrides them per theme; these are the Dark values). */
+  --divider:var(--app);--menu-bg:#2d2d2d;--tab-bg:#2a2a2a;--tab-hover:#333;--canvas-bg:#000;--bar-bg:rgba(45,45,45,.94);--bar-line:#585858;
+  --pressed:#4d4d4d;--layer-on:#4a4a4a;--ls-bg:#232323;--ls-ink:#ff6b5e;--button:#3c3c3c;--button-line:#989898;--button-hover:#4a4a4a;
+  --input-line:#929292;--rule:#262626;--primary-line:#45a2ff;--sheet:#fffcf8;
+  --ink-bright:#fff;--ink-strong:#f0f0f0;--head-ink:#ececec;--tab-hover-ink:#e8e8e8;--coords-ink:#e6e6e6;--chrome-ink:#d6d6d6;
+  --tool-ink:#d2d2d2;--soft-ink:#d0d0d0;--icon-ink:#c8c8c8;--dim-ink:#c4c4c4;--caption-ink:#bdbdbd;--tab-ink:#b9b9b9;--split-ink:#a9a9a9;
+  --on-accent:#141414;--on-accent-2:#141414;--on-primary:#ffffff;--accent-btn-ink:#141414;
+  --icon-folder:#aab7c7;--icon-sch:#a6c8ff;--icon-pcb:#6fc27a;--error-ink:#f08a6a;
+  --diff-changed:#8fb3d9;--diff-added:#7fd18f;--diff-removed:#e8956e;--ok-ink:#9fe0b0;--ok-line:#3d6b4a;--warn-line:#7a5a25;--bad-ink:#e8956e;--bad-line:#7a4a35;
+  --err-mark:#e06c75;--warn-mark:#d7a54a;--ok-mark:#57b06f;--warn-ink:#f0c46a;--sel-sub-ink:#e6eefc;--badge-line:#ffffff66;--conflict-line:#c9822a;--km-warn:#e0a040;
+  --shadow-sm:#0007;--shadow-md:#0009;--shadow-lg:#000b;--backdrop:#0008;--shadow-drawer:#000a;--swatch-edge:#0006;--preview-edge:#0005;--shadow-side:#0004;
+  --shadow-vc:rgba(0,0,0,.5);--swatch-line:rgba(255,255,255,.28);
+  --danger:#f0706a;--warning:#f0c46a;--info:#75beff;--danger-fill:#c4281c;--on-danger:#ffffff;
+  /* Design Insights (insights-ui.js): advice, distinct from the error and warning colours. */
+  --insight:#b7a2ff;--insight-ink:#cbbcff;
+  /* UI font scale and row-height offsets (theme.css: data-ui-font, data-density). */
+  --fs-scale:1;--density-row:0px;--density-bar:0px;--font-row:0px;--font-bar:0px;
+  --d-row:calc(var(--density-row) + var(--font-row));--d-bar:calc(var(--density-bar) + var(--font-bar));
+  /* Design system (docs/design-system.md). Semantic aliases follow the theme tokens above. */
+  --surface:var(--panel);--overlay:var(--menu-bg);--text:var(--ink);--success:var(--ok-ink);--error:var(--danger);
+  --tint-danger:color-mix(in srgb,var(--danger) 16%,transparent);--tint-warning:color-mix(in srgb,var(--warning) 16%,transparent);
+  --tint-success:color-mix(in srgb,var(--success) 16%,transparent);--tint-info:color-mix(in srgb,var(--info) 16%,transparent);
+  --tint-accent:color-mix(in srgb,var(--accent) 18%,transparent);
+  --tint-insight:color-mix(in srgb,var(--insight) 16%,transparent);
+  /* Spacing, type, radii, elevation, layers, control heights, focus. */
+  --s-2:2px;--s-4:4px;--s-6:6px;--s-8:8px;--s-12:12px;--s-16:16px;--s-24:24px;
+  --keycap-size:20px;--keycap-padding:5px;--keycap-radius:5px;--keycap-shadow:0 1px 0 var(--line);
+  --fs-10:calc(10px*var(--fs-scale));--fs-11:calc(11px*var(--fs-scale));--fs-12:calc(12px*var(--fs-scale));--fs-13:calc(13px*var(--fs-scale));
+  --fs-14:calc(14px*var(--fs-scale));--fs-16:calc(16px*var(--fs-scale));--fs-20:calc(20px*var(--fs-scale));
+  --fw-regular:400;--fw-medium:500;--fw-semibold:600;--lh-tight:1.2;--lh:1.35;--lh-loose:1.5;
+  --r-sm:2px;--r-md:4px;--r-lg:6px;--r-card:10px;--r-pill:999px;--r-note-tool:5px;--r-note-palette:9px;
+  --elev-1:0 2px 8px var(--shadow-sm);--elev-2:0 6px 18px var(--shadow-md);--elev-3:0 18px 60px var(--shadow-lg);
+  --elev-canvas-tools:0 1px 3px var(--shadow-sm);--elev-workspace-drawer:0 3px 12px var(--shadow-drawer);--elev-sheet-drawer:-8px 0 24px var(--shadow-side);--elev-note-formatting:0 6px 20px var(--shadow-sm);
+  --printed-paper:#fff;--elev-print-tile:0 1px 4px rgba(0,0,0,.28);--elev-print-zoom:0 2px 10px rgba(0,0,0,.35);
+  --z-sticky:1;--z-float:30;--z-toast:35;--z-popover:40;--z-alert:60;--z-top:1000;
+  --ctl-h-sm:calc(20px + var(--d-row));--ctl-h:calc(24px + var(--d-row));--ctl-h-lg:calc(28px + var(--d-row));--ctl-h-touch:44px;--ctl-px:8px;--status-min:min(9rem,16vw);--search-w:200px;
+  /* Editor chrome uses a fixed default grid, independently of the dialog Field and control heights. */
+  /* Visual rules never take space away from a bar's controls. */
+  --chrome-rule-top:inset 0 1px;--chrome-rule-bottom:inset 0 -1px;--chrome-rule-left:inset 1px 0;
+  --chrome-menu-height:30px;--chrome-tab-height:32px;--chrome-row-height:var(--s-24);
+  --chrome-icon-width:28px;--chrome-icon-height:var(--chrome-row-height);--chrome-control-radius:var(--r-lg);
+  --chrome-glyph-size:var(--s-16);--chrome-glyph-dense:14px;
+  /* Window safe area (docs/ui-library.md). The macOS host draws the page under a transparent title bar and
+     publishes its height as --macos-caption-height (native/macos/main.swift); --window-caption-height is
+     that band (0 elsewhere), which only title-bar rows (.appbar, .ui-fullwindow-bar) may draw in. A dialog
+     stays below it and the app bar, and --dialog-margin clear of every window edge. */
+  --window-caption-height:var(--macos-caption-height,0px);
+  --window-safe-top:max(var(--chrome-menu-height),var(--window-caption-height));--dialog-margin:var(--s-24);
+  --dialog-safe-top:calc(var(--window-safe-top) + var(--dialog-margin));
+  --dialog-avail-w:calc(100vw - 2 * var(--dialog-margin));--dialog-avail-h:calc(100dvh - var(--dialog-safe-top) - var(--dialog-margin));
+  --chrome-chip-height:var(--chrome-row-height);--chrome-layer-height:var(--chrome-menu-height);--chrome-pill-height:22px;--chrome-layer-swatch:9px;
+  --focus-w:2px;--focus-edge-light:#ffffff;--focus-edge-dark:#000000;--focus-ring:0 0 0 var(--focus-w) var(--focus);--sel-bar:inset 2px 0 0 var(--accent);
+  --icon-close:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='m6 6 12 12m-12 0L18 6'/%3E%3C/svg%3E");
+  --sidebar:clamp(196px,16vw,250px);--properties:clamp(256px,23vw,344px);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --font-ui:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Inter,sans-serif;
+  font:calc(12px*var(--fs-scale))/1.35 var(--font-ui);
+  color:var(--ink);background:var(--app);-webkit-font-smoothing:antialiased;
+}
+* {box-sizing:border-box}
+/* Native behaviour (docs/design-system.md): the window behaves like a Mac app, not a page.
+   Chrome is not selectable, shows the arrow, never rubber-bands, scrolls or pinch-zooms as a
+   page, and its images and links are not draggable. Text you would copy opts back in below. */
+html {overflow:hidden;overscroll-behavior:none;touch-action:pan-x pan-y;cursor:default;user-select:none;-webkit-user-select:none;
+  -webkit-user-drag:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+:where(img,svg,a,video,canvas) {-webkit-user-drag:none}
+:where([draggable=true]) {-webkit-user-drag:element}
+:where(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=button],[type=submit],[type=reset],[type=file],[type=image]),textarea,
+  [contenteditable]:not([contenteditable=false]),pre,code,samp,output,[role=log],.ui-selectable) {user-select:text;-webkit-user-select:text;cursor:auto;-webkit-touch-callout:default}
+body {margin:0;height:100vh;height:100dvh;min-height:260px;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;background:var(--app)}
+button,input,select,textarea {font:inherit;color:inherit}
+/* Buttons use the arrow, as on macOS; only text links use the pointing hand. */
+button {background:transparent;border:0;padding:0;cursor:default;line-height:1.25}
+:where(a[href]) {cursor:pointer}
+:where(:focus-visible) {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,textarea:focus-visible,[role="listbox"]:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
+button:disabled {opacity:.38;cursor:default}
+::placeholder {color:var(--muted);opacity:1}
+.visually-hidden {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+[hidden] {display:none!important}
+html:not([data-notebook-labs]) [data-notebook-action] {display:none!important}
+h1,h2,h3,h4,p {margin:0}
+.icon-bank {width:0;height:0;position:absolute;overflow:hidden}
+.icon {display:block;width:var(--chrome-glyph-size);height:var(--chrome-glyph-size);flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.tool-divider {width:1px;height:16px;background:var(--line-strong);flex:none;margin:0 4px}
+
+/* Menu row */
+.appbar {--appbar-height:var(--chrome-menu-height);--app-control-height:var(--chrome-icon-height);
+  --app-icon-width:var(--chrome-icon-width);--app-share-width:72px;
+  min-block-size:var(--appbar-height);flex:none;display:grid;grid-template-columns:minmax(0,1fr) max-content;
+  gap:var(--s-8);padding:0 var(--s-6);background:var(--chrome);box-shadow:var(--chrome-rule-bottom) var(--divider);position:relative;z-index:5}
+.appbar-leading {display:flex;min-inline-size:0;align-items:center;gap:var(--s-4)}
+.appbar-leading .menubar {min-inline-size:0;flex:none}
+.brand {display:flex;flex:none;align-items:center;gap:var(--s-6);block-size:var(--app-control-height);padding:0 var(--s-8) 0 var(--s-4);
+  margin:0;line-height:1;color:var(--head-ink)}
+/* The brand lettering from the lockup, stroked in the theme ink; the box is whole pixels. */
+.brand-mark,.brand-wordmark {display:block;flex:none}
+.brand-wordmark {overflow:visible}
+.menubar,.quick-access {display:flex;align-items:center}
+.menubar {gap:0}
+.quick-access {flex:none;gap:var(--s-2)}
+.quick-access > .tool-divider {margin:0 var(--s-4)}
+.command-link,.work-menu > summary {display:flex;align-items:center;justify-content:center;padding:0 var(--s-8);
+  block-size:var(--app-control-height,var(--chrome-icon-height));font-size:var(--fs-13);
+  line-height:1;color:var(--chrome-ink);white-space:nowrap}
+.command-link {inline-size:var(--app-icon-width);flex:none;padding:0;color:var(--icon-ink)}
+.work-menu {position:relative}
+.work-menu > summary {list-style:none;cursor:default}
+.work-menu > summary::-webkit-details-marker {display:none}
+.menu-items {position:absolute;z-index:6;top:calc(100% + 2px);inset-inline-start:0;width:max-content;min-width:190px;max-width:min(300px,85vw);max-height:calc(100vh - 60px);overflow:auto;padding:4px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--menu-bg);box-shadow:var(--elev-2)}
+.menu-items button {display:flex;align-items:center;justify-content:space-between;gap:22px;width:100%;min-height:var(--ctl-h);padding:3px 10px 3px 22px;text-align:left;font-size:var(--fs-12);position:relative}
+.menu-items [data-action=grid][aria-pressed=true]::before,.menu-items [role=menuitemcheckbox][aria-checked=true]::before {content:"✓";position:absolute;left:7px;font-size:var(--fs-11);color:currentColor}
+.menu-items button > .ui-shortcut {flex:none;margin-inline-start:var(--s-8)}
+.menu-items hr {border:0;border-top:1px solid var(--line);margin:4px 4px}
+
+/* The macOS host keeps the system controls above this row and owns the blank caption's mouse events. */
+/* Fit content-sized chrome to pixels without rounding the text inside it. */
+:is(.brand,.work-menu > summary,.menu-items,.document-tab,.layer-menu-button,.layer-tab) {
+  inline-size:calc-size(max-content, round(up,size,1px));
+}
+.menu-items {max-inline-size:round(down,min(300px,85vw),1px)}
+.appbar-leading > [data-macos-drag] {display:none}
+:root[data-atrium-native-titlebar=macos] .appbar {padding-left:max(var(--s-6),var(--macos-caption-inset,0px));padding-right:max(var(--s-6),var(--macos-caption-right-inset,0px));min-block-size:max(var(--appbar-height),var(--macos-caption-height,0px))}
+:root[data-atrium-native-titlebar=macos] .appbar-leading > [data-macos-drag] {display:block;flex:1 0 var(--s-24);align-self:stretch}
+.appbar-leading #collab-people {display:flex;flex:none;align-items:center;gap:var(--s-4);margin:0;padding:0}
+.appbar-leading #collab-people:not(:has(.collab-person,#collab-more:not([hidden]))) {display:none}
+.appbar-leading #collab-faces {display:flex;align-items:center}
+.appbar-actions {display:flex;align-items:center;justify-self:end;gap:var(--s-8)}
+.appbar-actions > #collab-share {--ui-control-height:var(--app-control-height);
+  --ui-button-ink:var(--ink);display:inline-flex;flex:none;align-items:center;justify-content:center;
+  gap:var(--s-4);inline-size:var(--app-share-width);block-size:var(--app-control-height);padding:0;
+  border-radius:var(--chrome-control-radius);font-weight:var(--fw-medium);white-space:nowrap}
+.appbar-actions > #collab-share > span {flex:none;white-space:nowrap}
+@media (max-width:1360px) {
+  :root[data-atrium-native-titlebar=macos] .appbar-leading #collab-people :is(#collab-more,.collab-person:not(:first-child)) {display:none}
+}
+@media (max-width:1100px) {
+  :root[data-atrium-native-titlebar=macos] .appbar-leading .brand-wordmark {display:none}
+}
+@media (max-width:850px), (max-width:1120px) and (pointer:coarse) {
+  .appbar {grid-template-columns:minmax(0,1fr);row-gap:0}
+  .appbar-leading {min-block-size:var(--appbar-height);flex-wrap:wrap}
+  .appbar-leading .menubar {flex:1 1 min-content;flex-wrap:wrap}
+  .appbar-actions {min-block-size:var(--appbar-height)}
+}
+@media (pointer:coarse) {
+  .appbar .work-menu > summary {min-inline-size:var(--ctl-h-touch)}
+  .appbar-actions > #collab-share {--ui-button-hover:var(--ui-button-fill);transition:none}
+}
+@media (max-width:1120px) and (pointer:coarse) {
+  .appbar {--appbar-height:var(--ctl-h-touch);--app-control-height:var(--ctl-h-touch);--app-icon-width:var(--ctl-h-touch)}
+  .appbar-leading #collab-people :is(.collab-face,#collab-more) {inline-size:var(--ctl-h-touch);block-size:var(--ctl-h-touch)}
+}
+
+/* Workbench: left dock | editor | right dock (panels open from their dock tabs and Window › Panels) */
+#workbench {display:grid;grid-template-columns:var(--sidebar) minmax(0,1fr) var(--properties);flex:1 1 0;min-height:0;isolation:isolate;gap:0;background:var(--app)}
+#workbench {
+  grid-template-columns:round(nearest,var(--sidebar),1px) minmax(0,1fr) round(nearest,var(--properties),1px);
+}
+.hide-left #workbench {--sidebar:0px}
+.hide-right #workbench {--properties:0px}
+.hide-left #navigator,.hide-right #properties {display:none}
+/* dock.js: a saved layout that moves the startup panels hides them until it has placed them (no flash of Default). */
+.dock-pending #navigator,.dock-pending #properties {visibility:hidden}
+#navigator {grid-column:1;border-right:1px solid var(--divider);background:var(--panel)}
+#editor-area {grid-column:2;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;container-type:inline-size;background:var(--chrome)}
+#properties {grid-column:3;border-left:1px solid var(--divider);background:var(--panel)}
+#properties > .panel-components {display:none}
+.side-pane {min-width:0;overflow:hidden}
+.panel-projects {flex:0 1 auto;max-height:46%;max-height:round(down,46%,1px)}
+.panel-components {flex:1 1 0;border-top:1px solid var(--divider)}
+.panel-body {overflow:auto;min-height:0;padding:4px 0 6px}
+.pane-heading {display:flex;align-items:center;gap:6px;flex:none;height:calc(24px + var(--d-bar));padding:0 8px;background:var(--panel-head);box-shadow:var(--chrome-rule-bottom) var(--divider)}
+.pane-heading h2 {font-size:var(--fs-12);font-weight:600;color:var(--head-ink);min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+:is(#properties,.panel-properties,.panel-components) > .pane-heading {height:var(--chrome-tab-height);background:var(--surface)}
+.panel-components.dock-tabbed {border-top:0}
+.panel-components > .pane-heading > .ui-button {--ui-control-height:var(--chrome-row-height)}
+.pane-scroll {min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;flex:1}
+
+/* Project tree */
+.panel-projects > .pane-heading {justify-content:space-between;height:var(--chrome-tab-height);background:var(--surface)}
+.panel-projects > .pane-heading h2 {font-weight:var(--fw-semibold)}
+.panel-projects .pane-heading .section-toggle {display:flex;block-size:var(--chrome-row-height);inline-size:calc-size(max-content, round(up,size,1px))}
+.panel-projects .pane-heading .section-toggle::before {content:none}
+.project-entry {
+  position:relative;--project-action-size:var(--chrome-row-height);
+  --project-title-gutter:calc((var(--project-action-size) - var(--chrome-row-height)) / 2);
+  padding-block-start:var(--project-title-gutter)
+}
+.project-actions {
+  position:absolute;inset-block-start:0;inset-inline-end:calc(var(--s-6) + var(--s-4));
+  block-size:var(--project-action-size);display:flex;align-items:center;gap:var(--s-2)
+}
+.project-actions > .ui-icon-button {--ui-control-height:var(--project-action-size)}
+@media (any-pointer:coarse) {
+  .project-entry {--project-action-size:var(--ctl-h-touch)}
+}
+.project-tree {--project-row-depth:0}
+.tree-folder {--project-row-depth:1}
+.project-entry > .project-tree > summary {
+  margin-block-end:var(--project-title-gutter);
+  --project-row-end:calc(2 * (var(--s-4) + var(--project-action-size)) + var(--s-2))
+}
+.project-tree > summary {font-weight:var(--fw-semibold)}
+.project-tree > summary .tree-icon {color:var(--accent-text)}
+.tree-folder > summary .tree-icon {color:var(--icon-folder)}
+.doc-row[data-kind=pcb] .tree-icon {color:var(--icon-pcb)}
+.project-tree .tree-chevron,.doc-row .tree-chevron {width:var(--s-12);height:var(--s-12);color:var(--muted);transition:transform calc(var(--motion-base) * var(--motion-move)) var(--ease-decelerate)}
+:is(.project-tree,.tree-folder) > summary > .tree-chevron,[data-tree-toggle] {grid-column:1}
+:is(.project-tree,.tree-folder)[open] > summary > .tree-chevron,.doc-row[aria-expanded=true] .tree-chevron {transform:rotate(90deg)}
+.doc-row [data-tree-toggle] {display:grid;place-items:center;inline-size:20px;align-self:stretch;margin-inline-start:calc(-1 * var(--s-4))}
+.doc-row[data-port] > .tree-icon {display:none}
+.doc-row .doc-port-io {grid-column:2;text-align:center;color:var(--icon-sch);font-style:normal}
+.doc-row .doc-channels {grid-column:4;padding-inline:var(--s-4);border-radius:var(--r-pill);background:var(--soft);color:var(--muted);font:var(--fs-10) var(--mono)}
+.doc-row .collab-badges {grid-column:5}
+.nav-rows {--ui-list-display:flex;display:flex;flex-direction:column;gap:0}
+.nav-rows button:where(:not(.doc-row)) {display:flex;align-items:center;gap:6px;width:100%;min-height:calc(22px + var(--d-row));text-align:left;color:var(--chrome-ink);font-size:var(--fs-12)}
+#documents > .doc-row {width:calc(100% - 2 * var(--s-6));row-gap:var(--s-6)}
+#documents > .nav-row:not(.doc-row) {padding-inline:var(--s-12)}
+/* The row a context menu is open on: a ring (Finder), distinct from the selection fill and kept until the menu closes. */
+:is(#documents > .doc-row,.project-tree summary,#document-tabs [data-tab],.pane-tabs [data-tab])[data-context-target] {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
+.part-row > .ui-row-subtitle {font-size:inherit}
+.tree-exit-layer {position:fixed;overflow:hidden;pointer-events:none;z-index:var(--z-sticky)}
+.tree-exit-layer .doc-row,.ui-spatial-ghost.doc-row {position:absolute;margin-block:0}
+#parts button {min-height:var(--chrome-row-height);padding:0 var(--s-8)}
+#parts strong {font:600 var(--fs-11) var(--mono);color:var(--ink-strong)}
+#part-count {margin-left:auto;font:var(--fs-10) var(--mono);color:var(--muted);pointer-events:none}
+
+/* Document tabs */
+.document-tab {display:flex;align-items:center;gap:6px;flex:none;min-width:90px;max-width:220px;height:var(--chrome-tab-height);padding:0 var(--s-4) 0 var(--s-12);color:var(--tab-ink);font-size:var(--fs-12);font-weight:var(--fw-regular);background:transparent}
+.document-tab span {overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.document-tab[data-kind=schematic] .icon {color:var(--icon-sch)}
+.document-tab[data-kind=pcb] .icon {color:var(--icon-pcb)}
+.document-tab-close {display:inline-grid;place-items:center;flex:none;width:var(--s-24);height:var(--s-24);margin-inline-start:auto;color:inherit;opacity:0;pointer-events:none}
+.document-tab:is(:hover,:focus-visible,[aria-selected=true]) .document-tab-close {opacity:1;pointer-events:auto}
+@media (any-pointer:coarse) {.document-tab .document-tab-close {opacity:1;pointer-events:auto;min-height:100%}}
+
+/* Canvas and Active Bar */
+#canvas-stage {position:relative;flex:1 1 0;min-width:0;min-height:0;overflow:hidden;background:var(--canvas-bg)}
+/* A tool button: the icon-button size and radius (24 px, the control radius; decision 5). Icon-only
+   buttons elsewhere are .ui-icon-button; the Active Bar sizes its own tools below. */
+.tool {display:inline-flex;align-items:center;justify-content:center;gap:4px;height:var(--ctl-h);min-width:var(--ctl-h);flex:none;padding:0 4px;border-radius:var(--chrome-control-radius);color:var(--tool-ink);font-size:var(--fs-12)}
+.active-bar .tool {inline-size:var(--chrome-icon-width);min-inline-size:var(--chrome-icon-width);block-size:var(--chrome-icon-width);padding:0;border-radius:var(--chrome-control-radius)}
+.active-bar .tool[aria-pressed=true] {background:var(--accent-strong);color:var(--on-accent-strong)}
+.active-bar .tool-label {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.active-bar .tool-divider {height:18px;margin:0 var(--s-2)}
+/* Drawing documents (drawing.js): the Active Bar shows the drawing tools (data-scope="drawing"), not the
+   schematic and board ones, which have no meaning on a sheet of views. */
+body[data-kind="drawing"] #tools .tool:is([data-action="library"],[data-action="route"],[data-action="via"],[data-action="junction"],[data-action="label"],[data-action="measure"]) {display:none}
+
+/* PCB layer tabs */
+.layer-bar {--ui-toolbar-sep-margin:var(--s-4);display:flex;align-items:center;flex:none;gap:var(--s-6);height:var(--chrome-layer-height);
+  padding-inline:var(--s-6);background:var(--chrome);box-shadow:var(--chrome-rule-top) var(--divider)}
+.layer-tabs {display:flex;align-items:center;align-self:stretch;gap:var(--s-4);min-width:0;overflow-x:auto;scrollbar-width:none}
+.layer-tabs::-webkit-scrollbar {display:none}
+.layer-menu-button,.layer-tab {display:flex;align-items:center;gap:var(--s-4);flex:none;height:var(--chrome-pill-height);
+  padding-inline:var(--s-8);font-size:var(--fs-11);white-space:nowrap}
+.layer-menu-arrow {inline-size:var(--s-12);block-size:var(--s-12);color:var(--muted)}
+.layer-swatch {display:block;inline-size:var(--chrome-layer-swatch);block-size:var(--chrome-layer-swatch);
+  flex:none;border-radius:var(--r-sm);border:1px solid var(--swatch-edge)}
+@supports (margin-top:round(nearest,1px,1px)) {
+  .layer-swatch {
+    align-self:start;margin-block-start:round(nearest,calc((var(--chrome-pill-height) - var(--chrome-layer-swatch) - 2px)/2),1px)
+  }
+}
+@media (pointer:coarse) {
+  .layer-menu-button,.layer-tab {position:relative;min-width:var(--ctl-h-touch)}
+  /* Include the spare strip padding in the hit target without reaching the canvas. */
+  :is(.layer-menu-button,.layer-tab)::before {content:"";position:absolute;inset-inline:0;
+    inset-block:calc((var(--chrome-pill-height) - var(--chrome-layer-height) + var(--s-2)) / 2)}
+}
+
+/* Status bar */
+.statusbar {display:flex;align-items:center;gap:var(--s-4);height:var(--chrome-row-height,var(--s-24));padding-inline:var(--s-8) var(--s-4);
+  flex:none;box-shadow:var(--chrome-rule-top) var(--divider);background:var(--chrome);color:var(--dim-ink);font-size:var(--fs-11)}
+#coords {display:flex;align-items:center;gap:var(--s-12);flex:none;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--coords-ink)}
+.status-axis {display:grid;grid-template-columns:var(--s-8) 64px;column-gap:var(--s-4);line-height:var(--s-16);text-align:start}
+.status-axis > :last-child {overflow:hidden;text-overflow:ellipsis}
+#status {min-width:0;flex:1 1 auto;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+/* Opening progress (editor-files.js): the library bar (.ui-progress), 64 px wide, before the status text.
+   Determinate fills to whole pixels; without counts it sweeps (still under reduced motion). */
+.statusbar .status-progress {inline-size:64px;pointer-events:none}
+.status-right,.view-palette {display:flex;align-items:center;gap:var(--s-2);height:100%;flex:none;white-space:nowrap}
+.status-right {margin-inline-start:auto}
+.statusbar .status-action {display:inline-flex;align-items:center;justify-content:center;gap:var(--s-4);height:100%;min-height:0;padding-inline:var(--s-4);
+  border:0;border-radius:var(--chrome-control-radius);background:transparent;color:inherit;font:inherit;line-height:var(--lh-tight);white-space:nowrap}
+.statusbar .status-action:where(button,summary) {inline-size:calc-size(max-content, round(up,size,1px))}
+.statusbar .status-action[hidden] {display:none}
+.statusbar .status-action:focus-visible {outline-offset:-2px}
+@media (hover:hover) and (pointer:fine) {.statusbar .status-action:hover:not(:disabled) {background:var(--hover)}}
+#status-grid-menu {block-size:100%;flex:none}
+#status-grid-menu > .menu-items {inset-block-start:auto;inset-block-end:calc(100% + var(--s-2))}
+.statusbar .status-grid {block-size:100%;color:var(--ink)}
+#status-grid-menu:has([aria-checked=false]) .status-grid {color:var(--muted)}
+.status-grid .icon {width:var(--chrome-glyph-dense);height:var(--chrome-glyph-dense);transform:rotate(-90deg)}
+.statusbar .status-zoom {inline-size:var(--s-24);block-size:var(--s-24);min-inline-size:0;flex:none;padding:0}
+.status-zoom .icon {width:var(--s-16);height:var(--s-16)}
+.status-snap::before {content:"";width:var(--s-4);height:var(--s-4);border-radius:var(--r-pill);background:var(--faint)}
+.status-snap:is([aria-pressed=true],[data-snap=on])::before {background:var(--accent)}
+#status-problems[data-state=ok] {color:var(--ok-ink)}
+#status-problems[data-state=bad] {color:var(--error-ink)}
+@media (hover:hover) and (pointer:fine) {
+  #status-problems[data-state=bad]:hover {color:color-mix(in srgb,var(--error-ink) 85%,var(--ink))}
+}
+#status-problems[data-state=warning] {color:var(--warning)}
+#grid-value,#zoom-value {white-space:nowrap;font-variant-numeric:tabular-nums}
+#zoom-value {inline-size:40px;text-align:center}
+
+@container (max-width:450px) {.active-bar .tool-divider {display:none}}
+@media(max-width:960px) {:root {--sidebar:170px;--properties:200px}}
+@media(max-width:740px) {
+  :root {--sidebar:150px;--properties:176px}
+  .work-menu > summary {padding-inline:6px}
+}
+@media(max-width:620px) {
+  #workbench {position:relative;grid-template-columns:minmax(0,1fr)}
+  #editor-area {grid-column:1;grid-row:1}
+  #navigator,#properties {position:absolute;z-index:3;inset-block:0;width:min(70vw,250px);--ui-drawer-shadow:var(--elev-workspace-drawer)}
+  #navigator {left:0}
+  #properties {right:0}
+  .brand-wordmark {display:none}
+  .work-menu > summary {font-size:var(--fs-11);padding-inline:4px}
+  .appbar .work-menu:nth-last-child(-n+3) .menu-items {left:auto;right:0}
+  #coords {display:none}
+  .statusbar {gap:var(--s-2);padding-inline:var(--s-4)}
+}
+
+/* Properties panel */
+#inspector {padding:0 0 12px;font-size:var(--fs-12)}
+#inspector h2 {font-weight:600;font-size:var(--fs-14);line-height:1.3;margin:8px 8px}
+#inspector section,#inspector fieldset {border:0;padding:0 8px 8px;margin:0}
+#inspector .inspect-section-heading > h3 {flex:1;min-inline-size:0;font:inherit}
+#inspector h4,#inspector strong {font-weight:600}
+#inspector dl {display:grid;grid-template-columns:minmax(0, 40%) minmax(0, 1fr);gap:6px 12px;align-items:baseline;margin:6px 0}
+#inspector dt,#inspector small {color:var(--muted)}
+#inspector dd {min-width:0;margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#inspector label {display:flex;align-items:center;justify-content:space-between;gap:var(--s-8);min-height:calc(26px + var(--d-row));margin:1px 0;font-size:var(--fs-12);color:var(--muted)}
+#inspector :is(input:not([type="checkbox"]),select,textarea) {display:block;min-inline-size:0;inline-size:58%}
+#inspector textarea:not(.ui-field) {background:var(--field);color:var(--ink);border:1px solid var(--input-line);border-radius:var(--r-sm);padding:2px 6px;height:calc(23px + var(--d-row));font-size:var(--fs-12)}
+#inspector input[type="number"],#inspector input[data-unit] {font-variant-numeric:tabular-nums}
+#inspector input[type="checkbox"] {accent-color:var(--accent)}
+#inspector p {color:var(--muted);font-size:var(--fs-12);line-height:1.5;overflow-wrap:anywhere}
+#inspector ul {padding-inline-start:16px;margin:6px 0}
+#inspector li {line-height:1.5;margin:4px 0}
+#inspector code,#inspector .mono {font:var(--fs-11) var(--mono)}
+#inspector summary {cursor:default;line-height:1.5}
+.inspector-disclosure {padding:0 8px;border:0}
+#inspector .inspector-disclosure > summary {list-style:none;--ui-section-tail:0}
+.inspector-disclosure > summary::-webkit-details-marker {display:none}
+.inspector-disclosure-body {padding:6px 0 8px}
+.part-row strong {flex:0 0 34px}
+.side-note {margin:6px 8px;font-size:var(--fs-11);line-height:1.5;color:var(--muted)}
+.property-row span,.field-row > span {flex-shrink:0;font-weight:400;color:var(--muted)}
+#inspector .layer-row {display:flex;align-items:center;gap:8px;width:calc(100% + 12px);min-height:calc(22px + var(--d-row));margin-inline:-6px;padding:2px 6px;border-radius:var(--r-sm);color:var(--ink);font-weight:400}
+#inspector .layer-row:hover:not(:disabled) {background:var(--hover)}
+.layer-dot {width:10px;height:10px;border-radius:var(--r-sm);flex:0 0 auto;box-shadow:inset 0 0 0 1px var(--swatch-edge)}
+.layer-row small {margin-left:auto;font-size:var(--fs-10);color:var(--muted)}
+.layer-row:not(.pour-visibility)[aria-pressed="true"] small {visibility:hidden}
+#inspector .layer-row[aria-pressed="false"] {color:var(--faint)}
+.layer-row[aria-pressed="false"] .layer-dot {opacity:.35}
+.inspect-actions {display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:6px}
+#inspector section > .ui-button {margin-block:var(--s-4)}
+.import-cancel {position:fixed;right:16px;bottom:40px;z-index:1000}
+.vertex-row {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+#inspector .vertex-row .field-row {display:flex;gap:4px;margin-block:1px}
+#inspector .vertex-row input {flex:1;width:100%;padding-inline:4px}
+#inspector .vertex-row .field-row span {font:var(--fs-10) var(--mono);color:var(--muted)}
+#inspector .vertex-row input::-webkit-inner-spin-button {-webkit-appearance:none}
+
+/* Component library (Altium Components panel look) */
+#library-dialog {--ui-dialog-padding:0;--ui-dialog-width:min(520px,calc(100vw - 32px));--ui-dialog-max-height:min(640px,84vh)}
+#library-dialog[open] {display:flex;flex-direction:column}
+.dialog-heading {display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;padding:0 4px 0 12px;height:calc(30px + var(--d-bar));background:var(--panel-head);border-bottom:1px solid var(--rule)}
+.dialog-heading h2 {font-size:var(--fs-12);line-height:1.4;font-weight:600}
+#library-dialog .dialog-heading {height:auto;min-height:38px;flex-wrap:wrap;justify-content:flex-start;padding:6px 8px;gap:6px}
+#library-dialog .dialog-heading h2 {margin-inline-end:auto}
+.library-search {flex:none;margin:var(--s-8)}
+#library-list {margin:0;padding:0 6px 8px;overflow-y:auto;overscroll-behavior:contain;min-height:60px}
+#library-list button {display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:4px 8px;text-align:left;color:var(--ink)}
+#library-list button small {font-size:var(--fs-11);color:var(--muted)}
+#library-list p {margin:12px;color:var(--muted)}
+.library-name {display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.library-name strong,.library-name small {max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.library-name strong {font-weight:600;font-size:var(--fs-12)}
+.message-dialog ul {margin:0 0 16px;padding-inline-start:19px}
+.message-dialog li {margin-block:6px;color:var(--muted);font-size:var(--fs-12);line-height:1.55;overflow-wrap:anywhere}
+.message-dialog form {display:block}
+.message-dialog input:not([type=checkbox],[type=radio]) {width:100%}
+.message-dialog textarea {width:100%;min-height:100px;font-variant-numeric:tabular-nums;margin:var(--s-8) 0}
+#new-library-component {margin-left:auto}
+
+/* Collapsible sections (wired by shell.js). The header button carries the state
+   so headings keep their place in the document outline. */
+.section-toggle {display:flex;align-items:center;gap:6px;width:100%;min-height:inherit;padding:0;color:inherit;font:inherit;text-align:left}
+#inspector .section-toggle {padding:0;border-radius:0;background:none;color:inherit}
+#inspector :is(.inspect-section > h3,.inspect-section-heading > h3) > .section-toggle {min-block-size:var(--chrome-tab-height)}
+#inspector .section-toggle:hover {background:none}
+.section-toggle::before {flex:none}
+.pane-heading .section-toggle {font-size:var(--fs-12);font-weight:600}
+.inspect-section.collapsed > :not(h3,.inspect-section-heading,.ui-collapse) {display:none}
+.inspect-section.collapsed > :is(h3,.inspect-section-heading) {margin-bottom:0}
+.panel.collapsed {flex:0 0 auto}
+.panel.collapsed > :not(.pane-heading,.ui-collapse) {display:none}
+.ui-collapse {display:grid;grid-template-rows:1fr;min-block-size:0;opacity:1;
+  transition:grid-template-rows calc(var(--motion-base) * var(--motion-move)) var(--ease-decelerate),opacity var(--motion-base) var(--ease-decelerate)}
+.ui-collapse-content {min-block-size:0;overflow:hidden}
+.panel > .ui-collapse > .ui-collapse-content {display:flex;flex-direction:column}
+.collapsed > .ui-collapse,details:not([open]) > .ui-collapse,.ui-detail-closing > .ui-collapse {grid-template-rows:0fr;opacity:0;pointer-events:none}
+.ui-detail-closing > summary::before {transform:rotate(-45deg)!important}
+:root:is([data-motion=reduce],[data-efficient]) .ui-collapse {transition-property:opacity!important;transition-duration:var(--motion-base)}
+@media (prefers-reduced-motion:reduce) {
+  :root .ui-collapse {transition-property:opacity!important;transition-duration:var(--motion-base)}
+}
+
+/* Motion (docs/design-system.md › Motion): calm, fast and purposeful; it explains a spatial change and
+   never makes anyone wait. Animate transform (translate, scale) and opacity only; durations and curves
+   follow the shared motion contract (tests/motion.cjs). AtriumMotion (motion.js) mirrors these tokens
+   for canvas animation. data-motion on the root (Preferences › Appearance › Motion): absent follows
+   the system, "full", "reduce" (fades only: --motion-move is 0, so keyframes lose their travel and
+   transitions keep opacity and colour) or "off" (nothing animates). */
+:root {--motion-instant:80ms;--motion-fast:140ms;--motion-base:200ms;--motion-slow:320ms;--motion-ambient:240ms;
+  --motion-none:0ms;--motion-toggle:160ms;--motion-dialog-in:200ms;--motion-dialog-out:150ms;--motion-menu-in:120ms;--motion-menu-out:80ms;
+  --ease-standard:cubic-bezier(.77,0,.175,1);--ease-decelerate:cubic-bezier(.23,1,.32,1);
+  --ease-accelerate:var(--ease-decelerate);--ease-spring:var(--ease-decelerate);
+  --ease-drawer:cubic-bezier(.32,.72,0,1);
+  --motion-move:1;--motion:var(--motion-fast);--ease:var(--ease-decelerate);
+  /* Canvas motion while routing (route-feel.js reads these once): shove, settle flash, halo fade, gloss, via ring, glyph hold. */
+  --motion-push:var(--motion-instant);--motion-settle:var(--motion-base);--motion-fade:var(--motion-fast);--motion-gloss:var(--motion-fast);--motion-via:var(--motion-base);--motion-glyph-hold:1000ms}
+@media (hover:hover) and (pointer:fine) {
+  .command-link,.work-dialog button:is(.ui-stepper-button,:not(.ui-button)),.message-dialog button:not(.ui-button) {
+    transition:background-color var(--motion-instant) ease,color var(--motion-instant) ease}
+}
+@keyframes atrium-rise {from {opacity:0;translate:0 calc(3px * var(--motion-move))}}
+@keyframes atrium-reveal {from {opacity:0;translate:0 calc(-2px * var(--motion-move))}}
+@keyframes atrium-pop {from {opacity:0;scale:calc(1 - .03 * var(--motion-move))}}
+@keyframes atrium-fade {from {opacity:0}}
+@keyframes atrium-cue {from {opacity:1}}
+/* Reduced retains opacity and colour. Motion on spatial properties multiplies by this factor. */
+@media (prefers-reduced-motion:reduce) { :root {--motion-move:0} }
+:root[data-motion=reduce] {--motion-move:0}
+/* Off, Efficiency and keyboard actions apply their final presentation immediately. */
+:root:is([data-motion=off],[data-efficient],[data-motion-input=keyboard]) {
+  --motion-instant:0ms;--motion-fast:0ms;--motion-base:0ms;--motion-slow:0ms;--motion-ambient:0ms;--motion-toggle:0ms;--motion-move:0}
+:root:is([data-motion=off],[data-efficient],[data-motion-input=keyboard]) *,
+:root:is([data-motion=off],[data-efficient],[data-motion-input=keyboard]) *::before,
+:root:is([data-motion=off],[data-efficient],[data-motion-input=keyboard]) *::after,
+:root:is([data-motion=off],[data-efficient],[data-motion-input=keyboard]) ::backdrop {
+  animation:none!important;transition:none!important}
+.about-dialog {width:min(560px,calc(100vw - 32px))}
+.about-wordmark {width:min(240px,100%);aspect-ratio:1650.14/390;background:url("brand/waffle-lockup-eda-on-dark.svg") left center / contain no-repeat}
+:root:is([data-theme=light],[data-theme=classic]) .about-wordmark {background-image:url("brand/waffle-lockup-eda-on-light.svg")}
+/* About and Licenses: an 8/16/24 rhythm, plain text on the surface, actions in the footer row. */
+.about-dialog > .ui-dialog-title {margin-block-end:var(--s-16)}
+.about-dialog > .ui-dialog-title:focus {outline:none}
+.about-dialog h3 {margin:var(--s-16) 0 var(--s-8);font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--ink)}
+.about-dialog .about-body > h3:first-child {margin-block-start:0}
+.about-dialog p {margin:0 0 var(--s-8);font-size:var(--fs-12);line-height:var(--lh-loose);color:var(--muted)}
+.about-dialog .about-version {color:var(--ink)}
+.about-dialog :is(.about-notice,.about-renderer) {font-size:var(--fs-11)}
+.about-dialog .about-notice {margin-block-start:var(--s-16)}
+.about-dialog .about-body > p:last-child {margin-block-end:0}
+.about-dialog ul {margin:0 0 var(--s-8);padding-inline-start:var(--s-16);font-size:var(--fs-12);line-height:var(--lh-loose);color:var(--muted)}
+.about-dialog textarea {inline-size:100%;min-height:180px;font-size:var(--fs-11);resize:vertical}
+.about-dialog > .ui-dialog-actions {margin-block-start:var(--s-24)}
+.about-dialog .about-more {margin-inline-end:auto}
+
+/* Keep long labels and values in their own columns and let the user copy values. */
+#inspector .property-row {display:flex;align-items:center;justify-content:space-between;gap:var(--s-8);min-block-size:var(--chrome-row-height);padding:0}
+#inspector .property-row > span {flex:0 1 calc(42% - 8px);min-width:0;overflow-wrap:anywhere}
+#inspector .property-row > strong {flex:0 0 58%;min-width:0;text-align:end;font-size:var(--fs-12);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--ink);user-select:text;-webkit-user-select:text;cursor:text}
+#inspector label.field-row > span {flex-shrink:1;min-width:0;overflow-wrap:anywhere}
+#inspector label.field-row:has(> input:not([type=checkbox],[type=radio],[type=range],[type=color]),> textarea,> .ui-field-measure) {align-items:baseline}
+/* Empty panels: one quiet sentence with the next step. */
+.empty-state {margin:8px;color:var(--muted);font-size:var(--fs-11);line-height:1.5}
+/* Checkbox rows: the box sits at the start of the value column, under the fields. */
+#inspector :is(.inspect-section,.ui-collapse-content) > label.field-row:has(> input[type=checkbox]:last-child) {justify-content:flex-start}
+#inspector :is(.inspect-section,.ui-collapse-content) > label.field-row:has(> input[type=checkbox]:last-child) > span {flex:0 0 calc(42% - 8px)}
+#inspector .part-params {margin:4px -8px 0}
+#inspector :is(.inspect-section,.ui-collapse-content) > label.field-row > input[type=checkbox]:last-child {margin-left:0}
+
+/* A closed <dialog> never takes space or clicks, whatever display a module gives it. */
+dialog:not([open]){display:none!important}
+
+/* Unsaved-changes marker in the status bar (editor.js dirtyState). */
+.statusbar .status-unsaved {color:var(--warning)}

@@ -1,0 +1,3 @@
+{
+  "dynamicSuite": "tests/native-bridge/butter-windows.py"
+}

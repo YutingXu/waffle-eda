@@ -1,0 +1,27 @@
+(kicad_symbol_lib
+	(version 20251024)
+	(generator "atrium_test_fixture")
+	(generator_version "10.0")
+	(symbol "BUF_Test_Alt"
+		(extends "BUF_Test")
+		(property "Reference" "U"
+			(at 0 5.08 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "BUF_Test_Alt"
+			(at 0 -5.08 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "Legacy:DIP-4_Legacy"
+			(at 0 0 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Description" "Derived in another file of the same symbol folder"
+			(at 0 0 0)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(embedded_fonts no)
+	)
+)

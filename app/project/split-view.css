@@ -1,0 +1,58 @@
+/* Split editor: two live panes inside #editor-panes, each with its own camera. */
+.editor-tabbar {display:flex;align-items:stretch;flex:none;min-width:0;background:var(--app)}
+.editor-tabbar>#document-tabs {flex:1 1 auto;min-width:0}
+.split-button {flex:none;display:flex;align-self:center;align-items:center;justify-content:center;width:var(--chrome-icon-width);height:var(--chrome-icon-height);padding:0;border:0;color:var(--split-ink);cursor:default}
+.split-button[aria-pressed=true] {color:var(--accent-text)}
+@media (any-pointer:coarse) {
+  .split-button {position:relative}
+  .split-button::before {content:"";position:absolute;inset:calc((var(--chrome-icon-height) - var(--chrome-tab-height)) / 2) 0}
+}
+.document-tab[data-pane=other] {color:var(--chrome-ink)}
+
+.editor-panes {position:relative;display:flex;flex:1 1 0;min-width:0;min-height:0;overflow:hidden;background:var(--app)}
+.editor-panes.split-down {flex-direction:column}
+.editor-panes>.split-pane {flex:1 1 0}
+#editor-panes.is-split>.split-pane {min-width:240px;min-height:120px}
+#editor-panes.split-down>.split-pane {min-width:0}
+#canvas-stage-2 {position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--canvas-bg)}
+
+/* Active pane: a 1px accent rule along its top edge. Inactive panes stay fully live. */
+.editor-panes.is-split>.split-pane::before {content:"";position:absolute;z-index:3;left:0;right:0;top:0;height:1px;background:var(--line);pointer-events:none}
+.editor-panes.is-split>.split-pane.is-active::before {background:var(--accent)}
+.pane-caption {position:absolute;z-index:2;left:6px;bottom:6px;max-width:calc(50% - 12px);display:flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:var(--r-sm);
+  font-size:var(--fs-11);color:var(--caption-ink);background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--line);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.split-pane.is-active .pane-caption {color:var(--ink-bright);border-color:var(--line-strong)}
+.pane-caption i {flex:none;width:6px;height:6px;border-radius:50%;background:var(--line-strong)}
+.split-pane.is-active .pane-caption i {background:var(--accent)}
+
+.split-sash {flex:none;position:relative;z-index:4;width:4px;margin:0 -1px;background:var(--app);cursor:col-resize;touch-action:none}
+.split-down>.split-sash {width:auto;height:4px;margin:-1px 0;cursor:row-resize}
+.split-sash:hover,.split-sash.is-dragging,.split-sash:focus-visible {background:var(--accent);outline:none}
+
+/* The tab drop preview: editor.js sets its box (in the window) to exactly the pane the document will fill. */
+.split-drop {position:fixed;z-index:5;left:0;top:0;width:0;height:0;opacity:0;background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid var(--accent);pointer-events:none}
+.split-drop.is-drop {opacity:1}
+
+/* Narrow windows stack the panes; the sash then resizes vertically. */
+@media (max-width:620px) {
+  #editor-panes.is-split {flex-direction:column}
+  #editor-panes.is-split>.split-pane {min-width:0;min-height:100px}
+  #editor-panes.is-split>.split-sash {width:auto;height:4px;margin:-1px 0;cursor:row-resize}
+}
+
+/* Per-pane tab strips while split (split-tabs.js, VS Code editor groups). The global strip hides. */
+#editor-area.has-pane-tabs>.editor-tabbar {display:none}
+.has-pane-tabs .pane-caption {display:none}
+.pane-tabs {position:absolute;z-index:4;left:0;right:0;top:0}
+/* The GPU board layer (canvas-gpu.js) is placed over the editor canvas by its own offsets: no margin of its own. */
+#editor-area.has-pane-tabs .split-pane>canvas:not(.atrium-gpu-board) {height:calc(100% - var(--chrome-tab-height));margin-top:var(--chrome-tab-height)}
+.has-pane-tabs .split-pane>.active-bar {top:calc(var(--chrome-tab-height) + var(--s-6))}
+.pane-tab {cursor:default;padding:0 4px 0 12px}
+.pane-tabs:not(.is-active) .pane-tab[aria-selected=true] {color:var(--chrome-ink)}
+.pane-close {flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;
+  margin:auto var(--s-4) auto auto;width:var(--s-24);height:var(--s-24);color:var(--split-ink)}
+/* The split control is a library icon button; this only places it before the Follow eye and the close button. */
+.pane-tabs > .pane-arrange {flex:none;margin:auto 0 auto auto}
+.pane-follow + .pane-arrange {margin-inline-start:2px}
+.pane-arrange + .pane-close {margin-inline-start:2px}
+.pane-close .icon {width:var(--chrome-glyph-dense);height:var(--chrome-glyph-dense)}

@@ -1,0 +1,14 @@
+{"kind":"pcb","formatVersion":"2.0","id":"01a20e24-7d25-7195-be33-1658afcdcba0","requires":[]}
+{"kind":"part","id":"01a20e24-7d25-7195-be33-1658afcdcba3","angle":31000000000,"at":[5000000,-2000000],"def":"01a20e24-7d26-70f6-99d5-d3b777182ecd","layer":"Bottom","order":"V","pinNets":{"1":"SIG","2":"REF"},"ref":"U1","showRef":false,"value":"PAD"}
+{"kind":"layer","id":"01a20e24-7d27-7652-81f9-f3df1cf448ee","order":"5","value":{"material":"","name":"Top Overlay","thickness":0,"type":"Overlay"}}
+{"kind":"layer","id":"01a20e24-7d27-7652-81f9-f3df1cf448ef","order":"A","value":{"dk":"3.5","material":"Solder Resist","name":"Top Solder","thickness":10160,"type":"Solder Mask"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e11","order":"F","value":{"key":"Top","material":"Copper","name":"Top Layer","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e12","order":"K","value":{"df":"0.02","dielectric":"Prepreg","dk":"4.2","material":"FR-4 Prepreg","name":"Dielectric 1","thickness":200000,"type":"Dielectric"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e13","order":"P","value":{"key":"Inner 1","material":"Copper","name":"Mid-Layer 1","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e14","order":"U","value":{"df":"0.02","dielectric":"Core","dk":"4.8","material":"FR-4","name":"Dielectric 2","thickness":1040000,"type":"Dielectric"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e15","order":"Z","value":{"key":"Inner 2","material":"Copper","name":"Mid-Layer 2","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e16","order":"e","value":{"df":"0.02","dielectric":"Prepreg","dk":"4.2","material":"FR-4 Prepreg","name":"Dielectric 3","thickness":200000,"type":"Dielectric"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e17","order":"j","value":{"key":"Bottom","material":"Copper","name":"Bottom Layer","thickness":35000,"type":"Signal"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e18","order":"o","value":{"dk":"3.5","material":"Solder Resist","name":"Bottom Solder","thickness":10160,"type":"Solder Mask"}}
+{"kind":"layer","id":"01a20e24-7d28-7371-8a5e-03933c164e19","order":"t","value":{"material":"","name":"Bottom Overlay","thickness":0,"type":"Overlay"}}
+{"kind":"documentSettings","id":"01a20e24-7d28-7371-8a5e-03933c164e1a","value":{"grid":250000,"notes":[],"outline":[[-20000000,-15000000],[20000000,-15000000],[20000000,15000000],[-20000000,15000000]],"stackup":{"drillPairs":[],"layers":[],"version":1}}}

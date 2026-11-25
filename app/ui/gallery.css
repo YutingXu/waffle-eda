@@ -1,0 +1,35 @@
+/* Layout of the component gallery (ui/gallery.js) only. Components keep their library styles; the
+   static specimens of top-layer and fixed surfaces (menus, tooltips, toasts, dialogs) sit in the flow. */
+.ui-gallery {outline:none}
+.ui-gallery-head {position:sticky;top:0;z-index:var(--z-float);gap:var(--s-12);background:var(--chrome);box-shadow:var(--chrome-rule-bottom) var(--divider)}
+.ui-gallery-title {margin:0;font-size:var(--fs-14);font-weight:var(--fw-semibold)}
+.ui-gallery-head .ui-switch-row {display:flex;align-items:center;min-block-size:var(--ctl-h);font-size:var(--fs-12)}
+.ui-gallery-body {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:var(--s-24) var(--s-24);padding:var(--s-16) var(--s-24) var(--s-24);background:var(--surface)}
+.ui-gallery-family {margin:0}
+.ui-gallery-family + .ui-gallery-family {margin:0}
+.ui-gallery-specimen {display:grid;grid-template-columns:120px minmax(0,1fr);align-items:start;gap:var(--s-8);padding-block:var(--s-6)}
+.ui-gallery-caption {padding-block-start:var(--s-4);color:var(--muted);font-size:var(--fs-11)}
+.ui-gallery-stage {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8);min-inline-size:0}
+.ui-gallery-stage > :is(.ui-list,.ui-table,.ui-toolbar,.ui-section,.ui-notice,.ui-progress-row,.ui-steps,.ui-transcript,.ui-thumbs,.ui-panel,.ui-prop-row,.ui-gallery-split,.ui-search,.ui-empty,.ui-row) {flex:1 1 100%}
+.ui-gallery-stage > .ui-notice + .ui-notice {margin:0}
+.ui-gallery-static {position:static!important;inset:auto!important;margin:0;translate:none;transform:none;opacity:1;visibility:visible;animation:none}
+.ui-gallery-static[hidden] {display:block}
+.ui-gallery-dialog {inline-size:min(360px,100%);box-sizing:border-box;padding:var(--s-16) var(--s-24);border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--elev-3)}
+.ui-gallery-popover {padding:var(--s-8) var(--s-12);min-inline-size:220px}
+.ui-gallery-filler {margin:0;color:var(--muted);font-size:var(--fs-12)}
+.ui-gallery-skeleton {inline-size:160px;block-size:var(--s-24)}
+.ui-gallery-thumbs {--ui-thumb-min:72px;max-inline-size:360px}
+.ui-gallery-strip {--ui-thumb-ratio:16 / 9;--ui-thumb-size:104px;max-inline-size:360px}
+.ui-gallery-stage > .ui-gallery-floating {flex:0 1 auto}
+.ui-gallery-art {display:block;inline-size:100%;background:linear-gradient(var(--line) 0 0) center/60% 1px no-repeat,var(--paper)}
+.ui-gallery-split {display:flex;block-size:64px;border-radius:var(--r-md);background:var(--panel-head)}
+.ui-gallery-split > div:not(.ui-splitter) {flex:1;display:grid;place-items:center;color:var(--muted);font-size:var(--fs-11)}
+.ui-gallery-drop {display:grid;place-items:center;inline-size:96px;block-size:48px;border-radius:var(--r-md);background:var(--panel-head);color:var(--muted);font-size:var(--fs-11)}
+.ui-gallery-stage > .ui-drop-line {flex:0 0 160px}
+.ui-gallery-stage > .ui-panel {max-inline-size:360px;block-size:300px;border-radius:var(--r-md);box-shadow:var(--elev-1)}
+.ui-gallery-canvas {position:relative;box-sizing:border-box;min-block-size:72px;padding:var(--s-12);border-radius:var(--r-md);
+  background:repeating-linear-gradient(135deg,var(--line) 0 1px,transparent 1px 8px),var(--paper)}
+/* Commit graph specimen (proposed): the canvas over the rows' leading edge, as in History. */
+.ui-gallery-graph {position:relative;inline-size:min(100%,420px)}
+.ui-gallery-graph > canvas {position:absolute;inset-block-start:0;inset-inline-start:var(--s-4);pointer-events:none}
+.ui-gallery-graph > .ui-row {padding-inline-start:calc(var(--ui-graph-w,40px) + var(--s-8))}

@@ -1,0 +1,13 @@
+{"kind":"project","formatVersion":"2.0","id":"reference","entryDocument":"top","name":"Reference"}
+{"kind":"document","id":"board","docKind":"pcb","name":"Board","order":"U","path":"Board.wpcb"}
+{"kind":"rule","id":"clear","order":"V","value":{"id":"clear","enabled":true,"gap":200000,"name":"Clearance","priority":1,"scope":{"languageVersion":1,"source":"object"},"scope2":{"languageVersion":1,"source":"object"},"type":"clearance"}}
+{"kind":"document","id":"draw","docKind":"drawing","name":"Assembly","order":"e","path":"Assembly.wdraw"}
+{"kind":"document","id":"panel","docKind":"panel","name":"Panel","order":"o","path":"Panel.wpanel"}
+{"kind":"projectSetting","id":"reference/setting/projectExtensions","key":"projectExtensions","value":{"org.example.calibration":{"revision":1}}}
+{"kind":"projectSetting","id":"reference/setting/rules","key":"rules","value":{"format":"atrium-rules","units":"mm","version":3}}
+{"kind":"projectSetting","id":"reference/setting/signals","key":"signals","value":{"version":1}}
+{"kind":"library","id":"sense-pad","order":"V","path":"libraries/Sense pad.wlib"}
+{"kind":"signal","id":"signal","order":"V","value":{"kind":"single","id":"signal","legs":[{"nets":["SENSE"]}],"name":"SENSE","tags":[]}}
+{"kind":"layoutBlock","id":"stub","order":"V","path":"libraries/Test stub.wblock"}
+{"kind":"document","id":"sub","docKind":"schematic","name":"Sensor","order":"K","path":"Sensor.wsch"}
+{"kind":"document","id":"top","docKind":"schematic","name":"Top","order":"A","path":"Top.wsch"}

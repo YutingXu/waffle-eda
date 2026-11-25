@@ -1,0 +1,796 @@
+{
+  "format": "atrium",
+  "version": 1,
+  "formatVersion": "1.6",
+  "name": "Future repeated-channel name",
+  "library": [
+    {
+      "id": "std-r",
+      "name": "Resistor",
+      "category": "Resistors",
+      "prefix": "R",
+      "value": "10 kΩ",
+      "symbol": {
+        "pins": [
+          {
+            "number": "1",
+            "name": "1",
+            "x": -5.08,
+            "y": 0
+          },
+          {
+            "number": "2",
+            "name": "2",
+            "x": 5.08,
+            "y": 0
+          }
+        ],
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -5.08,
+                0
+              ],
+              [
+                -2.54,
+                0
+              ]
+            ],
+            "style": "pin",
+            "closed": false,
+            "fill": false
+          },
+          {
+            "kind": "path",
+            "points": [
+              [
+                -2.54,
+                0
+              ],
+              [
+                -2.1209,
+                -1.016
+              ],
+              [
+                -1.27,
+                1.016
+              ],
+              [
+                -0.41910000000000003,
+                -1.016
+              ],
+              [
+                0.41910000000000003,
+                1.016
+              ],
+              [
+                1.27,
+                -1.016
+              ],
+              [
+                2.1209,
+                1.016
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "style": "body",
+            "closed": false,
+            "fill": false
+          },
+          {
+            "kind": "path",
+            "points": [
+              [
+                5.08,
+                0
+              ],
+              [
+                2.54,
+                0
+              ]
+            ],
+            "style": "pin",
+            "closed": false,
+            "fill": false
+          }
+        ]
+      },
+      "footprint": {
+        "name": "R_0603",
+        "shapes": [
+          {
+            "kind": "path",
+            "points": [
+              [
+                -0.55,
+                -0.42
+              ],
+              [
+                0.55,
+                -0.42
+              ],
+              [
+                0.55,
+                0.42
+              ],
+              [
+                -0.55,
+                0.42
+              ]
+            ],
+            "style": "package",
+            "closed": true,
+            "fill": true
+          },
+          {
+            "kind": "path",
+            "points": [
+              [
+                -1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                -0.75
+              ],
+              [
+                1.5,
+                0.75
+              ],
+              [
+                -1.5,
+                0.75
+              ]
+            ],
+            "closed": true,
+            "layer": "Mechanical 15",
+            "style": "courtyard",
+            "width": 0.05
+          }
+        ],
+        "pads": [
+          {
+            "number": "1",
+            "x": -0.8,
+            "y": 0,
+            "w": 0.9,
+            "h": 0.95,
+            "drill": 0,
+            "shape": "roundrect",
+            "angle": 0
+          },
+          {
+            "number": "2",
+            "x": 0.8,
+            "y": 0,
+            "w": 0.9,
+            "h": 0.95,
+            "drill": 0,
+            "shape": "roundrect",
+            "angle": 0
+          }
+        ],
+        "courtyard": [
+          -1.5,
+          -0.75,
+          1.5,
+          0.75
+        ]
+      }
+    }
+  ],
+  "documents": [
+    {
+      "id": "6806869f-23f1-486c-81ee-23d411ab31a8",
+      "kind": "schematic",
+      "name": "Schematic",
+      "grid": 1.27,
+      "items": [
+        {
+          "id": "8d1f0e04-4080-40c7-8f92-c86bf868f2b6",
+          "kind": "sheetsymbol",
+          "x": 50,
+          "y": 0,
+          "w": 20.32,
+          "h": 15.24,
+          "name": "Repeat(CH,1,2)",
+          "sheet": "55ae18dc-084a-4586-9fd5-cbdcf77edd59",
+          "entries": []
+        }
+      ],
+      "outline": [],
+      "notes": []
+    },
+    {
+      "id": "14c51e59-e4ec-432d-90c2-c8e33b964a6f",
+      "kind": "pcb",
+      "name": "Board layout",
+      "grid": 0.25,
+      "items": [],
+      "outline": [],
+      "notes": []
+    },
+    {
+      "id": "55ae18dc-084a-4586-9fd5-cbdcf77edd59",
+      "kind": "schematic",
+      "name": "Repeated",
+      "grid": 1.27,
+      "items": [
+        {
+          "id": "16172f37-c82b-4ad8-96d7-7ef18237f287",
+          "kind": "part",
+          "def": "std-r",
+          "ref": "R2",
+          "value": "10 kΩ",
+          "link": "db43676f-5c8f-47f5-afe2-29e528ec38b1",
+          "x": 30,
+          "y": 0,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "89f22dab-5529-4a89-a0bd-4c60c0fbdd41",
+          "kind": "wire",
+          "points": [
+            [
+              10,
+              0
+            ],
+            [
+              24.92,
+              0
+            ]
+          ]
+        },
+        {
+          "id": "44a4af99-4897-4e06-80e6-fdf76ae1da59",
+          "kind": "sheetsymbol",
+          "x": -10,
+          "y": -10,
+          "w": 20,
+          "h": 20,
+          "name": "Filter",
+          "sheet": "ca4f8c5b-6aa0-42c2-bb81-2045432a850d",
+          "entries": [
+            {
+              "id": "6f654f63-b1f5-4441-a708-61079333955f",
+              "name": "Net-R1_CH1-2",
+              "side": "right",
+              "offset": 10,
+              "io": "unspecified"
+            }
+          ]
+        }
+      ],
+      "outline": [],
+      "notes": []
+    },
+    {
+      "id": "ca4f8c5b-6aa0-42c2-bb81-2045432a850d",
+      "kind": "schematic",
+      "name": "Filter",
+      "grid": 1.27,
+      "items": [
+        {
+          "kind": "netlabel",
+          "id": "b16947c9-ea46-4604-a177-a1f68722230e",
+          "x": 5.08,
+          "y": 0,
+          "text": "Net-R1_CH1-2",
+          "autoName": {
+            "part": "dd0e83eb-65a1-4866-a6eb-5394d740604e",
+            "pin": "2",
+            "style": "future-channel",
+            "qualifier": {
+              "scope": "bank",
+              "format": 2
+            }
+          }
+        },
+        {
+          "id": "dd0e83eb-65a1-4866-a6eb-5394d740604e",
+          "kind": "part",
+          "def": "std-r",
+          "ref": "R1",
+          "value": "10 kΩ",
+          "link": "459a2f97-3390-432a-a271-ad4ae03d1f50",
+          "x": 0,
+          "y": 0,
+          "angle": 0,
+          "pinNets": {}
+        },
+        {
+          "id": "07a356be-804f-4d98-a427-9316bfdd84b4",
+          "kind": "wire",
+          "points": [
+            [
+              5.08,
+              0
+            ],
+            [
+              10,
+              0
+            ]
+          ]
+        },
+        {
+          "id": "b8464d76-ceab-4697-8ac6-ce49bff258d5",
+          "kind": "port",
+          "x": 10,
+          "y": 0,
+          "text": "Net-R1_CH1-2",
+          "io": "unspecified",
+          "angle": 0
+        }
+      ],
+      "outline": [],
+      "notes": []
+    }
+  ],
+  "rules": {
+    "format": "atrium-rules",
+    "version": 3,
+    "units": "mm",
+    "list": [
+      {
+        "id": "clearance-1",
+        "type": "clearance",
+        "name": "Clearance",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "scope2": {
+          "kind": "all"
+        },
+        "gap": 0.2
+      },
+      {
+        "id": "short-1",
+        "type": "short",
+        "name": "ShortCircuit",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "scope2": {
+          "kind": "all"
+        },
+        "allowed": false
+      },
+      {
+        "id": "unrouted-1",
+        "type": "unrouted",
+        "name": "UnRoutedNet",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "width-1",
+        "type": "width",
+        "name": "Width",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "min": 0.15,
+        "preferred": null,
+        "max": null
+      },
+      {
+        "id": "routingTopology-1",
+        "type": "routingTopology",
+        "name": "RoutingTopology",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "topology": "shortest"
+      },
+      {
+        "id": "routingPriority-1",
+        "type": "routingPriority",
+        "name": "RoutingPriority",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "value": 0
+      },
+      {
+        "id": "routingLayers-1",
+        "type": "routingLayers",
+        "name": "RoutingLayers",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "excluded": []
+      },
+      {
+        "id": "routingCorners-1",
+        "type": "routingCorners",
+        "name": "RoutingCorners",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "45",
+        "setbackMin": 2.54,
+        "setbackMax": 2.54
+      },
+      {
+        "id": "viaStyle-1",
+        "type": "viaStyle",
+        "name": "RoutingVias",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "diameterMin": null,
+        "diameterPreferred": null,
+        "diameterMax": null,
+        "holeMin": 0.3,
+        "holePreferred": null,
+        "holeMax": null
+      },
+      {
+        "id": "fanoutControl-1",
+        "type": "fanoutControl",
+        "name": "Fanout_BGA",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "package": "bga",
+        "style": "auto",
+        "direction": "alternating",
+        "viaPlacement": "centered"
+      },
+      {
+        "id": "fanoutControl-2",
+        "type": "fanoutControl",
+        "name": "Fanout_LCC",
+        "comment": "",
+        "enabled": true,
+        "priority": 2,
+        "scope": {
+          "kind": "all"
+        },
+        "package": "lcc",
+        "style": "staggeredOut",
+        "direction": "alternating",
+        "viaPlacement": "close"
+      },
+      {
+        "id": "fanoutControl-3",
+        "type": "fanoutControl",
+        "name": "Fanout_SOIC",
+        "comment": "",
+        "enabled": true,
+        "priority": 3,
+        "scope": {
+          "kind": "all"
+        },
+        "package": "soic",
+        "style": "inline",
+        "direction": "alternating",
+        "viaPlacement": "close"
+      },
+      {
+        "id": "fanoutControl-4",
+        "type": "fanoutControl",
+        "name": "Fanout_Small",
+        "comment": "",
+        "enabled": true,
+        "priority": 4,
+        "scope": {
+          "kind": "all"
+        },
+        "package": "small",
+        "style": "auto",
+        "direction": "outThenIn",
+        "viaPlacement": "close"
+      },
+      {
+        "id": "fanoutControl-5",
+        "type": "fanoutControl",
+        "name": "Fanout_Default",
+        "comment": "",
+        "enabled": true,
+        "priority": 5,
+        "scope": {
+          "kind": "all"
+        },
+        "package": "default",
+        "style": "auto",
+        "direction": "alternating",
+        "viaPlacement": "close"
+      },
+      {
+        "id": "diffPairsRouting-1",
+        "type": "diffPairsRouting",
+        "name": "DiffPairsRouting",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "widthMin": 0.1,
+        "widthPreferred": 0.15,
+        "widthMax": 0.3,
+        "gapMin": 0.1,
+        "gapPreferred": 0.15,
+        "gapMax": 0.3,
+        "maxUncoupled": 6.35,
+        "layers": {}
+      },
+      {
+        "id": "solderMask-1",
+        "type": "solderMask",
+        "name": "SolderMaskExpansion",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "expansion": 0.1016
+      },
+      {
+        "id": "pasteMask-1",
+        "type": "pasteMask",
+        "name": "PasteMaskExpansion",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "expansion": 0
+      },
+      {
+        "id": "polygonConnect-1",
+        "type": "polygonConnect",
+        "name": "PolygonConnect",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "style": "polygon",
+        "conductorWidth": 0.254,
+        "entries": 4,
+        "angle": 90,
+        "airGap": 0.254,
+        "minEntries": 2,
+        "powerWidth": 0.5,
+        "tempRise": 10,
+        "kinds": {}
+      },
+      {
+        "id": "annularRing-1",
+        "type": "annularRing",
+        "name": "MinimumAnnularRing",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "min": 0.1
+      },
+      {
+        "id": "holeSize-1",
+        "type": "holeSize",
+        "name": "HoleSize",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "min": 0.025,
+        "max": 6.35
+      },
+      {
+        "id": "holeToHole-1",
+        "type": "holeToHole",
+        "name": "HoleToHoleClearance",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "gap": 0.254
+      },
+      {
+        "id": "silkToMask-1",
+        "type": "silkToMask",
+        "name": "SilkToSolderMaskClearance",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "gap": 0.1
+      },
+      {
+        "id": "silkToSilk-1",
+        "type": "silkToSilk",
+        "name": "SilkToSilkClearance",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "gap": 0.1
+      },
+      {
+        "id": "flexLayers-1",
+        "type": "flexLayers",
+        "name": "RegionLayers",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "flexVias-1",
+        "type": "flexVias",
+        "name": "FlexViaKeepout",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "allowInFlex": false,
+        "bendKeepout": 1
+      },
+      {
+        "id": "bendKeepout-1",
+        "type": "bendKeepout",
+        "name": "BendZoneKeepout",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "keepout": 0.5
+      },
+      {
+        "id": "bendCrossing-1",
+        "type": "bendCrossing",
+        "name": "BendLineCrossing",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "tolerance": 10,
+        "cornerAngle": 30
+      },
+      {
+        "id": "bendRadius-1",
+        "type": "bendRadius",
+        "name": "MinimumBendRadius",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "static1": 6,
+        "static2": 10,
+        "staticMulti": 15,
+        "dynamic1": 100,
+        "dynamic2": 150,
+        "dynamicMulti": 200
+      },
+      {
+        "id": "flexCopper-1",
+        "type": "flexCopper",
+        "name": "FlexCopperHatching",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "requireHatch": true
+      },
+      {
+        "id": "stiffener-1",
+        "type": "stiffener",
+        "name": "StiffenerPlacement",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "requireBacking": true,
+        "minPads": 6
+      },
+      {
+        "id": "flexRouting-1",
+        "type": "flexRouting",
+        "name": "FlexRouting",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "requireTeardrops": true,
+        "staggerLayers": true,
+        "minStackRun": 0.5,
+        "bendTermination": true
+      },
+      {
+        "id": "flexBuild-1",
+        "type": "flexBuild",
+        "name": "FlexConstruction",
+        "comment": "",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "transition": 1.5,
+        "stiffenerGap": 1,
+        "coverlayExpansion": 0.1,
+        "minWeb": 0.25
+      },
+      {
+        "id": "erc-scope",
+        "type": "ercNetScope",
+        "name": "NetIdentifierScope",
+        "enabled": true,
+        "priority": 1,
+        "scope": {
+          "kind": "all"
+        },
+        "where": "schematic",
+        "netScope": "hierarchical"
+      }
+    ]
+  }
+}

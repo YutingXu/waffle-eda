@@ -1,0 +1,5 @@
+{"kind":"project","formatVersion":"2.0","id":"project-4b2356d70e76fa4a6be3e01a2cf56b59040e55224ff18a6fe86916fa4147f96d","name":"MCADTest"}
+{"kind":"library","id":"conn","order":"j","path":"libraries/JST.wlib"}
+{"kind":"document","id":"pcb1","docKind":"pcb","name":"Board","order":"V","path":"Board.wpcb"}
+{"kind":"library","id":"qfn","order":"U","path":"libraries/QFN16.wlib"}
+{"kind":"library","id":"res","order":"F","path":"libraries/R0603.wlib"}

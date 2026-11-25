@@ -1,0 +1,32 @@
+/* Fab Preset dialog (fab-presets.js). Builds on .work-dialog. */
+.fps-dialog {width:min(1080px,calc(100vw - 32px));max-height:min(90vh,860px);padding:0;display:flex;flex-direction:column;overflow:hidden}
+.fps-dialog:not([open]) {display:none}
+.fps-dialog .work-actions {margin:0;padding:10px 18px 14px;border-top:1px solid var(--line)}
+.fps-head {display:flex;align-items:baseline;gap:12px;padding:14px 18px 8px;border-bottom:1px solid var(--line)}
+.fps-head h2 {margin:0;font-size:var(--fs-14)}
+.fps-sub {color:var(--muted);font-size:var(--fs-12)}
+.fps-body {display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:16px;padding:12px 18px;overflow:auto;min-height:0;flex:1 1 auto}
+.fps-list {--ui-row-pad:var(--s-6);--ui-row-marker:var(--sel-bar);overflow:auto}
+.fps-group {color:var(--muted);font-size:var(--fs-11);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 2px}
+.fps-item {position:relative}
+.fps-badge {position:absolute;right:8px;top:6px;font-size:var(--fs-11);color:var(--accent-text)}
+.fps-main {display:flex;flex-direction:column;gap:10px;min-width:0}
+.fps-main h3 {margin:0;font-size:var(--fs-13)}
+.fps-main h4 {margin:8px 0 4px;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--muted)}
+.fps-note {margin:0;color:var(--muted);font-size:var(--fs-12);line-height:var(--lh)}
+.fps-warn {margin:0;padding:6px 8px;border-radius:var(--r-sm);background:var(--tint-warning);font-size:var(--fs-12);line-height:var(--lh)}
+.fps-error {margin:0;color:var(--error);font-size:var(--fs-12)}
+.fps-status {margin:0;color:var(--error)}
+.fps-status:empty {display:none}
+.fps-section {border:1px solid var(--line);border-radius:var(--r-sm);padding:6px 10px 10px}
+.fps-table {width:100%;border-collapse:collapse;font-size:var(--fs-12)}
+.fps-table th {text-align:left;color:var(--muted);font-weight:var(--fw-semibold);padding:3px 6px}
+.fps-table td {padding:3px 6px;vertical-align:top;border-top:1px solid var(--line)}
+.fps-table td:first-child {white-space:nowrap}
+.fps-added td:nth-child(2), li.fps-added {color:var(--success)}
+.fps-changed td:nth-child(2), li.fps-changed {color:var(--warning)}
+.fps-removed td:nth-child(2), li.fps-removed {color:var(--error)}
+.fps-unchanged {color:var(--muted)}
+.fps-diff {margin:0;padding-left:18px;font-size:var(--fs-12);line-height:var(--lh-loose)}
+.fps-src {color:var(--faint)}
+@media (max-width:760px) {.fps-body {grid-template-columns:minmax(0,1fr)}}

@@ -1,0 +1,5 @@
+{
+  "id": "example.distributor", "name": "Benchstock", "version": "1.0.0", "apiVersion": 1, "main": "main.js",
+  "icon": "search", "permissions": ["ui:command", "network:catalog.example"],
+  "contributes": {"searchProviders": [{"id": "stock", "name": "Distributor stock", "icon": "search", "module": "search.js", "data": "parts.json", "command": "benchstock.details", "hosts": ["catalog.example"]}]}
+}

@@ -1,0 +1,144 @@
+/* Rules and Constraints Editor (rules.js) and Design Rule Check panel (drc.js).
+   Colours come from the theme variables; fallbacks keep the dialogs readable alone. */
+.rules-editor {
+  --rules-field: var(--field);
+  --rules-raised: var(--raised);
+  --rules-hover: var(--hover);
+  --rules-head: var(--panel-head);
+  --rules-strong: var(--line-strong);
+  --rules-sel-ink: var(--selection-ink);
+  --rules-bad: var(--danger);
+  color: var(--ink); background: var(--paper); border: 1px solid var(--rules-strong);
+}
+.rules-editor {
+  width: min(1120px, var(--dialog-avail-w)); height: min(86vh, 780px, var(--dialog-avail-h)); max-height: var(--dialog-avail-h);
+  padding: 0; display: grid; grid-template-rows: auto minmax(0,1fr) auto auto auto; overflow: hidden;
+}
+.rules-editor[open] { display: grid; }
+.rules-editor h2 { font-size: var(--fs-14); letter-spacing: 0; margin: 0; font-weight: 600; }
+.rules-editor h3 { font-size: var(--fs-14); margin: 0 0 4px; }
+.rules-head {
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  background: var(--rules-head); border-bottom: 1px solid var(--line);
+}
+.rules-sub { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rules-units {flex:none}
+.rules-body { display: grid; grid-template-columns: minmax(200px, 270px) minmax(0, 1fr); min-height: 0; }
+.rules-tree {
+  overflow: auto; border-right: 1px solid var(--line); padding: 6px 0; background: var(--rules-field);
+}
+.rules-node {
+  display: flex; align-items: center; gap: 4px; min-height: 24px; padding: 2px 8px 2px calc(6px + var(--level, 0) * 14px);
+  cursor: default; white-space: nowrap; user-select: none; -webkit-user-select: none;
+}
+.rules-node:hover { background: var(--rules-hover); }
+.rules-node[aria-selected="true"] { background: var(--selection); color: var(--rules-sel-ink); }
+.rules-node:focus-visible { outline: 1px solid var(--focus); outline-offset: -1px; }
+.rules-node[aria-level="1"] { font-weight: 600; }
+.rules-node.is-muted .rules-node-label { color: var(--muted); text-decoration: line-through; }
+.rules-twisty { width: 12px; flex: none; color: var(--muted); font-size: var(--fs-11); text-align: center; cursor:default; }
+.rules-node-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rules-count {
+  flex: none; min-width: 18px; padding: 0 4px; border-radius: var(--r-lg); font-size: var(--fs-11); text-align: center;
+  background: var(--rules-raised); color: var(--ink); /* muted on raised was 4.35:1 */
+}
+.rules-node[aria-selected="true"] .rules-count { color: inherit; }
+.rules-pane { overflow: auto; padding: 14px 16px 18px; min-width: 0; }
+.rules-editor .rules-help { color: var(--muted); margin: 2px 0 8px; line-height: 1.45; }
+.rules-note { display: block; color: var(--muted); font-size: var(--fs-11); grid-column: 2; }
+.rules-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.rules-form { display: grid; grid-template-columns: minmax(150px, max-content) minmax(0, 1fr); gap: 6px 12px; align-items: center; margin: 6px 0 8px; }
+.rules-field { display: contents; }
+.rules-field-label { color: var(--muted); }
+.rules-field > input:not([type=checkbox]), .rules-field > select { width: min(360px, 100%); }
+.rules-field > input[type=checkbox] { justify-self: start; }
+.rules-value { font-variant-numeric: tabular-nums; }
+.rules-length { display: inline-flex; align-items: center; gap: 6px; }
+.rules-length input { width: var(--field-number-width); font-variant-numeric: tabular-nums; }
+.rules-unit { color: var(--muted); font-size: var(--fs-11); min-width: 22px; }
+.rules-editor fieldset { border: 1px solid var(--line); border-radius: var(--r-lg); margin: 8px 0; padding: 8px 12px 8px; min-width: 0; }
+.rules-editor legend { padding: 0 4px; font-weight: 600; }
+.rules-scope-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.rules-scope-row select { min-width: 160px; }
+.rules-query { display: block; font: var(--fs-11)/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; margin-top: 2px; }
+td .rules-query { display: inline; }
+.rules-checks { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0; align-items: center; }
+.rules-checks > .rules-field-label { flex-basis: 100%; }
+.rules-check { display: inline-flex; align-items: center; gap: 6px; }
+.rules-members { max-height: 320px; overflow: auto; flex-direction: column; align-items: flex-start; flex-wrap: nowrap; border: 1px solid var(--line); border-radius: var(--r-md); padding: 6px 8px; }
+.rules-table-wrap { overflow: auto; max-width: 100%; }
+.rules-table { border-collapse: collapse; width: 100%; font-size: var(--fs-12); }
+.rules-table th, .rules-table td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: middle; }
+.rules-table th { background: var(--rules-head); color: var(--muted); font-weight: 600; position: sticky; top: 0; white-space: nowrap; }
+.rules-table tr.is-muted td { color: var(--muted); }
+.rules-table td:nth-child(2) { font-variant-numeric: tabular-nums; }
+.rules-layer-table input { width: 76px; }
+.rules-layer-table .rules-unit { display: none; }
+.rules-layer-box { margin-top: 8px; display: grid; gap: 4px; }
+.rules-layer-box .rules-note { grid-column: auto; }
+.rules-editor .rules-link { border: 0; background: none; padding: 0; min-height: 0; color: var(--accent-text); text-align: left; }
+.rules-editor .rules-link:hover:not(:disabled) { background: none; text-decoration: underline; }
+.rules-editor .rules-icon { min-height: 22px; padding: 0 6px; font-size: var(--fs-10); margin-right: 2px; }
+.rules-split { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 12px; }
+/* Classes: a library .ui-list of .ui-row options beside the class editor. */
+.rules-list { align-self: start; max-height: 420px; overflow: auto; overscroll-behavior: contain; }
+.rules-class { display: grid; gap: 8px; align-content: start; }
+.rules-class .rules-field { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 8px; align-items: center; }
+.rules-candidates .rules-check { display: flex; margin: 4px 0; }
+.rules-sources { max-height: none; }
+.rules-editor .source-rule { border-bottom: 1px solid var(--line); padding: 2px 0 4px; }
+.rules-editor .source-rule summary { margin: 6px 0; cursor:default; }
+.rules-editor .source-rule p { margin: 2px 0 6px; color: var(--muted); }
+.rules-editor .source-rule .rules-toolbar { margin: 4px 0; }
+.rules-editor .source-rule .rules-note { grid-column: auto; margin: 2px 0; }
+.rules-editor .rule-properties { color: var(--ink); }
+.rules-editor .rules-feedback, .rules-editor .rules-status { margin: 0; padding: 0 16px; min-height: 0; }
+.rules-editor .rules-feedback:not(:empty) { color: var(--rules-bad); padding-top: 6px; }
+.rules-editor .rules-status:not(:empty) { color: var(--muted); padding-top: 6px; }
+.rules-footer { margin: 0; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--rules-head); }
+
+/* Clearance object-kind matrix (single value for all, or per pair of object kinds). */
+.rules-matrix-box { margin-top: 8px; display: grid; gap: 6px; justify-items: start; }
+.rules-matrix-box .rules-note { grid-column: auto; max-width: 72ch; }
+.rules-editor .rules-matrix-mode button { min-height: var(--ctl-h); }
+.rules-matrix { width: auto; }
+.rules-matrix th, .rules-matrix td { padding: 2px 4px; border-bottom: 0; }
+.rules-matrix thead th { text-align: center; min-width: 52px; }
+.rules-matrix tbody th { position: static; background: none; text-align: right; font-weight: var(--fw-medium); padding-right: 8px; }
+.rules-matrix td.is-blank { background: none; }
+
+/* Scopes that match no object: the rule checks nothing. */
+.rules-editor .rules-scope-warning { margin: 4px 0 8px; padding: 6px 8px; border-radius: var(--r-md); border-left: 3px solid var(--warning); background: var(--tint-warning); color: var(--ink); line-height: var(--lh); }
+.rules-editor .rules-scope-warning::before { content: "Warning: "; color: var(--warning); font-weight: var(--fw-semibold); }
+.rules-scope-flag { display: inline-block; padding: 0 var(--s-6); border-radius: var(--r-pill); font-size: var(--fs-11); background: var(--tint-warning); color: var(--warning); white-space: nowrap; }
+.rules-node-warn { flex: none; min-width: 14px; padding: 0 3px; border-radius: var(--r-pill); font-size: var(--fs-10); font-weight: var(--fw-semibold); text-align: center; background: var(--tint-warning); color: var(--warning); }
+.rules-node[aria-selected="true"] .rules-node-warn { color: inherit; }
+
+/* Design Rule Check: a non-modal panel docked at the lower right, like Messages. */
+
+/* Polygon Connect Style: Auto explanation and net currents. */
+.rules-auto-help { margin-top: 8px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 8px; }
+.rules-auto-help summary { margin: 6px 0; color: var(--ink); }
+.rules-auto-help ol { margin: 0 0 8px; padding-left: 18px; color: var(--muted); font-size: var(--fs-12); line-height: 1.5; }
+.rules-auto-help li + li { margin-top: 4px; }
+.rules-currents select { max-width: 180px; }
+@media (max-width: 720px) {
+  .rules-editor { height: calc(100vh - 24px); }
+  .rules-body { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 34%) minmax(0, 1fr); }
+  .rules-tree { border-right: 0; border-bottom: 1px solid var(--line); }
+  .rules-form, .rules-split { grid-template-columns: 1fr; }
+  .rules-note { grid-column: 1; }
+}
+
+/* Non-modal Rules and Constraints Editor (rules.js open): a window over the editor, opened from either editor. */
+.rules-window:not(:modal) {position:fixed;inset:48px 40px auto;max-height:calc(100vh - 96px);margin:0;z-index:40;resize:both;overflow:auto;box-shadow:var(--elev-3)}
+.rules-views {display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}
+.rules-view-link {font-size:var(--fs-12)}
+.rules-close {margin-left:4px}
+.rules-boards {display:flex;flex-wrap:wrap;gap:8px}
+
+/* Reviewable rule explanations in the Rules and Constraints document. */
+.rules-hints {list-style:none;padding:0;margin:var(--s-8) 0}
+.rules-hints li {border-top:1px solid var(--line);padding:var(--s-8) 0}
+.rules-hints strong {margin-right:var(--s-8);color:var(--ink)}
+.rules-hints li p {margin:var(--s-4) 0 0;color:var(--muted);line-height:var(--lh);overflow-wrap:anywhere}

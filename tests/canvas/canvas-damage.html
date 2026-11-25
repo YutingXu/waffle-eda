@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Waffle 2D repaint pixel checks</title>
+<style>canvas { display: block; width: 920px; height: 640px; }</style>
+</head>
+<body>
+<pre id="result">Running…</pre>
+<script src="../../app/core/uuid-v7.js"></script>
+<script src="../../app/core/model.js"></script>
+<script src="../../app/pcb/resolved-geometry-curves.js"></script>
+<script src="../../app/pcb/board-shape-core.js"></script>
+<script src="../../app/pcb/board-shape.js"></script>
+<script src="../../app/library/parts.js"></script>
+<script src="../../app/core/power.js"></script>
+<script src="../../app/pcb/pcb-appearance.js"></script>
+<script src="../../app/pcb/pcb-pours.js"></script>
+<script src="../../app/pcb/viastack.js"></script>
+<script src="../../app/canvas/vectorize.js"></script>
+<script src="../../app/pcb/pcb-text-rich.js"></script>
+<script src="../../app/canvas/stroke-font.js"></script>
+<script src="../../app/pcb/pcb-text.js"></script>
+<script src="../../app/canvas/camera.js"></script>
+<script src="../../app/schematic/sch-appearance.js"></script>
+<script src="../../app/schematic/sch-objects.js"></script>
+<script src="../../app/core/spatial.js"></script>
+<script src="../../app/checks/connectivity.js"></script>
+<script src="../../app/history/undo-store.js"></script>
+<script src="../../app/canvas/canvas-fast.js"></script>
+<script src="../../app/canvas/canvas-board-batches.js"></script>
+<script src="../../app/canvas/canvas.js"></script>
+<script src="../../app/editor/nav-common.js"></script>
+<script src="../../app/checks/problem-marks.js"></script>
+<script src="../../app/checks/drc-markers.js"></script>
+<script src="../pcb/dense-board.js"></script>
+<script src="canvas-damage.js"></script>
+<script>
+const result = document.getElementById("result");
+(location.hash === "#via-marks" ? atriumCanvasViaMarkZoom() : atriumCanvasDamage()).then(report => {
+  result.textContent = JSON.stringify(report);
+  result.dataset.status = report.failures.length ? "fail" : "pass";
+}, error => {
+  result.textContent = error.stack;
+  result.dataset.status = "fail";
+});
+</script>
+</body>
+</html>

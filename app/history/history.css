@@ -1,0 +1,76 @@
+/* History. Lazy. Placement and sizing only: every face
+   (rows, badges, avatars, chips, thumbnails, notices, buttons) is the library's (docs/ui-library.md). */
+
+/* ------------------------------------------------------------------ entry points */
+.hv-entry > .icon {inline-size:var(--s-16);block-size:var(--s-16)}
+.hv-status {display:inline-flex;align-items:center;gap:var(--s-4);max-inline-size:200px}
+.hv-status > .icon {flex:none;inline-size:14px;block-size:14px}
+.hv-status-label {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hv-status > .ui-dot[hidden] {display:none}
+
+/* ------------------------------------------------------------------ the view */
+.hv-view {flex:1 1 auto;block-size:auto;min-inline-size:0;container-type:inline-size;display:grid;grid-template-rows:auto minmax(0,1fr) auto;block-size:100%;min-block-size:0;background:var(--surface);color:var(--ink)}
+.hv-toolbar {gap:var(--s-8);padding:var(--s-6) var(--s-8);border-block-end:1px solid var(--line)}
+.hv-search {flex:1 1 240px;max-inline-size:460px}
+.hv-branches {flex:none;inline-size:auto}
+.hv-main {display:grid;grid-template-rows:auto minmax(0,1fr);min-block-size:0}
+.hv-notice {padding:var(--s-8) var(--s-8) 0}
+.hv-notice[hidden] {display:none}
+.hv-split {grid-row:2;--ui-split-list:calc(100% - var(--hv-details-w,380px) - 1px);block-size:100%;min-block-size:0}
+
+/* The list: rows in view only, absolutely placed; the graph canvas sits over their leading edge. */
+.hv-list-pane {position:relative;min-inline-size:0;min-block-size:0;overflow:hidden}
+.hv-scroll {position:absolute;inset:0;overflow:auto;overscroll-behavior:contain;outline:none}
+.hv-list {position:relative;display:block;min-block-size:100%}
+.hv-graph {position:absolute;inset-block-start:0;inset-inline-start:var(--s-4);z-index:1;pointer-events:none}
+.hv-row {position:absolute;inset-inline:0;inset-block-start:0;block-size:var(--hv-row-h,auto);
+  padding-inline-start:calc(var(--hv-graph-w,18px) + var(--s-8) + var(--ui-depth) * var(--s-16));padding-inline-end:var(--s-12);border-radius:0}
+.hv-probe {position:static;visibility:hidden}
+.hv-row > .hv-row-text {display:flex;align-items:center;gap:var(--s-6);min-inline-size:0}
+.hv-row-text > .ui-row-title {flex:0 1 auto}
+.hv-row-text > :is(.ui-badge,.ui-dot) {flex:none}
+.hv-row[data-quiet] > .hv-row-text {color:var(--muted)}
+.hv-row > .hv-row-meta {display:flex;align-items:center;gap:var(--s-12)}
+.hv-who {display:inline-flex;align-items:center;gap:var(--s-6);inline-size:136px;min-inline-size:0}
+.hv-author {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hv-when {inline-size:84px;text-align:end}
+.hv-empty {position:absolute;inset-inline:0;inset-block-start:0;padding:var(--s-16)}
+.hv-empty[hidden] {display:none}
+.hv-skeleton {position:absolute;inset-inline:calc(var(--hv-graph-w,18px) + var(--s-12)) var(--s-16);display:grid;gap:14px}
+.hv-skeleton > .ui-skeleton {display:block;block-size:10px;inline-size:var(--hv-w,60%)}
+.hv-foot {display:flex;align-items:center;gap:var(--s-8);min-block-size:var(--chrome-row-height);padding-inline:var(--s-8);border-block-start:1px solid var(--line)}
+.hv-foot > .ui-status-line {flex:1;display:flex;align-items:center;gap:var(--s-8)}
+
+/* The details pane: an inspector (one section per group, hairlines, no boxes). */
+.hv-details {display:grid;align-content:start;gap:var(--s-12);min-inline-size:0;min-block-size:0;overflow:auto;overscroll-behavior:contain;
+  padding:var(--s-12) var(--s-16) var(--s-24);outline:none}
+.hv-detail-head {display:flex;align-items:start;gap:var(--s-8)}
+.hv-detail-title {margin:0;font-size:var(--fs-14);font-weight:var(--fw-semibold);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.hv-byline {display:flex;align-items:center;gap:var(--s-8)}
+.hv-byline-text {display:grid;min-inline-size:0}
+.hv-byline-name {font-weight:var(--fw-medium)}
+.hv-byline-when, .hv-muted, .hv-region {color:var(--muted);font-size:var(--fs-11)}
+.hv-ids {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4)}
+.hv-detail-actions {display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8)}
+.hv-lede, .hv-muted, .hv-headline {margin:0}
+.hv-headline {line-height:var(--lh-loose)}
+.hv-changes {display:grid;gap:var(--s-8)}
+.hv-pair {--ui-thumb-ratio:88 / 46;grid-template-columns:1fr 1fr}
+.hv-region {display:flex;align-items:center;justify-content:space-between;gap:var(--s-8)}
+.hv-tile {fill:none;stroke-width:1;stroke-linecap:round;stroke-linejoin:round}
+.hv-tile .hv-context {stroke:var(--muted);opacity:.55}
+.hv-tile .hv-changed {stroke:var(--warning);stroke-width:1.6}
+.hv-tile.hv-after .hv-changed {stroke:var(--success)}
+.hv-group {margin-block-start:var(--s-4)}
+.hv-object .ui-row-detail {display:block}
+.hv-dialog-status {min-block-size:1lh;margin:0;color:var(--muted);font-size:var(--fs-11)}
+.hv-offscreen {position:fixed;inset-inline-start:-9999px;inset-block-start:var(--window-safe-top)}
+
+/* Narrow panes (a split editor, a portrait tablet): details below the list, author column folded. */
+@container (max-width: 760px) {
+  .hv-split {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,45%)}
+  .hv-split > .ui-splitter {display:none}
+  .hv-details {border-block-start:1px solid var(--line)}
+  .hv-who {inline-size:auto}
+  .hv-author {display:none}
+}

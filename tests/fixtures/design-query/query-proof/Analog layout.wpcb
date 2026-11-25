@@ -1,0 +1,13 @@
+{"kind":"pcb","formatVersion":"2.0","id":"analog"}
+{"kind":"documentSettings","id":"analog/settings","value":{"grid":250000,"notes":[],"outline":[[0,0],[60000000,0],[60000000,50000000],[0,50000000]]}}
+{"kind":"track","id":"lowercase-rail","layer":"Bottom","net":"rail","order":"K","points":[[6000000,16000000],[18000000,16000000]],"width":120000}
+{"kind":"part","id":"offset-u3","angle":270000000000,"at":[30000000,20000000],"def":"offset","layer":"Top","order":"e","pinNets":{},"ref":"U3","value":"Offset"}
+{"kind":"track","id":"pair-minus","layer":"Top","net":"Pair-","order":"P","points":[[6000000,35000000],[18000000,35000000]],"width":200000}
+{"kind":"track","id":"pair-plus","layer":"Top","net":"Pair+","order":"U","points":[[6000000,35350000],[18000000,35350000]],"width":200000}
+{"kind":"part","id":"probe-edge","angle":0,"at":[32500000,26000000],"def":"probe-hole","layer":"Top","order":"j","pinNets":{"1":"Probe"},"ref":"TP1","value":"Boundary"}
+{"kind":"part","id":"probe-origin","angle":0,"at":[31500000,20000000],"def":"probe-smd","layer":"Top","order":"o","pinNets":{"1":"Probe"},"ref":"TP2","value":"Origin"}
+{"kind":"part","id":"probe-outside","angle":0,"at":[32501000,26000000],"def":"probe-smd","layer":"Top","order":"t","pinNets":{"1":"Probe"},"ref":"TP3","value":"Outside"}
+{"kind":"track","id":"rail-at-limit","layer":"Top","net":"Rail","order":"A","points":[[6000000,10000000],[18000000,10000000]],"width":200000}
+{"kind":"track","id":"rail-thin","layer":"Top","net":"Rail","order":"5","points":[[6000000,7000000],[18000000,7000000]],"width":120000}
+{"kind":"track","id":"rail-wide","layer":"Top","net":"Rail","order":"F","points":[[6000000,13000000],[18000000,13000000]],"width":350000}
+{"kind":"track","id":"unrelated-pair","layer":"Top","net":"PairSpare","order":"Z","points":[[6000000,34650000],[18000000,34650000]],"width":200000}

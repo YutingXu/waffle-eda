@@ -1,0 +1,39 @@
+{"kind":"pcb","formatVersion":"2.0","id":"xky4k58d150s7ztx7s4"}
+{"kind":"track","id":"x00jpkykuny17srd4th","layer":"Bottom","net":"VDD","order":"LB","points":[[3800000,8460000],[7200000,8460000],[9160000,6500000],[14500000,6500000],[15900000,5100000],[19700000,5100000]],"width":480000}
+{"kind":"part","id":"x14qpc7g3jphd03hndw","angle":0,"at":[9900000,11000000],"def":"x29326ml64lg2tjf8cz","link":"relink-R1","order":"3G","pinNets":{"1":"VIN","2":"FILTER"},"ref":"R1","value":"10 kΩ"}
+{"kind":"part","id":"x1bcgo8refk9px44wnv","angle":0,"at":[25200000,9000000],"def":"x29326ml64lg2tjf8cz","link":"relink-R2","order":"89","pinNets":{"1":"BUF","2":"VOUT"},"ref":"R2","value":"100 Ω"}
+{"kind":"part","id":"x1xg3uf8f153taetnft","angle":0,"at":[19400000,6800000],"def":"x2ka7edcmpb3u2m7os5","link":"relink-C2","order":"BP","pinNets":{"1":"VDD","2":"GND"},"ref":"C2","value":"100 nF"}
+{"kind":"via","id":"x2lrzlt994q5zv9f4oz","at":[21400000,10650000],"diameter":840000,"drill":400000,"layer":"Multi","net":"VDD","order":"OR"}
+{"kind":"track","id":"x3sbo7d8ksb1e8t8fvf","layer":"Top","net":"BUF","order":"GI","points":[[19750000,12550000],[21600000,12550000],[22600000,11550000],[22600000,10100000],[23700000,9000000],[24400000,9000000]],"width":320000}
+{"kind":"pad","id":"x4w00s5301hh7v7710b","at":[2600000,19400000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"lF","shape":"round","w":2400000}
+{"kind":"track","id":"x5usjowuxhu2r27t3uo","layer":"Top","net":"VIN","order":"D2","points":[[3800000,11000000],[9100000,11000000]],"width":320000}
+{"kind":"track","id":"x6injy4v0azup7bqvmv","layer":"Top","net":"GND","order":"bT","points":[[13300000,15100000],[13300000,16200000]],"width":480000}
+{"kind":"track","id":"x6jm7mbmfip40vvfxr3","layer":"Bottom","net":"GND","order":"ej","points":[[17900000,11600000],[19500000,13200000],[22900000,13200000],[23300000,12800000],[23300000,8100000],[22000000,6800000],[21550000,6800000]],"width":480000}
+{"kind":"part","id":"x6t6wrrmrpmp6mcdarq","angle":0,"at":[18500000,11600000],"def":"xaf3r09fquo6sbegzgs","link":"relink-U1","order":"6W","pinNets":{"1":"BUF","2":"GND","3":"FILTER","4":"BUF","5":"VDD"},"ref":"U1","value":"Buffer"}
+{"kind":"track","id":"x75ktutze9t3exeigz3","layer":"Top","net":"GND","order":"Ux","points":[[17250000,11600000],[16100000,11600000]],"width":480000}
+{"kind":"via","id":"x7g43f86tbm0mf2nc80","at":[16100000,11600000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"TK"}
+{"kind":"part","id":"x7jhx2i03q0x7isip4h","angle":270000000000,"at":[13300000,14300000],"def":"x2ka7edcmpb3u2m7os5","link":"relink-C1","order":"4t","pinNets":{"1":"FILTER","2":"GND"},"ref":"C1","value":"10 nF"}
+{"kind":"label","id":"x83asptbule227zjwoc","at":[5650000,4600000],"layer":"Silk","order":"q8","size":560000,"text":"AFE  /  REV A"}
+{"kind":"track","id":"x9fqmmyhvtr4v2yfgjg","layer":"Top","net":"GND","order":"YD","points":[[20200000,6800000],[21550000,6800000]],"width":480000}
+{"kind":"track","id":"xdniy77rdpa4x2p0k0k","layer":"Bottom","net":"VDD","order":"Q4","points":[[19700000,5100000],[19700000,8950000],[21400000,10650000]],"width":480000}
+{"kind":"via","id":"xh2ay4psh3anjsy8tvz","at":[21550000,6800000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"Wa"}
+{"kind":"track","id":"xh2ip889e9qkvjhasxp","layer":"Bottom","net":"GND","order":"gM","points":[[13300000,16200000],[26200000,16200000],[30830000,11570000],[32200000,11570000]],"width":480000}
+{"kind":"via","id":"xi558ec0wayf38b7xah","at":[19700000,5100000],"diameter":840000,"drill":400000,"layer":"Multi","net":"VDD","order":"JY"}
+{"kind":"via","id":"xillmzc3fgockh10ev1","at":[13300000,16200000],"diameter":840000,"drill":400000,"layer":"Multi","net":"GND","order":"Zq"}
+{"kind":"pad","id":"xj7yhzlv7iqpvdcjz5g","at":[33400000,2600000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"jc","shape":"round","w":2400000}
+{"kind":"documentSettings","id":"xky4k58d150s7ztx7s4/settings","value":{"grid":250000,"notes":[],"outline":[[1500000,0],[34500000,0],[36000000,1500000],[36000000,20500000],[34500000,22000000],[1500000,22000000],[0,20500000],[0,1500000]]}}
+{"kind":"label","id":"xl9m8pmdgtur0iv20fk","at":[31350000,14450000],"layer":"Silk","order":"tO","size":650000,"text":"OUT"}
+{"kind":"polygon","id":"xmplr9bljc3ya5dle9x","arcApproximation":{"$number":"0.0127"},"closed":true,"connectStyle":"relief","fillMode":"solid","hatchAngle":315000000000,"hatchPitch":500000,"hatchWidth":150000,"islandAreaThreshold":"0","layer":"Bottom","minPrimLength":76200,"name":"GND pour","net":"GND","order":"yH","points":[[2000000,2000000],[34000000,2000000],[34000000,20000000],[2000000,20000000]],"pourIndex":0,"pourOverSameNet":true,"reliefAirGap":254000,"reliefAngle":90,"reliefConductorWidth":254000,"reliefEntries":4,"removeDeadCopper":true,"viaConnectStyle":"direct"}
+{"kind":"label","id":"xothmrlp6srx7h7otlo","at":[27100000,19650000],"layer":"Silk","order":"v1","size":740000,"text":"WAFFLE"}
+{"kind":"label","id":"xp8tzpex80ko0heg7ih","at":[5600000,3050000],"layer":"Silk","order":"oV","size":1050000,"text":"SENSOR INTERFACE"}
+{"kind":"part","id":"xr9ssbapck0yduzdueo","angle":0,"at":[3800000,11000000],"def":"xyebannd4yz0emrvftv","link":"relink-J1","order":"1d","pinNets":{"1":"VDD","2":"VIN","3":"GND"},"ref":"J1","value":"Input"}
+{"kind":"track","id":"xrgufbjg1po57v3zwvv","layer":"Top","net":"VOUT","order":"Hv","points":[[26000000,9000000],[29600000,9000000],[29630000,9030000],[32200000,9030000]],"width":320000}
+{"kind":"track","id":"xrif3e27e7cas8q1fks","layer":"Top","net":"GND","order":"we","points":[[5000000,18000000],[9000000,18000000]],"width":50000}
+{"kind":"track","id":"xt2g9yn6vsgkq8t9ow6","layer":"Bottom","net":"GND","order":"d6","points":[[3800000,13540000],[6300000,13540000],[8960000,16200000],[13300000,16200000],[17900000,11600000],[16100000,11600000]],"width":480000}
+{"kind":"label","id":"xtb3utu5j4nmsdmuw4b","at":[2150000,16800000],"layer":"Silk","order":"rl","size":530000,"text":"ANALOG IN"}
+{"kind":"track","id":"xtjld3b4cugmlwnp46o","layer":"Top","net":"VDD","order":"Mo","points":[[19700000,5100000],[18600000,6200000],[18600000,6800000]],"width":480000}
+{"kind":"pad","id":"xuds1yuteph2p6zd4g7","at":[33400000,19400000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"ms","shape":"round","w":2400000}
+{"kind":"track","id":"xujq7ir78djlanjifwr","layer":"Top","net":"VDD","order":"Rh","points":[[21400000,10650000],[19750000,10650000]],"width":480000}
+{"kind":"part","id":"xv5ieh2n21qyjxjus9l","angle":0,"at":[32200000,10300000],"def":"xa0hipgad35l9m26mi0","link":"relink-J2","order":"9m","pinNets":{"1":"VOUT","2":"GND"},"ref":"J2","value":"Output"}
+{"kind":"pad","id":"xxkl9e3czlitybkm03c","at":[2600000,2600000],"drill":2400000,"h":2400000,"layer":"Mechanical","net":"","number":"","order":"hz","shape":"round","w":2400000}
+{"kind":"track","id":"xz7pfxxbxzymxy8jllf","layer":"Top","net":"BUF","order":"Ef","points":[[17250000,10650000],[16200000,10650000],[15200000,9650000],[15200000,8200000],[16200000,7200000],[17000000,7200000],[19200000,9400000],[21000000,9400000],[21400000,9000000],[24400000,9000000]],"width":320000}

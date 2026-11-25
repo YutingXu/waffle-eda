@@ -1,0 +1,18 @@
+[
+  {"name":"current","root":{"formatVersion":"2.0"},"owner":{"formatVersion":"2.0"}},
+  {"name":"later-minor","root":{"formatVersion":"2.2"},"owner":{"formatVersion":"2.1"}},
+  {"name":"too-new-member","root":{"formatVersion":"2.1"},"owner":{"formatVersion":"2.2"},"memberError":"invalid-member"},
+  {"name":"compatible-major","root":{"formatVersion":"3.0","compatibleWith":"2.0"},"owner":{"formatVersion":"3.0","compatibleWith":"2.0"},"rootReadOnly":true,"ownerReadOnly":true},
+  {"name":"unsupported-major","root":{"formatVersion":"3.0"},"rootError":"unsupported-version"},
+  {"name":"different-compatible-subset","root":{"formatVersion":"3.0","compatibleWith":"2.1"},"rootError":"unsupported-version"},
+  {"name":"required-feature","root":{"formatVersion":"2.1","requires":["future-constraint"]},"rootError":"unsupported-feature"},
+  {"name":"compatible-feature","root":{"formatVersion":"2.1","compatibleWith":"2.0","requires":["future-constraint"]},"owner":{"formatVersion":"2.0"},"rootReadOnly":true},
+  {"name":"owner-required-feature","root":{"formatVersion":"2.1"},"owner":{"formatVersion":"2.1","requires":["future-constraint"]},"memberError":"unsupported-feature"},
+  {"name":"owner-compatible-feature","root":{"formatVersion":"2.1"},"owner":{"formatVersion":"2.1","compatibleWith":"2.0","requires":["future-constraint"]},"ownerReadOnly":true},
+  {"name":"major-mismatch","root":{"formatVersion":"3.0","compatibleWith":"2.0"},"owner":{"formatVersion":"2.0"},"rootReadOnly":true,"memberError":"invalid-member"},
+  {"name":"malformed-stamp","root":{"formatVersion":"2.00"},"rootError":"invalid-format"},
+  {"name":"malformed-subset","root":{"formatVersion":"2.0","compatibleWith":2},"rootError":"invalid-format"},
+  {"name":"duplicate-feature","root":{"formatVersion":"2.0","requires":["a","a"]},"rootError":"invalid-format"},
+  {"name":"malformed-current-sibling","root":{"formatVersion":"2.2"},"owner":{"formatVersion":"2.0"},"unknownRecord":"order","memberError":"invalid-format"},
+  {"name":"unknown-current-record","root":{"formatVersion":"2.0"},"owner":{"formatVersion":"2.0"},"unknownRecord":true,"memberError":"invalid-format"}
+]

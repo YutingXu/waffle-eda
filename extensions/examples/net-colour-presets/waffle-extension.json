@@ -1,0 +1,23 @@
+{
+  "id": "atrium-samples.net-colour-presets",
+  "name": "Net Colour Presets",
+  "publisher": "Waffle samples",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "View › Net Colour Presets: colour power, ground, clock and differential nets in one click, or define your own presets with name patterns. Each change is a reviewed proposal and one undo step.",
+  "main": "main.js",
+  "activationEvents": ["onCommand:netColours.show", "onCommand:netColours.clear", "onView:netColours"],
+  "permissions": ["read:project", "propose:edits", "ui:command", "ui:panel"],
+  "contributes": {
+    "commands": [
+      {"command": "netColours.show", "title": "Net Colour Presets…", "when": "pcb"},
+      {"command": "netColours.apply", "title": "Apply Net Colour Preset"},
+      {"command": "netColours.clear", "title": "Clear Preset Net Colours", "when": "pcb"}
+    ],
+    "menus": {"view": [{"command": "netColours.show"}, {"command": "netColours.clear"}]},
+    "panels": [{"id": "netColours", "title": "Net Colour Presets", "location": "right"}],
+    "settings": [
+      {"key": "custom", "type": "string", "default": "", "title": "My preset", "description": "Pattern=#rrggbb pairs separated by semicolons; * matches anything. Example: GND*=#3f7fbf; *CLK*=#b05cc8; V*=#c84f4f"}
+    ]
+  }
+}

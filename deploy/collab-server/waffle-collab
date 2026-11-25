@@ -1,0 +1,569 @@
+#!/bin/bash
+# waffle-collab: sets up and checks a Waffle collaboration server on Ubuntu 24.04 LTS.
+#   Caddy (automatic Let's Encrypt TLS) -> wss://DOMAIN -> the Waffle relay (127.0.0.1:8765, systemd,
+#   unprivileged and sandboxed) + coturn (TURN/STUN on 3478 udp/tcp and TURNS on 5349, short-lived
+#   HMAC credentials from the relay; the shared secret lives only in root-owned files here).
+# waffle-setup.sh (or the smaller launch-script.sh, without the relay) installs this file as
+# /usr/local/sbin/waffle-collab and runs "waffle-collab setup DOMAIN [EMAIL]". Every command is idempotent.
+#
+#   sudo waffle-collab status                  services, DNS, certificate, reachability, TURN usage, mode
+#   sudo waffle-collab mode open|private       open (default): anyone with the address hosts; private: invited hosts only
+#   sudo waffle-collab add-host NAME           a personal, revocable host invitation link (private mode)
+#   sudo waffle-collab remove-host NAME | list-hosts
+#   sudo waffle-collab turn-cap GB             monthly TURN traffic cap (0: none); past it, sessions use direct and relay paths
+#   sudo waffle-collab reconfigure DOMAIN [EMAIL]   change the domain (or retry after fixing DNS)
+#   sudo waffle-collab turn-test               fresh TURN credentials and an allocation test
+#   sudo waffle-collab rotate-secret           a new TURN secret (relay and coturn restart)
+#   sudo waffle-collab logs                    recent relay, coturn and Caddy logs
+#   (internal) setup DOMAIN [EMAIL] | refresh-ip | sync-certs (also TURN usage, every 15 minutes)
+set -u
+umask 022
+CONF=/etc/waffle-collab
+OPT=/opt/waffle-collab
+SECRET=$CONF/turn-secret
+CADDY_KEY=65760C51EDEA2017CEA2CA15155B6D79CA56EA34   # Caddy's repository signing key (as in Caddy's install guide)
+HOSTS_DIR=/etc/waffle-relay
+HOSTS=$HOSTS_DIR/hosts
+STATE=/var/lib/waffle-collab
+TURN_OFF=/run/waffle-collab/turn-off
+TLS=/etc/coturn/tls
+RELAY_PORT=8765
+TURN_MIN=49152
+TURN_MAX=49999
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'waffle-collab: %s\n' "$*" >&2; exit 1; }
+need_root() { [ "$(id -u)" = 0 ] || die "run it with sudo"; }
+valid_domain() { [[ $1 =~ ^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$ ]]; }
+valid_email() { [[ -z $1 || $1 =~ ^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,63}$ ]]; }
+load() { local config=${1:-$CONF/config}; [ -r "$config" ] && . "$config"; DOMAIN=${DOMAIN:-}; ACME_EMAIL=${ACME_EMAIL:-}; MODE=${MODE:-open}; TURN_MONTHLY_GB=${TURN_MONTHLY_GB:-100}; }
+save_config() { printf 'DOMAIN=%q\nACME_EMAIL=%q\nMODE=%q\nTURN_MONTHLY_GB=%q\n' "$DOMAIN" "$ACME_EMAIL" "$MODE" "$TURN_MONTHLY_GB" > "$CONF/config"; chmod 0640 "$CONF/config"; }
+apt_get() { DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=900 -y -q "$@"; }
+
+imds() {   # an EC2/Lightsail instance metadata value (IMDSv2), or nothing
+  local token
+  token=$(curl -fsS -m 2 -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' http://169.254.169.254/latest/api/token 2>/dev/null) || return 0
+  curl -fsS -m 2 -H "X-aws-ec2-metadata-token: $token" "http://169.254.169.254/latest/meta-data/$1" 2>/dev/null || true
+}
+public_ip() { local ip; ip=$(imds public-ipv4); [ -n "$ip" ] || ip=$(curl -4 -fsS -m 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]'); printf '%s' "$ip"; }
+private_ip() { local ip; ip=$(imds local-ipv4); [ -n "$ip" ] || ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}'); printf '%s' "$ip"; }
+
+write_if_changed() {   # write_if_changed FILE MODE OWNER:GROUP  (content on stdin); exit 0 when changed
+  local file=$1 mode=$2 owner=$3 tmp
+  tmp=$(mktemp) && cat > "$tmp"
+  if [ -f "$file" ] && cmp -s "$tmp" "$file"; then rm -f "$tmp"; chmod "$mode" "$file"; chown "$owner" "$file"; return 1; fi
+  install -m "$mode" -o "${owner%%:*}" -g "${owner##*:}" "$tmp" "$file"; rm -f "$tmp"; return 0
+}
+
+install_packages() {
+  say "Installing packages (Caddy from its own repository, coturn, ufw, unattended-upgrades)…"
+  local i
+  # On first boot cloud-init and apt timers may hold the package lists: retry for a few minutes.
+  for i in $(seq 1 30); do apt_get update && break; sleep 10; done
+  apt_get install coturn python3 ufw unattended-upgrades curl dnsutils ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https || return 1
+  # Caddy's official repository: security updates, unlike the Ubuntu universe package. Its key is
+  # checked against the pinned fingerprint, the source line is written here, and apt may take only
+  # the caddy package from that origin.
+  local key=/usr/share/keyrings/caddy-stable-archive-keyring.gpg tmp fresh=0
+  if [ "$(key_fpr "$key")" != "$CADDY_KEY" ]; then
+    tmp=$(mktemp)
+    curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor > "$tmp" || { rm -f "$tmp"; return 1; }
+    [ "$(key_fpr "$tmp")" = "$CADDY_KEY" ] || { rm -f "$tmp"; say "Caddy's repository key is not $CADDY_KEY: not using it."; return 1; }
+    install -m 0644 "$tmp" "$key"; rm -f "$tmp"; fresh=1
+  fi
+  write_if_changed /etc/apt/sources.list.d/caddy-stable.list 0644 root:root <<EOF && fresh=1
+deb [signed-by=$key] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main
+EOF
+  write_if_changed /etc/apt/preferences.d/waffle-caddy 0644 root:root <<EOF && fresh=1
+Package: caddy
+Pin: origin dl.cloudsmith.io
+Pin-Priority: 500
+
+Package: *
+Pin: origin dl.cloudsmith.io
+Pin-Priority: 100
+EOF
+  [ "$fresh" = 0 ] || apt_get update || return 1
+  apt_get install caddy || return 1
+}
+key_fpr() {   # the fingerprint of a binary keyring's only primary key
+  [ -s "$1" ] || return 0
+  local home; home=$(mktemp -d)
+  gpg --homedir "$home" --show-keys --with-colons "$1" 2>/dev/null | awk -F: '$1=="pub"{n++} $1=="fpr"&&!f{f=$10} END{if(n==1)print f}'
+  rm -rf "$home"
+}
+
+write_secret() {
+  install -d -m 0750 -o root -g root "$CONF"
+  if [ ! -s "$SECRET" ]; then
+    (umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$SECRET")
+    say "Generated a new TURN secret ($SECRET, root only)."
+  fi
+  chown root:root "$SECRET"; chmod 0600 "$SECRET"
+  id waffle-relay >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin waffle-relay
+  # Private mode's host list: hashes of personal tokens and names, readable by the relay (no secrets).
+  install -d -m 0750 -o root -g waffle-relay "$HOSTS_DIR" 2>/dev/null || install -d -m 0750 "$HOSTS_DIR"
+  [ -f "$HOSTS" ] || : > "$HOSTS"
+  chown root:waffle-relay "$HOSTS" 2>/dev/null; chmod 0640 "$HOSTS"
+  install -d -m 0755 "$STATE" /run/waffle-collab
+}
+
+write_caddy() {
+  write_if_changed /etc/caddy/Caddyfile 0644 root:root <<EOF && CADDY_CHANGED=1
+# Waffle collaboration server (waffle-collab). Caddy obtains and renews the certificate itself and
+# keeps retrying until DNS for $DOMAIN points here.
+{
+$( [ -n "$ACME_EMAIL" ] && printf '\temail %s\n' "$ACME_EMAIL" )
+	servers {
+		protocols h1 h2
+	}
+}
+
+$DOMAIN {
+	# The relay answers /healthz, /join and the WebSocket upgrade.
+	reverse_proxy 127.0.0.1:$RELAY_PORT
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}
+EOF
+  return 0
+}
+
+write_relay_unit() {
+  id waffle-relay >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin waffle-relay
+  install -d -m 0755 -o root -g root "$OPT"
+  [ -f "$OPT/waffle_relay.py" ] && chmod 0644 "$OPT/waffle_relay.py" && chown root:root "$OPT/waffle_relay.py"
+  write_if_changed /etc/systemd/system/waffle-relay.service 0644 root:root <<EOF && RELAY_CHANGED=1
+[Unit]
+Description=Waffle collaboration relay (signalling, fallback relaying, TURN credentials)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=waffle-relay
+Group=waffle-relay
+# The TURN secret is handed over as a systemd credential (%d); the relay user cannot read $SECRET itself.
+LoadCredential=turn-secret:$SECRET
+ConditionPathExists=$OPT/waffle_relay.py
+ExecStart=/usr/bin/python3 -I $OPT/waffle_relay.py --host 127.0.0.1 --port $RELAY_PORT --trust-proxy --quiet --turn-host $DOMAIN --turn-secret-file %d/turn-secret --turn-off-file $TURN_OFF$( [ "$MODE" = private ] && printf ' --hosts-file %s' "$HOSTS" )
+ExecReload=/bin/kill -HUP \$MAINPID
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  return 0
+}
+
+write_coturn() {
+  local pub priv tlslines="" allowed=""
+  pub=$(public_ip); priv=$(private_ip)
+  if [ -s "$TLS/cert.pem" ] && [ -s "$TLS/key.pem" ]; then
+    tlslines="cert=$TLS/cert.pem
+pkey=$TLS/key.pem"
+  else
+    tlslines="no-tls
+no-dtls"
+  fi
+  [ -n "$priv" ] && allowed="allowed-peer-ip=$priv"
+  local external=""
+  if [ -n "$pub" ] && [ -n "$priv" ] && [ "$pub" != "$priv" ]; then external="external-ip=$pub/$priv"; elif [ -n "$pub" ]; then external="external-ip=$pub"; fi
+  write_if_changed /etc/turnserver.conf 0640 root:turnserver <<EOF && COTURN_CHANGED=1
+# coturn for Waffle live sessions (waffle-collab). Editors get credentials from the relay:
+# username "<expiry>:<random>", password HMAC-SHA1(static-auth-secret, username).
+listening-port=3478
+tls-listening-port=5349
+min-port=$TURN_MIN
+max-port=$TURN_MAX
+$external
+realm=$DOMAIN
+server-name=$DOMAIN
+fingerprint
+use-auth-secret
+static-auth-secret=$(cat "$SECRET")
+no-tcp-relay
+stale-nonce=600
+# Quotas for a small server: allocations per credential and in all, bandwidth per allocation
+# (4 Mbit/s) and in all (50 Mbit/s). The monthly cap is enforced by waffle-collab (turn-cap).
+total-quota=100
+user-quota=4
+max-bps=500000
+bps-capacity=6250000
+no-multicast-peers
+no-cli
+no-tlsv1
+no-tlsv1_1
+no-rfc5780
+no-stun-backward-compatibility
+response-origin-only-with-rfc5780
+syslog
+simple-log
+$tlslines
+# Never relay into this server's own or other private networks (except its own private address,
+# through which two relayed editors meet).
+$allowed
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.0.0.0-192.0.0.255
+denied-peer-ip=192.0.2.0-192.0.2.255
+denied-peer-ip=192.88.99.0-192.88.99.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=198.18.0.0-198.19.255.255
+denied-peer-ip=198.51.100.0-198.51.100.255
+denied-peer-ip=203.0.113.0-203.0.113.255
+denied-peer-ip=240.0.0.0-255.255.255.255
+denied-peer-ip=::
+denied-peer-ip=::1
+denied-peer-ip=100::-100::ffff:ffff:ffff:ffff
+denied-peer-ip=2001:db8::-2001:db8:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+denied-peer-ip=64:ff9b::-64:ff9b::ffff:ffff
+denied-peer-ip=64:ff9b:1::-64:ff9b:1:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=2001::-2001:0:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=2002::-2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+EOF
+  if [ -f /etc/default/coturn ]; then
+    grep -q '^TURNSERVER_ENABLED=1' /etc/default/coturn || sed -i 's/^#*TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
+  fi
+  # The public address can change when a static IP is attached: refresh it whenever coturn starts.
+  install -d -m 0755 /etc/systemd/system/coturn.service.d
+  write_if_changed /etc/systemd/system/coturn.service.d/waffle.conf 0644 root:root <<EOF || true
+[Service]
+ExecStartPre=+/usr/local/sbin/waffle-collab refresh-ip
+ExecStartPost=+/usr/bin/touch /run/waffle-coturn-started
+EOF
+  return 0
+}
+
+write_timers() {
+  write_if_changed /etc/systemd/system/waffle-collab-certs.service 0644 root:root <<EOF || true
+[Unit]
+Description=Copy the Caddy certificate for TURNS (coturn)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/waffle-collab sync-certs
+EOF
+  write_if_changed /etc/systemd/system/waffle-collab-certs.timer 0644 root:root <<EOF || true
+[Unit]
+Description=Keep coturn's certificate and public address current
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+RandomizedDelaySec=1min
+[Install]
+WantedBy=timers.target
+EOF
+}
+
+firewall() {
+  ufw allow 22/tcp >/dev/null
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+  ufw allow 3478/udp >/dev/null
+  ufw allow 3478/tcp >/dev/null
+  ufw allow 5349/tcp >/dev/null
+  ufw allow $TURN_MIN:$TURN_MAX/udp >/dev/null
+  ufw --force enable >/dev/null && say "Firewall (ufw): 22, 80, 443/tcp, 3478 udp+tcp, 5349/tcp, $TURN_MIN-$TURN_MAX/udp."
+}
+
+auto_upgrades() {
+  write_if_changed /etc/apt/apt.conf.d/20auto-upgrades 0644 root:root <<EOF || true
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+EOF
+  # Caddy comes from its own repository: let automatic updates install it too.
+  write_if_changed /etc/apt/apt.conf.d/51waffle-caddy 0644 root:root <<EOF || true
+Unattended-Upgrade::Origins-Pattern { "site=dl.cloudsmith.io"; };
+EOF
+  systemctl enable --now unattended-upgrades >/dev/null 2>&1 || true
+}
+
+cert_files() {   # the current Caddy certificate and key for $DOMAIN, if issued
+  local dir=/var/lib/caddy/.local/share/caddy/certificates crt
+  crt=$(find "$dir" -type f -name "$DOMAIN.crt" 2>/dev/null | head -n 1)
+  [ -n "$crt" ] && [ -f "${crt%.crt}.key" ] && printf '%s\n%s\n' "$crt" "${crt%.crt}.key"
+}
+
+# Every 15 minutes (waffle-collab-certs.timer): copy a new or renewed certificate for TURNS, and
+# follow the public address (a static IP attached after the first boot). coturn restarts only on a change.
+cmd_sync_certs() {
+  need_root; load
+  cmd_usage
+  [ -n "$DOMAIN" ] || exit 0
+  local files crt key
+  files=$(cert_files) || true
+  if [ -n "$files" ]; then
+    crt=$(printf '%s\n' "$files" | sed -n 1p); key=$(printf '%s\n' "$files" | sed -n 2p)
+    install -d -m 0750 -o root -g turnserver "$TLS"
+    write_if_changed "$TLS/cert.pem" 0640 root:turnserver < "$crt" || true
+    write_if_changed "$TLS/key.pem" 0640 root:turnserver < "$key" || true
+  else
+    say "No certificate for $DOMAIN yet (Caddy keeps trying; check DNS)."
+  fi
+  COTURN_CHANGED=0; write_coturn
+  if [ "$COTURN_CHANGED" = 1 ] || { [ -n "$files" ] && [ "$TLS/cert.pem" -nt /run/waffle-coturn-started ]; }; then
+    systemctl restart coturn && say "coturn restarted with the current certificate and address."
+  fi
+}
+
+cmd_refresh_ip() {
+  load
+  [ -n "$DOMAIN" ] && [ -f /etc/turnserver.conf ] || exit 0
+  COTURN_CHANGED=0; write_coturn
+  exit 0
+}
+
+# The two packages use different directories, but address the same relay port, TLS certificate,
+# TURN accounts and invitations. Only paths owned by the old kit are retired. A partial move can
+# be retried. The internal prefix is empty on a server and points at a disposable tree in tests.
+migrate_legacy() {
+  local root=$1 base src dst unit units="$1/etc/systemd/system"
+  for base in etc/atrium-collab etc/atrium-relay var/lib/atrium-collab run/atrium-collab; do
+    src="$root/$base"; dst="$root/${base/atrium/waffle}"
+    [ -d "$src" ] || continue
+    [ ! -e "$dst" ] || die "both $src and $dst exist; reconcile the two directories before retrying"
+  done
+  if [ -f "$root/etc/atrium-collab/config" ] && [ ! -s "$root/etc/atrium-collab/turn-secret" ]; then
+    die "the existing TURN secret is missing; restore it before upgrading"
+  fi
+  for unit in atrium-collab-certs.timer atrium-collab-certs.service atrium-relay.service; do
+    [ -f "$units/$unit" ] || continue
+    systemctl stop "$unit" || return 1
+    if [ "$unit" != atrium-collab-certs.service ]; then systemctl disable "$unit" || return 1; fi
+  done
+  for base in etc/atrium-collab etc/atrium-relay var/lib/atrium-collab run/atrium-collab; do
+    src="$root/$base"; dst="$root/${base/atrium/waffle}"
+    if [ -d "$src" ]; then mv "$src" "$dst" || return 1; fi
+  done
+  src="$root/opt/atrium-collab/atrium_relay.py"; dst="$root/opt/waffle-collab/waffle_relay.py"
+  # The small launch script does not bundle the relay. Keep the installed one in that case.
+  if [ -f "$src" ] && [ ! -f "$dst" ]; then
+    mkdir -p "$(dirname "$dst")" && cp -p "$src" "$dst" || return 1
+  fi
+  rm -f "$units/atrium-relay.service" "$units/atrium-collab-certs.timer" "$units/atrium-collab-certs.service" \
+    "$units/coturn.service.d/atrium.conf" "$root/etc/apt/preferences.d/atrium-caddy" \
+    "$root/etc/apt/apt.conf.d/51atrium-caddy" "$root/usr/local/sbin/atrium-collab" || return 1
+}
+
+cmd_setup() {
+  need_root
+  exec 9>/run/lock/waffle-collab.setup && flock -x 9 || die "could not lock setup"
+  local config="$CONF/config"
+  if [ ! -f "$config" ]; then config=/etc/atrium-collab/config; fi
+  load "$config"
+  local domain=${1:-$DOMAIN} email=${2:-$ACME_EMAIL}
+  valid_domain "$domain" || die "usage: waffle-collab setup DOMAIN [EMAIL] (DOMAIN like collab.example.org)"
+  valid_email "$email" || die "that is not an e-mail address (leave it out to register without one)"
+  [ "$domain" = collab.example.org ] && say "Warning: DOMAIN is still the placeholder collab.example.org. Run: sudo waffle-collab reconfigure your.domain you@your.domain"
+  install_packages || die "package installation failed; retry setup"
+  migrate_legacy "" || die "could not finish the collaboration service migration; retry setup"
+  install -d -m 0750 -o root -g root "$CONF" || die "could not prepare the configuration"
+  if [ ! -f "$CONF/config" ] || [ "$DOMAIN" != "$domain" ] || [ "$ACME_EMAIL" != "$email" ]; then
+    DOMAIN=$domain ACME_EMAIL=$email
+    save_config || die "could not save the configuration"
+  fi
+  write_secret
+  CADDY_CHANGED=0 RELAY_CHANGED=0 COTURN_CHANGED=0
+  write_caddy; write_relay_unit; write_coturn; write_timers
+  auto_upgrades
+  firewall
+  systemctl daemon-reload || die "could not reload the service definitions"
+  systemctl enable waffle-relay coturn caddy waffle-collab-certs.timer >/dev/null || die "could not enable the collaboration services"
+  if [ -f "$OPT/waffle_relay.py" ]; then systemctl restart waffle-relay || die "The relay did not start: journalctl -u waffle-relay"
+  else say "The relay is not installed yet: run waffle-setup.sh (deploy/collab-server/README.md)."; fi
+  systemctl restart coturn || die "coturn did not start: journalctl -u coturn"
+  systemctl reload-or-restart caddy || die "Caddy did not start: journalctl -u caddy"
+  systemctl start waffle-collab-certs.timer || die "could not start the certificate timer"
+  say "Set up https://$DOMAIN (relay wss://$DOMAIN). If DNS does not point here yet, Caddy keeps retrying."
+  say "Mode: $MODE (anyone with the address can host and join$( [ "$MODE" = private ] && printf '%s' '; private: invited hosts only, sudo waffle-collab add-host NAME' ))."
+  say "Check with: sudo waffle-collab status"
+}
+
+cmd_reconfigure() {
+  need_root; load
+  local domain=${1:-} email=${2:-$ACME_EMAIL}
+  valid_domain "$domain" || die "usage: waffle-collab reconfigure DOMAIN [EMAIL]"
+  cmd_setup "$domain" "$email"
+  cmd_sync_certs >/dev/null 2>&1 || true
+}
+
+turn_credentials() {   # prints "USER PASSWORD" valid for an hour
+  local user pass
+  user="$(( $(date +%s) + 3600 )):check$RANDOM"
+  pass=$(printf '%s' "$user" | openssl dgst -binary -sha1 -hmac "$(cat "$SECRET")" | base64)
+  printf '%s %s\n' "$user" "$pass"
+}
+
+cmd_turn_test() {
+  need_root; load
+  local creds user pass log
+  creds=$(turn_credentials); user=${creds%% *}; pass=${creds#* }
+  say "TURN credentials for the next hour (also for https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/):"
+  say "  URIs:     turn:$DOMAIN:3478?transport=udp  turn:$DOMAIN:3478?transport=tcp  turns:$DOMAIN:5349?transport=tcp"
+  say "  Username: $user"
+  say "  Password: $pass"
+  if command -v turnutils_uclient >/dev/null; then
+    say "Allocation test (UDP, then TCP):"
+    log=$(mktemp)
+    timeout 20 turnutils_uclient -n 1 -m 1 -l 100 -u "$user" -w "$pass" -p 3478 "$DOMAIN" >"$log" 2>&1 \
+      && say "  UDP ok" || { say "  UDP failed (check the Lightsail firewall for 3478/udp and $TURN_MIN-$TURN_MAX/udp):"; tail -n 5 "$log"; }
+    timeout 20 turnutils_uclient -t -n 1 -m 1 -l 100 -u "$user" -w "$pass" -p 3478 "$DOMAIN" >"$log" 2>&1 \
+      && say "  TCP ok" || { say "  TCP failed:"; tail -n 5 "$log"; }
+    rm -f "$log"
+  fi
+}
+
+cmd_rotate_secret() {
+  need_root; load
+  rm -f "$SECRET"; write_secret
+  COTURN_CHANGED=0; write_coturn
+  systemctl restart coturn waffle-relay && say "New TURN secret in use. Sessions already connected keep their channels."
+}
+
+cmd_status() {
+  load
+  [ -n "$DOMAIN" ] || die "not set up yet: sudo waffle-collab setup DOMAIN EMAIL"
+  local ok="ok" pub a aaaa health
+  say "Waffle collaboration server for $DOMAIN"
+  for unit in waffle-relay coturn caddy; do say "  $unit: $(systemctl is-active $unit 2>/dev/null)"; done
+  pub=$(public_ip)
+  a=$(dig +short A "$DOMAIN" 2>/dev/null | tail -n 1); aaaa=$(dig +short AAAA "$DOMAIN" 2>/dev/null | tail -n 1)
+  say "  public IPv4: ${pub:-unknown}   DNS A: ${a:-none}   AAAA: ${aaaa:-none}"
+  [ -n "$a" ] && [ "$a" = "$pub" ] || { ok="check"; say "  -> point an A record for $DOMAIN at ${pub:-the static IP} (TTL 600)"; }
+  health=$(curl -fsS -m 3 "http://127.0.0.1:$RELAY_PORT/healthz" 2>/dev/null) && say "  relay (local): $health" || { ok="check"; say "  relay (local): not answering"; }
+  if [ -n "$(cert_files)" ]; then say "  certificate: issued"; else ok="check"; say "  certificate: not yet (Caddy retries; 'journalctl -u caddy -n 50')"; fi
+  health=$(curl -fsS -m 5 "https://$DOMAIN/healthz" 2>/dev/null) && say "  https://$DOMAIN/healthz: $health" || { ok="check"; say "  https://$DOMAIN/healthz: unreachable from here"; }
+  if grep -q "^cert=" /etc/turnserver.conf 2>/dev/null; then
+    runuser -u turnserver -- test -r "$TLS/key.pem" && say "  TURNS (5349): on" || { ok="check"; say "  TURNS (5349): coturn cannot read $TLS/key.pem"; }
+  else say "  TURNS (5349): waiting for the certificate"; fi
+  [ -f "$OPT/waffle_relay.py" ] || { ok="check"; say "  relay: not installed (run waffle-setup.sh)"; }
+  [ -s "$SECRET" ] && say "  TURN secret: present (root only)" || { ok="check"; say "  TURN secret: missing"; }
+  command -v ufw >/dev/null && say "  firewall (ufw): $(ufw status 2>/dev/null | head -n 1)"
+  # Through the public address, as a visitor would come: on AWS this goes out and back in through
+  # the instance's firewall (Lightsail Networking), so a closed port shows here too.
+  if [ -n "$pub" ]; then
+    local p80 p443
+    timeout 4 bash -c "exec 3<>/dev/tcp/$pub/80" 2>/dev/null && p80=open || p80=closed
+    timeout 4 bash -c "exec 3<>/dev/tcp/$pub/443" 2>/dev/null && p443=open || p443=closed
+    say "  via the public address: port 80 $p80, port 443 $p443"
+    if [ $p80 = open ] && [ $p443 = closed ]; then ok="check"; say "  -> port 443 looks closed in the Lightsail firewall: Networking › IPv4 (and IPv6) Firewall › add HTTPS (TCP 443)"
+    elif [ $p80 = closed ] && [ $p443 = closed ]; then say "  -> this server cannot reach its own public address (some networks don't loop back); check from your computer: curl https://$DOMAIN/healthz"; fi
+  fi
+  say "  mode: $MODE$( [ "$MODE" = private ] && printf ' (%s invited hosts)' "$(grep -c . "$HOSTS" 2>/dev/null || echo 0)" )"
+  say "  TURN this month: $(usage_gb) GB of $( [ "$TURN_MONTHLY_GB" = 0 ] && printf 'no cap' || printf '%s GB' "$TURN_MONTHLY_GB" )$( [ -e "$TURN_OFF" ] && printf ' (cap reached: TURN off until next month)' )"
+  say "Status: $ok. In Waffle: Preferences › Collaboration › Relay server = wss://$DOMAIN"
+}
+
+# ---- TURN usage: byte counters on the relayed-traffic ports, summed per month in $STATE ----------
+usage_rules() {
+  local t
+  for t in iptables ip6tables; do
+    command -v $t >/dev/null || continue
+    $t -C INPUT -p udp --dport $TURN_MIN:$TURN_MAX -m comment --comment atrium-turn -j ACCEPT 2>/dev/null || $t -I INPUT -p udp --dport $TURN_MIN:$TURN_MAX -m comment --comment atrium-turn -j ACCEPT
+    $t -C OUTPUT -p udp --sport $TURN_MIN:$TURN_MAX -m comment --comment atrium-turn -j ACCEPT 2>/dev/null || $t -I OUTPUT -p udp --sport $TURN_MIN:$TURN_MAX -m comment --comment atrium-turn -j ACCEPT
+  done
+}
+usage_raw() { local t; for t in iptables ip6tables; do command -v $t >/dev/null && $t -L -v -x -n 2>/dev/null; done | awk '/atrium-turn/ {s += $2} END {print s + 0}'; }
+usage_gb() { local month="" bytes=0; [ -r "$STATE/turn-usage" ] && read -r month bytes _ < "$STATE/turn-usage"; [ "$month" = "$(date -u +%Y-%m)" ] || bytes=0; echo $(( ${bytes:-0} / 1000000000 )); }
+cmd_usage() {
+  load; install -d -m 0755 "$STATE" /run/waffle-collab
+  usage_rules
+  local month bytes last raw now
+  now=$(date -u +%Y-%m); raw=$(usage_raw)
+  month=$now bytes=0 last=0; [ -r "$STATE/turn-usage" ] && read -r month bytes last < "$STATE/turn-usage"
+  [ "$month" = "$now" ] || { month=$now bytes=0; }
+  if [ "${raw:-0}" -ge "${last:-0}" ]; then bytes=$(( bytes + raw - last )); else bytes=$(( bytes + raw )); fi   # counters reset at boot
+  printf '%s %s %s\n' "$month" "$bytes" "$raw" > "$STATE/turn-usage"
+  if [ "$TURN_MONTHLY_GB" != 0 ] && [ $(( bytes / 1000000000 )) -ge "$TURN_MONTHLY_GB" ]; then : > "$TURN_OFF"; else rm -f "$TURN_OFF"; fi
+}
+
+# ---- private mode: personal, revocable host invitations ------------------------------------------------
+cmd_mode() {
+  need_root; load
+  [[ ${1:-} =~ ^(open|private)$ ]] || die "usage: waffle-collab mode open|private"
+  MODE=$1; save_config
+  RELAY_CHANGED=0; write_relay_unit; systemctl daemon-reload; systemctl restart waffle-relay 2>/dev/null
+  if [ "$MODE" = private ]; then say "Private: only invited hosts can start sessions; guests still join with a session link. Invite a host: sudo waffle-collab add-host NAME"
+  else say "Open: anyone with the address can host and join. TURN stays rationed by quotas."; fi
+}
+cmd_add_host() {
+  need_root; load
+  local name=${1:-} token link
+  [[ $name =~ ^[[:alnum:]][[:alnum:]\ ._-]{0,40}$ ]] || die "usage: waffle-collab add-host NAME (letters, digits, spaces, . _ -)"
+  cut -d' ' -f2- "$HOSTS" | grep -qxF "$name" && die "$name already has an invitation (remove-host first to replace it)"
+  token=$(head -c 24 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')
+  printf '%s %s\n' "$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)" "$name" >> "$HOSTS"
+  systemctl reload waffle-relay 2>/dev/null
+  link="https://$DOMAIN/host#atrium-host=1&r=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "wss://$DOMAIN")&t=$token&n=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$name")"
+  say "Host invitation for $name (send it to them privately; opening it in Waffle sets up hosting):"
+  say "  $link"
+  [ "$MODE" = private ] || say "(The server is open, so anyone can host already. Make it private: sudo waffle-collab mode private)"
+}
+cmd_remove_host() {
+  need_root; load
+  local name=${1:-} tmp
+  [ -n "$name" ] || die "usage: waffle-collab remove-host NAME"
+  tmp=$(mktemp); awk -v n="$name" '{sub(/^[^ ]+ /, "", $0)} 1' "$HOSTS" | grep -qxF "$name" || { rm -f "$tmp"; die "no host named $name"; }
+  while IFS= read -r line; do [ "${line#* }" = "$name" ] || printf '%s\n' "$line"; done < "$HOSTS" > "$tmp"
+  cat "$tmp" > "$HOSTS"; rm -f "$tmp"
+  systemctl reload waffle-relay 2>/dev/null
+  say "Removed $name: they can no longer start sessions here (sessions already running continue)."
+}
+
+cmd_logs() { journalctl -u waffle-relay -u coturn -u caddy -n "${1:-80}" --no-pager; }
+
+[[ ${BASH_SOURCE[0]} == "$0" ]] || return 0
+case "${1:-status}" in
+  setup) shift; cmd_setup "$@" ;;
+  reconfigure) shift; cmd_reconfigure "$@" ;;
+  status) cmd_status ;;
+  turn-test) cmd_turn_test ;;
+  mode) shift; cmd_mode "$@" ;;
+  add-host) shift; cmd_add_host "$@" ;;
+  remove-host) shift; cmd_remove_host "$@" ;;
+  list-hosts) need_root; cut -d' ' -f2- "$HOSTS" ;;
+  turn-cap) shift; need_root; load; [[ ${1:-} =~ ^[0-9]{1,6}$ ]] || die "usage: waffle-collab turn-cap GB (0: no cap)"; TURN_MONTHLY_GB=$1; save_config; cmd_usage; say "TURN cap: $1 GB a month." ;;
+  rotate-secret) cmd_rotate_secret ;;
+  refresh-ip) cmd_refresh_ip ;;
+  sync-certs) cmd_sync_certs ;;
+  logs) shift; cmd_logs "$@" ;;
+  *) die "unknown command '$1' (status, mode, add-host, remove-host, list-hosts, turn-cap, reconfigure DOMAIN [EMAIL], turn-test, rotate-secret, logs)" ;;
+esac

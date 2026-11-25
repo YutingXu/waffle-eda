@@ -1,0 +1,6 @@
+{"kind":"project","formatVersion":"2.0","id":"01a20e24-7d25-7195-be33-1658afcdcba1","name":"Retained bottom-side pads"}
+{"kind":"document","id":"01a20e24-7d24-7371-9c23-861d4be40462","docKind":"schematic","name":"Schematic","order":"K","path":"Schematic.wsch"}
+{"kind":"document","id":"01a20e24-7d25-7195-be33-1658afcdcba0","docKind":"pcb","name":"Board layout","order":"e","path":"Board layout.wpcb"}
+{"kind":"library","id":"01a20e24-7d25-7195-be33-1658afcdcba2","order":"F","path":"libraries/Retained asymmetric footprint.wlib"}
+{"kind":"library","id":"01a20e24-7d25-7195-be33-1658afcdcba4","order":"U","path":"libraries/Unused footprint.wlib"}
+{"kind":"library","id":"01a20e24-7d26-70f6-99d5-d3b777182ecd","order":"j","path":"libraries/Retained asymmetric footprint (2).wlib"}

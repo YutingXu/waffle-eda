@@ -1,0 +1,18 @@
+/* Thermal additions to ui/analysis-panels.css. AtriumThermal draws the heat-map ramp. */
+/* The dialog scrolls; its rows keep their height (the overflow:hidden tab strip was squashed to a sliver). */
+.thm-dialog > * {flex-shrink:0}
+.thm-dialog[open] {animation:thm-in var(--motion-base) var(--ease-decelerate)}
+@keyframes thm-in {from {opacity:0;translate:calc(8px * var(--motion-move)) 0} to {opacity:1;translate:0 0}}
+.thm-status {min-height:1.35em}
+.thm-status:empty {min-height:0;margin-top:-8px} /* stays a live region, without the empty line under the tabs */
+.thm-estimate {margin:0;padding:4px 8px;border:1px solid var(--line);border-left:3px solid var(--warn-ink);border-radius:var(--r-sm);font-size:var(--fs-12);color:var(--ink);background:var(--soft);line-height:var(--lh)}
+.thm-note,.thm-summary {margin:0;font-size:var(--fs-12);color:var(--muted);line-height:var(--lh)}
+.thm-summary {color:var(--ink);font-variant-numeric:tabular-nums}
+.thm-bar .thm-field {gap:4px}
+.thm-label {font-size:var(--fs-12)}
+.thm-bar .thm-field:has(.thm-unit) {display:flex}
+.thm-check {display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-12)}
+.thm-sinks {display:flex;flex-direction:column;gap:4px}
+.thm-table {font-variant-numeric:tabular-nums}
+.thm-seg {align-self:flex-start}
+@media (max-width:560px) {.thm-grid {grid-template-columns:1fr}}

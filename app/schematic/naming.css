@@ -1,0 +1,59 @@
+/* Naming (naming.js): the Naming view in the Signals panel, and inline net name completion. */
+.nm-intro, .nm-help {margin:0 0 6px;color:var(--muted);font-size:var(--fs-11)}
+.nm-section {margin:10px 0 0;padding-top:8px;border-top:1px solid var(--soft)}
+.nm-h {margin:0 0 4px;font-size:var(--fs-12);font-weight:var(--fw-semibold);color:var(--head-ink)}
+.nm-label {color:var(--muted);font-size:var(--fs-11);flex:none}
+.nm-btn {font-size:var(--fs-11);padding:1px 8px;min-height:var(--ctl-h-sm)}
+.nm-try {padding:6px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--raised)}
+.nm-try-row {display:flex;align-items:center;gap:8px}
+.nm-try-input {flex:1;min-width:0;height:var(--ctl-h);font-family:var(--mono)}
+.nm-try-out {display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;margin:6px 0 0;min-height:1.4em}
+.nm-try-text {flex:1 1 160px}
+.nm-role {font:var(--fs-10) var(--mono);padding:0 5px;border-radius:var(--r-pill);border:1px solid var(--line-strong);color:var(--muted)}
+.nm-role-rail, .nm-role-ground {border-color:var(--warn-line);color:var(--warn-ink)}
+.nm-role-pairMember {border-color:var(--primary-line);color:var(--ink)}
+.nm-card {margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel)}
+.nm-card.nm-learned, .nm-card.nm-kept, .nm-card.nm-group {border-left:3px solid var(--ok-mark)}
+.nm-card.nm-seen {border-left:3px solid var(--line-strong)}
+.nm-card.nm-forgotten {opacity:.72;border-left:3px dashed var(--line-strong)}
+.nm-card.nm-none .nm-use {margin-bottom:0}
+.nm-card-head {display:flex;align-items:baseline;gap:8px}
+.nm-card-title {font-weight:var(--fw-semibold)}
+.nm-badge {margin-inline-start:auto}
+.nm-value {margin:4px 0 2px;font:var(--fw-semibold) var(--fs-13) var(--mono);color:var(--ink-strong)}
+.nm-examples, .nm-chips, .nm-others, .nm-actions {display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 0}
+.nm-use {margin:4px 0;color:var(--muted);font-size:var(--fs-11)}
+.nm-other {font-family:var(--mono);font-size:var(--fs-11)}
+/* Name chips are library .ui-chip tokens; the name is a bare button inside the chip, in the net font. */
+.nm-chip-name {border:0;background:none;padding:0;font:inherit;font-family:var(--mono);color:var(--ink)}
+.nm-chip-name:hover {text-decoration:underline}
+.nm-words {display:flex;gap:8px;align-items:flex-start;margin:4px 0}
+.nm-words > .nm-label {width:84px;padding-top:3px}
+.nm-chips {flex:1;margin:0}
+.nm-add {width:96px;height:var(--ctl-h-sm);font:var(--fs-11) var(--mono)}
+.nm-choice {margin:4px 0 8px;padding:4px 8px 6px;border:1px solid var(--line);border-radius:var(--r-md)}
+.nm-choice legend {padding:0 4px;color:var(--ink)}
+.nm-radio {display:flex;gap:6px;align-items:center;margin:2px 0}
+.nm-offer, .nm-declined {display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}
+.nm-offer {padding:4px 6px;border-radius:var(--r-sm);background:var(--tint-info)}
+.nm-declined-list {list-style:none;margin:2px 0;padding:0;max-height:200px;overflow:auto}
+.nm-import {margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--raised)}
+.nm-import-head {margin:0 0 4px;font-weight:var(--fw-semibold)}
+.nm-import-list {list-style:none;margin:2px 0 4px;padding:0;max-height:200px;overflow:auto}
+.nm-import-list li {display:flex;gap:6px;align-items:baseline;padding:1px 0;font-size:var(--fs-11)}
+.nm-import-kind {flex:none;width:52px;color:var(--muted)}
+.nm-import-replace .nm-import-kind {color:var(--warn-ink)}
+.nm-import-keep {opacity:.72}
+.nm-import-what {font-family:var(--mono)}
+.nm-declined-list li {display:flex;gap:6px;justify-content:space-between;align-items:center;padding:1px 0;font-family:var(--mono);font-size:var(--fs-11)}
+
+/* Inline completion: faint text after what was typed, drawn over the field (pointer events pass through). */
+.nm-ghost {position:fixed;z-index:var(--z-alert);pointer-events:none;overflow:hidden;white-space:pre;box-sizing:border-box;color:var(--faint);background:none}
+.nm-ghost-typed {visibility:hidden}
+.nm-ghost-key {margin-inline-start:var(--s-6)}
+.nm-complete-line {display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline;margin:0 0 4px;padding-left:2px;font-size:var(--fs-11);color:var(--muted)}
+.nm-complete-line[hidden] {display:none}
+.nm-complete-name {font-family:var(--mono);color:var(--ink)}
+.nm-complete-why {color:var(--faint)}
+.nm-complete-alt {border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);padding:0 4px;font:var(--fs-11) var(--mono);color:var(--ink)}
+.nm-complete-alt:hover {background:var(--hover)}

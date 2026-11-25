@@ -1,0 +1,64 @@
+/* Annotate Schematics dialog. Builds on .work-dialog from workflows.css. */
+.annotate-dialog {width:round(down,min(1040px,calc(100vw - 40px)),1px);max-height:round(down,min(88vh,860px),1px);padding:0;display:flex;flex-direction:column;overflow:hidden;}
+.annotate-dialog[open] {display:flex;}
+.annotate-dialog .ann-head-row {display:flex;align-items:baseline;gap:12px;padding:14px 18px 10px;background:var(--panel-head);border-bottom:1px solid var(--line);}
+.annotate-dialog .ann-head-row h2 {margin:0;}
+.annotate-dialog .ann-sub {color:var(--muted);font-size:var(--fs-12);}
+.ann-split {display:grid;grid-template-columns:minmax(300px,.95fr) minmax(340px,1.05fr);min-height:0;flex:1;overflow:hidden;}
+.ann-config,.ann-changes {display:flex;flex-direction:column;min-width:0;min-height:0;padding:4px 18px 14px;overflow:auto;}
+.ann-config {border-right:1px solid var(--line);}
+.annotate-dialog h3 {color:var(--ink);font-size:var(--fs-12);font-weight:600;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--line);}
+.ann-group small {margin-top:4px;color:var(--muted);}
+.ann-order {display:flex;align-items:flex-start;gap:12px;}
+.ann-order-pick {display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}
+.ann-order-pick select,.ann-group > select {width:100%;}
+.ann-figure {flex:none;width:76px;height:76px;padding:4px;box-sizing:border-box;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);}
+.ann-diagram {display:block;width:100%;height:100%;}
+.ann-diagram .ann-cell {fill:var(--soft);stroke:var(--line);stroke-width:.8;}
+.ann-diagram .ann-path {fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round;}
+.ann-diagram .ann-head {fill:var(--accent);}
+.ann-diagram .ann-start {fill:var(--panel);stroke:var(--accent);stroke-width:1.5;}
+.ann-table-wrap {border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);overflow:auto;}
+.ann-sheet-wrap {max-height:30vh;}
+.ann-list {flex:1;min-height:160px;max-height:none;}
+.ann-table {width:100%;border-collapse:collapse;font-size:var(--fs-12);}
+.ann-table th {position:sticky;top:0;z-index:1;background:var(--panel-head);color:var(--muted);font-weight:500;font-size:var(--fs-11);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap;}
+.ann-table td {padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink);}
+.ann-table tbody tr:hover td {background:var(--soft);}
+.ann-sheets td small {display:inline;margin-left:6px;color:var(--faint);}
+.ann-sheets select {width:100%;min-width:118px;}
+.ann-start-cell {white-space:nowrap;}
+.ann-start-cell input[type=checkbox] {margin-right:4px;vertical-align:middle;}
+.annotate-dialog input.ann-index {inline-size:var(--field-number-width);}
+.annotate-dialog input.ann-suffix {width:58px;}
+.ann-ref {font-family:var(--mono);font-size:var(--fs-11);white-space:nowrap;}
+.ann-arrow {width:14px;color:var(--faint);text-align:center;}
+.ann-lock {width:34px;text-align:center;}
+.ann-where {color:var(--muted);overflow-wrap:anywhere;}
+.ann-table tr.is-changed .ann-proposed {color:var(--accent-text);font-weight:600;}
+.ann-table tr.is-changed td {background:color-mix(in srgb,var(--selection) 28%,transparent);}
+.ann-table tr.is-locked .ann-ref {color:var(--faint);}
+.ann-table tr.is-duplicate .ann-proposed {text-decoration:underline wavy;text-decoration-color:var(--accent);text-underline-offset:3px;}
+.ann-empty {color:var(--muted);text-align:center;padding:16px 6px;}
+.ann-inline {display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.ann-summary {margin-top:8px;color:var(--muted);font-size:var(--fs-12);font-variant-numeric:tabular-nums;}
+.annotate-dialog .ann-issues {font-size:var(--fs-12);color:var(--muted);}
+.annotate-dialog .ann-issues summary {margin:6px 0;}
+.annotate-dialog .ann-issues ul {margin:0 0 6px;padding-left:18px;}
+.ann-back {margin:8px 0 0;padding:6px 8px 8px;border:1px solid var(--line);border-radius:var(--r-sm);}
+.ann-back legend {padding:0 4px;color:var(--ink);font-size:var(--fs-12);font-weight:600;}
+.ann-back .ann-inline {margin-top:2px;}
+.ann-back select {flex:1;min-width:120px;}
+.ann-check {display:flex;align-items:center;gap:6px;font-size:var(--fs-12);}
+.ann-back small {margin-top:4px;}
+.annotate-dialog .work-actions {margin:0;padding:var(--s-12) 18px 14px;border-top:1px solid var(--line);}
+@media(max-width:760px){
+  .annotate-dialog {width:calc(100vw - 16px);max-height:94vh;overflow:auto;}
+  .ann-split {grid-template-columns:minmax(0,1fr);flex:none;overflow:visible;}
+  .ann-config,.ann-changes {padding-inline:12px;}
+  .annotate-dialog .ann-head-row,.annotate-dialog .work-actions {padding-inline:12px;}
+  .ann-figure {width:60px;height:60px;}
+  .ann-config {border-right:0;border-bottom:1px solid var(--line);overflow:visible;}
+  .ann-changes {overflow:visible;}
+  .ann-list {max-height:46vh;}
+}

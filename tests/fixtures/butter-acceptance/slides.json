@@ -1,0 +1,91 @@
+{
+  "fixture":"tests/fixtures/butter-acceptance/slides",
+  "manifest":"Slide study.waffle",
+  "cases":{
+    "list":{
+      "args":{"offset":1,"limit":1},
+      "expect":{"offset":1,"total":3},
+      "expectPaths":{"untrusted_design_text.slides":[{"id":"018cc251-f400-7001-8000-000000000012","name":"Sensor input","aspect":"4:3","documentId":"018cc251-f400-7001-8000-000000000003","status":"ready","hasNotes":true,"source":{"kind":"savedView","savedViewId":"018cc251-f400-7001-8000-000000000010"}}]}
+    },
+    "reorder":{
+      "args":{"ids":["018cc251-f400-7001-8000-000000000012","018cc251-f400-7001-8000-000000000011","018cc251-f400-7001-8000-000000000013"]},
+      "expect":{"changes":1},
+      "expectWrite":{"changes":1},
+      "changedMembers":["Slide study.waffle"]
+    },
+    "update":{
+      "args":{"id":"018cc251-f400-7001-8000-000000000011","notes":"Revised cue.\nBegin on SENSE."},
+      "expect":{"changes":1},
+      "expectWrite":{"changes":1},
+      "changedMembers":["Slide study.waffle"]
+    },
+    "remove":{
+      "args":{"id":"018cc251-f400-7001-8000-000000000013"},
+      "expect":{"changes":1},
+      "expectWritePaths":{"untrusted_design_text.id":"018cc251-f400-7001-8000-000000000013"},
+      "changedMembers":["Slide study.waffle"],
+      "afterWrite":{"id":"list","args":{},"expect":{"total":2}}
+    },
+    "add":{
+      "args":{"name":"New backup","source":{"kind":"frame","documentId":"018cc251-f400-7001-8000-000000000002","frameId":"018cc251-f400-7001-8000-000000000004"}},
+      "expect":{"changes":1},
+      "expectWrite":{"changes":1},
+      "changedMembers":["Slide study.waffle"],
+      "afterWrite":{"id":"list","args":{},"expect":{"total":3}}
+    },
+    "apply":{
+      "args":{"id":"018cc251-f400-7001-8000-000000000011"},
+      "expectPaths":{"untrusted_design_text.status":"ready","untrusted_design_text.bounds":[0,0,48,27],"untrusted_design_text.documentId":"018cc251-f400-7001-8000-000000000002"},
+      "expectWritePaths":{"untrusted_design_text.status":"ready","untrusted_design_text.bounds":[0,0,48,27]}
+    },
+    "presenter":{
+      "args":{},
+      "expect":{"current":null,"elapsedMs":0},
+      "expectPaths":{"untrusted_design_text.status":"inactive","untrusted_design_text.notes":""}
+    },
+    "start":{
+      "args":{"ids":["018cc251-f400-7001-8000-000000000011","018cc251-f400-7001-8000-000000000012"]},
+      "expect":{"index":0,"total":2,"canGoPrevious":false,"canGoNext":true},
+      "expectPaths":{"untrusted_design_text.status":"ready","untrusted_design_text.notes":"Private speaker cue.\nBegin on SENSE."},
+      "expectWrite":{"index":0,"total":2,"canGoPrevious":false,"canGoNext":true},
+      "expectWritePaths":{"untrusted_design_text.status":"ready","untrusted_design_text.notes":"Revised cue.\nBegin on SENSE."},
+      "afterWrite":{"id":"presenter","args":{},"expect":{"index":0},"expectPaths":{"untrusted_design_text.notes":"Revised cue.\nBegin on SENSE."}}
+    },
+    "step":{
+      "args":{"direction":1},
+      "expect":{"index":null},
+      "expectPaths":{"untrusted_design_text.status":"inactive"},
+      "expectWrite":{"index":1,"next":null,"canGoPrevious":true,"canGoNext":false},
+      "expectWritePaths":{"untrusted_design_text.status":"partial","untrusted_design_text.notes":"Walk through the linked input."},
+      "afterWrite":{"id":"presenter","args":{},"expect":{"index":1},"expectPaths":{"untrusted_design_text.status":"partial"}}
+    },
+    "resume":{
+      "args":{},
+      "expect":{"index":null},
+      "expectPaths":{"untrusted_design_text.status":"inactive"},
+      "expectWrite":{"index":1,"total":2},
+      "expectWritePaths":{"untrusted_design_text.status":"partial"}
+    },
+    "stop":{
+      "args":{},
+      "expect":{"index":null},
+      "expectPaths":{"untrusted_design_text.status":"inactive"},
+      "expectWrite":{"restoredDocumentId":null},
+      "expectWritePaths":{"untrusted_design_text.status":"stopped"},
+      "afterWrite":{"id":"presenter","args":{},"expect":{"current":null},"expectPaths":{"untrusted_design_text.status":"inactive"}}
+    },
+    "export-pdf":{
+      "args":{"ids":["018cc251-f400-7001-8000-000000000011","018cc251-f400-7001-8000-000000000012"]},
+      "expect":{"pageCount":2},
+      "expectPaths":{"untrusted_design_text.name":"Slide study-Slides.pdf","untrusted_design_text.slideIds":["018cc251-f400-7001-8000-000000000011","018cc251-f400-7001-8000-000000000012"]},
+      "expectWrite":{"pageCount":2},
+      "expectWritePaths":{
+        "untrusted_design_text.pages":[
+          {"id":"018cc251-f400-7001-8000-000000000011","title":"Instrument overview","documentId":"018cc251-f400-7001-8000-000000000002","width":720,"height":405},
+          {"id":"018cc251-f400-7001-8000-000000000012","title":"Sensor input","documentId":"018cc251-f400-7001-8000-000000000003","width":720,"height":540}
+        ]
+      },
+      "outputFile":"Slide study-outputs/slides/Slide study-Slides.pdf"
+    }
+  }
+}

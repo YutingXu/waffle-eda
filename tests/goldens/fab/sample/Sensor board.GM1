@@ -1,0 +1,28 @@
+G04 Waffle fabrication output: Mechanical 1 (board outline)*
+G04 Board: Sensor board*
+%TF.GenerationSoftware,Waffle,Waffle,1.0*%
+%TF.CreationDate,<date>*%
+%TF.SameCoordinates,Original*%
+%TF.FileFunction,Profile,NP*%
+%TF.FilePolarity,Positive*%
+%TF.Part,Single*%
+%FSLAX46Y46*%
+%MOMM*%
+G04 Origin: board lower-left corner*
+%LPD*%
+G75*
+G01*
+%TA.AperFunction,Profile*%
+%ADD10C,0.1*%
+%TD.AperFunction*%
+D10*
+X1500000Y22000000D02*
+X34500000Y22000000D01*
+X36000000Y20500000D01*
+X36000000Y1500000D01*
+X34500000Y0D01*
+X1500000Y0D01*
+X0Y1500000D01*
+X0Y20500000D01*
+X1500000Y22000000D01*
+M02*

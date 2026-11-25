@@ -1,0 +1,12 @@
+/* Shared chrome for the board and library lists in Design Rule Sets. */
+.rgrp-body,.rset-body {display:grid;grid-template-columns:minmax(200px,260px) 1fr;gap:12px}
+.rgrp-list,.rset-list {display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--field);padding:4px;overflow:auto}
+.rgrp-item,.rset-item {gap:8px;padding:4px 8px;border-radius:var(--r-sm);cursor:default}
+.rgrp-item:hover,.rset-item:hover {background:var(--soft)}
+.rgrp-item[aria-selected="true"],.rset-item[aria-selected="true"] {background:var(--selection);color:var(--selection-ink);box-shadow:var(--sel-bar)}
+.rgrp-item:focus-visible,.rset-item:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+.rgrp-count,.rset-badge {font-size:var(--fs-11);opacity:.85}
+.rgrp-detail,.rset-detail {overflow:auto;min-width:0}
+@media (max-width:640px) {
+  .rgrp-body,.rset-body {grid-template-columns:1fr}
+}

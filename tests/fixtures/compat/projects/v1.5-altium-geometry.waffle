@@ -1,0 +1,78 @@
+{
+  "documents": [
+    {
+      "grid": 1.27,
+      "id": "sample-schematic",
+      "items": [],
+      "kind": "schematic",
+      "name": "Empty schematic",
+      "notes": [],
+      "outline": []
+    },
+    {
+      "boardShape": {
+        "contour": [{"a":[0,0],"b":[30,0],"kind":"line"},{"a":[30,0],"b":[30,20],"kind":"line"},{"a":[30,20],"b":[0,20],"kind":"line"},{"a":[0,20],"b":[0,0],"kind":"line"}],
+        "cutoutRegions": {"0":{"contour":[{"a":[23,11],"b":[28,11],"kind":"line"},{"a":[28,11],"b":[28,16],"kind":"line"},{"a":[28,16],"b":[23,16],"kind":"line"},{"a":[23,16],"b":[23,11],"kind":"line"}],"cutouts":[[{"a":[24,12],"b":[27,12],"kind":"line"},{"a":[27,12],"b":[27,15],"kind":"line"},{"a":[27,15],"b":[24,15],"kind":"line"},{"a":[24,15],"b":[24,12],"kind":"line"}]],"sig":"4:afa4ec05","version":1}},
+        "cutouts": [[{"a":[23,11],"b":[28,11],"kind":"line"},{"a":[28,11],"b":[28,16],"kind":"line"},{"a":[28,16],"b":[23,16],"kind":"line"},{"a":[23,16],"b":[23,11],"kind":"line"}]],
+        "sig": "4:29bb8de5",
+        "version": 1
+      },
+      "bodies3d": [
+        {"angle":0,"at":[0,0],"color":8421504,"contour":[{"a":[1,9],"b":[4,9],"kind":"line"},{"a":[4,9],"b":[4,11],"kind":"line"},{"a":[4,11],"b":[1,11],"kind":"line"},{"a":[1,11],"b":[1,9],"kind":"line"}],"dz":0,"identifier":"Machined body","layer":"Mechanical 1","maxZ":1.5,"minZ":0.5,"modelId":"body","opacity":0.8,"ownerSide":"Top","rings":[[[1,9],[4,9],[4,11],[1,11]]],"rotation":[0,0,0],"side":"Top","sourceRecord":"componentbodies6/data#0","type":"extruded"}
+      ],
+      "bodyModelVersion": 1,
+      "bodyModels": [
+        {"file":"Example.step","id":"sample-step","stepText":"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;"}
+      ],
+      "grid": 0.25,
+      "id": "sample-board",
+      "items": [
+        {"arc":{"c":[6,5],"ccw":true,"end":90,"kind":"arc","r":2,"start":0},"id":"native-arc","kind":"track","layer":"Top","net":"SIG","points":[[8,5],[7.98289,4.738948],[7.931852,4.482362],[7.847759,4.234633],[7.732051,4],[7.586707,3.782477],[7.414214,3.585786],[7.217523,3.413293],[7,3.267949],[6.765367,3.152241],[6.517638,3.068148],[6.261052,3.01711],[6,3]],"width":0.22},
+        {"arc":true,"id":"legacy-arc","kind":"track","layer":"Bottom","net":"SIGNAL","points":[[2,5],[3,4],[4,5]],"width":0.25},
+        {
+          "closed": true,
+          "fill": true,
+          "id": "copper-region",
+          "kind": "graphic",
+          "layer": "Top",
+          "net": "GND",
+          "points": [[12,2],[18,2],[18,8],[12,8],[12,2],[16,5],[15.980785,5.19509],[15.92388,5.382683],[15.83147,5.55557],[15.707107,5.707107],[15.55557,5.83147],[15.382683,5.92388],[15.19509,5.980785],[15,6],[14.80491,5.980785],[14.617317,5.92388],[14.44443,5.83147],[14.292893,5.707107],[14.16853,5.55557],[14.07612,5.382683],[14.019215,5.19509],[14,5],[14.019215,4.80491],[14.07612,4.617317],[14.16853,4.44443],[14.292893,4.292893],[14.44443,4.16853],[14.617317,4.07612],[14.80491,4.019215],[15,4],[15.19509,4.019215],[15.382683,4.07612],[15.55557,4.16853],[15.707107,4.292893],[15.83147,4.44443],[15.92388,4.617317],[15.980785,4.80491],[16,5],[12,2]],
+          "regionShape": {"contour":[{"a":[12,2],"b":[18,2],"kind":"line"},{"a":[18,2],"b":[18,8],"kind":"line"},{"a":[18,8],"b":[12,8],"kind":"line"},{"a":[12,8],"b":[12,2],"kind":"line"}],"cutouts":[[{"c":[15,5],"ccw":false,"end":0,"kind":"arc","r":1,"start":0}]],"sig":"39:361df90d","version":1},
+          "width": 0
+        },
+        {"angle":0,"bodies3d":[{"angle":0,"at":[0,0],"color":8421504,"contour":[{"a":[-1,-1],"b":[1,-1],"kind":"line"},{"a":[1,-1],"b":[1,1],"kind":"line"},{"a":[1,1],"b":[-1,1],"kind":"line"},{"a":[-1,1],"b":[-1,-1],"kind":"line"}],"dz":0,"identifier":"Referenced body","layer":"Mechanical 1","maxZ":1.5,"minZ":0.5,"modelId":"sample-step","opacity":0.8,"ownerSide":"Top","rings":[[[-1,-1],[1,-1],[1,1],[-1,1]]],"rotation":[0,0,0],"side":"Top","sourceRecord":"componentbodies6/data#1","type":"step"}],"def":"sample-package","height":1.5,"id":"sample-placement","kind":"part","layer":"Top","pinNets":{"1":"VCC"},"ref":"U1","value":"Example","x":23,"y":6},
+        {"drill":0.6,"h":0.6,"holeOnly":true,"id":"drilled-slot","kind":"pad","layer":"Multi","plated":false,"shape":"round","slotAngle":30,"slotLength":1.5,"w":0.6,"x":6,"y":11},
+        {"closed":true,"id":"plane","kind":"polygon","layer":"Inner 1","net":"GND","points":[[1,1],[20,1],[20,8],[1,8]],"powerPlane":{"pad":{"airGap":0.2,"entries":4,"expansion":0.3,"width":0.25},"sourceLayer":"PLANE1"}},
+        {"id":"lettered","kind":"label","layer":"Silk","size":1.5,"sourceTextBox":{"letterSet":0},"text":"A","width":0.12,"x":10,"y":13}
+      ],
+      "kind": "pcb",
+      "name": "Geometry board",
+      "notes": [],
+      "outline": [
+        [0,0],
+        [30,0],
+        [30,20],
+        [0,20]
+      ],
+      "pcbDrawing": {
+        "annotations": {},
+        "letterSets": [{"65":[12000,"AQAAAAUAAAAAAAAAAAAAABAnAAAAAAAAECcAAJg6AAAAAAAAmDoAAAAAAAAAAAAA"]}]
+      },
+      "sourceArcVersion": 1
+    }
+  ],
+  "format": "atrium",
+  "formatVersion": "1.5",
+  "library": [
+    {
+      "footprint": {
+        "pads": [{"fabTestpoint":"Top","h":1,"layer":"Top","maskExpansion":0.07,"number":"1","pasteExpansion":-0.03,"shape":"round","tent":{"bottom":true},"w":1,"x":0,"y":0}],
+        "shapes": [{"closed":true,"fill":false,"keepout":true,"keepoutRestrictions":31,"kind":"path","layer":"Top","points":[[-0.2,-0.2],[0.2,-0.2],[0.2,0.2],[-0.2,0.2]],"regionShape":{"contour":[{"a":[-0.2,-0.2],"b":[0.2,-0.2],"kind":"line"},{"a":[0.2,-0.2],"b":[0.2,0.2],"kind":"line"},{"a":[0.2,0.2],"b":[-0.2,0.2],"kind":"line"},{"a":[-0.2,0.2],"b":[-0.2,-0.2],"kind":"line"}],"cutouts":[],"sig":"4:2846b6a5","version":1},"width":0}]
+      },
+      "id": "sample-package",
+      "name": "One-pad package"
+    }
+  ],
+  "name": "Altium geometry example",
+  "version": 1
+}

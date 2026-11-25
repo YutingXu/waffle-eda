@@ -1,0 +1,3 @@
+{"kind":"schematic","formatVersion":"2.1","id":"fs"}
+{"kind":"netlabel","id":"fa","at":[1000,2000],"future":{"limits":[0,null,{"exact":[19,"nm"]}],"mode":"μ"},"text":"SENSE"}
+{"kind":"futureTerminal","id":"fz","future":{"limits":[0,null,{"exact":[23,"nA"]}],"mode":"μ"},"ports":["SENSE"]}

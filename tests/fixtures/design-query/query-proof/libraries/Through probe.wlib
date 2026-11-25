@@ -1,0 +1,4 @@
+{"kind":"library","formatVersion":"2.0","id":"probe-hole","name":"Through probe"}
+{"kind":"pad","id":"probe-hole/pad/1","order":"V","value":{"drill":300000,"h":1000000,"layer":"Multi","number":"1","shape":"rect","w":1000000,"x":0,"y":0}}
+{"kind":"pad","id":"probe-hole/pad/remote","order":"C","value":{"h":1000000,"layer":"Bottom","number":"1","shape":"rect","w":1000000,"x":6000000,"y":0}}
+{"kind":"librarySettings","id":"probe-hole/settings","value":{"footprint":{"pads":[],"shapes":[]},"prefix":"TP","symbol":{"pins":[],"shapes":[]}}}
