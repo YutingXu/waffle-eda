@@ -27,6 +27,37 @@ function shelf() {
     },
   };
 }
+async function restoreLayoutBlocks() {
+  for (const m of ["i18n","model","source-file","format-2-codec","format-2-units","format-2-values","format-2-model","folder-project-ui"])
+    require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+  const A=Atrium, saved=A.project("Draft layout"), previous=globalThis.AtriumFolderProject;
+  const block=(name)=>({id:A.id(),format:"atrium-block",version:1,name,size:[3,2],library:[],items:[
+    {id:"track",kind:"track",points:[[.5,1],[2.5,1]],width:.2,layer:"Top",net:"SIG"}]});
+  const a=block("Saved block"), b=block("Saved owner");
+  saved.layoutBlocks=[a,b];
+  const bare=A.clone(saved), session={project:saved};
+  let restore, replaced;
+  globalThis.AtriumFolderProject={async open(_folder,opts){restore=opts.restoreDraft;throw Error("Captured draft callback");}};
+  const host={edit:fn=>fn(),replaceProject:async copy=>{replaced=copy;return true;},markUnsaved(){}};
+  try {
+    await assert.rejects(AtriumFolderProjectUI.open({host:{}},{session:()=>session,host:()=>host},{confirmed:true}),/Captured draft callback/);
+  } finally {globalThis.AtriumFolderProject=previous;}
+  const {documents,library,blobs,...settings}=saved;
+  const bundle={header:{settings:{value:{...settings,notes:"From draft",layoutBlocks:[{...a,name:"Edited block"},b]}}},
+    rows:[{id:b.id,kind:"block",owner:{...b,name:"Edited owner"}}],originals:[]};
+  const names=value=>value.layoutBlocks.map(row=>row.name);
+  assert.equal(await restore({separate:false,session,bundle}),true);
+  assert.equal(saved.notes,"From draft");
+  assert.deepEqual(names(saved),["Edited block","Edited owner"]);
+  assert.equal(await restore({separate:true,session,bundle:A.clone(bundle),copy:{project:bare,binary:new Map()}}),null);
+  assert.deepEqual(names(replaced),["Edited block","Edited owner"]);
+  for(const result of [saved,replaced]){
+    const layout=AtriumFormat2Model.fromEditor(result).files.find(row=>row.path.endsWith("Edited block.wblock"));
+    assert.ok(layout,"saving the recovered project writes the block as an owner file");
+    const reopened=AtriumFormat2Model.parse(AtriumFormat2.serialize(layout.file),{kind:"block"});
+    assert.equal(AtriumFormat2Model.block(reopened).name,"Edited block");
+  }
+}
 async function main() {
   const store = shelf(), disk = new Map([["s1","original"]]), diagnostics = [];
   let seq = 0;
@@ -120,6 +151,7 @@ async function main() {
     globalThis.setTimeout=set;globalThis.clearTimeout=clear;Date.now=clock;globalThis.AtriumPower=power;
     await quiet.editor.close();
   }
+  await restoreLayoutBlocks();
   console.log("PASS private per-window draft lifecycle, durable acknowledgement, covered owners, conflicting bases, live-tab retirement, failed storage and copy isolation");
 }
 module.exports = {shelf};

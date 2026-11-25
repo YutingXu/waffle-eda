@@ -150,6 +150,8 @@ globalThis.AtriumFolderProjectUI = (() => {
       const next = bundle.header.settings.value;
       for (const k of Object.keys(project)) if (!structural.has(k) && !(k in next)) delete project[k];
       for (const [k,v] of Object.entries(next)) if (!structural.has(k)) project[k] = v;
+      // A draft can contain a full layout block list in settings. Explicit owner rows then apply over it.
+      if (Array.isArray(next.layoutBlocks)) project.layoutBlocks = clone(next.layoutBlocks);
     }
     for (const row of bundle.rows) {
       const list = row.kind === "library" ? project.library : row.kind === "block" ? (project.layoutBlocks ||= []) : project.documents;
