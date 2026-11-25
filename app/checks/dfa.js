@@ -145,10 +145,9 @@ globalThis.AtriumDFA = (() => {
     if (s.kind === "circle" && Number.isFinite(s.r)) return boxOfPoints([[s.x - s.r, s.y - s.r], [s.x + s.r, s.y + s.r]], box);
     return box;
   }
-  const geoCache = new WeakMap();
   // Local outlines of a definition: {body, courtyard} boxes [x0, y0, x1, y1] in mm.
-  function outlineEvidence(def) {
-    if (def && geoCache.has(def)) return geoCache.get(def);
+  function outlineEvidence(def, geoCache) {
+    if (def && geoCache?.has(def)) return geoCache.get(def);
     const fp = def?.footprint || {}, shapes = fp.shapes || [];
     let body = empty(), court = empty();
     for (const s of shapes) {
@@ -166,10 +165,10 @@ globalThis.AtriumDFA = (() => {
       courtyardSource = bodySource ? "expanded-body" : null;
     }
     const out = {boxes: {body, courtyard: court}, bodySource, courtyardSource};
-    if (def) geoCache.set(def, out);
+    if (def) geoCache?.set(def, out);
     return out;
   }
-  const outlines = def => outlineEvidence(def).boxes;
+  const outlines = (def,geoCache) => outlineEvidence(def,geoCache).boxes;
   const rad = a => (a || 0) * Math.PI / 180;
   // World polygon (4 corners) of a local box on a part.
   function polyOf(item, box) {
@@ -215,10 +214,10 @@ globalThis.AtriumDFA = (() => {
   const defOf = (defs, id) => defs?.get ? defs.get(id) : defs?.[id];
 
   // Part records for a rule: {id, ref, type, side, tht, poly, box}.
-  function record(item, defs, rule) {
+  function record(item, defs, rule, geoCache) {
     const def = defOf(defs, item.def);
     if (!def?.footprint) return null;
-    const o = outlines(def), poly = polyOf(item, rule?.measure === "courtyard" ? o.courtyard : o.body), type = packageType(item, def);
+    const o = outlines(def,geoCache), poly = polyOf(item, rule?.measure === "courtyard" ? o.courtyard : o.body), type = packageType(item, def);
     return {id: item.id, ref: item.ref || item.id, type, side: sideOf(item), tht: type === "tht" || (def.footprint.pads || []).some(p => p.drill > 0), poly, box: aabb(poly), item};
   }
   const conflicts = (rule, a, b) => a.side === b.side || rule?.sides === "both" || a.tht || b.tht;
@@ -233,7 +232,8 @@ globalThis.AtriumDFA = (() => {
   // Sweep on x over the part boxes; options.ids limits the check to pairs with one of them.
   function check(doc, defs, rule, options = {}) {
     const t0 = globalThis.performance?.now?.() ?? Date.now();
-    const parts = options.parts || (doc?.items || []).filter(i => i.kind === "part").map(i => record(i, defs, rule)).filter(Boolean);
+    const geoCache = new WeakMap();
+    const parts = options.parts || (doc?.items || []).filter(i => i.kind === "part").map(i => record(i, defs, rule, geoCache)).filter(Boolean);
     const reach = maxGap(rule), only = options.ids ? new Set(options.ids) : null, limit = options.limit ?? 5000, out = [];
     const order = parts.slice().sort((a, b) => a.box[0] - b.box[0]);
     for (let i = 0; i < order.length && out.length < limit; i++) {
@@ -258,8 +258,8 @@ globalThis.AtriumDFA = (() => {
     const byRule = new Map();
     for (const i of parts) { const r = ruleOf(i); if (r) { if (!byRule.has(r)) byRule.set(r, []); byRule.get(r).push(i); } }
     let n = 0;
-    const all = new Map();
-    for (const [r, items] of byRule) for (const i of items) { const rec = record(i, defs, r); if (rec) { rec.rule = r; all.set(i.id, rec); } }
+    const all = new Map(), geoCache = new WeakMap();
+    for (const [r, items] of byRule) for (const i of items) { const rec = record(i, defs, r, geoCache); if (rec) { rec.rule = r; all.set(i.id, rec); } }
     const recs = [...all.values()].sort((a, b) => a.box[0] - b.box[0]), reach = Math.max(...rules.map(maxGap));
     for (let i = 0; i < recs.length; i++) {
       const a = recs[i];
@@ -304,8 +304,8 @@ globalThis.AtriumDFA = (() => {
   function staticIndex(doc, defs, rule, rev) {
     const key = doc.id + "|" + rev + "|" + JSON.stringify(rule);
     if (grid?.key === key && grid.doc === doc) return grid;
-    const parts = [], cell = 4, cells = new Map();
-    for (const i of doc.items) if (i.kind === "part") { const r = record(i, defs, rule); if (r) parts.push(r); }
+    const parts = [], cell = 4, cells = new Map(), geoCache = new WeakMap();
+    for (const i of doc.items) if (i.kind === "part") { const r = record(i, defs, rule, geoCache); if (r) parts.push(r); }
     for (const r of parts) for (let x = Math.floor(r.box[0] / cell); x <= Math.floor(r.box[2] / cell); x++) for (let y = Math.floor(r.box[1] / cell); y <= Math.floor(r.box[3] / cell); y++) {
       const k = x + "," + y; let l = cells.get(k); if (!l) cells.set(k, l = []); l.push(r);
     }
