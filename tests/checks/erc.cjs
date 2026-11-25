@@ -361,4 +361,21 @@ assert.match(result.summary, /Compiled 1 schematic sheet: no errors found/);
   assert.deepEqual(of(E.run(p), "duplicateDesignators").map(m => m.class), ["Warning", "Warning"]);
 }
 
+{
+  const {p, sch} = blank();
+  const typed = {id:"pwr-gate", name:"Dual", prefix:"U", value:"Dual", footprint:R.footprint,
+    symbol:{parts:2, shapes:[], pins:[
+      {number:"1", name:"IN", x:-5, y:0, electrical:0, part:1},
+      {number:"8", name:"VCC", x:0, y:5, electrical:"power", part:2},
+      {number:"4", name:"VSS", x:0, y:-5, electrical:"power", part:2}]}};
+  p.library.push(typed);
+  place(p, sch, typed, "U1", 0, 0, {unit:1});
+  const result = E.run(p);
+  assert.equal(of(result, "missingPowerGate").length, 1);
+  typed.symbol.pins[1].electrical=7;
+  assert.equal(of(E.run(p), "missingPowerGate").length, 1,"mixed old and new power types");
+  place(p,sch,typed,"U1",40,0,{unit:2});
+  assert.equal(of(E.run(p),"missingPowerGate").length,0,"placed power gate");
+}
+
 if (typeof print === "function") print("erc: ok"); else console.log("erc: ok");
