@@ -2,7 +2,7 @@
 // Paint only a prepared view. Solver, field and extension work starts outside the canvas frame.
 globalThis.AtriumSheetWidgetRuntime = (() => {
   const G=globalThis,W=G.AtriumSheetWidgets;
-  const tableInputs=new WeakMap();
+  const tableInputs=new WeakMap(), interactions=new WeakMap();
   let projects=new WeakMap(), colours=null;
   const optional=name=>G[name]?Promise.resolve(G[name]):G.AtriumLazy?.modules().includes(name)?G.AtriumLazy.need(name):Promise.resolve(null);
   function storage(project) {
@@ -120,14 +120,35 @@ globalThis.AtriumSheetWidgetRuntime = (() => {
     if(G.AtriumLabs?.notebookEnabled()===false)return false;
     const project=host.project(),revision=host.revision();
     if (host.doc()!==doc || !doc.items.includes(item)) return false;
-    const ctx={host,revision,dark:document.documentElement.dataset.theme==="dark"};
-    const ext=await optional("AtriumExtensionWidgets");
-    if (!current(host,project,revision) || host.doc()!==doc || !doc.items.includes(item)) return false;
-    const result=await ext?.request(project,doc,item,ctx,event);
-    if (!result?.state || !current(host,project,revision) || host.doc()!==doc || !doc.items.includes(item)) return false;
-    if (JSON.stringify(result.state)===JSON.stringify(item.widget.state)) return false;
-    host.edit(()=>{item.widget.state=result.state;},"Update "+(item.text || "widget").split("\n")[0],[item]);
-    return true;
+    let queue=interactions.get(item);
+    if(!queue || queue.host!==host || queue.doc!==doc || queue.project!==project || queue.revision!==revision){
+      queue={host,doc,project,revision,pending:0,tail:Promise.resolve()};
+      interactions.set(item,queue);
+    }
+    // One active interaction and up to twelve waiting, as at the extension host.
+    if(queue.pending>=13)throw Error("Widget interaction queue full.");
+    queue.pending++;
+    const run=queue.tail.then(async()=>{
+      const revision=queue.revision;
+      const active=()=>G.AtriumLabs?.notebookEnabled()!==false && current(host,project,revision) &&
+        host.doc()===doc && doc.items.includes(item);
+      if(!active())return false;
+      const ext=await optional("AtriumExtensionWidgets");
+      if(!active())return false;
+      const ctx={host,revision,dark:document.documentElement.dataset.theme==="dark"};
+      const result=await ext?.request(project,doc,item,ctx,event);
+      if (!result?.state || !active()) return false;
+      if (JSON.stringify(result.state)===JSON.stringify(item.widget.state)) return false;
+      const accepted=host.edit(()=>{item.widget.state=result.state;},"Update "+(item.text || "widget").split("\n")[0],[item]);
+      if(accepted===false)return false;
+      queue.revision=host.revision();
+      return true;
+    });
+    const finished=()=>{
+      if(--queue.pending===0 && interactions.get(item)===queue)interactions.delete(item);
+    };
+    queue.tail=run.then(finished,finished);
+    return run;
   }
   const later=fn=>setTimeout(fn,0);
   function paint(ctx,item,opts) {
