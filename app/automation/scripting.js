@@ -325,10 +325,10 @@ return parts.length + " rows";`}
       const ext = globalThis.AtriumExtensions;
       if (!ext?.attached) { write("error", "The scripting host is not connected to the editor."); return; }
       const history = ls.get(HISTORY, []).filter(c => c !== code); history.unshift(code); ls.set(HISTORY, history.slice(0, 30)); fillScripts();
-      running = true; runB.disabled = true; stopB.disabled = false; root.classList.add("is-running");
+      running = true; runB.disabled = true; runB.textContent = "Running…"; stopB.disabled = false;
       write("input", "› Run · " + code.split("\n").length + " line" + (code.split("\n").length === 1 ? "" : "s"));
       const r = await ext.runScript(code, {timeoutMs: (Number(timeout.value) || 5) * 1000, onLog: (level, text) => write(level === "error" ? "error" : level === "warn" ? "warn" : "info", text)});
-      running = false; runB.disabled = false; stopB.disabled = true; root.classList.remove("is-running");
+      running = false; runB.disabled = false; runB.textContent = "Run"; stopB.disabled = true;
       const meta = " · " + r.ms + " ms" + (r.transactions ? " · " + r.transactions + " transaction" + (r.transactions === 1 ? "" : "s") + " (" + (r.undoSteps === 1 ? "one undo step" : r.undoSteps + " undo steps") + ")" : "") + (r.isolated ? "" : " · not isolated");
       if (r.ok) {
         let text;

@@ -18,6 +18,10 @@ async function consoleLayout(browser) {
       return {overflow: toolbar.scrollWidth - toolbar.clientWidth, stacked: output.top >= input.bottom};
     });
     assert.deepEqual(layout,{overflow:0,stacked:true},"the side dock keeps every control reachable and stacks the editor and output");
+    assert.equal(await consolePanel.getByRole("button",{name:"Close scripting console",exact:true}).count(),0,
+      "the dock tab supplies the only visible Close control");
+    assert.equal(await consolePanel.getByRole("heading",{name:"Scripting Console",exact:true}).count(),0,
+      "the toolbar does not repeat the dock tab title");
     const editor = consolePanel.getByRole("textbox",{name:"Script",exact:true});
     await editor.fill('return "Console fixture result";');
     await consolePanel.getByRole("button",{name:"Run script",exact:true}).click();
