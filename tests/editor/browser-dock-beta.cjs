@@ -283,6 +283,49 @@ async function dockBeta(browser) {
     assert.ok(await page.evaluate(() => !sashPaints.at(-1).reused),"a resized canvas receives a full base paint");
     await savedWidth(thawed.dockWidth);
 
+    // The expensive board stays frozen while Messages moves in both directions.
+    await page.evaluate(() => {
+      const host = AtriumNavHost, view = host.view(), ctx = view.internals().ctx, fill = ctx.fillRect;
+      ctx.fillRect = function(...args) {
+        ctx.fillRect = fill;
+        const end = performance.now() + 18;
+        while (performance.now() < end) {}
+        return fill.apply(this,args);
+      };
+      view.pan(1,0); host.redraw();
+    });
+    await frames(3);
+    assert.ok(await page.evaluate(() => !sashPaints.at(-1).reused && sashPaints.at(-1).ms >= 18),"the bottom resize also starts with a costly board");
+    const bottomViewport = () => page.evaluate(() => {
+      const canvas = AtriumNavHost.canvas(), stage = canvas.parentElement.getBoundingClientRect(), bounds = canvas.getBoundingClientRect();
+      return {stage:stage.height, canvas:bounds.height, topGap:bounds.top - stage.top, bottomGap:stage.bottom - bounds.bottom,
+        pixels:canvas.height / devicePixelRatio, paints:sashPaints.length};
+    });
+    const bottom = await page.locator(".dock-sash-bottom").boundingBox(), bx = bottom.x + bottom.width / 2, by = bottom.y + bottom.height / 2;
+    const initial = await bottomViewport();
+    await page.mouse.move(bx,by); await page.mouse.down();
+    await frames(2);
+    const frozen = await bottomViewport();
+    try {
+      for (const delta of [64,-64]) {
+        await page.mouse.move(bx,by + delta);
+        await frames(2);
+        const viewport = await bottomViewport();
+        assert.equal(viewport.stage,initial.stage + delta,"the pane follows the Messages sash");
+        assert.ok(viewport.topGap <= 1 && viewport.bottomGap <= 1,"the bitmap covers the whole pane");
+        assert.equal(viewport.paints,frozen.paints,"a costly board does not repaint on each Messages drag frame");
+        assert.equal(viewport.pixels,frozen.pixels,"the costly backing store is held through the drag");
+      }
+    } finally {
+      await page.mouse.up();
+    }
+    await frames(2);
+    const released = await bottomViewport();
+    assert.equal(released.canvas,released.stage,"the exact viewport fills the pane on release");
+    assert.equal(released.pixels,released.stage);
+    assert.equal(released.paints,frozen.paints+1,"release paints the new viewport once");
+    assert.ok(frozen.paints <= initial.paints+1,"preparing coverage costs at most one paint");
+
     // Keyboard moves still resize immediately. A cancelled touch drag commits its last visible size.
     await leftSash.press("ArrowRight");
     await frames(2);
