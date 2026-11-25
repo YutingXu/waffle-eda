@@ -57,9 +57,8 @@ globalThis.AtriumArrange = (() => {
   }
   // The box relative to the part origin at its angle and side.
   function partBox(item, def) {
-    const b = localBox(def?.footprint), mirror = item.mirror || item.layer === "Bottom";
-    const a = (+item.angle || 0) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
-    const pts = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]].map(([x, y]) => { if (mirror) x = -x; return [x * c - y * s, x * s + y * c]; });
+    const [x0, y0, x1, y1] = localBox(def?.footprint), origin = {x: 0, y: 0, angle: item.angle, mirror: item.mirror};
+    const pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(p => A().world(p, origin));
     return bbox(pts);
   }
   const worldBox = (item, def) => { const b = partBox(item, def); return [b[0] + item.x, b[1] + item.y, b[2] + item.x, b[3] + item.y]; };

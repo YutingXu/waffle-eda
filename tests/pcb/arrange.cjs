@@ -98,4 +98,30 @@ assert.match(read("editor.js"), /case "arrange-board":case "arrange-rect":\s*boa
 const eco = read("eco.js");
 if (eco.includes("Arrange new components inside the board")) assert.ok(eco.includes("AR.arrange(bd,null,{project:proj(),ids,region:\"board\"})"));
 else console.log("eco.js arrange option not integrated yet");
+{
+  require("../../app/pcb/pcb-edit.js");
+  const original = {id:"asymmetric",name:"Asymmetric",footprint:{pads:[{number:"1",x:4,y:0,w:1,h:1,shape:"rect",layer:"Top"}],shapes:[]}};
+  const project = Atrium.project("Bottom arrange",[original]);
+  const part = {id: "ub", kind: "part", def: original.id, ref: "UB", x: 10, y: 10, angle:30, pinNets: {}};
+  const doc = Atrium.sheet("pcb", "Bottom arrange");
+  doc.outline = [[0, 0], [40, 0], [40, 20], [0, 20]];
+  doc.items = [part];
+  project.documents = [doc];
+  AtriumPCBEdit.flip(doc, project, [part.id]);
+  const defsB = new Map(project.library.map(d => [d.id,d])), def=defsB.get(part.def), fp=def.footprint;
+  assert.equal(part.layer,"Bottom");
+  const padAt = () => Atrium.world([fp.pads[0].x, fp.pads[0].y], part);
+  const box = R.worldBox(part, def), pad = padAt();
+  assert.ok(pad[0] >= box[0] - 1e-6 && pad[0] <= box[2] + 1e-6 && pad[1] >= box[1] - 1e-6 && pad[1] <= box[3] + 1e-6, "box contains the bottom pad: " + box + " vs " + pad);
+  const region = [0, 0, 30, 20];
+  const plan = R.plan(doc, defsB, {ids: [part.id], region, gap: 0.5, margin: 0});
+  assert.equal(plan.failed.length, 0);
+  R.apply(doc, defsB, plan.moves);
+  for (const [x,y] of [[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]]) {
+    const at=Atrium.world([fp.pads[0].x+x,fp.pads[0].y+y],part);
+    assert.ok(at[0]>=region[0]-1e-6 && at[0]<=region[2]+1e-6 && at[1]>=region[1]-1e-6 && at[1]<=region[3]+1e-6,
+      "arranged bottom pad stays in the rectangle: " + at);
+  }
+}
+
 console.log("arrange: ok");
