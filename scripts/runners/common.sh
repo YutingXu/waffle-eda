@@ -19,7 +19,7 @@ pinned_sha() {
 usage() {
   cat <<EOF
 Usage: $0 --repo OWNER/REPO [options]
-  --repo OWNER/REPO   repository to register with (e.g. YutingXu/Atrium); or env RUNNER_REPO
+  --repo OWNER/REPO   repository to register with (e.g. YutingXu/waffle-eda); or env RUNNER_REPO
   --token TOKEN       registration token; prefer env RUNNER_TOKEN (arguments are visible in ps).
                       Without either, the script asks gh (gh auth login, admin on the repo):
                       gh api -X POST repos/OWNER/REPO/actions/runners/registration-token

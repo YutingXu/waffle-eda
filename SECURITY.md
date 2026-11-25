@@ -1,17 +1,15 @@
 # Security policy
 
-> **Maintainer: fill in before publishing.** Replace `[SECURITY CONTACT]` below with a dedicated project address (for example `security@your-domain`) or enable GitHub private vulnerability reporting for the repository. Do not use a personal email address.
-
 ## Reporting a vulnerability
 
 Please **do not open a public issue** for a security problem. Report it privately:
 
-- **Preferred:** GitHub → *Security* → *Report a vulnerability* (private advisory), once enabled on the repository.
-- **Email:** `[SECURITY CONTACT]`.
+- **Email:** [yuting.xu@imperial.ac.uk](mailto:yuting.xu@imperial.ac.uk), with "Waffle security" in the subject.
+- **Or GitHub:** [Report a vulnerability](https://github.com/YutingXu/waffle-eda/security/advisories/new) (repository → *Security* → *Report a vulnerability*). Only the maintainers can see the report.
 
 Include:
 
-- the Waffle version or commit, the OS, and the host (macOS app, Linux app, browser or MCP server);
+- the Waffle version or commit, the OS, and the host (macOS app, Windows app, Linux app, browser or MCP server);
 - the steps or a minimal proof-of-concept project, extension or MCP call;
 - the impact: what an attacker gains and what the victim must do (open a project, install an extension, run an MCP tool).
 
@@ -33,7 +31,7 @@ In scope:
 - **Untrusted project files** (`.waffle`, imported Altium®, KiCad, Eagle or EasyEDA files) that cause code execution, sandbox escape, file writes outside the expected paths, or denial of service beyond the documented budgets.
 - **The extension sandbox**: escaping the Worker or iframe, using permissions that were not granted, network access without a `network:` grant, impersonating another extension, or bypassing the trust digest.
 - **The MCP server and CLI**: writing outside `<project>-outputs/` or the project, writing without `--allow-write`, escaping the `run_script` sandbox, or path traversal.
-- **Native hosts** (`native/macos`, `native/linux`): bridge calls reachable from content they should not be reachable from.
+- **Native hosts** (`native/macos`, `native/linux`, `native/windows`): bridge calls reachable from content they should not be reachable from.
 - **Secrets**: API keys reaching a project file, log, export or settings bundle.
 
 Out of scope:

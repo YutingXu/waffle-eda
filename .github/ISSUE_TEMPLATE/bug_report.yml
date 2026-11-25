@@ -5,8 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. **Security problems go to SECURITY.md, not here.**
-        Please do not attach proprietary or customer design files; a minimal synthetic project is best.
+        Thanks for reporting. **Security problems go to [SECURITY.md](https://github.com/YutingXu/waffle-eda/blob/main/SECURITY.md), not here.**
   - type: textarea
     id: what
     attributes:
@@ -31,29 +30,58 @@ body:
       multiple: true
       options:
         - macOS app
-        - Linux app (WebKitGTK)
+        - Windows app
+        - Linux app
         - Browser (app/index.html)
-        - MCP server / CLI
+        - MCP server or CLI
         - Extension or Scripting Console
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Waffle version or commit
-      placeholder: "0.7.0 / Help → About Waffle"
+      label: Waffle version
+      description: Help → About Waffle
+      placeholder: "0.8.0"
+    validations:
+      required: true
   - type: input
     id: os
     attributes:
       label: OS and version
-      placeholder: "macOS 27.2 / Ubuntu 26.04"
+      placeholder: "macOS 26.1 / Windows 11 24H2 / Ubuntu 24.04"
   - type: dropdown
     id: area
     attributes:
       label: Area
-      options: [Schematic, PCB editing, Routing, Rules/DRC/ERC, Outputs, Library, BOM, Import/Export, MCP/CLI, Extensions, UI/Theme/Keys, Other]
+      options:
+        - Schematic
+        - PCB editing
+        - Routing
+        - Pours
+        - Rules, DRC or ERC
+        - 3D view
+        - Outputs and fabrication
+        - Library
+        - BOM
+        - Import or export
+        - History and Compare
+        - Collaboration
+        - Simulation
+        - AI Assistant, MCP or CLI
+        - Extensions
+        - UI, themes or shortcuts
+        - Performance
+        - Other
+  - type: textarea
+    id: file
+    attributes:
+      label: A file that reproduces it (optional)
+      description: |
+        A small project that shows the problem helps most. Drag a .waffle file or a .zip here.
+        Remove anything confidential first; a minimal synthetic design is best. Never attach customer or proprietary designs.
   - type: textarea
     id: logs
     attributes:
       label: Messages, console output or screenshots
-      render: text
+      description: Copy from the Messages panel, or attach screenshots.
