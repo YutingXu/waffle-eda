@@ -7,6 +7,19 @@ const pad=(id,net,x,y,w=1,h=w,angle=0,shape="round",layer="Top",drill=0)=>({id,k
 const via=(id,net,x,y,fromLayer="Top",toLayer="Bottom",diameter=1,drill=.4)=>({id,kind:"via",net,x,y,fromLayer,toLayer,diameter,drill,layer:"Multi"});
 const board=items=>({...A.sheet("pcb","Test"),items});
 const inspect=items=>C.inspect(board(items),defs);
+require("../../app/checks/rules.js");
+{
+  const fp={id:"FP",footprint:{name:"Bridge",pads:[
+    {number:"1",x:-2,y:0,w:1,h:1,shape:"rect",layer:"Top"},
+    {number:"2",x:2,y:0,w:1,h:1,shape:"rect",layer:"Top"}],
+    shapes:[{kind:"path",layer:"Top",fill:true,width:0,closed:true,points:[[-2.6,-.4],[2.6,-.4],[2.6,.4],[-2.6,.4]]}]}};
+  const lib=new Map([["FP",fp]]);
+  const part={kind:"part",id:"U1",ref:"U1",def:"FP",x:0,y:0,angle:0,pinNets:{"1":"A","2":"B"}};
+  const out=AtriumRules.drc(board([part]),lib,AtriumRules.create(),{types:["short"]});
+  assert.equal(out.violations.filter(v=>v.type==="short").length,1);
+  part.pinNets={"1":"A","2":"A"};
+  assert.equal(C.inspect(board([part]),lib).airwires.length,0);
+}
 const once=(r,name)=>r.nets.find(n=>n.name===name);
 
 function separatedLayers(){
