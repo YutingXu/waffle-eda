@@ -266,8 +266,8 @@ globalThis.AtriumPCBDraw = (() => {
       for (const [x, y] of [[-w, 0], [w, 0], [w, -h], [-w, -h]]) out.push(P([g.text.at[0] + x * c - y * s, g.text.at[1] + x * s + y * c])); }
     return out;
   }
-  function dimensionHit(item, p, o) {
-    const g = dimensionGeometry(item, o);
+  function dimensionHit(item, p, o = {}) {
+    const g = dimensionGeometry(item, {units: o.units || displayUnits()});
     let d = Infinity;
     for (const l of [...g.lines, ...g.arrows]) for (let k = 1; k < l.length; k++) d = Math.min(d, segPoint(p, l[k - 1], l[k]));
     if (g.text) { const w = g.label.length * g.text.size * .7 / 2, r = -g.text.angle * D2R, q = [p[0] - g.text.at[0], p[1] - g.text.at[1]];
