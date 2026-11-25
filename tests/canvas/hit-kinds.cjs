@@ -162,6 +162,26 @@ for (const p of [[-2, -1], [-1, 0], [1, 0], [5, 0]]) assert.equal(view.hit(doc, 
   assert.equal(view.hit(stale, defs, mid, opts), null);
 }
 
+// A mask opening selects nothing, or the track underneath
+{
+  const track = {id: "t", kind: "track", net: "A", layer: "Top", width: .2, maskExpansion: .4, points: [[0, 0], [10, 0]]};
+  const under = {id: "b", kind: "track", net: "B", layer: "Bottom", width: .4, points: [[0, .3], [10, .3]]};
+  const alone = Atrium.sheet("pcb", "Mask");
+  alone.items = [track];
+  const single = {layer: "Top mask", layerMode: "single", hidden: new Set()};
+  view.restoreCamera({cx: 5, cy: 0, scale: 80, referenceScale: 80});
+  view.render(alone, defs, {...single, grid: false});
+  assert.equal(view.hit(alone, defs, [5, .3], single)?.id, "t", "single-layer mask opening");
+  const both = Atrium.sheet("pcb", "Mask over copper");
+  both.items = [track, under];
+  const opts = {layer: "Top", layerMode: "all", hidden: new Set()};
+  view.render(both, defs, {...opts, grid: false});
+  assert.equal(view.hit(both, defs, [5, .3], opts)?.id, "t", "the opening is painted above the bottom track");
+  assert.deepEqual(view.hits(both, defs, [5, .3], opts).map(i => i.id), ["t", "b"], "one result per copper owner");
+  assert.equal(view.hit(both, defs, [5, .3], {...opts, hidden:new Set(["Top mask"])})?.id, "b");
+  assert.equal(view.hit(both, defs, [5, .3], {...opts, contactOnly:true, layer:"Bottom"})?.id, "b", "routing contacts ignore film strokes");
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();
