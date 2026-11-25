@@ -34,6 +34,15 @@ out=run([via("a","A",0,0),via("b","A",.5,0),via("c","B",5,0)]);
 assert.deepEqual(of(out,"holeToHole").map(v=>[v.id,v.otherId]),[["a","b"]]);
 close(of(out,"holeToHole")[0].actual,.2);
 
+{
+  const blind=(id,x,from,to)=>({...via(id,"N",x,0,.6,.3),fromLayer:from,toLayer:to});
+  out=run([blind("va",0,"Top","Inner 1"),blind("vb",.5,"Inner 1","Inner 2")]);
+  assert.equal(of(out,"holeToHole").length,1);
+  close(of(out,"holeToHole")[0].actual,.2);
+  out=run([blind("va",0,"Top","Inner 1"),blind("vb",.5,"Inner 2","Inner 3")]);
+  assert.equal(of(out,"holeToHole").length,0,"disjoint spans do not share a hole spacing rule");
+}
+
 // Routing layers.
 rules=withRules(c=>{c.list.find(r=>r.type==="routingLayers").excluded=["Bottom"];});
 assert.deepEqual(of(run([track("t1","A",[[0,0],[1,0]],.2,"Bottom"),track("t2","A",[[0,2],[1,2]])],rules),"routingLayers").map(v=>v.id),["t1"]);

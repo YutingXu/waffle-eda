@@ -1720,8 +1720,8 @@ globalThis.AtriumRules = (() => {
         if(a.span[1]<b.span[0]||b.span[1]<a.span[0])return;
         const r=R.either("holeToHole",a,b);if(!r)return;
         const touches=a.span[1]===b.span[0]||b.span[1]===a.span[0];
-        if(touches){
-          if(r.allowStackedMicrovias===false&&dist(a.at,b.at)<=EPS&&micro(a)&&micro(b))
+        if(touches&&dist(a.at,b.at)<=EPS){
+          if(r.allowStackedMicrovias===false&&micro(a)&&micro(b))
             flag(r,{id:a.id,otherId:b.id,title:a.label+" ↔ "+b.label,detail:"Stacked microvias are disallowed",at:a.at});
           return;
         }
