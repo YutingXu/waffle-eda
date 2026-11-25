@@ -1418,7 +1418,8 @@ globalThis.AtriumPanel = (() => {
   function expandRefs(text) {
     const out = [];
     for (const tok of String(text ?? "").split(/\s*,\s*/).filter(Boolean)) {
-      const m = /^(.*?)(\d+)-(.*?)(\d+)$/.exec(tok);
+      // Match the BOM range compressor: leading zeros belong to the prefix.
+      const m = /^(.*?)(0|[1-9]\d*)-(.*?)(0|[1-9]\d*)$/.exec(tok);
       if (m && m[1] === m[3] && +m[4] >= +m[2] && +m[4] - +m[2] < 10000) for (let n = +m[2]; n <= +m[4]; n++) out.push(m[1] + n);
       else out.push(tok);
     }

@@ -166,6 +166,33 @@ const vertices=t=>[...t.matchAll(/X(-?\d+)Y(-?\d+)D0[12]/g)].map(m=>[+m[1]/1e6,+
   const s=P.step(p,d,{format:"step",timestamp:"2026-11-18T12:00:00"});
   assert.equal(s.name,"Sensor board panel.step");assert.match(text(s.data),/^ISO-10303-21;/);
 }
+// Panel BOM designators must match the instance names in pick and place.
+{
+  const p = A.project("Padded panel references", []);
+  const b = boardOf(p);
+  rectangular(b);
+  p.library.push({id: "r", name: "R", footprint: {name: "R0603", shapes: [], pads: [
+    {number: "1", x: -.8, y: 0, w: .8, h: .9, shape: "rect"},
+    {number: "2", x: .8, y: 0, w: .8, h: .9, shape: "rect"}
+  ]}});
+  const refs = ["R01", "R02", "R03", "R04"];
+  refs.forEach((ref, i) => b.items.push({id: ref, kind: "part", def: "r", ref, value: "10k",
+    x: 5 + i * 5, y: 10, angle: 0, pinNets: {}}));
+  const d = P.create(p, {board: b.id, rows: 1, cols: 2});
+  p.documents.push(d);
+  const out = J.run(p, {name: "Order", panel: d.id, outputs: [
+    {kind: "bom", options: {style: "default", format: "csv", source: "pcb"}},
+    {kind: "pnp", options: {style: "altium"}}
+  ]}, {date});
+  const expected = refs.flatMap(ref => [ref + "_1", ref + "_2"]);
+  const cpl = text(file(out, /Pick Place/).data);
+  const placements = [...cpl.matchAll(/^"(R0[0-9]+_[0-9]+)",/gm)].map(m => m[1]).sort();
+  assert.deepEqual(placements, expected);
+  const bom = text(file(out, /BOM/).data);
+  assert.ok(bom.includes('"' + expected.join(", ") + '"'),
+    "the panel BOM preserves the exact pick-and-place designators");
+}
+
 // ---- review regressions ----------------------------------
 // H1: V-score lines never cut a board; misaligned boards are refused.
 {
