@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
 const {appFile} = require("../support/app-source-paths.cjs");
-for (const name of ["model", "sch-objects", "sch-import", "source-file", "io", "spatial", "edit-selection"]) require(appFile(name + ".js"));
+for (const name of ["model", "parts", "sch-objects", "sch-import", "source-file", "io", "spatial", "edit-selection"]) require(appFile(name + ".js"));
 
 const A = Atrium, name = "Terminal drag.SchDoc";
 const bytes = fs.readFileSync(path.join(__dirname, "../fixtures/altium/terminal-drag", name));
@@ -71,6 +71,32 @@ const expected = ["LEAF", "BRANCH"];
   assert.deepEqual(nets(), expected);
   assert.equal(branch.points, authored);
   assert.equal(doc.items.length, before, "landing on a stationary arm adds no redundant lead");
+}
+{
+  const def = AtriumParts.catalogue.find(d => d.id === "std-r");
+  const project = A.project("Rotation", [def]), doc = project.documents[0], defs = new Map([[def.id, def]]);
+  const part = A.instantiate(project, def, [0, 0]);
+  const [a, b] = A.pins(part, def, doc.kind).map(pin => pin.at);
+  const left = [a[0] - 10, a[1]], right = [b[0] + 10, b[1]];
+  const first = {id: "input", kind: "wire", points: [a, left]};
+  const second = {id: "output", kind: "wire", points: [b, right]};
+  doc.items.push(part, first, second, {id: "IN", kind: "netlabel", x: left[0], y: left[1], text: "IN"},
+    {id: "OUT", kind: "netlabel", x: right[0], y: right[1], text: "OUT"});
+  const authored = A.clone([first.points, second.points]);
+  const scripted=A.clone(doc), scriptedPart=scripted.items[0];
+  for(const angle of [90,180]) A.transformPart(scripted,scriptedPart,def,{angle},undefined,{defs});
+  const scriptedRoute=scripted.items[1].points;
+  assert.equal(scriptedRoute.length,2,"programmatic transforms keep their original straight route");
+  assert.ok(A.same(scriptedRoute[0],A.pins(scriptedPart,def,doc.kind)[0].at));
+  assert.ok(A.same(scriptedRoute[1],left));
+  for (const angle of [90, 180, 270, 0]) {
+    A.transformPart(doc, part, def, {angle}, undefined, {defs,avoidPinShorts:true});
+    assert.equal(part.angle, angle);
+    const nets = A.connectivity(doc, defs);
+    assert.deepEqual([1, 2].map(n => nets.byPin.get(part.id + "/" + n)), ["IN", "OUT"], `turn to ${angle}° preserves pin nets`);
+    assert.ok(nets.nets.every(n => !n.conflict));
+  }
+  assert.deepEqual([first.points, second.points], authored, "a full turn restores the original routes");
 }
 {
   // A group gesture on a dense sheet keeps its captured contacts through every pointer frame.

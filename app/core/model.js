@@ -606,12 +606,23 @@ globalThis.Atrium = (() => {
     }
     return closest;
   }
-  function wirePathAt(base, anchors, start, end) {
+  function wirePathAt(base, anchors, start, end, turn) {
     const a = base[0], b = base.at(-1), moveStart = !same(a, start), moveEnd = !same(b, end);
     if (!moveStart && !moveEnd) return base;
     const first = stretchStop(anchors, a, base[1]), last = stretchStop(anchors, b, base.at(-2));
     const points = [], add = p => { if (!points.length || !same(points.at(-1), p)) points.push(p); };
     const elbow = (p, q, target, stop) => Math.abs(p[1] - q[1]) < .0001 ? [stop[0], target[1]] : [target[0], stop[1]];
+    function lead(p, q, target, stop) {
+      const bend = elbow(p, q, target, stop);
+      // A turn can put another pin between the moved end and the fixed span.
+      if (!turn || !same(bend, stop) || !turn.pins.some(pin =>
+        !same(pin, start) && !same(pin, end) && !same(pin, stop) && onWireSpan(pin, target, stop))) return [bend];
+      const across = Math.abs(p[1] - q[1]) < .0001 ? 1 : 0, along = 1 - across;
+      const offset = Math.sign(stop[along] - p[along]) * turn.step;
+      const departure = target.slice(), arrival = stop.slice();
+      departure[across] += offset; arrival[across] += offset;
+      return [departure, arrival];
+    }
     add(moveStart ? start : a);
     if (base.length === 2 && moveStart && moveEnd) {
       if (first !== b || last !== a) {
@@ -625,9 +636,9 @@ globalThis.Atrium = (() => {
         add(elbow(b, a, end, middle));
       }
     } else {
-      if (moveStart) { add(elbow(a, base[1], start, first)); add(first); }
+      if (moveStart) { lead(a, base[1], start, first).forEach(add); add(first); }
       base.slice(1, -1).forEach(add);
-      if (moveEnd) { add(last); add(elbow(b, base.at(-2), end, last)); }
+      if (moveEnd) { add(last); lead(b, base.at(-2), end, last).reverse().forEach(add); }
     }
     add(moveEnd ? end : b);
     if (points.length === 1) points.push(points[0]);
@@ -638,14 +649,14 @@ globalThis.Atrium = (() => {
     const canReuse = old && anchors.every(at => old.base.some((p, i) => i && nearSegment(at, old.base[i - 1], p) < .00011));
     const base = canReuse ? old.base : copyWirePoints(points), stops = copyWirePoints(anchors);
     spur ||= !!(canReuse && old.spur);
-    return {points, spur, apply(start, end) {
+    return {points, spur, apply(start, end, turn = undefined) {
       start ??= points[0]; end ??= points.at(-1);
       if (same(start, points[0]) && same(end, points.at(-1))) {
         wire.points = points;
         restoreWireStretch(wire, old);
         return points;
       }
-      const path = wirePathAt(base, stops, start, end);
+      const path = wirePathAt(base, stops, start, end, turn);
       wire.points = copyWirePoints(path);
       restoreWireStretch(wire, path === base ? undefined : {base, path:copyWirePoints(path), spur});
       return wire.points;
@@ -730,10 +741,10 @@ globalThis.Atrium = (() => {
       r.session = wireStretch(r.wire, [...stops.values()]);
     }
     const affected = [...routed.keys(), ...dots.map(d => d.dot)];
-    return {affected, apply(targetFor) {
+    return {affected, apply(targetFor, turn = undefined) {
       let structural = false;
       for (const {session, ends} of routed.values()) {
-        session.apply(ends[0] && targetFor(ends[0]), ends[1] && targetFor(ends[1]));
+        session.apply(ends[0] && targetFor(ends[0]), ends[1] && targetFor(ends[1]), turn);
       }
       for (const {dot, at, original} of dots) {
         const p = targetFor(at);
@@ -766,9 +777,9 @@ globalThis.Atrium = (() => {
       return !!collapsed.size;
     }};
   }
-  /** @param {{defs?: Map<string, Definition>, query?: (box: Box) => Item[], junctionCopies?: Map<string, JunctionItem>}} [options] */
+  /** @param {{defs?: Map<string, Definition>, query?: (box: Box) => Item[], junctionCopies?: Map<string, JunctionItem>, avoidPinShorts?: boolean}} [options] */
   function transformPart(doc, item, def, change, wires, options = {}) {
-    const {defs = new Map([[item.def, def]]), query, junctionCopies} = options;
+    const {defs = new Map([[item.def, def]]), query, junctionCopies, avoidPinShorts = false} = options;
     const before = pins(item, def, doc.kind);
     if (doc.kind !== "schematic") {Object.assign(item, change); return [item];}
     const dotted = junctionCopies && new Set([...junctionCopies.values()].map(dot => pointKey([dot.x, dot.y])));
@@ -776,11 +787,14 @@ globalThis.Atrium = (() => {
     const edges = !wires || dotted?.size
       ? schematicAttachments(doc, defs, terminals, new Set([item.id]), {query, existingOnly:!!wires, junctionCopies})
       : null;
+    const angle = item.angle || 0, mirror = !!item.mirror;
     Object.assign(item, change);
     const after = pins(item, def, doc.kind);
     const moved = new Map(before.map((p, i) => [pointKey(p.at), after[i].at]));
+    const turn = avoidPinShorts && (!!item.mirror !== mirror || (item.angle || 0) !== angle)
+      ? {pins: [...moved.values()], step: Math.max(doc.grid || 1.27, 1.27) * 2} : undefined;
     if (edges) {
-      edges.apply(p => moved.get(pointKey(p)));
+      edges.apply(p => moved.get(pointKey(p)), turn);
       edges.finish();
       if (!wires) return [item, ...edges.affected];
     }
@@ -792,7 +806,7 @@ globalThis.Atrium = (() => {
       const old = wire.points, first = moved.get(pointKey(old[0])), last = moved.get(pointKey(old.at(-1)));
       const start = first && !same(first, old[0]) ? first : null;
       const end = last && !same(last, old.at(-1)) ? last : null;
-      if (start || end) wireStretch(wire).apply(start, end);
+      if (start || end) wireStretch(wire).apply(start, end, turn);
       else if (old.some((p, i) => i && same(p, old[i - 1]))) wire.points = old.filter((p, i) => !i || !same(p, old[i - 1]));
       if (wire.points !== old) changed.push(wire);
     }
