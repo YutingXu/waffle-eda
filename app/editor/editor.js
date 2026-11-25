@@ -70,7 +70,7 @@
     const costs=p.resizeCosts??=new WeakMap();
     costs.set(d,reused?Math.max(cost,costs.get(d)||0):cost);
   }
-  function freezePanes(){
+  function freezePanes(extraHeight=0){
     if(sashFrozen)return;
     sashFrozen=[];
     for(const p of panes){
@@ -82,14 +82,23 @@
         if(!n||getComputedStyle(n).display==="none")continue;
         const r=n.getBoundingClientRect();if(!r.width||!r.height)continue;
         sashFrozen.push([n,n.style.cssText]);
-        const x=`calc(50% + ${r.left-s.left-s.width/2}px)`,y=`calc(50% + ${r.top-s.top-s.height/2}px)`;
-        n.style.cssText+=`;position:absolute;margin:0;width:${r.width}px;height:${r.height}px;left:${x};top:${y}`+
+        const x=`calc(50% + ${r.left-s.left-s.width/2}px)`;
+        const y=`calc(50% + ${r.top-s.top-(s.height+extraHeight)/2}px)`;
+        n.style.cssText+=`;position:absolute;margin:0;width:${r.width}px;height:${r.height+extraHeight}px;left:${x};top:${y}`+
           `;left:round(nearest,${x},1px);top:round(nearest,${y},1px)`;
       }
     }
   }
   function thawPanes(){if(!sashFrozen)return;for(const [n,css] of sashFrozen)n.style.cssText=css;sashFrozen=null;}
-  document.addEventListener("pointerdown",e=>{if(e.button===0&&e.target.closest?.(".dock-sash,#canvas-sash"))freezePanes();},true);
+  document.addEventListener("pointerdown",e=>{
+    const sash=e.button===0&&e.target.closest?.(".dock-sash,#canvas-sash");
+    if(!sash)return;
+    // Reserve the largest pane the bottom sash can reveal, then hold that paint.
+    const extra=sash.classList.contains("dock-sash-bottom")
+      ? Math.max(0,sash.parentElement.getBoundingClientRect().height-Number(sash.getAttribute("aria-valuemin")))
+      : 0;
+    freezePanes(extra);
+  },true);
   addEventListener("resize",thawPanes);
   let homeFit=null,openFit=null;
   // A pane that changes size (a dock or split sash, a panel opening, the window) is redrawn in this
