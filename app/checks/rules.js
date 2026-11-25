@@ -1210,9 +1210,8 @@ globalThis.AtriumRules = (() => {
       }
       const PCB=globalThis.AtriumPCBAppearance;
       const center=PCB.padCenter(i,parent);base.at=center;
-      const angle=PCB.padTurn(i,parent);
       if(!holesOnly&&options.planeHoles&&i.drill>0){
-        base.planeHole=feature({},A.drillCore(i,center,angle),i.drill/2);
+        base.planeHole=feature({},PCB.padDrillCore(i,parent,center),i.drill/2);
       }
       if(!holesOnly&&!nettedCopperOnly&&i.fabTestpoint)geo.testpoints.push({...base,item:i});
       if(i.kind==="via"){
@@ -1247,7 +1246,7 @@ globalThis.AtriumRules = (() => {
         const size=widths.length?Math.min(...widths):0;
         if(i.drill>0){
           geo.holes.push(feature({...base,ck:"hole",item:i,ring:base.plated&&i.drill<size-EPS?(size-i.drill)/2:null,
-            what:"Pad",...(parent?{padIndex:slot,padCount}:null)},A.drillCore(i,center,angle),i.drill/2));
+            what:"Pad",...(parent?{padIndex:slot,padCount}:null)},PCB.padDrillCore(i,parent,center),i.drill/2));
         }
         if(!net&&widths.some(w=>!i.drill||i.drill<w-EPS))geo.unassigned++;
       }

@@ -353,8 +353,7 @@ globalThis.AtriumPCBAppearance = (() => {
       [[-x,-y],[x,-y],[x,y],[-x,y]];
   }
   function padPlacement(g,parent){
-    const at=padCenter(g,parent),mirror=parent?.mirror===true, angle=g.angle||0;
-    return {at,angle:(parent?.angle||0)+(mirror?-angle:angle),mirror};
+    return {at:padCenter(g,parent),angle:padTurn(g,parent),mirror:parent?.mirror===true};
   }
   const localToBoard=({at,angle,mirror})=>q=>Atrium.world(q,{x:at[0],y:at[1],angle,mirror});
   const ellipse=g=>({kind:"ellipseArc",center:[0,0],cosineAxis:[g.w/2,0],sineAxis:[0,-g.h/2],start:90,sweep:-360});
@@ -407,7 +406,8 @@ globalThis.AtriumPCBAppearance = (() => {
     shape:padShape,profile:padProfile,place:padPlacement,ellipse,core:landCore,distance:landDistance,radius:landRadius});
   const padCenter=(p,parent)=>parent?Atrium.world([p.x,p.y],parent):[p.x,p.y];
   const footprintPlacement=part=>Atrium.placement(part,true);
-  const padTurn=(p,parent)=>(parent?.angle||0)+(p.angle||0);
+  const padTurn=(p,parent)=>(parent?.angle||0)+(parent?.mirror===true?-1:1)*(p.angle||0);
+  const padDrillCore=(p,parent,at=padCenter(p,parent))=>Atrium.drillCore(p,at,padTurn(p,parent),parent?.mirror===true);
   const padNet=(p,parent)=>parent?.pinNets?.[p.number]??p.net;
   function padPlated(p,parent,layer=padLayer(parent,p)){
     const hole=p.drill>0 && p.drill>=Math.min(p.w||0,p.h||0)-1e-6;
@@ -594,7 +594,7 @@ globalThis.AtriumPCBAppearance = (() => {
     workspaceGridCoarse:"Workspace Grid - Large", dim:"Dimmed Layers", origin:"Origin Marker",
     drillEdge:"Non-plated Hole Edge", padText:"Pad Numbers and Nets", marquee:"Selection Box"
   });
-  return Object.freeze({sourceLabelRows,sourceLabels,annotationText,annotationVisible,partText,partBounds,localBounds,placeText,textAnchors,textJustification,textMirrored,color,name,system,index,order,layerRank,displayPad,padGeometry,padPolygon,padCenter,footprintPlacement,padTurn,padNet,padPlated,padCaption,padCaptionMinPx,readDefinition,retainedMirrorSource,copperInterval,copperSpan,throughSpan,partialSpan,padLayer,hasPadRows,padPlanes,boardLayer,shapeLayer,overlay,traceOpenings,curvedRegion,shapeStrokeWidth,boardStrokeWidth,onLayer,visible,ink,viaInk,footprintLayers,
+  return Object.freeze({sourceLabelRows,sourceLabels,annotationText,annotationVisible,partText,partBounds,localBounds,placeText,textAnchors,textJustification,textMirrored,color,name,system,index,order,layerRank,displayPad,padGeometry,padPolygon,padCenter,footprintPlacement,padTurn,padDrillCore,padNet,padPlated,padCaption,padCaptionMinPx,readDefinition,retainedMirrorSource,copperInterval,copperSpan,throughSpan,partialSpan,padLayer,hasPadRows,padPlanes,boardLayer,shapeLayer,overlay,traceOpenings,curvedRegion,shapeStrokeWidth,boardStrokeWidth,onLayer,visible,ink,viaInk,footprintLayers,
     defaultColor,defaultSystem,defaultOpacity,opacity,layerOpacity,layerAlpha,setLayerOpacity,setColor,setSystem,setOpacity,reset,onChange,isCustom,
     setThemeBase,withPalette,themeLayerColors,baseSystem,isCustomSystem,themeBase:()=>({...themeBase}),group,systemNames,storageKey:STORE});
 })();

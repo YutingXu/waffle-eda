@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};
 for (const m of ["model", "parts", "spatial", "pcb-pours", "pcb-appearance", "zip", "vectorize", "pcb-text-rich", "pcb-text", "stackup", "impedance", "rigid-flex", "rules", "viastack", "board-shape", "board-shape-editing", "polygon-pour", "drc-pours", "bom", "fab-outputs", "output-jobs"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const {check} = require("./gerber-check.cjs");
-const {compareLayer, compareOutlines, parseGerber} = require("./gerber-compare.cjs");
+const {compareLayer, compareOutlines, parseExcellon, parseGerber} = require("./gerber-compare.cjs");
 const A = Atrium, F = AtriumFabOutputs, PP = AtriumPolygonPour, date = new Date(2026, 10, 18, 10, 30, 0);
 function board(name) {
   const p = A.project(name, AtriumParts.catalogue), pcb = p.documents.find(d => d.kind === "pcb");
@@ -309,4 +309,34 @@ for (const [name, units, profileWidth] of [["Rectangular profile", "mm", .254], 
   assert.deepEqual(centres(file(uncertain,".G2")),centres(file(after,".G2")));
   assert.ok(uncertain.warnings.some(w => w.includes("copper contact could not be verified")));
 }
+// A footprint's slotted drill transforms with its copper when mirrored.
+{
+  const {p, pcb, defs} = board("Mirrored slot");
+  const pad = {number: "1", x: 1, y: .5, w: 4, h: 2, shape: "rect", angle: 15,
+    drill: .6, slotLength: 3, slotAngle: 20, layer: "Multi"};
+  p.library.push({id: "slot-fp", name: "Slot", footprint: {pads: [pad], shapes: []}});
+  const part = {id: "slot-part", kind: "part", def: "slot-fp", ref: "J1", x: 20, y: 20,
+    angle: 30, mirror: true, layer: "Top", pinNets: {}};
+  pcb.items.push(part);
+  const out = F.build(p, pcb, {date, origin: "absolute"});
+  const [slot] = parseExcellon(file(out, "-Plated.TXT")).slots;
+  assert.ok(slot, "the mirrored footprint produces a plated slot");
+  assert.equal(slot.d, pad.drill);
+  const half = (pad.slotLength - pad.drill) / 2;
+  const expected = [-half, half].map(n => {
+    const [dx, dy] = A.rotate([n, 0], pad.angle + pad.slotAngle);
+    const [x, y] = A.world([pad.x + dx, pad.y + dy], part);
+    return [x, -y];
+  });
+  for (const [x, y] of expected)
+    assert.ok([slot.a, slot.b].some(([u, v]) => Math.hypot(x - u, y - v) < .001),
+      "the Excellon slot follows the reflected footprint axis");
+  const [hole] = AtriumRules.kit.extract(pcb, defs()).holes;
+  assert.ok(hole);
+  for (const [x, y] of expected)
+    assert.ok(hole.core.some(([u, v]) => Math.hypot(x - u, -y - v) < .000001),
+      "DRC checks the same reflected slot as Excellon");
+  assert.equal(AtriumPCBAppearance.padTurn(pad, part), part.angle - pad.angle);
+}
+
 console.log("fab-regressions: ok");

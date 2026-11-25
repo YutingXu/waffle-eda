@@ -227,7 +227,7 @@ interface AtriumModelAPI {
   world(p: readonly number[], item: {x: number; y: number; angle?: number; mirror?: boolean}): Point;
   placement(item: {x: number; y: number; angle?: number; mirror?: boolean}, paint?: boolean): {angle: number; at(p: readonly number[]): Point; mirror: boolean};
   /** Drill center for a round hole, or the routed tool centerline endpoints for a slot. */
-  drillCore(pad: {drill?: number; slotLength?: number; slotAngle?: number}, center: Point, angle: number): Point[];
+  drillCore(pad: {drill?: number; slotLength?: number; slotAngle?: number}, center: Point, angle: number, mirror?: boolean): Point[];
   arcPoint(arc: {c:readonly number[]; r:number}, angle: number): Point;
   arcSweep(arc: {start:number; end:number; ccw:boolean}): number;
   arcProjection(arc: Omit<CircularArc, "kind"|"c"> & {c:readonly number[]}, step?: number): Point[];

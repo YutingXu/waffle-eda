@@ -114,13 +114,13 @@ globalThis.AtriumDFM = (() => {
     const cu = (base, core, r) => out.copper.push(feat(base, core, r));
     const PCB = globalThis.AtriumPCBAppearance;
     const pad = (p, parent, padIndex, padCount) => {
-      const center = PCB.padCenter(p, parent), angle = PCB.padTurn(p, parent);
+      const center = PCB.padCenter(p, parent);
       const layer = PCB.padLayer(parent, p);
       const span = layer === "Multi" ? [0, 127] : [copperIndex(layer) ?? 0, copperIndex(layer) ?? 0];
       const net = parent?.pinNets?.[p.number] ?? p.net ?? "";
       const label = "Pad " + (parent ? (parent.ref || "?") + "-" : "") + (p.number ?? "?");
       const size = Math.min(p.w || 0, p.h || 0), plated = PCB.padPlated(p, parent, layer);
-      if (p.drill > 0) out.holes.push({id, label, at: center, core: A().drillCore(p, center, angle), d: p.drill, plated, via: false, net, span: [0, 127], size,
+      if (p.drill > 0) out.holes.push({id, label, at: center, core: PCB.padDrillCore(p, parent, center), d: p.drill, plated, via: false, net, span: [0, 127], size,
         ring: plated && p.drill < size ? (size - p.drill) / 2 : null, own: parent ? parent.id + ":" + p.number : id, ...(parent ? {partPad: p, def: parent.def, padIndex, padCount} : null)});
       const base = {id, label, net, span, kind: "pad", own: parent ? parent.id + ":" + p.number : id, component: parent?.ref || null, plated, at: center};
       if (size > 0) {
