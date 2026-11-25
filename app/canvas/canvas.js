@@ -473,7 +473,9 @@ globalThis.AtriumCanvas = (() => {
         b=union(b,A.bounds([...g.lines.flat(),...g.arrows.flat(),...i.points]));
         if(g.text)b=union(b,expand(paintedTextBox(g.label,g.text.size,"center",g.text.at,g.text.angle),g.text.size*.2));
       }
-      return b&&expand(b,Math.max(.254,i.width||i.schPaint?.width||0)/2);
+      let width=Math.max(.254,i.width||i.schPaint?.width||0);
+      if(pcb)for(const opening of PCB.traceOpenings(i,boardLayer(i)))width=Math.max(width,opening.width);
+      return b&&expand(b,width/2);
     }
     if(i.kind==="part"){
       const def=doc.schRestored&&SCH?SCH.displayDef(doc,i,getDef(defs,i,doc)):getDef(defs,i,doc),geom=A.geometries(def,doc.kind);
@@ -2032,15 +2034,25 @@ globalThis.AtriumCanvas = (() => {
         const i=nearby[n];
         if(kinds&&!kinds.has(i.kind)||opts.skip?.has(i.id))continue; // skip: ids already offered (touch cycling)
         if(opts.contactOnly&&!canContact(i,null,opts))continue;
-        let target=i;
-        if(doc.kind==="pcb" && !boardVisible(i,opts)){
-          target=PCB.traceOpenings(i,boardLayer(i)).find(o=>boardVisible(o,opts));
-          if(!target)continue;
-        }else if(doc.kind!=="pcb" && !visible(i,opts.hidden))continue;
-        bodyHit=false;const distance=hitDistance(target,p,defs,doc,tol,scale,opts);
+        let distance=Infinity,priority=-1;
+        if(doc.kind==="pcb"){
+          if(boardVisible(i,opts)){
+            bodyHit=false;
+            distance=hitDistance(i,p,defs,doc,tol,scale,opts);
+            if(distance<=tol)priority=i.kind==="part"?bodyHit?-.5:partPriority:layerRank(boardLayer(i),opts,flipped)/101;
+          }
+          if(!opts.contactOnly)for(const opening of PCB.traceOpenings(i,boardLayer(i))){
+            if(!boardVisible(opening,opts))continue;
+            const d=hitDistance(opening,p,defs,doc,tol,scale,opts),rank=layerRank(opening.layer,opts,flipped)/101;
+            if(d<=tol && (rank>priority || rank===priority && d<distance)){distance=d;priority=rank;}
+          }
+        }else{
+          if(!visible(i,opts.hidden))continue;
+          distance=hitDistance(i,p,defs,doc,tol,scale,opts);
+          const entry=i.kind==="sheetsymbol"&&globalThis.AtriumSchObjects?.entryAt(i,p,tol);
+          priority=entry?5:drawingOrder(i);
+        }
         if(distance>tol)continue;
-        const entry=i.kind==="sheetsymbol"&&globalThis.AtriumSchObjects?.entryAt(i,p,tol);
-        const priority=doc.kind==="pcb"?(i.kind==="part"?bodyHit?-.5:partPriority:layerRank(boardLayer(target),opts,flipped)/101):entry?5:drawingOrder(i);
         if(scalar){
           if(priority>bestPriority||priority===bestPriority&&distance<bestDistance){best=i;bestPriority=priority;bestDistance=distance;}
         }else{
