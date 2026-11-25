@@ -73,6 +73,18 @@ module.exports=async function welcomeOpen(browser){
       assert.equal(s.color,s.accent,"the bar fills with the accent colour");
       assert.equal(s.foot,24);assert.equal(s.height,4);assert.equal(s.top,Math.round(s.top));assert.equal(s.events,"none");
     }
+    const documentId = await page.evaluate(() => AtriumNavHost.currentId());
+    const help = page.locator('details[data-menu="help"]');
+    await help.locator("summary").click();
+    await help.getByRole("menuitem", {name:"Customise Waffle",exact:true}).click();
+    const finish = page.getByRole("button", {name:"Finish setup",exact:true});
+    await finish.waitFor();
+    const setup = page.locator("dialog[open]").filter({has:finish});
+    assert.equal(await setup.getByRole("navigation", {name:"Start",exact:true}).count(), 0,
+      "Help opens setup without project navigation");
+    await finish.click();
+    await setup.waitFor({state:"hidden"});
+    assert.equal(await page.evaluate(() => AtriumNavHost.currentId()), documentId);
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
 };
