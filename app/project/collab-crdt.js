@@ -42,8 +42,9 @@
 // every replica keeps the same ones).
 globalThis.AtriumCollabCRDT = (() => {
   const LIB = "#library", DOCS = "#documents", COMPAT = "atriumCompat", FORMAT_KEYS = new Set(["format", "formatVersion", "version", "compatibleWith"]);
+  const maxAuthors = 256;
   const LIMITS = Object.freeze({ops: 20000, value: 1 << 20, depth: 24, id: 128, key: 64, log: 4000, points: 100000, undo: 200,
-    authors: 256, writers: 32, clock: 2 ** 48, skew: 1e6, gap: 40000, objects: 2e6});
+    authors: maxAuthors, writers: maxAuthors + 1, clock: 2 ** 48, skew: 1e6, gap: 40000, objects: 2e6});
   const DIG = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   const KEY = /^[A-Za-z0-9_$][A-Za-z0-9_$.-]{0,63}$/, BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
   const ID = /^[\x21-\x7e]{1,128}$/;
@@ -106,7 +107,9 @@ globalThis.AtriumCollabCRDT = (() => {
   }
   const newestFirst = (a, b) => b.c - a.c || (a.r < b.r ? 1 : a.r > b.r ? -1 : 0);
   function fromWriters(writers) {
-    if (writers.length > LIMITS.writers) writers = [...writers].sort(newestFirst).slice(0, LIMITS.writers);
+    // Keep every admitted author and the seeded value, even after the other edits are withdrawn.
+    writers = [...writers].sort(newestFirst);
+    if (writers.length > LIMITS.writers) writers.length = LIMITS.writers;
     let best;
     for (const w of writers) if (w.at !== null && (!best || w.at > best.at || (w.at === best.at && w.r > best.r))) best = w;
     return {v: best?.v, ts: best ? {r: best.r, c: best.at} : seed, writers};
