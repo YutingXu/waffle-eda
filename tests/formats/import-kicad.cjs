@@ -34,6 +34,26 @@ const file = (name, text) => ({name, bytes: enc.encode(text)});
   assert.deepEqual(items.filter(i => i.kind === "track").map(i => i.points), [[[0, 1], [10, 0]]]);
   assert.ok(result.notes.some(note => /malformed required values/.test(note)));
 }
+// Two placements of the same KiCad unit are distinct physical components.
+{
+  const sch = `(kicad_sch (version 20231120) (uuid "aaaaaaaa-aaaa-4000-8000-000000000001")
+    (lib_symbols (symbol "Device:R" (property "Reference" "R" (at 0 0 0))
+      (symbol "R_0_1" (rectangle (start -1 -2) (end 1 2)))
+      (symbol "R_1_1" (pin passive line (at 0 2 270) (length 1) (name "~") (number "1")))))
+    (symbol (lib_id "Device:R") (at 10 10 0) (unit 1) (uuid "aaaaaaaa-aaaa-4000-8000-000000000011")
+      (property "Reference" "R1" (at 12 10 0)) (property "Value" "1k" (at 12 12 0)))
+    (symbol (lib_id "Device:R") (at 40 10 0) (unit 1) (uuid "aaaaaaaa-aaaa-4000-8000-000000000021")
+      (property "Reference" "R1" (at 42 10 0)) (property "Value" "2k" (at 42 12 0))))`;
+  const pcb = `(kicad_pcb (version 20240108)
+    (footprint "R" (layer "F.Cu") (at 15 9) (path "/aaaaaaaa-aaaa-4000-8000-000000000001/aaaaaaaa-aaaa-4000-8000-000000000021")
+      (property "Reference" "R1" (at 0 0 0) (layer "F.SilkS"))))`;
+  const results = I.readSet([file("duplicate-ref.kicad_sch", sch), file("duplicate-ref.kicad_pcb", pcb)]);
+  const [a, b] = results[0].documents[0].items.filter(item => item.kind === "part");
+  const placed = results[1].documents[0].items.find(item => item.kind === "part");
+  assert.equal(a.ref, b.ref);
+  assert.equal(a.link, "kicad-aaaaaaaa-aaaa-4000-8000-000000000011");
+  assert.equal(b.link, placed.link);
+}
 const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
 const nearP = (p, q, tol = 1e-3) => near(p[0], q[0], tol) && near(p[1], q[1], tol);
 const defsOf = p => new Map(p.library.map(d => [d.id, d]));

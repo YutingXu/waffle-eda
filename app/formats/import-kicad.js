@@ -1484,6 +1484,7 @@ globalThis.AtriumKiCadImport = (() => {
     for (const p of schParts) { if (!byRef.has(p.ref)) byRef.set(p.ref, []); byRef.get(p.ref).push(p); }
     for (const [ref, group] of byRef) {
       if (group.length < 2 || /\?/.test(ref) || ref.startsWith("#")) continue;
+      if (group.some(p => !p.unit) || new Set(group.map(p => p.unit)).size !== group.length) continue;
       const shared = group.find(p => boardLinks.has(p.link))?.link || group[0].link;
       for (const p of group) p.link = shared;
     }
