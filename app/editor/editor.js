@@ -1574,12 +1574,12 @@
     if(tool==="paste"&&paste){S.mirrorItems({kind:"schematic",grid:doc().grid,items:paste.items},paste.defs,new Set(paste.items.map(i=>i.id)),axis,[0,0]);paste.bounds=A.docBounds({...doc(),outline:[],items:paste.items},paste.defs);draw();return;}
     if(drag?.kind==="move"&&drag.before&&!drag.segment){
       const touched=drag.mirrorItems??=new Set();for(const item of drag.translation.affected)touched.add(item);
-      drag.translation.apply(0,0);drag.translation.finish();S.mirrorItems(doc(),defs,selectedIds,axis,drag.anchor,touched);invalidateViews(doc());
+      drag.translation.apply(0,0);drag.translation.finish();S.mirrorItems(doc(),defs,selectedIds,axis,drag.anchor,touched,{avoidPinShorts:true});invalidateViews(doc());
       drag.lastDelta=null;drag.translation=makeTranslation(drag.frameOnly);if(pointer)drag.translation.apply(...drag.anchor.map((v,k)=>A.snap(v+pointer[k]-drag.origin[k],doc().grid)-v));
       invalidateViews(doc());info("Mirrored "+word+".");draw();return;}
     const ids=tool==="move-object"&&movingObject?new Set([movingObject.item.id]):selectedIds;
     if(!ids.size){info("Select parts, wires or graphics to mirror. While placing or dragging, press X or Y.");return;}
-    const touched=new Set();let n=0;edit(()=>{n=S.mirrorItems(doc(),defs,ids,axis,undefined,touched);},undefined,touched);info(n?n+(n===1?" object":" objects")+" mirrored "+word+".":"Nothing in the selection mirrors.");
+    const touched=new Set();let n=0;edit(()=>{n=S.mirrorItems(doc(),defs,ids,axis,undefined,touched,{avoidPinShorts:true});},undefined,touched);info(n?n+(n===1?" object":" objects")+" mirrored "+word+".":"Nothing in the selection mirrors.");
   }
   const prefOut=(k,v)=>{if(k)globalThis.AtriumPref?.set(k,v);}; // menu toggles -> Preferences
   function syncChecks(){try{
