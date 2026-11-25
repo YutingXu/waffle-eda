@@ -214,6 +214,13 @@ async function functional(browser, server) {
     await merge.click();
     const details = view.locator(".hv-details");
     await details.locator(".hv-detail-title", {hasText: "Merge supply routing"}).waitFor();
+    const moreActions=details.getByRole("button",{name:"More actions",exact:true});
+    assert.equal(await moreActions.evaluate(button=>getComputedStyle(button,"::after").content),"none",
+      "the ellipsis is the only menu indicator");
+    await moreActions.click();
+    await page.getByRole("menuitem",{name:"Compare with parent",exact:true}).waitFor();
+    await page.keyboard.press("Escape");
+
     await details.locator(".hv-headline").waitFor({timeout: 30000});
     assert.match(await details.locator(".hv-headline").textContent(), /6 tracks rerouted/);
     assert.ok(await details.locator(".hv-group", {hasText: "Tracks"}).count() >= 1, "changed objects grouped by kind");
