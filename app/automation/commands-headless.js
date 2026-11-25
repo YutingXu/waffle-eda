@@ -199,7 +199,7 @@ globalThis.AtriumCommandsHeadless = (() => {
       const s = doc.items.find(i => i.id === a.id && i.kind === "sheetsymbol") || fail("Choose a sheet symbol ID.");
       const child = p.documents.find(d => d.id === s.sheet) || fail("The child sheet of " + (s.name || s.id) + " is missing.");
       if (typeof S.syncEntries !== "function") fail("Sheet entry sync is not available in this build.");
-      return {document_id: doc.id, ...S.syncEntries(s, child)};
+      return {document_id: doc.id, ...S.syncEntries(s, child, doc, defsOf(p))};
     }},
 
     // ---------------------------------------------------------------- document settings
