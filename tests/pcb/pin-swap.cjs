@@ -190,6 +190,17 @@ test("routed pads are left alone unless asked", () => {
 });
 
 let failed = 0;
+test("a dead-end stub follows a pad swapped onto an unconnected pin", () => {
+  const {board, part, swap} = swapBoard("Top");
+  part.pinNets = {"1": "N"};
+  board.items.push(track("stub", "Top", [5, 10], [8, 10]));
+  swap();
+  assert.equal(part.pinNets["2"], "N");
+  assert.equal(part.pinNets["1"] || "", "");
+  const stub = board.items.find(i => i.id === "stub");
+  assert.equal(stub?.net, "", "the dead-end copper stays in place and follows the disconnected pad");
+});
+
 for (const c of cases) {
   try { c.run(); console.log("PASS " + c.name); }
   catch (e) { failed++; console.log("FAIL " + c.name + "\n  " + (e && e.message) + "\n" + (e && e.stack || "").split("\n").slice(0, 3).join(" | ")); }
