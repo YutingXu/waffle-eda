@@ -55,6 +55,21 @@ assert.equal(fixed.items.find(i => i.id === "v2").backdrill, undefined);
   assert.deepEqual(used([[x,threshold+1e-12],[x+ulp,threshold+1e-12]]),[]);
 }
 
+// The copper layer stored on a bottom footprint pad is already physical.
+{
+  const part = {id: "u", kind: "part", def: "bottom-pad", ref: "U1", x: 10, y: 10,
+    layer: "Bottom", pinNets: {"1": "SIG"}};
+  const def = {id: part.def, footprint: {pads: [{number: "1", x: 0, y: 0, w: 1.2, h: 1.2, layer: "Bottom"}]}};
+  const v = via("bottom-via", 10), sample = board([part, v]);
+  const library = new Map([[def.id, def]]);
+  const [result] = VS.report(sample, library, {max: .25}).rows;
+  assert.deepEqual(result.used, ["Bottom"], "bottom SMD pad connects on Bottom");
+  assert.equal(result.stubBottom, 0);
+  assert.deepEqual(result.recommend, {from: "top", toLayer: "Bottom"});
+  VS.setBackdrill(v, result.recommend);
+  assert.equal(VS.report(sample, library, {max: .25}).rows[0].status, "backdrilled");
+}
+
 // ---- DRC rule ------------------------------------------------------------------------------
 assert.ok(R.types.viaStub && R.checkedTypes.includes("viaStub"));
 const rules = R.migrate(R.create());

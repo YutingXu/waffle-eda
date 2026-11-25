@@ -64,7 +64,7 @@ globalThis.AtriumViaStubs = (() => {
         for (const p of fp?.pads || []) {
           const net = own(i.pinNets, p.number) ? i.pinNets[p.number] : p.net || "";
           if (!net) continue;
-          const c = A().world([p.x, p.y], i), side = i.layer === "Bottom" ? (p.layer === "Bottom" ? "Top" : "Bottom") : p.layer || "Top";
+          const c = A().world([p.x, p.y], i), side = AtriumPCBAppearance.padLayer(i, p);
           pad(net, p.drill > 0 || p.layer === "Multi" ? keys : [side], c, p);
         }
         for (const s of fp?.shapes || []) if (s.net && s.kind === "path") path(s.net, s.layer, s.points.map(q => A().world(q, i)), s.width, s.fill, s.closed);
