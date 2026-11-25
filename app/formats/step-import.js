@@ -343,7 +343,10 @@ globalThis.AtriumSTEPImport = (() => {
         if (text[i] !== ";") throw Error("Expected ; after #" + id);
         i++;
         if (records) records.push({id, body: text.slice(from, to), entity: e});
-        else E.set(id, e);
+        else {
+          if (E.has(id)) throw Error("Duplicate STEP instance #" + id + ".");
+          E.set(id, e);
+        }
         if ((records ? records.length : E.size) > L.entities) throw new Limit("The STEP model has more than " + L.entities + " entities.");
       }
       return records || E;
