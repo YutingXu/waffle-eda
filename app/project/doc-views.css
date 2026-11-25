@@ -7,8 +7,8 @@
 .view-tab .view-tab-close:hover {opacity:1}
 .view-tab.is-shown {color:var(--text)}
 
-/* Hide document-specific controls only while the active editor pane shows a view.
-   User-docked tools in a different group stay usable. The saved layout is untouched. */
-.document-view-active :is(.layer-bar, .panel-properties, [data-tab-for="properties"], [data-dock-target="properties"]) {display:none}
-.document-view-active #workbench:not(:has(#properties [data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {--properties:0px}
-.document-view-active #properties:not(:has([data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {display:none}
+/* History keeps the dock and tab-strip geometry when switching to a design. */
+.document-view-active .layer-bar {display:none}
+.document-view-active:not(.history-view-active) :is(.panel-properties, [data-tab-for="properties"], [data-dock-target="properties"]) {display:none}
+.document-view-active:not(.history-view-active) #workbench:not(:has(#properties [data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {--properties:0px}
+.document-view-active:not(.history-view-active) #properties:not(:has([data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {display:none}
