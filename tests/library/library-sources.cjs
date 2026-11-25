@@ -104,6 +104,43 @@ const run = async () => {
     assert.ok(L.validateDef(full).ok);
     console.log("PASS incremental index: unchanged folders read nothing, an edit re-reads one file, equal content is not parsed, stable ids, stubs materialise on demand");
   }
+
+  {
+    const amp = `(kicad_symbol_lib (version 20231120) (symbol "AMP"
+      (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (property "Value" "AMP" (at 0 0 0) (effects (font (size 1.27 1.27))))
+      (property "Footprint" "Lib:SOIC-8" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (symbol "AMP_1_1"
+        (pin passive line (at -2.54 0 0) (length 2.54) (name "A" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
+        (pin passive line (at 2.54 0 180) (length 2.54) (name "B" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27))))))))`;
+    const fp = x => `(footprint "SOIC-8" (version 20221018) (pad "1" smd rect (at ${x} 0) (size 1 0.6) (layers "F.Cu" "F.Paste" "F.Mask")) (pad "2" smd rect (at ${-x} 0) (size 1 0.6) (layers "F.Cu" "F.Paste" "F.Mask")))`;
+    const files = [
+      {name: "Amp.kicad_sym", path: "symbols/Amp.kicad_sym", text: amp},
+      {name: "SOIC-8.kicad_mod", path: "a/Lib.pretty/SOIC-8.kicad_mod", text: fp(1)},
+      {name: "SOIC-8.kicad_mod", path: "b/Lib.pretty/SOIC-8.kicad_mod", text: fp(3)}];
+    const map = new Map(files.map(f => [f.path, {data: f.text, mtime: 1}]));
+    const folder = {id:"dup-pretty-hunt", name:"Dup"}, provider=S.providers.memory(map);
+    const legacyPath=files[2].path;
+    const {library: legacy}=await S.refresh(folder,S.providers.memory(new Map([[legacyPath,map.get(legacyPath)]])));
+    const legacyStub=legacy.defs[0];
+    const full=S.materialise(legacyStub,new Map([[legacyPath,await provider.read(legacyPath)]]),undefined,legacy);
+    const linked=L.fromLibrary(legacy,full,A.project("Existing footprint"));
+    const {library} = await S.refresh(folder, provider);
+    const def = library.defs.find(d => d.name === "AMP");
+    assert.equal(library.report.ambiguous.length, 1);
+    assert.equal(def.footprint, undefined);
+    assert.equal(library.defs.filter(d=>d.name==="SOIC-8"&&d.footprint).length,2);
+    assert.equal(library.defs.find(d=>d.stub?.footprint===legacyPath).id,legacyStub.id);
+    assert.equal(L.libraryStatus(linked,[library]).src.stub.footprint,legacyPath,
+      "an existing library link still resolves to the same physical file");
+    assert.equal(new Set(library.defs.map(d=>d.id)).size,library.defs.length);
+    const second=files[2].path;
+    map.set(second,{data:fp(1).replace('(version 20221018)','(version 20221018) (descr "Matching copy")'),mtime:2});
+    const same=await S.refresh({id:"dup-pretty-hunt",name:"Dup"},S.providers.memory(map));
+    assert.equal(same.library.report.ambiguous.length,0);
+    assert.ok(same.library.defs.find(d=>d.name==="AMP").footprint);
+  }
+
   {
     const notice = "KiCad libraries · CC-BY-SA 4.0 with KiCad-libraries-exception. Test notice.";
     const map = new Map(FILES.map(p => [(p.endsWith("kicad_mod") ? "footprints/" : "symbols/") + p, {data: text(p)}]));
