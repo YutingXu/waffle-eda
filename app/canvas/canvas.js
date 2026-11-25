@@ -465,7 +465,8 @@ globalThis.AtriumCanvas = (() => {
     const objects=pcb?null:globalThis.AtriumSchObjects;
     if(objects?.KINDS.has(i.kind))return schematicObjectBox(i,objects);
     if(i.points){
-      let b=A.bounds(i.points);
+      const arc=A.pathArc(i);
+      let b=arc?AtriumBoardShape.contourBounds([arc]):A.bounds(i.points);
       const draw=pcb&&i.dimension&&globalThis.AtriumPCBDraw;
       if(draw)for(const units of ["mm","mil"]){
         const g=draw.dimensionGeometry(i,{units});
@@ -765,6 +766,12 @@ globalThis.AtriumCanvas = (() => {
     for(let n=1;n<ps.length;n++)d=Math.min(d,A.nearSegment(p,ps[n-1],ps[n]));
     return Math.max(0,d-(s.width||0)/2);
   }
+  function distanceToArc(p,arc) {
+    const S=AtriumBoardShape;
+    if(S.within(arc,S.angleOf(arc.c,p)))return Math.abs(gap(p,arc.c)-arc.r);
+    const [a,b]=S.ends(arc);
+    return Math.min(gap(p,a),gap(p,b));
+  }
   let bodyHit=false;
   function hitDistance(i, p, defs, doc, tol, scale, opts) {
     if(doc.schRestored && SCH)i=SCH.displayItem(doc,i);
@@ -772,6 +779,15 @@ globalThis.AtriumCanvas = (() => {
     if(i.dimension && doc.kind==="pcb" && globalThis.AtriumPCBDraw)return AtriumPCBDraw.dimensionHit(i,p);
     if(doc.kind!=="pcb"&&globalThis.AtriumSchObjects?.KINDS.has(i.kind))return AtriumSchObjects.hit(i,p,tol);
     if (i.points) {
+      const arc=A.pathArc(i);
+      if(arc){
+        if(i.fill){
+          const [a,b]=AtriumBoardShape.ends(arc);
+          if(AtriumBoardShape.crossings([arc,{kind:"line",a:b,b:a}],p))return tol;
+        }
+        const width=doc.kind==="pcb"?PCB.boardStrokeWidth(i):i.width||i.schPaint?.width||.2;
+        return distanceToArc(p,arc)-(width===null?0:Math.max(1/scale,width)/2);
+      }
       if(i.fill && AtriumBoardShape.polyContains(i.points,p)) return tol;
       let distance=Infinity;
       for(let n=1;n<i.points.length;n++) distance=Math.min(distance,A.nearSegment(p,i.points[n-1],i.points[n]));

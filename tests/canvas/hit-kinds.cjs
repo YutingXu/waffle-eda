@@ -121,6 +121,47 @@ for (const p of [[-2, -1], [-1, 0], [1, 0], [5, 0]]) assert.equal(view.hit(doc, 
   assert.equal(view.hit(doc, defs, [2, 10], opts)?.id, "in1");
 }
 
+// Arc hits follow the chord samples
+{
+  const arc = {kind: "arc", c: [0, 0], r: 10, start: 0, end: 90, ccw: true};
+  const stroke = {id: "q", kind: "graphic", layer: "Top", width: .2, points: [Atrium.arcPoint(arc, 0), Atrium.arcPoint(arc, 90)], arc};
+  const opts = {layer: "Top", layerMode: "all", hidden: new Set()};
+  assert.equal(Atrium.pathArc(stroke), arc);
+  const mid = Atrium.arcPoint(arc, 45);
+  const chord = [(stroke.points[0][0] + stroke.points[1][0]) / 2, (stroke.points[0][1] + stroke.points[1][1]) / 2];
+  const doc = Atrium.sheet("pcb", "Arc stroke");
+  doc.items = [stroke];
+  view.restoreCamera({cx: 5, cy: -5, scale: 30, referenceScale: 30});
+  view.render(doc, defs, {...opts, grid: false});
+  assert.equal(view.hit(doc, defs, mid, opts)?.id, "q", "drawn arc centerline");
+  assert.equal(view.hit(doc, defs, chord, opts)?.id ?? null, null, "the chord is 2.9 mm off the stroke");
+  const filled = {...stroke, id: "f", fill: true, width: 0};
+  const seg = Atrium.sheet("pcb", "Arc fill");
+  seg.items = [filled];
+  const inside = [(mid[0] * 2 + chord[0]) / 3, (mid[1] * 2 + chord[1]) / 3];
+  view.render(seg, defs, {...opts, grid: false});
+  assert.equal(view.hit(seg, defs, inside, opts)?.id, "f", "inside the filled circular segment");
+  const wide = {kind: "arc", c: [0, 0], r: 80, start: 0, end: 30, ccw: true};
+  const points = Atrium.arcProjection(wide, 5);
+  const track = {id: "arc", kind: "track", net: "A", layer: "Top", width: .2, points, arc: wide};
+  const step = Atrium.arcSweep(wide) / (points.length - 1);
+  const on = Atrium.arcPoint(wide, wide.start + step / 2);
+  const rim = [on[0] * (1 + .09 / 80), on[1] * (1 + .09 / 80)];
+  const board = Atrium.sheet("pcb", "Arc rim");
+  board.items = [track];
+  view.restoreCamera({cx: on[0], cy: on[1], scale: 80, referenceScale: 80});
+  view.render(board, defs, {...opts, grid: false});
+  assert.equal(view.hit(board, defs, rim, opts)?.id, "arc", "outer copper of a 5° projection");
+  const shallow = {...arc, start:-12, end:12};
+  const extrema = Atrium.sheet("pcb", "Arc extrema");
+  extrema.items = [{...stroke,id:"extrema",arc:shallow,points:[Atrium.arcPoint(shallow,-12),Atrium.arcPoint(shallow,12)]}];
+  assert.equal(view.hit(extrema, defs, [10,0], opts)?.id, "extrema", "unsampled arc extremum");
+  const stale = Atrium.sheet("pcb", "Stale arc");
+  stale.items = [{...stroke,id:"stale",points:[[0,0],[5,0]]}];
+  assert.equal(view.hit(stale, defs, [2,0], opts)?.id, "stale", "edited chords are still selectable");
+  assert.equal(view.hit(stale, defs, mid, opts), null);
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();
