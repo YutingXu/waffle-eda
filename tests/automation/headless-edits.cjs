@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {appFile} = require("../support/app-source-paths.cjs");
-for (const name of ["model", "automation/legacy-command-contract", "commands-headless"])
+for (const name of ["model", "stackup", "viastack", "hdi", "automation/legacy-command-contract", "commands-headless"])
   require(appFile(name + ".js"));
 const A = Atrium, H = AtriumCommandsHeadless;
 
@@ -36,6 +36,23 @@ const A = Atrium, H = AtriumCommandsHeadless;
   assert.equal(sch.grid, grid);
   assert.equal(H.run(project, "set_grid", {document_id: pcb.name, grid: .5}).document_id, pcb.id);
   assert.equal(pcb.grid, .5);
+}
+
+// An HDI preset must fit before the command changes the board or its rules.
+{
+  const project = A.project("HDI preflight");
+  const pcb = project.documents.find(d => d.kind === "pcb");
+  const args = {document_id: pcb.id, build_up: "2"};
+  for (const layers of ["2", "4"]) {
+    pcb.stackup = {version: 1, layers: AtriumStackup.preset(layers).layers};
+    const before = JSON.stringify(project);
+    assert.throws(() => H.run(project, "hdi_setup", args), /more copper layers/);
+    assert.equal(JSON.stringify(project), before);
+  }
+  pcb.stackup = {version: 1, layers: AtriumStackup.preset("6").layers};
+  assert.equal(H.run(project, "hdi_setup", {...args, rules: false}).build_up, "2+2+2");
+  assert.equal(H.run(project, "hdi_setup", {...args, build_up: "none"}).build_up, null);
+  assert.equal(pcb.hdi, undefined);
 }
 
 console.log("headless edits: ok");
