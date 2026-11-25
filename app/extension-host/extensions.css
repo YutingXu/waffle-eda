@@ -114,8 +114,7 @@
 .script-files select {flex:0 1 auto;min-inline-size:0;max-inline-size:20ch;text-overflow:ellipsis}
 .script-timeout {inline-size:6ch}
 .script-timeout-label {display:flex;align-items:baseline;gap:4px;color:var(--muted);white-space:nowrap}
-.script-bar .script-close {border-color:transparent;background:none;font-size:var(--fs-14);line-height:1;padding:0 6px}
-.script-console.is-running .script-bar h2::after {content:" · running";color:var(--accent-text);font-weight:400}
+.script-console.dock-tabbed :is(.script-bar h2,.script-close) {display:none}
 .script-body {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);flex:1;min-height:0}
 .script-editor {display:flex;min-width:0;min-height:0;border-right:1px solid var(--app);background:var(--field)}
 .script-gutter {flex:none;width:38px;padding:6px 6px 6px 0;overflow:hidden;white-space:pre;text-align:right;color:var(--faint);font:var(--fs-12)/1.5 var(--mono);background:var(--app);user-select:none;-webkit-user-select:none}
