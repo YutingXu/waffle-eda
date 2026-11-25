@@ -94,9 +94,14 @@ globalThis.AtriumLibrarySources = (() => {
   function kicadFootprintRows(text, path) {
     const S = SX(), t = S.parse(decode(text));
     if (t[0] !== "footprint" && t[0] !== "module") throw Error(base(path) + " is not a KiCad footprint.");
-    const pads = [];
-    for (const p of S.all(t, "pad")) if (pads.length < LIMITS.pads) pads.push([p[2] === "np_thru_hole" ? "" : str(p[1], 32), p[2] === "thru_hole" ? 1 : 0]);
-    return [{t: "fp", n: str(t[1]).split(":").pop() || base(path).replace(/\.kicad_mod$/i, ""), lib: KI().footprintLibrary(path), d: str(S.val(t, "descr"), 1024), kw: str(S.val(t, "tags")), pads, ...(S.one(t, "model") ? {m3: 1} : {})}];
+    const pads = [], sourcePads = S.all(t, "pad");
+    for (const p of sourcePads) if (pads.length < LIMITS.pads) pads.push([p[2] === "np_thru_hole" ? "" : str(p[1], 32), p[2] === "thru_hole" ? 1 : 0]);
+    // Only keep a signature in the index. Source IDs and net names do not change a land.
+    const padSignatures = sourcePads.map(p => JSON.stringify(p.filter(value =>
+      !Array.isArray(value) || !["uuid", "tstamp", "net"].includes(value[0])))).sort();
+    const defaults = ["version", "layer", "solder_mask_margin", "solder_paste_margin", "solder_paste_margin_ratio", "solder_paste_ratio"].map(k => S.one(t, k));
+    const geo = sha(JSON.stringify([defaults,padSignatures]));
+    return [{t: "fp", n: str(t[1]).split(":").pop() || base(path).replace(/\.kicad_mod$/i, ""), lib: KI().footprintLibrary(path), d: str(S.val(t, "descr"), 1024), kw: str(S.val(t, "tags")), pads, geo, ...(S.one(t, "model") ? {m3: 1} : {})}];
   }
   // A KiCad table assigns the nickname used by the symbol's Footprint field. References
   // resolve against the source's own listing, including the standard KiCad and project variables.
@@ -290,8 +295,10 @@ globalThis.AtriumLibrarySources = (() => {
           if (!kicadSyms.has(lib)) kicadSyms.set(lib, new Map());
           const m = kicadSyms.get(lib); if (!m.has(r.n)) m.set(r.n, {...r, path});
         } else if (f.kind === "kicad-mod") {
-          const fp = {...r, lib: alias(path) || r.lib, path};
-          kicadFps.set((fp.lib + ":" + r.n).toUpperCase(), fp);
+          const fp = {...r, lib: alias(path) || r.lib, path, digest:f.sha256};
+          const full = (fp.lib + ":" + r.n).toUpperCase();
+          if (!kicadFps.has(full)) kicadFps.set(full, []);
+          kicadFps.get(full).push(fp);
           const n = r.n.toUpperCase();
           if (!kicadFpsByName.has(n)) kicadFpsByName.set(n, []);
           kicadFpsByName.get(n).push(fp);
@@ -317,9 +324,19 @@ globalThis.AtriumLibrarySources = (() => {
       if (chain.some(c => c.row.power)) { report.power++; continue; }
       const want = String(r.fp || chain.find(c => c.row.fp)?.row.fp || "");
       const colon = want.lastIndexOf(":"), fpLib = colon >= 0 ? want.slice(0, colon) : "", fpName = colon >= 0 ? want.slice(colon + 1) : want;
-      let fp = want ? kicadFps.get((fpLib + ":" + fpName).toUpperCase()) : null;
-      if (want && !fp && !fpLib) { const alt = kicadFpsByName.get(fpName.toUpperCase()) || []; if (alt.length === 1) fp = alt[0]; }
-      if (fp) { used.add(fp); report.paired++; } else { report.symbolOnly++; if (want) report.unmatched.push({symbol: lib + ":" + r.n, footprint: want}); }
+      const hits = !want ? [] : fpLib ? (kicadFps.get((fpLib + ":" + fpName).toUpperCase()) || []) :
+        (kicadFpsByName.get(fpName.toUpperCase()) || []);
+      const preferred = hits.at(-1);
+      const same = key => preferred?.[key] && hits.every(hit => hit[key] === preferred[key]);
+      const fp = hits.length === 1 || same("geo") || same("digest") ? preferred : null;
+      if (fp) {
+        hits.forEach(hit => used.add(hit));
+        report.paired++;
+      } else {
+        report.symbolOnly++;
+        if (hits.length > 1) report.ambiguous.push({symbol:lib + ":" + r.n,footprint:want,files:hits.map(hit => hit.path)});
+        else if (want) report.unmatched.push({symbol: lib + ":" + r.n, footprint: want});
+      }
       const pick = k => r[k] || chain.find(c => c.row[k])?.row[k] || "";
       const props = Object.assign(Object.create(null), ...chain.slice().reverse().map(c => c.row.props));
       const params = KI().searchParameters(props);
@@ -327,10 +344,12 @@ globalThis.AtriumLibrarySources = (() => {
         state: "draft", symbol: stubSymbol(root.pins, root.parts), ...(fp ? {footprint: stubFootprint(fp.n, fp.pads, fp.m3), footprintName: fp.n} : want ? {footprintName: fpName} : {}),
         stub: {kind: "kicad", entry: lib + ":" + r.n, assets: chain.map(c => c.row.asset), files: [...new Set(chain.map(c => c.row.path))], ...(fp ? {footprint: fp.path, footprintLibrary: fp.lib} : {})}});
     }
-    for (const fp of kicadFps.values()) {
+    for (const group of kicadFps.values()) for (const fp of group) {
       if (used.has(fp)) continue;
       report.footprintOnly++;
-      defs.push({id: hid(libId, "kicad-fp", fp.lib + ":" + fp.n), name: fp.n, prefix: "U", value: fp.n, category: categoryOf(fp.lib) || "KiCad footprints", description: fp.d,
+      // The previous index used the last matching file for the unsuffixed ID.
+      const id = fp === group.at(-1) ? hid(libId, "kicad-fp", fp.lib + ":" + fp.n) : hid(libId, "kicad-fp", fp.lib + ":" + fp.n, fp.path);
+      defs.push({id, name: fp.n, prefix: "U", value: fp.n, category: categoryOf(fp.lib) || "KiCad footprints", description: fp.d,
         parameters: fp.kw ? {Keywords: fp.kw} : {}, state: "draft", footprint: stubFootprint(fp.n, fp.pads, fp.m3), stub: {kind: "kicad", entry: fp.lib + ":" + fp.n, files: [], footprint: fp.path, footprintLibrary: fp.lib}});
     }
     // Altium: a SchLib symbol joins the PcbLib footprint of the name its model gives, inside this folder only.
