@@ -780,6 +780,24 @@ globalThis.AtriumCanvas = (() => {
     if(arc?.kind==="arc" && Math.abs(A.arcSweep(arc))===360)return gap(p,arc.c)<arc.r;
     return AtriumBoardShape.crossings(contour,p);
   }
+  function distanceToWireHop(i,p,doc,wireHops) {
+    let last,distance=Infinity;
+    // Measure the path emitted by the wire painter, including its replaced straight spans.
+    const path={
+      beginPath(){},
+      moveTo(x,y){last=[x,y];},
+      lineTo(x,y){
+        const next=[x,y];
+        distance=Math.min(distance,A.nearSegment(p,last,next));
+        last=next;
+      },
+      arc(x,y,r,start,end,ccw){
+        distance=Math.min(distance,distanceToArc(p,{kind:"arc",c:[x,y],r,start:-start*180/Math.PI,end:-end*180/Math.PI,ccw}));
+        last=[x+r*Math.cos(end),y+r*Math.sin(end)];
+      }
+    };
+    return globalThis.AtriumSchObjects?.hopPath(path,i,doc,wireHops)?distance:null;
+  }
   let bodyHit=false;
   function hitDistance(i, p, defs, doc, tol, scale, opts) {
     if(doc.schRestored && SCH)i=SCH.displayItem(doc,i);
@@ -787,6 +805,10 @@ globalThis.AtriumCanvas = (() => {
     if(i.dimension && doc.kind==="pcb" && globalThis.AtriumPCBDraw)return AtriumPCBDraw.dimensionHit(i,p);
     if(doc.kind!=="pcb"&&globalThis.AtriumSchObjects?.KINDS.has(i.kind))return AtriumSchObjects.hit(i,p,tol);
     if (i.points) {
+      if(doc.kind==="schematic" && doc.hopOvers && i.kind==="wire"){
+        const distance=distanceToWireHop(i,p,doc,opts.wireHops);
+        if(distance!==null)return distance-Math.max(1/scale,schematicStrokeWidth(i))/2;
+      }
       const region=doc.kind==="pcb"&&PCB.curvedRegion(i);
       if(region){
         const contours=[region.contour,...region.cutouts];
@@ -2048,7 +2070,10 @@ globalThis.AtriumCanvas = (() => {
       if(doc.kind==="panel" && globalThis.AtriumPanel)[doc,defs]=projectedPanel(doc,defs);
       finishOpeningOverview(doc);
       const tol=5/scale,kinds=opts.kinds?new Set(opts.kinds):null,scalar=limit===0; // kinds: only these item kinds (track tools)
-      const nearby=query(doc,defs,expand([p[0],p[1],p[0],p[1]],tol));
+      const area=expand([p[0],p[1],p[0],p[1]],tol);
+      // hopPath can paint up to 0.7 mm above the indexed horizontal wire.
+      if(doc.kind==="schematic" && doc.hopOvers)area[3]+=.7;
+      const nearby=query(doc,defs,area);
       const partPriority=opts.layerMode==="single"?1.5:2;
       let best=null,bestPriority=-1,bestDistance=Infinity;const ranked=scalar?null:[];
       for(let n=nearby.length-1;n>=0;n--){
