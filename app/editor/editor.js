@@ -454,7 +454,12 @@
   function dirtyState(v){if(dirty!==v)navEmit("dirty",v);/* doc-tabs: saved state */dirty=v;globalThis.AtriumHost?.setDirty?.(v,starter?null:project.name);document.title=starter?"Waffle":(dirty?"• ":"")+project.name+" — Waffle";
     // Status-bar marker for unsaved changes; click to save.
     let u=document.getElementById("unsaved");
-    if(!u){const st=document.getElementById("status");if(st){u=document.createElement("button");u.id="unsaved";u.type="button";u.className="status-unsaved status-action";u.textContent="● Unsaved";u.onclick=()=>save();st.before(u);}}
+    if(!u){const st=document.getElementById("status");if(st){
+      const chrome=globalThis.AtriumNavCommon;
+      u=chrome.elWithAttributes("button",null,"status-unsaved status-action",{id:"unsaved",type:"button","aria-label":"Save unsaved changes"});
+      u.append(chrome.elWithAttributes("span","●","",{"aria-hidden":"true"}),chrome.el("span","Unsaved","status-unsaved-label"));
+      u.onclick=()=>save();st.before(u);
+    }}
     if(u){chromeFlag(u,"hidden",!dirty);syncUnsavedTitle();}}
   function syncUnsavedTitle(){
     const button=$("unsaved");

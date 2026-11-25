@@ -295,6 +295,7 @@ body[data-kind="drawing"] #tools .tool:is([data-action="library"],[data-action="
   border:0;border-radius:var(--chrome-control-radius);background:transparent;color:inherit;font:inherit;line-height:var(--lh-tight);white-space:nowrap}
 .statusbar .status-action:where(button,summary) {inline-size:calc-size(max-content, round(up,size,1px))}
 .statusbar .status-action[hidden] {display:none}
+.statusbar #status-more {display:none;inline-size:var(--s-24);padding:0;flex:none}
 .statusbar .status-action:focus-visible {outline-offset:-2px}
 @media (hover:hover) and (pointer:fine) {.statusbar .status-action:hover:not(:disabled) {background:var(--hover)}}
 #status-grid-menu {block-size:100%;flex:none}
@@ -316,10 +317,16 @@ body[data-kind="drawing"] #tools .tool:is([data-action="library"],[data-action="
 #zoom-value {inline-size:40px;text-align:center}
 
 @container (max-width:450px) {.active-bar .tool-divider {display:none}}
+/* Optional project controls share a menu when their labels compete with the view controls. */
+@media (max-width:1000px) {
+  .statusbar :is(.status-sync,.hv-status,.variant-switch,.revision-chip):not([hidden]) {display:none}
+  .statusbar:has(:is(.status-sync,.hv-status,.variant-switch,.revision-chip):not([hidden])) #status-more {display:inline-flex}
+}
 @media(max-width:960px) {:root {--sidebar:170px;--properties:200px}}
 @media(max-width:740px) {
   :root {--sidebar:150px;--properties:176px}
   .work-menu > summary {padding-inline:6px}
+  .statusbar {gap:var(--s-2);padding-inline:var(--s-4)}
 }
 @media(max-width:620px) {
   #workbench {position:relative;grid-template-columns:minmax(0,1fr)}
@@ -331,7 +338,12 @@ body[data-kind="drawing"] #tools .tool:is([data-action="library"],[data-action="
   .work-menu > summary {font-size:var(--fs-11);padding-inline:4px}
   .appbar .work-menu:nth-last-child(-n+3) .menu-items {left:auto;right:0}
   #coords {display:none}
-  .statusbar {gap:var(--s-2);padding-inline:var(--s-4)}
+}
+@media (max-width:420px) {.statusbar :is(.status-tool,.status-unsaved-label) {display:none}}
+@media (max-width:380px) {
+  .statusbar :is(.status-grid,.status-snap,#status-problems) {padding-inline:0}
+  .statusbar #grid-value {max-inline-size:6ch;overflow:hidden;text-overflow:ellipsis}
+  .statusbar #zoom-value {inline-size:var(--s-32)}
 }
 
 /* Properties panel */

@@ -263,14 +263,15 @@ globalThis.AtriumNavCommon = (() => {
     }
   }
 
-  function actionMenu(trigger, commands) {
+  function actionMenu(trigger, commands, options = {}) {
     trigger.setAttribute("aria-haspopup", "menu");
     trigger.setAttribute("aria-expanded", "false");
     trigger.classList.add("action-menu-button");
     trigger.onclick = async () => {
       try {
         const menu = await globalThis.AtriumLazy.need("AtriumContextMenu");
-        if (trigger.isConnected && !trigger.disabled) menu.dropdown(trigger, commands);
+        if (trigger.isConnected && !trigger.disabled) menu.dropdown(trigger,
+          typeof commands === "function" ? commands() : commands, options);
       } catch (err) { globalThis.AtriumNavHost?.info(err.message); }
     };
     trigger.addEventListener("keydown", event => {
@@ -278,6 +279,31 @@ globalThis.AtriumNavCommon = (() => {
     });
     return trigger;
   }
+
+  const statusMore = hasDOM() && document.getElementById("status-more");
+  if (statusMore) actionMenu(statusMore, () => {
+    const bar = statusMore.closest(".statusbar"), items = [];
+    for (const control of bar.querySelectorAll(":is(.status-sync,.hv-status,.variant-switch,.revision-chip):not([hidden])")) {
+      if (control.matches(".variant-switch")) {
+        const select = control.querySelector("select");
+        items.push({sub:"Assembly variant", items:[...select.options].filter(option => !option.disabled).map(option => ({
+          label:option.textContent, enabled:!select.disabled, checked:option.value === "@manage" ? null : option.selected, radio:true,
+          run:() => {
+            if (option.parentElement !== select) return;
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", {bubbles:true}));
+          }
+        }))});
+      } else {
+        const label = control.textContent.trim();
+        if (!label) continue;
+        items.push({label, enabled:!control.disabled, run:() => {
+          if (control.isConnected && !control.hidden) control.click();
+        }});
+      }
+    }
+    return items;
+  }, {above:true});
 
   // Read the saved Cross Select mode before Cross Probe loads, so the first menu shows it.
   function crossSelectEnabled() {
