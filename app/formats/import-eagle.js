@@ -121,9 +121,15 @@ globalThis.AtriumEagleImport = (() => {
     return {r, width, ...(width === 0 ? {fill: true} : {})};
   }
 
+  function wireCoordinates(a) {
+    const coords = [a.x1, a.y1, a.x2, a.y2].map(value => value?.trim() ? Number(value) : NaN);
+    return coords.every(Number.isFinite) ? coords : null;
+  }
   // Wire with optional curve -> points in Waffle axes.
   function wirePoints(a, mapping = p => flip(p[0], p[1])) {
-    const p1 = [num(a.x1), num(a.y1)], p2 = [num(a.x2), num(a.y2)], curve = num(a.curve);
+    const coords = wireCoordinates(a);
+    if (!coords) throw Error("Invalid Eagle wire coordinates.");
+    const [x1, y1, x2, y2] = coords, p1 = [x1, y1], p2 = [x2, y2], curve = num(a.curve);
     const pts = curve ? G().arcByAngle(p1, p2, curve) : [p1, p2];
     F().spend(pts.length);
     return pts.map(mapping);
@@ -178,7 +184,12 @@ globalThis.AtriumEagleImport = (() => {
         const b = [num(a.x) - w / 2, num(a.y) - h / 2, num(a.x) + w / 2, num(a.y) + h / 2];
         if (real.has(a.name)) pads.push({name: a.name, b}); else bridges.push(Object.assign(b, {pad: a.name}));
       } else if (copper(e) && e.name === "rectangle") bridges.push(box([[num(a.x1), num(a.y1)], [num(a.x2), num(a.y2)]]));
-      else if (copper(e) && e.name === "wire") { const r = num(a.width) / 2, b = box([[num(a.x1), num(a.y1)], [num(a.x2), num(a.y2)]]); bridges.push([b[0] - r, b[1] - r, b[2] + r, b[3] + r]); }
+      else if (copper(e) && e.name === "wire") {
+        const coords = wireCoordinates(a);
+        if (!coords) continue;
+        const [x1, y1, x2, y2] = coords, r = num(a.width) / 2, b = box([[x1, y1], [x2, y2]]);
+        bridges.push([b[0] - r, b[1] - r, b[2] + r, b[3] + r]);
+      }
       else if (copper(e) && e.name === "polygon") { const v = kids(e, "vertex").map(q => [num(q.attrs.x), num(q.attrs.y)]); if (v.length > 2) { const r = num(a.width) / 2, b = box(v); bridges.push([b[0] - r, b[1] - r, b[2] + r, b[3] + r]); } }
     }
     const meet = (a, b) => a[0] <= b[2] + 1e-3 && b[0] <= a[2] + 1e-3 && a[1] <= b[3] + 1e-3 && b[1] <= a[3] + 1e-3;
@@ -201,7 +212,8 @@ globalThis.AtriumEagleImport = (() => {
     const mx = mirror ? -1 : 1, map = p => [r4(mx * p[0]), r4(-p[1])], shapes = [], pins = [], fields = {};
     for (const e of sym.children) {
       const a = e.attrs, width = num(a.width, .254), shapeStart = shapes.length, pinStart = pins.length;
-      if (e.name === "wire") shapes.push({kind: "path", style: "body", points: wirePoints(a, map), closed: false, fill: false, width});
+      if (e.name === "wire") F().guard(notes, () =>
+        shapes.push({kind: "path", style: "body", points: wirePoints(a, map), closed: false, fill: false, width}));
       else if (e.name === "rectangle") {
         const x1 = num(a.x1), y1 = num(a.y1), x2 = num(a.x2), y2 = num(a.y2);
         shapes.push({kind: "path", style: "body", points: [[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]].map(map), closed: true, fill: true, width: 0});
@@ -337,21 +349,21 @@ globalThis.AtriumEagleImport = (() => {
       for (const net of kids(kid(sheet, "nets"), "net")) {
         const netName = net.attrs.name || "";
         for (const seg of kids(net, "segment")) {
-          const wires = [], first = doc.items.length;
+          const wires = [], sourceWires = kids(seg, "wire"), first = doc.items.length;
           if (evidence) for (const pr of kids(seg, "pinref")) {
             const key = pr.attrs.part + "\u001f" + pr.attrs.gate;
             if (pinAt.has(key + "\u001f" + pr.attrs.pin) || supplied.has(key)) evidence.use(pr, null, "Pin membership is represented by named nets and native connectivity.");
           }
-          for (const w of kids(seg, "wire")) {
+          for (const w of sourceWires) F().guard(notes, () => {
             const points = wirePoints(w.attrs);
             wires.push(points);
             doc.items.push({id: A.id(), kind: "wire", points, ...(netName ? {net: netName} : {})});
             evidence?.use(w, doc.items.at(-1), graphicApprox(w));
             evidence?.produced(w, doc, doc.items.length - 1);
-          }
+          });
           // Pins that touch pins (no wire) still name their net: a zero-length named wire on the
           // first pin makes the name explicit, as Eagle's netlist and the board's signal have it.
-          if (!wires.length && netName && !kids(seg, "pinref").some(pr => supplied.has(pr.attrs.part + "\u001f" + pr.attrs.gate))) {
+          if (!sourceWires.length && netName && !kids(seg, "pinref").some(pr => supplied.has(pr.attrs.part + "\u001f" + pr.attrs.gate))) {
             const at = kids(seg, "pinref").map(pr => pinAt.get(pr.attrs.part + "\u001f" + pr.attrs.gate + "\u001f" + pr.attrs.pin)).find(Boolean);
             if (at) { doc.items.push({id: A.id(), kind: "wire", points: [at, at.slice()], net: netName}); evidence?.produced(seg, doc, doc.items.length - 1); notes.add("Nets joined pin to pin got zero-length named wires on the pins"); }
           }
@@ -376,15 +388,16 @@ globalThis.AtriumEagleImport = (() => {
           if (doc.items.length > first) { evidence?.use(seg); evidence?.use(net); }
         }
       }
-      for (const bus of kids(kid(sheet, "busses"), "bus")) for (const seg of kids(bus, "segment")) for (const w of kids(seg, "wire")) {
+      for (const bus of kids(kid(sheet, "busses"), "bus")) for (const seg of kids(bus, "segment")) for (const w of kids(seg, "wire")) F().guard(notes, () => {
         doc.items.push({id: A.id(), kind: "bus", points: wirePoints(w.attrs)});
         evidence?.use(w, doc.items.at(-1), graphicApprox(w));
         evidence?.produced(w, doc, doc.items.length - 1);
         evidence?.use(seg); evidence?.use(bus, null, "Bus geometry imported without its Eagle member declaration.");
-      }
+      });
       for (const e of kid(sheet, "plain")?.children || []) {
         const a = e.attrs, first = doc.items.length;
-        if (e.name === "wire") doc.items.push({id: A.id(), kind: "graphic", points: wirePoints(a), width: num(a.width, .1524)});
+        if (e.name === "wire") F().guard(notes, () =>
+          doc.items.push({id: A.id(), kind: "graphic", points: wirePoints(a), width: num(a.width, .1524)}));
         else if (e.name === "text" && e.text.trim()) doc.items.push({id: A.id(), kind: "label", x: r4(num(a.x)), y: r4(-num(a.y)), text: e.text.trim(), angle: r4(norm(-rotOf(a.rot).angle)), size: num(a.size, 1.778)});
         else if (e.name === "frame" || e.name === "rectangle") {
           const x1 = num(a.x1), y1 = num(a.y1), x2 = num(a.x2), y2 = num(a.y2);
@@ -482,14 +495,19 @@ globalThis.AtriumEagleImport = (() => {
         } else if (e.name === "wire" || e.name === "circle" || e.name === "rectangle" || e.name === "polygon") {
           const ln = +p.layer, l = L(ln), world = pt => A.world(pt, item);
           if (ln === 20 || ln === 46) {
-            if (e.name === "wire") edges.push(edgeOf(p, q => world(map(q))));
+            if (e.name === "wire") {
+              const edge = F().guard(notes, () => edgeOf(p, q => world(map(q))));
+              if (!edge) continue;
+              edges.push(edge);
+            }
             else if (e.name === "circle") edges.push({kind: "circle", c: world(map([num(p.x), num(p.y)])), r: num(p.radius)});
             if (e.name === "wire" || e.name === "circle") outlineRecords?.push(e);
             continue;
           }
           if (!l) { notes.add("Package graphics on unsupported Eagle layer " + ln + " omitted"); continue; }
           const style = /^Mechanical 1[34]$/.test(l) ? "package" : l === "Silk" || l === "Bottom silk" ? "silk" : "body", layer = style === "package" ? {} : {layer: l};
-          if (e.name === "wire") shapes.push({kind: "path", points: wirePoints(p, map), style, width: num(p.width, .127), ...layer, closed: false, fill: false});
+          if (e.name === "wire") F().guard(notes, () =>
+            shapes.push({kind: "path", points: wirePoints(p, map), style, width: num(p.width, .127), ...layer, closed: false, fill: false}));
           else if (e.name === "circle") { const c = map([num(p.x), num(p.y)]); shapes.push({kind: "circle", x: c[0], y: c[1], ...circleSize(p, .127), style, ...layer}); }
           else if (e.name === "rectangle") {
             const x1 = num(p.x1), y1 = num(p.y1), x2 = num(p.x2), y2 = num(p.y2);
@@ -551,15 +569,15 @@ globalThis.AtriumEagleImport = (() => {
         const p = parts.get(c.attrs.element);
         if (p && F().put(p.pinNets, c.attrs.pad, net)) { evidence?.use(c, p); evidence?.use(s); }
       }
-      for (const w of kids(s, "wire")) {
+      for (const w of kids(s, "wire")) F().guard(notes, () => {
         const l = layerOf(+w.attrs.layer);
-        if (+w.attrs.layer === 19) { evidence?.drop(w, "Unrouted airwire omitted."); continue; }
-        if (!isCopper(l)) { evidence?.drop(w, "Signal wire is on a non-copper layer."); notes.add("Signal wires on non-copper layers omitted"); continue; }
+        if (+w.attrs.layer === 19) { evidence?.drop(w, "Unrouted airwire omitted."); return; }
+        if (!isCopper(l)) { evidence?.drop(w, "Signal wire is on a non-copper layer."); notes.add("Signal wires on non-copper layers omitted"); return; }
         doc.items.push({id: A.id(), kind: "track", points: wirePoints(w.attrs), layer: l, width: num(w.attrs.width, .254), net});
         evidence?.use(w, doc.items.at(-1), graphicApprox(w));
         evidence?.produced(w, doc, doc.items.length - 1);
         if (num(w.attrs.curve)) notes.add("Curved tracks were converted to short straight segments");
-      }
+      });
       for (const v of kids(s, "via")) {
         const drill = num(v.attrs.drill, .3);
         let d = num(v.attrs.diameter, 0);
