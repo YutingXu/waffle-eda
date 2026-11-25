@@ -189,7 +189,15 @@ globalThis.AtriumDXF = (() => {
       const type = r.type, nz = num(r, 230, 1), flip = nz < 0;
       let g = null;
       switch (type) {
-        case "LINE": return {segs: [L([num(r, 10), num(r, 20)], [num(r, 11), num(r, 21)])], closed: false, flip: false};
+        case "LINE": {
+          const coordinates = [10, 20, 11, 21].map(code => {
+            const value = str(r, code);
+            return value ? Number(value) : NaN;
+          });
+          if (!coordinates.every(Number.isFinite)) { warn("DXF lines with missing or malformed coordinates were skipped"); return null; }
+          const [x, y, endX, endY] = coordinates;
+          return {segs: [L([x, y], [endX, endY])], closed: false, flip: false};
+        }
         case "ARC": g = {segs: [C([num(r, 10), num(r, 20)], num(r, 40), num(r, 50), num(r, 51))]}; if (!(num(r, 40) > 0)) g = null; break;
         case "CIRCLE": {
           const c = [num(r, 10), num(r, 20)], rr = num(r, 40);
