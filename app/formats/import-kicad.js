@@ -821,7 +821,7 @@ globalThis.AtriumKiCadImport = (() => {
 
   // ------------------------------------------------------------ schematics
   const ELECTRICAL = {input: 0, bidirectional: 1, output: 2, open_collector: 3, passive: 4, tri_state: 5, open_emitter: 6,
-    power_in: 7, power_out: 7, unspecified: 7, free: 4, no_connect: 4};
+    power_in: 7, power_out: 7, unspecified: 4, free: 4, no_connect: 4};
   const LABEL_IO = {input: "input", output: "output", bidirectional: "bidirectional", tri_state: "bidirectional", passive: "unspecified"};
   function globalShapeLoss(shape) {
     if (shape === "tri_state") return "Tri-state global labels use bidirectional off-sheet connectors.";

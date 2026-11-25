@@ -54,6 +54,24 @@ const file = (name, text) => ({name, bytes: enc.encode(text)});
   assert.equal(a.link, "kicad-aaaaaaaa-aaaa-4000-8000-000000000011");
   assert.equal(b.link, placed.link);
 }
+{
+  require("../../app/library/library-import-kicad.js");
+  const symbol=`(symbol "Test:Device"
+    (property "Reference" "U" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (symbol "Device_1_1"
+      (pin unspecified line (at -2.54 0 0) (length 2.54) (name "IO") (number "1"))
+      (pin power_in line (at 0 2.54 270) (length 2.54) (name "VCC") (number "2"))))`;
+  const library=AtriumLibraryImportKiCad.readSymbols(`(kicad_symbol_lib (version 20231120) ${symbol})`,{file:"device.kicad_sym"});
+  const [sheet]=I.readSet([file("typed.kicad_sch",`(kicad_sch (version 20231120)
+    (lib_symbols ${symbol})
+    (symbol (lib_id "Test:Device") (at 10 10 0) (unit 1) (uuid "aaaaaaaa-aaaa-4000-8000-000000000011")
+      (property "Reference" "U1" (at 12 10 0)) (property "Value" "Device" (at 12 12 0))))`)]);
+  for(const definition of [library.symbols[0].def,sheet.library[0]]){
+    const types=new Map(definition.symbol.pins.map(pin=>[pin.number,pin.electrical]));
+    assert.equal(types.get("1"),4,"unspecified pins are passive");
+    assert.equal(types.get("2"),7,"power pins keep their electrical type");
+  }
+}
 const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
 const nearP = (p, q, tol = 1e-3) => near(p[0], q[0], tol) && near(p[1], q[1], tol);
 const defsOf = p => new Map(p.library.map(d => [d.id, d]));
