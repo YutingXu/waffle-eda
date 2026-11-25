@@ -288,21 +288,33 @@ globalThis.AtriumMerge3 = (() => {
     // Every designator in the merged project (the new ones must be free everywhere).
     const used = new Set();
     for (const d of docs) for (const i of d.items || []) if (isObj(i) && i.kind === "part" && typeof i.ref === "string") used.add(i.ref);
-    const clash = new Set();
+    const clash = new Map();
     for (const [key, list] of (() => { const g = new Map(); for (const d of docs) for (const i of d.items || []) if (isObj(i) && i.kind === "part" && !pending(i.ref)) { const k = domain(d) + "\u0000" + i.ref; if (!g.has(k)) g.set(k, []); g.get(k).push(i); } return g; })()) {
       const mine = list.filter(i => added(i.id, PO, PT)), theirsNew = list.filter(i => added(i.id, PT, PO));
       if (!mine.length || !theirsNew.length) continue;
       // Gates of one part: only a gate both sides added (or a part without gates) clashes.
-      if (theirsNew.some(t => mine.some(m => !m.gate || !t.gate || m.gate === t.gate))) clash.add(key.slice(key.indexOf("\u0000") + 1));
+      if (!theirsNew.some(t => mine.some(m => !m.gate || !t.gate || m.gate === t.gate))) continue;
+      const separator = key.indexOf("\u0000"), from = key.slice(separator + 1);
+      if (!clash.has(from)) clash.set(from, {domains: new Set(), links: new Set()});
+      const {domains, links} = clash.get(from);
+      domains.add(key.slice(0, separator));
+      for (const i of theirsNew) if (typeof i.link === "string" && i.link) links.add(i.link);
     }
     const out = [];
-    for (const from of [...clash].sort()) {
+    for (const from of [...clash.keys()].sort()) {
+      const {domains, links} = clash.get(from);
       const stem = from.replace(/\d+$/, ""), start = +(from.match(/\d+$/)?.[0] || 0);
       let k = Math.max(1, start + 1);
       while (used.has(stem + k)) k++;
       const to = stem + k; used.add(to);
       const ids = [], where = [];
-      for (const d of docs) for (const i of d.items || []) if (isObj(i) && i.kind === "part" && i.ref === from && added(i.id, PT, PO)) { i.ref = to; ids.push(i.id); if (!where.some(x => x.id === d.id)) where.push({id: d.id, name: d.name || null}); }
+      for (const d of docs) for (const i of d.items || []) {
+        if (!isObj(i) || i.kind !== "part" || i.ref !== from || !added(i.id, PT, PO)) continue;
+        if (!domains.has(domain(d)) && !links.has(i.link)) continue;
+        i.ref = to;
+        ids.push(i.id);
+        if (!where.some(x => x.id === d.id)) where.push({id: d.id, name: d.name || null});
+      }
       if (ids.length) out.push({from, to, ids, docs: where});
     }
     return out;
