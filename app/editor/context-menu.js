@@ -657,7 +657,18 @@ globalThis.AtriumContextMenu = (() => {
       if (ev.pointerType !== "touch") ev.target.closest(".nav-menu-item:not(:disabled)")?.focus({preventScroll:true});
     });
     root.addEventListener("focusout", ev => {
-      if (root && !root.contains(ev.relatedTarget) && !(trigger && (trigger === ev.relatedTarget || pressing === trigger))) close(false);
+      const menu = ev.currentTarget;
+      if (root !== menu || menu.contains(ev.relatedTarget) ||
+          (trigger && (trigger === ev.relatedTarget || pressing === trigger))) return;
+      if (focus?.tagName === "CANVAS" && !ev.relatedTarget) {
+        // A secondary click can leave focus on the body in WebKit. An outside press or
+        // window blur already dismisses the menu, so keep keyboard focus for this case.
+        queueMicrotask(() => {
+          if (root === menu && document.activeElement === document.body) ev.target.focus({preventScroll:true});
+        });
+        return;
+      }
+      close(false);
     });
     // WebKit (the Mac app) does not focus a button on click: the press would move focus to the body,
     // the focusout above would close the menu, and the click would never reach the item.
@@ -690,6 +701,7 @@ globalThis.AtriumContextMenu = (() => {
     }, true);
     // A touch press focuses (or, in WebKit, blurs) only after pointerup: the press ends with its click.
     document.addEventListener("click", () => { pressing = null; }, true);
+    addEventListener("blur", () => { if (back?.tagName === "CANVAS") close(false); });
     // A menu bar menu keeps Escape when WebKit left focus on the body after its title was clicked.
     // (The menu bar loads this module when its first menu opens.)
     addEventListener("keydown", e => {
