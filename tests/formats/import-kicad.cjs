@@ -19,6 +19,21 @@ const file = (name, text) => ({name, bytes: enc.encode(text)});
   assert.deepEqual(ids(), [["ab12-3456", "kicad-footprint-ab12-3456"], ["deadbeef", "kicad-footprint-deadbeef"]]);
   assert.deepEqual(ids(), ids(), "board-only decoration links survive a fresh import");
 }
+// Missing and non-numeric axes must not manufacture copper at the origin.
+{
+  const board = `(kicad_pcb (version 20240108) (layers (0 "F.Cu" signal))
+    (footprint "R" (layer "F.Cu") (at nope 12) (property "Reference" "R1" (at 0 0 0) (layer "F.SilkS")))
+    (footprint "R" (layer "F.Cu") (at 0 12) (property "Reference" "R2" (at 0 0 0) (layer "F.SilkS")))
+    (gr_line (start nope 5) (end 10 5) (layer "F.Cu") (stroke (width 0.2) (type solid)))
+    (segment (start 1 2) (end 3 nope) (width 0.2) (layer "F.Cu"))
+    (segment (start 2 3) (end 3) (width 0.2) (layer "F.Cu"))
+    (segment (start 0 1) (end 10 0) (width 0.2) (layer "F.Cu")))`;
+  const [result] = I.readSet([file("bad-points.kicad_pcb", board)]);
+  const items = result.documents[0].items;
+  assert.deepEqual(items.filter(i => i.kind === "part").map(i => [i.ref, i.x, i.y]), [["R2", 0, 12]]);
+  assert.deepEqual(items.filter(i => i.kind === "track").map(i => i.points), [[[0, 1], [10, 0]]]);
+  assert.ok(result.notes.some(note => /malformed required values/.test(note)));
+}
 const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
 const nearP = (p, q, tol = 1e-3) => near(p[0], q[0], tol) && near(p[1], q[1], tol);
 const defsOf = p => new Map(p.library.map(d => [d.id, d]));

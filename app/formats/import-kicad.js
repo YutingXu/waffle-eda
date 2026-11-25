@@ -9,6 +9,11 @@ globalThis.AtriumKiCadImport = (() => {
   const F = () => AtriumImportFormats, G = () => AtriumImportFormats.geom;
   const isL = Array.isArray;
   const P = p => G().P(p);
+  function requiredPoint(tuple) {
+    const axes = [tuple?.[1], tuple?.[2]].map(v => typeof v === "string" && v.trim() ? Number(v) : NaN);
+    if (!axes.every(Number.isFinite)) throw Error("A KiCad point needs two numeric coordinates.");
+    return axes;
+  }
   const n360 = a => ((a % 360) + 360) % 360;
   const norm = a => { const v = n360(a); return v > 180 ? v - 360 : v; };
   const r4 = v => Math.round(v * 1e4) / 1e4 + 0;
@@ -150,20 +155,23 @@ globalThis.AtriumKiCadImport = (() => {
   // A graphic primitive -> {points, closed, fill} or {circle:{c,r}} or null.
   function primitive(n) {
     const kind = String(n[0]).replace(/^(fp_|gr_)/, "");
-    if (kind === "line") return {points: [xy(n, "start"), xy(n, "end")], closed: false};
+    if (kind === "line") return {points: [requiredPoint(one(n, "start")), requiredPoint(one(n, "end"))], closed: false};
     if (kind === "rect") {
-      const a = xy(n, "start"), b = xy(n, "end");
+      const a = requiredPoint(one(n, "start")), b = requiredPoint(one(n, "end"));
       return {points: [a, [b[0], a[1]], b, [a[0], b[1]]], closed: true, fill: fillOn(n)};
     }
     if (kind === "circle") {
-      const c = xy(n, "center"), e = xy(n, "end");
+      const c = requiredPoint(one(n, "center")), e = requiredPoint(one(n, "end"));
       return {circle: {c, r: Math.hypot(e[0] - c[0], e[1] - c[1])}, fill: fillOn(n)};
     }
     if (kind === "arc") {
-      const s = xy(n, "start"), m = xy(n, "mid"), e = xy(n, "end");
-      if (m) return {points: G().arc3(s, m, e), closed: false, arc: {a: s, m, b: e}};
+      const s = requiredPoint(one(n, "start")), mid = one(n, "mid"), e = requiredPoint(one(n, "end"));
+      if (mid) {
+        const m = requiredPoint(mid);
+        return {points: G().arc3(s, m, e), closed: false, arc: {a: s, m, b: e}};
+      }
       const angle = num(val(n, "angle"));
-      if (!s || !e || !angle) return null;
+      if (!angle) return null;
       const r = Math.hypot(e[0] - s[0], e[1] - s[1]), a0 = Math.atan2(e[1] - s[1], e[0] - s[0]) * 180 / Math.PI;
       const points = G().arcPoints(s, r, a0, angle);
       return {points, closed: false, arc: {a: points[0], m: points[Math.floor(points.length / 2)], b: points.at(-1)}};
@@ -353,7 +361,12 @@ globalThis.AtriumKiCadImport = (() => {
     for (const fp of [...all(t, "footprint"), ...all(t, "module")]) {
       audit?.children(fp, audit.address(fp));
       const children = audit && [];
-      const at = one(fp, "at"), x = num(at?.[1]), y = num(at?.[2]), ka = num(at?.[3]);
+      const at = one(fp, "at"), position = at ? F().guard(notes, () => requiredPoint(at)) : [0, 0];
+      if (!position) {
+        if (!libraryFootprint) audit?.record("part", "dropped", fp, null, malformed);
+        continue;
+      }
+      const [x, y] = position, ka = num(at?.[3]);
       const side = val(fp, "layer") === "B.Cu" ? "Bottom" : "Top", angle = -ka || 0;
       const item = {id: A.id(), kind: "part", def: "", ref: "", value: "", x, y, angle, layer: side, link: "", pinNets: {}};
       const fpName = nameOf(fp[1]) || "Footprint", shapes = [], pads = [], fpMargins = localMargins(fp, version);
@@ -490,18 +503,16 @@ globalThis.AtriumKiCadImport = (() => {
       if (head === "segment") {
         const l = L.layer(val(k, "layer")), net = netOf(one(k, "net"));
         if (!isCopper(l)) { notes.add("Tracks on non-copper layers omitted"); return; }
-        const a = xy(k, "start"), b = xy(k, "end");
-        if (!a || !b) throw Error("A KiCad segment needs both endpoints.");
+        const a = requiredPoint(one(k, "start")), b = requiredPoint(one(k, "end"));
         doc.items.push({id: A.id(), ...sourceIdentity(k), kind: "track", points: [a, b], layer: l, width: num(val(k, "width"), .25), net});
         if (net) nets.add(net);
       } else if (head === "arc") {
         const l = L.layer(val(k, "layer")), net = netOf(one(k, "net"));
         if (!isCopper(l)) return;
-        const a = xy(k, "start"), m = xy(k, "mid"), b = xy(k, "end");
-        if (!a || !m || !b) throw Error("A KiCad arc needs start, mid and end points.");
+        const a = requiredPoint(one(k, "start")), m = requiredPoint(one(k, "mid")), b = requiredPoint(one(k, "end"));
         doc.items.push({id: A.id(), ...sourceIdentity(k), kind: "track", ...trackArc(a, m, b), layer: l, width: num(val(k, "width"), .25), net});
       } else if (head === "via") {
-        const at = xy(k, "at"), ls = one(k, "layers"), net = netOf(one(k, "net"));
+        const at = requiredPoint(one(k, "at")), ls = one(k, "layers"), net = netOf(one(k, "net"));
         const v = {id: A.id(), kind: "via", x: at[0], y: at[1], diameter: num(val(k, "size"), .6), drill: num(val(k, "drill"), .3), layer: "Multi", net};
         Object.assign(v, sourceIdentity(k));
         const a = L.layer(ls?.[1]), b = L.layer(ls?.[2]);
@@ -662,7 +673,8 @@ globalThis.AtriumKiCadImport = (() => {
     if (!at || !size) return null;
     let w = num(size[1]), h = num(size[2], w);
     const layers = (one(k, "layers") || []).slice(1).map(String);
-    const pad = {number, x: num(at[1]), y: num(at[2]), w, h, drill: 0, shape: Object.hasOwn(PAD_SHAPES, shape) ? PAD_SHAPES[shape] : "rect", angle: r4(norm(fpAngle - num(at[3])))};
+    const [x, y] = requiredPoint(at);
+    const pad = {number, x, y, w, h, drill: 0, shape: Object.hasOwn(PAD_SHAPES, shape) ? PAD_SHAPES[shape] : "rect", angle: r4(norm(fpAngle - num(at[3])))};
     // Shapes Waffle draws natively stay native; the rest become exact custom outlines
     // (pad.poly, pad-local and unrotated) with w and h as their centred extents.
     const custom = poly => {
