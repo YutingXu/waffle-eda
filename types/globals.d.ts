@@ -273,7 +273,7 @@ interface AtriumModelAPI {
   wireStretchState(wire: WireItem): WireStretchState | undefined;
   restoreWireStretch(wire: WireItem, state?: WireStretchState): void;
   schematicAttachments(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, terminals: Point[], selected: Set<string>, options?: SchematicAttachmentOptions): SchematicAttachmentSession;
-  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: WireItem[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]}): (PartItem | WireItem | JunctionItem)[];
+  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: WireItem[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>}): (PartItem | WireItem | JunctionItem)[];
   validOutline(pts: unknown): boolean;
   /** Throws Error("This file is not a supported Waffle project.") or a module's own message. */
   validate(p: unknown): Project;

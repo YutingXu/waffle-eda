@@ -353,13 +353,26 @@ globalThis.AtriumNumericFields = (() => {
       return [{original:owner,next:A.padDimensions(owner,field,value),fields:[...new Set([field,"drill","layer"])]}];
     if (!["x","y","angle"].includes(field)) return null;
     if (owner.kind==="part") {
-      const next={...owner};
-      const originals=new Map((doc.kind==="schematic" ? doc.items.filter(i=>i.kind==="wire") : []).map(i=>[i.id,i]));
-      const definition=project.library?.find(d=>d.id===owner.def);
-      const wires=[...originals.values()].map(wire=>({...wire}));
-      const [part,...changed]=A.transformPart(doc,next,definition,{[field]:value},wires);
-      return [{original:owner,next:part,fields:[field]},
-        ...changed.map(wire=>({original:originals.get(wire.id),next:wire,fields:["points"]}))];
+      if (doc.kind!=="schematic") return [{original:owner,next:{...owner,[field]:value},fields:[field]}];
+      const defs=new Map(project.library?.map(d=>[d.id,d])), definition=defs.get(owner.def);
+      const terminals=new Set(A.pins(owner,definition,doc.kind).map(pin=>A.pointKey(pin.at)));
+      const originals=new Map(), junctionCopies=new Map(), wires=[];
+      for (const i of doc.items) {
+        if(i.kind==="wire"){
+          const points=i.points;
+          if(!points.length || !(terminals.has(A.pointKey(points[0])) || terminals.has(A.pointKey(points.at(-1))) ||
+            points.some((p,n)=>n>0&&A.same(p,points[n-1]))))continue;
+          wires.push({...i}); originals.set(i.id,i);
+        } else if(i.kind==="junction" && terminals.has(A.pointKey([i.x,i.y]))){
+          junctionCopies.set(i.id,{...i}); originals.set(i.id,i);
+        }
+      }
+      const [part,...changed]=A.transformPart(doc,{...owner},definition,{[field]:value},wires,{defs,junctionCopies});
+      return [{original:owner,next:part,fields:[field]},...changed.flatMap(next=>{
+        const original=originals.get(next.id);
+        if(next.kind==="wire")return [{original,next,fields:["points"]}];
+        return next.x!==original.x || next.y!==original.y ? [{original,next,fields:["x","y"]}] : [];
+      })];
     }
     if (!G.AtriumSchObjects?.isFrame(owner) || field==="angle") return null;
     const tool=G.AtriumEditSelection;

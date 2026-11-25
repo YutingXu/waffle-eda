@@ -4,6 +4,35 @@ for (const file of ["model","parts","source-file","format-2-codec","format-2-uni
   "calculation-core","query-fields","calculators","calculation-helpers","calculation-records","calculation-graph","calculation-design","calculations","numeric-fields","command-bar"])
   require(require("../support/app-source-paths.cjs").appFile(file+".js"));
 const N=AtriumNumericFields, mm={unit:"mm",storageUnit:"mm",nanometres:true};
+{
+  const A=Atrium;
+  const definition={id:"one-pin",name:"Terminal",prefix:"U",symbol:{pins:[{number:"1",name:"A",x:0,y:0}],shapes:[]}};
+  const project=A.project("Numeric move",[definition]), doc=project.documents[0];
+  const part=A.instantiate(project,definition,[0,0]);
+  const wire={id:"wire",kind:"wire",points:[[0,0],[10,0]]};
+  const terminal={id:"terminal",kind:"junction",x:0,y:0};
+  const branch={id:"branch",kind:"wire",points:[[8,0],[8,4]]};
+  const tap={id:"tap",kind:"junction",x:8,y:0};
+  doc.items.push(part,wire,terminal,branch,tap);
+  const before=JSON.stringify(doc.items);
+  const unrelated={id:"far-away",kind:"junction",x:200,y:200};
+  Object.defineProperty(unrelated,"details",{enumerable:true,get(){throw Error("A numeric edit copied an unrelated record");}});
+  doc.items.push(unrelated);
+  const move=N.planGeometryMove(project,{owner:part,object:part,doc,field:"x"},5);
+  assert.equal(doc.items.pop(),unrelated);
+  assert.equal(JSON.stringify(doc.items),before,"planning must leave the existing sheet intact");
+  for(const {original,next,fields} of move)for(const field of fields){
+    if(Object.hasOwn(next,field))original[field]=next[field];else delete original[field];
+  }
+  assert.equal(part.x,5);
+  assert.deepEqual([terminal.x,terminal.y],[5,0],"the pin's junction follows the numeric move");
+  assert.deepEqual(wire.points[0],[5,0]);
+  assert.deepEqual(wire.points.at(-1),[10,0]);
+  const nets=A.connectivity(doc,new Map([[definition.id,definition]]));
+  assert.equal(nets.byWire.get(wire.id),nets.byWire.get(branch.id));
+  assert.deepEqual([tap.x,tap.y],[8,0]);
+  assert.deepEqual(branch.points,[[8,0],[8,4]]);
+}
 async function main() {
   const noScan={get documents(){throw Error("A constant or local input scanned the project");}};
   const evaluate=(s,spec={})=>N.evaluate(s,spec,{project:noScan});

@@ -671,9 +671,9 @@ globalThis.Atrium = (() => {
     if (item.kind === "junction" || item.kind === "netlabel" && !globalThis.AtriumSchObjects?.isBus(item.text)) return [[item.x, item.y]];
     return globalThis.AtriumSchObjects?.netSources(item).map(([p]) => p) || [];
   }
-  /** @param {SchematicAttachmentOptions} [options] */
+  /** @param {SchematicAttachmentOptions & {junctionCopies?: Map<string, JunctionItem>}} [options] */
   function schematicAttachments(doc, defs, terminals, selected, options = {}) {
-    const {query, existingOnly = false} = options;
+    const {query, existingOnly = false, junctionCopies} = options;
     const routed = new Map(), dots = [], branches = [];
     /** @param {number[]} box */
     const around = ([x0, y0, x1, y1]) => {
@@ -703,8 +703,11 @@ globalThis.Atrium = (() => {
         if (!existingOnly) branches.push({at, fixed: junctions.length ? [junctions[0].x, junctions[0].y] : at, incident});
       } else {
         // A dot at the head of a single outgoing wire belongs to the moving terminal.
-        for (const dot of junctions) dots.push({dot, at, original: [dot.x, dot.y]});
-        if (incident.length) {
+        for (const dot of junctions) {
+          const copy = junctionCopies ? junctionCopies.get(dot.id) : dot;
+          if (copy) dots.push({dot:copy, at, original:[dot.x, dot.y]});
+        }
+        if (!junctionCopies && incident.length) {
           const wire = incident[0];
           if (!routed.has(wire)) routed.set(wire, {wire, ends: [null, null]});
           const end = same(wire.points[0], at) ? 0 : 1;
@@ -762,23 +765,27 @@ globalThis.Atrium = (() => {
       return !!collapsed.size;
     }};
   }
-  /** @param {{defs?: Map<string, Definition>, query?: (box: Box) => Item[]}} [options] */
+  /** @param {{defs?: Map<string, Definition>, query?: (box: Box) => Item[], junctionCopies?: Map<string, JunctionItem>}} [options] */
   function transformPart(doc, item, def, change, wires, options = {}) {
-    const {defs = new Map([[item.def, def]]), query} = options;
+    const {defs = new Map([[item.def, def]]), query, junctionCopies} = options;
     const before = pins(item, def, doc.kind);
     if (doc.kind !== "schematic") {Object.assign(item, change); return [item];}
-    const edges = wires ? null : schematicAttachments(doc, defs, before.map(p => p.at), new Set([item.id]), {query});
+    const dotted = junctionCopies && new Set([...junctionCopies.values()].map(dot => pointKey([dot.x, dot.y])));
+    const terminals = before.map(p => p.at).filter(at => !dotted || dotted.has(pointKey(at)));
+    const edges = !wires || dotted?.size
+      ? schematicAttachments(doc, defs, terminals, new Set([item.id]), {query, existingOnly:!!wires, junctionCopies})
+      : null;
     Object.assign(item, change);
     const after = pins(item, def, doc.kind);
     const moved = new Map(before.map((p, i) => [pointKey(p.at), after[i].at]));
     if (edges) {
       edges.apply(p => moved.get(pointKey(p)));
       edges.finish();
-      return [item, ...edges.affected];
+      if (!wires) return [item, ...edges.affected];
     }
     // Some callers supply detached wire copies or an explicit subset, e.g. a mirror
     // operation that transforms the selection's own wires separately.
-    const changed = [item];
+    const changed = [item, ...(edges?.affected || [])];
     for (const wire of wires) {
       if (wire.kind !== "wire") continue;
       const old = wire.points, first = moved.get(pointKey(old[0])), last = moved.get(pointKey(old.at(-1)));
