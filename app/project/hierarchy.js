@@ -122,10 +122,15 @@ globalThis.AtriumHierarchy = (() => {
         if (stack.has(child.id)) {issues.push({kind:"cycle", doc, item:s, text:"Sheet symbol " + s.name + " creates a hierarchy loop through " + child.name}); continue;}
         const rep = repeatOf(s);
         if (rep) {
+          const count = Math.abs(rep.to - rep.from) + 1, limit = 256;
+          if (!Number.isSafeInteger(rep.from) || !Number.isSafeInteger(rep.to) || count > limit) {
+            issues.push({kind:"channelLimit", doc, item:s, text:"Cannot expand " + s.name + ". Use valid channel numbers and at most " + limit + " channels."});
+            continue;
+          }
           const step = rep.from <= rep.to ? 1 : -1;
-          for (let n = rep.from, k = 0; k < 256; n += step, k++) {
+          for (let k = 0; k < count; k++) {
+            const n = rep.from + step * k;
             visit(child, inst, s, {index:k, number:n, label:rep.name + n}, new Set([...stack, child.id]));
-            if (n === rep.to) break;
           }
         } else visit(child, inst, s, null, new Set([...stack, child.id]));
       }

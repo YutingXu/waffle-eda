@@ -469,6 +469,11 @@ globalThis.AtriumERC = (() => {
     try {const h = H(); if (h) hier = options.cache ? h.compileCached(project, {defs, scope:cfg.scope}) : h.compile(project, {defs, scope:cfg.scope});}
     catch (error) {messages.push({class:"Warning", source:"Compiler", check:"hierarchy", text:"Hierarchy could not be compiled: " + error.message, document:"", time:now});}
     for (const issue of hier?.issues || []) {
+      if (issue.kind === "channelLimit") {
+        messages.push({class:"Error",source:"Compiler",check:"hierarchy",text:issue.text,document:issue.doc.name,documentId:issue.doc.id,
+          objectId:issue.item.id,point:[issue.item.x,issue.item.y],time:now});
+        continue;
+      }
       const check = {missingSheet:"missingSheet", cycle:"hierarchyLoop", unmatchedEntry:"unmatchedEntries", unmatchedPort:"unmatchedEntries"}[issue.kind];
       const port = issue.kind === "unmatchedPort" ? issue.doc.items.find(i => (i.kind === "port" || i.kind === "netlabel" && i.schPaint?.type === "port") && i.text === issue.port) : null;
       if (check) report(check, issue.doc, issue.text, issue.item || port, undefined, {sig:issue.kind + ":" + (issue.entry?.name ?? issue.port ?? issue.item?.sheet ?? "")});
