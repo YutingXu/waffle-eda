@@ -861,7 +861,7 @@
   // A part transform reports its attached wires as well as the part; following designators may move neighbours.
   function editTransform(item,props,follow=false,ghost=false){
     const d=doc();let moved=[],library=false;
-    edit(()=>{moved=A.transformPart(d,item,defs.get(item.def),props,undefined,{defs,query:b=>view.query(d,defs,b)});
+    edit(()=>{moved=A.transformPart(d,item,defs.get(item.def),props,undefined,{defs,query:b=>view.query(d,defs,b),avoidPinShorts:true});
       if(follow)moved.push(...followDesignators([item.id]));
       if(ghost)library=!!pcbEdit?.commitGhost(item);
     },undefined,()=>[{doc:d,items:moved,library}]);
