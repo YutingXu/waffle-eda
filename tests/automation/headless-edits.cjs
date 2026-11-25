@@ -24,4 +24,18 @@ const A = Atrium, H = AtriumCommandsHeadless;
   assert.deepEqual(pcb.items.map(item => item.id), ["existing", "added"]);
 }
 
+// Exact IDs win over a name on an earlier document.
+{
+  const project = A.project("Document lookup");
+  const [sch, pcb] = project.documents;
+  const grid = sch.grid;
+  sch.name = pcb.id;
+  const changed = H.run(project, "set_grid", {document_id: pcb.id, grid: 1.5});
+  assert.equal(changed.document_id, pcb.id);
+  assert.equal(pcb.grid, 1.5);
+  assert.equal(sch.grid, grid);
+  assert.equal(H.run(project, "set_grid", {document_id: pcb.name, grid: .5}).document_id, pcb.id);
+  assert.equal(pcb.grid, .5);
+}
+
 console.log("headless edits: ok");

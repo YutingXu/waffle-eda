@@ -24,7 +24,8 @@ globalThis.AtriumCommandsHeadless = (() => {
   const defsOf = p => new Map(p.library.map(d => [d.id, d]));
 
   function docOf(p, a, kind) {
-    const d = a.document_id != null ? p.documents.find(x => x.id === a.document_id || x.name === a.document_id)
+    const d = a.document_id != null
+      ? p.documents.find(x => x.id === a.document_id) || p.documents.find(x => x.name === a.document_id)
       : p.documents.find(x => !kind || x.kind === kind) || p.documents[0];
     if (!d) fail(a.document_id != null ? "The project has no document " + a.document_id + "." : "The project has no " + (kind === "pcb" ? "PCB layout." : kind === "schematic" ? "schematic." : "documents."));
     if (kind && d.kind !== kind) fail(kind === "pcb" ? "Choose a PCB document." : "Choose a schematic document.");
