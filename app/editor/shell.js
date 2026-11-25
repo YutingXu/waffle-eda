@@ -9,11 +9,16 @@ globalThis.AtriumShell = (() => {
   const child = (parent, test) => Array.from(parent?.children || []).filter(test);
   try {
   const store = {
-    read(key) { try { return JSON.parse(globalThis.localStorage?.getItem(key) || "[]"); } catch { return []; } },
+    read(key, fallback = []) {
+      try {
+        const saved = globalThis.localStorage?.getItem(key);
+        return saved == null ? fallback : JSON.parse(saved);
+      } catch { return fallback; }
+    },
     write(key, values) { try { globalThis.localStorage?.setItem(key, JSON.stringify([...values])); } catch {} }
   };
   const SECTION_KEY = "atrium.collapsed-sections", PANEL_KEY = "atrium.collapsed-panels";
-  const collapsedSections = new Set(store.read(SECTION_KEY));
+  const collapsedSections = new Set(store.read(SECTION_KEY, ["Selection Filter"]));
   const collapsedPanels = new Set(store.read(PANEL_KEY));
   function collapseBody(container, heading) {
     const wrapper = doc.createElement("div"), content = doc.createElement("div");

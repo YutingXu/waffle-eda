@@ -135,6 +135,8 @@ module.exports = async function denseEditRefresh(browser) {
     if(!await page.locator("#inspector").isVisible())await openProps();
     await sameCount();
     await page.waitForFunction(()=>denseEdit.label);
+    const toggle=page.locator("#inspector .pcb-edit-filter-section .section-toggle");
+    if(await toggle.getAttribute("aria-expanded")==="false")await toggle.click();
     const chip=page.locator("#selection-filter button").first();
     await chip.focus();
     await edit("reshape");
