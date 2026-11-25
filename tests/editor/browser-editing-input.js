@@ -109,6 +109,44 @@ async function findReplaceReopening(page) {
   assert.ok(await canvas.evaluate(node => node === document.activeElement), "Escape restores editor focus");
 }
 
+async function contextSelectNet(page) {
+  await toKind(page, "pcb");
+  const fixture = await page.evaluate(() => {
+    const h = AtriumNavHost, doc = h.doc(), canvas = h.canvas(), rect = canvas.getBoundingClientRect();
+    const points = [];
+    for (let y = 90; y < rect.height - 60 && points.length < 3; y += 75) {
+      for (let x = 48; x < rect.width - 55 && points.length < 3; x += 90) {
+        if (!h.hit(canvas, rect.left + x, rect.top + y)?.item) points.push([x,y]);
+      }
+    }
+    if (points.length !== 3) throw Error("Expected room for three isolated test tracks.");
+    const vcc = "VCC-CONTEXT", gnd = "GND-CONTEXT", before = h.selection();
+    const tracks = points.map(([x,y],index) => ({
+      id:Atrium.id(), kind:"track", layer:"Top", net:index === 0 ? vcc : gnd, width:.25,
+      points:[h.view().screenToWorld([x-12,y]), h.view().screenToWorld([x+12,y])]
+    }));
+    h.edit(() => doc.items.push(...tracks));
+    h.select(tracks.slice(0,2).map(item => item.id));
+    const [x,y] = points[1], at = [rect.left+x,rect.top+y];
+    if (h.hit(canvas,...at)?.item?.id !== tracks[1].id) throw Error("Expected the clicked track on "+gnd);
+    return {at, before, ids:tracks.map(item => item.id)};
+  });
+  try {
+    await page.mouse.click(...fixture.at, {button:"right"});
+    const action = page.locator('.nav-menu-portal [data-menu-action="select-net"]');
+    assert.match(await action.innerText(), /GND-CONTEXT/);
+    await action.click();
+    const selection = await page.evaluate(() => Array.from(AtriumNavHost.selection()));
+    assert.deepEqual(selection.sort(), fixture.ids.slice(1).sort(), "Select Net expands the clicked GND track");
+  } finally {
+    await page.evaluate(({before,ids}) => {
+      const h=AtriumNavHost;
+      h.edit(() => {h.doc().items=h.doc().items.filter(item=>!ids.includes(item.id));});
+      h.select(before);
+    }, fixture);
+  }
+}
+
 // A stationary right click presents the menu without repainting an unchanged canvas.
 async function canvasContextMenu(page) {
   await toKind(page, "pcb");
@@ -704,6 +742,7 @@ module.exports = async function editingInput(browser) {
   try {
     await coldTextMenu(page, releaseTextMenu);
     await findReplaceReopening(page);
+    await contextSelectNet(page);
     await canvasContextMenu(page);
     await gridLod(page);
     await wireEnds(page);
