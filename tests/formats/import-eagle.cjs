@@ -101,4 +101,41 @@ const nearP = (p, q, tol = 1e-3) => !!p && near(p[0], q[0], tol) && near(p[1], q
   assert.ok(nearP(R1.refAt, [-3.81, -1.4986]));
   console.log("PASS Eagle schematic: sheets, gates, mirrored and rotated symbols, supplies, labels and nets");
 }
+// Bad Eagle wire coordinates are skipped without replacing them with zero.
+{
+  const brd = `<?xml version="1.0"?><eagle version="9.6.2"><drawing><board>
+    <plain><wire x1="oops" y1="10" x2="20" y2="10" width="0.2" layer="1"/></plain>
+    <signals><signal name="SIG">
+      <wire x1="5" y1="oops" x2="20" y2="10" width="0.2" layer="1"/>
+      <wire x1="0" y1="8" x2="20" y2="8" width="0.2" layer="1"/>
+    </signal></signals>
+    </board></drawing></eagle>`;
+  const [result] = I.readSet([{name: "bad-wires.brd", bytes: enc.encode(brd)}]);
+  const tracks = result.documents[0].items.filter(i => i.kind === "track");
+  assert.deepEqual(tracks.map(t => t.points), [[[0,-8],[20,-8]]]);
+  assert.ok(result.notes.some(note => /malformed required values/.test(note)));
+}
+
+{
+  const original = fixture("demo-eagle.sch");
+  const bad = '<wire x1="oops" y1="10" x2="20" y2="10" width=".2" layer="94"/>';
+  const good = '<wire x1="2" y1="10" x2="20" y2="10" width=".2" layer="94"/>';
+  const sch = original.replace('<symbol name="R">', '<symbol name="R">' + bad)
+    .replace('<plain>', '<plain>' + bad + good)
+    .replace('<busses>', '<busses><bus name="A[1..2]"><segment>' + bad + good + '</segment></bus>')
+    .replace('<net name="SIG" class="0">', '<net name="SIG" class="0"><segment>' + bad + good + '</segment>');
+  const r = I.read("bad-wires.sch", enc.encode(sch));
+  const items = r.documents[0].items;
+  assert.ok(items.some(i => i.ref === "R1"), "a bad symbol stroke keeps its component");
+  const part = items.find(i => i.ref === "R1"), def = r.library.find(d => d.id === part.def);
+  assert.ok(def.symbol.pins.length && def.symbol.shapes.some(s => s.width === .254));
+  for (const kind of ["bus", "graphic", "wire"]) {
+    assert.ok(items.some(i => i.kind === kind && nearP(i.points[0],[2,-10]) && nearP(i.points[1],[20,-10])),
+      kind + " keeps the valid wire");
+    assert.ok(!items.some(i => i.kind === kind && nearP(i.points[0],[0,-10])),
+      kind + " skips the bad wire");
+  }
+  assert.ok(r.notes.some(note => /malformed required values/.test(note)));
+}
+
 assert.throws(() => I.read("lib.sch", enc.encode('<?xml version="1.0"?><eagle><drawing><library/></drawing></eagle>')), /libraries/);
