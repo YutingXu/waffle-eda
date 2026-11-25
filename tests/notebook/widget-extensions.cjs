@@ -54,6 +54,52 @@ async function additiveState(h,E,type,p,doc) {
   item.widget.state=full;
   await assert.rejects(act("increment"),/invalid state/,"merged known and opaque state must still fit the byte limit");
 }
+async function queuedInteractions(E) {
+  require("../../app/notebook/sheet-widget-runtime.js");
+  const runtime=AtriumSheetWidgetRuntime, priorDocument=globalThis.document, seen=[];
+  const record={id:"test.queue",manifest:{id:"test.queue",permissions:["ui:widgets"],contributes:{
+    commands:[{command:"queue.render",title:"Render"},{command:"queue.event",title:"Event"}],
+    widgets:[{id:"counter",name:"Counter",render:"queue.render",event:"queue.event",inputs:[],
+      state:{count:{type:"number",min:0,max:100,default:0},flag:{type:"boolean",default:false}},
+      fallback:{type:"text",text:"Counter"},size:{min:[10,10],preferred:[20,20],max:[80,40]}}]
+  }}};
+  let enter, release, gate, revision=1;
+  function pause() {
+    gate=new Promise(resolve=>{release=resolve;});
+    return new Promise(resolve=>{enter=resolve;});
+  }
+  E.install(record,{current:()=>true,async invoke(_record,_command,{state,event}){
+    seen.push(state.count);
+    if(event.action==="increment"){enter();await gate;return {state:{count:state.count+1}};}
+    return {state:{flag:true}};
+  }});
+  globalThis.document={documentElement:{dataset:{}}};
+  try {
+    const item=E.make("ext.test.queue.counter",[0,0]);
+    item.text="Counter title\nCounter detail";
+    const doc={id:"sheet",kind:"schematic",items:[item]},project={documents:[doc]};
+    const labels=[];
+    const host={project:()=>project,doc:()=>doc,revision:()=>revision,edit:(write,label)=>{labels.push(label);write();revision++;return true;}};
+    const interact=action=>runtime.interact(host,doc,item,{type:"activate",action});
+    let started=pause(), first=interact("increment"), second=interact("flag");
+    await Promise.race([started,first]);release();
+    assert.deepEqual(await Promise.all([first,second]),[true,true]);
+    assert.deepEqual(seen,[0,1]);
+    assert.deepEqual(labels,["Update Counter title","Update Counter title"]);
+    assert.deepEqual(item.widget.state,{count:1,flag:true});
+
+    started=pause();first=interact("increment");second=interact("flag");
+    await Promise.race([started,first]);
+    revision++;release();
+    assert.deepEqual(await Promise.all([first,second]),[false,false]);
+    assert.deepEqual(seen,[0,1,1],"queued work is discarded after an unrelated edit");
+    assert.deepEqual(item.widget.state,{count:1,flag:true});
+  } finally {
+    E.remove(record.id);
+    if(priorDocument===undefined)delete globalThis.document;
+    else globalThis.document=priorDocument;
+  }
+}
 async function run(){
   const h=await harness.setup(),E=AtriumExtensionWidgets,W=AtriumSheetWidgets,X=h.X;
   await h.installFolder(root+"widget-inspection");await h.installFolder(root+"widget-rail");
@@ -84,6 +130,7 @@ async function run(){
   files["main.js"]='exports.activate=api=>api.commands.register("unicode.view",()=>({title:"Unicode",rows:Array.from({length:30},()=>({cells:[{text:"電".repeat(400)}]}))}));';
   await X.install(files);await assert.rejects(E.request(p,doc,E.make("ext.example.unicode.counter",[0,0]),ctx),/32 KiB/);
   await additiveState(h,E,counter,p,doc);
+  await queuedInteractions(E);
   X.shutdown();console.log("widget-extensions: two actual packages, owner and grant checks, bounded output, slow-worker budget and independent interaction passed");
 }
 globalThis.__testDone=run().catch(e=>{console.error(e.stack || e);globalThis.AtriumExtensions?.shutdown();if(globalThis.process)process.exitCode=1;throw e;});
