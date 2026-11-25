@@ -558,6 +558,14 @@ globalThis.AtriumLibrary = (() => {
     return o.detail ? {wires: n, stubs} : n;
   }
   const gated = (g, item) => A.gate ? A.gate(g, item) : g;
+  function uniquePinsByNumber(pins) {
+    const unique = new Map();
+    for (const pin of pins) {
+      const number = String(pin.number);
+      unique.set(number, unique.has(number) ? null : pin);
+    }
+    return unique;
+  }
   function joinedNets(before, after) {
     const groups = new Map();
     for (const side of ["byWire", "byPin"]) for (const [id, previous] of before[side]) {
@@ -591,10 +599,17 @@ globalThis.AtriumLibrary = (() => {
         if (!mirrored && item.def !== def.id) { item.def = def.id; report.retargeted++; }
         report.parts++; touched.add(item.id);
         if (d.kind === "schematic" && before?.symbol && def.symbol) {
-          const after = new Map(A.pins(item, def, "schematic").map(p => [String(p.number), p.at]));
-          const g = gated(before.symbol, item);
-          for (const p of g.pins || []) {
-            const at = A.world([p.x, p.y], item), next = after.get(String(p.number));
+          const pins = A.pins(item, def, "schematic");
+          const identity = pin => pin.id ?? pin.nativeId;
+          const gateKey = pin => JSON.stringify([String(pin.number), pin.part || 0]);
+          const byIdentity = new Map(pins.filter(pin => identity(pin) != null).map(pin => [identity(pin), pin.at]));
+          const byGate = new Map(pins.map(pin => [gateKey(pin), pin.at]));
+          const previous = gated(before.symbol, item).pins || [];
+          const byNumber = uniquePinsByNumber(pins), oldNumbers = uniquePinsByNumber(previous);
+          for (const p of previous) {
+            const number = String(p.number), at = A.world([p.x, p.y], item);
+            const next = byIdentity.get(identity(p)) ?? byGate.get(gateKey(p)) ??
+              (oldNumbers.get(number) === p ? byNumber.get(number)?.at : undefined);
             if (!next) continue;
             const key = A.pointKey(at);
             if (A.same(at, next)) { stationary.add(key); continue; }

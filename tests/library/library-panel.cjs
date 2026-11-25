@@ -309,5 +309,41 @@ const L=AtriumLibrary,F=AtriumFootprintEditor,A=Atrium;
   assert.ok(!("apiKey" in back.defs[0].parameters));
 }
 
+{
+  const old={id:"d",name:"D",prefix:"U",value:"D",symbol:{parts:2,pins:[
+    {number:"1",name:"SHARED",x:-10,y:0,orientation:"left",length:2.54,electrical:4,part:0},
+    {number:"1",name:"UNIT",x:10,y:0,orientation:"right",length:2.54,electrical:4,part:1}],shapes:[]}};
+  assert.equal(L.validateDef(old).ok,true);
+  const p=A.project("Dup",[JSON.parse(JSON.stringify(old))]);
+  const sch=p.documents[0],item=A.instantiate(p,p.library[0],[0,0]);
+  item.unit=1;sch.items.push(item);
+  const shared=A.pins(item,p.library[0],"schematic").find(q=>q.name==="SHARED");
+  sch.items.push({id:"w",kind:"wire",points:[shared.at.slice(),[shared.at[0]-5,shared.at[1]]]});
+  sch.items.push({id:"unit",kind:"wire",points:[[10,0],[20,0]]});
+  const next=JSON.parse(JSON.stringify(old));
+  next.symbol.pins[0].x=-15.24;next.symbol.pins[1].x=15.24;
+  L.replaceDef(p,next);
+  const at=A.pins(item,p.library[0],"schematic").find(q=>q.name==="SHARED").at;
+  assert.ok(sch.items.find(i=>i.id==="w").points.some(q=>A.same(q,at)));
+  assert.ok(sch.items.find(i=>i.id==="unit").points.some(q=>A.same(q,[15.24,0])));
+}
+
+{
+  const old={id:"gate-move",name:"Gate move",prefix:"U",symbol:{parts:2,pins:[
+    {number:"1",name:"INPUT",x:0,y:0,electrical:0,part:0},
+    {number:"2",name:"OUTPUT",x:12,y:0,electrical:2,part:2}],shapes:[]}};
+  const p=A.project("Gate reassignment",[old]), doc=p.documents[0];
+  const part=A.instantiate(p,old,[0,0]);part.unit=2;
+  const wire={id:"gate-wire",kind:"wire",points:[[-10,0],[0,0]],net:"INPUT"};
+  doc.items.push(part,wire);
+  const replacement=A.clone(old);
+  Object.assign(replacement.symbol.pins[0],{part:2,x:4,y:2});
+  const report=L.replaceDef(p,replacement);
+  assert.deepEqual(wire.points.at(-1),[4,2]);
+  assert.deepEqual(report.lostNets,[]);
+  const nets=A.connectivity(doc,new Map([[replacement.id,replacement]]));
+  assert.equal(nets.byPin.get(part.id+"/1"),"INPUT");
+}
+
 console.log("PASS pin-to-pad pairing: matched sibling, authored duplicate and case, blanks, exposed pads");
 }
