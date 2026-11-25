@@ -293,5 +293,21 @@ const L=AtriumLibrary,F=AtriumFootprintEditor,A=Atrium;
   assert.equal(legacy.shapes.length,0);
 }
 
+{
+  const proj=A.project("Authors",[]);
+  const def={id:"r1",name:"Resistor",prefix:"R",value:"10k",
+    parameters:{"Author Email":"ada@lab.example","Author Name":"Ada Lovelace","Authored By":"Ada",MPN:"RC0603",apiKey:"test-secret"},
+    symbol:{pins:[{number:"1",name:"1",x:-5,y:0},{number:"2",name:"2",x:5,y:0}],shapes:[]}};
+  proj.library.push(def);
+  const lib={id:"lab",name:"Lab",defs:[]};
+  L.saveToLibrary(lib,def,proj);
+  const back=L.readLibraryFile(L.libraryFile(lib).text);
+  assert.equal(back.defs[0].parameters["Author Email"],"ada@lab.example");
+  assert.equal(back.defs[0].parameters["Author Name"],"Ada Lovelace");
+  assert.equal(back.defs[0].parameters["Authored By"],"Ada");
+  assert.equal(back.defs[0].parameters.MPN,"RC0603");
+  assert.ok(!("apiKey" in back.defs[0].parameters));
+}
+
 console.log("PASS pin-to-pad pairing: matched sibling, authored duplicate and case, blanks, exposed pads");
 }
