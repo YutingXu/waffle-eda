@@ -614,8 +614,28 @@ function item(p, id) { return p.documents.flatMap(d => d.items).find(i => i.id =
   assert.throws(() => b.receive({ops: many}), /too many authors/);
 }
 {
-  // Writers per register: at most LIMITS.writers contributions survive, the same ones on every replica.
-  const base = fixture(), W = C.LIMITS.writers + 8;
+  // Withdrawing other authors' work must retain the current via and its original position.
+  const base=fixture(), host=C.create({replica:"host",project:clone(base)}), editors=[];
+  for(let i=0;i<33;i++){
+    const author="writer-"+String(i).padStart(2,"0"), replica=C.create({replica:author,project:clone(base)});
+    const next=clone(replica.project());
+    item(next,"v1").x=1000+i;
+    host.receive(replica.commit(next),{author});
+    editors.push({author,replica});
+  }
+  assert.equal(item(host.project(),"v1")?.x,1032);
+  for(const {author,replica} of editors.slice(0,-1))host.receive(replica.undo(),{author});
+  assert.equal(item(host.project(),"v1")?.x,1032,"another author's undo must not remove the remaining contribution");
+  const restored=C.create({replica:"restored",snapshot:host.snapshot()});
+  assert.equal(item(restored.project(),"v1")?.x,1032);
+  const {author,replica}=editors.at(-1), undo=replica.undo();
+  host.receive(undo,{author});restored.receive(undo,{author});
+  assert.equal(item(host.project(),"v1")?.x,item(base,"v1").x);
+  assert.equal(item(restored.project(),"v1")?.x,item(base,"v1").x);
+}
+{
+  // Every admitted author and the initial value survive in the same order on every replica.
+  const base = fixture(), W = C.LIMITS.authors;
   const ops = Array.from({length: W}, (_, i) => ({from: "w" + i, ops: [{t: "set", o: "v1", k: "x", v: i, ts: {r: "w" + i, c: 1 + (i * 7) % W}, n: 1}]}));
   const replicas = [0, 1, 2].map(k => C.create({replica: "obs" + k, project: base}));
   replicas[0].receive({ops: ops.flatMap(b => b.ops)});
@@ -623,7 +643,8 @@ function item(p, id) { return p.documents.flatMap(d => d.items).find(i => i.id =
   for (const b of [...ops].reverse()) replicas[2].receive(clone(b), {author: b.from});
   const states = replicas.map(r => C.canon(r.snapshot().objs.find(o => o[0] === "v1")[4].find(([k]) => k === "x")[1]));
   assert.equal(states[0], states[1]); assert.equal(states[0], states[2]);
-  assert.ok(JSON.parse(states[0]).writers.length <= C.LIMITS.writers, "the register keeps a bounded set of authors");
+  assert.equal(JSON.parse(states[0]).writers.length, W + 1);
+  assert.ok(W + 1 <= C.LIMITS.writers, "the register keeps a bounded set of authors");
   assert.equal(new Set(replicas.map(r => item(r.project(), "v1").x)).size, 1);
 }
 

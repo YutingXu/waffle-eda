@@ -194,6 +194,9 @@ async function testKeys() {
   await assert.rejects(T.open(b, sealed), "an earlier session's traffic does not open in a new one with the same room key");
   await assert.rejects(T.open(a, sealed.replace(P, R)), "a frame cannot be relabelled with another sender");
   await assert.rejects(T.seal(a, {p: P, s: 1}, "", R).then(text => T.open(a, text)), /sender/, "the inner sender must match the frame");
+  const legacy = sealed.replace(/^\d+:/, "3:");
+  await assert.rejects(T.open(a, legacy), e => e.protocol === 3,
+    "peers with the earlier register writer limit must be rejected before an edit opens");
   const future = sealed.replace(/^\d+:/, (T.constants.PROTOCOL + 1) + ":");
   await assert.rejects(T.open(a, future), e => e.protocol === T.constants.PROTOCOL + 1);
   await assert.rejects(T.keys("ABCD-EFGH-JKMN-PQRS-TUVW"), /at least 24/, "short manual keys are refused");

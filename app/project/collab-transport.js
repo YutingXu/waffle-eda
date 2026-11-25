@@ -48,7 +48,8 @@ globalThis.AtriumCollabTransport = (() => {
   const MAX_BODY = 8 * 1024 * 1024, CHUNK = 256 * 1024, MAX_CHUNKS = 64;
   const RATE = {window: 10000, messages: 600, bytes: 32 * 1024 * 1024, penalty: 30000};
   const KINDS = new Set(["hello", "want", "snapshot", "ops", "cursor", "bye", "chunk", "restore", "group-library"]);
-  const PROTOCOL = 3, MIN_MANUAL_KEY = 24, INBOX_BYTES = 24 * 1024 * 1024, PENDING_BYTES = 2 * 1024 * 1024, HELD_BYTES = 32 * 1024 * 1024;
+  // Earlier peers retain fewer CRDT register writers and can disagree after undo.
+  const PROTOCOL = 4, MIN_MANUAL_KEY = 24, INBOX_BYTES = 24 * 1024 * 1024, PENDING_BYTES = 2 * 1024 * 1024, HELD_BYTES = 32 * 1024 * 1024;
   const CONTROL = new Set(["id", "path"]);
   // Energy: the relay socket gets a tiny keepalive only after this long without traffic; data
   // channels carry the session's own heartbeat (collab-presence.js, 20 s).
