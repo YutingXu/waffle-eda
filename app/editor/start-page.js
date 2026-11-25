@@ -10,7 +10,7 @@
 // otherwise from AtriumAutosave's recent slots, plus the native host's recent files.
 //
 // The first run offers a starting keyboard and mouse profile alongside the templates.
-// Customise Waffle and Help › Customise Waffle open the detailed walkthrough in the same page.
+// The Start Page’s Customise Waffle button opens the detailed walkthrough in this page.
 // The fab preset it sets
 // ("start.fabPreset") applies to new blank projects made here.
 globalThis.AtriumStartPage = (() => {
@@ -581,7 +581,7 @@ globalThis.AtriumStartPage = (() => {
     dialog.classList.toggle("sp-welcome-on", !!on);
     renderHeading();
     if (!on) {
-      W?.unmount?.();
+      W?.unmount?.(ui.welcome);
       if (wasOn) {
         ui.right.scrollTop = 0;
         ui.body.scrollTop = 0;

@@ -612,15 +612,30 @@ globalThis.AtriumWelcome = (() => {
     try { G.performance?.mark?.("atrium-welcome-ready"); } catch {}
     return ui.panel;
   }
-  function unmount() {
-    if (!ui) return;
+  function unmount(container) {
+    if (!ui || (container && !container.contains(ui.panel))) return;
     for (const off of ui.offs || []) try { off(); } catch {}
     ui.panel.remove(); ui = null;
   }
   const focus = () => { const h = ui?.list.querySelector('.wl-head[aria-expanded="true"]') || ui?.list.querySelector(".wl-head"); h?.focus(); return !!h; };
 
-  // Help › Customise Waffle: the start page with the walkthrough (start-page.js is registered in index.html).
-  const reopen = () => (G.AtriumStartPage ? Promise.resolve(G.AtriumStartPage) : L().need("AtriumStartPage")).then(S => S.open({welcome: true}), e => G.AtriumNavHost?.info?.(e.message));
+  // Help opens the same walkthrough directly from the editor.
+  let setupDialog;
+  function reopen() {
+    if (setupDialog?.open) { focus(); return setupDialog; }
+    G.AtriumStartPage?.close();
+    const container = el("div"), host = G.AtriumNavHost;
+    const dialog = G.AtriumShell.dialog({title:"Customise Waffle", body:[container], actions:[],
+      onClose:() => unmount(container)});
+    setupDialog = dialog;
+    mount(container, {
+      run:action => { dialog.close(); host?.act(action); },
+      importSettings:() => host?.act("import-settings"),
+      closeWelcome:() => dialog.close()
+    });
+    focus();
+    return dialog;
+  }
   try { G.AtriumNavCommon?.ready?.(h => h.registerAction?.("customise-waffle", reopen)); } catch {}
   return Object.freeze({STORE, FROM, firstLaunch, state, steps, progress, value, choose, skip, close, reset, mount, unmount, focus, renderer, efficiency,
     isMounted: () => !!ui?.panel.isConnected});
