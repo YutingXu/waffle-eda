@@ -45,10 +45,11 @@ globalThis.AtriumHistoryEntry = (() => {
   function paintStatus() {
     if (!status) return;
     const label = status.querySelector(".hv-status-label"), dot = status.querySelector(".ui-dot");
-    status.querySelector("use").setAttribute("href", branch ? "#i-branch" : "#i-history");
-    label.textContent = branch || "History";
+    const visibleBranch = host?.folderProject?.() ? branch : "";
+    status.hidden = !visibleBranch;
+    label.textContent = visibleBranch;
     dot.hidden = !dirty;
-    const what = (branch ? "On branch " + branch : "History") + (dirty ? ", unsaved changes" : "");
+    const what = "On branch " + visibleBranch + (dirty ? ", unsaved changes" : "");
     status.setAttribute("aria-label", what + ". Open History");
     status.title = what;
   }
@@ -111,7 +112,7 @@ globalThis.AtriumHistoryEntry = (() => {
       status.type = "button"; status.className = "status-action hv-status"; status.dataset.action = "history-working";
       const dot = document.createElement("span"); dot.className = "ui-dot"; dot.dataset.tone = "accent"; dot.hidden = true;
       const label = document.createElement("span"); label.className = "hv-status-label";
-      status.append(G.AtriumNavCommon.icon("history"), label, dot);
+      status.append(G.AtriumNavCommon.icon("branch"), label, dot);
       right.prepend(status); paintStatus();
     }
     for (const id of ["history", "project-history"]) h.registerAction?.(id, () => open());
@@ -122,7 +123,7 @@ globalThis.AtriumHistoryEntry = (() => {
     let lastBinding = bound();
     const onProject = event => {
       const context = bound();
-      if (!event && sameBinding(context, lastBinding)) return;
+      if (!event && sameBinding(context, lastBinding)) { paintStatus(); return; }
       lastBinding = context;
       logCache = null;
       if (event?.detail?.fromSave) {
