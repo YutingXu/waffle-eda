@@ -157,3 +157,32 @@ if(process.argv.includes("--numeric-peer")){
   console.log("Numeric controls "+revision+" passed stable zero, preserved style, changed-unit reads and writes, authored replacement and deleted-axis checks.");
 }
 console.log("Table formula bindings, quantities, shared graph and clipboard passed.");
+
+{
+  require("../../app/notebook/preferred-values.js");
+  require("../../app/notebook/calculation-helpers.js");
+  let table=T.create(4,5,()=>String(++id));
+  const [first,,third,fourth]=table.rows.map(row=>row.id),[result,,,,seriesColumn]=table.columns.map(col=>col.id);
+  table=T.batch(table,[{rowId:third,columnId:seriesColumn,content:{kind:"literal",text:"7"}},
+    {rowId:fourth,columnId:seriesColumn,content:{kind:"literal",text:"1"}}]);
+  const engine=R.engine();
+  const check=(content,expected)=>{
+    table=T.change(table,first,result,{content});
+    assert.equal(engine.compute(table).value(first,result).value,expected,content.source);
+  };
+  for(const source of ["=log10(100)","=20*log10 (2)","=3.3k in E24","=3.3k in E3","=nearest E3 3.3k"]){
+    const content=engine.compute(table).bind(source);
+    assert.deepEqual(content.references,[],source);
+    check(content,AtriumCalculationCore.evaluate(source.slice(1)).value);
+  }
+  check(engine.compute(table).bind("=E3"),7);
+  check(engine.compute(table).bind("=SUM(E3:E4)"),8);
+  const source="=E3+log10(100)";
+  const old={...engine.compute(table).bind(source),references:[
+    {type:"cell",span:[1,3],rowId:third,columnId:seriesColumn,absoluteRow:false,absoluteColumn:false},
+    {type:"cell",span:[4,9],rowId:null,columnId:null,absoluteRow:false,absoluteColumn:false}
+  ]};
+  table=T.axis(table,"rows",2,1,true,()=>String(++id));
+  assert.equal(R.spelling(table,old),"=E4+log10(100)");
+  check(old,9);
+}

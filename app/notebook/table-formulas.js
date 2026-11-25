@@ -19,6 +19,14 @@ globalThis.AtriumTableFormulas = (() => {
     if (r===undefined || c===undefined) return "#REF!";
     return (ref.absoluteColumn?"$":"")+T.letters(c)+(ref.absoluteRow?"$":"")+(r+1);
   }
+  function isCellReference(source,start,end) {
+    if (/^\s*\(/.test(source.slice(end))) return false;
+    const name=source.slice(start,end);
+    return !(/^E(?:3|6|12|24|48|96|192)$/.test(name) && /(?:^|[^\w.])(?:in|nearest)\s+$/.test(source.slice(0,start)));
+  }
+  function formulaReferences({source,references}) {
+    return references.filter(ref=>ref.type!=="cell" || isCellReference(source,...ref.span));
+  }
   function scan(s,source,{resolveDesign}={}) {
     if (typeof source!=="string" || !source.startsWith("=") || source.length>T.limits.text) throw Error("Enter a bounded formula beginning with =.");
     const references=[];
@@ -26,7 +34,7 @@ globalThis.AtriumTableFormulas = (() => {
       const name=match[0],start=match.index,end=start+name.length;
       if (/['"]/.test(name[0]) || /[\w$.]/.test(source[start-1] || "") || /[\w$.]/.test(source[end] || "")) continue;
       const next=axis(s,name);
-      if (next) references.push({type:"cell",span:[start,end],...next});
+      if (next && isCellReference(source,start,end)) references.push({type:"cell",span:[start,end],...next});
       else if (name.includes(".")) {
         const target=resolveDesign?.(name);
         references.push({type:"design",name,span:[start,end],...(target?{target}:{})});
@@ -36,7 +44,7 @@ globalThis.AtriumTableFormulas = (() => {
   }
   function spelling(s,content,shift) {
     let cursor=0,out="";
-    for (const ref of content.references) {
+    for (const ref of formulaReferences(content)) {
       out+=content.source.slice(cursor,ref.span[0]);
       if (ref.type==="design") out+=content.source.slice(...ref.span);
       else {
@@ -68,8 +76,9 @@ globalThis.AtriumTableFormulas = (() => {
       source+=name;for(let i=0;i<name.length;i++)map.push(span);
       refs.push({name,span:[at,source.length],original:span,...(ref.type==="design"?{design:ref}:ref.range?{range:ref.range}:{axis:ref})});
     }
-    for (let i=0;i<formula.references.length;i++) {
-      const r=formula.references[i],n=formula.references[i+1];plain(r.span[0]);
+    const bindings=formulaReferences(formula);
+    for (let i=0;i<bindings.length;i++) {
+      const r=bindings[i],n=bindings[i+1];plain(r.span[0]);
       if (r.type==="cell" && n?.type==="cell" && /^\s*:\s*$/.test(original.slice(r.span[1],n.span[0]))) {
         let range;
         try { range=T.range(s,r,n); } catch {return failed("broken-reference","A range endpoint was removed.",[r.span[0],n.span[1]]);}
