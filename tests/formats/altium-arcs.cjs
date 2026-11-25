@@ -298,4 +298,19 @@ require("../../app/formats/sch-patch.js");
   assert.deepEqual(classes, readClasses(Buffer.concat([Buffer.alloc(5, 1), classRecord]).subarray(5)));
   assert.ok(classes.some(line => line.includes("\u00e9")));
 }
+// Altium omits zero-valued ordinates, even when both coordinates of a vertex are zero.
+{
+  const read = record => AtriumSCH.read("Points.SchDoc", null,
+    ["|HEADER=Protel for Windows - Schematic Capture Ascii File Version 5.0", "|RECORD=31", record].join("\n"));
+  const wire = read("|RECORD=27|LOCATIONCOUNT=3|Y1=200|X2=150|X3_FRAC=50000").documents[0].items[0];
+  assert.equal(wire.kind, "wire");
+  [[0,-50.8],[38.1,0],[.127,0]].forEach((expected,i) => point(wire.points[i],expected));
+  const polygon = read("|RECORD=7|LOCATIONCOUNT=3|X2=200|X3=100|Y3=200|ISSOLID=T").documents[0].items[0];
+  [[0,0],[50.8,0],[25.4,-50.8]].forEach((expected,i) => point(polygon.points[i],expected));
+  assert.throws(() => read("|RECORD=27|LOCATIONCOUNT=2|X1=100|Y1=200|X2=150|Y2=oops"),
+    /Invalid schematic point coordinate/);
+  assert.throws(() => read("|RECORD=7|LOCATIONCOUNT=3|X2=200|X3=100|X3_FRAC=oops|Y3=200|ISSOLID=T"),
+    /Invalid schematic point coordinate/);
+}
+
 console.log("PASS native Altium, directed and mirrored PCB arcs, project validation, source-preserving edits, exact CAM/DXF and bounded PDF curves.");
