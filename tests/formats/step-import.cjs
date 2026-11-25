@@ -86,7 +86,7 @@ function cylinderModel(r=2,h=5){
 #210=SHAPE_REPRESENTATION('asm',(#13,#201,#203),#2);
 #211=(REPRESENTATION_RELATIONSHIP('','',#62,#210)REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#212)SHAPE_REPRESENTATION_RELATIONSHIP());#212=ITEM_DEFINED_TRANSFORMATION('','',#13,#201);
 #213=(REPRESENTATION_RELATIONSHIP('','',#62,#210)REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#214)SHAPE_REPRESENTATION_RELATIONSHIP());#214=ITEM_DEFINED_TRANSFORMATION('','',#13,#203);`;
-  const r=SI.tessellate("ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n#1=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));\n"+asm+"\nENDSEC;\nEND-ISO-10303-21;\n");
+  const r=SI.tessellate("ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\n"+asm+"\nENDSEC;\nEND-ISO-10303-21;\n");
   assert.equal(r.stats.solids,2,"placed twice");assert.deepEqual(r.bbox.map(v=>+v.toFixed(1)),[-11,-1,0,11,1,2]);
 }
 // 5. Untrusted input: caps and errors, never a hang.
@@ -108,6 +108,22 @@ function cylinderModel(r=2,h=5){
   // The export's own model reader is capped too.
   assert.throws(()=>S.readModel("garbage"),/not an ISO 10303-21/);
 }
+// Duplicate STEP instance numbers must not change the source geometry.
+{
+  const data = "#10=CARTESIAN_POINT('',(0.,0.,0.));\n" +
+    "#10=CARTESIAN_POINT('',(4.,0.,0.));\n" +
+    "#11=CARTESIAN_POINT('',(0.,1.,0.));\n" +
+    "#12=CARTESIAN_POINT('',(0.,0.,1.));\n" +
+    "#20=POLY_LOOP('',(#10,#11,#12));\n" +
+    "#21=FACE_OUTER_BOUND('',#20,.T.);\n" +
+    "#22=FACE('',(#21));\n" +
+    "#23=CLOSED_SHELL('',(#22));\n" +
+    "#24=FACETED_BREP('triangle',#23);\n" +
+    "#25=SHAPE_REPRESENTATION('',(#24),#2);\n" +
+    "#2=GEOMETRIC_REPRESENTATION_CONTEXT(3);";
+  assert.throws(() => SI.tessellate(wrap(data)), /Duplicate STEP instance #10/);
+}
+
 // 6. Speed: a 400-hole plate.
 {
   const doc=A.sheet("pcb","Big");doc.outline=[[0,0],[200,0],[200,200],[0,200]];
