@@ -28,6 +28,14 @@ globalThis.AtriumPastePlan = (() => {
     const defsForPreview=newDefs.length||dynamic.size?new Map([...defs,...newDefs.map(d=>[d.id,d])]):defs;
     const groups=new Map(),unions=new Map(),ids=new Map();
     if(!restore)for(const src of clip.items)ids.set(src.id,A.id());
+    const images=new Set(clip.items.filter(item=>item.kind==="image").map(item=>item.id));
+    const neededImages=new Set(clip.items.filter(item=>item.kind==="imageMarkup" && !images.has(item.imageId)).map(item=>item.imageId));
+    function checkImages(){
+      if(!neededImages.size)return;
+      const present=new Set(doc.items.filter(item=>item.kind==="image").map(item=>item.id));
+      for(const id of neededImages)if(!present.has(id))throw Error("Paste the image markup with its source image.");
+    }
+    checkImages();
     // A group's kind prefix ("union:", "fence:", "teardrop:", "logo-") stays, so a pasted
     // union is still a union that Break Union can break.
     const regroup=(map,g)=>{if(!map.has(g)){const m=/^([A-Za-z]+[:-])/.exec(String(g));map.set(g,(m?m[1]:"")+A.id());}return map.get(g);};
@@ -62,17 +70,23 @@ globalThis.AtriumPastePlan = (() => {
         }
       }
       if(i.richText)globalThis.AtriumNotebook?.copyBindings(i,project,doc,clip,ids);
-      A.moveItem(i,-clip.origin[0],-clip.origin[1]);
+      if(i.kind==="imageMarkup"){
+        if(!restore&&images.has(i.imageId))i.imageId=ids.get(i.imageId);
+      }else A.moveItem(i,-clip.origin[0],-clip.origin[1]);
       return i;
     });
     const bounds=A.docBounds({...doc,outline:[],items},defsForPreview);
     const media=globalThis.AtriumClipboardMedia,transfer=media?.binding(clip);
     return {items,defs:defsForPreview,bounds,cancel(){if(transfer)media.cancel(transfer);},commit(at){
       if(labs?.aborted)throw Error("Notebook items are read-only while notebook features are off.");
+      checkImages();
       if(transfer)media.commit(clip,doc,transfer);
       for(const def of newDefs)project.library.push(def);
       if(newDefs.length&&clip.blobs)for(const k in clip.blobs)(project.blobs||={})[k]||=clip.blobs[k];
-      for(const item of items){A.moveItem(item,at[0],at[1]);doc.items.push(item);}
+      for(const item of items){
+        if(item.kind!=="imageMarkup")A.moveItem(item,at[0],at[1]);
+        doc.items.push(item);
+      }
       if(items.some(i=>i.calculation?.primaryAssertionId||i.calculation?.assertions?.length))globalThis.AtriumCalculations.syncRules(project);
       return items.map(i=>i.id);
     }};

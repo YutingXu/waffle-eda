@@ -28,6 +28,41 @@ function editor(host){
 function event(target={}){const values=new Map();
   return {target,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},clipboardData:{setData:(key,v)=>values.set(key,v),getData:key=>values.get(key)||""},values};
 }
+async function markupRoundTrip() {
+  const source=editor(desktop()),target=editor(desktop()),empty=editor(desktop());
+  for(const app of [source,target,empty])app.differentDocument();
+  const photo={id:"photo",kind:"image",x:6,y:9,w:8,h:5,src:"data:image/png;base64,iVBORw0KGgo="};
+  const mark={id:"mark",kind:"imageMarkup",imageId:photo.id,shape:"box",at:[100000,100000],to:[400000,400000],width:4000,colour:"#aa3344"};
+  const sheet=app=>app.project.documents[0];
+  sheet(source).items.push(photo,mark);
+  sheet(target).items.push({...photo});
+  source.ids.clear();source.ids.add(mark.id);
+  await source.api.copy(false);
+  assert.deepEqual(JSON.parse(bus.packet.data).origin,[photo.x,photo.y]);
+  await target.api.paste();
+  assert.deepEqual(target.reports,[]);
+  const pasted=sheet(target).items.find(i=>i.id===target.placements[0]);
+  assert.equal(pasted.imageId,photo.id);
+  assert.equal(Object.hasOwn(pasted,"x"),false);
+  assert.equal(JSON.stringify(pasted.at),JSON.stringify(mark.at));
+  assert.equal(JSON.stringify(pasted.to),JSON.stringify(mark.to));
+
+  await empty.api.paste();
+  assert.equal(empty.placements.length,0);
+  assert.match(empty.reports.at(-1),/image/i);
+
+  source.ids.add(photo.id);
+  await source.api.copy(false);
+  await empty.api.paste();
+  assert.equal(empty.placements.length,2);
+  const image=sheet(empty).items.find(i=>i.id===empty.placements[0]);
+  const relative=sheet(empty).items.find(i=>i.id===empty.placements[1]);
+  assert.notEqual(image.id,photo.id);
+  assert.deepEqual([image.x,image.y],[15,20]);
+  assert.equal(relative.imageId,image.id);
+  assert.equal(JSON.stringify(relative.at),JSON.stringify(mark.at));
+  assert.equal(JSON.stringify(relative.to),JSON.stringify(mark.to));
+}
 async function run(){
   const left=editor(desktop()),right=editor(desktop());
   left.item.altiumSourceId=left.item.link="source-from-import";
@@ -80,6 +115,7 @@ async function run(){
   await unavailable.api.paste();assert.equal(unavailable.placements.length,2,"Paste falls back to the in-app clipboard");
   const cancelled=editor(undefined);cancelled.doc.execCommand=()=>false;
   await cancelled.api.copy(true);assert.equal(cancelled.cuts(),0);
+  await markupRoundTrip();
   console.log("PASS two independent editors exchange validated PCB selections through native, MIME and typed-text clipboards. Local cut restores IDs, foreign paste regenerates IDs, read denial, stale requests and native text editing preserve selection.");
 }
 globalThis.__testDone=run().catch(error=>{console.error(error);process.exitCode=1;});
