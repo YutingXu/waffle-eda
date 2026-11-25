@@ -2010,6 +2010,7 @@ globalThis.AtriumCanvas = (() => {
       finishOpeningOverview(doc);
       const tol=5/scale,kinds=opts.kinds?new Set(opts.kinds):null,scalar=limit===0; // kinds: only these item kinds (track tools)
       const nearby=query(doc,defs,expand([p[0],p[1],p[0],p[1]],tol));
+      const partPriority=opts.layerMode==="single"?1.5:2;
       let best=null,bestPriority=-1,bestDistance=Infinity;const ranked=scalar?null:[];
       for(let n=nearby.length-1;n>=0;n--){
         const i=nearby[n];
@@ -2023,7 +2024,7 @@ globalThis.AtriumCanvas = (() => {
         bodyHit=false;const distance=hitDistance(target,p,defs,doc,tol,scale,opts);
         if(distance>tol)continue;
         const entry=i.kind==="sheetsymbol"&&globalThis.AtriumSchObjects?.entryAt(i,p,tol);
-        const priority=doc.kind==="pcb"?(i.kind==="part"?bodyHit?-.5:2:PCB.order(boardLayer(target),opts.layer||"Top")/100):entry?5:drawingOrder(i);
+        const priority=doc.kind==="pcb"?(i.kind==="part"?bodyHit?-.5:partPriority:layerRank(boardLayer(target),opts,flipped)/101):entry?5:drawingOrder(i);
         if(scalar){
           if(priority>bestPriority||priority===bestPriority&&distance<bestDistance){best=i;bestPriority=priority;bestDistance=distance;}
         }else{
