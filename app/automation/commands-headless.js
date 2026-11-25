@@ -380,9 +380,14 @@ globalThis.AtriumCommandsHeadless = (() => {
       const X = need("AtriumHDI", "pcb/hdi.js"), doc = docOf(p, a, "pcb"), defs = defsOf(p), b = a.build_up;
       const config = b === "none" ? null : {top: b === "custom" ? a.top ?? 0 : Number(b) || 0, bottom: b === "custom" ? a.bottom ?? a.top ?? 0 : Number(b) || 0,
         anyLayer: b === "any", skip: a.skip, stacking: a.stacking, microvia: a.microvia};
-      const out = X.apply(doc, defs, {config, pairs: a.pairs !== false, rules: a.rules !== false}, p);
       const H = globalThis.AtriumViaStack.hdi;
-      if (config && !out.config) fail("The build-up needs more copper layers.");
+      if (config) {
+        const requested = H.cleanConfig(config);
+        const resolved = H.config({...doc, hdi: requested}, defs);
+        if (!resolved || !requested.anyLayer && (resolved.top !== requested.top || resolved.bottom !== requested.bottom))
+          fail("The build-up needs more copper layers.");
+      }
+      const out = X.apply(doc, defs, {config, pairs: a.pairs !== false, rules: a.rules !== false}, p);
       return {document_id: doc.id, build_up: H.name(H.config(doc, defs)) || null, drill_pairs: out.pairs, rules_added: out.rules};
     }},
 
