@@ -311,6 +311,64 @@ module.exports = async function statusBar(browser) {
       await revision.waitFor({state:"hidden"});
     }
 
+    const narrowVariant = await page.evaluate(() => {
+      const host = AtriumNavHost;
+      let id;
+      host.edit(() => {
+        id = AtriumVariants.create(host.project(), {name:"Bench production variant"}).id;
+        AtriumRevisions.start(host.project(), {letter:"A"});
+      });
+      return id;
+    });
+    const variantControl = bar.getByRole("combobox",{name:"Active assembly variant",exact:true});
+    const revisionControl = bar.getByRole("button",{name:/Open Board Revisions/});
+    await variantControl.waitFor();
+    await revisionControl.waitFor();
+    await page.evaluate(() => AtriumNavHost.markUnsaved());
+    const unsaved = bar.locator("#unsaved");
+    for (const width of [1000,800,621,620,390,320]) {
+      await page.setViewportSize({width,height:840});
+      assert.ok(await unsaved.isVisible(),"the unsaved indicator stays visible at " + width + "px");
+      assert.deepEqual(await bar.evaluate(node => ({
+        row:node.clientHeight, overflow:node.scrollWidth - node.clientWidth,
+      })),{row:24,overflow:0},"the status bar keeps all primary controls within one row at " + width + "px");
+    }
+    const compactZoom = bar.getByRole("button",{name:"Zoom in",exact:true});
+    const previousZoom = await bar.locator("#zoom-value").textContent();
+    await compactZoom.click();
+    await page.waitForFunction(value => document.getElementById("zoom-value").textContent !== value, previousZoom);
+    const more = bar.getByRole("button",{name:"More status controls",exact:true});
+    await variantControl.waitFor({state:"hidden"});
+    await revisionControl.waitFor({state:"hidden"});
+    await more.press("ArrowDown");
+    const overflow = page.getByRole("menu",{name:"More status controls",exact:true});
+    await overflow.waitFor();
+    const topItems = await overflow.locator(":scope > button, :scope > .nav-sub > button").allTextContents();
+    assert.ok(topItems.every(label => label.trim()),"every project command in the menu has a visible label");
+    assert.ok(!topItems.includes("Save unsaved changes"),"the save indicator stays in the bar");
+    assert.ok((await overflow.boundingBox()).y + (await overflow.boundingBox()).height <= (await more.boundingBox()).y,
+      "the status menu opens above the bar");
+    await overflow.getByRole("menuitem",{name:/Assembly variant/}).press("ArrowRight");
+    await page.getByRole("menuitemradio",{name:"Bench production variant",exact:true}).press("Enter");
+    await page.waitForFunction(id => AtriumNavHost.project().activeVariant === id, narrowVariant);
+    await more.click();
+    await overflow.getByRole("menuitem",{name:/Rev A · Draft/}).click();
+    const revisions = page.getByRole("dialog",{name:"Board Revisions",exact:true});
+    await revisions.waitFor();
+    await page.keyboard.press("Escape");
+    await revisions.waitFor({state:"hidden"});
+    await page.setViewportSize({width:1280,height:840});
+    await more.waitFor({state:"hidden"});
+    await variantControl.waitFor();
+    await revisionControl.waitFor();
+    await page.evaluate(id => {
+      const host = AtriumNavHost;
+      host.edit(() => {
+        AtriumVariants.remove(host.project(),id);
+        delete host.project().revision;
+      });
+    }, narrowVariant);
+
     await snapGrid(page);
     await page.evaluate(() => AtriumChecks.clear());
     await page.waitForFunction(() => document.getElementById("status-problems").dataset.state === "ok");
