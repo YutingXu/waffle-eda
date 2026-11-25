@@ -134,4 +134,29 @@ assert.throws(() => P.applyChecked(A.clone(base), v2([{op: "set", target: "proje
   assert.deepEqual(wire.points, points);
 }
 
+// Insertions use an existing predecessor in the exact destination list.
+{
+  const p = A.project("Proposal ordering");
+  const pcb = p.documents.find(d => d.kind === "pcb"), other = A.sheet("pcb", "Other");
+  p.documents.push(other);
+  const wire = id => ({id, kind: "track", layer: "Top", points: [[0, 0], [2, 0]], width: .2});
+  const a = wire("a"), b = wire("b");
+  pcb.items.push(a);
+  other.items.push(b);
+  const add = (id, after_id) => ({op: "add", target: "item", document: pcb.id, after_id, value: wire(id)});
+  const apply = (ops, options) => P.apply(p, P.guarded(p, "add tracks", ops), options);
+  const setWidth = {op: "set", target: "item", document: pcb.id, id: a.id,
+    path: ["width"], before: a.width, after: 1};
+  for (const after of ["missing", b.id]) {
+    assert.throws(() => apply([setWidth, add("c", after)]), /insertion predecessor/);
+    assert.equal(a.width, .2);
+    assert.deepEqual(pcb.items, [a]);
+  }
+  const chain = [add("c", a.id), add("d", "c")];
+  assert.throws(() => apply(chain, {select: [1]}), /insertion predecessor/);
+  assert.deepEqual(pcb.items, [a]);
+  assert.equal(apply(chain), 2);
+  assert.deepEqual(pcb.items.map(i => i.id), ["a", "c", "d"]);
+}
+
 console.log("PASS proposals: code fields refused, validated on a copy, stale guards re-checked on the live project, one v1 field list");

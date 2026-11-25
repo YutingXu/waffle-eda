@@ -198,6 +198,20 @@ globalThis.AtriumProposal = (() => {
       if (removed.has(key)) fail("The proposal removes the same object twice.");
       removed.add(key);
     }
+    // Check the actual insert order before publishing any selected edit.
+    const orderChanges = new Map();
+    function checkOrder(o, n, list, has) {
+      if (chosen && !chosen.has(n)) return;
+      let changes = orderChanges.get(list);
+      if (!changes) { changes = new Map(); orderChanges.set(list, changes); }
+      if (o.op === "remove") changes.set(o.id, false);
+      else {
+        const after = o.after_id;
+        if (after != null && !(changes.get(after) ?? has(after)))
+          fail("Operation " + (n + 1) + " has an insertion predecessor missing from its destination.");
+        changes.set(o.value.id, true);
+      }
+    }
     proposal.ops.forEach((o, n) => {
       const show = n >= offset && n < offset + limit;
       if (!plain(o) || !TARGETS.has(o.target) || !["set", "add", "remove"].includes(o.op)) fail("Operation " + (n + 1) + " is not supported.");
@@ -240,6 +254,7 @@ globalThis.AtriumProposal = (() => {
       if (o.target === "item") {
         const d = docs.get(o.document);
         if (!d) fail("Operation " + (n + 1) + " refers to a document that is not in this project.");
+        checkOrder(o, n, d.items, id => items.get(id)?.d === d);
         if (o.op === "add") {
           if (items.has(v.id) || added.has(v.id)) fail("Item " + v.id + " already exists.");
           added.add(v.id);
@@ -252,6 +267,7 @@ globalThis.AtriumProposal = (() => {
         return;
       }
       const map = o.target === "document" ? docs : lib, what = o.target === "document" ? "document" : "library entry";
+      checkOrder(o, n, map, id => map.has(id));
       if (o.op === "add") {
         if (map.has(v.id) || added.has(v.id)) fail("The " + what + " " + v.id + " already exists.");
         if (o.target === "document" && (!Array.isArray(v.items) || v.items.some(i => items.has(i.id)))) fail("Operation " + (n + 1) + " is malformed.");
