@@ -740,9 +740,11 @@ globalThis.AtriumUndoStore = (() => {
   // The change() that follows an undo or redo finds the shadow exact already: a later idle pass
   // checks it, so repeated undo never waits for a sync.
   // hint (optional): {doc, items, library?} or a list of them, what the change touched (see the top).
-  function touch(project, hint) {
+  function touch(project, hint, restored = false) {
     if (project) pending = project;
-    if (settled) { settled = false; later = true; } else hinted(hint);
+    if (settled && restored) later = true;
+    else hinted(hint);
+    settled = false;
     gen++;
     if (timer || typeof setTimeout !== "function") return;
     const run = () => { timer = 0; if (later) { later = false; dirty = true; } if (dirty || scope) sync(); };

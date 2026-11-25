@@ -32,10 +32,32 @@ function editor(project) {
   return {history, future, get project() { return project; }, set project(p) { project = p; U.touch(p); },
     edit(fn, label) { const before = snap(); const r = fn(project); if (r) project = r; U.checkpoint(history, future, before, label); U.touch(project); },
     derive(fn) { fn(project); U.touch(project); },
-    go(n, tip) { const here = snap(), t = tip ? U.adopt(history, future, here, tip) : U.jump(history, future, here, n); if (!t) return null; project = U.root(); U.touch(project); return t; }};
+    go(n, tip) { const here = snap(), t = tip ? U.adopt(history, future, here, tip) : U.jump(history, future, here, n); if (!t) return null; project = U.root(); U.touch(project, undefined, true); return t; }};
 }
 const B = p => p.documents.find(d => d.id === "b1"), I = p => B(p).items;
 
+{
+  U.reset();
+  const part={id:"p",kind:"part",ref:"R1",value:"1k"}, project={name:"History",
+    documents:[{id:"s",kind:"schematic",name:"Sheet",items:[part]}]};
+  const history=[],future=[];
+  function edit(value){
+    const before=U.mark(project);
+    part.value=value;
+    U.checkpoint(history,future,before);
+    U.touch(project);
+  }
+  edit("5k");
+  assert.ok(U.jump(history,future,U.mark(project),-1));
+  assert.equal(part.value,"1k");
+  edit("3k");
+  edit("9k");
+  assert.ok(U.jump(history,future,U.mark(project),-1));
+  assert.equal(part.value,"3k");
+  assert.ok(U.jump(history,future,U.mark(project),1));
+  assert.equal(part.value,"9k");
+  U.reset();
+}
 // Folder reads before the first authored action do not allocate an Undo shadow or change footprint geometry.
 {
   const p = board(32), e = editor(p), original = p.documents[1].items[0], version = U.libraryVersion();
