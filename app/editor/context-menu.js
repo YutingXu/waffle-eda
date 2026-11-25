@@ -57,7 +57,8 @@ globalThis.AtriumContextMenu = (() => {
   // Filter panel (query.js): the query that matches this object and objects like it.
   const FILTER = ["Filter by This", "query-panel", {run:filterByThis, enabled:ctx => ctx.item !== null}];
   const NET = [
-    ["Select Net", "select-net", {when:net, label:ctx => t("ctx.select_net", {net:ctx.net})}],
+    ["Select Net", "select-net", {when:net, label:ctx => t("ctx.select_net", {net:ctx.net}),
+      run:ctx => {if (ctx.host.doc() === ctx.doc) selectNet(ctx.host, ctx.net);}}],
     ["Highlight Net", "highlight-net", {when:net, check:ctx => ctx.host.highlight() === ctx.net}],
     ["Net Properties", "net-properties", {when:net}],
     ["Show Net History", "object-history", {when:net, label:ctx => t("ctx.net_history", {net:ctx.net}), run:ctx => objectHistory(ctx, {net:ctx.net, label:t("ctx.net_label", {net:ctx.net})})}],
@@ -739,10 +740,12 @@ globalThis.AtriumContextMenu = (() => {
     if (lastCtx?.marker) return lastCtx.marker;
     return globalThis.AtriumDRCView?.violations?.(host.currentId())?.[0] || null;
   }
-  function selectNet(host) {
-    const n = netNow(host); if (!n) {host.info("Select an object on a net first."); return;}
-    const found = XP()?.netObjects?.(host.doc(), host.defs(), n);
-    host.select(found?.ids || []); host.info(t("ctx.net_selected", {net:n, count:found?.ids.length || 0}));
+  function selectNet(host, n = netNow(host)) {
+    if (!n) {host.info("Select an object on a net first."); return;}
+    const doc = host.doc(), found = XP()?.netObjects?.(doc, host.defs(), n), ids = found?.ids || [];
+    const selectable = host.selectable ? new Set(doc.items.filter(item => host.selectable(item)).map(item => item.id)) : null;
+    const selected = selectable ? ids.filter(id => selectable.has(id)) : ids;
+    host.select(selected); host.info(t("ctx.net_selected", {net:n, count:selected.length}));
   }
   function highlightNet(host) {
     const n = netNow(host); if (!n) {host.info("Select an object on a net first."); return;}
