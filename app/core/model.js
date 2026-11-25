@@ -159,10 +159,11 @@ globalThis.Atrium = (() => {
       : ([x,y])=>{const u=mirror?-x:x;return [u*c-y*s+X,u*s+y*c+Y];};
     return {angle,at,mirror};
   }
-  function drillCore(pad, center, angle) {
+  function drillCore(pad, center, angle, mirror = false) {
     const half = (pad.slotLength - pad.drill) / 2;
     if (!(half > 0)) return [center];
-    const [x, y] = rotate([half, 0], angle + (pad.slotAngle || 0));
+    const offset = pad.slotAngle || 0;
+    const [x, y] = rotate([half, 0], angle + (mirror ? -offset : offset));
     return [[center[0] - x, center[1] - y], [center[0] + x, center[1] + y]];
   }
   // Circular PCB paths use the Board Shape convention: angles increase CCW in Y-up coordinates.

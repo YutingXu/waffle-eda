@@ -86,7 +86,7 @@ globalThis.AtriumGeometryMaterial = (() => {
     const A = copper.get(from), B = copper.get(to);
     const z = authored && A && B ? [B[0], A[1]] : null;
     if (!z) diagnose(member, "unknown-bore-depth");
-    const core = via ? [at] : G.Atrium.drillCore(pad, at, PCB.padTurn(pad, parent));
+    const core = via ? [at] : PCB.padDrillCore(pad, parent, at);
     const cutter = core.length > 1 ? {kind: "slot", centerline: [line(...core)], diameter: d}
       : {kind: "round", at, diameter: d};
     const operations = via ? VS.drillSpans(pad, keys) : [];

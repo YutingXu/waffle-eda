@@ -409,7 +409,7 @@ globalThis.AtriumPCBDraw = (() => {
     const declared=layer??PCB.padLayer(parent,p),layers=declared==="Multi"?"all":[declared];
     if(!land){
       if(!(p.drill>0))return null;
-      const at=PCB.padCenter(p,parent),pts=A().drillCore(p,at,PCB.padTurn(p,parent));
+      const pts=PCB.padDrillCore(p,parent);
       return {pts,r:p.drill/2,layers,drillOnly:true};
     }
     const {at,angle,mirror}=L.place(land,parent),{core:pts,r}=L.core(land,at,angle,mirror);
