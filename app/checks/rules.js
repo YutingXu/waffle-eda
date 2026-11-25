@@ -1360,7 +1360,21 @@ globalThis.AtriumRules = (() => {
       const subject=copperSubject(i,parent,i.fillRect?"fill":"region",pts[0]),kind=subject.kind;
       const base={...subject,obj,label:(i.teardrop?"Teardrop":kind==="fill"?"Copper fill":"Copper region")+" ("+spanName(sp)+")"+(net?" "+net:""),region:true};
       if(!net){geo.unassigned++;if(!physical)return;}
-      const r=Math.max(0,(i.width||0)/2),pieces=fillPieces(pts);
+      const r=Math.max(0,(i.width||0)/2);
+      if(i.regionShape&&!globalThis.AtriumBoardShape&&typeof require==="function")require("../pcb/board-shape-core.js");
+      const S=globalThis.AtriumBoardShape,exact=i.regionShape&&S?.regionOf(i);
+      if(exact?.cutouts?.length){
+        const project=loop=>{
+          const points=S.flattenContour(loop,.001);
+          return parent?points.map(p=>A.world(p,parent)):points;
+        };
+        const outer=project(exact.contour),holes=exact.cutouts.map(project);
+        const pieces=[...edges(outer).map(core=>feature(base,core,i.strokeOutline?r:0)),
+          ...holes.flatMap(loop=>edges(loop).map(core=>feature(base,core,0)))];
+        geo.copper.push({...compound(base,pieces),regions:[{outer,holes}]});
+        return;
+      }
+      const pieces=fillPieces(pts);
       // One broad-phase feature per region; gap() measures to its convex pieces.
       if(pieces){geo.copper.push(compound(base,pieces.map(piece=>feature(base,piece,r))));return;}
       // Not a simple polygon: check its outline and report it as unchecked fill.

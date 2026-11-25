@@ -64,6 +64,19 @@ close(of(out,"holeToHole")[0].actual,.2);
   assert.equal(of(check(.46),"short").length,1);
 }
 
+{
+  require("../../app/pcb/board-shape-core.js");
+  const outer=[[0,0],[10,0],[10,10],[0,10]], hole=[[8,2],[2,2],[2,8],[8,8]];
+  const contour=points=>points.map((a,i)=>({kind:"line",a,b:points[(i+1)%points.length]}));
+  const fill={id:"fill",kind:"graphic",net:"A",layer:"Top",fill:true,points:outer,
+    regionShape:{version:1,sig:AtriumBoardShape.signature(outer),contour:contour(outer),cutouts:[contour(hole)]}};
+  const check=x=>run([fill,pad("in","B",x,5,.4,.4,"round")],base,{types:["clearance","short"]});
+  assert.equal(of(check(5),"short").length,0);
+  assert.equal(of(check(5),"clearance").length,0,"clearance is measured to the rim of the open cutout");
+  close(of(check(2.3),"clearance")[0]?.actual,.1);
+  close(of(check(2.1),"clearance")[0]?.actual,0);
+  assert.equal(of(check(2.1),"short").length,1);
+}
 // Routing layers.
 rules=withRules(c=>{c.list.find(r=>r.type==="routingLayers").excluded=["Bottom"];});
 assert.deepEqual(of(run([track("t1","A",[[0,0],[1,0]],.2,"Bottom"),track("t2","A",[[0,2],[1,2]])],rules),"routingLayers").map(v=>v.id),["t1"]);
