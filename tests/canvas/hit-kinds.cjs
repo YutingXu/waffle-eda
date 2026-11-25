@@ -221,6 +221,24 @@ require("../../app/pcb/pcb-draw.js");
   assert.equal(view.hit(doc, defs, mmEnd, opts)?.id, "dim", "millimetre leader end");
 }
 
+// Default wires are drawn 0.254 mm wide and picked as hairlines
+{
+  const doc = Atrium.sheet("schematic", "Wire width");
+  doc.items = [{id: "w", kind: "wire", points: [[0, 0], [30, 0]]}];
+  const opts = {hidden: new Set()};
+  view.restoreCamera({cx: 15, cy: 0, scale: 60, referenceScale: 60});
+  view.render(doc, defs, {grid: false, hidden: opts.hidden});
+  assert.equal(view.hit(doc, defs, [15, 0], opts)?.id, "w", "centerline");
+  assert.equal(view.hit(doc, defs, [15, .1], opts)?.id, "w", "inside the 0.127 mm half-stroke");
+  assert.equal(view.hit(doc, defs, [15, .25], opts), null);
+  for (const style of [{width:.6}, {schPaint:{width:.6}}]) {
+    const wide=Atrium.sheet("schematic", "Wide wire");
+    wide.items=[{...doc.items[0],...style}];
+    assert.equal(view.hit(wide, defs, [15, .29], opts)?.id, "w");
+    assert.equal(view.hit(wide, defs, [15, .42], opts), null);
+  }
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();
