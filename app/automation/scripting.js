@@ -178,7 +178,8 @@ return parts.length + " rows";`}
     const root = el("section", null, "script-console");
     root.id = "script-console"; root.setAttribute("aria-label", "Scripting console"); root.hidden = true;
     const sash = el("div", null, "script-sash"); sash.setAttribute("role", "separator"); sash.setAttribute("aria-label", "Resize scripting console"); sash.tabIndex = 0;
-    const bar = el("header", null, "script-bar");
+    const bar = el("header", null, "script-bar ui-toolbar");
+    bar.setAttribute("role", "toolbar"); bar.setAttribute("aria-label", "Script controls");
     const title = el("h2", "Scripting Console");
     const runB = button("Run", () => runCurrent(), "script-run ui-button", "Run script");
     AtriumNavCommon.shortcutTitle(runB, "Run script", "Mod+Enter");
@@ -197,9 +198,15 @@ return parts.length + " rows";`}
     timeout.onchange = () => ls.set("atrium.script.timeout", Math.max(1, Math.min(600, Number(timeout.value) || 5)));
     const clearB = button("Clear", () => output.replaceChildren(), "ui-button", "Clear output");
     const closeB = button("×", () => toggle(false), "ui-close script-close", "Close scripting console");
-    const spacer = el("span", null, "script-spacer");
+    const spacer = el("span", null, "ui-toolbar-spacer script-spacer");
     const tl = el("label", null, "script-timeout-label"); tl.append(el("span", "Limit (s)"), timeout);
-    bar.append(title, runB, stopB, snippets, scripts, saveB, spacer, tl, clearB, closeB);
+    const execution = el("div", null, "script-tools");
+    execution.append(runB, stopB);
+    const files = el("div", null, "script-tools script-files");
+    files.append(snippets, scripts, saveB);
+    const outputTools = el("div", null, "script-tools");
+    outputTools.append(tl, clearB);
+    bar.append(title, execution, files, spacer, outputTools, closeB);
 
     const body = el("div", null, "script-body");
     const editor = el("div", null, "script-editor"), gutter = el("div", null, "script-gutter"), area = el("textarea");
@@ -207,7 +214,7 @@ return parts.length + " rows";`}
     area.spellcheck = false; area.autocapitalize = "off"; area.autocomplete = "off"; area.wrap = "off";
     area.setAttribute("aria-label", "Script"); area.placeholder = "// await api.items.list({kind: \"part\"})";
     editor.append(gutter, area);
-    const output = el("div", null, "script-output"); output.setAttribute("role", "log"); output.setAttribute("aria-live", "polite");
+    const output = el("div", null, "script-output"); output.setAttribute("role", "log"); output.setAttribute("aria-label", "Script output"); output.setAttribute("aria-live", "polite");
     body.append(editor, output);
     root.append(sash, bar, body);
     (doc.getElementById("editor-area") || doc.body).append(root);
