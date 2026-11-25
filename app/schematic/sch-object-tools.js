@@ -117,7 +117,7 @@ globalThis.AtriumSchObjectTools = (() => {
       case "sch-sync-entries": {
         const s = c.selected?.(), child = s?.kind === "sheetsymbol" && project.documents.find(d => d.id === s.sheet);
         if (!child) {c.info("Select a sheet symbol whose child sheet exists."); return;}
-        let r; c.edit(() => {r = syncEntries(s, child);});
+        let r; c.edit(() => {r = syncEntries(s, child, doc, c.defs?.());});
         c.info((r.added.length ? "Added " + r.added.join(", ") + ". " : "Entries match the child's ports. ") + (r.unmatched.length ? "No port for " + r.unmatched.join(", ") + "." : ""));
         return;
       }

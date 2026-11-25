@@ -725,12 +725,23 @@ globalThis.AtriumSchObjects = (() => {
   }
   // Altium "Synchronize Sheet Entries and Ports": add entries for new child ports; report
   // entries that no longer match a port. Returns {added, unmatched}.
-  function syncEntries(symbol, child) {
+  function syncEntries(symbol, child, parent, defs = new Map()) {
+    const previous = parent ? symbol.entries.map(entry => [entry, entryPoint(symbol, entry)]) : [];
     const ports = portsOf(child), names = new Set(ports.map(p => p.name));
     const added = layoutEntries(ports, symbol.entries);
     symbol.entries.push(...added);
     for (const e of symbol.entries) {const p = ports.find(q => q.name === e.name); if (p && e.io !== p.io && p.io !== "unspecified") e.io = p.io;}
     fitSymbol(symbol);
+    const moved = new Map();
+    for (const [entry, at] of previous) {
+      const next = entryPoint(symbol, entry);
+      if (!A.same(at, next)) moved.set(A.pointKey(at), next);
+    }
+    if (moved.size) {
+      const attachments = A.schematicAttachments(parent, defs, previous.map(([, at]) => at), new Set([symbol.id]));
+      attachments.apply(at => moved.get(A.pointKey(at)));
+      attachments.finish();
+    }
     return {added:added.map(e => e.name), unmatched:symbol.entries.filter(e => !names.has(e.name) && !names.has(repeatEntry(e.name))).map(e => e.name)};
   }
 

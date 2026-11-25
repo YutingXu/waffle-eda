@@ -2,7 +2,8 @@
 
 const assert = require("node:assert/strict");
 const {appFile} = require("../support/app-source-paths.cjs");
-for (const name of ["model", "stackup", "viastack", "hdi", "automation/legacy-command-contract", "commands-headless"])
+for (const name of ["model", "parts", "sch-objects", "sch-object-tools", "hierarchy", "stackup", "viastack", "hdi",
+  "automation/legacy-command-contract", "commands-headless"])
   require(appFile(name + ".js"));
 const A = Atrium, H = AtriumCommandsHeadless;
 
@@ -55,4 +56,38 @@ const A = Atrium, H = AtriumCommandsHeadless;
   assert.equal(pcb.hdi, undefined);
 }
 
-console.log("headless edits: ok");
+async function sheetSyncRegression() {
+  const S = AtriumSchObjects, resistor = AtriumParts.catalogue.find(d => d.id === "std-r");
+  for (const command of ["headless", "editor"]) {
+    const project = A.project("Sheet sync", [resistor]), parent = project.documents[0];
+    const child = A.sheet("schematic", "Child"), defs = new Map([[resistor.id, resistor]]);
+    project.documents.push(child);
+    const symbol = S.make("sheetsymbol", [0, 0], {w:20.32, h:10.16, name:"U", sheet:child.id,
+      entries:[{id:"a", name:"A", side:"right", offset:5.08, io:"output"}]});
+    const entry = S.entryPoint(symbol, symbol.entries[0]), tail = [entry[0] + 10, entry[1]];
+    parent.items.push(symbol, {id:"wire", kind:"wire", points:[entry, tail]},
+      {id:"label", kind:"netlabel", x:tail[0], y:tail[1], text:"KEEP"});
+    const part = A.instantiate(project, resistor, [10.16, 0]);
+    const pin = A.pins(part, resistor, child.kind).find(p => p.number === "1").at;
+    child.items.push(part, S.make("port", [0, 0], {text:"A", io:"output"}),
+      {id:"child-wire", kind:"wire", points:[[0, 0], pin]},
+      S.make("port", [0, 10], {text:"LONG_PORT_NAME_THAT_WIDENS", io:"output"}));
+    const net = () => AtriumHierarchy.compile(project, {defs, scope:"hierarchical"}).netOf(child.id, part.id, "1");
+    assert.equal(net(), "KEEP");
+    if (command === "headless") {
+      const result = H.run(project, "sync_sheet_entries", {document_id:parent.id, id:symbol.id});
+      assert.deepEqual(result.added, ["LONG_PORT_NAME_THAT_WIDENS"]);
+    } else {
+      await S.command("sch-sync-entries", {project:() => project, doc:() => parent, defs:() => defs,
+        selected:() => symbol, edit:fn => fn(), info() {}});
+    }
+    assert.equal(symbol.entries.length, 2);
+    assert.ok(symbol.w > entry[0], "the new port expands the symbol");
+    assert.equal(net(), "KEEP", command + " sync keeps the existing entry on its parent net");
+  }
+}
+
+sheetSyncRegression().then(() => console.log("headless edits: ok")).catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
