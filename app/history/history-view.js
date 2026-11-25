@@ -822,6 +822,7 @@ globalThis.AtriumHistoryView = (() => {
         title: pair ? "Compare the two selected commits" : c.parents.length ? "Compare with its first parent" : "Compare with an empty design",
         run: () => pair ? compareCommits(pair.older, pair.newer) : compareCommits(parentOf(c), c)});
       const more = K.iconButton("more", "More actions", {size: "sm"});
+      more.dataset.menuIndicator = "custom";
       G.AtriumNavCommon.actionMenu(more, commands(items[keyIndex.get(c.revision)] || {type: "commit", c}));
       out.push(actionsRow(compare, K.button("With working design", {size: "sm", run: () => compareWithWorking(c), title: "Compare with the working design, unsaved edits included"}),
         K.button("Restore as copy", {size: "sm", run: () => restoreCommit(c), title: "Open this commit as a new unsaved copy; the project stays as it is"}), more));
