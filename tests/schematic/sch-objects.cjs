@@ -193,4 +193,24 @@ const add = (doc, item) => {doc.items.push(item); return item;};
   add(child, S.make("port", [0, 0], {text:"VIN", io:"input"}));
   assert.ok(AtriumKiCadSchematic.exportSheet(p, child).content.includes('(hierarchical_label "VIN" (shape input)'));
 }
+{
+  require("../../app/editor/edit-selection.js");
+  const {p,sch}=blank("Move sheet symbol"), child=A.sheet("schematic","Child");
+  p.documents.push(child);
+  const symbol=add(sch,S.make("sheetsymbol",[0,0],{w:20.32,h:15.24,name:"Child",sheet:child.id,
+    entries:[{id:"e",name:"VIN",side:"left",offset:5.08,io:"input"}]}));
+  const entry=S.entryPoint(symbol,symbol.entries[0]);
+  const wire=add(sch,{id:A.id(),kind:"wire",points:[entry,[entry[0]-10,entry[1]]]});
+  add(sch,{id:A.id(),kind:"netlabel",x:entry[0]-10,y:entry[1],text:"VIN_PARENT"});
+  const part=place(child,"R1",5.08,0);
+  add(child,S.make("port",[0,0],{text:"VIN",io:"input"}));
+  add(child,{id:A.id(),kind:"wire",points:[[0,0],pin(part,1)]});
+  const defs=defsFor(p);
+  const net=()=>AtriumHierarchy.compile(p,{defs,scope:"hierarchical"}).netOf(child.id,part.id,"1");
+  assert.equal(net(),"VIN_PARENT");
+  const drag=AtriumEditSelection.translation(sch,defs,[symbol]);
+  drag.apply(10,0);drag.finish();
+  assert.equal(net(),"VIN_PARENT","moving a sheet symbol keeps its entry connected");
+  assert.ok(wire.points.some(at=>A.same(at,S.entryPoint(symbol,symbol.entries[0]))));
+}
 console.log("sch-objects: all checks passed");

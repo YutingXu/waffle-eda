@@ -46,8 +46,11 @@ globalThis.AtriumEditSelection = (() => {
     if(globalThis.AtriumLabs?.notebookEnabled()===false)objects=objects.filter(i=>!locked(i));
     const owned=objects.map(item=>({item,points:item.points,arc:item.arc,x:item.x,y:item.y,regionShape:item.regionShape}));
     const attachments=doc.kind==="schematic" ? A.schematicAttachments(doc,defs,
-      objects.filter(i=>i.kind==="part").flatMap(i=>A.pins(i,defs.get(i.def),doc.kind).map(p=>p.at)),
-      new Set(objects.map(i=>i.id)),{query,existingOnly}) : null;
+      objects.flatMap(item=>{
+        if(item.kind==="part")return A.pins(item,defs.get(item.def),doc.kind).map(pin=>pin.at);
+        if(item.kind==="sheetsymbol"&&S)return (item.entries||[]).map(entry=>S.entryPoint(item,entry));
+        return [];
+      }),new Set(objects.map(i=>i.id)),{query,existingOnly}) : null;
     return {
       get affected(){return [...objects,...(attachments?.affected || [])];},
       apply(dx,dy){
