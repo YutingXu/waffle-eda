@@ -200,6 +200,8 @@ globalThis.AtriumECO = (() => {
     let hier=null;
     // Manual and background plans reuse the shared, journal-certified sheet graphs.
     try{hier=globalThis.AtriumHierarchy?.compileCached(project,{defs})||null;}catch{hier=null;}
+    const channelLimit=hier?.issues.find(issue=>issue.kind==="channelLimit");
+    if(channelLimit)throw Error(channelLimit.text);
     const conflicted=hier?new Set(hier.nets.filter(n=>n.conflict).map(n=>n.name)):null;
     for(const inst of hier?.instances||[])if(!globalThis.AtriumMultichannel&&inst.channel&&inst.channel.index===1&&(scope==="*"||inst.doc.id===scope))
       issues.add(inst.doc.name+" repeats in "+inst.symbol.name+". Only its first channel is synchronised with the board.");

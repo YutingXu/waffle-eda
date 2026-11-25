@@ -179,4 +179,34 @@ function design() {
   assert.equal(h.effective, "hierarchical");
   assert.equal(h.instances.length, 2);
 }
+{
+  const {p, sym}=design();
+  sym.name="Repeat(CH,1,257)";
+  const rejected=H.compile(p,{scope:"hierarchical"});
+  assert.equal(rejected.instances.filter(i=>i.channel).length,0,"the compiler must refuse a partial channel list");
+  const issue=rejected.issues.find(i=>i.kind==="channelLimit");
+  assert.equal(issue?.item,sym);
+  assert.match(issue.text,/256/);
+  assert.ok(E.run(p).messages.some(m=>m.class==="Error"&&m.check==="hierarchy"&&m.text.includes(sym.name)));
+  sym.name="Repeat(CH,256,1)";
+  const allowed=H.compile(p,{scope:"hierarchical"});
+  assert.deepEqual(allowed.instances.filter(i=>i.channel).map(i=>i.channel.number),
+    Array.from({length:256},(_,i)=>256-i));
+  assert.ok(!allowed.issues.some(i=>i.kind==="channelLimit"));
+}
+{
+  require(require("../support/app-source-paths.cjs").appFile("multichannel.js"));
+  const {p, sym}=design(), board=p.documents.find(doc=>doc.kind==="pcb");
+  const opts={board:board.id,removeExtras:true};
+  sym.name="Repeat(CH,1,256)";
+  AtriumECO.update(p,opts);
+  const channels=board.items.filter(i=>i.kind==="part" && i.ref.startsWith("R2_CH"));
+  assert.equal(channels.length,256,"the board already contains the complete valid repeat");
+  const earlier=AtriumECO.plan(p,opts);
+  sym.name="Repeat(CH,1,257)";
+  const before=JSON.stringify(board);
+  assert.throws(()=>AtriumECO.plan(p,opts),/Cannot expand .*256 channels/,"comparison stops before proposing removals");
+  assert.throws(()=>AtriumECO.execute(p,earlier),/Cannot expand .*256 channels/,"an already opened ECO also stops");
+  assert.equal(JSON.stringify(board),before);
+}
 console.log("hierarchy: all checks passed");
