@@ -319,7 +319,10 @@ globalThis.AtriumWorkbench = (() => {
   globalThis.AtriumKeymap?.onChange(()=>menuHints(document.body.dataset.kind));
   let tabDocuments, tabOrder = [];
   const spatial = () => globalThis.AtriumSpatialMotion;
-  const bindTabMotion = motion => motion?.tabs(tablist, order => { tabOrder = order; });
+  const bindTabMotion = motion => motion?.tabs(tablist, order => {
+    tabOrder = order;
+    globalThis.AtriumDocViews?.rememberOrder(tablist);
+  });
   tablist.addEventListener("pointerenter", () => {
     if (spatial()) bindTabMotion(spatial());
     else globalThis.AtriumLazy?.need("AtriumSpatialMotion").then(bindTabMotion, () => {});

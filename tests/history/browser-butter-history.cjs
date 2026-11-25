@@ -140,7 +140,28 @@ async function splitHistory(browser, server) {
     assert.deepEqual(await widths(), historyWidths, "switching between History and a design preserves the split tab widths");
     await historyTab.click();
     await panel.waitFor();
+    const firstDoc=strip.locator(":scope > .pane-tab").first();
+    await historyTab.dragTo(firstDoc,{targetPosition:{x:2,y:12}});
+    const first=()=>strip.locator(":scope > [role=tab]").first().getAttribute("id");
+    assert.equal(await first(),"doc-view-tab-history","History can be reordered with a document tab");
+    await firstDoc.click();
+    await historyTab.click();
+    assert.equal(await first(),"doc-view-tab-history","switching documents preserves the tab order");
+    const target=page.locator('.pane-tabs[data-pane="' + (1 - Number(await strip.getAttribute("data-pane"))) + '"]');
+    await historyTab.dragTo(target.locator(":scope > .pane-tab").first());
+    assert.equal(await target.locator("#doc-view-tab-history").count(),1,"History moves to the other pane");
+    await panel.waitFor();
 
+    await page.evaluate(() => AtriumNavHost.act("split-close"));
+    await page.locator("#document-tabs #doc-view-tab-history").waitFor();
+    const editor = page.locator("#editor-panes"), bounds = await editor.boundingBox();
+    await historyTab.dragTo(editor,{targetPosition:{x:bounds.width - 20,y:bounds.height / 2}});
+    await page.locator("#editor-panes.is-split #canvas-stage-2 #doc-view-history").waitFor({timeout:3000});
+    assert.equal(await page.locator('.pane-tabs[data-pane="1"] #doc-view-tab-history').count(),1,
+      "dragging History to the editor edge creates a pane for the tab");
+    const splitBounds = await editor.boundingBox();
+    await historyTab.dragTo(editor,{targetPosition:{x:splitBounds.width / 2,y:54}});
+    await page.locator("#editor-panes.split-down #canvas-stage #doc-view-history").waitFor({timeout:3000});
   } finally { await page.close(); }
 }
 

@@ -9,7 +9,7 @@
 //
 // Pure helpers (headless): AtriumSplitTabs.plan(groups, docIds, shown, activeIndex) -> groups
 globalThis.AtriumSplitTabs = (() => {
-  const KEY = "atrium-split-tabs-v1", MIME = "application/x-atrium-document", PANE = "application/x-atrium-pane";
+  const KEY = "atrium-split-tabs-v1", MIME = "application/x-atrium-document", PANE = "application/x-atrium-pane", VIEW = "application/x-atrium-document-view";
   let host = null, groups = null, strips = [];
   const closed = new Set(); // tabs closed while split; shown again when a pane shows the document
   const D = () => globalThis.document;
@@ -112,7 +112,7 @@ globalThis.AtriumSplitTabs = (() => {
   // Drops on a pane (its strip or its canvas) move the tab there; the editor's own drop handler is skipped.
   function bindDrop(stage, k) {
     if (stage.dataset.tabDrop) return; stage.dataset.tabDrop = "1";
-    const ours = e => [...(e.dataTransfer?.types || [])].includes(MIME);
+    const ours = e => [...(e.dataTransfer?.types || [])].some(type => type === MIME || type === VIEW);
     const highlight = on => globalThis.AtriumSpatialMotion?.target(stage, on);
     stage.addEventListener("dragover", e => {if (!ours(e) || !groups) return; e.preventDefault(); highlight(true);});
     stage.addEventListener("dragleave", e => {if (!stage.contains(e.relatedTarget)) highlight(false);});
@@ -122,7 +122,9 @@ globalThis.AtriumSplitTabs = (() => {
       e.preventDefault(); e.stopPropagation();
       const id = e.dataTransfer.getData(MIME), raw = e.dataTransfer.getData(PANE), from = raw === "" ? null : +raw;
       const now = panes().findIndex(p => p.canvas.parentElement === stage);
-      if (host.docById(id)) moveTab(from, now < 0 ? k : now, id);
+      const target = now < 0 ? k : now, view = e.dataTransfer.getData(VIEW);
+      if (view) globalThis.AtriumDocViews?.move(view, target);
+      else if (host.docById(id)) moveTab(from, target, id);
     });
   }
 
@@ -140,7 +142,7 @@ globalThis.AtriumSplitTabs = (() => {
       if (!s || s.parentElement !== stage) {s?.remove(); s = strips[k] = strip(k); stage.prepend(s);}
       bindDrop(stage, k);
       globalThis.AtriumSpatialMotion?.tabs(s, order => {
-        groups[k] = order; save(); ownTabs(s);
+        groups[k] = order; save(); globalThis.AtriumDocViews?.rememberOrder(s); ownTabs(s);
       });
       s.classList.toggle("is-active", !!p.active);
       const want = groups[k], have = [...s.querySelectorAll(".pane-tab")];
