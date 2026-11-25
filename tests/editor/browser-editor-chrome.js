@@ -726,6 +726,11 @@ module.exports = async function editorChrome(browser,{report} = {}) {
         await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
         await page.waitForFunction(()=>!!AtriumNavHost.project()?.documents.length);
         await page.evaluate(theme=>AtriumTheme.set({preset:theme,followSystem:false},{persist:false}),theme);
+        const selectionFilter = page.locator("#inspector .pcb-edit-filter-section .section-toggle");
+        await selectionFilter.waitFor();
+        assert.equal(await selectionFilter.getAttribute("aria-expanded"), "false", "Properties initially collapses the Selection Filter");
+        await selectionFilter[touch ? "tap" : "click"]();
+        assert.equal(await selectionFilter.getAttribute("aria-expanded"), "true");
         let reference;
         for (const kind of ["pcb","schematic"]) {
           await switchTo(page,kind,touch);

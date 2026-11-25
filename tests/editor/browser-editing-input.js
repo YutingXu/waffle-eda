@@ -314,6 +314,8 @@ async function propertiesChrome(page) {
     assert.equal(selected,true,"the selection contains the object that the filter will exclude");
     const filters = page.getByRole("group", {name:"Selection filter",exact:true});
     const header = page.locator(".pcb-edit-filter-section > .inspect-section-heading");
+    const toggle = header.locator(".section-toggle");
+    if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
     const chip = filters.getByRole("button", {name:label,exact:true});
     const width = (await chip.boundingBox()).width;
     await chip.focus();

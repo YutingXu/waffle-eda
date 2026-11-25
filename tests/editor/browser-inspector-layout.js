@@ -41,6 +41,8 @@ async function inspectorControls(page, {touch = false} = {}) {
   assert.match(await classes.getByRole("status").textContent(), /1 selected components/);
   await classes.getByRole("button", {name:"Done", exact:true}).click();
   await page.evaluate(({included, excluded}) => AtriumNavHost.select([included, excluded]), fixture);
+  const filterToggle = inspector.locator(".pcb-edit-filter-section .section-toggle");
+  if (await filterToggle.getAttribute("aria-expanded") === "false") await filterToggle[touch ? "tap" : "click"]();
   await filter.waitFor();
 
   // A real pointer opens the app's own option list (ui/select-popup.js) below the field; touch keeps
