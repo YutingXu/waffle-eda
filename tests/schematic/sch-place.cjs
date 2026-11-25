@@ -113,6 +113,36 @@ const near = (a, b, msg) => assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-
   assert.ok(!c.nets.some(n => n.conflict), "no net joins IN and OUT");
 }
 
+{
+  const {p, sch} = blank(), defs = defsFor(p);
+  const r = A.instantiate(p, R, [0, 0]);
+  const p1 = pinAt(r, R, 1), p2 = pinAt(r, R, 2), tail = [p1[0] - 10, p1[1]];
+  const w = {id:A.id(), kind:"wire", points:[p1, tail]};
+  const power = S.make("power", p2, {text:"GND", style:"gnd"});
+  sch.items.push(r, w, power, {id:A.id(), kind:"netlabel", x:tail[0], y:tail[1], text:"IN"});
+  const pinNets = () => {
+    const c = A.connectivity(sch, defs);
+    assert.ok(c.nets.every(n => !n.conflict), "no net joins IN and GND");
+    return [1, 2].map(n => c.byPin.get(r.id + "/" + n));
+  };
+  assert.deepEqual(pinNets(), ["IN", "GND"]);
+  const scripted = A.clone(sch);
+  P.mirrorItems(scripted, defs, [r.id], "x");
+  const originalPower = scripted.items.find(i => i.id === power.id);
+  assert.deepEqual([originalPower.x, originalPower.y], p2, "a programmatic mirror leaves an unselected port in place");
+  const touched = new Set(), options = {avoidPinShorts:true};
+  assert.equal(P.mirrorItems(sch, defs, [r.id], "x", undefined, touched, options), 1);
+  assert.equal(r.mirror, true);
+  assert.deepEqual(pinNets(), ["IN", "GND"]);
+  assert.deepEqual([power.x, power.y], pinAt(r, R, 2));
+  assert.deepEqual(w.points.at(-1), tail);
+  assert.deepEqual(touched, new Set([r, w, power]));
+  P.mirrorItems(sch, defs, [r.id], "x", undefined, undefined, options);
+  assert.deepEqual(pinNets(), ["IN", "GND"]);
+  assert.deepEqual(w.points, [p1, tail]);
+  assert.deepEqual([power.x, power.y], p2);
+}
+
 // 5. Mirror Y on a rotated part flips on screen; X then Y equals a half turn.
 {
   const {p, sch} = blank(), defs = defsFor(p);

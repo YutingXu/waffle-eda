@@ -138,10 +138,26 @@ globalThis.AtriumSchPlace = (() => {
     const b = Atrium.bounds(pts) || [0, 0, 0, 0], g = (doc.grid || 1.27) / 2;
     return [Atrium.snap((b[0] + b[2]) / 2, g), Atrium.snap((b[1] + b[3]) / 2, g)];
   }
+  // A power port placed directly on a pin follows it only while it serves that pin alone.
+  function pinPowerPorts(doc, defs, part, keys, selected) {
+    const A = Atrium;
+    return doc.items.filter(port => {
+      if (port.kind !== "power" || port.locked || selected.has(port.id)) return false;
+      const at = [port.x, port.y];
+      if (!keys.has(A.pointKey(at))) return false;
+      return !doc.items.some(item => {
+        if (item === port || item === part) return false;
+        if (item.kind === "wire") return item.points.some((p, n) => n && A.nearSegment(at, item.points[n - 1], p) < .00011);
+        if (item.kind === "part") return A.pins(item, defs.get(item.def), "schematic").some(pin => A.same(at, pin.at));
+        if (item.kind === "junction" || item.kind === "netlabel") return A.same(at, [item.x, item.y]);
+        return globalThis.AtriumSchObjects?.netSources(item).some(([point]) => A.same(at, point));
+      });
+    });
+  }
   // Mirror the objects among `ids` about a vertical (axis "x") or horizontal ("y") line
   // through `pivot` (default: a single object's origin, or the selection's centre). Wires
   // that are not mirrored themselves keep their ends on the moved pins.
-  function mirrorItems(doc, defs, ids, axis, pivot, touched) {
+  function mirrorItems(doc, defs, ids, axis, pivot, touched, {avoidPinShorts = false} = {}) {
     const A = Atrium, set = ids instanceof Set ? ids : new Set(ids);
     const items = doc.items.filter(i => set.has(i.id) && mirrorable(i, doc.kind || "schematic") && !(globalThis.AtriumLabs?.notebookEnabled()===false && A.notebookItemKind(i)));
     if (!items.length) return 0;
@@ -156,10 +172,18 @@ globalThis.AtriumSchPlace = (() => {
         const old = A.pins(i, def, "schematic").map(q => q.at), keys = new Set(old.map(A.pointKey));
         const attached = wires.filter(w => keys.has(A.pointKey(w.points[0])) || keys.has(A.pointKey(w.points.at(-1))));
         const saved = attached.map(w => w.points.map(q => q.slice()));
-        const before = attached.length > 1 ? pinNets(doc, defs, i) : null;
-        const moved = A.transformPart({kind:"schematic", items:doc.items}, i, def, {x:at[0], y:at[1], angle:fx ? norm(360 - a) : norm(540 - a), mirror:!i.mirror}, wires);
+        const power = avoidPinShorts ? pinPowerPorts(doc, defs, i, keys, set) : [];
+        const before = attached.length > 1 || power.length ? pinNets(doc, defs, i) : null;
+        const moved = A.transformPart({kind:"schematic", items:doc.items, grid:doc.grid}, i, def, {x:at[0], y:at[1], angle:fx ? norm(360 - a) : norm(540 - a), mirror:!i.mirror}, wires, {avoidPinShorts});
         if (touched) for (const obj of moved) touched.add(obj);
         if (!i.mirror) delete i.mirror;
+        for (const port of power) {
+          const target = P([port.x, port.y]);
+          if (!A.same(target, [port.x, port.y])) {
+            [port.x, port.y] = target;
+            touched?.add(port);
+          }
+        }
         // Pins that swapped sides drag their wires across each other; when that would join
         // nets that were apart, each wire leaves its pin outward and loops around instead.
         if (before && shorted(before, pinNets(doc, defs, i))) {
