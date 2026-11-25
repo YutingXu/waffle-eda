@@ -71,7 +71,10 @@ globalThis.AtriumImportRules = (() => {
     return globalThis.AtriumLazy?.modules?.().includes("AtriumMessages") ? AtriumLazy.need("AtriumMessages") : null;
   }
   const GROUP = "Imported rules";
-  const row = (list, cls, text) => list.map(x => ({class:cls, source:"Import", text:typeof text === "function" ? text(x) : text, document:x.doc.name, documentId:x.doc.id}));
+  const row = (host, project, list, cls, text) => list.map(x => ({
+    class:cls, source:"Import", text:typeof text === "function" ? text(x) : text, document:x.doc.name, documentId:x.doc.id,
+    activate:() => review(host, x, project)
+  }));
 
   // The rule compiler must be ready before converted scopes can sign stored copper.
   async function prepareUse() {
@@ -88,14 +91,19 @@ globalThis.AtriumImportRules = (() => {
     const skipped = done.reduce((n, x) => n + x.total - x.converted, 0);
     host.info("Using the board's design rules: " + done.map(x => x.converted + " of " + x.total + " converted").join(", ") +
       (skipped ? " · " + plural(skipped, "record") + " without a Waffle equivalent (Design › Rules › Altium Source Rules)" : ""));
-    return row(done, "Info", x => "Using " + plural(x.converted, "design rule") + " from " + x.tool + " (" + x.types + " rule types replaced)" +
+    return row(host, project, done, "Info", x => "Using " + plural(x.converted, "design rule") + " from " + x.tool + " (" + x.types + " rule types replaced)" +
       (x.total > x.converted ? "; " + (x.total - x.converted) + " " + (x.total - x.converted === 1 ? "record has" : "records have") + " no Waffle equivalent and stay as source rules." : "."));
   }
-  function review(host, x) {
-    if (host.currentId?.() !== x.doc.id) host.selectDocument?.(x.doc.id);
-    const ctx = {project:host.project(), doc:host.doc(), defs:host.defs(), edit:host.edit, info:host.info, units:host.units?.(),
-      exportFile:host.exportFile, pickFile:globalThis.AtriumIO?.pickFile, connections:() => host.connections?.(), section:"sources"};
-    R().open(ctx);
+  async function review(host, x, project) {
+    if (host.project() !== project) return;
+    try {
+      await AtriumLazy.need("AtriumQuery");
+      if (host.project() !== project) return;
+      if (host.currentId() !== x.doc.id) await host.selectDocument(x.doc.id);
+      if (host.project() !== project || host.currentId() !== x.doc.id) return;
+      R().open({project, doc:host.doc(), defs:host.defs(), edit:host.edit, info:host.info, units:host.units?.(),
+        exportFile:host.exportFile, pickFile:globalThis.AtriumIO?.pickFile, connections:() => host.connections?.(), section:"sources"});
+    } catch (error) {host.info(error.message);}
   }
 
   const offered=new WeakMap();
@@ -126,7 +134,7 @@ globalThis.AtriumImportRules = (() => {
       list=current();if(!list.length)return null;
       const rows = use(host, list);
       M?.show(ctx, {title:"Imported board rules", group:GROUP, messages:rows, focus:false,
-        actions:[{label:"Review…", title:"Open Design › Rules on the board's converted and source-only rules", run:() => review(host, list[0])}]});
+        actions:[{label:"Review…", title:"Open Design › Rules on the board's converted and source-only rules", run:() => review(host, list[0], project)}]});
       host.info("Using the board's own design rules. Preferences › PCB › Imported boards changes this.");
       return m;
     }
@@ -141,7 +149,7 @@ globalThis.AtriumImportRules = (() => {
       return now;
     };
     M.show(ctx, {title:"Imported board rules", group:GROUP, focus:false,
-      messages:row(list, "Warning", x => (list.length > 1 ? x.doc.name + " has " : "This board has ") + plural(x.count, "design rule") + " from " + x.tool +
+      messages:row(host, project, list, "Warning", x => (list.length > 1 ? x.doc.name + " has " : "This board has ") + plural(x.count, "design rule") + " from " + x.tool +
         ". Use them? Until then the board is checked against Waffle's default rules."),
       actions:[
         {label:"Use the board's rules", title:"Convert the supported " + tools + " rules and check the board against them (one undo step)",
@@ -154,9 +162,9 @@ globalThis.AtriumImportRules = (() => {
             } catch (error) {host.info(error.message);}
           }},
         {label:"Keep Waffle defaults", title:"Check the board against Waffle's default rules; Design › Rules › Altium Source Rules converts them later",
-          run:() => {const now = still(); if (now) {finish(row(now, "Info", "Keeping Waffle's default rules. Design › Rules › Altium Source Rules converts the board's rules later.")); host.info("Keeping Waffle's default design rules");}}},
+          run:() => {const now = still(); if (now) {finish(row(host, project, now, "Info", "Keeping Waffle's default rules. Design › Rules › Altium Source Rules converts the board's rules later.")); host.info("Keeping Waffle's default design rules");}}},
         {label:"Review…", title:"Open Design › Rules on the board's " + plural(n, "source rule"),
-          run:() => {const now = still(); if (now) review(host, now[0]);}}]});
+          run:() => {const now = still(); if (now) review(host, now[0], project);}}]});
     host.info("This board has " + plural(n, "design rule") + " from " + tools + ": choose in Messages whether to use them.");
     return m;
   }
