@@ -279,5 +279,19 @@ const L=AtriumLibrary,F=AtriumFootprintEditor,A=Atrium;
   assert.equal(L.pinsFromTable("Number\tName\tPart\n1\tIN\t")[0].part,undefined);
 }
 
+{
+  const symbol={pins:[{number:"1",name:"A",x:0,y:0,orientation:"left",length:2.54,electrical:4}],
+    shapes:[{kind:"path",style:"body",points:[[0,0],[0,5.08]]},{kind:"path",style:"body",closed:true,points:[[-2.54,-2.54],[2.54,-2.54],[2.54,2.54],[-2.54,2.54]]}]};
+  assert.equal(L.validateDef({id:"g",name:"G",prefix:"U",value:"G",symbol}).ok,true);
+  const back=L.buildSymbol(L.symbolModel(symbol)).symbol;
+  assert.ok(back.shapes.some(s=>!s.pinArt&&s.points&&s.points.length===2&&s.points[1][1]===5.08));
+  const legacy=L.symbolModel({pins:[{number:"1",name:"A",x:0,y:0}],shapes:[
+    {kind:"path",style:"body",points:[[0,0],[2.54,0]],closed:false,fill:false,width:0}
+  ]});
+  assert.equal(legacy.pins[0].orientation,"left");
+  assert.equal(legacy.pins[0].length,2.54);
+  assert.equal(legacy.shapes.length,0);
+}
+
 console.log("PASS pin-to-pad pairing: matched sibling, authored duplicate and case, blanks, exposed pads");
 }

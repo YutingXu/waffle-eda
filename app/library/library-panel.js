@@ -202,7 +202,7 @@ globalThis.AtriumLibrary = (() => {
     const line = (shapes || []).find(s => s.kind === "path" && s.points?.length === 2 && A.same(s.points[0], [p.x, p.y]));
     if (line) {
       const [t, b] = line.points, dx = t[0] - b[0], dy = t[1] - b[1], l = Math.hypot(dx, dy) || 1;
-      return {dir: Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx) || 1, 0] : [0, Math.sign(dy) || 1], length: r6(l)};
+      return {dir: Math.abs(dx) >= Math.abs(dy) ? [Math.sign(dx) || 1, 0] : [0, Math.sign(dy) || 1], length: r6(l), line};
     }
     return {dir: p.x < 0 ? [-1, 0] : [1, 0], length: p.length ?? 2 * GRID};
   }
@@ -250,8 +250,7 @@ globalThis.AtriumLibrary = (() => {
     const shapes = symbol?.shapes || [];
     const pinLines = new Set();
     const pins = (symbol?.pins || []).map(p => {
-      const {dir, length} = pinGeometry(p, shapes);
-      const line = shapes.find(s => s.kind === "path" && s.points?.length === 2 && A.same(s.points[0], [p.x, p.y]));
+      const {dir, length, line} = pinGeometry(p, shapes);
       if (line) pinLines.add(line);
       const extra = Object.fromEntries(Object.entries(p).filter(([k]) => !PIN_KEYS.includes(k)));
       return {...p, number: String(p.number), name: p.name ?? "", electrical: p.electrical ?? 4, length, orientation: orientationOf(dir), ...(Object.keys(extra).length ? {extra} : {})};
