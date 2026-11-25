@@ -306,8 +306,8 @@ globalThis.AtriumConnectivity = (() => {
           if(s.fill||!(ink.width>0))return;
           accepted=true;
           addEntity({...s,kind:"track",points:C.flatten(ink.centerline,.001),arc:undefined},parent,slot);
-        }else if(!parent||globalThis.AtriumNetTies?.isTiePart(parent,defs)){
-          // A board-level fill can short two nets even if it has no assigned net.
+        }else{
+          // An unassigned fill can conduct through any pads it touches.
           const {outer,holes}=ink.islands[0],project=loop=>C.flatten(loop,.001).slice(0,-1);
           accepted=true;
           addEntity({...s,kind:"region",points:project(outer),width:part==="disk"?0:s.width},parent,slot,holes.map(project));
