@@ -1070,6 +1070,32 @@ globalThis.AtriumRules = (() => {
     const {core,r:radius}=L.core(land,center,angle,mirror);
     return {core,radius};
   }
+  function slotRing(axis,drillRadius,lands,parent){
+    let ring=Infinity;
+    for(const land of lands){
+      if(land.holeOnly || !(land.w>0&&land.h>0))continue;
+      const {at,angle,mirror}=AtriumResolvedLand.place(land,parent);
+      const shape=padCore(land,at,angle,0,mirror);
+      if(!shape)continue;
+      const {core,radius}=shape;
+      if(core.length<3){
+        const depth=Math.max(...axis.map(p=>A.nearSegment(p,core[0],core.at(-1))));
+        ring=Math.min(ring,radius-depth-drillRadius);
+      }else if(radius>0){
+        const sides=edges(core);
+        for(const p of axis){
+          let distance=Infinity;
+          for(const [a,b] of sides)distance=Math.min(distance,A.nearSegment(p,a,b));
+          ring=Math.min(ring,radius+(inRing(p,core)?distance:-distance)-drillRadius);
+        }
+      }else{
+        // A concave custom pad can contain both ends while its perimeter crosses the slot.
+        if(!axis.every(p=>inRing(p,core)))return 0;
+        for(const [a,b] of edges(core))ring=Math.min(ring,closestSegments(axis[0],axis[1],a,b).d-drillRadius);
+      }
+    }
+    return Number.isFinite(ring)?ring:null;
+  }
   function convex(points){
     if(points.length<3)return false;let sign=0;
     for(let i=0;i<points.length;i++){const o=orient(points[i],points[(i+1)%points.length],points[(i+2)%points.length]);
@@ -1245,8 +1271,12 @@ globalThis.AtriumRules = (() => {
         const widths=lands.filter(p=>!p.holeOnly&&p.w>0&&p.h>0).map(p=>Math.min(p.w,p.h));
         const size=widths.length?Math.min(...widths):0;
         if(i.drill>0){
-          geo.holes.push(feature({...base,ck:"hole",item:i,ring:base.plated&&i.drill<size-EPS?(size-i.drill)/2:null,
-            what:"Pad",...(parent?{padIndex:slot,padCount}:null)},PCB.padDrillCore(i,parent,center),i.drill/2));
+          const axis=PCB.padDrillCore(i,parent,center);
+          const ring=base.plated&&i.drill<size-EPS
+            ?axis.length===2?slotRing(axis,i.drill/2,lands,parent):(size-i.drill)/2
+            :null;
+          geo.holes.push(feature({...base,ck:"hole",item:i,ring,
+            what:"Pad",...(parent?{padIndex:slot,padCount}:null)},axis,i.drill/2));
         }
         if(!net&&widths.some(w=>!i.drill||i.drill<w-EPS))geo.unassigned++;
       }

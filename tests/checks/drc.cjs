@@ -29,6 +29,17 @@ assert.deepEqual(of(out,"holeSize").map(v=>[v.id,v.actual]),[["h",3.5]]);
 assert.deepEqual(of(out,"annularRing").map(v=>v.id).sort(),["th","v1"]);
 close(of(out,"annularRing").find(v=>v.id==="th").actual,.1);
 
+{
+  const slot={...pad("slot","A",0,0,2,2,"rect","Multi",.8),slotLength:2.2,plated:true};
+  const ringOf=pad=>of(run([pad],base,{types:["annularRing"]}),"annularRing");
+  close(ringOf(slot)[0]?.actual,0);
+  close(ringOf({...slot,slotLength:1.9})[0]?.actual,.05);
+  assert.equal(ringOf({...slot,slotLength:1.4}).length,0);
+  const turned={...slot,w:1.9,h:2.8,slotLength:1.8};
+  close(ringOf(turned)[0]?.actual,.05);
+  assert.equal(ringOf({...turned,slotAngle:90}).length,0);
+}
+
 // Hole to hole clearance ignores nets; pairs are reported once.
 out=run([via("a","A",0,0),via("b","A",.5,0),via("c","B",5,0)]);
 assert.deepEqual(of(out,"holeToHole").map(v=>[v.id,v.otherId]),[["a","b"]]);
