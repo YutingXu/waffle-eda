@@ -178,16 +178,20 @@ globalThis.AtriumCommandsHeadless = (() => {
 
     // ---------------------------------------------------------------- objects
     add_items: {run(p, a) {
-      const doc = docOf(p, a), used = new Set(p.documents.flatMap(d => d.items.map(i => i.id))), out = [];
+      const doc = docOf(p, a), used = new Set(p.documents.flatMap(d => d.items.map(i => i.id))), added = [];
       for (const raw of a.items) {
         const i = JSON.parse(JSON.stringify(raw));
         if (i.id == null) i.id = A().id(); else if (typeof i.id !== "string" || used.has(i.id)) fail("Item id " + i.id + " is not a new string id.");
         used.add(i.id);
         if (i.kind === "part" && !p.library.some(d => d.id === i.def)) fail("Part " + (i.ref || i.id) + " needs a library def_id (list_library).");
-        doc.items.push(i); out.push(i.id);
+        added.push(i);
       }
-      A().validate(p);  // The model validator refuses malformed items before anything is proposed.
-      return {document_id: doc.id, added: out};
+      const draft = {...doc, items: doc.items.concat(added)};
+      /** @type {(project: unknown, options: {normalize: boolean}) => Project} */
+      const validate = A().validate;
+      validate({...p, documents: p.documents.map(d => d === doc ? draft : d)}, {normalize: false});
+      for (const item of added) doc.items.push(item);
+      return {document_id: doc.id, added: added.map(item => item.id)};
     }},
     sync_sheet_entries: {run(p, a) {
       const S = need("AtriumSchObjects", "schematic/sch-objects.js"), doc = docOf(p, a, "schematic");
