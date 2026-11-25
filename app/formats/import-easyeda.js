@@ -20,8 +20,14 @@ globalThis.AtriumEasyEDAImport = (() => {
   const n360 = a => ((a % 360) + 360) % 360;
   const norm = a => { const v = n360(a); return v > 180 ? v - 360 : v; };
   const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
-  const numbers = s => String(s || "").trim().split(/[\s,]+/).filter(Boolean).map(Number).filter(Number.isFinite);
-  const pairs = s => { const n = numbers(s), out = []; for (let i = 0; i + 1 < n.length; i += 2) out.push([n[i], n[i + 1]]); F().spend(out.length); return out; };
+  function pairs(s) {
+    const n = String(s || "").trim().split(/[\s,]+/).filter(Boolean).map(Number);
+    if (n.length % 2 || n.some(x => !Number.isFinite(x))) throw Error("Invalid EasyEDA point list.");
+    F().spend(n.length / 2);
+    const out = [];
+    for (let i = 0; i < n.length; i += 2) out.push([n[i], n[i + 1]]);
+    return out;
+  }
   const para = s => { const p = String(s || "").split("`"), o = Object.create(null); for (let i = 0; i + 1 < p.length; i += 2) o[p[i]] = p[i + 1]; return o; };
   const has = (o, k) => o != null && Object.hasOwn(o, k);
   const pick = (o, k, d) => has(o, k) ? o[k] : d;
