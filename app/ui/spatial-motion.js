@@ -135,7 +135,7 @@ globalThis.AtriumSpatialMotion = (() => {
     if (!options.commit && source.parentElement === strip) {
       const next = original?.parentElement === strip ? original : null;
       if (source.nextElementSibling !== next) {
-        M().flip(items(strip,TABS), () => {
+        M().flip(items(strip,ALL_TABS), () => {
           source.classList.remove("ui-drag-lift");
           strip.insertBefore(source,next);
         }, {duration:200,curve:"decelerate",intent:"pointer"});
@@ -145,17 +145,18 @@ globalThis.AtriumSpatialMotion = (() => {
     settle(source);
   }
 
-  function owns(e) { return [...(e.dataTransfer?.types || [])].includes(DOCUMENT); }
+  function owns(e) { return [...(e.dataTransfer?.types || [])].includes(drag.type); }
 
   function tabs(strip, commit) {
     if (bound.has(strip)) return;
     bound.add(strip);
     strip.addEventListener("dragstart", e => {
-      const source = e.target.closest?.(".document-tab[data-tab]");
+      const source = e.target.closest?.(".document-tab:is([data-tab],[data-view])");
       if (!source || source.parentElement !== strip || !e.dataTransfer) return;
       clear();
       const doc = strip.ownerDocument;
-      const session = {strip, source, original:source.nextElementSibling, order:items(strip,TABS),
+      const session = {strip, source, original:source.nextElementSibling, order:items(strip,ALL_TABS),
+        type:source.dataset.view ? "application/x-atrium-document-view" : DOCUMENT,
         stop:() => doc.removeEventListener("drop", afterDrop, true)};
       // A native drop runs microtasks between capture and the destination handler.
       // Let that handler consume the preview before cleaning up an external drop.
@@ -170,7 +171,7 @@ globalThis.AtriumSpatialMotion = (() => {
       e.stopPropagation();
       e.dataTransfer.dropEffect = "move";
       target(strip, true, "ui-tab-drop");
-      const to = e.target.closest?.(".document-tab[data-tab]");
+      const to = e.target.closest?.(".document-tab:is([data-tab],[data-view])");
       if (!to || to.parentElement !== strip || to === drag.source) return;
       // Swap only once the pointer would land on the dragged tab afterwards: with tabs of different
       // widths a midpoint test swaps back on the next dragover, and the strip flips on every event.
@@ -180,7 +181,7 @@ globalThis.AtriumSpatialMotion = (() => {
       const destination = after ? to.nextElementSibling : to;
       if (destination === drag.source || destination === drag.source.nextElementSibling) return;
       const reorder = () => strip.insertBefore(drag.source, destination);
-      if (M()?.moves("pointer")) M().flip(items(strip,TABS).filter(n => n !== drag.source), reorder, {duration:180,intent:"pointer"});
+      if (M()?.moves("pointer")) M().flip(items(strip,ALL_TABS).filter(n => n !== drag.source), reorder, {duration:180,intent:"pointer"});
       else reorder();
     });
     strip.addEventListener("dragleave", e => {
@@ -190,10 +191,10 @@ globalThis.AtriumSpatialMotion = (() => {
       if (!drag || drag.strip !== strip || !owns(e)) return;
       e.preventDefault();
       e.stopPropagation();
-      const ordered = items(strip,TABS);
+      const ordered = items(strip,ALL_TABS);
       const changed = ordered.some((tab,index) => tab !== drag.order[index]);
       clear({commit:true});
-      if (changed) commit(ordered.map(tab => tab.dataset.tab));
+      if (changed) commit(ordered.flatMap(tab => tab.dataset.tab ? [tab.dataset.tab] : []));
     });
     strip.addEventListener("dragend", () => { if (drag?.strip === strip) clear(); });
   }

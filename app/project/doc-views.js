@@ -8,7 +8,7 @@
 //   AtriumDocViews.open(id, {title, icon?, mount(el), onClose?}) -> the view's element (mount runs once)
 //   AtriumDocViews.show(id) / hide(id) / close(id) / isOpen(id) / decorate()
 globalThis.AtriumDocViews = (() => {
-  const G = globalThis, views = new Map();
+  const G = globalThis, views = new Map(), MIME = "application/x-atrium-document-view";
   const D = () => G.document;
   const host = () => G.AtriumNavHost || null;
   const panes = () => host()?.panes?.() || [];
@@ -75,7 +75,12 @@ globalThis.AtriumDocViews = (() => {
     t.type = "button"; t.id = "doc-view-tab-" + v.id; t.setAttribute("role", "tab");
     t.setAttribute("aria-controls", v.el.id); t.setAttribute("aria-keyshortcuts", "Delete");
     t.setAttribute("aria-description", "Press " + (G.AtriumKeymap?.display("Delete", true) || "Delete") + " to close this tab.");
-    t.dataset.view = v.id; t.title = v.tip;
+    t.dataset.view = v.id; t.title = v.tip; t.draggable = true;
+    t.addEventListener("dragstart", event => {
+      if (!event.dataTransfer) return;
+      event.dataTransfer.setData(MIME, v.id);
+      event.dataTransfer.effectAllowed = "move";
+    });
     const x = el("span", null, "view-tab-close ui-chrome-action ui-chrome-action-compact");
     x.setAttribute("aria-hidden", "true");
     G.AtriumNavCommon?.shortcutTitle?.(x, "Close", "Delete");
@@ -118,8 +123,11 @@ globalThis.AtriumDocViews = (() => {
     for (const v of views.values()) {
       const strip = split() ? d.querySelector('.pane-tabs[data-pane="' + v.pane + '"]') : d.getElementById("document-tabs");
       if (!strip) continue;
-      const t = tabOf(v), before = strip.querySelector(":scope > :is(.pane-arrange,.pane-close)");
-      if (t.parentElement !== strip || before && t.nextSibling !== before && !t.nextSibling?.classList?.contains("view-tab")) {
+      const t = tabOf(v), nextDocument = [...strip.querySelectorAll(":scope > [data-tab]")].find(tab => tab.dataset.tab === v.before);
+      const before = nextDocument || strip.querySelector(":scope > :is(.pane-arrange,.pane-close)");
+      let next = t.nextElementSibling;
+      while (next?.dataset.view) next = next.nextElementSibling;
+      if (t.parentElement !== strip || next !== before) {
         const insert = () => strip.insertBefore(t, before || null), motion = G.AtriumSpatialMotion;
         if (motion) motion.tabLayout(strip,insert); else insert();
       }
@@ -127,6 +135,22 @@ globalThis.AtriumDocViews = (() => {
       t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; t.classList.toggle("is-shown", on);
     }
     for (const strip of d.querySelectorAll(".pane-tabs")) G.AtriumSplitTabs?.ownTabs(strip);
+  }
+  function rememberOrder(strip) {
+    let before;
+    for (const tab of [...strip.querySelectorAll(":scope > .document-tab")].reverse()) {
+      if (tab.dataset.tab) before = tab.dataset.tab;
+      else if (views.has(tab.dataset.view)) views.get(tab.dataset.view).before = before;
+    }
+  }
+  function move(id, pane) {
+    const v = views.get(id);
+    if (!v || !panes()[pane]) return;
+    if (pane !== v.pane) {
+      v.pane = pane;
+      v.before = undefined;
+    }
+    show(id);
   }
   // Choosing a document in a pane (its tab, the Explorer, a shortcut) shows that pane's canvas again.
   function documentChosen(e) {
@@ -141,5 +165,5 @@ globalThis.AtriumDocViews = (() => {
       h.on?.("panes", decorate);
     });
   }
-  return Object.freeze({open, show, hide, close, decorate, focusPane, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
+  return Object.freeze({open, show, hide, close, decorate, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
 })();

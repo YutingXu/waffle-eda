@@ -8,10 +8,10 @@
 globalThis.AtriumTabDrop={install(E){
   const $=id=>document.getElementById(id),{panes,docById,activatePane,selectDocument,openSplit,showInOther,info,el}=E;
 
-    const tabs=$("document-tabs"),host=$("editor-panes"),mime="application/x-atrium-document",paneMime="application/x-atrium-pane";
+    const tabs=$("document-tabs"),host=$("editor-panes"),mime="application/x-atrium-document",paneMime="application/x-atrium-pane",viewMime="application/x-atrium-document-view";
     if(!tabs||!host)return;
     const drop=el("div",null,"split-drop");drop.setAttribute("aria-hidden","true");host.append(drop);
-    const ours=e=>{const t=e.dataTransfer?.types;if(t)for(let i=0;i<t.length;i++)if(t[i]===mime)return true;return false;};
+    const ours=e=>{const t=e.dataTransfer?.types;if(t)for(let i=0;i<t.length;i++)if(t[i]===mime||t[i]===viewMime)return true;return false;};
     tabs.addEventListener("dragstart",e=>{const t=e.target.closest?.("[data-tab]");if(!t||!e.dataTransfer)return;e.dataTransfer.setData(mime,t.dataset.tab);e.dataTransfer.effectAllowed="copyMove";});
     let rects=null,zone=null,shown="",paint=0,dragged=null;
     const ST=()=>globalThis.AtriumSpatialMotion;
@@ -54,6 +54,15 @@ globalThis.AtriumTabDrop={install(E){
     },true);
     host.addEventListener("dragleave",e=>{if(!ours(e))return;const b=rects?.host;if(!b||e.clientX<b.left||e.clientY<b.top||e.clientX>=b.right||e.clientY>=b.bottom)forget();});
     document.addEventListener("dragend",forget,true);
+    async function dropView(id,z){
+      const views=globalThis.AtriumDocViews;
+      if(!views?.isOpen(id))return;
+      if(z.side!=="center"){
+        const orientation=z.side==="top"||z.side==="bottom"?"down":"right";
+        await openSplit(orientation,panes[1]?null:E.current(),{focus:false});
+      }
+      views.move(id,z.k);
+    }
     function dropTab(id,z,from){
       if(!docById(id))return;
       const T=globalThis.AtriumSplitTabs,name=docById(id).name;
@@ -83,6 +92,8 @@ globalThis.AtriumTabDrop={install(E){
       if(panes[1]&&z?.side==="center"&&panes[z.k]?.stage.dataset.tabDrop)return; // split-tabs moves it into that pane
       e.preventDefault();e.stopPropagation();
       const id=e.dataTransfer.getData(mime),raw=e.dataTransfer.getData(paneMime),from=raw===""?null:+raw;
-      if(z&&docById(id))setTimeout(()=>dropTab(id,z,from),0);
+      const view=e.dataTransfer.getData(viewMime);
+      if(z&&view)setTimeout(()=>dropView(view,z).catch(e=>info(e.message)),0);
+      else if(z&&docById(id))setTimeout(()=>dropTab(id,z,from),0);
     },true);
 }};
