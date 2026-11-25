@@ -27,13 +27,25 @@ async function finish(browser) {
     await page.mouse.move(...start);
     await page.keyboard.press("Control+w");
     await page.waitForFunction(() => AtriumNavHost.tool() === "route");
+    // Count requests for the full sheet's net names before the wire edit reaches the model.
+    await page.evaluate(() => {
+      const sheet = AtriumNavHost.doc(), original = Atrium.sheetNets;
+      let beforeCommit = 0;
+      Atrium.sheetNets = (...args) => {
+        if (args[1] === sheet && sheet.items.length === 1) beforeCommit++;
+        return original(...args);
+      };
+      globalThis.finishNetProbe = () => { Atrium.sheetNets = original; return beforeCommit; };
+    });
     await page.mouse.click(...end);
+    const netLookups = await page.evaluate(() => globalThis.finishNetProbe());
 
     const items = () => page.evaluate(() => AtriumNavHost.doc().items.map(item => item.kind));
     assert.deepEqual(await items(), ["wire","wire","junction"]);
     assert.equal(await page.evaluate(() => AtriumNavHost.tool()), "select", "a finished Ctrl+W wire returns to Select");
     await page.evaluate(() => AtriumNavHost.act("undo"));
     assert.deepEqual(await items(), ["wire"]);
+    assert.equal(netLookups, 0, "schematic wire completion only needs to know whether the endpoint touches a wire");
     console.log("PASS Ctrl+W finishes the schematic wire, returns to Select, and undoes as one edit");
   } finally {await page.close();}
 }

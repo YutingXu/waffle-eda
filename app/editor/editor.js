@@ -1205,16 +1205,17 @@
     const dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy),other=unit()==="mil"?"mm":"mil";
     return (pcb()?"Board":"Sheet")+" distance "+len(d)+" ("+U.format(d,other)+")   Δx "+len(dx)+"   Δy "+len(dy);
   }
+  // Schematic route completion needs contact geometry only. PCB routes and vias also need the net.
   function netAt(p) {
     const board=pcb(),opts=lineOpts();
     for(const i of view.query?.(doc(),defs,[p[0]-.001,p[1]-.001,p[0]+.001,p[1]+.001])||doc().items){
       if(i.kind==="part")for(const pin of A.pins(i,defs.get(i.def),doc().kind)){
-        if(!pin.hidden&&(!board||AtriumCanvas.canContact(pin,i,opts))&&A.same(pin.at,p))return {hit:true,net:board?(i.pinNets?.[pin.number]??pin.net??""):nets().byPin.get(i.id+"/"+pin.number)||""};
+        if(!pin.hidden&&(!board||AtriumCanvas.canContact(pin,i,opts))&&A.same(pin.at,p))return {hit:true,net:board?(i.pinNets?.[pin.number]??pin.net??""):""};
       }
       if(board&&!AtriumCanvas.canContact(i,null,opts))continue;
       if(["pad","via","junction","netlabel"].includes(i.kind)&&A.same([i.x,i.y],p))return {hit:true,net:i.net||i.text||""};
       if(!board&&i.kind!=="bus"&&globalThis.AtriumSchObjects?.KINDS.has(i.kind)&&AtriumSchObjects.hotspots(i).some(q=>A.same(q,p)))return {hit:true,net:i.text||""};
-      if(["wire","track"].includes(i.kind)&&i.points.some((q,n)=>n&&A.nearSegment(p,i.points[n-1],q)<.00011))return {hit:true,net:i.net||(!board?nets().byWire.get(i.id):"")||""};}
+      if(["wire","track"].includes(i.kind)&&i.points.some((q,n)=>n&&A.nearSegment(p,i.points[n-1],q)<.00011))return {hit:true,net:i.net||""};}
     return {hit:false,net:""};
   }
   function commitRoute(){
