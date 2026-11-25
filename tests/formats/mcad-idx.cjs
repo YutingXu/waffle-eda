@@ -201,4 +201,14 @@ let saved;
   assert.equal(unconfigured.documents[0].mcad, undefined, "reading a board without MCAD state does not manufacture it");
   assert.throws(() => MC.validate({version: 1, inbox: [{id: 3}]}), /Invalid MCAD/);
 }
+// The import path rejects an ambiguous outline point before building geometry.
+{
+  const golden = fs.readFileSync(path.join(__dirname, "../fixtures/mcad/baseline.idx"), "utf8");
+  const point = /<foundation:CartesianPoint id="CP_1"[^>]*>[\s\S]*?<\/foundation:CartesianPoint>/;
+  assert.ok(point.test(golden));
+  const duplicate = golden.replace(point, node => node + "\n" + node.replace("<property:Value>0<", "<property:Value>9<"));
+  assert.equal(I.read(golden).board.outline[0][0], 0);
+  assert.throws(() => I.read(duplicate), /Duplicate IDX id CP_1/);
+}
+
 console.log("SHIM-OK");

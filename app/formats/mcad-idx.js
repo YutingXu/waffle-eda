@@ -326,7 +326,12 @@ globalThis.AtriumIDX = (() => {
     const notes = [];
     if (k == null) throw Error("Unsupported IDX length unit " + unitName + ".");
     const byId = new Map();
-    for (const c of body.children) if (c.attrs.id != null) byId.set(c.attrs.id, c);
+    for (const c of body.children) {
+      const id = c.attrs.id;
+      if (id == null) continue;
+      if (byId.has(id)) throw Error("Duplicate IDX id " + id + ".");
+      byId.set(id, c);
+    }
     const ref = (node, q) => { const t = x.text(x.child(node, q)); return t ? byId.get(t) || null : null; };
     const val = n => { const v = x.num(n); return v == null ? null : v; };
     const pt = n => { if (!n) return null; const X0 = val(x.child(n, "X")), Y0 = val(x.child(n, "Y")); return X0 == null || Y0 == null ? null : [X0 * k, Y0 * k]; };
