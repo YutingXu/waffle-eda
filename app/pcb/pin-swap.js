@@ -163,7 +163,7 @@ globalThis.AtriumPinSwap = (() => {
     const drop = new Set();
     for (const x of actions) for (const {item: i} of x.copper) {
       if (x.leads) { drop.add(i.id); unrouted++; }
-      else if (x.to) { i.net = x.to; renetted++; }
+      else { i.net = x.to; renetted++; }
     }
     if (drop.size) board.items = board.items.filter(i => !drop.has(i.id));
     return {unrouted, renetted};
