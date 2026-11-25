@@ -183,4 +183,16 @@ for(const mode of ["polyline","primitives"])for(const units of ["mm","in"]){
   console.log("100k LINE entities ("+(text.length/1e6).toFixed(1)+" MB) read in "+ms+" ms");
   assert.ok(ms<5000);
 }
+// A malformed DXF line must not acquire a vertex on the origin axes.
+{
+  const text = dxf(header(4), sec("ENTITIES", [
+    [0,"LINE"],[8,"Bad"],[10,"oops"],[20,5],[11,10],[21,5],
+    [0,"LINE"],[8,"Good"],[10,0],[20,5],[11,10],[21,5]
+  ]));
+  const drawing = X.read(text);
+  assert.deepEqual(drawing.entities.map(entity => entity.layer), ["Good"]);
+  assert.deepEqual(drawing.entities[0].segs[0].a, [0, -5]);
+  assert.ok(drawing.warnings.some(warning => /malformed coordinates/.test(warning)));
+}
+
 console.log("dxf tests passed");
