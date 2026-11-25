@@ -425,8 +425,10 @@ globalThis.AtriumFanout = (() => {
         const pitch = Math.max(st.vd + (h2h || ctx.clr(p.net, p.net)) , 1.0), nx = Math.max(1, Math.floor((w - st.vd) / pitch) + 1), ny = Math.max(1, Math.floor((h - st.vd) / pitch) + 1);
         let n = 0;
         for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
-          const v = toWorld((i - (nx - 1) / 2) * pitch, (j - (ny - 1) / 2) * pitch);
-          if (place(p, [p.at[0] + v[0], p.at[1] + v[1]], {track: false, inPad: true, comp, power: true})) n++;
+          const offset = [(i - (nx - 1) / 2) * pitch, (j - (ny - 1) / 2) * pitch];
+          const [x, y] = A().rotate(offset, p.pad.angle || 0);
+          const at = A().world([p.pad.x + x, p.pad.y + y], part);
+          if (place(p, at, {track: false, inPad: true, comp, power: true})) n++;
         }
         report.thermal += n;
         return n > 0;
