@@ -538,6 +538,7 @@ globalThis.AtriumCanvas = (() => {
     const c=opts.netColors.get(i.net);if(!c)return null;
     return opts.layerMode==="dim"&&!PCB.onLayer(boardLayer(i),opts.layer||"Top",i)?null:c;
   }
+  const schematicStrokeWidth=i=>i.width||i.schPaint?.width||(i.kind==="wire"?.254:.2);
   function drawItem(ctx,i,doc,defs,scale,opts,substrate) {
     if(opts.hideRegionGuides&&i.cutout)return;
     if(doc.schRestored && SCH)i=SCH.displayItem(doc,i);
@@ -574,7 +575,7 @@ globalThis.AtriumCanvas = (() => {
     } else if (i.dimension && pcb && globalThis.AtriumPCBDraw) {
       AtriumPCBDraw.drawDimension(ctx,i,{scale,ink:selected||lit?accent:PCB.ink(boardLayer(i),i,opts,false)});
     } else if (i.points) {
-      const stroke=pcb?PCB.boardStrokeWidth(i):i.width||i.schPaint?.width||(i.kind==="wire"?.254:.2);
+      const stroke=pcb?PCB.boardStrokeWidth(i):schematicStrokeWidth(i);
       const exact=pcb&&i.regionShape&&drawRegionPath(ctx,i);
       if (!exact && !(i.kind==="wire"&&schObj&&schObj.hopPath(ctx,i,doc,opts.wireHops)) && !drawItemPath(ctx,i)) return;
       if(i.fill){ctx.fillStyle=pcb?PCB.ink(boardLayer(i),i,opts,selected||lit):i.schPaint?.fill||"#ffffb0";if(exact)ctx.fill("evenodd");else ctx.fill();}
@@ -806,14 +807,15 @@ globalThis.AtriumCanvas = (() => {
           const contour=Math.abs(A.arcSweep(arc))===360?[arc]:[arc,{kind:"line",a:b,b:a}];
           if(contourContains(contour,p))return tol;
         }
-        const width=doc.kind==="pcb"?PCB.boardStrokeWidth(i):i.width||i.schPaint?.width||.2;
+        const width=doc.kind==="pcb"?PCB.boardStrokeWidth(i):schematicStrokeWidth(i);
         return distanceToArc(p,arc)-(width===null?0:Math.max(1/scale,width)/2);
       }
       if(i.fill && AtriumBoardShape.polyContains(i.points,p)) return tol;
       let distance=Infinity;
       for(let n=1;n<i.points.length;n++) distance=Math.min(distance,A.nearSegment(p,i.points[n-1],i.points[n]));
       if(i.closed && i.points.length>2)distance=Math.min(distance,A.nearSegment(p,i.points.at(-1),i.points[0]));
-      return distance-(i.width || 0)/2;
+      const width=doc.kind==="schematic"&&i.kind==="wire"?Math.max(1/scale,schematicStrokeWidth(i)):i.width||0;
+      return distance-width/2;
     }
     let b;
     if(i.kind==="part"){
