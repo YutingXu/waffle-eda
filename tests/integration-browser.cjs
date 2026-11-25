@@ -236,6 +236,7 @@ async function keyboardProfiles(browser){
     assert.deepEqual(errors,[]);
     console.log("PASS real browser shortcuts for all seven profiles, cold first anchor, routing modes, Modern palette chords, custom bindings and native text undo");
   }finally{await page.close();}
+  await require("./schematic/browser-wire-finish.cjs")(browser);
 }
 
 async function extensionPackages(browser){
