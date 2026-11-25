@@ -97,6 +97,8 @@ module.exports=async function sourceRuleViews(browser){
       const kept={count:41,scope:"InNetClass('1A')",priority:"1",clean:true,adopted:0,linked:0,checks:false};
       assert.deepEqual(await check(),kept);
       await page.locator(".msg-panel .msg-extra > button",{hasText:"Use the board's rules"}).waitFor({state:"attached"});
+      const rules=editor(page);
+      const search=rules.getByRole("searchbox",{name:"Find Altium rules"});
       if(theme==="light"){
         await messageAction(page,"Keep Waffle defaults");
         assert.deepEqual(await check(),kept);
@@ -104,9 +106,23 @@ module.exports=async function sourceRuleViews(browser){
         await editor(page).getByRole("treeitem",{name:/^Altium Source Rules\b/}).click();
       }else{
         await messageAction(page,"Review…");
+        await search.waitFor();
+        await rules.getByRole("button",{name:"Close",exact:true}).click();
+        await rules.waitFor({state:"hidden"});
+
+        const grid=page.locator(".msg-grid");
+        const row=grid.getByRole("row").filter({hasText:"This board has 41 design rules from Altium"});
+        await row.click();
+        assert.equal(await row.getAttribute("aria-selected"),"true");
+        assert.equal(await rules.isVisible(),false,"a single click selects the imported-rule message");
+        await row.dblclick();
+        await search.waitFor();
+        await rules.getByRole("button",{name:"Close",exact:true}).click();
+        await rules.waitFor({state:"hidden"});
+
+        await grid.press("Enter");
       }
-      const rules=editor(page);
-      await rules.getByRole("searchbox",{name:"Find Altium rules"}).fill("Width_1A");
+      await search.fill("Width_1A");
       const sourceRow=rules.locator("details.source-rule").filter({hasText:"Width_1A"});
       await sourceRow.locator("summary").first().click();
       assert.ok((await sourceRow.innerText()).includes("InNetClass('1A')"));

@@ -1,6 +1,6 @@
 "use strict";
 // An Altium-style Messages panel. Features feed it groups of messages:
-//   AtriumMessages.show(ctx, {title, group, messages:[{class, source, text, document, documentId, objectId, point, time}]})
+//   AtriumMessages.show(ctx, {title, group, messages:[{class, source, text, document, documentId, objectId, point, time, activate}]})
 // Showing a group replaces that group's earlier messages and keeps the others.
 // The panel is a docked region, not a <dialog>, so editor shortcuts keep working.
 //
@@ -497,7 +497,7 @@ globalThis.AtriumMessages = (() => {
   const selectedMessage = () => ui?.rows.find(m => m.no === state.selected);
   function syncActions() {
     const selected = selectedMessage();
-    ui.locateButton.disabled = !selected?.objectId;
+    ui.locateButton.disabled = !selected?.objectId && !selected?.activate;
     [...ui.extra.children].forEach((b, i) => {const a = state.actions[i]; b.disabled = a.enabled ? !a.enabled(selected) : false;});
   }
   // A Problems row: the check store goes to the violation (document, camera, inspector); a stale waiver frames its objects.
@@ -608,7 +608,7 @@ globalThis.AtriumMessages = (() => {
   function rowFor(m) {
     const tr = el("tr", null, "msg-" + m.class.toLowerCase()); tr.dataset.no = m.no;
     tr.dataset.motionKey = motionKey(m); tr.setAttribute("aria-selected", String(m.no === state.selected));
-    if (m.objectId) tr.classList.add("msg-locatable");
+    if (m.objectId || m.activate) tr.classList.add("msg-locatable");
     const severity = m.netGroup ? "hint" : m.problem?.severity;
     const cls = el("td", null, "msg-col-class"); cls.append(iconFor(m.class), el("span", "[" + (severity === "hint" ? "Hint" : LABEL[m.class]) + "]"));
     if (severity) tr.dataset.sev = severity;
@@ -660,6 +660,10 @@ globalThis.AtriumMessages = (() => {
   function locate(m, keepFocus = false) {
     const ctx = state.ctx;
     if (!m || !ctx) return false;
+    if (m.activate) {
+      m.activate();
+      return true;
+    }
     if (!m.objectId) {ctx.info?.("This message has no object to locate."); return false;}
     const p = project();
     if (p && !p.documents?.some(d => d.items.some(i => i.id === m.objectId))) {ctx.info?.("This object no longer exists. Compile again to refresh the messages."); return false;}
