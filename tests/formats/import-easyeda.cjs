@@ -132,5 +132,18 @@ const pinAt = (doc, defs, ref, n, kind) => {
   assert.deepEqual([c.byPin.get(id + "/1"), c.byPin.get(id + "/2")], ["SIG", "GND"]);
   console.log("PASS EasyEDA Pro archive: ZIP, board outline, footprints from the project library, pads, nets, pours, symbols and wires");
 }
+// A malformed track must not shift the coordinate pairing of the remaining tokens.
+{
+  const input = {head: {docType: "3"}, shape: [
+    "TRACK~1~1~MALFORMED~10 20 foo 30 40 50~broken~0",
+    "TRACK~1~1~GOOD~0 20 30 40~good~0"
+  ]};
+  const [result] = I.readSet([{name: "points.json", bytes: enc.encode(JSON.stringify(input))}]);
+  const tracks = result.documents[0].items.filter(i => i.kind === "track");
+  assert.deepEqual(tracks.map(track => track.net), ["GOOD"]);
+  assert.deepEqual(tracks[0].points, [[0, 5.08], [7.62, 10.16]]);
+  assert.ok(result.notes.some(note => /malformed required values/.test(note)));
+}
+
 assert.throws(() => I.read("x.json", enc.encode('{"head":{"docType":"2"}}')), /library/);
 assert.throws(() => I.read("x.json", enc.encode('{"a":1}')), /not an EasyEDA/);
