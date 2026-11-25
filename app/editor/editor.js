@@ -336,7 +336,7 @@
   }
   const routing=()=>tool==="route"||tool==="route-diffpair";
   const useRouter=()=>pcb()&&routing()&&!!globalThis.AtriumRouter;
-  let movingObject=null,keyboardPoint=false,routeStops=[],routeMode="",reverseBend=false,shortcutStatus="";
+  let movingObject=null,keyboardPoint=false,routeStops=[],routeMode="",reverseBend=false,shortcutStatus="",wireAtCursor=false;
   const doc=()=>docById(current)||project.documents[0];
   const active=()=>selected==null?undefined:doc().items.find(i=>i.id===selected);
   const documentItems=d=>globalThis.AtriumUndoStore?.documentItems?.(d,project);
@@ -637,7 +637,7 @@
     const target=openFit;openFit=null;
     if(target.view===view&&target.doc===doc())fitLayout();
   }
-  function resetTools(){globalThis.AtriumCamera?.stopWheel?.();if(drag)endDrag(true);paste?.cancel?.();lengthPointer=null;globalThis.AtriumSchPlace?.closePopover();schPlacementClicks=null;pickFrom=null;if(pickResolve){const r=pickResolve;pickResolve=null;r(null);}routeSession?.cancel?.();routeSession=null;routePreview=null;routeArm=null;routeFromNet=null;routeCornerOverride=null;lengthSession?.cancel?.();lengthSession=null;measureStart=null;measureEnd=null;globalThis.AtriumBlocks?.cancel();globalThis.AtriumSchObjects?.cancel();tool="select";paste=null;movingObject=null;keyboardPoint=false;pending=null;chain=[];routeStops=[];routeMode="";reverseBend=false;routeNet="";focusedPart=null;pointer=null;ghostAngle=0;drag=null;pcbEdit?.reset();}
+  function resetTools(){globalThis.AtriumCamera?.stopWheel?.();if(drag)endDrag(true);paste?.cancel?.();lengthPointer=null;globalThis.AtriumSchPlace?.closePopover();schPlacementClicks=null;pickFrom=null;if(pickResolve){const r=pickResolve;pickResolve=null;r(null);}routeSession?.cancel?.();routeSession=null;routePreview=null;routeArm=null;routeFromNet=null;routeCornerOverride=null;lengthSession?.cancel?.();lengthSession=null;measureStart=null;measureEnd=null;globalThis.AtriumBlocks?.cancel();globalThis.AtriumSchObjects?.cancel();tool="select";paste=null;movingObject=null;keyboardPoint=false;pending=null;chain=[];routeStops=[];routeMode="";reverseBend=wireAtCursor=false;routeNet="";focusedPart=null;pointer=null;ghostAngle=0;drag=null;pcbEdit?.reset();}
   function toolName(t){/* newfix F10 */if(t==="sch-place"){const m=globalThis.AtriumSchObjects?.floating?.()?.mode,l=m&&globalThis.AtriumSchObjects?.COMMANDS?.["sch-"+m];return l?"Place "+l.toLowerCase():"Place object";}if(t==="pcb-draw")return "Draw shape";return {select:"Select",pan:"Pan",paste:"Place copy",measure:"Measure distance",junction:"Place junction","split-wire":"Split wire",route:pcb()?"Route track":"Draw wire",place:"Place component","move-object":"Move object",label:pcb()?"Place text":"Place net label",via:"Place via","length-tune":"Interactive length tuning","route-diffpair":"Interactive differential pair routing","length-tune-pair":"Interactive diff pair length tuning","length-tune-skew":"Diff pair skew tuning","length-tune-phase":"Interactive phase tuning"}[t]||t;}
   // One-shot point pick for workflows (board origin). Resolves null on Escape or tool change.
   var pickResolve=null,pickFrom=null;
@@ -1205,19 +1205,34 @@
     const dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy),other=unit()==="mil"?"mm":"mil";
     return (pcb()?"Board":"Sheet")+" distance "+len(d)+" ("+U.format(d,other)+")   Δx "+len(dx)+"   Δy "+len(dy);
   }
+  // Schematic route completion needs contact geometry only. PCB routes and vias also need the net.
   function netAt(p) {
     const board=pcb(),opts=lineOpts();
     for(const i of view.query?.(doc(),defs,[p[0]-.001,p[1]-.001,p[0]+.001,p[1]+.001])||doc().items){
       if(i.kind==="part")for(const pin of A.pins(i,defs.get(i.def),doc().kind)){
-        if(!pin.hidden&&(!board||AtriumCanvas.canContact(pin,i,opts))&&A.same(pin.at,p))return {hit:true,net:board?(i.pinNets?.[pin.number]??pin.net??""):nets().byPin.get(i.id+"/"+pin.number)||""};
+        if(!pin.hidden&&(!board||AtriumCanvas.canContact(pin,i,opts))&&A.same(pin.at,p))return {hit:true,net:board?(i.pinNets?.[pin.number]??pin.net??""):""};
       }
       if(board&&!AtriumCanvas.canContact(i,null,opts))continue;
       if(["pad","via","junction","netlabel"].includes(i.kind)&&A.same([i.x,i.y],p))return {hit:true,net:i.net||i.text||""};
       if(!board&&i.kind!=="bus"&&globalThis.AtriumSchObjects?.KINDS.has(i.kind)&&AtriumSchObjects.hotspots(i).some(q=>A.same(q,p)))return {hit:true,net:i.text||""};
-      if(["wire","track"].includes(i.kind)&&i.points.some((q,n)=>n&&A.nearSegment(p,i.points[n-1],q)<.00011))return {hit:true,net:i.net||(!board?nets().byWire.get(i.id):"")||""};}
+      if(["wire","track"].includes(i.kind)&&i.points.some((q,n)=>n&&A.nearSegment(p,i.points[n-1],q)<.00011))return {hit:true,net:i.net||""};}
     return {hit:false,net:""};
   }
-  function commitRoute(){routeStops=[];if(chain.length>1){checkpoint();doc().items.push(pcb()?{id:uid(),kind:"track",points:chain,width:routeWidth,layer,net:routeNet}:{id:uid(),kind:"wire",points:chain});if(!pcb())globalThis.AtriumPrefs?.junctions?.(doc(),doc().items.at(-1));chain=[];routeNet="";change();info(pcb()?"Track placed":"Wire placed");}else {chain=[];draw();}}
+  function commitRoute(){
+    routeStops=[];
+    if(chain.length<2){
+      chain=[];
+      if(wireAtCursor)setTool("select");else draw();
+      return;
+    }
+    checkpoint();
+    doc().items.push(pcb()?{id:uid(),kind:"track",points:chain,width:routeWidth,layer,net:routeNet}:{id:uid(),kind:"wire",points:chain});
+    if(!pcb())globalThis.AtriumPrefs?.junctions?.(doc(),doc().items.at(-1));
+    chain=[];routeNet="";
+    if(wireAtCursor){const at=pointer;resetTools();pointer=at;}
+    change();
+    info(pcb()?"Track placed":"Wire placed");
+  }
   function clickTool(p){
     if(tool==="pick-point"){const r=pickResolve;pickResolve=null;setTool("select");r?.(p);return;}
     if(tool==="sch-place"){Promise.resolve(globalThis.AtriumSchObjects?.click(p)).catch(e=>info(e.message));return;}
@@ -1644,8 +1659,8 @@
     case "start-wire":{
       if(doc().kind!=="schematic")break;
       const at=pointer&&snapAt(pointer);
-      if(chain.length)commitRoute();
-      setTool("route");canvas.focus();
+      if(chain.length){const finishing=wireAtCursor;commitRoute();if(finishing)break;}
+      setTool("route");wireAtCursor=true;canvas.focus();
       if(at)clickTool(at);
       break;}
     case "select":case "pan":case "route":case "label":setTool(a);if(a==="route"&&pcb())armRouter();break;
@@ -2081,7 +2096,7 @@
       case "escape":
         if(lengthSession){lengthSession.cancel();lengthSession=null;info("Length tuning cancelled.");draw();return;}
         if(routeSession){finishRoute();info("Click to start another route, or Escape to select.");return;}
-        if(tool==="route"&&chain.length){commitRoute();info(pcb()?"Click to start another route, or Escape to select.":"Click a pin to start another wire, or Escape to select.");return;}
+        if(tool==="route"&&chain.length){commitRoute();if(tool==="route")info(pcb()?"Click to start another route, or Escape to select.":"Click a pin to start another wire, or Escape to select.");return;}
         if(tool==="sch-place"&&globalThis.AtriumSchObjects?.finish()){info("Placed. Click to start another, or Escape to select.");return;}
         endDrag(true);setTool("select");choose(null);return;
       case "deselect":setTool("select");choose(null);return;
