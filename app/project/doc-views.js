@@ -90,7 +90,9 @@ globalThis.AtriumDocViews = (() => {
     const d = D(); if (!d) return;
     for (const v of views.values()) place(v);
     const shown = [...views.values()].filter(v => !v.el.hidden), openPanes = panes();
-    d.body.classList.toggle("document-view-active", shown.some(v => v.pane === activeIndex()));
+    const activeView = shown.find(v => v.pane === activeIndex());
+    d.body.classList.toggle("document-view-active", !!activeView);
+    d.body.classList.toggle("history-view-active", activeView?.id === "history");
     openPanes.forEach((pane, index) => {
       const under = shown.some(v => v.pane === index), stage = pane.canvas.parentElement;
       // The tool bar and canvas are covered by the document view. Remove them

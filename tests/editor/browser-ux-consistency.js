@@ -48,13 +48,16 @@ module.exports = async function uxConsistency(browser) {
       for (const kind of ["pcb", "schematic"]) {
         const tab = page.locator('#document-tabs [data-kind="' + kind + '"]').first();
         await tab.click();
+        const stripWidth = () => page.locator("#document-tabs").evaluate(strip => strip.getBoundingClientRect().width);
+        const beforeHistory = await stripWidth();
         const project = page.locator("details[data-menu=project]");
         await project.locator(":scope > summary").click();
         const history = project.locator('[data-action="project-history"]');
         await history.locator("xpath=ancestor::div[contains(concat(' ',normalize-space(@class),' '),' submenu ')][1]/button[1]").hover();
         await history.click();
         await page.locator(".hv-view:visible").waitFor();
-        assert.equal(await page.locator(".panel-properties:visible, .layer-bar:visible").count(), 0);
+        assert.equal(await stripWidth(), beforeHistory, "History keeps the design tab strip width");
+        assert.equal(await page.locator(".layer-bar:visible").count(), 0);
         await tab.click();
         await page.locator(".panel-properties:visible").waitFor();
         assert.equal(await page.locator(".layer-bar:visible").count(), kind === "pcb" ? 1 : 0);

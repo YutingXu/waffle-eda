@@ -130,6 +130,17 @@ async function splitHistory(browser, server) {
     const gap = await panel.evaluate(node => node.getBoundingClientRect().top -
       node.parentElement.querySelector(".pane-tabs").getBoundingClientRect().bottom);
     assert.equal(gap, 0, "History starts immediately below the split tab strip");
+    const historyTab=page.getByRole("tab",{name:"History",exact:true});
+    const strip=historyTab.locator("..");
+    const widths=()=>strip.evaluate(node=>[node.getBoundingClientRect().width,
+      ...Array.from(node.querySelectorAll(":scope > [role=tab]"), tab=>tab.getBoundingClientRect().width)]);
+    const historyWidths=await widths();
+    await strip.locator(":scope > .pane-tab").first().click();
+    await panel.waitFor({state:"hidden"});
+    assert.deepEqual(await widths(), historyWidths, "switching between History and a design preserves the split tab widths");
+    await historyTab.click();
+    await panel.waitFor();
+
   } finally { await page.close(); }
 }
 
