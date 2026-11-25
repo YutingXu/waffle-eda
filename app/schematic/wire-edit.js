@@ -135,6 +135,32 @@ globalThis.AtriumWireEdit = (() => {
       }
     };
   }
+  function segmentCrossing(a,b,c,d){
+    const dx=b[0]-a[0],dy=b[1]-a[1],ex=d[0]-c[0],ey=d[1]-c[1];
+    const cross=dx*ey-dy*ex;
+    if(!cross)return null;
+    const x=c[0]-a[0],y=c[1]-a[1],t=(x*ey-y*ex)/cross,u=(x*dy-y*dx)/cross;
+    return t>=0 && t<=1 && u>=0 && u<=1 ? [a[0]+t*dx,a[1]+t*dy] : null;
+  }
+  function nearbyCrossing(wire,candidates,p,tolerance){
+    let closest=null,distance=tolerance;
+    for(let i=1;i<wire.points.length;i++){
+      const a=wire.points[i-1],b=wire.points[i];
+      if(A.nearSegment(p,a,b)>tolerance)continue;
+      for(const other of candidates){
+        if(other===wire || other.kind!=="wire")continue;
+        for(let j=1;j<other.points.length;j++){
+          const c=other.points[j-1],d=other.points[j];
+          if(A.nearSegment(p,c,d)>tolerance)continue;
+          const at=segmentCrossing(a,b,c,d);
+          if(!at)continue;
+          const gap=Math.hypot(at[0]-p[0],at[1]-p[1]);
+          if(gap<=distance){closest=at;distance=gap;}
+        }
+      }
+    }
+    return closest;
+  }
   function place(doc,mode,p,tolerance,query){
     const no=message=>({changed:false,message});
     if(doc.kind!=="schematic" || !["junction","split-wire"].includes(mode))return no("Choose a schematic wire.");
@@ -148,7 +174,8 @@ globalThis.AtriumWireEdit = (() => {
       if(!target || hit.distance<target.distance-1e-9 || (Math.abs(hit.distance-target.distance)<1e-9 && inside&&!target.inside))target={...hit,wire,inside};
     }
     if(!target)return no("Choose a wire or a crossing.");
-    const {wire,at,index}=target;
+    const {wire,index}=target;
+    const at=mode==="junction" ? nearbyCrossing(wire,candidates,p,tolerance+contact) || target.at : target.at;
     const junction=candidates.find(i=>i.kind==="junction" && same([i.x,i.y],at));
     if(mode==="junction"){
       if(junction)return no("A junction already exists here.");

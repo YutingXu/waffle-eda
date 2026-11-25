@@ -74,6 +74,20 @@ const start=[0,0],finish=[12,0],tap=[4,0];
   assert.ok(nets().nets.find(n=>n.conflict));W.place(s,"split-wire",[6,3],.1).apply();
   assert.deepEqual(A.validate({format:"atrium",version:1,name:"Bus",library:[],documents:[JSON.parse(JSON.stringify(s))]}).documents[0],s);
 }
+{
+  for(const crossing of [[[5,-5],[5,5]],[[1,-4],[9,4]]]){
+    const h=wire("horizontal",[0,0],[10,0]),v=wire("crossing",...crossing);
+    const s=doc(h,v,label(0,0,"H"),label(...crossing[0],"V"));
+    const nets=()=>A.connectivity(s,defs).byWire;
+    assert.notEqual(nets().get(h.id),nets().get(v.id));
+    const placed=W.place(s,"junction",[5.01,0],.5,()=>s.items);
+    assert.equal(placed.changed,true,placed.message);
+    placed.apply();
+    const dot=s.items.at(-1);
+    assert.deepEqual([dot.kind,dot.x,dot.y],["junction",5,0]);
+    assert.equal(nets().get(h.id),nets().get(v.id),"a junction picked near a crossing joins the two wires");
+  }
+}
 const flag=process.argv.indexOf("--fixtures");
 if(flag>=0){
   globalThis.CFB=require("../../app/vendor/cfb.min.js");
