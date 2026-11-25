@@ -1025,9 +1025,24 @@ globalThis.AtriumRules = (() => {
     return core.map((p,n)=>[p,core[(n+1)%core.length]]);
   }
   const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  function boreGap(owner,other){
+    if(!owner.bore)return null;
+    let far=null,distance=-Infinity;
+    for(const p of other.core){
+      const d=dist(owner.at,p);
+      if(d>distance){distance=d;far=p;}
+    }
+    const extent=distance+other.radius,d=owner.bore-extent;
+    if(d<=0)return null;
+    const c=owner.at, direction=distance?[ (far[0]-c[0])/distance, (far[1]-c[1])/distance ]:[1,0];
+    const offset=(owner.bore+extent)/2;
+    return {d,at:[c[0]+offset*direction[0],c[1]+offset*direction[1]]};
+  }
   // Features are convex cores grown by a radius: track capsules, via and round
   // pad discs, obround pads, rotated (rounded) rectangles and octagons.
   function gap(a,b){
+    const bore=boreGap(a,b)||boreGap(b,a);
+    if(bore)return bore;
     if(containsConvex(a.core[0],b.core))return {d:0,at:a.core[0]};
     if(containsConvex(b.core[0],a.core))return {d:0,at:b.core[0]};
     let best=null;const touch=a.radius+b.radius;
@@ -1250,13 +1265,14 @@ globalThis.AtriumRules = (() => {
         }
         if(holesOnly)return;
         if(!net){geo.unassigned++;if(!physical)return;}
+        const copperVia=i.drill>0?{...base,bore:i.drill/2}:base;
         if(VS&&(i.stackMode&&i.stackMode!=="simple"||i.backdrill||i.shape&&i.shape!=="round")){
           for(const layer of stackLayers("via")){
             const land=VS.padOn(i,layer);if(!(land.diameter>0))continue;
             const idx=copperIndex(layer),g=padCore({w:land.diameter,h:land.diameter,shape:land.shape},center,0);
-            if(g)geo.copper.push(feature({...base,span:[idx,idx]},g.core,g.radius));
+            if(g)geo.copper.push(feature({...copperVia,span:[idx,idx]},g.core,g.radius));
           }
-        }else geo.copper.push(feature(base,[center],i.diameter/2));
+        }else geo.copper.push(feature(copperVia,[center],i.diameter/2));
         return;
       }
       // The pad's physical drill spans the stack. Each authored land belongs only to its copper layer.

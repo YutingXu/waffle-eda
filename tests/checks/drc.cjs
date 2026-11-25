@@ -54,6 +54,16 @@ close(of(out,"holeToHole")[0].actual,.2);
   assert.equal(of(out,"holeToHole").length,0,"disjoint spans do not share a hole spacing rule");
 }
 
+{
+  const drill=via("v","A",0,0,1.6,1), probe=x=>pad("p","B",x,0,.2,.2,"round");
+  const check=x=>run([drill,probe(x)],base,{types:["clearance","short"]});
+  assert.equal(of(check(0),"short").length,0);
+  assert.equal(of(check(0),"clearance").length,0,"a centred pad has a 0.4 mm gap to the drill wall");
+  close(of(check(.3),"clearance")[0]?.actual,.1);
+  close(of(check(.46),"clearance")[0]?.actual,0);
+  assert.equal(of(check(.46),"short").length,1);
+}
+
 // Routing layers.
 rules=withRules(c=>{c.list.find(r=>r.type==="routingLayers").excluded=["Bottom"];});
 assert.deepEqual(of(run([track("t1","A",[[0,0],[1,0]],.2,"Bottom"),track("t2","A",[[0,2],[1,2]])],rules),"routingLayers").map(v=>v.id),["t1"]);
