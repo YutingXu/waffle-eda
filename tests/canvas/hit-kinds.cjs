@@ -24,6 +24,13 @@ view.render(doc, defs, {grid: false});
 const opts = {layer: "Top", layerMode: "all", hidden: new Set()};
 const atPad = [-2, -1.6];
 assert.equal(view.hit(doc, defs, atPad, opts)?.id, "u1", "the generic pick prefers the footprint (unchanged)");
+for (const flipped of [false,true]) {
+  view.setFlipped(flipped);
+  const single={...opts,layerMode:"single"};
+  assert.equal(view.hit(doc,defs,atPad,single)?.id,"t1","active-layer copper wins over a footprint pad");
+  assert.deepEqual(view.hits(doc,defs,atPad,single).slice(0,2).map(i=>i.id),["t1","u1"]);
+}
+view.setFlipped(false);
 assert.equal(view.hit(doc, defs, atPad, {...opts, kinds: ["track"]})?.id, "t1", "kinds: tracks only");
 assert.equal(view.hit(doc, defs, atPad, {...opts, kinds: new Set(["track", "via"])})?.id, "t1", "a Set works too");
 assert.equal(view.hit(doc, defs, [0, 5], {...opts, kinds: ["track"]}), null, "nothing there");
@@ -88,6 +95,30 @@ for (const p of [[-2, -1], [-1, 0], [1, 0], [5, 0]]) assert.equal(view.hit(doc, 
   assert.equal(pick(turned,[0,0]),"turned","drill centre still picks its pad");
   view.fit(doc,defs);
   view.render(doc,defs,{grid:false});
+}
+
+// A flipped board selects copper and silk painted underneath
+{
+  const doc = Atrium.sheet("pcb", "Flipped overlap");
+  doc.items = [
+    {id: "silk", kind: "graphic", layer: "Silk", fill: true, closed: true, width: 0, points: [[0, 0], [4, 0], [4, 4], [0, 4]]},
+    {id: "bsilk", kind: "graphic", layer: "Bottom silk", fill: true, closed: true, width: 0, points: [[1, 1], [3, 1], [3, 3], [1, 3]]},
+    {id: "in1", kind: "track", net: "A", layer: "Inner 1", width: 1, points: [[-2, 10], [6, 10]]},
+    {id: "in126", kind: "track", net: "B", layer: "Inner 126", width: 1, points: [[-2, 10], [6, 10]]}
+  ];
+  const opts = {layer: "Top", layerMode: "all", hidden: new Set(), grid: false};
+  view.restoreCamera({cx: 2, cy: 6, scale: 30, referenceScale: 30});
+  view.setFlipped(true);
+  view.render(doc, defs, opts);
+  const order = view.internals().paintOrder(doc, defs, opts);
+  const silk = order.filter(l => l === "Silk" || l === "Bottom silk");
+  assert.deepEqual(silk, ["Silk", "Bottom silk"], "Bottom silk is painted above Silk");
+  assert.ok(order.indexOf("Inner 126") > order.indexOf("Inner 1"), "Inner 126 is painted above Inner 1");
+  assert.equal(view.hit(doc, defs, [2, 2], opts)?.id, "bsilk", "the silk click selects the layer on top");
+  assert.equal(view.hit(doc, defs, [2, 10], opts)?.id, "in126", "the inner click selects the layer on top");
+  assert.deepEqual(view.hits(doc, defs, [2, 10], opts).map(i => i.id), ["in126", "in1"]);
+  view.setFlipped(false);
+  assert.equal(view.hit(doc, defs, [2, 10], opts)?.id, "in1");
 }
 
 // Resize keeps the centre.
