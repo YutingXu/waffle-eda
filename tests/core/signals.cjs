@@ -239,6 +239,14 @@ const xsBoard = () => board(classBoard().items);
   assert.deepEqual(Object.keys(st.nets), ["TX0_P"]);
 }
 {
+  const store = {version:1, signals:[{id:"s", name:"S", kind:"single", legs:[{nets:["A","A","B"]}],
+    paths:[{name:"P", from:{part:"a",pin:"1"}, to:{part:"b",pin:"2"}, nets:["A","A"]}]}], tags:[], nets:{}};
+  S.validate(store);
+  assert.equal(S.renameNet(store,"A","C"),2);
+  assert.deepEqual(store.signals[0].legs[0].nets,["C","B"]);
+  assert.deepEqual(store.signals[0].paths[0].nets,["C","C"]);
+}
+{
   // Two boards: the same pair on both is one record; differing net classes are scoped per board.
   const mk = () => board([ic("U1", ["A", "B", "C", "D"])]);
   const b1 = mk(), b2 = mk(), p = project(b1, b2), pair = [{name: "P", positive: "A", negative: "B"}];
