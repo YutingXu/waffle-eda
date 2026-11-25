@@ -317,6 +317,13 @@ globalThis.__uiProbes = (() => {
       const head = m.querySelector(".nav-menu-head")?.textContent || "";
       const r = rect(m), focusIn = m.contains(document.activeElement);
       const entries = [...m.querySelectorAll(":scope > .nav-menu-item, :scope > .nav-sub > .nav-menu-item")].map(b => b.textContent.replace(/\s+/g, " ").trim()).slice(0, 30);
+      if (t === "canvas") {
+        const rows = m.querySelectorAll(":scope > button:not(:disabled)");
+        const hovered = rows[2];
+        // A hidden WKWebView receives hover through the harness's drag-without-press route.
+        if (hovered) await mouse(...center(hovered), {kind:"drag"});
+        log(!!hovered && document.activeElement === hovered, kind + " canvas menu highlight follows the pointer");
+      }
       let subOk = null;
       const subWrap = m.querySelector(":scope > .nav-sub");
       if (subWrap) {

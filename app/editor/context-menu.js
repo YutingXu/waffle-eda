@@ -427,7 +427,11 @@ globalThis.AtriumContextMenu = (() => {
         const inner = build(e.items, ctx, level + 1); inner.setAttribute("aria-label", e.sub);
         t.onclick = () => openSub(wrap, true);
         wrap.addEventListener("pointerenter", ev => {if (ev.pointerType !== "touch") openSub(wrap, false);});
-        wrap.addEventListener("pointerleave", ev => {if (ev.pointerType !== "touch") closeSub(wrap);});
+        wrap.addEventListener("pointerleave", ev => {
+          if (ev.pointerType === "touch") return;
+          if (inner.contains(document.activeElement)) t.focus({preventScroll:true});
+          closeSub(wrap);
+        });
         wrap.append(t, inner); menu.append(wrap); continue;
       }
       const b = NC().el("button", null, "nav-menu-item"); b.type = "button"; b.tabIndex = -1; if (e.action) b.dataset.menuAction = e.action;
@@ -649,6 +653,9 @@ globalThis.AtriumContextMenu = (() => {
       const head = NC().el("div", heading, "nav-menu-head"); head.setAttribute("role", "presentation"); root.prepend(head);
     } else root.classList.add("action-menu");
     root.addEventListener("keydown", keys);
+    if (focus?.tagName === "CANVAS") root.addEventListener("pointermove", ev => {
+      if (ev.pointerType !== "touch") ev.target.closest(".nav-menu-item:not(:disabled)")?.focus({preventScroll:true});
+    });
     root.addEventListener("focusout", ev => {
       if (root && !root.contains(ev.relatedTarget) && !(trigger && (trigger === ev.relatedTarget || pressing === trigger))) close(false);
     });
