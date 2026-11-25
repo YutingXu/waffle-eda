@@ -776,11 +776,12 @@ globalThis.AtriumLibrary = (() => {
   // {format:"atrium-library", version:1, name, description, defs:[...]} — plain JSON, shareable
   // between projects. Values under keys that look like credentials are never written or read.
   const SECRET = /(api[_-]?key|token|secret|password|passwd|credential|auth(?!or(?:$|s$|name$|email$|edby$|ship$))|cookie|session)/i;
+  const AUTHOR_FIELD = /^(?:author (?:email|name)|authored by)$/i;
   function scrub(v, removed = []) {
     if (Array.isArray(v)) return v.map(x => scrub(x, removed));
     if (!isObj(v)) return v;
     const o = {};
-    for (const [k, x] of Object.entries(v)) { if (SECRET.test(k)) { removed.push(k); continue; } o[k] = scrub(x, removed); }
+    for (const [k, x] of Object.entries(v)) { if (SECRET.test(k) && !AUTHOR_FIELD.test(k)) { removed.push(k); continue; } o[k] = scrub(x, removed); }
     return o;
   }
   const stable = v => Array.isArray(v) ? "[" + v.map(stable).join(",") + "]" : isObj(v) ? "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}" : JSON.stringify(v);
