@@ -933,8 +933,12 @@ globalThis.AtriumSignals = (() => {
   function renameNet(store, from, to) {
     let n = 0;
     for (const s of store.signals || []) {
-      for (const l of s.legs || []) { const i = l.nets.indexOf(from); if (i >= 0) { l.nets[i] = to; l.nets = [...new Set(l.nets)]; n++; } }
-      for (const p of s.paths || []) if (p.nets) { const i = p.nets.indexOf(from); if (i >= 0) { p.nets[i] = to; n++; } }
+      for (const l of s.legs || []) if (l.nets.includes(from)) {
+        l.nets = [...new Set(l.nets.map(net => net === from ? to : net))]; n++;
+      }
+      for (const p of s.paths || []) if (p.nets?.includes(from)) {
+        p.nets = p.nets.map(net => net === from ? to : net); n++;
+      }
     }
     if (store.nets && own(store.nets, from)) { const v = store.nets[from]; delete store.nets[from]; if (store.nets[to]) { const a = [].concat(store.nets[to], v); store.nets[to] = a.length === 1 ? a[0] : a; } else store.nets[to] = v; n++; }
     return n;
