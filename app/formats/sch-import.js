@@ -78,7 +78,14 @@ globalThis.AtriumSCH = (() => {
     const count=numeric(r.LOCATIONCOUNT);
     if(count>1000000 || count>Object.keys(r).length)throw Error("Invalid schematic point count.");
     const pts=[];
-    for(let i=1;i<=count;i++)pts.push([mm(r,"X"+i),-mm(r,"Y"+i)]);
+    // Altium omits zero-valued whole and fractional ordinates.
+    const coordinate=key=>{
+      const whole=r[key], frac=r[key+"_FRAC"];
+      const invalid=value=>value!=null&&(String(value).trim()===""||!Number.isFinite(Number(value)));
+      if(invalid(whole)||invalid(frac))throw Error("Invalid schematic point coordinate "+key+".");
+      return mm(r,key);
+    };
+    for(let i=1;i<=count;i++)pts.push([coordinate("X"+i),-coordinate("Y"+i)]);
     return pts;
   }
   function rectangle(r) {
