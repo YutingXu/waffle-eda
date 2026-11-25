@@ -436,7 +436,7 @@ globalThis.AtriumERC = (() => {
       const used = new Set(group.map(p => p.i.unit || p.i.part || 1));
       for (let g = 1; g <= d.symbol.parts; g++) {
         const own = (d.symbol.pins || []).filter(x => x.part === g);
-        if (!used.has(g) && own.length && own.every(x => x.electrical === 7))
+        if (!used.has(g) && own.length && own.every(x => pinType(x) === PWR))
           report("missingPowerGate", group[0].doc, "Power gate " + (g <= 26 ? String.fromCharCode(64 + g) : g) + " of " + group[0].i.ref + " is not placed; pins " + own.map(x => x.number).join(", ") + " are unconnected", group[0].i, undefined, {sig:"gate:" + g});
       }
     }
