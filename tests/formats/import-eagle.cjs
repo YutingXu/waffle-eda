@@ -116,6 +116,29 @@ const nearP = (p, q, tol = 1e-3) => !!p && near(p[0], q[0], tol) && near(p[1], q
   assert.ok(result.notes.some(note => /malformed required values/.test(note)));
 }
 
+// Copper widths and SMD dimensions use the same millimetre conversion as board rules.
+{
+  const brd = `<?xml version="1.0"?><eagle version="9.6.2"><drawing><board>
+    <libraries><library name="L"><packages><package name="P">
+      <smd name="1" x="0" y="0" dx="40mil" dy="20mil" layer="1"/>
+      <smd name="2" x="4" y="0" dx="1.2" dy="8e-1" layer="1"/>
+    </package></packages></library></libraries>
+    <designrules name="d"><param name="mdWireWire" value="8mil"/><param name="msWidth" value="10mil"/></designrules>
+    <elements><element name="U1" library="L" package="P" x="0" y="0"/></elements>
+    <plain><wire x1="0" y1="2" x2="5" y2="2" width="0.3mm" layer="1"/></plain>
+    <signals><signal name="N"><contactref element="U1" pad="1"/>
+      <wire x1="0" y1="1" x2="5" y2="1" width="10mil" layer="1"/>
+    </signal></signals>
+  </board></drawing></eagle>`;
+  const [result] = I.readSet([{name: "units.brd", bytes: enc.encode(brd)}]);
+  const board = result.documents[0], pads = result.library[0].footprint.pads;
+  assert.equal(board.rules.defaults.clearance, .2032);
+  assert.equal(board.rules.defaults.trackWidth, .254);
+  const tracks = board.items.filter(i => i.kind === "track");
+  assert.deepEqual(tracks.map(t => [t.net, t.width]), [["N", .254], ["", .3]]);
+  assert.deepEqual(pads.map(pad => [pad.w, pad.h]), [[1.016,.508],[1.2,.8]]);
+}
+
 {
   const original = fixture("demo-eagle.sch");
   const bad = '<wire x1="oops" y1="10" x2="20" y2="10" width=".2" layer="94"/>';

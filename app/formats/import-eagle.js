@@ -110,7 +110,8 @@ globalThis.AtriumEagleImport = (() => {
   const path = (el, ...names) => names.reduce((e, n) => kid(e, n), el);
   const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
   // "8mil", "0.2mm", "0.01in" -> mm; bare numbers are millimetres.
-  const length = v => { const m = /^\s*(-?[\d.]+(?:e-?\d+)?)\s*(mm|mil|in|mic)?\s*$/i.exec(String(v ?? "")); if (!m) return NaN; return +m[1] * ({mil: .0254, in: 25.4, mic: .001}[(m[2] || "mm").toLowerCase()] || 1); };
+  const length = v => { const m = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(mm|mil|in|mic)?\s*$/i.exec(String(v ?? "")); if (!m) return NaN; return +m[1] * ({mil: .0254, in: 25.4, mic: .001}[(m[2] || "mm").toLowerCase()] || 1); };
+  const dimension = (v, fallback = 0) => { const mm = length(v); return Number.isFinite(mm) ? mm : fallback; };
   const rotOf = r => { const s = String(r || "R0"); return {mirror: /M/.test(s), angle: num(s.replace(/[^\d.-]/g, ""), 0)}; };
   const yesno = v => v === "yes";
   const flip = (x, y) => [r4(+x), r4(-y)];
@@ -180,14 +181,14 @@ globalThis.AtriumEagleImport = (() => {
     for (const e of pkg.children) {
       const a = e.attrs;
       if (e.name === "smd" && copper(e) || e.name === "pad") {
-        const turned = Math.round(rotOf(a.rot).angle / 90) % 2 !== 0, w = e.name === "pad" ? num(a.diameter, num(a.drill, .8) * 1.6) : num(turned ? a.dy : a.dx), h = e.name === "pad" ? w : num(turned ? a.dx : a.dy);
+        const turned = Math.round(rotOf(a.rot).angle / 90) % 2 !== 0, w = e.name === "pad" ? num(a.diameter, num(a.drill, .8) * 1.6) : dimension(turned ? a.dy : a.dx), h = e.name === "pad" ? w : dimension(turned ? a.dx : a.dy);
         const b = [num(a.x) - w / 2, num(a.y) - h / 2, num(a.x) + w / 2, num(a.y) + h / 2];
         if (real.has(a.name)) pads.push({name: a.name, b}); else bridges.push(Object.assign(b, {pad: a.name}));
       } else if (copper(e) && e.name === "rectangle") bridges.push(box([[num(a.x1), num(a.y1)], [num(a.x2), num(a.y2)]]));
       else if (copper(e) && e.name === "wire") {
         const coords = wireCoordinates(a);
         if (!coords) continue;
-        const [x1, y1, x2, y2] = coords, r = num(a.width) / 2, b = box([[x1, y1], [x2, y2]]);
+        const [x1, y1, x2, y2] = coords, r = dimension(a.width) / 2, b = box([[x1, y1], [x2, y2]]);
         bridges.push([b[0] - r, b[1] - r, b[2] + r, b[3] + r]);
       }
       else if (copper(e) && e.name === "polygon") { const v = kids(e, "vertex").map(q => [num(q.attrs.x), num(q.attrs.y)]); if (v.length > 2) { const r = num(a.width) / 2, b = box(v); bridges.push([b[0] - r, b[1] - r, b[2] + r, b[3] + r]); } }
@@ -478,7 +479,7 @@ globalThis.AtriumEagleImport = (() => {
       for (const e of pkg.children) {
         const p = e.attrs, padStart = pads.length, shapeStart = shapes.length;
         if (e.name === "smd") {
-          const c = map([num(p.x), num(p.y)]), round = num(p.roundness), w = num(p.dx), h = num(p.dy);
+          const c = map([num(p.x), num(p.y)]), round = num(p.roundness), w = dimension(p.dx), h = dimension(p.dy);
           pads.push({number: p.name, x: c[0], y: c[1], w, h, drill: 0, layer: L(+p.layer || 1),
             shape: round >= 100 ? (Math.abs(w - h) < 1e-6 ? "round" : "oval") : round > 0 ? "roundrect" : "rect", angle: padAngle(rotOf(p.rot).angle)});
         } else if (e.name === "pad") {
@@ -507,7 +508,7 @@ globalThis.AtriumEagleImport = (() => {
           if (!l) { notes.add("Package graphics on unsupported Eagle layer " + ln + " omitted"); continue; }
           const style = /^Mechanical 1[34]$/.test(l) ? "package" : l === "Silk" || l === "Bottom silk" ? "silk" : "body", layer = style === "package" ? {} : {layer: l};
           if (e.name === "wire") F().guard(notes, () =>
-            shapes.push({kind: "path", points: wirePoints(p, map), style, width: num(p.width, .127), ...layer, closed: false, fill: false}));
+            shapes.push({kind: "path", points: wirePoints(p, map), style, width: dimension(p.width, .127), ...layer, closed: false, fill: false}));
           else if (e.name === "circle") { const c = map([num(p.x), num(p.y)]); shapes.push({kind: "circle", x: c[0], y: c[1], ...circleSize(p, .127), style, ...layer}); }
           else if (e.name === "rectangle") {
             const x1 = num(p.x1), y1 = num(p.y1), x2 = num(p.x2), y2 = num(p.y2);
@@ -573,7 +574,7 @@ globalThis.AtriumEagleImport = (() => {
         const l = layerOf(+w.attrs.layer);
         if (+w.attrs.layer === 19) { evidence?.drop(w, "Unrouted airwire omitted."); return; }
         if (!isCopper(l)) { evidence?.drop(w, "Signal wire is on a non-copper layer."); notes.add("Signal wires on non-copper layers omitted"); return; }
-        doc.items.push({id: A.id(), kind: "track", points: wirePoints(w.attrs), layer: l, width: num(w.attrs.width, .254), net});
+        doc.items.push({id: A.id(), kind: "track", points: wirePoints(w.attrs), layer: l, width: dimension(w.attrs.width, .254), net});
         evidence?.use(w, doc.items.at(-1), graphicApprox(w));
         evidence?.produced(w, doc, doc.items.length - 1);
         if (num(w.attrs.curve)) notes.add("Curved tracks were converted to short straight segments");
@@ -614,7 +615,7 @@ globalThis.AtriumEagleImport = (() => {
       if (e.name === "hole") { const d = num(p.drill, 1); doc.items.push({id: A.id(), kind: "pad", number: "", x: r4(num(p.x)), y: r4(-num(p.y)), w: d, h: d, drill: d, shape: "round", layer: "Multi", plated: false}); evidence?.use(e, doc.items.at(-1)); evidence?.produced(e, doc, first); return; }
       if (e.name === "text") { if (l && e.text.trim()) doc.items.push({id: A.id(), kind: "label", x: r4(num(p.x)), y: r4(-num(p.y)), text: e.text.trim(), angle: r4(norm(-rotOf(p.rot).angle)), size: num(p.size, 1.27), layer: l}); if (doc.items[first]) { evidence?.use(e, doc.items[first]); evidence?.produced(e, doc, first); } return; }
       if (!l) { if (["wire", "circle", "rectangle", "polygon"].includes(e.name)) notes.add("Board graphics on unsupported Eagle layer " + ln + " omitted"); else if (e.name === "dimension") notes.add("Dimensions omitted"); return; }
-      if (e.name === "wire") doc.items.push({id: A.id(), kind: isCopper(l) ? "track" : "graphic", points: wirePoints(p), layer: l, width: num(p.width, .254), ...(isCopper(l) ? {net: ""} : {})});
+      if (e.name === "wire") doc.items.push({id: A.id(), kind: isCopper(l) ? "track" : "graphic", points: wirePoints(p), layer: l, width: dimension(p.width, .254), ...(isCopper(l) ? {net: ""} : {})});
       else if (e.name === "circle") doc.items.push({id: A.id(), kind: "graphic", points: G().circlePoints([num(p.x), -num(p.y)], num(p.radius, 1)), layer: l, width: num(p.width, .254), closed: true});
       else if (e.name === "rectangle") {
         const x1 = num(p.x1), y1 = num(p.y1), x2 = num(p.x2), y2 = num(p.y2);
