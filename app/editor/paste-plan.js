@@ -12,9 +12,10 @@ globalThis.AtriumPastePlan = (() => {
     const cutIds=clip.cut && clip.doc===doc.id?new Set(clip.items.map(i=>i.id)):null;
     const cutRefs=cutIds?new Set(clip.items.filter(i=>i.kind==="part").map(i=>i.ref.toUpperCase())):null;
     const restore=cutIds && !doc.items.some(i=>cutIds.has(i.id) || i.kind==="part"&&cutRefs.has(i.ref.toUpperCase()));
-    const newDefs=[],mapping=new Map(),nextRef=restore?null:P.refAllocator(project);
+    const newDefs=[],mapping=new Map(),dynamic=new Map(),nextRef=restore?null:P.refAllocator(project);
     const PCB=doc.kind==="pcb" && globalThis.AtriumPCBAppearance;
     for(const source of clip.library){
+      if(!restore&&source.dynamic){dynamic.set(source.id,source);continue;}
       const key=P.definitionKey(source);
       let target=defs.get(source.id);
       const geometry=target && (PCB ? PCB.readDefinition(defs,target.id,doc) : target);
@@ -24,7 +25,7 @@ globalThis.AtriumPastePlan = (() => {
       }
       mapping.set(source.id,target.id);
     }
-    const defsForPreview=newDefs.length?new Map([...defs,...newDefs.map(d=>[d.id,d])]):defs;
+    const defsForPreview=newDefs.length||dynamic.size?new Map([...defs,...newDefs.map(d=>[d.id,d])]):defs;
     const groups=new Map(),unions=new Map(),ids=new Map();
     if(!restore)for(const src of clip.items)ids.set(src.id,A.id());
     // A group's kind prefix ("union:", "fence:", "teardrop:", "logo-") stays, so a pasted
@@ -32,6 +33,13 @@ globalThis.AtriumPastePlan = (() => {
     const regroup=(map,g)=>{if(!map.has(g)){const m=/^([A-Za-z]+[:-])/.exec(String(g));map.set(g,(m?m[1]:"")+A.id());}return map.get(g);};
     const items=clip.items.map(src=>{
       const i=A.clone(src);
+      if(i.kind==="part"){
+        const source=dynamic.get(i.def);
+        if(source){
+          const def=A.clone(source);def.id=A.id();
+          newDefs.push(def);defsForPreview.set(def.id,def);i.def=def.id;
+        }else i.def=mapping.get(i.def);
+      }
       if(!restore){
         P.newInstance(i,ids.get(src.id));
         if(i.kind==="textframe"&&i.calculation){
@@ -49,12 +57,11 @@ globalThis.AtriumPastePlan = (() => {
           if(ids.has(head))i.teardropAnchor=ids.get(head)+(k<0?"":a.slice(k));
         }
         if(i.kind==="part"){
-          const prefix=i.ref?.match(/^(.*?)(?:\d+[a-z]?)$/i)?.[1]||defsForPreview.get(mapping.get(i.def))?.prefix||"U";
+          const prefix=i.ref?.match(/^(.*?)(?:\d+[a-z]?)$/i)?.[1]||defsForPreview.get(i.def)?.prefix||"U";
           i.ref=nextRef(prefix);
         }
       }
       if(i.richText)globalThis.AtriumNotebook?.copyBindings(i,project,doc,clip,ids);
-      if(i.kind==="part")i.def=mapping.get(i.def);
       A.moveItem(i,-clip.origin[0],-clip.origin[1]);
       return i;
     });

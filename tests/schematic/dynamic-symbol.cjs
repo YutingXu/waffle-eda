@@ -119,4 +119,35 @@ A.validate(p);
 }
 
 // The real editor's active- and background-sheet settle paths run in scripts/test-undo-editor.cjs.
+require(require("../support/app-source-paths.cjs").appFile("edit-selection.js"));
+{
+  const q = A.project("Paste dynamic", []), s = q.documents[0];
+  const {def, part} = DS.place(q, s, [0, 0], {height:6, width:4});
+  const x0 = def.dynamic.body[0];
+  s.items.push({id:A.id(), kind:"wire", points:[[part.x + x0 - 5, part.y], [part.x + x0, part.y]]});
+  DS.settle(q, s);
+  assert.equal(def.dynamic.pins.length, 1);
+  const defs = new Map(q.library.map(d => [d.id, d]));
+  const clip = AtriumEditSelection.capture(s, defs, new Set([part.id]));
+  const plan=AtriumEditSelection.prepare(q,s,clip,defs);
+  assert.notEqual(plan.items[0].def,part.def);
+  assert.ok(plan.defs.get(plan.items[0].def)?.dynamic);
+  plan.commit([30,0]);
+  const copy = s.items.find(i => i.kind === "part" && i.id !== part.id);
+  const edge = [copy.x + def.dynamic.body[2], copy.y + 2.54];
+  s.items.push({id:A.id(), kind:"wire", points:[edge, [edge[0] + 8, edge[1]]]});
+  DS.settle(q, s);
+  assert.equal(def.dynamic.pins.length, 1, "wiring a pasted copy must not add a pin to the original connector");
+  const copiedDef=q.library.find(row=>row.id===copy.def);
+  assert.equal(copiedDef.dynamic.pins.length,2);
+  assert.equal(copiedDef.footprint.pads.length,2);
+  const current=new Map(q.library.map(d=>[d.id,d])), cut=AtriumEditSelection.capture(s,current,new Set([copy.id]),true);
+  s.items=s.items.filter(i=>i!==copy);
+  const restored=AtriumEditSelection.prepare(q,s,cut,current);
+  assert.equal(restored.items[0].id,copy.id);
+  assert.equal(restored.items[0].def,copy.def);
+  restored.commit([copy.x,copy.y]);
+  assert.equal(q.library.length,2);
+}
+
 console.log("dynamic symbols ok");
