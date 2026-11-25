@@ -162,7 +162,11 @@ globalThis.AtriumProposal = (() => {
     for (const k of path) if (typeof k !== "string" || !k || FORBIDDEN.has(k) || k === "length") fail("The proposal has an invalid field path.");
   }
   function read(o, path) {
-    for (const k of path.slice(0, -1)) { if (!plain(o) || !own(o, k)) return {has: false}; o = o[k]; }
+    for (const k of path.slice(0, -1)) {
+      if (!own(o, k)) return {has: false};
+      o = o[k];
+      if (!plain(o)) fail("The proposal edits inside a list, which is not allowed.");
+    }
     const k = path[path.length - 1];
     return plain(o) && own(o, k) ? {has: true, value: o[k]} : {has: false};
   }
