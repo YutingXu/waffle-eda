@@ -103,4 +103,22 @@ const sel = bench.d.items.filter(i => i.kind === "part").slice(0, 20);
 const t1 = Date.now(); for (let k = 0; k < 10; k++) D.liveCheck(bench.d, bench.defs, rule, sel.map(p => ({...p, x: p.x + k * .01})), 7);
 const liveMs = (Date.now() - t1) / 10;
 assert.ok(liveMs < 30, "live check per frame " + liveMs + " ms");
+{
+  const fp={id:"cache-fp",name:"C",footprint:{name:"C_0402",courtyard:[-.5,-.3,.5,.3],
+    shapes:[{kind:"path",style:"package",closed:true,points:[[-.4,-.2],[.4,-.2],[.4,.2],[-.4,.2]]}],
+    pads:[{number:"1",x:0,y:0,w:.4,h:.3}]}};
+  const lib=new Map([["cache-fp",fp]]);
+  const doc={kind:"pcb",id:"b",name:"DFA",items:[
+    {id:"C1",kind:"part",def:"cache-fp",ref:"C1",x:0,y:0,angle:0,pinNets:{}},
+    {id:"C2",kind:"part",def:"cache-fp",ref:"C2",x:1.3,y:0,angle:0,pinNets:{}}],outline:[]};
+  const rule=D.defaultRule({measure:"courtyard",defaultGap:.2,matrix:[]});
+  assert.equal(D.check(doc,lib,rule).violations.length,0);
+  fp.footprint.courtyard=[-.9,-.6,.9,.6];
+  const after=D.check(doc,lib,rule);
+  assert.equal(after.violations.length,1);
+  close(after.violations[0].actual,0);
+  fp.footprint.courtyard.splice(0,4,-.5,-.3,.5,.3);
+  assert.equal(D.check(doc,lib,rule).violations.length,0);
+}
+
 console.log("dfa: types, matrix, sides, courtyard, DRC rule, starters, live (" + big.parts + " parts " + ms + " ms, live " + liveMs.toFixed(1) + " ms/frame) OK");
