@@ -102,16 +102,17 @@
 }
 
 /* --------------------------------------------------------- scripting console */
-.script-console {position:relative;display:flex;flex-direction:column;flex:none;min-height:140px;max-height:85vh;border-top:1px solid var(--app);background:var(--panel);font-size:var(--fs-12)}
+.script-console {container:script-console / inline-size;position:relative;display:flex;flex-direction:column;flex:none;min-height:140px;max-height:85vh;border-top:1px solid var(--app);background:var(--panel);font-size:var(--fs-12)}
 .script-console[hidden] {display:none}
 .script-sash {position:absolute;z-index:1;top:-3px;left:0;right:0;height:6px;cursor:ns-resize}
 .script-sash:focus-visible {outline:2px solid var(--focus);outline-offset:-2px}
-.script-bar {display:flex;align-items:center;gap:6px;flex:none;min-height:30px;padding:2px 4px 2px 8px;background:var(--panel-head);border-bottom:1px solid var(--app);overflow-x:auto;scrollbar-width:none}
+.script-bar {flex-wrap:wrap;flex:none;gap:var(--s-4) var(--s-8);padding-block:var(--s-4);background:var(--panel-head);border-block-end:1px solid var(--line)}
 .script-bar h2 {margin:0 6px 0 0;font-size:var(--fs-12);font-weight:600;color:var(--ink);white-space:nowrap}
-.script-bar :is(button,select,input) {flex:none}
+.script-tools {display:flex;align-items:center;gap:var(--s-4);min-inline-size:0;max-inline-size:100%}
+.script-tools button {flex:none}
 .script-save-fields {display:grid;gap:var(--s-8)}
-.script-bar select {max-width:170px}
-.script-spacer {flex:1}
+.script-files select {flex:0 1 auto;min-inline-size:0;max-inline-size:20ch;text-overflow:ellipsis}
+.script-timeout {inline-size:6ch}
 .script-timeout-label {display:flex;align-items:baseline;gap:4px;color:var(--muted);white-space:nowrap}
 .script-bar .script-close {border-color:transparent;background:none;font-size:var(--fs-14);line-height:1;padding:0 6px}
 .script-console.is-running .script-bar h2::after {content:" · running";color:var(--accent-text);font-weight:400}
@@ -128,7 +129,12 @@
 .script-line.is-error {color:var(--ext-error);border-left-color:var(--ext-error)}
 .script-line.is-warn {color:var(--ext-warn)}
 .script-line.is-status,.script-line.is-debug {color:var(--muted)}
-@media (max-width:760px) {.script-body {grid-template-columns:1fr;grid-template-rows:1fr 1fr} .script-editor {border-right:0;border-bottom:1px solid var(--app)}}
+@container script-console (max-width:600px) {
+  .script-bar h2 {flex:0 0 100%}
+  .script-spacer {display:none}
+  .script-body {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,3fr) minmax(0,2fr)}
+  .script-editor {border-inline-end:0;border-block-end:1px solid var(--line)}
+}
 
 /* Declarative plots (host-drawn SVG) */
 :root {--ext-plot-0:#5f9de3;--ext-plot-1:#f0a32e;--ext-plot-2:#7fbf8a;--ext-plot-3:#e3837c;--ext-plot-4:#b48ee0;--ext-plot-5:#5cc6c6;--ext-plot-6:#d6c35c;--ext-plot-7:#c9c9c9;}
