@@ -477,7 +477,7 @@
       folderDerived=!!folder()&&source==="pours"&&!persistDerived;
       try{
         if(store?.record&&store.root()===project&&(folder()||source==="numeric-field"||source==="pours"&&touched||source==null&&(touched||visibleBoard()))&&source!=="undo")store.record(project,touched);
-        else if(!folder()||source!=="undo")store?.touch?.(project,touched);
+        else if(!folder()||source!=="undo")store?.touch?.(project,touched,source==="undo");
       }finally{folderDerived=false;}
     }
     const scopeStep = scopeCheckpoint ? history.at(-1) : null; scopeCheckpoint = false;
