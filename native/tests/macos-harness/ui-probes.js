@@ -317,6 +317,13 @@ globalThis.__uiProbes = (() => {
       const head = m.querySelector(".nav-menu-head")?.textContent || "";
       const r = rect(m), focusIn = m.contains(document.activeElement);
       const entries = [...m.querySelectorAll(":scope > .nav-menu-item, :scope > .nav-sub > .nav-menu-item")].map(b => b.textContent.replace(/\s+/g, " ").trim()).slice(0, 30);
+      if (t === "canvas") {
+        const rows = m.querySelectorAll(":scope > button:not(:disabled)");
+        const hovered = rows[2];
+        // A hidden WKWebView receives hover through the harness's drag-without-press route.
+        if (hovered) await mouse(...center(hovered), {kind:"drag"});
+        log(!!hovered && document.activeElement === hovered, kind + " canvas menu highlight follows the pointer");
+      }
       let subOk = null;
       const subWrap = m.querySelector(":scope > .nav-sub");
       if (subWrap) {
@@ -337,6 +344,16 @@ globalThis.__uiProbes = (() => {
     }
     const bad = results.filter(r => !r.ok);
     log(!bad.length && results.length > 1, kind + " right-click menus for " + results.map(r => r.t).join(", "), bad.length ? bad : results.map(r => r.t + ": " + r.head + " (" + r.entries + ")").join("; "));
+    await cleanup();
+    await mouse(...emptyPoint(), {button:"right"});
+    const pointerMenu = await until(2000, ctxMenu);
+    // Exercise a secondary-click focus loss with no new focus target.
+    if (pointerMenu?.contains(document.activeElement)) document.activeElement.blur();
+    const keptFocus = !!pointerMenu && !!await until(600, () => pointerMenu.contains(document.activeElement));
+    await key("Escape");
+    const dismissed = !!pointerMenu && !!await until(800, () => !pointerMenu.isConnected);
+    log(keptFocus && dismissed, kind + " canvas menu survives targetless focus loss and Escape still closes it");
+
     // Shift+F10 opens the menu for the selection from the keyboard.
     await cleanup();
     const part = d.items.find(i => i.kind === "part");
