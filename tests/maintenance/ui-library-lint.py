@@ -125,6 +125,8 @@ TITLEBAR_OK = {
     ("app/project/view-config.css", ".vc-picker"): "a 1 px transparent anchor for the native colour picker",
     ("app/editor/dock.css", ".dock-ghost"): "drag feedback that a transform moves with the pointer",
     ("app/project/split-view.css", ".split-drop"): "a drop preview that script sizes and places over the target pane",
+    ("app/style.css", ".window-controls"): "the window controls Waffle draws on Windows (native/windows/window-caption.js); the band is theirs",
+    ("app/style.css", ".window-resize-edge"): "the top resizing edge Waffle draws on Windows; transparent, and hidden when maximised",
     ("app/pcb/board-shape.css", ".bsh-dialog[open]:not(:modal)"): "centred with margin:auto and at most 86vh tall, so it starts 7vh (35 px) down at the smallest window",
 }
 CAPTION_PX = 32

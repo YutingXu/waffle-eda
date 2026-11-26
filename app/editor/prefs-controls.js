@@ -183,8 +183,8 @@ globalThis.AtriumPrefsControls = (() => {
         if (event.pointerId !== id) return;
         const constrain = (value, space) => Math.round(Math.max(8, Math.min(space - 8, value)));
         dialog.style.setProperty("--prf-window-x", constrain(left + event.clientX - x, innerWidth - width) + "px");
-        // Never under the title bar and its window controls (--macos-caption-height in the native app).
-        const safeTop = Math.max(8, (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--macos-caption-height")) || 0) + 8);
+        // Never under the title bar and its window controls (--window-caption-height in the native apps).
+        const safeTop = Math.max(8, (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-caption-height")) || 0) + 8);
         dialog.style.setProperty("--prf-window-y", Math.max(safeTop, constrain(top + event.clientY - y, innerHeight - height)) + "px");
       };
       handle.addEventListener("pointermove", move);

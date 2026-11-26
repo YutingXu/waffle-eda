@@ -31,7 +31,7 @@ The user has approved these rules. A change to any of them needs the user's appr
 - The app must not behave like a web page. Focus rings show only during keyboard navigation (`html[data-focus-nav=keys]`). Only real links use `cursor:pointer`. Chrome never uses `cursor:grab`. Chrome text is not selectable. The page cannot zoom or overscroll. See [Native behaviour](design-system.md#native-behaviour).
 - Every dropdown opens through `AtriumSelectPopup`.
 - Switches animate over `--motion-toggle`.
-- Dialogs stay inside the window's safe area. Nothing but a title-bar row draws under the macOS title bar (see [Window safe area](#window-safe-area)).
+- Dialogs stay inside the window's safe area. Nothing but a title-bar row draws under the macOS title bar or beside the Windows window controls (see [Window safe area](#window-safe-area)).
 - Keycaps come from one shared renderer, and Escape shows as "esc" on the Mac.
 - Hover cards are small, never block content and close when the camera moves.
 - Touch behaves the same at every density. Touch targets reach 44 px through hit areas, so the visible control can stay compact.
@@ -334,13 +334,14 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ### Window safe area
 
-The macOS app draws the page under a transparent title bar. The window controls sit over the top-left of the page. The host publishes the band as `--macos-caption-height` and `--macos-caption-inset` (`native/macos/main.swift`). Detached windows load the same page and get the same values.
+The macOS app draws the page under a transparent title bar. The window controls sit over the top-left of the page. The host publishes the band as `--macos-caption-height` and `--macos-caption-inset` (`native/macos/main.swift`). On Windows the page draws the title bar itself (`native/windows/window-caption.js`): the host removes the system caption, the window controls sit at the top right of the page, and the band is `--windows-caption-height` with `--windows-caption-right-inset` beside the controls. Detached windows load the same page and get the same values.
 
-- `--window-caption-height` is the height of that band (0 in a browser). Only title-bar rows draw in it: the app bar and `.ui-fullwindow-bar`. Their content starts after `--macos-caption-inset`.
+- `--window-caption-height` is the height of that band (0 in a browser). Only title-bar rows draw in it: the app bar and `.ui-fullwindow-bar`. Their content starts after `--macos-caption-inset` and ends before `--windows-caption-right-inset`.
+- **The blank caption** is the app bar's `[data-caption-drag]` spacer. It moves the window on both platforms; keep it in the app bar's leading row.
 - **Full-window surfaces** (the component gallery) use `.ui-fullwindow` for the surface and `.ui-fullwindow-bar` for its top bar. The bar takes the app bar's caption insets and height. Use it instead of `position:fixed; inset:0`. Set `--ui-bar-inset` and `--ui-bar-height` if the bar's own padding or height differs from a toolbar's.
 - **Everything else pinned to the top** (banners, floating panels, notices) starts at `var(--window-safe-top)`, which is below the title bar and the app bar. Modal dialogs use `--dialog-safe-top`.
 - **Script-placed popovers** (menus, hover cards, tooltips, select lists, floating panels) clamp their top edge to `--window-caption-height` plus their margin, never to 0.
-- **Checks.** `tests/ui-library-lint.py` (titlebar) fails a fixed rule pinned to the top without these. `tests/browser-titlebar-safe-area.cjs` simulates the title bar, opens every action, menu and context menu, and fails if anything other than a title-bar row draws in the band, or if anything at all covers the window controls.
+- **Checks.** `tests/ui-library-lint.py` (titlebar) fails a fixed rule pinned to the top without these. `tests/browser-titlebar-safe-area.cjs` simulates the title bar (`--windows` for the Windows caption), opens every action, menu and context menu, and fails if anything other than a title-bar row draws in the band, or if anything at all covers the window controls. `tests/editor/browser-windows-caption.cjs` checks the Windows caption's controls, moving, resizing and window menu.
 
 <a id="toast"></a>
 ### Toasts and status lines

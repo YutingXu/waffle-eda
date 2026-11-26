@@ -23,8 +23,8 @@ globalThis.AtriumOverlayScroll = (() => {
     return o === "auto" || o === "scroll";
   }
   // The thumb lives where the scroller is drawn: in the open modal dialog or popover (the top layer),
-  // else in the body.
-  function hostOf(el) {return el.closest?.("dialog[open], :popover-open") || doc.body;}
+  // in the app bar (a title-bar row: its menus may draw in the caption band), else in the body.
+  function hostOf(el) {return el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;}
   function thumb(el, axis) {
     const t = doc.createElement("div");
     t.className = "ui-scroll-thumb";

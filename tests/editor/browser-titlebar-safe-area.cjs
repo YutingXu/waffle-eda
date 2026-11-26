@@ -1,21 +1,23 @@
 "use strict";
 
-// Nothing draws under the macOS window controls (docs/ui-library.md, Window safe area).
+// Nothing draws under the window controls (docs/ui-library.md, Window safe area).
 // The macOS host draws the page under a transparent title bar (native/macos/main.swift); this
-// test simulates it (a 28 px caption, traffic lights in the first 78 px) and then opens every
+// test simulates it (a 28 px caption, traffic lights in the first 78 px). With --windows it loads
+// the page as the Windows host does instead, with the caption Waffle draws there
+// (native/windows/window-caption.js; the window controls at the top right). It then opens every
 // surface it can reach generically: every action in the headless inventory
 // (docs/headless-parity.json) plus every runtime menu, palette and keymap action, in the
 // schematic and the board editor; every menu-bar menu and submenu; the canvas, object, project
 // and document-tab context menus; the command bar; a toast; and the app-bar tooltips. It runs in a
 // roomy window and in the smallest one the macOS host allows, where popovers run out of room. After each one it checks that
-//   - no visible element outside a title-bar row (the app bar, or a full-window surface's
-//     .ui-fullwindow-bar) has a box inside the caption band, and
+//   - no visible element outside a title-bar row (the app bar, a full-window surface's
+//     .ui-fullwindow-bar, or the caption Waffle draws on Windows) has a box inside the caption band, and
 //   - nothing at all, title-bar rows' own content included, sits on the traffic lights.
 // Boxes are clipped by their scroll containers; hit testing over the band also catches
 // pseudo-elements. A modal dialog's ::backdrop may tint the band (it carries no content).
 // Actions that would replace the project, leave the page or need a native-only path are skipped
 // by name below; actions that reach a file chooser or save panel are stubbed and listed.
-// Run: node tests/editor/browser-titlebar-safe-area.cjs [--only action,action] [--viewport 770x500] [--verbose]
+// Run: node tests/editor/browser-titlebar-safe-area.cjs [--windows] [--only action,action] [--viewport 770x500] [--verbose]
 // (NODE_PATH for Playwright Core, CHROME for a Chromium binary).
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -24,6 +26,7 @@ const {pathToFileURL} = require("node:url");
 
 const ROOT = path.join(__dirname, "../..");
 const CAPTION = 28, LIGHTS = 78;
+const WINDOWS_CAPTION = fs.readFileSync(path.join(ROOT, "native/windows/window-caption.js"), "utf8");
 
 // Skipped by name, with the reason. Everything else in the inventory runs.
 const SKIP = {
@@ -85,13 +88,15 @@ function install() {
     return b.r > b.l && b.b > b.t ? b : null;
   }
   function check() {
-    const caption = px("--macos-caption-height"), W = innerWidth;
+    const caption = px("--window-caption-height"), W = innerWidth;
     if (!caption) return [];
     const band = {l:0, t:0, r:W, b:caption};
-    const lights = [{l:0, t:0, r:px("--macos-caption-inset"), b:caption}, {l:W - px("--macos-caption-right-inset"), t:0, r:W, b:caption}]
-      .filter(z => z.r > z.l);
+    // The macOS traffic lights (left or right inset), or the window controls Waffle draws on Windows.
+    const drawn = document.querySelector(".window-controls");
+    const lights = [{l:0, t:0, r:px("--macos-caption-inset"), b:caption}, {l:W - px("--macos-caption-right-inset"), t:0, r:W, b:caption},
+      ...(drawn?.checkVisibility() ? [box(drawn.getBoundingClientRect())] : [])].filter(z => z.r > z.l);
     const bars = [...document.querySelectorAll(".appbar, .ui-fullwindow-bar")];
-    const holds = el => bars.some(b => el === b || el.contains(b)) || el.matches(".ui-fullwindow");
+    const holds = el => bars.some(b => el === b || el.contains(b)) || el.matches(".ui-fullwindow") || !!el.closest(".window-caption");
     const out = new Map(), flagged = [];
     // Report the outermost offending element of each surface.
     const flag = (el, b, where) => {
@@ -202,8 +207,16 @@ function install() {
   globalThis.__titlebar = {check, run, step, settle, selectEditor, actions, frames};
 }
 
-async function openApp(browser, viewport) {
+async function openApp(browser, viewport, platform) {
   const context = await browser.newContext({viewport, reducedMotion:"reduce", acceptDownloads:false});
+  if (platform === "windows") {
+    // As the Windows host loads the page (MainWindow.StartWebView): its message channel, then the caption script.
+    await context.addInitScript(() => {
+      window.chrome = {webview:{postMessage:() => {}}};
+      window.__waffleWindowCaptionState = {maximized:false, active:true, fullScreen:false};
+    });
+    await context.addInitScript(WINDOWS_CAPTION);
+  }
   await context.route(/^https?:/, route => route.abort());
   const page = await context.newPage();
   context.on("page", other => { if (other !== page) other.close().catch(() => {}); });
@@ -218,7 +231,7 @@ async function openApp(browser, viewport) {
   await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
   await page.locator("#doc-name", {hasText:"Sensor board"}).waitFor();
   // The values the macOS host publishes (native/macos/main.swift installCaptionScript).
-  await page.evaluate(([caption, lights]) => {
+  if (platform !== "windows") await page.evaluate(([caption, lights]) => {
     const root = document.documentElement;
     root.dataset.atriumNativeTitlebar = "macos";
     root.style.setProperty("--macos-caption-inset", lights + "px");
@@ -340,13 +353,14 @@ const VIEWPORTS = [{width:1440, height:900}, {width:770, height:500}];
 async function titlebarSafeArea(browser, options = {}) {
   const problems = [];
   for (const viewport of options.viewports || VIEWPORTS) problems.push(...await sweep(browser, viewport, options));
-  assert.deepEqual(problems, [], `Surfaces drawn under the macOS title bar (${CAPTION} px caption, window controls in the first ${LIGHTS} px)`);
-  console.log("ok titlebar safe area");
+  assert.deepEqual(problems, [], options.platform === "windows" ? "Surfaces drawn under the caption Waffle draws on Windows"
+    : `Surfaces drawn under the macOS title bar (${CAPTION} px caption, window controls in the first ${LIGHTS} px)`);
+  console.log("ok titlebar safe area" + (options.platform === "windows" ? " (Windows)" : ""));
 }
 
 async function sweep(browser, viewport, options) {
   const started = Date.now();
-  const {context, page, errors} = await openApp(browser, viewport);
+  const {context, page, errors} = await openApp(browser, viewport, options.platform);
   const problems = new Set(), report = {ran:0, skipped:new Map(), pickers:new Map(), verbose:!!options.verbose};
   try {
     await loadEverything(page);
@@ -356,7 +370,8 @@ async function sweep(browser, viewport, options) {
     await sweepActions(page, problems, report, options.only);
     if (!options.only) await sweepChrome(page, problems, report);
   } finally { await context.close(); }
-  const where = `${viewport.width}×${viewport.height}, ${CAPTION} px caption, window controls in the first ${LIGHTS} px`;
+  const where = options.platform === "windows" ? `${viewport.width}×${viewport.height}, Windows caption`
+    : `${viewport.width}×${viewport.height}, ${CAPTION} px caption, window controls in the first ${LIGHTS} px`;
   console.log(`titlebar safe area (${where}): ${report.ran} surfaces checked in ${Math.round((Date.now() - started) / 1000)} s`);
   console.log(`  skipped by name: ${[...report.skipped].map(([a, why]) => a + " (" + why + ")").join("; ")}`);
   if (report.pickers.size) console.log(`  reached a native picker (stubbed; the surface before it was checked): ${[...report.pickers].map(([a, p]) => a + " → " + p).join("; ")}`);
@@ -374,7 +389,8 @@ async function main() {
   const browser = await chromium.launch({headless:true, args:["--allow-file-access-from-files"], ...(executablePath ? {executablePath} : {channel:"chrome"})});
   const at = process.argv.indexOf("--only"), size = process.argv.indexOf("--viewport");
   const viewports = size < 0 ? undefined : [process.argv[size + 1].split("x").map(Number)].map(([width, height]) => ({width, height}));
-  try { await titlebarSafeArea(browser, {viewports, verbose:process.argv.includes("--verbose"), only:at < 0 ? null : process.argv[at + 1].split(",")}); }
+  try { await titlebarSafeArea(browser, {viewports, platform:process.argv.includes("--windows") ? "windows" : "macos",
+    verbose:process.argv.includes("--verbose"), only:at < 0 ? null : process.argv[at + 1].split(",")}); }
   finally { await browser.close(); }
 }
 

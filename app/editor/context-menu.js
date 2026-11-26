@@ -387,7 +387,10 @@ globalThis.AtriumContextMenu = (() => {
       s.top = Math.max(T, Math.min(row.getBoundingClientRect().top - 5, H - M - h)) - r.top + "px";
       if (r.height > h) s.maxHeight = h + "px";
     } else {
-      if (r.top < T || r.bottom > H - M) s.maxHeight = (r.top < T ? r.bottom - T : H - r.top - M) + "px";
+      // An app-bar menu hangs from a title-bar row and may start in the caption band; it only stops at
+      // the bottom. A menu that opens upward past the band keeps its bottom and ends at the band.
+      const top = menu.closest(".appbar") ? M : T;
+      if (r.top < top || r.bottom > H - M) s.maxHeight = (r.top < top ? r.bottom - top : H - r.top - M) + "px";
       const dx = Math.max(M - r.left, Math.min(0, W - M - r.right));
       if (dx) {s.left = menu.offsetLeft + dx + "px"; s.right = "auto"; menu.dataset.fitX = "1";}
     }

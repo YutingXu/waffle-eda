@@ -37,11 +37,12 @@ src/Core/               platform-independent, shared with the tests
   Json.cs               a small JSON reader and writer
 src/Win/                Windows only
   Program.cs            entry point: Waffle.exe [Design.waffle]
-  MainWindow.cs         window, WebView2 settings and events, accelerators, system menu, theme, IHostUi
+  MainWindow.cs         window, WebView2 settings and events, accelerators, system menu, own title bar, theme, IHostUi
   WinFs.cs              IHostFs on Win32: GetFinalPathNameByHandle, reparse tags, MoveFileEx, owner-only ACLs, named mutex
   GitRunner.cs          python -I -B native/git_head.py (py launcher; skips the Store alias)
   Dialogs.cs            alert / confirm / prompt and the close confirmation
   Native.cs             P/Invoke declarations
+window-caption.js       Waffle's title bar in the page: window controls, moving, resizing (staged beside bridge.js)
 packaging/              AppxManifest.xml and logo assets for the MSIX
 tests/                  net8.0 console tests for src/Core (PortableFs stands in for WinFs); FolderWorker.cs
                         also holds the --folder-worker mode that native/tests/project_journal.py drives
@@ -67,6 +68,7 @@ The bridge's WebView2 branch has a JavaScript test, `native/tests/bridge-webview
   - Subframes may load only `about:srcdoc` and `about:blank`.
   - New windows, downloads, external URI schemes, permissions, screen capture and basic-auth prompts are refused.
 - **Bridge messages.** They are accepted only from `Policy.PageUri` (`WebMessageReceived.Source`), and `bridge.js` installs `AtriumHost` only in the top-level document.
+- **Title bar.** `WM_NCCALCSIZE` removes the system caption and keeps Windows' resizing frame on the other edges; `window-caption.js` draws the caption in the page. WebView2 covers the client area, so the page sends `windowCaption` messages (`drag`, `resize` with an edge, `minimize`, `maximize`, `close`, `menu`) and the host starts Windows' own move or size loop from the press. Without `window-caption.js` beside `bridge.js`, the window keeps the system title bar. `scripts/ci/windows-title-bar.ps1` checks it in the packaged app on the runner's desktop with real mouse input (`.github/workflows/windows-title-bar.yml`, on a push to a `windows-test/` branch).
 - **Paths.** Page-supplied paths pass `WinPath.Acceptable` and are then canonicalised. They must match a list that only native dialogs or the host's own menus add to.
 - **Format 2 folder saves.** Opening a folder or its manifest grants access to that project. The Windows host uses the shared transaction descriptor, a stable range lock, saved read leases and write-through replacement. The persistent `--folder-mcp` entry point uses the same coordinator. [Durable folder format](../../docs/format-2.md)
 - **File Open.** File Open, recent projects and drops recognize a folder manifest or a supported source design. A pre-release project displays the re-import message before opening any journal or recovery draft.

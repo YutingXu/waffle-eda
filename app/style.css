@@ -50,10 +50,11 @@
   --chrome-icon-width:28px;--chrome-icon-height:var(--chrome-row-height);--chrome-control-radius:var(--r-lg);
   --chrome-glyph-size:var(--s-16);--chrome-glyph-dense:14px;
   /* Window safe area (docs/ui-library.md). The macOS host draws the page under a transparent title bar and
-     publishes its height as --macos-caption-height (native/macos/main.swift); --window-caption-height is
-     that band (0 elsewhere), which only title-bar rows (.appbar, .ui-fullwindow-bar) may draw in. A dialog
+     publishes its height as --macos-caption-height (native/macos/main.swift); on Windows the page draws the
+     title bar itself (--windows-caption-height, native/windows/window-caption.js). --window-caption-height
+     is that band (0 elsewhere), which only title-bar rows (.appbar, .ui-fullwindow-bar) may draw in. A dialog
      stays below it and the app bar, and --dialog-margin clear of every window edge. */
-  --window-caption-height:var(--macos-caption-height,0px);
+  --window-caption-height:var(--macos-caption-height,var(--windows-caption-height,0px));
   --window-safe-top:max(var(--chrome-menu-height),var(--window-caption-height));--dialog-margin:var(--s-24);
   --dialog-safe-top:calc(var(--window-safe-top) + var(--dialog-margin));
   --dialog-avail-w:calc(100vw - 2 * var(--dialog-margin));--dialog-avail-h:calc(100dvh - var(--dialog-safe-top) - var(--dialog-margin));
@@ -122,15 +123,43 @@ h1,h2,h3,h4,p {margin:0}
 .menu-items button > .ui-shortcut {flex:none;margin-inline-start:var(--s-8)}
 .menu-items hr {border:0;border-top:1px solid var(--line);margin:4px 4px}
 
-/* The macOS host keeps the system controls above this row and owns the blank caption's mouse events. */
 /* Fit content-sized chrome to pixels without rounding the text inside it. */
 :is(.brand,.work-menu > summary,.menu-items,.document-tab,.layer-menu-button,.layer-tab) {
   inline-size:calc-size(max-content, round(up,size,1px));
 }
 .menu-items {max-inline-size:round(down,min(300px,85vw),1px)}
-.appbar-leading > [data-macos-drag] {display:none}
+.appbar-leading > [data-caption-drag] {display:none}
 :root[data-atrium-native-titlebar=macos] .appbar {padding-left:max(var(--s-6),var(--macos-caption-inset,0px));padding-right:max(var(--s-6),var(--macos-caption-right-inset,0px));min-block-size:max(var(--appbar-height),var(--macos-caption-height,0px))}
-:root[data-atrium-native-titlebar=macos] .appbar-leading > [data-macos-drag] {display:block;flex:1 0 var(--s-24);align-self:stretch}
+/* The blank caption moves the window: the macOS host owns its mouse events, and on Windows
+   window-caption.js hands a press on it to the host. */
+:root:is([data-atrium-native-titlebar=macos],[data-atrium-native-titlebar=windows]) .appbar-leading > [data-caption-drag] {display:block;flex:1 0 var(--s-24);align-self:stretch}
+/* Windows: the page draws the caption (native/windows/window-caption.js). The window controls take the
+   top right of the band, as on Windows 11; the app bar keeps its content clear of them. The top edge is
+   a resizing band; Windows keeps its own resizing frame on the other edges. */
+:root[data-atrium-native-titlebar=windows] {
+  --windows-caption-height:var(--chrome-menu-height);--windows-caption-button-width:46px;
+  --windows-caption-right-inset:calc(3 * var(--windows-caption-button-width) + var(--s-6));
+  --windows-resize-band:5px;--windows-resize-corner:16px;
+}
+:root[data-atrium-native-titlebar=windows][data-window-full-screen] {--windows-caption-height:0px;--windows-caption-right-inset:0px}
+:root[data-atrium-native-titlebar=windows] .appbar {padding-right:max(var(--s-6),var(--windows-caption-right-inset));min-block-size:max(var(--appbar-height),var(--windows-caption-height))}
+.window-caption {display:none}
+:root[data-atrium-native-titlebar=windows] .window-caption {display:contents}
+.window-controls {position:fixed;inset-block-start:0;inset-inline-end:0;z-index:var(--z-top);display:flex;block-size:var(--windows-caption-height)}
+/* Library buttons (app/ui/controls.css) with a caption button's size and glyphs; Close fills with the theme's danger colour. */
+.window-controls > .ui-button {--ui-button-fill:transparent;--ui-button-border:transparent;--ui-button-hover:var(--button-face-hover,var(--hover));
+  --ui-button-active:var(--button-face-pressed,var(--pressed));--ui-control-height:var(--windows-caption-height);
+  display:grid;place-items:center;inline-size:var(--windows-caption-button-width);block-size:100%;padding:0;border-radius:0;
+  color:var(--chrome-ink);font:10px/1 "Segoe Fluent Icons","Segoe MDL2 Assets"}
+.window-controls > .ui-button[data-window-command=close] {--ui-button-hover:var(--danger-fill);--ui-button-active:color-mix(in srgb,var(--danger-fill) 85%,var(--ink))}
+.window-controls > .ui-button[data-window-command=close]:is(:hover,:active) {color:var(--on-danger)}
+:root[data-window-inactive] .window-controls > .ui-button:not(:hover,:active) {color:var(--faint)}
+.window-resize-edge {position:fixed;inset:0 0 auto;z-index:var(--z-top);display:flex;block-size:var(--windows-resize-band)}
+.window-resize-edge > [data-edge] {flex:none;inline-size:var(--windows-resize-corner)}
+.window-resize-edge > [data-edge=top] {flex:1 1 0;cursor:ns-resize}
+.window-resize-edge > [data-edge=top-left] {cursor:nwse-resize}
+.window-resize-edge > [data-edge=top-right] {cursor:nesw-resize}
+:root:is([data-window-maximized],[data-window-full-screen]) .window-resize-edge,:root[data-window-full-screen] .window-controls {display:none}
 .appbar-leading #collab-people {display:flex;flex:none;align-items:center;gap:var(--s-4);margin:0;padding:0}
 .appbar-leading #collab-people:not(:has(.collab-person,#collab-more:not([hidden]))) {display:none}
 .appbar-leading #collab-faces {display:flex;align-items:center}
@@ -141,10 +170,10 @@ h1,h2,h3,h4,p {margin:0}
   border-radius:var(--chrome-control-radius);font-weight:var(--fw-medium);white-space:nowrap}
 .appbar-actions > #collab-share > span {flex:none;white-space:nowrap}
 @media (max-width:1360px) {
-  :root[data-atrium-native-titlebar=macos] .appbar-leading #collab-people :is(#collab-more,.collab-person:not(:first-child)) {display:none}
+  :root:is([data-atrium-native-titlebar=macos],[data-atrium-native-titlebar=windows]) .appbar-leading #collab-people :is(#collab-more,.collab-person:not(:first-child)) {display:none}
 }
 @media (max-width:1100px) {
-  :root[data-atrium-native-titlebar=macos] .appbar-leading .brand-wordmark {display:none}
+  :root:is([data-atrium-native-titlebar=macos],[data-atrium-native-titlebar=windows]) .appbar-leading .brand-wordmark {display:none}
 }
 @media (max-width:850px), (max-width:1120px) and (pointer:coarse) {
   .appbar {grid-template-columns:minmax(0,1fr);row-gap:0}
@@ -158,6 +187,7 @@ h1,h2,h3,h4,p {margin:0}
 }
 @media (max-width:1120px) and (pointer:coarse) {
   .appbar {--appbar-height:var(--ctl-h-touch);--app-control-height:var(--ctl-h-touch);--app-icon-width:var(--ctl-h-touch)}
+  :root[data-atrium-native-titlebar=windows]:not([data-window-full-screen]) {--windows-caption-height:var(--ctl-h-touch)}
   .appbar-leading #collab-people :is(.collab-face,#collab-more) {inline-size:var(--ctl-h-touch);block-size:var(--ctl-h-touch)}
 }
 
