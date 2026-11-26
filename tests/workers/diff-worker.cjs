@@ -8,6 +8,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const {nativeCAD} = require("../support/native-cad.cjs");
 for (const m of ["model", "parts", "sch-objects", "hierarchy", "altium-rules", "pcb-draw", "component-classes", "rules", "project-rules", "revision-review"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 // diff.js finds diff-worker.js beside its own script; the fake Worker stands in for it.
@@ -108,6 +109,59 @@ moved.x += 2;
   const expected = D.compare(base, after);
   assert.deepEqual(last.result.summary, expected.summary);
   assert.deepEqual(last.result.changes, expected.changes, "the worker retains the full changes and their geometry");
+
+  // Each isolated worker has only the scripts loaded by its entry point.
+  function coldWorker(entry) {
+    const scope = vm.createContext({TextDecoder, TextEncoder});
+    scope.self = scope;
+    scope.importScripts = (...names) => {
+      for (const name of names) {
+        const filename = path.resolve(workerDir, name);
+        vm.runInContext(fs.readFileSync(filename, "utf8"), scope, {filename});
+      }
+    };
+    scope.importScripts(entry);
+    return scope;
+  }
+  const cold = coldWorker("diff-worker.js");
+  const clear = nativeCAD("design-diff");
+  clear.rules = Atrium.clone(AtriumProjectRules.book(clear));
+  const clearance = clear.rules.list.find(rule => rule.type === "clearance");
+  clearance.scope = AtriumDesignQueryRecord.selector("net", "VIN");
+  clearance.origin = {kind: "import", tool: "Altium", board: clear.documents[1].id};
+  const near = Atrium.clone(clear);
+  near.documents[1].items.find(item => item.id === "thin").points = [[3.8, 11.12], [9.1, 11.12]];
+  const newViolations = result => JSON.parse(JSON.stringify(result.changes.filter(change => change.kind === "drc.new")));
+  const expectedViolations = newViolations(D.compare(clear, near, {drc: true}));
+  assert.ok(expectedViolations.length, "the imported clearance rule reports violations in the editor");
+  let coldReply;
+  cold.postMessage = reply => { if (!reply.progress) coldReply = reply; };
+  for (const opts of [{drc: true, validate: false}, {drc: true}]) {
+    await cold.onmessage({data: {before: clear, after: near, opts}});
+    assert.ok(coldReply?.result, coldReply?.error || "the cold worker must return a comparison");
+    assert.deepEqual(newViolations(coldReply.result), expectedViolations, "the cold worker reports the same new DRC violations");
+  }
+
+  const route = coldWorker("route-suggest-worker.js");
+  let routeReply;
+  route.postMessage = reply => { routeReply = reply; };
+  route.onmessage({data: {type: "ping"}});
+  assert.equal(routeReply?.type, "ready", routeReply?.message);
+
+  const release = coldWorker("release-worker.js");
+  let releaseReply;
+  release.postMessage = reply => { releaseReply = reply; };
+  const core = ["AtriumUUID", "Atrium"];
+  await release.onmessage({data: {type: "init", globals: [...core, "AtriumDesignQueryContext", "AtriumDesignQueryIndex"]}});
+  assert.ok(releaseReply.globals.includes("AtriumDesignQueryIndex"), "Release can load the query index used by the editor");
+
+  const queryModules = cold.AtriumDesignQueryWorkerModules;
+  assert.ok(queryModules?.length, "cold DRC loads the shared query modules");
+  const names = Array.from(queryModules, ([name]) => name);
+  for (const scope of [route, release]) assert.equal(JSON.stringify(scope.AtriumDesignQueryWorkerModules), JSON.stringify(queryModules));
+  assert.ok(names.every(name => cold[name] && route[name]), "DRC and route suggestions load every query global");
+  await release.onmessage({data: {type: "init", globals: [...core, ...names]}});
+  assert.deepEqual([...releaseReply.globals], [...core, ...names], "Release loads the same query modules in dependency order");
 
   // The native Git worker reads one verified folder per revision. A file from a pre-release build
   // must fail on either side, including when an earlier request populated its revision cache.

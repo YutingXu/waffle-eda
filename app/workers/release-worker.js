@@ -8,7 +8,7 @@
 // Messages out: {type: "ready", globals: [...]}  (release.js compares them with the page's)
 //               {type: "result", id, result} | {type: "result", id, error}
 globalThis.AtriumReleaseWorker = (() => {
-  if (typeof importScripts === "function") importScripts("../workers/release-worker-modules.js");
+  if (typeof importScripts === "function") importScripts("../workers/design-query-worker-modules.js", "../workers/release-worker-modules.js");
   const modules = globalThis.AtriumReleaseWorkerModules;
   let project = null;
   const sessions = new Map();

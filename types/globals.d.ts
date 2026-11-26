@@ -507,6 +507,7 @@ declare var AtriumDesignQueryGeometry: AtriumGen<"AtriumDesignQueryGeometry">; /
 declare var AtriumDesignQueryIndex: AtriumGen<"AtriumDesignQueryIndex">;
 declare var AtriumDesignQueryParser: AtriumGen<"AtriumDesignQueryParser">;
 declare var AtriumDesignQueryRecord: AtriumGen<"AtriumDesignQueryRecord">; // app/design-query-record.js
+declare var AtriumDesignQueryWorkerModules: readonly (readonly [name: string, file: string])[];
 declare var AtriumDesignReader: AtriumGen<"AtriumDesignReader">; // app/design-reader.js
 declare var AtriumDesignReview: AtriumGen<"AtriumDesignReview">; // app/design-review.js
 declare var AtriumDFA: AtriumGen<"AtriumDFA">; // app/dfa.js

@@ -1,14 +1,13 @@
 "use strict";
 
+if (!globalThis.AtriumDesignQueryWorkerModules && typeof require === "function") require("./design-query-worker-modules.js");
+
 // The Release client and its file-script worker use this same ordered allowlist.
 // Fab Profiles snapshots the sourced profiles during module evaluation.
 globalThis.AtriumReleaseWorkerModules = Object.freeze((/** @type {[string, string][]} */ ([
   ["AtriumUUID", "../core/uuid-v7.js"], ["Atrium", "../core/model.js"], ["AtriumSpatial", "../core/spatial.js"], ["AtriumParts", "../library/parts.js"],
   ["AtriumAltiumRecords", "../formats/altium-records.js"], ["AtriumAltiumRules", "../checks/altium-rules.js"], ["AtriumComponentClasses", "../pcb/component-classes.js"],
-  ["AtriumDesignQueryRecord", "../checks/design-query-record.js"], ["AtriumCalculationIntent", "../notebook/calculation-intent.js"],
-  ["AtriumCalculationCore", "../notebook/calculation-core.js"], ["AtriumNoteFields", "../notebook/note-fields.js"], ["AtriumQueryFields", "../checks/query-fields.js"],
-  ["AtriumDesignQueryParser", "../checks/design-query-parser.js"], ["AtriumDesignQueryGeometry", "../checks/design-query-geometry.js"],
-  ["AtriumDesignQueryContext", "../checks/design-query-context.js"], ["AtriumDesignQuery", "../checks/design-query.js"], ["AtriumQueryExchange", "../checks/query-exchange.js"],
+  ...globalThis.AtriumDesignQueryWorkerModules,
   ["AtriumGeometry", "../core/geometry.js"], ["AtriumStackup", "../pcb/stackup.js"], ["AtriumViaStack", "../pcb/viastack.js"], ["AtriumGeometryCurves", "../pcb/resolved-geometry-curves.js"], ["AtriumPCBPours", "../pcb/pcb-pours.js"], ["AtriumPolygonPour", "../pcb/polygon-pour.js"],
   ["AtriumNetIntent", "../checks/net-intent.js"], ["AtriumRules", "../checks/rules.js"], ["AtriumProjectRules", "../checks/project-rules.js"],
   ["AtriumRooms", "../pcb/rooms.js"], ["AtriumDFA", "../checks/dfa.js"],
