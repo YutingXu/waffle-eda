@@ -970,6 +970,9 @@ for (const hz of [60, 120]) {
   assert.equal(slices.covers(ready, 0, 0, .6, false, 200, 80), true,
     "a completed wide texture can still support the first retreat");
 
+  schedule();
+  assert.equal(tasks.size, 0, "an exact repaint at the same pose schedules no wide work or timer");
+  st.text.key = "changed artwork";
   // A policy change does not redraw the current camera or discard a finished wide copy.
   schedule();
   assert.ok(st.wideJob);
@@ -1050,7 +1053,7 @@ function renderStageAttribution() {
     const context = vm.createContext({
       AtriumPCBAppearance, AtriumCanvasGPUPref:{decision:() => ({use:true})}, stageLeaves:leaf,
       navigator:{userAgent}, AtriumPCBPours:{},
-      performance:{now() { clockReads++; return elapsed; }}
+      performance:{now() { clockReads++; return elapsed; }}, clearTimeout:cancel => cancel()
     });
     vm.runInContext(diagnostics, context);
     vm.runInContext(stubbed, context);
@@ -1060,7 +1063,7 @@ function renderStageAttribution() {
   const list = ["Top","Bottom"].map(layer => ({layer,bounds:[-2,-2,2,2]}));
   const doc = {...board,pcbDrawing:{pours:list}}, cache = {doc,rev:1,pourSig:"fixture"};
   const defs = new Map(), frame = {pours:list};
-  function capture(kind, mode, {rejectStrip = false, cacheHit = false, direct = false, wires = true} = {}) {
+  function capture(kind, mode, {rejectStrip = false, cacheHit = false, direct = false, wires = true, speculative = false} = {}) {
     const {AtriumDiagnostics:D, AtriumCanvasGPU:renderer} = direct ? chromium : webKit;
     const opts = {reuseBase:true, showUnrouted:wires};
     const readback = {};
@@ -1095,6 +1098,14 @@ function renderStageAttribution() {
       stats:{acc:{n:0,gesture:0,update:0,gl:0,overlay:0,board:0}, last:prior,pourBytes:0,coverageUpload:0}
     };
     renderer.views.set(I, st);
+    const cancelled = [];
+    if (speculative) {
+      st.wide = {...st.exact, scale:.5, forKey:st.text.key, forOverlay:false, text:st.text};
+      st.wideJob = () => cancelled.push("timer");
+      st.wideText = {T:{bands:[{tex:"partial"}]}, cancel:() => cancelled.push("rows")};
+      st.gl.deleteTexture = tex => cancelled.push(tex);
+    }
+    const completeWide = st.wide;
     if (cacheHit) assert.equal(renderer.render(I, doc, defs, opts, false, frame), true);
     const lease = mode && D.startPerformance({rendererStages:mode === "detailed"});
     const readsBefore = clockReads, driverBefore = driverReads;
@@ -1102,6 +1113,10 @@ function renderStageAttribution() {
       st.textJob = {};
       assert.equal(renderer.pourCoverage(I, st, doc, defs, opts, I.cam(), viewport, list, null, cache).size, 2);
     } else assert.equal(renderer.render(I, doc, defs, opts, kind !== "full", frame), true);
+    if (speculative) {
+      assert.deepEqual(cancelled, ["timer","rows","partial"], kind + " cancels unfinished wide work before another refresh");
+      assert.equal(st.wide, completeWide, "camera motion preserves the completed wide artwork");
+    }
     const afterRender = clockReads;
     assert.equal(driverReads, driverBefore);
     assert.equal(st.stats.acc.gesture, kind === "full" || kind === "slice" || rejectStrip ? 0 : 1);
@@ -1135,6 +1150,7 @@ function renderStageAttribution() {
     assert.equal(detailed.legacy, off.legacy, "the original renderer timings and counters keep their contract");
   }
   const fallback = capture("pan", "detailed", {rejectStrip:true});
+  for (const kind of ["pan", "zoom", "copy"]) capture(kind, null, {speculative:true});
   assert.deepEqual(fallback.stages, full, "abandoned strips do not create a retained frame sample");
   const cached = capture("full", "detailed", {cacheHit:true});
   assert.deepEqual(cached.stages, {...full,"full-coverage":0,"full-coverage-paint":0,"full-coverage-upload":0,"full-coverage-readback":0});

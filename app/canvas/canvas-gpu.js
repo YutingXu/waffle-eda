@@ -2676,11 +2676,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     st.wideJob = 0;
     if (opts.transientGeometry || !(st.text.bands?.length && st.text.key && !st.text.empty || st.overlayWorld)) return;
     const E = st.exact;
+    function ready() {
+      const w = st.wide;
+      return w && w.cx === E.cx && w.cy === E.cy && w.scale === E.scale * .5 && wideFits(st, E, doc, E.rev, list);
+    }
+    if (ready()) return;
     st.wideJob = setTimeout(() => {
       st.wideJob = 0;
-      if (views.get(I) !== st || st.exact !== E || st.lost || !st.shown || !visible() || !canPrepaintWide(I)) return;
-      const w = st.wide;
-      if (wideFits(st, E, doc, E.rev, list) && w.cx === E.cx && w.cy === E.cy && w.scale === E.scale * .5) return;
+      if (views.get(I) !== st || st.exact !== E || st.lost || !st.shown || !visible() || !canPrepaintWide(I) || ready()) return;
       wideLayers(I, st, doc, defs, opts, list, E.cx, E.cy, E.scale * .5);
     }, 250);
   }
@@ -2881,6 +2884,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (settling && E && E.cx === cx && E.cy === cy && E.scale === scale && !(T.valid && (T.valid[0] || T.valid[1]))) settling = false;
       // An overlay-only repaint can reuse the pending camera. Artwork or visibility changes need a fresh draw.
       const pending = !gesture && !settling && opts.reuseBase && st.textJob?.at === cam.join() && !opts.noReuse;
+      // A moving or settling camera owns these refreshes. Its last completed wide copy is still usable.
+      if ((gesture || settling || pending) && (st.wideJob || st.wideText)) cancelWide(st);
       if ((gesture || settling || pending) && E && E.doc === doc && E.rev === c.rev && E.flipped === flipped && E.width === width && E.height === height && E.dpr === dpr && E.pourList === list &&
         (!T.pours || T.pours === list) && !opts.noReuse) {
         st.stats.gestureScale = 1;
@@ -2895,7 +2900,6 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
             draw(I, st, doc, defs, opts, cam, c, hasText ? {bands: T.bands, exact: T.exact, pours: T.pours, xf: [1, X, Y], wrap: true} : null, list);
             const drawEnd = stages ? now() : 0;
             if (!memory(I, st, doc)) return false;
-            if (st.wideJob) { clearTimeout(st.wideJob); st.wideJob = 0; }
             afterMove(I, st, doc, defs, opts, list, settling, gesture);
             const a = st.stats.acc; a.n++; a.gesture++; a.update += t1 - t0; a.gl += now() - t1;
             if (stages) {
@@ -2921,7 +2925,6 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           if (wide && (!L || Math.abs(wide.scale - scale) < Math.abs(E.scale - scale)) &&
               wideFits(st, E, doc, c.rev, list) &&
               covers(wide, cx, cy, scale, flipped, width, height, !wide.text.pours && artworkBounds)) L = wide;
-          if (!L && st.wideJob) { clearTimeout(st.wideJob); st.wideJob = 0; }
         }
         if (L) {
           const k = scale / L.scale, f = flipped ? -1 : 1, LT = L.text;
