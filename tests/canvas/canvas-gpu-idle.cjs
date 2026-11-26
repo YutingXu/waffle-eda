@@ -458,6 +458,49 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   assert.equal(paints,3,"an in-place net change still paints the dirty texture");
 }
 
+// Cold text bands visit each part once and preserve the same glyphs and late fallback artwork.
+{
+  const {appFile}=require("../support/app-source-paths.cjs");
+  let definitions=0;
+  const context=vm.createContext({Atrium,
+    AtriumPCBAppearance:{...AtriumPCBAppearance,readDefinition(...args){
+      definitions++;return AtriumPCBAppearance.readDefinition(...args);
+    }},
+    AtriumPCBText:{draw(g,shape){g.fillText(shape.text);}}
+  });
+  vm.runInContext(fs.readFileSync(appFile("canvas.js"),"utf8"),context);
+  vm.runInContext(gpuCode.replace(sceneExport,"{textLayer, render, damage, stats,"),context);
+  const ink=[], uploaded=[], W=96, H=64;
+  const ctx=new Proxy({clearRect(){ink.length=0;},fillText(text){ink.push(text);},
+    moveTo(x){if(x===9.5)ink.push("cutout");}},
+    {get(o,key){return o[key]??(()=>{});}});
+  const canvas={width:W,height:H,getContext:()=>ctx};ctx.canvas=canvas;
+  const I=context.AtriumCanvas.create(canvas).internals();
+  I.worldToScreen=([x,y])=>[48+x*10,32+y*10];
+  const gl={bindTexture(){},createTexture:()=>({}),texStorage2D(){},texParameteri(){},pixelStorei(){},
+    texSubImage2D(){uploaded.push([...ink]);}};
+  const layer=(name,text)=>({id:text,kind:"label",layer:name,text,x:0,y:0,size:1});
+  const front=layer("Silk","front"), back=layer("Bottom silk","back"), hidden=layer("Hidden note","hidden");
+  const part={id:"U",kind:"part",def:"fo",x:0,y:0,layer:"Top",showRef:false};
+  const items=[front,part,back,hidden], doc={kind:"pcb",items};
+  const shapes=[{kind:"path",points:[[9.5,0],[10,0],[9.5,1]],layer:"Mechanical 2",cutout:true}];
+  const defs=new Map([["fo",{footprint:{shapes,pads:[]}}]]);
+  const names=["Mechanical 2","Mechanical 3","Silk","Multi","Bottom silk","Top"];
+  const layers=new Map(names.map(layer=>[layer,{layer,seg:{n:1},tri:{n:0},blob:{n:0},pblob:{n:0}}]));
+  const scene={layers,order:new Map(names.map((name,n)=>[name,n+1])),cache:{},textRev:1,padRev:1};
+  scene.order.set("Hidden note",90);
+  const st={scene,gl,canvas,text:{},stats:{acc:{board:0,text:0}}};
+  const opts={layer:"Top",hidden:new Set(["Hidden note"])}, cam=[0,0,10,false,W,H,1], viewport=[-15,-15,15,15];
+  const V={active:"Top",items,o2:opts,viewport};
+  const text=context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,V,null);
+  assert.deepEqual(uploaded,[["front"],["back"],["cutout"]],"band order and the unlisted cutout match the ordinary painter");
+  assert.equal(definitions,2,"one definition in the band plan and one during shared drawing setup");
+  ink.length=0;
+  const newStrip=layer("Silk","entering strip");
+  text.strip.paintBand(ctx,4,[newStrip],null,null,list=>list,viewport);
+  assert.deepEqual(ink,["entering strip"],"pan repair uses its current objects");
+}
+
 // Only a complete, single-colour coverage mask takes the direct WebKitGTK transfer.
 {
   const W=47,H=31, gtk={platform:"Linux aarch64",userAgent:"AppleWebKit/605.1 Safari/605.1"};

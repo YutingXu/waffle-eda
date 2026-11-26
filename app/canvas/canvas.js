@@ -671,8 +671,8 @@ globalThis.AtriumCanvas = (() => {
     const ordered=[...layers.values()].sort((a,b)=>layerRank(a.layer,opts,opts.flipped)-layerRank(b.layer,opts,opts.flipped));
     return {ordered,selectedParts};
   }
-  function drawBoard(ctx,items,doc,defs,scale,opts,pours,viewport,lod,painted,bandBounds){
-    const {ordered,selectedParts}=collectBoardLayers(items,doc,defs,scale,opts,pours,viewport,lod);
+  function drawBoard(ctx,items,doc,defs,scale,opts,pours,viewport,lod,painted,bandBounds,layers){
+    const {ordered,selectedParts}=layers||collectBoardLayers(items,doc,defs,scale,opts,pours,viewport,lod);
     if(bandBounds && (lod || selectedParts.length)) bandBounds(null);
     if(opts.partBoxesOnly){
       for(const i of selectedParts)boardSelectionBox(ctx,partBox(i,getDef(defs,i,doc).footprint),scale);
@@ -1017,7 +1017,7 @@ globalThis.AtriumCanvas = (() => {
     let ctx=canvas.getContext("2d");
     let scale=8, referenceScale=8, cx=0, cy=0, width=0,height=0,dpr=1;
     // This view's internals for canvas-fast.js (lazy).
-    const I={netLabels:()=>netLabels,canvas,paint,sync,worldToScreen,drawItem,frame:()=>last,openingOverview:()=>!!openingOverview,armIdle:()=>armIdle(),repaint:()=>repaint?.(),surfacesLost(){finishGesture();shown=null;},size:null,drawBoard,paintTop,query,lodFor,canBatch,paintLayers,paintOrder,pourState,pourFrame,airwireConnectivity,padText,cam:()=>[cx,cy,scale,flipped,width,height,dpr],
+    const I={netLabels:()=>netLabels,canvas,paint,sync,worldToScreen,drawItem,frame:()=>last,openingOverview:()=>!!openingOverview,armIdle:()=>armIdle(),repaint:()=>repaint?.(),surfacesLost(){finishGesture();shown=null;},size:null,drawBoard,collectBoardLayers,paintTop,query,lodFor,canBatch,paintLayers,paintOrder,pourState,pourFrame,airwireConnectivity,padText,cam:()=>[cx,cy,scale,flipped,width,height,dpr],
       // Runs f with the camera at (x, y, s), then restores it (canvas-gpu.js prepares a wider gesture layer).
       withCamera(x,y,s,f){const a=cx,b=cy,k=scale;cx=x;cy=y;scale=s;try{return f();}finally{cx=a;cy=b;scale=k;}},
       // Exposed pan strips in the caller's units, [x0, y0, x1, y1]. The full-width strip owns the corner.

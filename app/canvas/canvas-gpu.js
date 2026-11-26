@@ -2252,9 +2252,24 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     while (bands.length > need.length) { gl.deleteTexture(bands.pop().tex); st.checkMemory = true; }
     if (T.w !== W || T.h !== H) { for (const b of bands) gl.deleteTexture(b.tex); bands.length = 0; T.w = W; T.h = H; }
     const g = T.ctx, o = I.worldToScreen([0, 0]);
+    const textOptions = {...o3, skipPartBoxes: true, gpu: i => !twoD(i)};
+    let prepared;
+    if (!area && !local && !exact.size && need.length > 1 && I.collectBoardLayers &&
+        !opts.partBoxesOnly && !opts.recordLayer && !opts.clipLayer) {
+      // Each layer still paints in its original band, but all bands share one object scan.
+      // Do not retain this viewport's groups in the pan-strip painter.
+      const start = now();
+      const {ordered, selectedParts} = I.collectBoardLayers(items,doc,defs,scale,textOptions,null,V.viewport,null);
+      prepared = new Map(need.map(next => [next,{ordered:[],selectedParts}]));
+      for (const pass of ordered) {
+        const next = nextOf(pass.layer);
+        prepared.get(own.has(next) ? next : last).ordered.push(pass);
+      }
+      st.stats.acc.board += now() - start;
+    }
     // One band's content for its pass (in g's current transform), from these objects: also how a pan draws
     // the strips it uncovers (scrollText), with the objects there.
-    function paintBand(g, next, items, all, details, entries, viewport, painted, bounds) {
+    function paintBand(g, next, items, all, details, entries, viewport, painted, bounds, layers) {
       const bandBounds = bounds?.include;
       const mine = next === last ? l => !own.has(nextOf(l)) : l => nextOf(l) === next;
       if (exact.size) I.drawBoard(g, all, doc, defs, scale, {...V.o2, skipPartBoxes: true, hidden: new Hide(opts.hidden || [], l => exact.has(l) && mine(l))}, bandPours, viewport, lod, painted, bandBounds);
@@ -2264,12 +2279,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         paintPadDetails(I, g, captions, layer, scale, V.o2, bounds?.glyph);
       }
       // Each glyph is drawn once in its layer. Component selection rectangles go over all layers.
-      I.drawBoard(g, items, doc, defs, scale, {...o3, skipPartBoxes: true, hidden: exact.size || need.length > 1 ? new Hide(o3.hidden || [], l => !exact.has(l) && mine(l)) : o3.hidden, gpu: i => !twoD(i)}, null, viewport, null, painted, bandBounds);
+      const options = exact.size || need.length > 1 ?
+        {...textOptions, hidden: new Hide(o3.hidden || [], l => !exact.has(l) && mine(l))} : textOptions;
+      I.drawBoard(g, items, doc, defs, scale, options, null, viewport, null, painted, bandBounds, layers);
     }
     // A pan can extend these bands only while they hold just text and pad captions drawn for this camera.
     T.valid = [0, 0];
     T.strip = planning ? null : {paintBand, need: need.slice(), exact, lod: !!lod, cam: cam.slice(), padDetails: V.padDetails, o2: V.o2, gone: goneIds(opts)};
-    need.forEach((next, n) => {
+    for (let n = 0; n < need.length; n++) {
+      const next = need[n];
       // Linear: a gesture frame samples it moved and scaled; at rest it is sampled at pixel centres.
       const band = bands[n] ||= {tex:null};
       band.next = next;
@@ -2283,7 +2301,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       let ink = !READBACK || !!area || local || T.planning || !!lod;
       const painted = (item, bounds) => ink ||= inkTouches(S.cache.boxes, V.viewport, item, bounds);
       const bounds = READBACK && !area && !local && !rolled && !T.planning && !lod ? bandRectangle() : null;
-      paintBand(g, next, items, all, details, entries, V.viewport, ink ? null : painted, bounds);
+      paintBand(g, next, items, all, details, entries, V.viewport, ink ? null : painted, bounds, prepared?.get(next));
       st.stats.acc.board += now() - t1;
       // Board Planning mode (key 1): regions as tinted areas, bend lines dashed with labels, under the connection lines.
       // The layer goes over every board layer then, so pad numbers and nets join it, under the tints as in canvas.js.
@@ -2308,7 +2326,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       } else if (band.tex) {
         gl.deleteTexture(band.tex); band.tex = null;
       }
-    });
+    }
     st.stats.acc.text += now() - t;
     return T;
   }
