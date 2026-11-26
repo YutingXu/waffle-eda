@@ -2951,9 +2951,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const coverageTiming = stages ? {paint:0, upload:0, readback:0} : null;
       const coverage = pourCoverage(I, st, doc, defs, opts, cam, V, list, text, c, coverageTiming), tc = now();
       if (!memory(I, st, doc)) return false;
-      const result = opts.showUnrouted && !opts.transientGeometry ? I.airwireConnectivity(doc, defs) ?? null : null;
+      const showWires = opts.showUnrouted && !opts.transientGeometry;
+      const wireStart = stages && showWires ? now() : 0;
+      const result = showWires ? I.airwireConnectivity(doc, defs) ?? null : null;
       const exactWires = result?.airwires, hasWires = !!exactWires?.length;
+      const drawStart = stages ? now() : 0;
       draw(I, st, doc, defs, opts, cam, c, text, list, coverage, result);
+      const drawEnd = stages ? now() : 0;
       if (!memory(I, st, doc)) return false;
       const t2 = now();
       overlay(I, st, doc, defs, opts, cam, V, hasWires ? exactWires : null, frame);
@@ -2974,6 +2978,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         stages.renderStage("full-coverage-paint", coverageTiming.paint);
         stages.renderStage("full-coverage-upload", coverageTiming.upload);
         stages.renderStage("full-coverage-readback", coverageTiming.readback);
+        stages.renderStage("full-airwires", showWires ? drawStart - wireStart : 0);
+        stages.renderStage("full-draw", drawEnd - drawStart);
         stages.renderStage("full-overlay", t3 - t2);
       }
       return true;

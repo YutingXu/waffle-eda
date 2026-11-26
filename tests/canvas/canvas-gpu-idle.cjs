@@ -1030,7 +1030,7 @@ function renderStageAttribution() {
   const work = (ms, result = true) => () => { elapsed += ms; return result; };
   const viewport = {viewport:[-5,-5,5,5], o2:{}};
   const leaf = {
-    place: work(0), update: work(0), memory: work(0), covers: () => !failedStrip || sameScaleCopy,
+    place: work(0), update: work(0), memory: work(3), covers: () => !failedStrip || sameScaleCopy,
     scrollText: work(2), scrollOverlay: () => { elapsed += 3; return !failedStrip; },
     draw: work(5), moveOverlay: work(17), afterMove: work(23), scope: work(7, viewport),
     textLayer(_I, st) { elapsed += 11; st.stats.acc.board += 9; return null; },
@@ -1059,9 +1059,10 @@ function renderStageAttribution() {
   const webKit = rendererContext("AppleWebKit"), chromium = rendererContext("AppleWebKit Chrome/144");
   const list = ["Top","Bottom"].map(layer => ({layer,bounds:[-2,-2,2,2]}));
   const doc = {...board,pcbDrawing:{pours:list}}, cache = {doc,rev:1,pourSig:"fixture"};
-  const defs = new Map(), opts = {reuseBase:true}, frame = {pours:list};
-  function capture(kind, mode, {rejectStrip = false, cacheHit = false, direct = false} = {}) {
+  const defs = new Map(), frame = {pours:list};
+  function capture(kind, mode, {rejectStrip = false, cacheHit = false, direct = false, wires = true} = {}) {
     const {AtriumDiagnostics:D, AtriumCanvasGPU:renderer} = direct ? chromium : webKit;
+    const opts = {reuseBase:true, showUnrouted:wires};
     const readback = {};
     sameScaleCopy = kind === "copy";
     failedStrip = rejectStrip || sameScaleCopy;
@@ -1070,7 +1071,7 @@ function renderStageAttribution() {
       canvas:{width:200,height:80,isConnected:true,getContext:()=>I.ctx}, cache,
       cam:() => [1,0,scale,false,200,80,1], sync:() => cache,
       ctx:{save:work(0),setTransform:work(0),clearRect:work(0),restore:work(0),getImageData:work(5, readback)},
-      boardTransform:work(0), paintTop:work(17),
+      boardTransform:work(0), paintTop:work(17), airwireConnectivity:work(13, {airwires:[]}),
       drawBoard(_g,_items,_doc,_defs,_scale,_opts,[region]) {
         elapsed += region.layer === "Top" ? 3 : 7;
         st.stats.acc.board += 29;
@@ -1117,31 +1118,35 @@ function renderStageAttribution() {
       stages:Object.fromEntries(Array.from(snap.rows, row => [row.operation,row.runP95]))};
   }
   const full = {"full-scope":7,"full-text":11,"full-band-paint":9,"full-coverage":44,
-    "full-coverage-paint":10,"full-coverage-upload":22,"full-coverage-readback":10,"full-overlay":19};
+    "full-coverage-paint":10,"full-coverage-upload":22,"full-coverage-readback":10,
+    "full-airwires":13,"full-draw":5,"full-overlay":19};
   for (const [kind, legacyClocks, detailedClocks, stages] of [
     ["pan", 3, 6, {"retained-pan-text":2,"retained-pan-overlay":3,"retained-pan-draw":5}],
     ["zoom", 3, 6, {"retained-zoom-draw":5,"retained-zoom-overlay":17}],
     ["copy", 4, 8, {"retained-copy-draw":5,"retained-copy-overlay":17}],
-    ["full", 7, 17, full],
+    ["full", 7, 20, full],
     ["slice", 0, 0, {}]
   ]) {
     const off = capture(kind, null), ordinary = capture(kind, "ordinary"), detailed = capture(kind, "detailed");
+    assert.deepEqual(detailed.stages, stages, kind + " stage timing");
     assert.deepEqual([off.reads, ordinary.reads, detailed.reads], [legacyClocks, legacyClocks, detailedClocks], kind + " clock reads");
     assert.deepEqual([off.driverReads, ordinary.driverReads, detailed.driverReads], [0,0,0], kind + " driver reads");
     assert.deepEqual(ordinary.stages, {});
-    assert.deepEqual(detailed.stages, stages, kind + " stage timing");
     assert.equal(detailed.legacy, off.legacy, "the original renderer timings and counters keep their contract");
   }
   const fallback = capture("pan", "detailed", {rejectStrip:true});
   assert.deepEqual(fallback.stages, full, "abandoned strips do not create a retained frame sample");
   const cached = capture("full", "detailed", {cacheHit:true});
   assert.deepEqual(cached.stages, {...full,"full-coverage":0,"full-coverage-paint":0,"full-coverage-upload":0,"full-coverage-readback":0});
-  assert.equal(cached.reads, 7, "a cached coverage pass uses no additional timing");
+  assert.equal(cached.reads, 10, "a cached coverage pass uses no additional timing");
   const direct = capture("full", "detailed", {direct:true});
   assert.deepEqual(direct.stages, {...full,"full-coverage":30,"full-coverage-upload":12,"full-coverage-readback":0});
-  assert.equal(direct.reads, 13, "direct texture submission adds no readback clock reads");
+  assert.equal(direct.reads, 16, "direct texture submission adds no readback clock reads");
+  const noWires = capture("full", "detailed", {wires:false});
+  assert.deepEqual(noWires.stages, {...full,"full-airwires":0});
+  assert.equal(noWires.reads, 19, "a hidden connection layer skips its lookup clock");
   assert.equal(capture("full", "ordinary", {direct:true}).reads, 7);
-  console.log("GPU stages separate full coverage paint, upload and explicit readback and leave slices untimed");
+  console.log("GPU stages separate airwire lookup, draw submission, coverage paint, upload and explicit readback");
 }
 renderStageAttribution();
 
