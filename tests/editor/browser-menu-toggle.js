@@ -83,7 +83,6 @@ function stateOf(input) {
   const details = !!det?.open && !list?.inert;
   const open = t.getAttribute("aria-expanded") === "true" || details, focus = document.activeElement === t;
   if (waitFor === "open") return open || surfaces > before;
-  if (waitFor === "escape") return (open || surfaces > 0) && !!globalThis.AtriumContextMenu;
   if (waitFor === "switched") return open && surfaces === 1;
   if (waitFor === "focus") return !open && !surfaces && focus;
   return {open, surfaces, focus};
@@ -101,13 +100,14 @@ async function settleClosed(page, {keys = true} = {}) {
   await page.locator(`:is(${menus}):not([inert], [inert] *):visible`).first().waitFor({state:"hidden"});
 }
 
-async function boot(browser, profile) {
+async function boot(browser, profile, beforeOpen) {
   const context = await browser.newContext({viewport:{width:1400, height:900}, reducedMotion:"reduce", hasTouch:!!profile.touch});
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.setDefaultTimeout(8000);
   if (profile.webkit) await page.addInitScript(webkitFocus);
+  await beforeOpen?.(page);
   await page.goto(pathToFileURL(path.join(APP, "index.html")).href);
   const demo = page.locator("dialog.sp-dialog[open]").getByRole("button", {name:"Try the Demo", exact:true});
   await demo.waitFor(); await demo.click();
@@ -115,6 +115,37 @@ async function boot(browser, profile) {
   await page.locator("dialog.sp-dialog[open]").waitFor({state:"hidden"});
   await page.locator(".layer-menu-button").click({trial:true});
   return {context, page, errors};
+}
+
+async function fileMenuFocus(browser) {
+  for (const touch of [false, true]) {
+    let release;
+    const held = new Promise(resolve => {release = resolve;});
+    const {context, page, errors} = await boot(browser, {webkit:true, touch}, page => page.route("**/context-menu.js", async route => {
+      await held;
+      await route.continue().catch(() => {});
+    }));
+    try {
+      const file = page.locator('details[data-menu="file"] > summary');
+      const press = () => touch ? file.tap() : file.click();
+      await press();
+      assert.equal(await file.getAttribute("aria-expanded"), "true");
+      assert.equal(await page.evaluate(() => !!globalThis.AtriumContextMenu), false, "the lazy menu module is still held");
+      await page.keyboard.press("Escape");
+      assert.equal(await file.getAttribute("aria-expanded"), "false", "Escape closes File on its first open");
+      assert.ok(await file.evaluate(node => node === document.activeElement), "Escape gives focus back to File");
+      await press();
+      assert.equal(await file.getAttribute("aria-expanded"), "true");
+      await press();
+      await frames(page, 10);
+      assert.equal(await file.getAttribute("aria-expanded"), "false", "the second press closes File and it stays closed");
+      assert.deepEqual(errors, []);
+    } finally {
+      release();
+      await context.close();
+    }
+  }
+  console.log("PASS cold File menu focus, Escape and repeated presses with mouse and touch");
 }
 
 // Press a button twice: the first press opens its menu, the second closes it for good.
@@ -148,8 +179,7 @@ async function escapeCloses(page, t, failures) {
   const node = page.locator('[data-menu-probe="' + t.probe + '"]');
   assert.ok(await page.evaluate(retag, t), "ready to press " + t.label);
   await node.click({timeout:3000});
-  // WebKit leaves File unfocused. Its first open lazily installs the menu's Escape handler.
-  await page.waitForFunction(stateOf, {probe:t.probe, waitFor:"escape"});
+  await page.waitForFunction(stateOf, {probe:t.probe, waitFor:"open", before:0});
   await page.keyboard.press("Escape");
   await page.waitForFunction(stateOf, {probe:t.probe, waitFor:"focus"});
   const after = await page.evaluate(stateOf, t.probe);
@@ -307,8 +337,10 @@ async function keyboardThenPointer(browser) {
 }
 
 module.exports = async function menuToggle(browser) {
+  if (process.argv.includes("--file-focus-only")) { await fileMenuFocus(browser); return; }
   await keyboardThenPointer(browser);
   if (process.argv.includes("--pointer-focus-only")) return;
+  await fileMenuFocus(browser);
   const counts = [];
   for (const profile of PROFILES) counts.push(profile.name + " " + await profileRun(browser, profile));
   await details(browser);

@@ -174,6 +174,7 @@ globalThis.AtriumWorkbench = (() => {
       else {
         openMenu(menu);
         if (event.detail === 0) commands(menu)[0]?.focus();
+        else if (document.activeElement !== trigger) trigger.focus({preventScroll:true});
       }
     };
     menu.addEventListener("pointerenter",event=>{
