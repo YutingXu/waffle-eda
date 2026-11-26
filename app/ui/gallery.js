@@ -107,6 +107,10 @@ globalThis.AtriumUIGallery = (() => {
     const tableScope = k.select(["All objects", "Selected objects"], {label: "Rows"}); tableScope.className = "ui-compact-field";
     const tableToolbar = k.toolbar([k.el("h2", null, "PCB List"), tableScope], {label: "PCB List"}); tableToolbar.dataset.table = "";
     const editorTabs = k.tabs(["Sensor board", "Power"], {value: "Sensor board", label: "Pane tabs"}); editorTabs.classList.add("ui-editor-tab-strip"); editorTabs.dataset.tabStrip = "pane";
+    // More documents than fit: the end fades and ⋯ lists them all (ui/tab-overflow.js watches the strip once it is shown).
+    const overflowTabs = k.tabs(["Sensor board", "Power", "USB", "CAN", "Accelerometer", "Main board"], {value: "Sensor board", label: "Documents"});
+    overflowTabs.classList.add("ui-editor-tab-strip"); overflowTabs.dataset.tabStrip = "documents";
+    const overflowBar = k.el("div", "ui-gallery-tabbar"); overflowBar.append(overflowTabs);
     const copperLayer = k.el("button", "layer-tab copper ui-layer-action ui-chrome-action", "Top"); copperLayer.type = "button"; copperLayer.setAttribute("aria-pressed", "true");
     const tabDismiss = k.el("button", "ui-icon-button ui-chrome-action ui-dismiss-glyph");
     tabDismiss.type = "button"; tabDismiss.setAttribute("aria-label", "Close tab");
@@ -207,6 +211,7 @@ globalThis.AtriumUIGallery = (() => {
       family("tabs", "Tabs", "Switch between views of the same thing; one 2 px accent indicator.",
         specimen("Default", k.tabs([["general", "General"], ["rules", "Rules"], ["history", "History"]], {value: "rules", label: "Sections"})),
         specimen("Editor strip", editorTabs),
+        specimen("Overflowing strip", overflowBar),
         specimen("Boxed", k.tabs([["lines", "Lines"], ["optimise", "Optimise"]], {value: "lines", label: "BOM views", boxed: true})),
         specimen("Strip", k.tabs([["bom", "Bill of Materials"], ["parts", "Parts"], ["check", "Check"]], {value: "bom", label: "Views", strip: true}))),
       family("chip", "Chips", "22 px, control radius; hairline off, raised neutral fill on. Never a pill or an accent fill.",
@@ -342,6 +347,8 @@ globalThis.AtriumUIGallery = (() => {
 
   function fillLate(node) {
     const k = K();
+    const overflowTabs = node.querySelector(".ui-gallery-tabbar > .ui-editor-tab-strip");
+    if (overflowTabs) globalThis.AtriumLazy.need("AtriumTabOverflow").then(o => o.watch(overflowTabs), () => {});
     const tiles = node.querySelector(".ui-gallery-thumbs");
     tiles?.append(k.thumb({label: "1", art: art("1 / 1.414"), current: true}), k.thumb({label: "2", art: art("1 / 1.414")}), k.thumb({label: "3", state: "pending"}), k.thumb({label: "4", state: "failed", art: art("1 / 1.414")}));
     node.querySelector(".ui-gallery-strip")?.append(...["Overview", "Power stage", "Sensor", "Layout"].map((label, i) =>

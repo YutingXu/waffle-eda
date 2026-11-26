@@ -27,6 +27,7 @@ globalThis.AtriumLazy = (() => {
     AtriumUIKit: {scripts:["ui/kit.js"]},
     AtriumLayer: {scripts:["ui/owner-layer.js"]},
     AtriumOverlayScroll: {scripts:["ui/overlay-scroll.js"],deps:["AtriumLayer"]},
+    AtriumTabOverflow: {scripts:["ui/tab-overflow.js"]},
     AtriumUIGallery: {scripts:["ui/gallery.js"],css:["ui/gallery.css","ui/analysis-panels.css"],deps:["AtriumUIKit"]},
     AtriumPlacement: {scripts:["pcb/placement.js"]},
     AtriumPastePlan: {scripts:["editor/paste-plan.js"],deps:["AtriumPlacement"]},

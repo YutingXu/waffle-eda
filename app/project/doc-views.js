@@ -123,7 +123,7 @@ globalThis.AtriumDocViews = (() => {
       const strip = split() ? d.querySelector('.pane-tabs[data-pane="' + v.pane + '"]') : d.getElementById("document-tabs");
       if (!strip) continue;
       const t = tabOf(v), nextDocument = [...strip.querySelectorAll(":scope > [data-tab]")].find(tab => tab.dataset.tab === v.before);
-      const before = nextDocument || strip.querySelector(":scope > :is(.pane-arrange,.pane-close)");
+      const before = nextDocument || strip.querySelector(":scope > :is(.ui-tab-strip-end,.pane-arrange,.pane-close)");
       let next = t.nextElementSibling;
       while (next?.dataset.view) next = next.nextElementSibling;
       if (t.parentElement !== strip || next !== before) {

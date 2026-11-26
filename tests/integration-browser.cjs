@@ -562,6 +562,7 @@ async function main(){
     if(safeAreaOnly){await require("./editor/browser-dialog-safe-area.cjs")(browser);return;}
     if(process.argv.includes("--titlebar-only")){await require("./editor/browser-titlebar-safe-area.cjs")(browser);return;}
     if(process.argv.includes("--panels-only")){await require("./editor/browser-panels-menu.js")(browser);return;}
+    if(process.argv.includes("--tab-overflow-only")){await require("./editor/browser-tab-overflow.js")(browser);return;}
     if(process.argv.includes("--menu-toggle-only")){await require("./editor/browser-menu-toggle.js")(browser);return;}
     if(process.argv.includes("--messages-fonts-only")){await require("./editor/browser-messages-fonts.js")(browser);return;}
     if(process.argv.includes("--messages-filter-only")){await require("./editor/browser-messages-filter.js")(browser);return;}
@@ -924,6 +925,7 @@ async function main(){
     await require("./editor/browser-interface-field-alignment.js")(browser);
     await require("./editor/browser-workbench-tree.js")(browser);
     await require("./editor/browser-panels-menu.js")(browser);
+    await require("./editor/browser-tab-overflow.js")(browser);
     await require("./canvas/browser-frame-monitor.js")(browser);
     await require("./project/browser-project-connections.js")(browser);
     await require("./editor/browser-shortcut-labels.js")(browser);

@@ -170,9 +170,10 @@ globalThis.AtriumSplitTabs = (() => {
           const ns = "http://www.w3.org/2000/svg", svg = D().createElementNS(ns, "svg"), frame = D().createElementNS(ns, "rect"), line = D().createElementNS(ns, "path");
           svg.setAttribute("class", "icon"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true");
           for (const [a, v] of [["x", "3.5"], ["y", "4.5"], ["width", "17"], ["height", "15"], ["rx", "1.5"]]) frame.setAttribute(a, v);
-          svg.append(frame, line); arrange.append(svg); s.append(arrange);
+          svg.append(frame, line); arrange.append(svg);
           const x = el("button", null, "pane-close ui-chrome-action"); x.type = "button"; x.dataset.hover = "focus"; x.title = "Close Pane"; x.setAttribute("aria-label", "Close pane " + (k + 1)); x.append(AtriumNavCommon.icon("close"));
-          s.append(x);
+          // The trailing controls stay in view while the tabs scroll (ui/tab-overflow.js puts its ⋯ first here).
+          const end = el("span", null, "ui-tab-strip-end"); end.append(arrange, x); s.append(end);
         };
         if (spatial && have.length) spatial.tabLayout(s,rebuild,false); else rebuild();
       }
@@ -182,7 +183,7 @@ globalThis.AtriumSplitTabs = (() => {
         const label = t.querySelector("span"); if (doc && label.textContent !== doc.name) label.textContent = doc.name;
         t.title = doc?.sourceName || doc?.name || "";
       }
-      const arrange = s.querySelector(":scope > .pane-arrange");
+      const arrange = s.querySelector(".pane-arrange");
       if (arrange) {
         const down = stacked(), label = down ? "Split right (side by side)" : "Split down (stacked)";
         if (arrange.getAttribute("aria-label") !== label) {
@@ -193,6 +194,7 @@ globalThis.AtriumSplitTabs = (() => {
       }
       ownTabs(s);
       globalThis.AtriumSplitFollow?.decorate?.(s, p, k); // split-follow: the Follow eye on the inactive strip
+      globalThis.AtriumTabOverflow?.watch(s); // the overflow fades and ⋯ (also when the module loads later)
     });
     globalThis.AtriumDocViews?.decorate?.(); // doc-views.js: view tabs (the rules editor) in their pane's strip
   }

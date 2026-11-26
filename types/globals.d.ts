@@ -433,6 +433,7 @@ declare var AtriumResolvedLand: AtriumGen<"AtriumResolvedLand">; // app/pcb/pcb-
 declare var AtriumRuleScopeDemand: AtriumGen<"AtriumRuleScopeDemand">; // app/checks/rule-scope-demand.js
 declare var AtriumSavedViews: AtriumGen<"AtriumSavedViews">; // app/saved-views.js
 declare var AtriumSlides: AtriumGen<"AtriumSlides">; // app/slides.js
+declare var AtriumTabOverflow: AtriumGen<"AtriumTabOverflow">; // app/ui/tab-overflow.js
 declare var AtriumUIGallery: AtriumGen<"AtriumUIGallery">; // app/ui/gallery.js
 declare var AtriumUIKit: AtriumGen<"AtriumUIKit">; // app/ui/kit.js
 declare var AtriumUUID: AtriumGen<"AtriumUUID">; // app/uuid-v7.js

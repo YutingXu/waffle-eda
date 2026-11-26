@@ -440,6 +440,7 @@ globalThis.AtriumDock = (() => {
     renderTabs(g, gr, open, (where === "float" ? "Floating" : AREA_NAME[where].replace(/^./, c => c.toUpperCase())) + " tabs");
     if (switched) animateTabChange(strip,priorRect);
     g.classList.toggle("dock-empty", !open.length);
+    // Sized to its content only while a group below it shares the area: dock-fill (render(), the drop preview) wins in dock.css.
     g.classList.toggle("dock-auto", !!gr.auto && !gr.size);
     g.style.flex = gr.size ? "0 0 " + gr.size + "px" : "";
     return open.length;
