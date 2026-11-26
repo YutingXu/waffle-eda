@@ -43,7 +43,7 @@ globalThis.AtriumPrefsStorage = (() => {
   add("state", ["atrium.git.seen.v1"]);
 
   function register(key, kind = "state") {
-    if (typeof key !== "string" || !key.startsWith("atrium") || (kind !== "setting" && kind !== "state")) throw Error('register(key, "setting" | "state") needs a key that starts with "atrium".');
+    if (typeof key !== "string" || !/^(?:atrium|waffle)/.test(key) || (kind !== "setting" && kind !== "state")) throw Error('register(key, "setting" | "state") needs a key that starts with "atrium" or "waffle".');
     KEYS.set(key, kind);
   }
   const isPrefix = k => k.endsWith(":") || k.endsWith(".");

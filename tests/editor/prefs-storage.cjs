@@ -30,6 +30,7 @@ assert.equal(S.kind("atrium.suppliers"),undefined,"secrets are never registered"
 assert.equal(S.kind("atrium.fabProfiles.v1"),undefined,"user content is never registered");
 assert.throws(()=>S.register("other.key","setting"),/atrium/);
 assert.throws(()=>S.register("atrium.x","both"),/setting/);
+S.register("waffle.test.tool.v1","state");assert.equal(S.kind("waffle.test.tool.v1"),"state","Waffle-named keys register too");
 S.register("atrium.test.tool.v1","setting");assert.equal(S.kind("atrium.test.tool.v1"),"setting");
 
 // Every registered key gets a distinctive value (prefixes get two members).
@@ -102,7 +103,8 @@ const LEFT_OUT={
   "atrium.camera.views.v1":"per-document content","atrium.selmem.v1":"per-document content","atrium-update":"format name",
   "atrium.extensions.v1":"extensions","atrium.extensions.registry":"extensions","atrium.extensions.registry.installed":"extensions",
   "atrium.ext.settings.":"extensions","atrium.ext.storage.":"extensions","atrium.ext.trust.v1":"extensions","atrium.ext.code.":"extensions","atrium-routing-habits":"format name","atrium.dev":"developer switch",
-  "atrium-split-follow-v1":"sessionStorage","waffle-editor-drafts-v1":"recovery","atrium.kicad-model-folders.v1":"this machine's folders",
+  "atrium-split-follow-v1":"sessionStorage","waffle-editor-drafts-v1":"recovery","waffle-foreign-draft:":"recovery","waffle-editor-draft-session:":"a Web Locks name, not storage",
+  "atrium.ai.project.":"per-project AI permission policy, never exported","atrium.kicad-model-folders.v1":"this machine's folders",
   "atrium-diagnostics-v1":"local diagnostic log, kept through a settings reset","atrium.":"review.author fallback before AtriumPref (eager) existed"};
 const app=path.join(__dirname,"../../app");
 // Every app module that touches localStorage, found by scanning, so a new tool cannot be missed.
@@ -110,7 +112,7 @@ const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirector
 const SOURCES=walk(app).map(file=>({file:path.relative(app,file),src:fs.readFileSync(file,"utf8")})).filter(m=>/localStorage/.test(m.src));
 assert.ok(SOURCES.length>=70,"modules using localStorage found: "+SOURCES.length);
 const lit=/"((?:atrium|waffle)[.\-][A-Za-z0-9._:\-]*)"/g;
-const cand=/localStorage|getItem|setItem|\b(?:const|let)\s+[A-Z_]*(?:KEY|STORE|PREFS?|VIEWS|SOURCES|RECENT|HINT|USER|CONFIG|PROVENANCE|DRAFT|HISTORY|SAVED|HEIGHT)\b|\b(?:key|KEY)\s*=\s*"atrium|ls\.(?:get|set)\(/;
+const cand=/localStorage|getItem|setItem|\b(?:const|let)\s+[A-Z_]*(?:KEY|STORE|PREFS?|VIEWS|SOURCES|RECENT|HINT|USER|CONFIG|PROVENANCE|DRAFT|HISTORY|SAVED|HEIGHT)\b|\b(?:key|KEY)\s*=\s*"atrium|ls\.(?:get|set)\(|=\s*(?:\([^)]*\)\s*=>\s*)?"(?:atrium|waffle)[.\-][A-Za-z0-9._\-]*[.:]"/;
 const missing=[];
 for(const {file,src} of SOURCES){
   for(const line of src.split("\n"))if(cand.test(line))for(const m of line.matchAll(lit)){const k=m[1];if(!S.kind(k)&&!(k in LEFT_OUT))missing.push(file+": "+k);}
