@@ -309,8 +309,20 @@ async function escape(page) {
       if (reference) await target.locator(reference).focus();
       if (a === "library-panel") {
         const search = target.getByRole("searchbox");
-        await search.focus();
-        await search.and(page.locator(":focus")).waitFor();
+        const focus = await search.evaluate(async input => {
+          const panel = input.closest("[data-dock-panel]");
+          input.focus();
+          AtriumDock.toggle("library");
+          const closed = panel.hidden;
+          await AtriumNavHost.act("library-panel");
+          input.focus();
+          const reopened = !panel.hidden && document.activeElement === input;
+          // The earlier close has queued its focus restore for this frame.
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          return {closed, reopened, searchFocused: document.activeElement === input};
+        });
+        assert.deepEqual(focus, {closed: true, reopened: true, searchFocused: true},
+          "reopening Library before the close frame preserves search focus");
         await page.keyboard.type("res");
         assert.equal(await search.inputValue(), "res", "The Library search receives the typed text");
         await page.keyboard.press("Escape");

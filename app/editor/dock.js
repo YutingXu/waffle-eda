@@ -586,7 +586,7 @@ globalThis.AtriumDock = (() => {
     const b = opener(p);
     if (b) b.click(); else if (p.action) host?.act?.(p.action);
     if (back) requestAnimationFrame(() => {
-      if (D.activeElement !== D.body && D.activeElement !== current) return;
+      if (isOpen(p) || (D.activeElement !== D.body && D.activeElement !== current)) return;
       if (!group?.getClientRects().length) {globalThis.AtriumShell?.focusEditor(); return;}
       const tab = group.querySelector(".dock-tabs:not([hidden]) .dock-tab[aria-selected=true]");
       if (tab) tab.focus(); else globalThis.AtriumShell?.focusEditor();
