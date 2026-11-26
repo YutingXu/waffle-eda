@@ -1007,7 +1007,7 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       const stats = GPU().stats(I), c = GPU().composite(I);
       if (!c || !stats) throw Error("no GPU coverage frame");
       return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, allocated,
-        uploaded:stats.coverageUpload, memory:stats.gpuBytes, fanUploads:stats.pourUploads};
+        uploaded:stats.coverageUpload, memory:stats.gpuBytes, fanUploads:stats.pourUploads, coverageMs:stats.last.coverage};
     };
     try {
       const close = paint(0,-1,10), retreat = paint(8,-2,8), reverse = paint(0,-1,10,true,"GND");
@@ -1115,10 +1115,32 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           const limit = empty.image.width * empty.image.height / 25;
           if (report.noInk.some(Boolean) || report.hole>8 || report.ink<=16 ||
               [single,disjoint,edited,fresh].some(frame=>frame.uploaded || frame.bytes) ||
-              [enter,exit].some(frame=>!frame.uploaded || frame.uploaded>=limit || !frame.bytes || frame.bytes>=limit*4))
+              [enter,exit].some(frame=>!frame.uploaded || frame.uploaded>=limit) ||
+              !enter.bytes || enter.bytes>=limit*4)
             failLifecycle("pourCoverageOffscreen",JSON.stringify({...report,entered:undefined}));
+          if (exit.bytes)
+            failLifecycle("pourCoverageEmptyClear", "clearing the old mask read "+exit.bytes+" Canvas bytes");
           if ([single,disjoint,exit,edited,fresh].some(frame=>frame.allocated) || !enter.allocated || report.fanUploads.some(Boolean))
             failLifecycle("pourCoverageOffscreenStorage",JSON.stringify({allocated:report.allocated,fanUploads:report.fanUploads}));
+
+          // Repeated offscreen/onscreen reversals keep the existing mask, even
+          // with multiple ink colors in one RGBA layer.
+          GPU().release(I); view.invalidate();
+          const mixed = {...region(edge+.45,north+4,"Top"),net:"SIG"};
+          board.pcbDrawing.pours = [];
+          const clear = paint(0,0,10,flipped,"GND");
+          board.pcbDrawing.pours = [right,mixed];
+          const visible = paint(enteringCamera,0,10,flipped,"GND");
+          const bounces = [];
+          for (let n=0;n<3;n++) {
+            const a = paint(0,0,10,flipped,"GND"), b = paint(enteringCamera,0,10,flipped,"GND");
+            bounces.push({read:a.bytes,upload:a.uploaded,allocated:a.allocated+b.allocated,
+              emptyDelta:imageDelta(a,clear),returnDelta:imageDelta(b,visible),exitCoverageMs:a.coverageMs});
+          }
+          report.bounces = {visibleAllocated:visible.allocated,rows:bounces};
+          if (visible.allocated!==empty.image.width*empty.image.height*4 ||
+              bounces.some(row=>!row.upload || row.read || row.allocated || row.emptyDelta || row.returnDelta))
+            failLifecycle("pourCoverageEmptyClearBounce",JSON.stringify(report.bounces));
         }
         if (!out.failures.some(f=>f.includes("pourCoverageOffscreen")))
           okLifecycle("pourCoverageOffscreen","empty padded pours skip readback and leaving ink is cleared locally");

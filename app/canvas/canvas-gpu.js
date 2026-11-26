@@ -927,6 +927,18 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   }
+  function clearCoverageTexture(st, band, x, y, w, h) {
+    const gl = st.gl, bytes = w*h*(band.ink ? 1 : 4);
+    let blank = st.emptyStrip;
+    if (!blank || blank.length < bytes) {
+      blank = new Uint8Array(bytes);
+      if (bytes <= 256*1024) st.emptyStrip = blank;
+    }
+    gl.bindTexture(gl.TEXTURE_2D,band.tex);
+    if (band.ink) gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
+    gl.texSubImage2D(gl.TEXTURE_2D,0,x,st.canvas.height-y-h,w,h,band.ink?gl.ALPHA:gl.RGBA,gl.UNSIGNED_BYTE,blank);
+    if (band.ink) gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);
+  }
   // Collect the device-pixel bounds of the paths the PCB text painter actually draws.
   // Null means a fresh/empty texture, undefined means the previous contents are unknown.
   function bandRectangle() {
@@ -1084,13 +1096,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         }
       }
       const paintStart = timing ? now() : 0, g = I.ctx;
+      const blank = pixels === null;
       g.setTransform(1,0,0,1,0,0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
       // The sliced settle path also snapshots this canvas between draws.
       if (READBACK && !st.textJob) g.clearRect(sx,sy,sw,sh); else g.clearRect(0,0,w,h);
-      I.boardTransform();
-      I.drawBoard(g, [], doc, defs, scale, V.o2, visibleRegions, view, null);
+      if (!blank) {
+        I.boardTransform();
+        I.drawBoard(g, [], doc, defs, scale, V.o2, visibleRegions, view, null);
+      }
       const uploadStart = timing ? now() : 0;
-      uploadCanvas(gl,band.tex,I.canvas,sx,sy,sw,sh,band.ink?gl.ALPHA:gl.RGBA,timing);
+      if (blank) clearCoverageTexture(st,band,sx,sy,sw,sh);
+      else uploadCanvas(gl,band.tex,I.canvas,sx,sy,sw,sh,band.ink?gl.ALPHA:gl.RGBA,timing);
       if (timing) {
         timing.paint += uploadStart - paintStart;
         timing.upload += now() - uploadStart;
