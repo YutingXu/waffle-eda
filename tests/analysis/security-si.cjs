@@ -38,7 +38,7 @@ async function fieldSolvesShareOneWorker() {
   let made = 0;
   globalThis.Worker = class {
     constructor() { made++; }
-    postMessage({id, geom}) { Promise.resolve().then(() => this.onmessage?.({data: {type: "result", id, result: {ok: true, w: geom.w}}})); }
+    postMessage({id, geom}) { if (typeof geom.cb === "function") throw new Error("DataCloneError"); Promise.resolve().then(() => this.onmessage?.({data: {type: "result", id, result: {ok: true, w: geom.w}}})); }
     terminate() {}
   };
   globalThis.Blob = globalThis.Blob || class { constructor(parts) { this.parts = parts; } };
@@ -49,6 +49,11 @@ async function fieldSolvesShareOneWorker() {
     assert.deepEqual([a.w, b.w], [0.3, 0.4], "each answer goes to its own solve");
     await FS.async(geom(0.5));
     assert.equal(made, 1, "consecutive solves reuse one worker");
+    // A request the worker cannot take is answered at once and leaves nothing queued in front of later solves.
+    const bad = await FS.async({...geom(0.6), cb: () => 0}).catch(e => ({thrown: e}));
+    assert.equal(bad.ok, false);
+    assert.equal((await FS.async(geom(0.7))).w, 0.7);
+    assert.equal(made, 1);
   } finally {
     globalThis.Worker = saved.Worker; globalThis.Blob = saved.Blob; globalThis.URL = saved.URL;
   }

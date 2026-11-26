@@ -790,8 +790,9 @@ function AtriumFieldSolverFactory() {
       const w = worker();
       if (!w) {Promise.resolve().then(() => resolve(solve(geom, opts))); return;}
       const id = ++seq;
+      try {w.postMessage({type: "solve", id, geom, opts});}
+      catch (e) {resolve({ok: false, error: "The cross-section could not be sent to the field solver."}); return;}
       jobs.set(id, {geom, opts, resolve, timer: null});
-      w.postMessage({type: "solve", id, geom, opts});
       settle();
     });
   }
