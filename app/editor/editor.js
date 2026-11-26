@@ -1033,6 +1033,7 @@
           for(const click of clicks){
             if(tool!=="place"||pending!==def)break;
             ghostAngle=click.angle;clickTool(click.at);
+            if(click.once){if(tool==="place")setTool("select");return;}
           }
           if(tool==="place"&&pending===def){ghostAngle=angle;draw();}
         };
@@ -2347,6 +2348,14 @@
     return AtriumLazy.need(modules).then(install);
   }
   const navHost={
+    placing:()=>tool==="place"&&!!pending,
+    // A library drag ends with one part where the pointer was released, then returns to Select.
+    placeAt(x,y){
+      if(tool!=="place"||!pending)return false;
+      const p=snapAt(pointer=view.screenToWorld(screen({clientX:x,clientY:y})));
+      if(schPlacementClicks){schPlacementClicks.push({at:p,angle:ghostAngle,once:true});return true;}
+      clickTool(p);if(tool==="place")setTool("select");return true;
+    },
     canvasGeometryRoots:()=>panes.map(renderedBoard).filter(Boolean),
     hasBoardArtwork:d=>d?.kind==="panel"||d?.kind==="pcb"&&!!(d.items?.length||d.outline?.length||d.boardShape||d.pcbDrawing?.pours?.length),
     boardGeometry(root=doc(),defaults){return globalThis.AtriumResolvedGeometry?.readEditor(project,root,defaults)??null;},
