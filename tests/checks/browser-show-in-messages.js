@@ -136,6 +136,25 @@ module.exports = async function showInMessages(browser) {
     revealed(s, "a Log message far down the list");
     assert.equal(s.tab, "Log", "Show in Messages switches to the Log tab");
     assert.equal(await page.evaluate(() => AtriumMessages.reveal(() => false)), false, "no match: false, and nothing changes");
+
+    // ---- the Fix buttons of Problems rows belong to those rows (not to the Log row with the same number)
+    const fixes = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumDRCFixes");
+      AtriumMessages.clear();
+      AtriumMessages.show(AtriumNavHost.messageContext(), {title: "Synthetic", group: "Synthetic shift", focus: false,
+        messages: [1, 2, 3].map(n => ({class: "Info", source: "Import", text: "Synthetic shift " + n}))});
+      await AtriumChecks.checkDesign(AtriumNavHost, {});
+      AtriumMessages.open(AtriumNavHost.messageContext(), {view: "problems", domain: null, fab: false, waived: false});
+      AtriumDRCFixes.decorate();
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+      const rows = [...document.querySelectorAll(".msg-panel tbody tr[data-no]")];
+      return rows.map(tr => {
+        const m = AtriumMessages.problems().find(p => p.no === Number(tr.dataset.no));
+        return {no: tr.dataset.no, button: !!tr.querySelector(".drc-fix-row"), fixable: !!m?.drc && AtriumDRCFixes.hasFix(m.drc)};
+      });
+    });
+    assert.ok(fixes.some(r => r.fixable), "the board has a fixable violation");
+    assert.deepEqual(fixes.filter(r => r.button !== r.fixable), [], "a Problems row has a Fix button exactly when its own violation has a fix");
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
   console.log("PASS Show in Messages: hover card, context menu and reveal() select, scroll to, focus and unhide the exact message on its tab");

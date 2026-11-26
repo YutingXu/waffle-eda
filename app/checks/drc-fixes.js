@@ -720,14 +720,18 @@ globalThis.AtriumDRCFixes = (() => {
     globalThis.AtriumNavCommon?.toast?.(still ? "Fix applied; still violating" : "Fixed · " + (v.ruleName || v.type), {kind: still ? "warn" : "ok"});
   }
   // Messages rows: a "Fix" button on DRC rows that have one.
-  let observed = null;
+  let observed = null, decorated = {rows: null, byNo: new Map()};
   function decorate() {
     const M = globalThis.AtriumMessages, tbody = document.querySelector(".msg-panel .msg-grid tbody");
     if (!M || !tbody) return;
     if (observed !== tbody) { observed = tbody; new MutationObserver(decorate).observe(tbody, {childList: true}); }
-    const byNo = new Map(M.messages().map(m => [m.no, m]));
-    for (const tr of tbody.querySelectorAll("tr[data-no]")) {
-      if (tr.querySelector(".drc-fix-row")) continue;
+    // A row's number belongs to the view it is in (Problems numbers its own rows, not the Log's): look it up in the shown rows.
+    const rows = [...tbody.querySelectorAll("tr[data-no]")].filter(tr => !tr.querySelector(".drc-fix-row"));
+    if (!rows.length) return;
+    const shown = M.shownRows();
+    if (shown !== decorated.rows) decorated = {rows: shown, byNo: new Map(shown.map(m => [m.no, m]))};
+    const byNo = decorated.byNo;
+    for (const tr of rows) {
       const m = byNo.get(Number(tr.dataset.no));
       if (!m?.drc || !hasFix(m.drc)) continue;
       const b = el("button", "Fix", "drc-fix-row ui-button"); b.type = "button"; b.dataset.size = "sm"; b.title = "Suggested fix: " + LABEL[m.drc.type] + " (preview first)";

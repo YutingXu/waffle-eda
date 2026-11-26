@@ -895,5 +895,7 @@ globalThis.AtriumMessages = (() => {
   const isOpen = () => !!panel && !panel.hidden;
   return {CLASSES, LABEL, show, open, close:hide, isOpen, clear, set, update, focusWhere, reveal, revealProblem, messages, summarize, filter, sort, toCSV, toHTML, toReport, locate,
     problems:() => problemRows(), detail:() => state.detail,
+    // The rows the list shows, in order: a painted row's data-no numbers this view (Problems or Log).
+    shownRows:() => ui?.rows || [],
     drcPending:() => state.detail === "DRC" && state.status === "Checking…", view:() => state.view, setView, groupNetPairs};
 })();
