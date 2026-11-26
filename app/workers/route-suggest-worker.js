@@ -12,10 +12,9 @@ globalThis.AtriumRouteSuggestWorker = (() => {
   let loaded = false;
   function load() {
     if (loaded) return;
-    // Routing rules use the native query compiler and the classic-scope translator.
+    importScripts("../workers/design-query-worker-modules.js");
     importScripts("../core/uuid-v7.js", "../core/model.js", "../pcb/resolved-geometry-curves.js", "../pcb/pcb-appearance.js", "../pcb/land-contours.js", "../pcb/stackup.js", "../pcb/viastack.js", "../checks/altium-rules.js", "../core/geometry.js", "../pcb/pcb-draw.js", "../pcb/component-classes.js", "../checks/net-intent.js",
-      "../checks/design-query-record.js", "../notebook/calculation-intent.js", "../notebook/calculation-core.js", "../notebook/note-fields.js", "../checks/query-fields.js",
-      "../checks/design-query-parser.js", "../checks/design-query-geometry.js", "../checks/design-query-context.js", "../checks/design-query-index.js", "../checks/design-query.js", "../checks/query-exchange.js",
+      ...globalThis.AtriumDesignQueryWorkerModules.map(([, file]) => file),
       "../checks/rules.js", "../pcb/router.js", "../pcb/route-suggest-engine.js");
     loaded = true;
   }

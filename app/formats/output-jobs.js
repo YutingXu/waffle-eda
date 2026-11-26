@@ -902,7 +902,7 @@ globalThis.AtriumOutputJobs = (() => {
   // File › Release… (the "output-jobs" action) opens the Release page (release-ui.js), which
   // loads with release.js and release-preview.js on first use. Registered here so the eager
   // index.html stays the same size.
-  globalThis.AtriumLazy?.register?.("AtriumReleaseUI", {scripts: ["workers/release-worker-modules.js", "formats/release.js", "formats/release-preview.js", "formats/release-ui.js"], deps: ["AtriumOutputJobs", "AtriumDFM", "AtriumWorkerPool"]}); // fab-presets: the DFM gate; worker-pool.js starts release-worker.js
+  globalThis.AtriumLazy?.register?.("AtriumReleaseUI", {scripts: ["workers/design-query-worker-modules.js", "workers/release-worker-modules.js", "formats/release.js", "formats/release-preview.js", "formats/release-ui.js"], deps: ["AtriumOutputJobs", "AtriumDFM", "AtriumWorkerPool"]}); // fab-presets: the DFM gate; worker-pool.js starts release-worker.js
   async function open(ctx, options) {
     const UI = globalThis.AtriumReleaseUI || (globalThis.AtriumLazy ? await AtriumLazy.need("AtriumReleaseUI") : null);
     if (!UI) { ctx?.info?.("The Release page is not available in this build."); return null; }

@@ -8,7 +8,11 @@ globalThis.AtriumDiffWorker = (() => {
   function load(drc) {
     if (!loaded) { importScripts("../core/uuid-v7.js", "../core/model.js", "../schematic/sch-objects.js", "../project/hierarchy.js", "../schematic/multichannel.js", "../library/component-match.js", "../pcb/resolved-geometry-curves.js", "../pcb/board-shape-core.js", "../checks/waivers.js", "../checks/net-intent.js", "../core/signals.js", "../history/diff.js"); loaded = true; }
     if (drc && !globalThis.AtriumRules) {
-      try { importScripts("../checks/altium-rules.js", "../core/geometry.js", "../pcb/pcb-appearance.js", "../pcb/land-contours.js", "../pcb/pcb-draw.js", "../pcb/component-classes.js", "../checks/net-intent.js", "../checks/rules.js", "../checks/project-rules.js", "../core/signals.js"); } catch { /* DRC delta is skipped */ }
+      try {
+        importScripts("../workers/design-query-worker-modules.js");
+        importScripts(...globalThis.AtriumDesignQueryWorkerModules.map(([, file]) => file),
+          "../checks/altium-rules.js", "../core/geometry.js", "../pcb/pcb-appearance.js", "../pcb/land-contours.js", "../pcb/pcb-draw.js", "../pcb/component-classes.js", "../checks/net-intent.js", "../checks/rules.js", "../checks/project-rules.js", "../core/signals.js");
+      } catch { /* DRC delta is skipped */ }
     }
   }
   function strip(result) {
