@@ -430,17 +430,47 @@ globalThis.AtriumBlame = (() => {
     } catch (e) { if (line.isConnected) line.textContent = e.message; }
     finally { observer.disconnect(); reader?.close(); }
   }
+  // Whether the open project's file lives in a Git repository. Opening an Altium or KiCad design (or
+  // adopting a folder) binds it for history whether or not Git tracks it, so the first inspector of a
+  // binding asks the repository once (one short log or refs read) and remembers the answer.
+  let repository = null;
+  function inRepository() {
+    const H = G.AtriumHost, binding = H?.historyPath || H?.folderGitGrant || null;
+    if (!binding) return {known: true, yes: false, ready: Promise.resolve(false)};
+    const key = H.projectGeneration + "|" + binding;
+    if (repository?.key === key) return repository;
+    const ask = H.historyPath ? () => H.historyQuery("sourceLog", {skip: 0, limit: 1}).then(log => !!log?.commits?.length) :
+      () => H.gitQuery("refs", {}).then(() => true);
+    const entry = repository = {key, known: false, yes: false};
+    entry.ready = Promise.resolve().then(ask).then(yes => yes, () => false).then(yes => { entry.known = true; entry.yes = yes; return yes; });
+    return entry;
+  }
+  G.addEventListener?.("atrium-git-binding", () => { repository = null; });
+  // The Properties pane's history control: a small quiet library button with the history icon,
+  // shown only for an object of a project in a Git repository. Pressing it reads the last commit
+  // that changed the object and puts the credit line in its place.
   function inspector(panel, host, item) {
     if (!item || !G.AtriumHost?.historyPath && !G.AtriumGit?.available?.()) return;
     panel.querySelector(":scope > .blame-line")?.remove();
+    const repo = inRepository();
+    if (repo.known && !repo.yes) return;
     const target = targetOf(host, item);
-    const line = el("p", null, "blame-line");
+    const line = el("div", null, "blame-line");
     line.setAttribute("role", "status");
-    line.title = "The last commit that changed this object";
-    line.append(btn("Who changed this?", () => {
-      line.textContent = "Reading who changed this…";
+    const show = G.AtriumUI?.nativeButton ? G.AtriumUI.nativeButton(null, null, "blame-show", null, {variant: "quiet", size: "sm"}) :
+      Object.assign(el("button", null, "ui-button blame-show"), {type: "button"});
+    show.dataset.variant = "quiet"; show.dataset.size = "sm";
+    show.title = "The last commit that changed this object";
+    show.append(G.AtriumNavCommon.icon("history"), el("span", "Show history"));
+    show.onclick = () => {
+      line.textContent = "Reading the history of this object…";
       sourceInspector(line, host, target);
-    }, "blame-link"));
+    };
+    line.append(show);
+    if (!repo.known) {
+      line.hidden = true;
+      repo.ready.then(yes => { if (yes && line.isConnected) line.hidden = false; else line.remove(); });
+    }
     panel.append(line);
   }
   return Object.freeze({engine: {scan, reverse, touched, touchedParsed, Walk, history, fields, itemKey, netsOf, netTransition, sourceValue}, inspector, sourceHistory, targetOf});

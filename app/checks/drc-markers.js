@@ -6,10 +6,12 @@ if (!globalThis.AtriumLandContours && typeof require === "function") require("..
 // counter-intuitive, so it is off by default):
 //   - Each violation draws a marker in its severity colour with a shape cue, so colour is not
 //     the only signal: a ring for errors, a triangle for warnings, a dashed ring for waived
-//     violations. Markers grow with zoom within an on-screen range (problem-marks.js). Inside it an X marks a conflict between two objects (clearance, short, hole
+//     violations. Markers grow with zoom within an on-screen range (problem-marks.js), staying
+//     smaller than a via close up, in thin strokes (problem-marks.js STROKE). Inside it an X marks a conflict between two objects (clearance, short, hole
 //     to hole …), a dot a single-object rule (width, hole size, annular ring …).
-//   - The objects involved get a subtle outline in the same colour; a dashed detail line joins
-//     the two closest points.
+//   - The objects involved get a subtle outline in the same colour at half strength; a dashed detail
+//     line joins the two closest points.
+//   - Footprint findings (Missing Courtyard) are listed, not drawn, until one is chosen (LISTED).
 //   - Hovering a marker emphasises it and its objects a little, and writes one quiet line
 //     in the status bar ("Clearance 0.186 < 0.2 mm · A2.2 ↔ Track A1 · click for details").
 //     After a rest, the small problem card (problem-hover.js) says what it is beside the marker,
@@ -28,13 +30,17 @@ globalThis.AtriumDRCMarkers = (() => {
   const C = () => globalThis.AtriumNavCommon, A = () => globalThis.Atrium, R = () => globalThis.AtriumRules;
   // Canvas palette (problem-marks.js BOARD: the board canvas is dark in every theme). Severity first;
   // ring is the focus ring of the pinned violation, halo the dark edge that keeps glyphs readable on copper.
-  const P = globalThis.AtriumProblemMarks, B = P.BOARD, planFor = P.register();
+  const P = globalThis.AtriumProblemMarks, B = P.BOARD, S = P.STROKE, planFor = P.register();
   const COLORS = Object.freeze({error: B.error, warning: B.warning, waived: B.waived, halo: B.halo, ring: B.ring, dim: B.dim,
     overlay: B.error, marker: B.error, detail: B.error});
   // error | warning | waived. Waived rows come from drc-view.js with a `waived` waiver attached.
   const severity = v => v?.waived ? "waived" : v?.warning || v?.type === "unrouted" ? "warning" : "error";
   const RANK = {error: 3, warning: 2, waived: 1};
   const PAIRED = new Set(["clearance", "short", "holeToHole", "silkToSilk", "silkToMask", "boardOutlineClearance", "dfaSpacing", "returnPathVia", "diffPairsRouting"]);
+  // Findings about a footprint in the library rather than about its place on the board (Missing
+  // Courtyard): every placement of the footprint would carry the same marker, so they stay in Messages
+  // and draw on the board only while one is chosen there (focused).
+  const LISTED = new Set(["courtyard"]);
   let visible = true;
   try { const s = JSON.parse(globalThis.localStorage?.getItem("atrium-drc-markers") || "null"); if (s) visible = s.visible !== false; } catch { /* storage unavailable */ }
   const save = () => { try { globalThis.localStorage?.setItem("atrium-drc-markers", JSON.stringify({visible})); } catch { /* storage unavailable */ } };
@@ -108,17 +114,17 @@ globalThis.AtriumDRCMarkers = (() => {
   // {v, shapes, live} for each violation to draw; live is false for filtered-out objects.
   // `rev` (the editor's revision) keeps each violation's shapes and box between frames; `view` (a world
   // box) leaves out the rows that cannot reach it.
-  function visibleList(doc, defs, list, {hidden = null, selectable = null, rev = null, view = null, preview = null, publication = null} = {}, eligibility = null) {
-    return rowViews(rowsOf(doc, defs, list, rev, preview, publication), {hidden, selectable, view, publication}, eligibility);
+  function visibleList(doc, defs, list, {hidden = null, selectable = null, rev = null, view = null, preview = null, publication = null, focused = null} = {}, eligibility = null) {
+    return rowViews(rowsOf(doc, defs, list, rev, preview, publication), {hidden, selectable, view, publication, focused}, eligibility);
   }
-  function rowViews(entry, {hidden, selectable, view, publication}, eligibility, members = null) {
+  function rowViews(entry, {hidden, selectable, view, publication, focused = null}, eligibility, members = null) {
     const out = [];
     if (!entry) return out;
     let cached = eligibility?.get(entry);
     if (eligibility && !cached) eligibility.set(entry, cached = []);
     for (let i = 0; i < entry.rows.length; i++) {
       const r = entry.rows[i];
-      if (!r || !(members ? members(r, i) : reaches(r.box, view))) continue;
+      if (!r || LISTED.has(r.v.type) && r.v !== focused || !(members ? members(r, i) : reaches(r.box, view))) continue;
       let row = cached?.[i];
       if (row === undefined) {
         row = rowView(r, hidden, selectable, !!publication);
@@ -224,6 +230,8 @@ globalThis.AtriumDRCMarkers = (() => {
   }
   // A subtle outline around an offending primitive: a soft band along tracks, a thin ring
   // around pads and vias, a dashed box around a part. Hovered or pinned: a little stronger.
+  // Half strength at rest: the marker already says where; the ring only says which object.
+  const OUTLINE_ALPHA = .5;
   function outline(ctx, s, px, color, hot) {
     ctx.strokeStyle = color; ctx.setLineDash([]);
     if (s.kind === "line") {
@@ -234,7 +242,7 @@ globalThis.AtriumDRCMarkers = (() => {
       ctx.stroke();
       return;
     }
-    ctx.globalAlpha *= hot ? 1 : .75; ctx.lineWidth = (hot ? 2 : 1.25) * px;
+    ctx.globalAlpha *= hot ? 1 : OUTLINE_ALPHA; ctx.lineWidth = (hot ? 2 : 1) * px;
     if (s.kind === "circle") { ctx.beginPath(); ctx.arc(s.at[0], s.at[1], Math.max(s.r, 3 * px) + 1.5 * px, 0, Math.PI * 2); ctx.stroke(); }
     else if (s.kind === "pad") { padPath(ctx, s, 1.5 * px); ctx.stroke(); }
     else if (s.kind === "box") { ctx.setLineDash([5 * px, 3 * px]); ctx.strokeRect(s.box[0], s.box[1], s.box[2] - s.box[0], s.box[3] - s.box[1]); ctx.setLineDash([]); }
@@ -258,8 +266,8 @@ globalThis.AtriumDRCMarkers = (() => {
     if (pinned) { ctx.lineWidth = 1.5 * px * w; ctx.strokeStyle = COLORS.ring; ctx.beginPath(); ctx.arc(at[0], at[1], r + 4 * px * w, 0, Math.PI * 2); ctx.stroke(); }
     ctx.setLineDash(sev === "waived" ? [2.5 * px * w, 2 * px * w] : []);
     ctx.beginPath(); appendMarkerBorder(ctx, at, r, sev);
-    ctx.lineWidth = 3.2 * px * w; ctx.strokeStyle = COLORS.halo; ctx.stroke();
-    ctx.lineWidth = (hot || pinned ? 2.2 : 1.6) * px * w; ctx.strokeStyle = color; ctx.stroke();
+    ctx.lineWidth = S.halo * px * w; ctx.strokeStyle = COLORS.halo; ctx.stroke();
+    ctx.lineWidth = (hot || pinned ? S.hot : S.line) * px * w; ctx.strokeStyle = color; ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = color; ctx.strokeStyle = color;
     const cross = glyph(v) === "x" && sev !== "waived";
@@ -740,7 +748,7 @@ globalThis.AtriumDRCMarkers = (() => {
           push(slots, tag, "line", color, r.live ? .3 : .15, width, shape, draw);
         } else {
           const box = shape.kind === "box";
-          push(fixedStyles, tag + (box ? 4 : 0), box ? "box" : "ring", color, r.live ? .75 : .375, 1.25 * px, shape, draw);
+          push(fixedStyles, tag + (box ? 4 : 0), box ? "box" : "ring", color, r.live ? OUTLINE_ALPHA : OUTLINE_ALPHA / 2, px, shape, draw);
         }
       }
       if (v.otherAt && v.at && near(v.at, v.otherAt) > 1e-6) push(fixedStyles, tag + 8, "detail", color, live ? .6 : .35, px, v, draw);
@@ -782,9 +790,9 @@ globalThis.AtriumDRCMarkers = (() => {
       ctx.globalAlpha = st.waived ? .75 : st.live ? 1 : .45;
       ctx.setLineDash(st.sev === "waived" ? [2.5 * px * w, 2 * px * w] : []);
       if (!paths) { ctx.beginPath(); markerBorders(ctx, st, r); }
-      ctx.lineWidth = 3.2 * px * w; ctx.strokeStyle = COLORS.halo;
+      ctx.lineWidth = S.halo * px * w; ctx.strokeStyle = COLORS.halo;
       if (paths) ctx.stroke(paths.border); else ctx.stroke();
-      ctx.lineWidth = 1.6 * px * w; ctx.strokeStyle = color;
+      ctx.lineWidth = S.line * px * w; ctx.strokeStyle = color;
       if (paths) ctx.stroke(paths.border); else ctx.stroke();
       ctx.setLineDash([]); ctx.fillStyle = color;
       if (paths) { if (st.x) ctx.stroke(paths.glyph); else ctx.fill(paths.glyph); }

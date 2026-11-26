@@ -50,6 +50,23 @@ test("highlighted shapes: tracks, vias, the nearest pad of a part, else its box"
   assert.deepEqual(M.shapes(b, defs, {type: "length", id: "gone"}), []);
 });
 
+test("calm markers: footprint findings are listed, not drawn, until chosen; thin strokes; smaller than a via close up", () => {
+  const b = board([via("v", "A", 0, 0), part("p", "R1", 4, 0, {"1": "C", "2": "D"})]);
+  const court = {type: "courtyard", warning: true, id: "p", at: [4, 0]}, clear = {type: "clearance", id: "v", at: [0, .3]};
+  assert.deepEqual(M.visibleList(b, defs, [court, clear], {}).map(r => r.v), [clear], "Missing Courtyard stays in Messages");
+  assert.deepEqual(M.visibleList(b, defs, [court, clear], {focused: court}).map(r => r.v), [court, clear], "the chosen one is drawn");
+  const P = globalThis.AtriumProblemMarks;
+  assert.ok(P.MAX <= 14, "a marker never grows past 14 px");
+  const close = P.size(80, "pcb"); // 80 px per mm: a 0.6 mm via is 48 px across
+  assert.ok(2 * close.screen < .6 * 80, "the marker stays smaller than the via it points at");
+  assert.ok(P.STROKE.line <= 1.25 && P.STROKE.halo <= 2.5, "thin severity outline on a slim halo");
+  // Every stroke a marker draws stays within the hot width at the largest size.
+  const widths = [], ctx = new Proxy({setLineDash() {}}, {get: (t, k) => k in t ? t[k] : () => {}, set: (t, k, v) => { if (k === "lineWidth") widths.push(v); t[k] = v; return true; }});
+  const paint = M.overlay(b, defs, [clear], {});
+  paint(ctx, {scale: 80});
+  assert.ok(widths.length && Math.max(...widths) * 80 <= P.STROKE.halo * Math.sqrt(P.MAX / P.MIN) + 1e-9, JSON.stringify(widths.map(w => w * 80)));
+});
+
 test("layer visibility and the selection filter", () => {
   const b = board([track("t1", "A", [[0, 0], [5, 0]]), track("t2", "B", [[0, 1], [5, 1]], .2, "Bottom"), via("v", "C", 9, 9)]);
   const list = [{type: "width", id: "t1", at: [1, 0]}, {type: "width", id: "t2", at: [1, 1]}, {type: "clearance", id: "v", otherId: "t2", at: [9, 9]}, {type: "unrouted", id: "t1", at: [0, 0]},
