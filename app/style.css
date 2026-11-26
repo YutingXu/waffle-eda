@@ -145,7 +145,8 @@ h1,h2,h3,h4,p {margin:0}
 :root[data-atrium-native-titlebar=windows] .appbar {padding-right:max(var(--s-6),var(--windows-caption-right-inset));min-block-size:max(var(--appbar-height),var(--windows-caption-height))}
 .window-caption {display:none}
 :root[data-atrium-native-titlebar=windows] .window-caption {display:contents}
-.window-controls {position:fixed;inset-block-start:0;inset-inline-end:0;z-index:var(--z-top);display:flex;block-size:var(--windows-caption-height)}
+.window-controls {position:fixed;inset:0 0 auto auto;z-index:var(--z-top);display:flex;block-size:var(--windows-caption-height);
+  margin:0;padding:0;border:0;background:transparent;color:inherit;overflow:visible}
 /* Library buttons (app/ui/controls.css) with a caption button's size and glyphs; Close fills with the theme's danger colour. */
 .window-controls > .ui-button {--ui-button-fill:transparent;--ui-button-border:transparent;--ui-button-hover:var(--button-face-hover,var(--hover));
   --ui-button-active:var(--button-face-pressed,var(--pressed));--ui-control-height:var(--windows-caption-height);
@@ -154,7 +155,8 @@ h1,h2,h3,h4,p {margin:0}
 .window-controls > .ui-button[data-window-command=close] {--ui-button-hover:var(--danger-fill);--ui-button-active:color-mix(in srgb,var(--danger-fill) 85%,var(--ink))}
 .window-controls > .ui-button[data-window-command=close]:is(:hover,:active) {color:var(--on-danger)}
 :root[data-window-inactive] .window-controls > .ui-button:not(:hover,:active) {color:var(--faint)}
-.window-resize-edge {position:fixed;inset:0 0 auto;z-index:var(--z-top);display:flex;block-size:var(--windows-resize-band)}
+.window-resize-edge {position:fixed;inset:0 0 auto;z-index:var(--z-top);display:flex;inline-size:auto;block-size:var(--windows-resize-band);
+  margin:0;padding:0;border:0;background:transparent;overflow:visible}
 .window-resize-edge > [data-edge] {flex:none;inline-size:var(--windows-resize-corner)}
 .window-resize-edge > [data-edge=top] {flex:1 1 0;cursor:ns-resize}
 .window-resize-edge > [data-edge=top-left] {cursor:nwse-resize}

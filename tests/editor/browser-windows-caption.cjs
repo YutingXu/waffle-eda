@@ -132,9 +132,15 @@ async function caption(browser, viewport) {
     await setState(page, {fullScreen:false});
 
     // Under a modal dialog the caption still belongs to the window; the dialog stays open.
+    await controls.evaluate(el => { window.__raised = []; el.addEventListener("toggle", e => window.__raised.push(e.newState)); });
     await page.evaluate(async () => (await AtriumLazy.need("AtriumStartPage")).open());
     const start = page.locator("dialog.sp-dialog[open]");
     await start.waitFor();
+    assert.ok(await controls.evaluate(el => el.matches(":popover-open")), "the window controls are in the top layer");
+    // Shown again after the dialog opened: the top layer stacks the later one above.
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    // (A hide and show in one task fire a single coalesced toggle event.)
+    assert.deepEqual(await page.evaluate(() => window.__raised), ["open"], where + ": the window controls are raised above the Start Page");
     await page.mouse.move(x, y);
     await page.mouse.down(); await page.mouse.up();
     const closeAt = await box(controls.getByRole("button", {name:"Close", exact:true}));

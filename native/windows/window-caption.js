@@ -48,6 +48,10 @@
     caption.className = "window-caption";
     const controls = document.createElement("div");
     controls.className = "window-controls";
+    // In the top layer, as the system controls sit above the page: a modal dialog's backdrop (the
+    // launch Start Page's is opaque) never hides them. Under a modal they are inert, so a press on
+    // them reaches the backdrop and zoneAt finds the control by position.
+    controls.popover = "manual";
     controls.setAttribute("role", "group");
     controls.setAttribute("aria-label", "Window");
     for (const [command, label] of [["minimize", "Minimize"], ["maximize", "Maximize"], ["close", "Close"]]) {
@@ -64,6 +68,7 @@
     }
     const edge = document.createElement("div");
     edge.className = "window-resize-edge";
+    edge.popover = "manual"; // above the controls, as the resizing border runs over the system caption buttons
     edge.setAttribute("aria-hidden", "true");
     for (const side of ["top-left", "top", "top-right"]) {
       const zone = document.createElement("span");
@@ -72,7 +77,20 @@
     }
     caption.append(controls, edge);
     document.body.append(caption);
+    raise();
+    // A modal dialog opened later joins the top layer above the controls: raise them over it.
+    new MutationObserver(records => {
+      if (records.some(record => record.target.matches?.("dialog:modal"))) raise();
+    }).observe(document.documentElement, {subtree:true, attributeFilter:["open"]});
     apply();
+  }
+  function raise() {
+    for (const layer of document.querySelectorAll(".window-controls, .window-resize-edge")) {
+      try {
+        if (layer.matches(":popover-open")) layer.hidePopover();
+        layer.showPopover();
+      } catch {}
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build, {once:true});
   else build();

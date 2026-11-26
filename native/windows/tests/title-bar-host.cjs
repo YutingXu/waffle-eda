@@ -116,16 +116,21 @@ async function main() {
     check("the page draws the Windows caption", view.mode === "windows" && view.caption > 0, view);
     check("no system caption: the page starts at the window's visible top edge", near(state.client[1], state.frame[1], 1), {client:state.client, frame:state.frame});
     check("the window controls fill the top right of the page", view.controls && near(view.controls[0] + view.controls[2], (state.client[2] - state.client[0]) / view.dpr, 1) && view.controls[1] === 0, view.controls);
-    await capture("1-start");
+    await capture("1-launch");
 
-    // Under the Start Page (a modal dialog), as at every launch.
-    if (view.startPage) {
+    // Under the Start Page (a modal dialog), as at every launch; it opens just after the editor.
+    if (!await poll(async () => (await layout()).startPage, "", 6000).catch(() => false))
+      await page.evaluate("(async () => (await AtriumLazy.need('AtriumStartPage')).open())()");
+    view = await poll(async () => { const v = await layout(); return v.startPage ? v : null; }, "The Start Page did not open");
+    check("the window controls show above the Start Page", await page.evaluate("document.querySelector('.window-controls').matches(':popover-open')"), null);
+    await capture("1-start-page");
+    {
       const before = (await desktop("state")).frame;
       const moved = (await desktop("input", {scale:view.dpr, steps:[{css:centre(view.blank)}, {down:"left"}, {wait:250}, {dx:90, dy:50}, {wait:150}, {up:"left"}, {wait:300}]})).state.frame;
       check("under the Start Page the blank caption moves the window", near(moved[0] - before[0], 90, 4) && near(moved[1] - before[1], 50, 4), {before, moved});
       check("the Start Page stays open", (await layout()).startPage, null);
       await page.evaluate("for (const d of document.querySelectorAll('dialog.sp-dialog[open]')) d.close()");
-    } else check("the Start Page was open at launch", false, view);
+    }
     await wait(300);
 
     // Move, then maximise and restore with a double press on the blank caption.

@@ -78,7 +78,9 @@ public static class TitleBarDesktop {
     }
     public static uint Tick() { return unchecked((uint)Environment.TickCount); }
     public static bool Front(IntPtr window) {
-        if (GetForegroundWindow() == window) return true;
+        // The window menu is the foreground while it is open; it belongs to the Waffle window.
+        IntPtr menu = FindWindow("#32768", null);
+        if (GetForegroundWindow() == window || menu != IntPtr.Zero && IsWindowVisible(menu)) return true;
         SetForegroundWindow(window);
         System.Threading.Thread.Sleep(120);
         return GetForegroundWindow() == window;
