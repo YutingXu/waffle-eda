@@ -10,6 +10,10 @@
 .import-report table {width:100%;table-layout:fixed;min-inline-size:44em;border-collapse:collapse;font-size:var(--fs-12)}
 .import-report-col-kind {width:22%}
 .import-report-col-count {width:18%}
+.import-report table.import-report-has-inapplicable {min-inline-size:52em}
+.import-report-has-inapplicable .import-report-col-kind {width:20%}
+.import-report-has-inapplicable .import-report-col-count {width:15%}
+.import-report-inapplicable {color:var(--muted)}
 .import-report-references > td {padding-block-start:0}
 .import-report thead th {overflow-wrap:normal}
 .import-report caption {text-align:left;margin-bottom:var(--s-6)}

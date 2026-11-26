@@ -2,7 +2,7 @@
 
 Use **File → Open…** (`Mod+O`), drag files onto the editor, or choose **File → Import → Altium Project / Document…**. Select related files together so the translator can link sheets, boards, libraries and model references. An imported design opens as a project. To bring a document into an open design, use **+ → Add Existing to Project…** on that project’s title row in the Projects panel.
 
-After each import, an **Import Report** tab shows the number of objects **kept**, **approximated** and **dropped**. Expand a row’s **Show references** control for the source file, object and reason. Review the warning totals and translator notes before using the result. Select a design tab to resume editing. Use **Reports → Import Report** or **⋯ → Import Report** on the project’s title row to revisit its report.
+After each import, an **Import Report** tab shows the number of objects **kept**, **approximated** and **dropped**. A quieter **Not applicable** column counts source records that have no meaning in Waffle, such as Altium pin identifiers, model containers and the copies of a multi-part component's other parts that import where those parts are placed. They are not losses, and the original file keeps them. Expand a row’s **Show references** control for the source file, object and reason. Review the warning totals and translator notes before using the result. Select a design tab to resume editing. Use **Reports → Import Report** or **⋯ → Import Report** on the project’s title row to revisit its report.
 
 Parsing runs in a background worker with input limits, progress and a **Cancel import** control.
 

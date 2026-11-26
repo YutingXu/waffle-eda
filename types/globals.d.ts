@@ -332,9 +332,14 @@ interface AltiumStreams extends Map<string, Uint8Array> {
   modelStream?(path: string, cap: number): Uint8Array | null;
 }
 /** app/io.js: open, save and export files. */
+type ImportSourceStatus = "kept" | "approximated" | "dropped" | "notApplicable";
 interface ImportSourceFidelity {
-  add(kind: string, status: "kept" | "approximated" | "dropped", source: {file: string, object?: string}, reason?: string, count?: number): void;
-  track(kind: string, status: "kept" | "approximated" | "dropped", source: {file: string, object?: string}, target: object, reason?: string): void;
+  add(kind: string, status: ImportSourceStatus, source: {file: string, object?: string}, reason?: string, count?: number): void;
+  track(kind: string, status: ImportSourceStatus, source: {file: string, object?: string}, target: object, reason?: string): void;
+  /** Settles a record's status once every selected file is read and linked (translator-adapters.js). */
+  decide?(kind: string, source: {file: string, object?: string}, resolve: (confirmed: (key: string) => boolean) => {status: ImportSourceStatus, reason?: string}): void;
+  /** Records a fact that a deferred decision in another file can check. */
+  confirm?(key: string): void;
   produced(documentKind: string, source: {file: string, object?: string}, target: {kind: string, id: string}): void;
   reject(target: object): void;
   note(message: string): void;

@@ -178,6 +178,8 @@ globalThis.AtriumSCH = (() => {
     function parse(records,libraryStream,sourceSection) {
       section = sourceSection;
       evidence = fidelity ? new Array(records.length) : null;
+      // Records of another part of a placed multi-part component: [component, part] (import report only).
+      const inactive = fidelity ? new Map() : null;
       recs=records;
       const components=new Map(),ports=[],sheetSymbols=new Map(),harness=[],crossRefs=new Map(),connectorLabels=new Map();
       const sheet=records.find(r=>Number(r.RECORD)===31)||{};
@@ -202,6 +204,8 @@ globalThis.AtriumSCH = (() => {
         const kept = obj => mark(idx, "kept", obj);
         const approximated = reason => mark(idx,"approximated",null,reason);
         const dropped = reason => mark(idx,"dropped",null,reason);
+        // Altium bookkeeping with no Waffle meaning. The original file keeps it.
+        const inapplicable = reason => mark(idx,"notApplicable",null,reason);
         const owner=r.OWNERINDEX===undefined?(libraryStream?activeLibraryRoot:-1):numeric(r.OWNERINDEX,-1);
         const ancestor=owner>=0 && owner<idx ? ancestors[owner] : undefined;
         if(t===39 || template.has(owner)){
@@ -231,14 +235,26 @@ globalThis.AtriumSCH = (() => {
         const ownerPart=numeric(r.OWNERPARTID,-1),gates=libraryStream && c && c.partCount>2;
         if(c && ((!gates && ownerPart>0 && ownerPart!==c.activePart) || numeric(r.OWNERPARTDISPLAYMODE)!==c.mode)){
           dropped("Inactive component part or alternate display mode.");
+          if(inactive && doc && !libraryStream && numeric(r.OWNERPARTDISPLAYMODE)===c.mode)inactive.set(idx,[c,ownerPart]);
           if(libraryStream)simplified.add(gates?"Only the normal display mode of library symbols is imported (alternate De Morgan views are left out).":"Only the active part and display mode of multi-part symbols are available.");
           continue;
         }
         if(gates && ownerPart>0)tagging={c,part:ownerPart,s:c.symbol.shapes.length,p:c.symbol.pins.length,x:c.pinText.length};
         if(t===31){if(doc&&settings)kept(settings);recognized++;continue;}
-        if([44,46,47,48].includes(t))continue;
+        if([44,46,47,48].includes(t)){
+          // Containers: their models, maps and parameters are reported as their own records.
+          if(t!==47)inapplicable(t===44?"Altium's list of the component's models. Each model is reported separately.":
+            t===46?"Altium's list of a model's pin-to-pad maps. Each map entry is reported separately.":"Altium's list of a model's parameters. Each parameter is reported separately.");
+          continue;
+        }
         if(t===45){
-          if(c && (!r.MODELTYPE || r.MODELTYPE.toUpperCase()==="PCBLIB") && (!c.footprintName || isTrue(r.ISCURRENT))){c.footprintName=r.MODELNAME||"";if(c.footprintName)approximated("Footprint name retained as a component association.");}
+          const footprint=c && (!r.MODELTYPE || r.MODELTYPE.toUpperCase()==="PCBLIB");
+          if(footprint && (!c.footprintName || isTrue(r.ISCURRENT))){
+            // A current footprint replaces an alternate read before it.
+            if(c.footprintRecord!=null)mark(c.footprintRecord,"dropped",null,"Alternate footprint. Waffle keeps the component's current footprint.");
+            c.footprintName=r.MODELNAME||"";c.footprintRecord=c.footprintName?idx:null;
+            if(c.footprintName)approximated("Footprint name retained as a component association.");
+          }else if(footprint && r.MODELNAME)dropped("Alternate footprint. Waffle keeps the component's current footprint.");
           continue;
         }
         const position=at(r),local=p=>c?delta(p,c.origin):p;
@@ -251,6 +267,9 @@ globalThis.AtriumSCH = (() => {
             continue;
           }
           if(!c&&t===41&&r.NAME&&doc){sheetParams.set(r.NAME.toUpperCase(),r.TEXT||"");approximated("Sheet parameter used for resolving template text.");}
+          const ownerRecord=Number(records[owner]?.RECORD);
+          if(t===41 && ownerRecord===2 && /^PinUniqueId$/i.test(r.NAME||""))inapplicable("Altium's identifier for this pin. Waffle identifies a pin by its component and number.");
+          if(t===41 && ownerRecord===48 && /^Available Preview Images$/i.test(r.NAME||""))inapplicable("Altium's list of preview images for this model.");
           if(c && (libraryStream || owner===c.index)){
             kept();
             const field=(r.NAME||"").toUpperCase();
@@ -480,11 +499,18 @@ globalThis.AtriumSCH = (() => {
         }
       }
       if(!recognized)throw Error("No supported schematic records were found.");
+      if (evidence && doc && !libraryStream) for (const c of components.values()) if (c.ref) fidelity.confirm?.("schematic part\u0000" + c.ref + "\u0000" + c.activePart);
       if (evidence) records.forEach((r,i) => {
         const kind = Object.hasOwn(objectNames,r.RECORD) ? objectNames[r.RECORD] : "Unsupported schematic record";
         const src = {file:name,object:section+"#"+i};
-        const e = evidence[i];
-        if (e?.object) fidelity.track(kind,e.status,src,e.object,e.reason);
+        const e = evidence[i], other = inactive.get(i);
+        // A placed multi-part component stores every part; a part placed elsewhere in the project imports there.
+        if (other && other[0].ref && fidelity.decide) {
+          const [c,part] = other, key = "schematic part\u0000" + c.ref + "\u0000" + part;
+          fidelity.decide(kind,src,placed => placed(key) ? {status:"notApplicable",reason:"Copy of another part of a multi-part component. That part imports where it is placed."} :
+            {status:"dropped",reason:"Another part of a multi-part component, not placed in the selected files."});
+        }
+        else if (e?.object) fidelity.track(kind,e.status,src,e.object,e.reason);
         else fidelity.add(kind,e?.status || "dropped",src,e?.reason || "Schematic record "+String(r.RECORD||"unknown").slice(0,60)+" has no editable representation.");
       });
     }

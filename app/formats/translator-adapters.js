@@ -16,10 +16,14 @@ globalThis.AtriumTranslatorAdapters = (() => {
   }
   // A decoder reports a decision while it still has the source record in hand. The final size/
   // coordinate scrub can reject the resulting object; revise that specific record before emission.
+  // decide(kind,source,resolve) defers a record's status until every selected file is read and linked:
+  // resolve(confirmed) returns {status,reason}; confirmed(key) tells whether any file called confirm(key).
   function tracking(fidelity) {
-    const pending = [], outputs = [], rejected = new WeakSet(), replacements = new WeakMap();
+    const pending = [], outputs = [], rejected = new WeakSet(), replacements = new WeakMap(), decisions = [], confirmed = new Set();
     return {
       add: (...args) => fidelity.add(...args), note: s => fidelity.note(s),
+      decide(kind,source,resolve) { decisions.push({kind,source,resolve}); },
+      confirm(key) { confirmed.add(key); },
       track(kind,status,source,object,reason) {
         if (!object || typeof object !== "object") fidelity.add(kind,status,source,reason);
         else pending.push({kind,status,source,object,reason});
@@ -28,6 +32,8 @@ globalThis.AtriumTranslatorAdapters = (() => {
       remap(first, next) { replacements.set(first,next); },
       reject(object) { if (object && typeof object === "object") rejected.add(object); },
       finish() {
+        const has = key => confirmed.has(key);
+        for (const d of decisions) { const r = d.resolve(has); fidelity.add(d.kind, r.status, d.source, r.reason); }
         for (const r of outputs) if (!rejected.has(r.object)) {
           const item = replacements.get(r.object) || r.object;
           fidelity.produced(r.documentKind,item.kind,r.source,item.id);
@@ -43,6 +49,7 @@ globalThis.AtriumTranslatorAdapters = (() => {
     const qualify = s => ({...s,file:s.file === f.name || s.file === AtriumImportFormats.baseName(f.name) || !s.file ? fileName(f) : s.file});
     return {
       add:(k,v,s,r,n) => sink.add(k,v,qualify(s),r,n),
+      decide:(k,s,resolve) => sink.decide(k,qualify(s),resolve), confirm:key => sink.confirm(key),
       track:(k,v,s,o,r) => sink.track(k,v,qualify(s),o,r),
       produced:(d,s,o) => sink.produced(d,qualify(s),o), reject:o => sink.reject(o), note:s => sink.note(s)
     };
