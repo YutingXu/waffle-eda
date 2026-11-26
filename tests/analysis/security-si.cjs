@@ -31,6 +31,34 @@ async function fieldSolveTimeoutStaysOffTheUIThread() {
   }
 }
 
+// One worker serves consecutive solves instead of a new worker (and a fresh solver compile) per solve,
+// and answers stay matched to their own requests.
+async function fieldSolvesShareOneWorker() {
+  const saved = {Worker: globalThis.Worker, Blob: globalThis.Blob, URL: globalThis.URL};
+  let made = 0;
+  globalThis.Worker = class {
+    constructor() { made++; }
+    postMessage({id, geom}) { if (typeof geom.cb === "function") throw new Error("DataCloneError"); Promise.resolve().then(() => this.onmessage?.({data: {type: "result", id, result: {ok: true, w: geom.w}}})); }
+    terminate() {}
+  };
+  globalThis.Blob = globalThis.Blob || class { constructor(parts) { this.parts = parts; } };
+  globalThis.URL = {createObjectURL: () => "blob:y", revokeObjectURL() {}};
+  try {
+    const geom = w => ({structure: "microstrip", w, h: 0.2, er: 4.3});
+    const [a, b] = await Promise.all([FS.async(geom(0.3)), FS.async(geom(0.4))]);
+    assert.deepEqual([a.w, b.w], [0.3, 0.4], "each answer goes to its own solve");
+    await FS.async(geom(0.5));
+    assert.equal(made, 1, "consecutive solves reuse one worker");
+    // A request the worker cannot take is answered at once and leaves nothing queued in front of later solves.
+    const bad = await FS.async({...geom(0.6), cb: () => 0}).catch(e => ({thrown: e}));
+    assert.equal(bad.ok, false);
+    assert.equal((await FS.async(geom(0.7))).w, 0.7);
+    assert.equal(made, 1);
+  } finally {
+    globalThis.Worker = saved.Worker; globalThis.Blob = saved.Blob; globalThis.URL = saved.URL;
+  }
+}
+
 // Follow-up of the si-sim fix (atrium-api.js fork(): project-level fields are deep-copied only for
 // touched === "all"). The host-feature edits (annotate, pour, route, fanout, AI planning) compute on a
 // fork and must not write anything into the live project before the user approves. Declined here.
@@ -57,6 +85,7 @@ async function featureEditsDoNotWriteThrough() {
 
 globalThis.__testDone = (async () => {
   await fieldSolveTimeoutStaysOffTheUIThread();
+  await fieldSolvesShareOneWorker();
   await featureEditsDoNotWriteThrough();
   console.log("security-si ok");
 })();

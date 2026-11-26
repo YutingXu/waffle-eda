@@ -745,22 +745,55 @@ function AtriumFieldSolverFactory() {
     try {if (scriptURL) return new Worker(new URL("../workers/field-solver-worker.js", scriptURL).href);} catch (e) { /* fall back */ }
     return null;
   }
+  // One worker serves every solve, in order, and retires after 30 s idle. Each solve gets 10 s once it
+  // reaches the front: a slow cross-section is reported, never re-run on the UI thread (security
+  // review), and the worker is replaced so the solves queued behind it still run.
+  let shared = null, idleTimer = null;
+  const jobs = new Map();
+  function retire() {const w = shared; shared = null; if (w) try {w.terminate();} catch (e) { /* already stopped */ }}
+  function settle() {
+    clearTimeout(idleTimer);
+    if (jobs.size) {const [id, job] = jobs.entries().next().value; job.timer ||= setTimeout(() => timedOut(id), 10000); return;}
+    idleTimer = setTimeout(() => {if (!jobs.size) retire();}, 30000);
+    idleTimer?.unref?.();
+  }
+  function timedOut(id) {
+    const job = jobs.get(id);
+    if (!job) return;
+    jobs.delete(id); retire();
+    job.resolve({ok: false, error: "The field solver took longer than 10 s on this cross-section."});
+    const rest = [...jobs.values()]; jobs.clear();
+    for (const j of rest) solveAsync(j.geom, j.opts).then(j.resolve);
+    if (!rest.length) settle();
+  }
+  function worker() {
+    if (shared) return shared;
+    const w = makeWorker();
+    if (!w) return null;
+    w.onmessage = ({data}) => {
+      const job = w === shared && data && jobs.get(data.id);
+      if (!job) return;
+      clearTimeout(job.timer); jobs.delete(data.id); job.resolve(data.result); settle();
+    };
+    w.onerror = () => {
+      if (w !== shared) return;
+      retire(); workerBroken = true;
+      const rest = [...jobs.values()]; jobs.clear();
+      for (const j of rest) {clearTimeout(j.timer); j.resolve(solve(j.geom, j.opts));}
+    };
+    return shared = w;
+  }
   // Promise of solve(geom, opts) computed off the UI thread when a worker is
   // available, else synchronously on a later tick.
   function solveAsync(geom, opts = {}) {
     return new Promise(resolve => {
-      const fore = () => resolve(solve(geom, opts));
-      const w = makeWorker();
-      if (!w) {Promise.resolve().then(fore); return;}
+      const w = worker();
+      if (!w) {Promise.resolve().then(() => resolve(solve(geom, opts))); return;}
       const id = ++seq;
-      // A slow cross-section is not a broken worker: never re-run it on the UI thread (security review).
-      const timer = setTimeout(() => {w.terminate(); resolve({ok: false, error: "The field solver took longer than 10 s on this cross-section."});}, 10000);
-      w.onmessage = ({data}) => {
-        if (!data || data.id !== id) return;
-        clearTimeout(timer); w.terminate(); resolve(data.result);
-      };
-      w.onerror = () => {clearTimeout(timer); w.terminate(); workerBroken = true; fore();};
-      w.postMessage({type: "solve", id, geom, opts});
+      try {w.postMessage({type: "solve", id, geom, opts});}
+      catch (e) {resolve({ok: false, error: "The cross-section could not be sent to the field solver."}); return;}
+      jobs.set(id, {geom, opts, resolve, timer: null});
+      settle();
     });
   }
 
