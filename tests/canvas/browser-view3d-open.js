@@ -201,6 +201,11 @@ async function checkDemand(page) {
       const host = AtriumNavHost, p = AtriumParts.example(), sheet = p.documents.find(d => d.kind === "schematic");
       await host.replaceProject({...p,documents:[sheet]}, {force:true,dirty:false}); host.act("view-3d");
       AtriumPower.host({occluded:true});
+      const board = p.documents.find(d => d.kind === "pcb"), parts = board.items.filter(i => i.kind === "part");
+      const omitted = parts.find(i => i.link);
+      if (!omitted) throw Error("The opening-count test requires a linked PCB component.");
+      p.variants = [{id:"reduced-assembly", name:"Reduced assembly", parts:{[omitted.link]:{fitted:false}}}];
+      p.activeVariant = "reduced-assembly";
       await host.replaceProject(p, {force:true,dirty:false}); host.act("view-3d");
       AtriumPower.host({occluded:false});
     });
@@ -210,7 +215,41 @@ async function checkDemand(page) {
     await page.keyboard.press("2"); release();
     await page.waitForFunction(() => globalThis.AtriumLazy?.has(["Atrium3D","AtriumSTEP","AtriumFlexFold"]));
     assert.equal(await page.evaluate(() => Atrium3D.isOpen()), false, "a delayed 3 cannot override a newer 2");
-    await page.keyboard.press("3");
+    await page.evaluate(() => {
+      const host = AtriumNavHost, board = host.doc();
+      const read = host.boardGeometry, prepare = host.prepareBoardGeometry;
+      let releaseGeometry;
+      const ready = new Promise(resolve => { releaseGeometry = resolve; });
+      globalThis.openingCountGeometryRequests = 0;
+      host.boardGeometry = doc => doc === board ? null : read.call(host, doc);
+      host.prepareBoardGeometry = doc => {
+        if (doc !== board) return prepare.call(host, doc);
+        openingCountGeometryRequests++;
+        return ready.then(() => prepare.call(host, doc));
+      };
+      globalThis.releaseOpeningGeometry = () => {
+        host.boardGeometry = read;
+        host.prepareBoardGeometry = prepare;
+        releaseGeometry();
+      };
+    });
+    try {
+      await page.keyboard.press("3");
+      await page.waitForFunction(() => Atrium3D.isOpen());
+      const opening = await page.evaluate(() => {
+        const view = [...Atrium3D.viewers.values()][0];
+        return {fallback:view.fallback, noScene:!view.scene?.(), requested:openingCountGeometryRequests,
+          fitted:AtriumNavHost.doc().items.filter(i => i.kind === "part").length - 1,
+          status:document.getElementById("status").textContent};
+      });
+      if (!opening.fallback) {
+        assert.ok(opening.requested && opening.noScene, "the geometry hold prevents an initial 3D scene");
+        assert.match(opening.status, new RegExp("^3D layout mode · " + opening.fitted + " components?(?: ·|$)"),
+          "opening counts fitted PCB components before resolved geometry is available");
+      }
+    } finally {
+      await page.evaluate(() => releaseOpeningGeometry());
+    }
     await page.waitForFunction(() => {
       const view = [...Atrium3D.viewers.values()][0];
       return !!(view?.fallback || view?.stats?.().draws > 0);

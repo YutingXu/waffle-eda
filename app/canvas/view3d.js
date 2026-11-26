@@ -1803,8 +1803,10 @@ void main(){
       setClip: (axis, p) => { setClip(axis); if (clip && p != null) clip.pos = p; invalidate(); }, pickAt, toggleMeasure, measureClick, hover: (x, y) => { pointer = [x, y]; updateHover(); return hover; },
       clickSelect, togglePop, fold: setFold, foldState: () => fold.t, refold, recolor: () => { colorsDirty = true; invalidate(); },
       collisions: on => on == null ? {on: coll.on, findings: coll.findings, ids: [...coll.ids], text: coll.text} : setCollisions(!!on), stepPreview: on => on == null ? preview : setPreview(!!on)});
-    // Every placed component, whether its body is drawn yet or its STEP model is still on its way.
-    const parts = new Set((built.mesh?.model.parts || []).filter(p => p.id !== built.doc?.id).map(p => p.id)).size;
+    // Count fitted placements on this PCB even if resolved geometry or STEP bodies are still on their way.
+    const board = docOf(), excluded = built.mesh?.excluded ?? excludedParts(projectOf(), board);
+    let parts = 0;
+    for (const item of board?.items || []) if (item.kind === "part" && !excluded.has(item)) parts++;
     ctx.info?.("3D layout mode · " + parts + " component" + (parts === 1 ? "" : "s") + " · Drag to orbit · Shift-drag or trackpad scroll to pan · Mouse wheel or pinch to zoom");
     if (visible()) canvas.focus({preventScroll: true});
     return v;
