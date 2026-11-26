@@ -664,7 +664,8 @@ globalThis.AtriumKiCad = (() => {
     const {parameters,fieldOf,fallbackParameters}=A.partParameters;
     const read=appliedParams || parameters;
     function csv(value){
-      let s=String(value??"");if(/^[=+@\-\t\r]/.test(s))s="'"+s;
+      // Keep spreadsheets from evaluating text as a formula, but leave plain numbers such as -5 alone (as bom.js csvCell).
+      let s=String(value??"");if(/^[=+@\-\t\r]/.test(s)&&!/^[+-]?\d+(\.\d+)?$/.test(s))s="'"+s;
       return '"'+s.replace(/"/g,'""')+'"';
     }
     const counterparts=new Map();
