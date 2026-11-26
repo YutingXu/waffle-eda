@@ -14,6 +14,7 @@
 # HARNESS_SUITE=history tests a branched project through the file-origin web view and native Git binding.
 # HARNESS_SUITE=close tests the unsaved-changes sheet (Save / Cancel / Don't Save) on close, and quitting
 # with two unsaved windows (Review Changes…), ending with a real quit that saves both.
+# HARNESS_SUITE=updater tests cancellation and saving before an update can restart the editor.
 # HARNESS_INSTALL moves the installed app (see build.sh). HARNESS_REUSE_APP=1 uses the existing
 # harness bundle. The broader WebKit UI probes are ui.sh.
 H=${0:A:h}; W=${1:-${TMPDIR:-/tmp}/atrium-harness-work}

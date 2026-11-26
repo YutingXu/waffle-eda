@@ -8,6 +8,9 @@ rm -rf $OUT; mkdir -p $OUT/cache
 sed -e 's/^    private var window: NSWindow!/    var window: NSWindow!/' -e 's/^    private var web: WKWebView!/    var web: WKWebView!/' \
     -e 's/^    private var visibleFolder:/    var visibleFolder:/' -e 's/^    private var incoming:/    var incoming:/' \
     -e 's/^    private var folderSources:/    var folderSources:/' \
+    -e 's/^    private func confirmUpdateRestart/    func confirmUpdateRestart/' \
+    -e 's/^    private func lockSavedEditorsForUpdate/    func lockSavedEditorsForUpdate/' \
+    -e 's/^    private static func unlockUpdateEditors/    static func unlockUpdateEditors/' \
     $ROOT/native/macos/main.swift | sed -e '/^if CommandLine.arguments.count == 3, CommandLine.arguments\[1\] == "--folder-mcp" {/,$d' -e '/^let application = NSApplication.shared$/,$d' > $OUT/desktop.swift
 # Share one non-persistent WebKit store across the run's windows, as the real app shares its default store.
 perl -0pi -e 's/(        let config = WKWebViewConfiguration\(\)\n)/$1        if ProcessInfo.processInfo.environment["HARNESS_EPHEMERAL"] != nil { config.websiteDataStore = Harness.ephemeralStore }\n        Harness.installEarlyProbe(config)\n/' $OUT/desktop.swift
@@ -52,7 +55,7 @@ PYTHON
 perl -0pi -e 's/(guard let frame = action.targetFrame, let url = action.request.url else \{ decisionHandler\(.cancel\); return \})/$1\n        if ProcessInfo.processInfo.environment["HARNESS_TRACE"] != nil { print("POLICY", frame.isMainFrame, url.absoluteString, page.absoluteString) }/' $OUT/desktop.swift
 cp $H/harness.swift $OUT/main.swift
 xcrun swiftc -swift-version 5 -target arm64-apple-macos12.0 -module-cache-path $OUT/cache \
-  $OUT/desktop.swift $ROOT/native/macos/FolderTransactions.swift $ROOT/native/macos/FolderWatch.swift $ROOT/native/macos/ProjectWrites.swift $ROOT/native/macos/HostState.swift $ROOT/native/macos/ExternalTools.swift $ROOT/native/macos/LanRelay.swift $ROOT/native/macos/NotebookMedia.swift $ROOT/native/macos/NotebookFolderMedia.swift $H/ui-probes.swift $H/notebook-fixture-clipboard.swift $H/energy-probes.swift $H/folder-probes.swift $H/legacy-folder-probes.swift $H/startup-probes.swift $H/native-feel.swift \
+  $OUT/desktop.swift $ROOT/native/macos/FolderTransactions.swift $ROOT/native/macos/FolderWatch.swift $ROOT/native/macos/ProjectWrites.swift $ROOT/native/macos/HostState.swift $ROOT/native/macos/ExternalTools.swift $ROOT/native/macos/LanRelay.swift $ROOT/native/macos/NotebookMedia.swift $ROOT/native/macos/NotebookFolderMedia.swift $ROOT/native/macos/Updater.swift $H/ui-probes.swift $H/notebook-fixture-clipboard.swift $H/energy-probes.swift $H/folder-probes.swift $H/legacy-folder-probes.swift $H/startup-probes.swift $H/native-feel.swift \
   $H/memory-probes.swift $H/gpu-restart.swift $OUT/main.swift -o $OUT/WaffleHarness
 APP=$OUT/WaffleHarness.app/Contents
 mkdir -p $APP/MacOS $APP/Resources/native $APP/Resources/mcp
@@ -61,6 +64,7 @@ bundle_id=org.waffle.editor.harness
 sed "s|<string>org.waffle.editor</string>|<string>$bundle_id</string>|" $ROOT/native/macos/Info.plist > $APP/Info.plist
 cp $ROOT/native/bridge.js $APP/Resources/bridge.js
 cp -R $ROOT/app $APP/Resources/app
+python3 -B "$ROOT/scripts/release-manifest.py" write-trust "$APP/Resources/update-trust.json"
 python3 -B "$ROOT/scripts/package_payload.py" stage "$APP/Resources"
 cp $OUT/WaffleHarness $APP/MacOS/Waffle
 codesign --force --sign - --identifier "$bundle_id" $OUT/WaffleHarness.app 2>/dev/null

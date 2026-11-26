@@ -100,7 +100,7 @@ gpu_pour_lod() {
 rust_equivalence() { local m; for m in wasm js; do ATRIUM_ENGINE=$m scripts/test-jsc.sh engine engine-pour pour-fuzz pour-fuzz-board drc-equivalence connectivity || return 1; done; }
 swift_typecheck() {
   xcrun swiftc -typecheck -swift-version 5 -target arm64-apple-macos12.0 -module-cache-path $scratch/swift-cache \
-    native/macos/main.swift native/macos/FolderTransactions.swift native/macos/FolderWatch.swift native/macos/ProjectWrites.swift native/macos/HostState.swift native/macos/ExternalTools.swift native/macos/LanRelay.swift native/macos/NotebookMedia.swift native/macos/NotebookFolderMedia.swift
+    native/macos/main.swift native/macos/FolderTransactions.swift native/macos/FolderWatch.swift native/macos/ProjectWrites.swift native/macos/HostState.swift native/macos/ExternalTools.swift native/macos/LanRelay.swift native/macos/NotebookMedia.swift native/macos/NotebookFolderMedia.swift native/macos/Updater.swift
 }
 folder_transactions() {
   xcrun swiftc -O -swift-version 5 -module-cache-path "$scratch/swift-cache" \
@@ -173,10 +173,12 @@ for step in $steps; do
              run "typecheck (tsc --noEmit, types/baseline.json)" scripts/typecheck.sh ;;
     swift)   run "swift typecheck native/macos" swift_typecheck
              run "macOS folder transaction and conflict recovery" folder_transactions
+             run "macOS updater verification and rollback" native/tests/updater/run.sh
              run "build-mac.sh (universal, ad hoc)" build_app
              for t in git_head host_state project_journal source_copies project_archive import_save_exports external_tools lan_relay; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
     windows) run "Windows host: core tests + cross-built package" windows_build ;;
     harness) run "macos-harness" harness
+             run "macOS updater save and cancel" env HARNESS_BACKGROUND=1 HARNESS_SUITE=updater HARNESS_REUSE_APP=1 native/tests/macos-harness/run.sh "$scratch/updater"
              run "macOS component move, Edit menu Undo/Redo and durable reopen" env HARNESS_BACKGROUND=1 native/tests/macos-harness/component-undo.sh "$scratch/component-undo"
              run "macOS saves and recovery without Git" python3 native/tests/folder-transaction/git-independent-desktop.py
              run "Slides second native WKWebView" python3 tests/notebook/slides-presenter-native.py ;;

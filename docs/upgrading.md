@@ -38,25 +38,20 @@ Extensions, console scripts and MCP scripts share the v1 scripting API. Access i
 
 ## Checking for updates
 
-Help › Check for Updates… shows your version, its project format and extension API, and the
-compatibility notes above.
+On macOS, choose **Help › Check for Updates…**. Waffle contacts GitHub only when you ask it
+to check or download an update. It sends no account, installation, project or version identifiers.
+The updater verifies the Ed25519-signed manifest and offers only a newer release with its notes and
+download size.
 
-- **Off by default.** Waffle makes no network request for updates until you tick
-  "Check for updates once a day". Then it contacts github.com at most once a day, and
-  **Check Now** checks immediately.
-- **Signed.** Waffle reads the release manifest from the project's GitHub Releases and verifies
-  its signature with a public key built into the app. A manifest that is unsigned, or whose
-  signature doesn't match, is ignored. A build with no signing key (development builds) cannot
-  check for updates and says so.
-- **Never installs by itself.** When an update is available, Waffle shows its notes and a
-  download button. The download starts only when you click; Waffle checks its size and SHA-256
-  against the signed manifest and discards it if they differ; then it asks where to save it.
-  You install it yourself:
-  - macOS: open the download and move Waffle.app to Applications, replacing the old one.
-  - Linux: install the downloaded `waffle-eda_<version>_all.deb` with `sudo apt install ./<downloaded-file>.deb`.
-  - Windows: unzip it and replace the old Waffle folder.
-- **What's New.** The first time a new version starts, it shows Help › What's New with a line
-  saying which version you updated from.
+- **Install Update** downloads and verifies the macOS archive. Before restarting, Waffle asks to save
+  any changes across open documents and gives you a chance to cancel. If the new editor fails to
+  start, Waffle restores and reopens the previous version.
+- **Download** saves a verified archive for manual installation when your copy of Waffle is outside
+  Applications or lacks write permission. Quit Waffle, unzip the archive and move the new app into
+  Applications.
+- **What’s New** shows the previous version the first time a new version starts.
+
+For Linux and Windows, install the appropriate package manually. [Waffle downloads](https://github.com/YutingXu/waffle-eda/releases)
 
 ## Rolling back
 

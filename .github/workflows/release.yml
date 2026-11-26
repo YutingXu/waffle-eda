@@ -141,8 +141,11 @@ jobs:
 
   macos:
     needs: privacy
-    name: macOS app (universal, ad hoc signed)
+    name: macOS app and signed update
     runs-on: [self-hosted, macOS, ARM64, atrium]
+    environment: release
+    env:
+      WAFFLE_SIGN_IDENTITY: Waffle EDA
     timeout-minutes: 30
     concurrency:
       group: release-macos-${{ github.ref }}
@@ -159,8 +162,8 @@ jobs:
           persist-credentials: false
       - name: Install the pinned Rust toolchain for application assets
         run: scripts/ci/install-rust.sh
-      - name: Configure the signed release feed
-        run: python3 scripts/release-manifest.py configure "$GITHUB_REPOSITORY"
+      - name: Verify the updater signing key
+        run: python3 -B scripts/release-manifest.py check-release-key
       - name: Version and generated assets match their sources
         env:
           BUILD_RELEASE_TAG: ${{ inputs.publish && inputs.tag || github.ref_type == 'tag' && github.ref_name || '' }}
@@ -175,7 +178,7 @@ jobs:
           python3 scripts/prepare-assets.py
           python3 scripts/prepare-assets.py --check
           python3 scripts/gen-shortcuts.py --check
-      - name: Build Waffle.app (arm64 + x86_64, ad hoc signature)
+      - name: Build Waffle.app (arm64 + x86_64, stable signature)
         run: |
           flavour=$(python3 -B scripts/release-version.py --flavour)
           WAFFLE_RELEASE_FLAVOUR="$flavour" scripts/build-mac.sh dist
@@ -196,10 +199,11 @@ jobs:
         run: |
           set -e
           version=$(python3 -B scripts/release-version.py --check)
-          ditto -c -k --keepParent dist/Waffle.app "dist/Waffle-$version-macOS.zip"
+          notes=$(python3 -B scripts/release-version.py --notes)
+          python3 -B scripts/release-manifest.py macos dist/Waffle.app --version "$version" --out dist --notes-file "$notes"
           python3 scripts/package-release.py
-          cp "$(python3 -B scripts/release-version.py --notes)" dist/Release-Notes.md
-          cd dist && shasum -a 256 Waffle-*.dmg "Waffle-$version-macOS.zip" "Waffle-$version-with-sources.zip" "Waffle-$version-windows.zip" Release-Notes.md > SHA256SUMS-macos.txt && cat SHA256SUMS-macos.txt
+          cp "$notes" dist/Release-Notes.md
+          cd dist && shasum -a 256 Waffle-*.dmg "Waffle-$version-macOS.zip" "Waffle-$version-with-sources.zip" "Waffle-$version-windows.zip" Release-Notes.md waffle-release.json waffle-release.json.sig > SHA256SUMS-macos.txt && cat SHA256SUMS-macos.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: waffle-macos
@@ -209,6 +213,8 @@ jobs:
             dist/Waffle-*-macOS.zip
             dist/Waffle-*-with-sources.zip
             dist/Waffle-*-windows.zip
+            dist/waffle-release.json
+            dist/waffle-release.json.sig
             dist/SHA256SUMS-macos.txt
             dist/Release-Notes.md
           if-no-files-found: error

@@ -1,31 +1,17 @@
 "use strict";
-// Updates (docs/upgrading.md): What's New after an update, the opt-in update check and the
-// compatibility notes for this release and for an available one.
-//
-// - Off by default. No network request is made until the user turns on "Check for updates"
-//   (Help › Check for Updates…, preference general.updateCheck), and then at most once a day.
-// - The check reads waffle-release.json and its detached Ed25519 signature (.sig) from the latest
-//   GitHub Release and verifies the signature with PUBLIC_KEY, embedded below. With no key (the
-//   placeholder until the maintainer sets one) nothing is fetched and nothing is trusted; a
-//   manifest whose signature is missing or wrong is ignored.
-// - Never installs anything. A download starts only on click; its size and SHA-256 must match the
-//   signed manifest; then the file is handed to the user (a save panel) to run the platform's
-//   installer. Rolling back is documented in docs/upgrading.md.
-//
-// The loader requests startup() on a version change or when an opted-in daily check is due.
+// Help › Check for Updates checks the signed release feed on demand. Startup only shows local
+// What's New. On macOS the host owns the transport, verification and installation.
 globalThis.AtriumUpdate = (() => {
   const G = globalThis;
   const APP_VERSION = "0.8.1";             // app/about.js VERSION (tests/update-check.cjs keeps them equal)
-  // Ed25519 public key that signs release manifests: 64 hex digits from
-  // `scripts/release-manifest.py keygen`. Empty: update checks are not available in this build.
-  const PUBLIC_KEY = "";
-  // Filled by release packaging from the repository that publishes the signed assets.
-  const RELEASE_REPOSITORY = "";
-  const MANIFEST_URL = RELEASE_REPOSITORY ? "https://github.com/" + RELEASE_REPOSITORY + "/releases/latest/download/waffle-release.json" : "";
-  const STORE = "atrium.update", FORMAT = "atrium-update", VERSION = 1, PREF = "general.updateCheck", DAY = 864e5;
+  // release-manifest.py copies these pins into the signed macOS bundle at build time.
+  const PUBLIC_KEY = "7d128edc4ea2da4046ec17ed5ea29ce6866de98d3ad0b356e1a8f5d6e0343fa4";
+  const RELEASE_REPOSITORY = "YutingXu/waffle-eda";
+  const RELEASES = "https://github.com/" + RELEASE_REPOSITORY + "/releases";
+  const MANIFEST_URL = RELEASES + "/latest/download/waffle-release.json";
+  const STORE = "atrium.update", FORMAT = "atrium-update", VERSION = 1;
   // First supported release for each native project format, in chronological order.
   const FORMATS = [["2.0", "0.7.0"]];
-  const ROLLBACK = "docs/upgrading.md, “Rolling back”";
   // i18n (docs/translating.md): static text is extracted from this file ("update"); built text goes
   // through t(). The stub keeps English where i18n.js is absent (tests/update-check.cjs).
   // "\u0029" is ")" after a placeholder: scripts/i18n-extract.py ends a define() table at the first "})".
@@ -36,22 +22,33 @@ globalThis.AtriumUpdate = (() => {
     "update.other_format": "Waffle {app} saves projects in format {format}. This build uses format {installed}.",
     "update.api_ok": "Extensions using apiVersion {api} still work.",
     "update.api_update": "Extensions using apiVersion {api} need an update for Waffle {app} (it provides apiVersion {apis}\u0029.",
-    "update.available_status": "Waffle {version} is available. Help › Check for Updates…",
     "update.updated": "Updated from Waffle {from} to {to}.",
     "update.version_notes": "Waffle {version}. {notes}",
     "update.here": "Waffle {version} · project format {format} · extension API {api}",
     "update.up_to_date": "Waffle {version} is up to date.",
     "update.available": "Waffle {version} is available.",
     "update.available_on": "Waffle {version} is available ({date}\u0029.",
+    "update.check_again": "Check Again",
+    "update.checking": "Checking for updates…", // i18n-ignore: explicit key
     "update.download": "Download {file} ({size} MB)",
+    "update.install": "Install Update ({size} MB)",
+    "update.preparing": "Downloading and checking the macOS update…", // i18n-ignore: explicit key
+    "update.install_cancelled": "Installation cancelled. You can try again when you’re ready to restart.", // i18n-ignore: explicit key
+    "update.manual_install": "Automatic installation needs a writable copy of Waffle in Applications. Download the update to install it yourself.", // i18n-ignore: explicit key
+    "update.cancelled_download": "Download cancelled.",
+    "update.releases_link": "View downloads on GitHub", // i18n-ignore: explicit key
     "update.downloading": "Downloading {file}…",
-    "update.saved": "Checked and saved. {how}",
-    "update.never_installs": "Waffle never installs updates by itself. To go back to this version later, see {where}."
+    "update.saved": "Checked and saved. {how}"
   });
 
   // ---- versions --------------------------------------------------------------------------------------
-  const parts = v => String(v).split(/[.+-]/).slice(0, 3).map(n => parseInt(n, 10) || 0);
-  function compare(a, b) { const x = parts(a), y = parts(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; }
+  const VERSION_RE = /^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:[-+][A-Za-z0-9.-]+)?$/;
+  function compare(a, b) {
+    const x = VERSION_RE.exec(a), y = VERSION_RE.exec(b);
+    if (!x || !y) return NaN;
+    for (let i = 1; i <= 3; i++) if (x[i] !== y[i]) return Number(x[i]) - Number(y[i]);
+    return 0;
+  }
   const firstWriter = format => FORMATS.find(f => f[0] === format)?.[1] || null;
 
   // ---- hashing (SHA-256, SHA-512), no dependencies ---------------------------------------------------------
@@ -150,17 +147,41 @@ globalThis.AtriumUpdate = (() => {
     const bad = why => { throw Error("The release manifest is not usable: " + why + "."); };
     if (!m || m.format !== "atrium-release") bad("unknown format");
     if (m.version !== 1) bad("version " + m.version + " needs a newer Waffle to read");
-    if (typeof m.app !== "string" || !/^\d+\.\d+\.\d+([-+][\w.-]+)?$/.test(m.app)) bad("no app version");
+    if (typeof m.app !== "string" || !VERSION_RE.test(m.app)) bad("no app version");
     if (!Array.isArray(m.assets) || m.assets.length > 50) bad("no downloads");
     for (const a of m.assets) {
       if (!a || typeof a.name !== "string" || !/^[\w.+-]{1,120}$/.test(a.name) || typeof a.url !== "string" || !URL_OK.test(a.url)) bad("a download has no https GitHub address");
       if (typeof a.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(a.sha256) || !Number.isInteger(a.size) || a.size < 1 || a.size > 2e9) bad("a download has no checksum or size");
     }
+    if (m.apiVersions != null && (!Array.isArray(m.apiVersions) || !m.apiVersions.every(Number.isSafeInteger))) bad("invalid extension API versions");
     if (m.notes != null && (!Array.isArray(m.notes) || !m.notes.every(n => typeof n === "string" && n.length <= 500))) bad("notes must be text");
     return m;
   }
   const b64 = s => { const t = G.atob(String(s).trim()); return Uint8Array.from(t, c => c.charCodeAt(0)); };
-  const bytesOf = async res => new Uint8Array(await res.arrayBuffer());
+  async function bytesOf(res, limit) {
+    const max = () => Error("The release download exceeds its expected size.");
+    if (Number(res.headers?.get("content-length")) > limit) throw max();
+    if (!res.body?.getReader) {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > limit) throw max();
+      return bytes;
+    }
+    const reader = res.body.getReader(), chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > limit) throw max();
+        chunks.push(value);
+      }
+    } finally { Promise.resolve(reader.cancel()).catch(() => {}); }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    return bytes;
+  }
   const request = {credentials: "omit", referrerPolicy: "no-referrer", cache: "no-store", redirect: "follow"};
   // {status: "unavailable" | "up-to-date" | "available", manifest?, notes}. Throws on network or signature problems.
   // o: {fetch, publicKey, url, current} (tests); the app passes nothing.
@@ -172,9 +193,9 @@ globalThis.AtriumUpdate = (() => {
     const [doc, sig] = await Promise.all([get(url, request), get(url + ".sig", request)]);
     if (!doc.ok) throw Error("The release manifest could not be downloaded (" + doc.status + ").");
     if (!sig.ok) throw Error("The release manifest is not signed, so it was ignored.");
-    const body = await bytesOf(doc);
+    const body = await bytesOf(doc, 512 * 1024);
     let signature;
-    try { signature = b64(new TextDecoder().decode(await bytesOf(sig))); } catch { signature = null; }
+    try { signature = b64(new TextDecoder().decode(await bytesOf(sig, 256))); } catch { signature = null; }
     if (!signature || !verify(body, signature, key)) throw Error("The release manifest's signature is not valid, so it was ignored.");
     const manifest = parseManifest(new TextDecoder().decode(body));
     return {status: compare(manifest.app, current) > 0 ? "available" : "up-to-date", manifest, notes: notes(manifest)};
@@ -210,7 +231,7 @@ globalThis.AtriumUpdate = (() => {
     const get = o.fetch || G.fetch?.bind(G);
     const res = await get(asset.url, request);
     if (!res.ok) throw Error(asset.name + " could not be downloaded (" + res.status + ").");
-    const bytes = await bytesOf(res);
+    const bytes = await bytesOf(res, asset.size);
     if (bytes.length !== asset.size) throw Error(asset.name + " has the wrong size, so it was discarded.");
     const digest = G.crypto?.subtle && !o.noSubtle ? Array.from(new Uint8Array(await G.crypto.subtle.digest("SHA-256", bytes)), b => b.toString(16).padStart(2, "0")).join("") : sha256(bytes);
     if (digest !== asset.sha256) throw Error(asset.name + " does not match the signed checksum, so it was discarded.");
@@ -226,14 +247,13 @@ globalThis.AtriumUpdate = (() => {
     return {format: FORMAT, version: VERSION};
   }
   function writeState(s, o) { try { storage(o)?.setItem(STORE, JSON.stringify({...s, format: FORMAT, version: VERSION})); } catch {} }
-  const enabled = () => (G.AtriumPref || G.AtriumPrefs)?.get?.(PREF) === true;
 
-  // ---- startup: What's New after an update, then the daily check when enabled ----------------------------------------
+  // ---- startup: what's new after an update ----------------------------------------
   let started = false;
   async function startup(o = {}) {
     if (started && !o.force) return null;
     started = true;
-    const now = o.now ?? Date.now(), out = {whatsNew: false, checked: false}, initial = readState(o), previous = initial.lastVersion;
+    const out = {whatsNew: false}, initial = readState(o), previous = initial.lastVersion;
     if (!previous) writeState({...initial, lastVersion: APP_VERSION}, o);
     else if (previous !== APP_VERSION) {
       out.whatsNew = true;
@@ -244,15 +264,6 @@ globalThis.AtriumUpdate = (() => {
       };
       if (o.showWhatsNew) { if ((await o.showWhatsNew(previous)) !== false) seen(); }
       else showWhatsNew(previous, pending, seen);
-    }
-    const s = readState(o);
-    if ((o.enabled ?? enabled()) && !(now - (s.lastCheck || 0) < DAY)) {
-      s.lastCheck = now; writeState(s, o); out.checked = true;
-      try {
-        const r = await check(o);
-        out.result = r;
-        if (r.status === "available") { writeState({...readState(o), latest: r.manifest.app}, o); G.AtriumNavHost?.info?.(t("update.available_status", {version: r.manifest.app})); }
-      } catch (e) { out.error = e.message; }
     }
     return out;
   }
@@ -310,48 +321,83 @@ globalThis.AtriumUpdate = (() => {
   function open(host) {
     const S = G.AtriumShell;
     if (!S?.dialog) { host?.info?.(t("update.version_notes", {version: APP_VERSION, notes: notes().join(" ")})); return null; }
-    const toggle = el("input"); toggle.type = "checkbox"; toggle.checked = enabled(); toggle.id = "update-check-auto";
-    const label = el("label", " Check for updates once a day (contacts github.com)"); label.prepend(toggle);
-    const status = el("div", null, "update-status"); status.setAttribute("role", "status");
+    const existing = G.document.querySelector(".update-dialog[open]");
+    if (existing) return existing;
+    const native = G.AtriumHost?.checkForUpdate ? G.AtriumHost : null;
+    const status = el("div", null, "update-status");
+    status.setAttribute("role", "status");
     const result = el("div", null, "update-result");
-    const now = el("button", "Check Now"); now.type = "button"; now.disabled = !toggle.checked;
-    now.title = "Turn on update checks first. Nothing is sent until you do.";
-    toggle.onchange = () => { G.AtriumPrefs?.set?.(PREF, toggle.checked); now.disabled = !toggle.checked; };
     const here = el("div", null, "update-here");
+    const button = (key, run, args) => G.AtriumUI.nativeButton(t(key, args), run);
     here.append(el("p", t("update.here", {version: APP_VERSION, format: format(), api: api()})));
     for (const n of notes()) here.append(el("p", n, "side-note"));
-    now.onclick = async () => {
-      now.disabled = true; status.textContent = "Checking…"; result.replaceChildren();
+
+    let installing = false;
+    const retry = button("update.check_again", run);
+    const dialog = S.dialog({title: "Check for Updates", className: "update-dialog", body: [here, status, result, retry], actions: [
+      {label: "What’s New", run: () => { G.AtriumLazy?.need?.("AtriumWhatsNew").then(W => W.open(host)).catch(() => {}); }},
+      {label: "Close", primary: true}]}); // i18n-ignore: common button
+
+    async function run() {
+      retry.disabled = true;
+      status.textContent = t("update.checking");
+      result.replaceChildren();
       try {
-        const r = await check();
-        writeState({...readState(), lastCheck: Date.now(), latest: r.manifest?.app});
+        const r = await (native ? native.checkForUpdate() : check());
+        if (!dialog.open) return;
         if (r.status === "unavailable") { status.textContent = r.reason; return; }
         if (r.status === "up-to-date") { status.textContent = t("update.up_to_date", {version: APP_VERSION}); return; }
         const m = r.manifest;
         status.textContent = t(m.published ? "update.available_on" : "update.available", {version: m.app, date: m.published});
-        const list = el("ul", null, "update-notes"); for (const n of [...(m.notes || []), ...r.notes]) list.append(el("li", n));
+        const list = el("ul", null, "update-notes");
+        for (const n of [...(m.notes || []), ...notes(m)]) list.append(el("li", n));
         result.append(list);
-        const mine = m.assets.filter(a => a.platform === platform()), shown = mine.length ? mine : m.assets;
-        for (const a of shown) {
-          const b = el("button", t("update.download", {file: a.name, size: Math.max(1, Math.round(a.size / 1048576))})); b.type = "button";
-          b.onclick = async () => {
-            b.disabled = true; status.textContent = t("update.downloading", {file: a.name});
-            try { const d = await download(a); status.textContent = d.saved ? t("update.saved", {how: G.AtriumI18n?.text?.(d.how, "update") ?? d.how}) : "Download cancelled."; }
-            catch (e) { status.textContent = e.message; }
-            finally { b.disabled = false; }
+
+        const assets = m.assets.filter(a => a.platform === (native ? "macos" : platform()));
+        for (const a of assets) {
+          const size = Math.round(a.size / 104857.6) / 10 || "<0.1", file = a.name;
+          const downloadButton = button("update.download", () => act(downloadButton, t("update.downloading", {file}), async () => {
+            const d = native ? {saved: await native.downloadUpdate(m.app, a.sha256), how: HOW.macos} : await download(a);
+            status.textContent = d.saved ? t("update.saved", {how: G.AtriumI18n?.text?.(d.how, "update") ?? d.how}) : t("update.cancelled_download");
+          }), {file, size});
+          const showDownload = () => {
+            if (native) result.append(el("p", t("update.manual_install"), "side-note"));
+            result.append(downloadButton);
           };
-          result.append(b);
+          if (!native || !r.canInstall) { showDownload(); continue; }
+          const install = button("update.install", () => act(install, t("update.preparing"), async () => {
+            installing = true;
+            const outcome = await native.installUpdate(m.app, a.sha256).finally(() => { installing = false; });
+            if (outcome === "download") {
+              install.remove();
+              showDownload();
+              downloadButton.focus();
+              status.textContent = t("update.available", {version: m.app});
+            } else if (outcome === "cancelled") status.textContent = t("update.install_cancelled");
+          }), {size});
+          result.append(install);
         }
-        result.append(el("p", t("update.never_installs", {where: ROLLBACK}), "side-note"));
+        if (!assets.length) {
+          const link = el("a", t("update.releases_link"));
+          link.href = RELEASES;
+          link.rel = "noopener noreferrer";
+          result.append(link);
+        }
       } catch (e) { status.textContent = e.message; }
-      finally { now.disabled = !toggle.checked; }
-    };
-    if (!PUBLIC_KEY) status.textContent = "This build has no release signing key, so it can\u2019t check for updates. Your version and its compatibility are shown above.";
-    return S.dialog({title: "Check for Updates", className: "update-dialog", body: [here, label, now, status, result], actions: [
-      {label: "What’s New", run: () => { G.AtriumLazy?.need?.("AtriumWhatsNew").then(W => W.open(host)).catch(() => {}); }},
-      {label: "Close", primary: true}]}); // i18n-ignore: common button
+      finally { retry.disabled = false; }
+    }
+    async function act(control, progress, action) {
+      retry.disabled = control.disabled = true;
+      status.textContent = progress;
+      try { await action(); }
+      catch (e) { status.textContent = e.message; }
+      finally { retry.disabled = control.disabled = false; }
+    }
+    dialog.addEventListener("close", () => { if (installing) native.cancelUpdate()?.catch(() => {}); });
+    void run();
+    return dialog;
   }
   G.AtriumNavCommon?.ready?.(host => host.registerAction("check-updates", () => open(host)));
-  return Object.freeze({APP_VERSION, PUBLIC_KEY, MANIFEST_URL, STORE, PREF, FORMATS, compare, sha256, sha512, verify, parseManifest, check, notes, download,
+  return Object.freeze({APP_VERSION, PUBLIC_KEY, MANIFEST_URL, STORE, FORMATS, compare, sha256, sha512, verify, parseManifest, check, notes, download,
     platform, startup, open});
 })();

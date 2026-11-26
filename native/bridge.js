@@ -711,6 +711,10 @@
     },
     startRecoverySession(session){channel.postMessage(JSON.stringify({action:"recoverySession",session}));},
     ...(globalThis.document?.documentElement?.dataset?.atriumNativeTitlebar === "macos" ? {
+      checkForUpdate(){return request("checkForUpdate", {}, undefined, false);},
+      downloadUpdate(version, sha256){return request("downloadUpdate", {version, sha256}, undefined, false);},
+      installUpdate(version, sha256){return request("installUpdate", {version, sha256}, undefined, false);},
+      cancelUpdate(){return request("cancelUpdate", {}, undefined, false);},
       macShortcutGlyphs,
       // Help › Troubleshooting › Input Diagnostics: collection belongs to the open inspector.
       inputDiagnostics(operation = "read"){
