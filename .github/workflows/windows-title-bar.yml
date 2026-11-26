@@ -18,6 +18,8 @@ concurrency:
 jobs:
   title-bar:
     name: Windows title bar (native WebView2)
+    # Off until a Windows runner is registered: set the repository variable WINDOWS_RUNNER=true.
+    if: vars.WINDOWS_RUNNER == 'true'
     runs-on: [self-hosted, Windows, X64, atrium]
     timeout-minutes: 45
     defaults:
