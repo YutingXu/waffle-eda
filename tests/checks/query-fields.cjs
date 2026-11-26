@@ -13,6 +13,15 @@ assert.equal(schema("object","inPolygon").type,"boolean");
 assert.deepEqual(F.complete(project,{kind:"track",prefix:"inpoly"}).map(f=>f.id),["inPolygon"]);
 const r={kind:"part",item:{id:"r",kind:"part",ref:"R1",value:"4k7",parameters:{Ripple:"1000 uV",Unspecified:8,TCR:"25"}},definition:resistor};
 const c={kind:"part",item:{id:"c",kind:"part",ref:"C1",value:"1n"},definition:capacitor};
+{ // A part's pin count is its pads on a board and its symbol pins on a sheet.
+  const def={id:"u",symbol:{pins:[{number:"1"},{number:"2"}]},footprint:{pads:[{number:"1"},{number:"2"},{number:"EP"}]}};
+  const u=doc=>({kind:"part",item:{id:"u",kind:"part",ref:"U1",def:"u"},definition:def,project,doc});
+  const count=doc=>{const out=F.fieldValue(u(doc),"pinCount");return out.value ?? out.quantity?.value;};
+  assert.equal(count({kind:"pcb"}),3,"a footprint's pads, including the exposed pad, on the board");
+  assert.equal(count({kind:"schematic"}),2,"the symbol's pins on a sheet");
+  const pad={kind:"pad",item:{id:"u/1",kind:"pad",number:"1"},definition:def,project,doc:{kind:"pcb"}};
+  assert.equal(F.fieldValue(pad,"pinCount").ok,false,"a pad has no pin count of its own");
+}
 assert.equal(F.fieldValue(r,"value",mixed).quantity.value,4700);assert.equal(F.fieldValue(c,"value",mixed).quantity.value,1e-9);
 const ripple=schema("part","Ripple",r);assert.equal(ripple.unit,"mV");assert.equal(ripple.owner.parameterId,"ripple");
 assert.equal(F.fieldValue(r,"Ripple",ripple).quantity.value,.001);
