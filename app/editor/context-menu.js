@@ -654,7 +654,7 @@ globalThis.AtriumContextMenu = (() => {
       const head = NC().el("div", heading, "nav-menu-head"); head.setAttribute("role", "presentation"); root.prepend(head);
     } else root.classList.add("action-menu");
     root.addEventListener("keydown", keys);
-    if (focus?.tagName === "CANVAS") root.addEventListener("pointermove", ev => {
+    root.addEventListener("pointermove", ev => {
       if (ev.pointerType !== "touch") ev.target.closest(".nav-menu-item:not(:disabled)")?.focus({preventScroll:true});
     });
     root.addEventListener("focusout", ev => {

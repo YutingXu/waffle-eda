@@ -260,7 +260,44 @@ async function details(browser) {
   }
 }
 
+async function keyboardThenPointer(browser) {
+  const {context, page, errors} = await boot(browser, {name:"keyboard then mouse"});
+  try {
+    await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumPolygonPour");
+      const host = AtriumNavHost, board = host.doc();
+      const pour = AtriumPolygonPour.make([[4,4],[8,4],[8,8],[4,8]], {layer:"Top", net:"GND"});
+      host.edit(() => board.items.push(pour));
+      await host.act("pour-manager");
+    });
+    const trigger = page.getByRole("button", {name:"More pour actions"});
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu", {name:"More pour actions"});
+    const choices = menu.locator(".nav-menu-item:not(:disabled)");
+    await choices.first().and(page.locator(":focus-visible")).waitFor();
+    const next = choices.nth(1);
+    await next.hover();
+    const states = await choices.evaluateAll(rows => rows.map(row => ({
+      focused: row === document.activeElement,
+      highlighted: getComputedStyle(row).backgroundColor !== "rgba(0, 0, 0, 0)"
+    })));
+    assert.deepEqual(states.map(row => row.highlighted), states.map((_, index) => index === 1),
+      "only the row under the pointer is highlighted after keyboard opening");
+    assert.ok(states[1].focused, "keyboard navigation continues from the pointer row");
+    await page.keyboard.press("Escape");
+    await menu.waitFor({state:"hidden"});
+    await trigger.and(page.locator(":focus")).waitFor();
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+  console.log("PASS action-menu focus follows the mouse after keyboard opening");
+}
+
 module.exports = async function menuToggle(browser) {
+  await keyboardThenPointer(browser);
+  if (process.argv.includes("--pointer-focus-only")) return;
   const counts = [];
   for (const profile of PROFILES) counts.push(profile.name + " " + await profileRun(browser, profile));
   await details(browser);
