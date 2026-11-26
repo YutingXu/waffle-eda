@@ -23,8 +23,19 @@ globalThis.AtriumOverlayScroll = (() => {
     return o === "auto" || o === "scroll";
   }
   // The thumb lives where the scroller is drawn: in the open modal dialog or popover (the top layer),
-  // in the app bar (a title-bar row: its menus may draw in the caption band), else in the body.
-  function hostOf(el) {return el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;}
+  // in the app bar (a title-bar row: its menus may draw in the caption band), else in the body. Inside
+  // that, it joins the scroller's own layer, the nearest ancestor with a z-index (a floating dock, a
+  // popover card), so whatever draws over the scroller also covers its thumb.
+  const stacks = n => {const cs = getComputedStyle(n); return cs.position !== "static" && cs.zIndex !== "auto";};
+  function hostOf(el) {
+    const top = el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;
+    for (let n = el.parentElement; n && n !== top; n = n.parentElement) if (stacks(n)) return n;
+    return top;
+  }
+  // Above sticky headers in its layer; a scroller that is itself a layer (a fixed card) shares its z-index,
+  // and the thumb, appended after it, paints over it.
+  const layerOf = el => el !== rootScroller() && stacks(el) ? getComputedStyle(el).zIndex : "2";
+  const stale = b => [b.v, b.h].some(t => t && !t.isConnected);
   function thumb(el, axis) {
     const t = doc.createElement("div");
     t.className = "ui-scroll-thumb";
@@ -54,6 +65,7 @@ globalThis.AtriumOverlayScroll = (() => {
       if (!show) {t?.remove(); b[axis] = null; continue;}
       if (!t || t.parentElement !== host) {t?.remove(); t = b[axis] = thumb(el, axis); host.append(t);}
       t.style.position = fixed ? "fixed" : "absolute";
+      t.style.zIndex = layerOf(el);
       if (axis === "v") {
         const track = r.height - 2 * INSET, size = Math.max(MIN, track * el.clientHeight / el.scrollHeight);
         b.geo.v = {free:track - size, range:Math.max(1, el.scrollHeight - el.clientHeight)};
@@ -92,7 +104,8 @@ globalThis.AtriumOverlayScroll = (() => {
   const measure = new Set();
   function schedule(el, full = true) {
     pending.add(el);
-    if (full || !bars.get(el)?.geo) measure.add(el);
+    const b = bars.get(el);
+    if (full || !b?.geo || stale(b)) measure.add(el);
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;

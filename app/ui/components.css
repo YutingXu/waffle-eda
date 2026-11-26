@@ -559,12 +559,15 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 :root,:root * {scrollbar-width:none !important}
 :root ::-webkit-scrollbar,:root::-webkit-scrollbar {width:0;height:0;background:transparent}
 .ui-scroll-thumb {
-  z-index:var(--z-top);box-sizing:border-box;inline-size:6px;block-size:6px;translate:-100% 0;
+  box-sizing:border-box;inline-size:6px;block-size:6px;translate:-100% 0;
   border-radius:var(--r-pill);background:color-mix(in srgb, var(--ink) 38%, transparent);
-  opacity:0;pointer-events:none;transition:opacity var(--motion-fast) var(--ease-standard);
+  opacity:0;pointer-events:none;
+  --ui-thumb-ease:var(--motion-fast) var(--ease-standard);
+  transition:opacity var(--ui-thumb-ease),inline-size var(--ui-thumb-ease),background-color var(--ui-thumb-ease);
 }
-.ui-scroll-thumb[data-axis=h] {translate:0 -100%}
+/* Widening at the edge animates the thumb's thickness only; its length follows the scroller at once. */
+.ui-scroll-thumb[data-axis=h] {translate:0 -100%;transition-property:opacity,block-size,background-color}
 .ui-scroll-thumb[data-shown] {opacity:1}
 .ui-scroll-thumb[data-hot] {inline-size:10px;pointer-events:auto;background:color-mix(in srgb, var(--ink) 52%, transparent)}
-.ui-scroll-thumb[data-axis=h][data-hot] {inline-size:auto;block-size:10px}
+.ui-scroll-thumb[data-axis=h][data-hot] {block-size:10px}
 @media (prefers-reduced-motion:reduce) {.ui-scroll-thumb {transition:none}}
