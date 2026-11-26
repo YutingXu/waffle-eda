@@ -26,9 +26,11 @@ const atPad = [-2, -1.6];
 assert.equal(view.hit(doc, defs, atPad, opts)?.id, "u1", "the generic pick prefers the footprint (unchanged)");
 for (const flipped of [false,true]) {
   view.setFlipped(flipped);
-  const single={...opts,layerMode:"single"};
-  assert.equal(view.hit(doc,defs,atPad,single)?.id,"t1","active-layer copper wins over a footprint pad");
-  assert.deepEqual(view.hits(doc,defs,atPad,single).slice(0,2).map(i=>i.id),["t1","u1"]);
+  for (const layerMode of ["single","dim"]) {
+    const mode={...opts,layerMode};
+    assert.equal(view.hit(doc,defs,atPad,mode)?.id,"t1",layerMode+": active-layer copper wins over a footprint pad");
+    assert.deepEqual(view.hits(doc,defs,atPad,mode).slice(0,2).map(i=>i.id),["t1","u1"]);
+  }
 }
 view.setFlipped(false);
 assert.equal(view.hit(doc, defs, atPad, {...opts, kinds: ["track"]})?.id, "t1", "kinds: tracks only");
