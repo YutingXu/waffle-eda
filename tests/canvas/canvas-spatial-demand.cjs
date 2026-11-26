@@ -251,6 +251,19 @@ require("../../app/canvas/canvas-board-batches.js");
       assert.equal(I.lodUsed,batched,name+" uses the expected draw path");
     }
     check("tied custom layers",{},["Source plane",first.layer,second.layer,...retained,...copper]);
+    const world=Atrium.world;
+    let labelTransforms=0;
+    Atrium.world=(point,frame)=>{
+      if(frame===part && point[0]===0 && point[1]===2)labelTransforms++;
+      return world(point,frame);
+    };
+    try {
+      assert.ok(I.paintOrder(board,layout,opts).includes("Placed legend"));
+      assert.ok(I.paintLayers(board,layout,part).includes("Placed legend"));
+      assert.equal(labelTransforms,0,"ordering layers and finding changed layers do not place board lettering");
+      I.paint(board,layout,opts,null,true);
+      assert.ok(labelTransforms>0,"the full painter still positions the same label");
+    } finally {Atrium.world=world;}
     check("route hides the first occurrence",{routePreview:{hidden:[first.id]}},
       ["Source plane",second.layer,first.layer,...retained,...copper]);
     check("hidden layers and source pours",{hidden:new Set([first.layer,"Source pours","Top mask"])},
