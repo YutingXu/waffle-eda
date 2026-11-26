@@ -129,4 +129,31 @@ test("a pour-only repour reuses the extra checks; real edits re-check", () => {
   } finally { scheduler.reset(); U.reset(); globalThis.AtriumDRCFixes = F0; }
 });
 
-console.log(passed + " drc-repour tests passed");
+// A board with pours that is open when the view attaches (the view loads lazily after the board opens,
+// so the scheduler's document event has passed): the online check waits for pour clearance, which must
+// then be planned by the view itself. Before, the status stayed "Checking…" until some later edit.
+async function settlesWithoutAnEdit() {
+  const doc = {kind: "pcb", id: "b2", name: "T", outline: [[-20, -20], [40, -20], [40, 20], [-20, 20]], layerNames: {},
+    items: [track("t1", "A", [[0, 0], [5, 0]])], pcbDrawing: {pours: [region(0, 2, 0)]}};
+  const project = {format: "atrium", name: "P", library: [fp], documents: [doc]};
+  const defs = new Map(project.library.map(d => [d.id, d])), jobs = new Map();
+  const host = {doc: () => doc, docById: () => doc, defs: () => defs, project: () => project, units: () => "mm", info() {},
+    registerAction() {}, addRenderer() {}, on() {}, invalidate() {}, redraw() {}, act() {}, tool: () => "select",
+    stageEdit(phase, key, run) { jobs.set(key, run); return {cancel() {if (jobs.get(key) === run) jobs.delete(key);}}; }};
+  U.reset(); U.touch(project); U.sync();
+  try {
+    V.attach(host);
+    const t0 = Date.now();
+    // Run whatever the scheduler stages, the way idle slices would, and let its debounce timers fire.
+    while (V.status() !== null && Date.now() - t0 < 5000) {
+      for (const [key, run] of [...jobs]) { jobs.delete(key); run(() => true, {timeRemaining: () => 8}); }
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(V.status(), null, "online DRC settles after opening, without another edit");
+    assert.ok(Date.now() - t0 < 2000, "and promptly: " + (Date.now() - t0) + " ms");
+    assert.ok(V.violations(doc.id).some(v => v.type === "pourClearance" && v.otherId === "t1"), "pour clearance is published");
+    passed++; console.log("ok - a board open before the view attaches settles without an edit");
+  } finally { scheduler.reset(); U.reset(); }
+}
+
+settlesWithoutAnEdit().then(() => console.log(passed + " drc-repour tests passed"), e => { console.error(e); process.exitCode = 1; });

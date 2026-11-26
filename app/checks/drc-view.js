@@ -98,6 +98,9 @@ globalThis.AtriumDRCView = (() => {
     state.publishedAt = key;
     if (!batch && needsPourCheck(d) && state.poursAt !== key) {
       if (!held) pending(d);
+      // The findings wait for poured copper, so its check must be on its way. The view attaches (and plans
+      // "drc") after the board opened, and nothing else plans pour clearance until the next edit.
+      if (!S()?.pending?.("pour-drc", d) && !S()?.running?.("pour-drc")) S()?.plan?.("pour-drc");
       return;
     }
     const replacesBatch = held && list !== state.heldBatch;
