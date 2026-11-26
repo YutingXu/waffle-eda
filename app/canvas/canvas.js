@@ -2074,7 +2074,8 @@ globalThis.AtriumCanvas = (() => {
       // hopPath can paint up to 0.7 mm above the indexed horizontal wire.
       if(doc.kind==="schematic" && doc.hopOvers)area[3]+=.7;
       const nearby=query(doc,defs,area);
-      const partPriority=opts.layerMode==="single"?1.5:2;
+      // Single and dim modes are about the active layer: its objects win over a footprint pad there.
+      const partPriority=opts.layerMode==="single"||opts.layerMode==="dim"?1.5:2;
       let best=null,bestPriority=-1,bestDistance=Infinity;const ranked=scalar?null:[];
       for(let n=nearby.length-1;n>=0;n--){
         const i=nearby[n];
