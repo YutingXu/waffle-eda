@@ -61,6 +61,15 @@ module.exports = async function uxConsistency(browser) {
         await tab.click();
         await page.locator(".panel-properties:visible").waitFor();
         assert.equal(await page.locator(".layer-bar:visible").count(), kind === "pcb" ? 1 : 0);
+
+        await page.evaluate(() => AtriumNavHost.act("rules"));
+        const rules = page.getByRole("dialog", {name:"Rules and Constraints Editor",exact:true});
+        await rules.waitFor();
+        assert.equal(await stripWidth(), beforeHistory, "Rules keeps the design tab strip width");
+        assert.equal(await page.locator(".layer-bar:visible").count(), 0);
+        await rules.getByRole("button", {name:"Close",exact:true}).click();
+        await rules.waitFor({state:"hidden"});
+        assert.equal(await stripWidth(), beforeHistory, "closing Rules keeps the same width");
       }
       await choose("file", "preferences");
       const dlg = page.getByRole("dialog", {name:"Preferences"}), search = dlg.getByRole("searchbox");
