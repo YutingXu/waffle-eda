@@ -204,4 +204,43 @@ function recorder() {
   const againGraphics = againDoc.items.filter(i => i.kind === "graphic"), shift = [out.offset[0], -out.offset[1]];
   againGraphics.forEach((g, i) => g.points.forEach((q, k) => near(q, [graphics[i].points[k][0] + shift[0], graphics[i].points[k][1] + shift[1]], 2e-5)));
 }
+// C. Bézier curves (record 5) keep their control points beside an even flattening, on a rotated
+// symbol and on the sheet; they draw as cubic curves, survive a native save and export as record 5.
+{
+  const text = ascii(r => {
+    const comp = r({RECORD:1, LIBREFERENCE:"Fuse", "LOCATION.X":300, "LOCATION.Y":300, ORIENTATION:1, CURRENTPARTID:1, DISPLAYMODE:0});
+    r({OWNERINDEX:comp, OWNERPARTID:1, RECORD:2, DESIGNATOR:"1", NAME:"A", "LOCATION.X":280, "LOCATION.Y":300, PINLENGTH:10, ELECTRICAL:4, PINCONGLOMERATE:2});
+    r({OWNERINDEX:comp, OWNERPARTID:1, RECORD:34, NAME:"Designator", TEXT:"F1", "LOCATION.X":300, "LOCATION.Y":320});
+    r({OWNERINDEX:comp, OWNERPARTID:1, RECORD:5, LINEWIDTH:1, LOCATIONCOUNT:4, X1:301, Y1:300, X2:308, Y2:315, X3:312, Y3:285, X4:319, Y4:300});
+    r({RECORD:5, LOCATIONCOUNT:7, X1:100, Y1:200, X2:120, Y2:240, X3:140, Y3:160, X4:160, Y4:200, X5:180, Y5:240, X6:200, Y6:160, X7:220, Y7:200});
+    r({RECORD:5, LOCATIONCOUNT:2, X1:100, Y1:100, X2:200, Y2:100});
+  });
+  const f = sink(), res = AtriumSCH.read("Fuse.SchDoc", null, text, {fidelity:f});
+  assert.ok(!res.notes.some(n => /Bézier/.test(n)), res.notes.join(" | "));
+  const rows = f.rows.filter(x => x.kind === "Bézier curve");
+  assert.deepEqual(rows.map(x => x.status), ["kept", "kept", "approximated"]);
+  const doc = res.documents[0], part = doc.items.find(i => i.kind === "part"), def = res.library.find(d => d.id === part.def);
+  const shape = def.symbol.shapes.find(x => x.bezier), cp = C.bezier(shape);
+  assert.ok(cp, "the symbol curve still matches its points");
+  [[301, 300], [308, 315], [312, 285], [319, 300]].forEach((q, k) => near(A.world(cp[k], part), alt(q[0], q[1], 0, 0, 0)));
+  const sheet = doc.items.find(i => i.kind === "graphic" && i.bezier), sheetCp = C.bezier(sheet);
+  assert.equal(sheetCp.length, 7);
+  near(sheet.points.at(-1), alt(220, 200, 0, 0, 0));
+  near(sheet.points[(sheet.points.length - 1) / 2], alt(160, 200, 0, 0, 0));
+  const ctx = recorder(); AtriumSchAppearance.shape(ctx, shape, 10, false);
+  assert.ok(ctx.calls.includes("bezierCurveTo") && !ctx.calls.includes("lineTo"), ctx.calls.join(","));
+  const moved = JSON.parse(JSON.stringify(sheet)); A.moveItem(moved, -2, 7);
+  assert.ok(C.bezier(moved), "a move keeps the curve");
+  moved.points[3] = [0, 0];
+  assert.equal(C.bezier(moved), null, "an edited point draws the points");
+  const p = sheetProject(res), back = A.validate(nativeRoundTrip(p));
+  assert.ok(C.bezier(back.library.find(d => d.id === def.id).symbol.shapes.find(x => x.bezier)));
+  assert.ok(C.bezier(back.documents[0].items.find(i => i.kind === "graphic" && i.bezier)));
+  const out = AtriumAltiumExport.exportSchematic(p, doc.id);
+  const records = out.content.split(/\r?\n/).map(l => Object.fromEntries(l.split("|").filter(Boolean).map(kv => kv.split("=")))).filter(x => x.RECORD === "5");
+  assert.deepEqual(records.map(x => x.LOCATIONCOUNT), ["7", "4"]);
+  const again = AtriumSCH.read("Again.SchDoc", null, out.content), againDef = again.library[0];
+  const againShape = againDef.symbol.shapes.find(x => x.bezier);
+  againShape.points.forEach((q, k) => near(q, shape.points[k], 2e-5));
+}
 console.log("altium-sch-intent: ok");

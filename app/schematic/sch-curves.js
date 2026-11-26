@@ -6,11 +6,13 @@
 //
 //   ellipse {a, b, sweep}       c + a·cos t + b·sin t for t from 0 to sweep degrees, with the centre
 //                               c = points[0] − a; points evenly spaced in t.
+//   bezier {controlPoints}      cubic segments [p0, c1, c2, p1, c3, c4, p2, …] relative to points[0];
+//                               the points sample each segment evenly, the same count per segment.
 //   arc {x, y, r, start, end}   the symbol editor's arc (symbol-editor.js): screen degrees, clockwise
 //                               from start to end. Sheet arcs use the board form (model.js pathArc).
 //
 //   AtriumSchCurves.trace(ctx, shape) -> true when it traced the exact curve as the current path
-//   AtriumSchCurves.ellipse(shape) / arc(shape) -> absolute geometry, or null
+//   AtriumSchCurves.ellipse(shape) / bezier(shape) / arc(shape) -> absolute geometry, or null
 // Lazy (app/lazy.js "AtriumSchCurves", prefetched when the editor is idle). Until it loads, and in a
 // release without it, the canvas (sch-appearance.js shape, canvas.js drawItemPath) draws the points.
 globalThis.AtriumSchCurves = (() => {
@@ -29,6 +31,24 @@ globalThis.AtriumSchCurves = (() => {
     for (let k = 1; k <= n; k++) if (!near(ellipsePoint(out, e.sweep * k / n), s.points[k])) return null;
     return out;
   }
+  function cubic(p, t) {
+    const u = 1 - t, w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+    return [0, 1].map(i => w[0] * p[0][i] + w[1] * p[1][i] + w[2] * p[2][i] + w[3] * p[3][i]);
+  }
+  // Even samples of every segment, starting with the first control point.
+  function bezierPoints(controls, steps) {
+    const out = [controls[0]];
+    for (let k = 0; k + 3 < controls.length; k += 3) for (let i = 1; i <= steps; i++) out.push(cubic(controls.slice(k, k + 4), i / steps));
+    return out;
+  }
+  function bezier(s) {
+    const rel = s?.bezier?.controlPoints, p0 = origin(s);
+    if (!p0 || !Array.isArray(rel) || rel.length < 4 || (rel.length - 1) % 3 || !rel.every(point)) return null;
+    const steps = (s.points.length - 1) / ((rel.length - 1) / 3);
+    if (!Number.isInteger(steps) || steps < 1) return null;
+    const controls = rel.map(q => [p0[0] + q[0] - rel[0][0], p0[1] + q[1] - rel[0][1]]);
+    return bezierPoints(controls, steps).every((q, k) => near(q, s.points[k])) ? controls : null;
+  }
   function arc(s) {
     const g = s?.arc;
     if (!origin(s) || !g || g.kind != null || ![g.x, g.y, g.r, g.start, g.end].every(Number.isFinite) || g.r <= 0) return null;
@@ -44,13 +64,16 @@ globalThis.AtriumSchCurves = (() => {
   }
   function trace(ctx, s) {
     if (!s.ellipse && !s.bezier && !s.arc) return false;
-    const e = ellipse(s), g = !e && arc(s);
-    if (!e && !g) return false;
+    const e = ellipse(s), cp = !e && bezier(s), g = !e && !cp && arc(s);
+    if (!e && !cp && !g) return false;
     ctx.beginPath();
     if (e) {
       // A transformed unit circle; the caller strokes with its own pen after the restore.
       ctx.moveTo(...s.points[0]);
       ctx.save(); ctx.transform(e.a[0], e.a[1], e.b[0], e.b[1], e.c[0], e.c[1]); ctx.arc(0, 0, 1, 0, A.rad(e.sweep), e.sweep < 0); ctx.restore();
+    } else if (cp) {
+      ctx.moveTo(...cp[0]);
+      for (let k = 1; k + 2 < cp.length; k += 3) ctx.bezierCurveTo(cp[k][0], cp[k][1], cp[k + 1][0], cp[k + 1][1], cp[k + 2][0], cp[k + 2][1]);
     } else {
       ctx.moveTo(g.x + g.r * Math.cos(A.rad(g.start)), g.y + g.r * Math.sin(A.rad(g.start)));
       ctx.arc(g.x, g.y, g.r, A.rad(g.start), A.rad(g.end), false);
@@ -58,5 +81,5 @@ globalThis.AtriumSchCurves = (() => {
     if (s.closed) ctx.closePath();
     return true;
   }
-  return Object.freeze({trace, ellipse, ellipsePoint, arc});
+  return Object.freeze({trace, ellipse, ellipsePoint, bezier, bezierPoints, arc});
 })();

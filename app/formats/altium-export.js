@@ -112,14 +112,17 @@ globalThis.AtriumAltiumExport = (() => {
       ["VISIBLEGRIDON", "T"], ["VISIBLEGRIDSIZE", 10], ...(sheet ? [] : [["USECUSTOMSHEET", "T"], ...dxp("CUSTOMX", layout?.width ?? Math.ceil((width + 50.8)/DXP)*DXP), ...dxp("CUSTOMY", layout?.height ?? Math.ceil(sheetH/DXP)*DXP), ["CUSTOMXZONES", 6], ["CUSTOMYZONES", 4], ["CUSTOMMARGINWIDTH", 20]]),
       ["DISPLAY_UNIT", 4]]);
     const owned = (owner, part, fields) => push(owner < 0 ? [...fields.slice(0, 1), ["OWNERPARTID", -1], ...fields.slice(1)] : [...fields.slice(0, 1), ["OWNERINDEX", owner], ["ISNOTACCESIBLE", "T"], ["OWNERPARTID", part], ...fields.slice(1)]);
-    // Exact curves (model.js pathArc, sch-curves.js) as Altium arcs, ellipses and elliptical arcs.
+    // Exact curves (model.js pathArc, sch-curves.js) as Altium arcs, ellipses, elliptical arcs and
+    // Bézier curves.
     // Altium's angles turn counterclockwise on its Y-up sheet from STARTANGLE to ENDANGLE.
     // A curve that is not axis-aligned after placement stays a polyline.
     const deg = v => Math.round(((v % 360) + 360) % 360 * 1000) / 1000;
     function curveRecords(owner, partId, s, world, ink) {
       const vec = (c, d) => { const p = world([c[0] + d[0], c[1] + d[1]]), q = world(c); return [p[0] - q[0], p[1] - q[1]]; };
       let c, a, b, sweep;
-      const C = globalThis.AtriumSchCurves, arc = Atr.pathArc(s), sym = !arc && C?.arc(s), el = !arc && !sym && C?.ellipse(s);
+      const C = globalThis.AtriumSchCurves, arc = Atr.pathArc(s), bezier = !arc && C?.bezier(s);
+      if (bezier) return owned(owner, partId, [["RECORD", 5], ["LINEWIDTH", 1], ["COLOR", ink], ...pts(bezier.map(world))]);
+      const sym = !arc && C?.arc(s), el = !arc && !sym && C?.ellipse(s);
       // Every curve as c + a·cos t + b·sin t over sweep degrees, in sheet coordinates.
       if (arc) { const t = Atr.rad(arc.start); c = arc.c; a = [arc.r * Math.cos(t), -arc.r * Math.sin(t)]; b = [-arc.r * Math.sin(t), -arc.r * Math.cos(t)]; sweep = Atr.arcSweep(arc); }
       else if (sym) { const t = Atr.rad(sym.start); c = [sym.x, sym.y]; a = [sym.r * Math.cos(t), sym.r * Math.sin(t)]; b = [-sym.r * Math.sin(t), sym.r * Math.cos(t)]; sweep = sym.end - sym.start; }

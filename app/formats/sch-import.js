@@ -108,6 +108,20 @@ globalThis.AtriumSCH = (() => {
     return {points,c:[x,y],r:rx,circle:rx===ry,start,span,
       ellipse:{a:[rx*Math.cos(s),-ry*Math.sin(s)],b:[-rx*Math.sin(s),-ry*Math.cos(s)],sweep:span}};
   }
+  // Bézier curves (5): cubic segments p0 c1 c2 p1 c3 c4 p2 …, sampled evenly per segment as
+  // AtriumSchCurves.bezierPoints does (sch-curves.js reads the curve back from the same samples).
+  function bezier(r) {
+    const controls=vertices(r);
+    if(controls.length<4||(controls.length-1)%3)return {points:controls};
+    let longest=0;
+    for(let k=0;k+3<controls.length;k+=3){let l=0;for(let i=k;i<k+3;i++)l+=Math.hypot(controls[i+1][0]-controls[i][0],controls[i+1][1]-controls[i][1]);longest=Math.max(longest,l);}
+    const steps=Math.min(64,Math.max(8,Math.ceil(longest/.5))),points=[controls[0]];
+    for(let k=0;k+3<controls.length;k+=3)for(let i=1;i<=steps;i++){
+      const t=i/steps,u=1-t,w=[u*u*u,3*u*u*t,3*u*t*t,t*t*t],p=controls.slice(k,k+4);
+      points.push([0,1].map(j=>w[0]*p[0][j]+w[1]*p[1][j]+w[2]*p[2][j]+w[3]*p[3][j]));
+    }
+    return {points,controlPoints:controls.map(q=>[q[0]-controls[0][0],q[1]-controls[0][1]])};
+  }
   const sheetSizes=[[1150,760],[1550,1110],[2230,1570],[3150,2230],[4460,3150],[950,750],[1500,950],[2000,1500],[3200,2000],[4200,3200],[1100,850],[1400,850],[1700,1100],[990,790],[1540,990],[2060,1560],[3260,2060],[4280,3280]];
   function ink(raw,fallback){
     if(raw==null||raw==="")return fallback;
@@ -432,6 +446,14 @@ globalThis.AtriumSCH = (() => {
             ...paint,...(appearance?{closed,fill}:{})},idx);
           recognized++;continue;
         }
+        if(t===5){
+          const g=bezier(r);
+          if(!g.controlPoints){graphic(g.points);approximated("A Bézier curve with "+g.points.length+" points is drawn through its points.");continue;}
+          const paint=appearance?{schPaint:stroke(r)}:{},exact={bezier:{controlPoints:g.controlPoints}};
+          if(c){const shape={...path(g.points.map(local)),...exact,...paint};c.symbol.shapes.push(shape);kept(shape);}
+          else if(doc)addItem({id:A.id(),kind:"graphic",points:g.points,...exact,...paint,...(appearance?{closed:false,fill:false}:{})},idx);
+          recognized++;continue;
+        }
         if(t===27 && doc && !c){
           const points=vertices(r);if(points.length>=2)addItem({id:A.id(),kind:"wire",points,...(appearance?{schPaint:stroke(r,"#000080")}:{})},idx);
           recognized++;continue;
@@ -525,6 +547,7 @@ globalThis.AtriumSCH = (() => {
           else Object.assign(s,xy(normalize([s.x,s.y])));
           if(s.arc){const [x,y]=normalize([s.arc.x,s.arc.y]);s.arc={...s.arc,x,y,start:turned(s.arc.start),end:turned(s.arc.end)};}
           if(s.ellipse)s.ellipse={...s.ellipse,a:normalize(s.ellipse.a),b:normalize(s.ellipse.b)};
+          if(s.bezier)s.bezier={...s.bezier,controlPoints:s.bezier.controlPoints.map(normalize)};
         }
         for(const p of c.symbol.pins)Object.assign(p,xy(normalize([p.x,p.y])));
         const def={id:A.id(),name:c.name,description:c.desc,category:"Imported symbols",prefix:c.prefix,value,
