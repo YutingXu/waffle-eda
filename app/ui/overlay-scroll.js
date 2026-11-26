@@ -29,12 +29,14 @@ globalThis.AtriumOverlayScroll = (() => {
   const stacks = n => {const cs = getComputedStyle(n); return cs.position !== "static" && cs.zIndex !== "auto";};
   function hostOf(el) {
     const top = el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;
+    if (top === el) return el; // the scroller is the dialog or popover: its thumb stays in the top layer
     for (let n = el.parentElement; n && n !== top; n = n.parentElement) if (stacks(n)) return n;
     return top;
   }
-  // Above sticky headers in its layer; a scroller that is itself a layer (a fixed card) shares its z-index,
-  // and the thumb, appended after it, paints over it.
-  const layerOf = el => el !== rootScroller() && stacks(el) ? getComputedStyle(el).zIndex : "2";
+  // Within its layer the thumb sits just under floating chrome (menus, floats, popovers start at
+  // --z-float), so it clears sticky headers; a scroller that is itself a layer (a fixed card) shares its
+  // z-index, and the thumb, appended after it, paints over it.
+  const layerOf = (el, host) => el !== host && el !== rootScroller() && stacks(el) ? getComputedStyle(el).zIndex : "calc(var(--z-float) - 1)";
   const stale = b => [b.v, b.h].some(t => t && !t.isConnected);
   function thumb(el, axis) {
     const t = doc.createElement("div");
@@ -65,7 +67,7 @@ globalThis.AtriumOverlayScroll = (() => {
       if (!show) {t?.remove(); b[axis] = null; continue;}
       if (!t || t.parentElement !== host) {t?.remove(); t = b[axis] = thumb(el, axis); host.append(t);}
       t.style.position = fixed ? "fixed" : "absolute";
-      t.style.zIndex = layerOf(el);
+      t.style.zIndex = layerOf(el, host);
       if (axis === "v") {
         const track = r.height - 2 * INSET, size = Math.max(MIN, track * el.clientHeight / el.scrollHeight);
         b.geo.v = {free:track - size, range:Math.max(1, el.scrollHeight - el.clientHeight)};

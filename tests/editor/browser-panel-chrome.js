@@ -171,6 +171,15 @@ async function scrollbars(browser) {
     }, thumb), "a menu over the panel draws above its scroll thumb");
     await page.mouse.move(box.x + 20, box.y + 20);
     await page.waitForFunction(() => !document.querySelector(".ui-scroll-thumb[data-hot]"));
+    // A scrolling popover inside a layered card (a select list in a modeless dialog) keeps its thumb on top.
+    assert.ok(await page.evaluate(async () => {
+      const card = Object.assign(document.createElement("div"), {style:"position:fixed;z-index:30;left:40px;top:40px;width:200px;height:200px"});
+      const list = Object.assign(document.createElement("div"), {popover:"manual", style:"overflow:auto;height:120px;width:160px;margin:0;inset:auto;left:60px;top:60px;position:fixed"});
+      list.innerHTML = "<div style='height:600px'></div>"; card.append(list); document.body.append(card); list.showPopover();
+      list.scrollTop = 40; await new Promise(r => setTimeout(r, 100));
+      const t = AtriumOverlayScroll.thumbs().find(t => t.parentElement === list || t.parentElement === card);
+      const ok = t?.parentElement === list; card.remove(); return ok;
+    }), "a scrolling popover's thumb stays in the popover");
     // In a floating panel the thumb still draws over that panel's own content.
     await page.evaluate(() => { for (const d of document.querySelectorAll("dialog[open]")) d.close(); });
     await page.setViewportSize({width:1400, height:1000});
