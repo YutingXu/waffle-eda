@@ -564,6 +564,7 @@ async function main(){
     if(process.argv.includes("--panels-only")){await require("./editor/browser-panels-menu.js")(browser);return;}
     if(process.argv.includes("--menu-toggle-only")){await require("./editor/browser-menu-toggle.js")(browser);return;}
     if(process.argv.includes("--messages-fonts-only")){await require("./editor/browser-messages-fonts.js")(browser);return;}
+    if(process.argv.includes("--messages-filter-only")){await require("./editor/browser-messages-filter.js")(browser);return;}
     if(process.argv.includes("--inline-stack-only")){await require("./editor/browser-inline-stack.js")(browser);return;}
     if(process.argv.includes("--panel-chrome-only")){await require("./editor/browser-panel-chrome.js")(browser);return;}
     if(process.argv.includes("--review-composer-only")){await require("./history/browser-review-composer.js")(browser);return;}
@@ -900,6 +901,7 @@ async function main(){
     await require("./editor/browser-chrome-pixels.js")(browser);
     await require("./editor/browser-menu-toggle.js")(browser);
     await require("./editor/browser-messages-fonts.js")(browser);
+    await require("./editor/browser-messages-filter.js")(browser);
     await require("./editor/browser-inline-stack.js")(browser);
     await require("./editor/browser-panel-chrome.js")(browser);
     await require("./ui/browser-owner-layers.cjs")(browser);
