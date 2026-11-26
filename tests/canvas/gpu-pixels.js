@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds, pourCoverageLod};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -1151,6 +1151,86 @@ globalThis.atriumGpuPixels = async function (o = {}) {
         if (descriptor) Object.defineProperty(proto,name,descriptor);
         else delete proto[name];
       }
+      view.dispose(); stage.remove();
+    }
+  }
+
+  async function pourCoverageLod() {
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:360px;height:256px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const view = AtriumCanvas.create(canvas), I = view.internals(), P = AtriumPCBPours, {lod} = P;
+    const board = Atrium.sheet("pcb","Coverage display detail"), defs = new Map();
+    const opacity = PCB.opacity.track, enabled = lod.enabled, dpr = Math.min(4,Math.max(1,devicePixelRatio));
+    const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+    const shape = offset => P.region([rect(-17,-12,34,24), ...Array.from({length:30},(_,n) =>
+      Array.from({length:96},(_,i)=>{
+        const a = i*Math.PI/48;
+        return [-13+(n%6)*5+offset+.45*Math.cos(a),-9+Math.floor(n/6)*4+.65*Math.sin(a)];
+      }))],"Top","GND");
+    board.outline = rect(-21,-16,42,32);
+    board.items = [{id:"lod-ordered-track",kind:"track",layer:"Top",width:.4,points:[[-16,0],[16,0]]}];
+    board.sourcePourSignature = P.signature(board,defs);
+    const rows = out.pourCoverageLod = {};
+    let region;
+    try {
+      for (const ordered of [false,true]) {
+        PCB.setOpacity("track",ordered?.5:1);
+        lod.enabled = true;
+        region = shape(0);
+        board.pcbDrawing = {annotations:{},pours:[region]};
+        board.sourcePourSignature = P.signature(board,defs);
+        view.invalidate();
+        const paint = deviceScale => {
+          view.restoreCamera({cx:0,cy:0,scale:deviceScale/dpr,referenceScale:deviceScale/dpr});
+          view.render(board,defs,{editorPane:true,noReuse:true,grid:false,origin:false,netNames:false,showUnrouted:false});
+          const work=GPU().resourceCounters(I), image=GPU().composite(I);
+          if (!work || !image) throw Error("no coverage display-detail frame");
+          return {bytes:ordered?work.textUpload:work.coverageUpload,
+            pixels:image.getContext("2d").getImageData(0,0,image.width,image.height).data};
+        };
+        const high=paint(26), firstVersion=lod.version;
+        // Let an actual idle result arrive for the same copper at another scale.
+        const waiting=P.lodRingsAt(region,4);
+        if (waiting || !await until(()=>lod.version!==firstVersion && P.lodRingsAt(region,4)))
+          throw Error("low-scale display detail did not finish");
+        const highAgain=paint(26);
+        // The low-scale view must use a real new level, even at a fixed pose.
+        P.release([region],[]);
+        const secondVersion=lod.version, low=paint(4);
+        if (!await until(()=>lod.version!==secondVersion && P.lodRingsAt(region,4)))
+          throw Error("the low-scale painter did not request its display detail");
+        const upgraded=paint(4), repeated=paint(4);
+        lod.enabled=false;
+        const disabled=paint(4);
+        lod.enabled=true;
+        const enabledAgain=paint(4);
+        const raw={...region}, moved=shape(.22);
+        Object.assign(region,moved); view.invalidate();
+        const edited=paint(26);
+        Object.assign(region,raw); view.invalidate();
+        const restored=paint(26);
+        Object.assign(region,moved); view.invalidate();
+        const redone=paint(26);
+        const report = rows[ordered?"ordered":"mask"] = {
+          initial:high.bytes, highAgain:highAgain.bytes, highDelta:differentBytes(high.pixels,highAgain.pixels),
+          upgraded:upgraded.bytes, lowDelta:differentBytes(low.pixels,upgraded.pixels), repeated:repeated.bytes,
+          disabled:disabled.bytes, enabledAgain:enabledAgain.bytes,
+          disabledDelta:differentBytes(low.pixels,disabled.pixels), enabledDelta:differentBytes(upgraded.pixels,enabledAgain.pixels),
+          editDelta:differentBytes(high.pixels,edited.pixels), restoreDelta:differentBytes(high.pixels,restored.pixels),
+          redoDelta:differentBytes(edited.pixels,redone.pixels)};
+        if (!report.initial || report.highAgain || report.highDelta || !report.upgraded || !report.lowDelta ||
+            report.repeated || !report.disabled || !report.enabledAgain || report.disabledDelta || report.enabledDelta ||
+            !report.editDelta || report.restoreDelta || report.redoDelta)
+          failLifecycle("pourCoverageLod",JSON.stringify(report));
+        P.release([region],[]);
+      }
+      if (!out.failures.some(f=>f.includes("pourCoverageLod")))
+        okLifecycle("pourCoverageLod","only applicable display detail invalidates coverage and ordered copper");
+    } finally {
+      if (region) P.release([region],[]);
+      lod.enabled=enabled; PCB.setOpacity("track",opacity);
       view.dispose(); stage.remove();
     }
   }

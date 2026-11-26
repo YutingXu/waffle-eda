@@ -1008,6 +1008,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   // Keep the layer claimed by coverage without submitting a texture or stencil fans.
   const emptyCoverageBand = Object.freeze({tex:null});
+  function pourLodKey(scale, dpr) {
+    const lod = G.AtriumPCBPours.lod, k = scale*dpr;
+    // The unrotated Canvas painter uses the transform determinant for device scale.
+    return lod?.keyAt?.(Math.sqrt(k*k)) ?? lod?.version;
+  }
   // Stencil coverage can quantize narrow clearance curves. Exact camera paints, including moving
   // fallbacks, use the same coverage as the 2D path for subpixel hole edges. Retained frames and
   // live tiles can use the fans; ordinary edits reuse these coverage textures.
@@ -1019,7 +1024,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (list !== doc.pcbDrawing?.pours || opts.transientGeometry || G.AtriumPourAnim?.active?.(doc)) return null;
     const [,,scale,,,,dpr] = cam, gl = st.gl, w = st.canvas.width, h = st.canvas.height;
     const key = [appearanceVersion, ...cam, w, h, opts.highlight, opts.layer, opts.layerMode, ...(opts.hidden || []),
-      ...(text?.exact || []), G.AtriumPCBPours.lod?.version].join("|");
+      ...(text?.exact || []), pourLodKey(scale,dpr)].join("|");
     let cover = st.coverage;
     if (cover?.list === list && cover.sig === c.pourSig && cover.key === key) return cover.layers;
     if (cover && (w !== cover.w || h !== cover.h)) { freeCoverage(st); cover = null; }
@@ -2127,7 +2132,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       opts.highlight || "", goneIds(opts)?.join(",") || "", sig, opts.netNames !== false, opts.viaMarks !== false,
       exact.size && opts.netColors?.size ? [...opts.netColors].join(",") : "", [...exact].join(","), S.orderSignature, V.liveSignature,
       !!G.AtriumDesignators, !!G.AtriumPCBText, PCB.opacity.track, PCB.opacity.pad, PCB.opacity.via,
-      bandPours ? PCB.opacity.pour : "", bandPours ? G.AtriumPCBPours.lod?.version : "",
+      bandPours ? PCB.opacity.pour : "", bandPours ? pourLodKey(scale,dpr) : "",
       ...Object.entries(PCB.layerOpacity || {}), S.stackEpoch].join("|") + "|" + cx + "," + cy + "," + scale;
     const key = rest + "|" + S.textRev + "|" + (V.padDetails ? S.padRev : "") + "|" + (exact.size ? S.rev : "") + "|" + JSON.stringify([...selection]);
     if (T.scene !== S.id) { T.scene = S.id; T.key = null; }
