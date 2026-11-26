@@ -590,7 +590,7 @@ globalThis.AtriumStartPage = (() => {
       if (focus) ui.customise.focus();
       return;
     }
-    if (W?.isMounted?.()) { if (focus) W.focus(); return; }
+    if (W?.isMounted?.(ui.welcome)) { if (focus) W.focus(); return; }
     ui.welcome.replaceChildren();
     const L = globalThis.AtriumLazy, started = generation;
     const current = () => generation === started && dialog.open && dialog.classList.contains("sp-welcome-on");

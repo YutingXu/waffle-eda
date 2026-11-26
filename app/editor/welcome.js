@@ -593,6 +593,7 @@ globalThis.AtriumWelcome = (() => {
   }
   function mount(container, sp) {
     if (!doc || !container) return null;
+    if (setupDialog?.open && !setupDialog.contains(container)) setupDialog.close();
     unmount();
     const s = write({seen: true, closed: false});
     ui = {syncs: [], sp, open: "", ...build(container)};
@@ -638,5 +639,5 @@ globalThis.AtriumWelcome = (() => {
   }
   try { G.AtriumNavCommon?.ready?.(h => h.registerAction?.("customise-waffle", reopen)); } catch {}
   return Object.freeze({STORE, FROM, firstLaunch, state, steps, progress, value, choose, skip, close, reset, mount, unmount, focus, renderer, efficiency,
-    isMounted: () => !!ui?.panel.isConnected});
+    isMounted: container => !!ui?.panel.isConnected && (!container || container.contains(ui.panel))});
 })();

@@ -77,13 +77,21 @@ module.exports=async function welcomeOpen(browser){
     const help = page.locator('details[data-menu="help"]');
     await help.locator("summary").click();
     await help.getByRole("menuitem", {name:"Customise Waffle",exact:true}).click();
-    const finish = page.getByRole("button", {name:"Finish setup",exact:true});
+    const setup = page.getByRole("dialog", {name:"Customise Waffle",exact:true});
+    const finish = setup.getByRole("button", {name:"Finish setup",exact:true});
     await finish.waitFor();
-    const setup = page.locator("dialog[open]").filter({has:finish});
     assert.equal(await setup.getByRole("navigation", {name:"Start",exact:true}).count(), 0,
       "Help opens setup without project navigation");
-    await finish.click();
+    await page.evaluate(() => AtriumNavHost.act("start-page"));
+    await action("customise").click();
+    const startSetup = page.locator("dialog.sp-dialog[open] .wl-panel");
+    await startSetup.waitFor({timeout:3000});
     await setup.waitFor({state:"hidden"});
+    assert.equal(await startSetup.locator(".wl-head:focus").count(), 1, "setup focus follows the Start Page");
+    await startSetup.getByRole("button", {name:"Finish setup",exact:true}).click();
+    await startSetup.waitFor({state:"detached"});
+    await page.keyboard.press("Escape");
+    assert.equal(await welcome(),false,"closing Start returns to the project");
     assert.equal(await page.evaluate(() => AtriumNavHost.currentId()), documentId);
     assert.deepEqual(errors,[]);
   }finally{await page.close();}
