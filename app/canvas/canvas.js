@@ -812,13 +812,13 @@ globalThis.AtriumCanvas = (() => {
       const region=doc.kind==="pcb"&&PCB.curvedRegion(i);
       if(region){
         const contours=[region.contour,...region.cutouts];
-        let inside=false,distance=Infinity;
+        let filled=false,distance=Infinity;
         for(const contour of contours){
-          if(i.fill && contourContains(contour,p))inside=!inside;
+          if(i.fill && contourContains(contour,p))filled=!filled;
           for(const segment of contour)distance=Math.min(distance,segment.kind==="arc"
             ?distanceToArc(p,segment):A.nearSegment(p,segment.a,segment.b));
         }
-        if(inside)return tol;
+        if(filled)return tol;
         const width=PCB.boardStrokeWidth(i);
         return distance-(width===null?0:Math.max(1/scale,width)/2);
       }
