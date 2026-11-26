@@ -1722,10 +1722,11 @@ globalThis.AtriumPolygonPour=(()=>{
     const maxRelief=reliefReach(P,reach);
     const samePolygonNet=n=>!!net&&n===net;
     // SAFE (20 nm) covers rounding to the 10 nm integer grid, so measured
-    // clearance is never below the rule.
+    // clearance is never below the rule, and copper never rounds into a zero-gap
+    // obstacle (a plane void) where the keep-out check would see it.
     function obstacle(core,radius,c){
       if(trace)return;
-      const flat=rounded(core,radius+c+(c>0?safe:0),tol,"outer",arcSink);
+      const flat=rounded(core,radius+c+safe,tol,"outer",arcSink);
       if(flat&&near(boxOf(flat)))add(CLS.O,flat);
     }
     function anchor(core,radius,link,raw){
@@ -1753,7 +1754,7 @@ globalThis.AtriumPolygonPour=(()=>{
         let flat=pts.flat();if(same)anchor(null,0,link,flat);
         if(!avoid)continue;
         if(signedArea(flat)<0)flat=reversed(flat);
-        const ring=offsetRing(flat,radius+c+(c>0?safe:0),tol,arcSink);
+        const ring=offsetRing(flat,radius+c+safe,tol,arcSink);
         if(ring&&near(boxOf(ring)))put({cls:CLS.O,flat:ring,av:ring.av,oriented:true});
       }
     }
@@ -1806,7 +1807,15 @@ globalThis.AtriumPolygonPour=(()=>{
         else anchor(pc.core,pc.radius,link);
         return;
       }
-      obstacle(pc.core,pc.radius,clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius));
+      const c=clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius);
+      obstacle(pc.core,pc.radius,c);
+      // A plated barrel of another net also keeps the rule's hole clearance (Altium's Poly-Hole
+      // cell), measured from the drill, wherever that reaches past the land's own clearance. Only
+      // a gap that shapes copper enters the clearance trace (pour signatures stay as they were).
+      if(pc.drill>0){
+        const drill=drilledShape(p,pc),h=gapFor(itemNet,"hole",p,parent,drill.center,drill.core,drill.radius);
+        if(h>c+1e-9&&(drill.slot||drill.radius+h>Math.min(pc.w,pc.h)/2+c+1e-9)){trace?.(h);obstacle(drill.core,drill.radius,h);}
+      }
     }
     function text(x,y,angle,size,str,itemNet,item,frame){
       const s=+size||.75,w=String(str||"").length*s*.65;if(!(w>0))return;
