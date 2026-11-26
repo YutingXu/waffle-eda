@@ -365,14 +365,24 @@ def store_list(folder, name, items):
 
 
 CRASH_LOG = "renderer-crashes.json"
+RENDERER_REASONS = {"exited": "exited", "memory-limit": "memoryLimit", "terminated": "terminated", "unresponsive": "unresponsive"}
 
 
 def crash_history(folder):
     return load_list(folder, CRASH_LOG, 16 * 1024)[-32:]
 
 
+def renderer_termination_counts(folder):
+    counts = dict.fromkeys(RENDERER_REASONS.values(), 0)
+    for row in crash_history(folder):
+        reason = row.get("reason")
+        if row.get("kind") == "renderer" and row.get("type") == "Linux" and isinstance(reason, str) and reason in RENDERER_REASONS:
+            counts[RENDERER_REASONS[reason]] += 1
+    return counts
+
+
 def record_renderer_termination(folder, reason):
-    if reason not in ("exited", "memory-limit", "terminated", "unresponsive"):
+    if not isinstance(reason, str) or reason not in RENDERER_REASONS:
         return
     rows = crash_history(folder)
     rows.append({"at": time.time_ns() // 1_000_000, "kind": "renderer", "type": "Linux", "reason": reason})
@@ -2321,7 +2331,8 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
 
     def save_file(request):
         copying = request["action"] == "exportBinaryCopy"
-        expected = Path(request["name"]).suffix.lower()
+        filename = Path(request["name"]).name
+        expected = Path(filename).suffix.lower()
         source = selected_source
         if copying and (not source or request.get("sourceToken") != source.token):
             raise ValueError("Select the original Altium document again.")
@@ -2329,7 +2340,7 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
             raise ValueError("Use the same document extension as the source.")
         panel = dialog(Gtk.FileChooserAction.SAVE, "Export Altium Copy" if copying else "Export", "Save")
         panel.set_do_overwrite_confirmation(True)
-        panel.set_current_name(Path(request["name"]).name)
+        panel.set_current_name(filename)
         try:
             path = panel.get_filename() if panel.run() == Gtk.ResponseType.ACCEPT else None
         finally:
@@ -2340,8 +2351,7 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
         if copying:
             source.save_copy(destination, base64.b64decode(request["data"], validate=True))
             return True
-        allowed = exchange_outputs
-        if expected not in allowed or destination.suffix.lower() != expected:
+        if (expected not in exchange_outputs and filename != "waffle-diagnostics.json") or destination.suffix.lower() != expected:
             raise ValueError("Choose a filename ending in " + expected + ".")
         if request["action"] == "export" and "data" in request:
             payload = base64.b64decode(request["data"], validate=True)
@@ -2693,6 +2703,10 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
                 return
             elif action == "crashHistory":
                 value = crash_history(support)
+            elif action == "supportDiagnostics":
+                machine = os.uname().machine
+                architecture = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "x64", "amd64": "x64"}.get(machine, "unknown")
+                value = {"platform": "linux", "architecture": architecture, "rendererTerminations": renderer_termination_counts(support)}
             elif action == "recentFiles":
                 value = recent.listing(check_availability=request.get("metadataOnly") is not True)
             elif action == "linkRecentProjects":

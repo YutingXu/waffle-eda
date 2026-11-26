@@ -30,7 +30,7 @@ if (!isMainThread) {
   for(const module of ["model","design-query-record","signals","obsolete-project","source-file","altium-ids","altium-rules","pcb-pours","pcb-import","sch-import","pcb-patch","sch-patch","source-copy","io","translator-table","translator-registry","panel","import-sidecars"])require(require("../support/app-source-paths.cjs").appFile(module+".js"));
 
   const workers = [];
-  function host({bundle=true, broken=false, crash=false, noWorker=false}={}) {
+  function host({bundle=true, broken=false, crash=false, noWorker=false, recording=false}={}) {
     const stats={opened:[],probes:[],fallback:0,sourceFallback:0,exportMessages:[]};
     let odbEnabled = false;
     class BrowserWorker {
@@ -68,7 +68,11 @@ if (!isMainThread) {
     vm.runInContext(fileText("translator-table.js"),page);
     vm.runInContext(fileText("translator-registry.js"),page);
     vm.runInContext(fileText("import-worker-client.js"),page);
-    return {api:page.AtriumImport,stats,enableOdb() {odbEnabled = true;}};
+    if (recording) {
+      page.performance = performance;
+      for (const file of ["performance-diagnostics.js", "diagnostics.js"]) vm.runInContext(fileText(file),page);
+    }
+    return {api:page.AtriumImport,stats,diagnostics:page.AtriumDiagnostics,enableOdb() {odbEnabled = true;}};
   }
   function sourceBoard() {
     const compound=CFB.utils.cfb_new();
@@ -220,6 +224,20 @@ if (!isMainThread) {
     const example=new TextEncoder().encode("|RECORD=Board|VX0=0mil|VY0=0mil|VX1=100mil|VY1=0mil|VX2=100mil|VY2=100mil\n|RECORD=Net|ID=0|NAME=CLK\n|RECORD=Track|NET=0|LAYER=TOP|X1=0mil|X2=100mil|Y1=0mil|Y2=100mil|WIDTH=10mil");
     const backing=new Uint8Array(example.length+2);backing.set(example,1);
     const view=backing.subarray(1,-1);
+    {
+      const {api,diagnostics} = host({bundle:false,recording:true}), lease = diagnostics.startPerformance();
+      try {
+        const {model} = await api.import([{name:"synthetic.PcbDoc",bytes:view}]);
+        const translated = await api.export("kicad",model,{scope:"document",documentId:model.documents[0].id});
+        assert.ok(translated.files.some(file=>file.name.endsWith(".kicad_pcb")));
+        await assert.rejects(api.export("legacy",model),/legacy has no export translator/);
+        const cancel = new AbortController(); cancel.abort();
+        await assert.rejects(api.import([{name:"synthetic.PcbDoc",bytes:view}],{signal:cancel.signal}),/cancelled/);
+        const rows = JSON.parse(JSON.stringify(diagnostics.performanceSnapshot().rows));
+        assert.deepEqual(rows.map(({component,operation,counts})=>[component,operation,counts.completed,counts.cancelled,counts.failed]),
+          [["import","request",1,1,0],["export","request",1,0,1]]);
+      } finally {lease.stop();}
+    }
     const kiCadFiles = ["demo.kicad_pro", "demo.kicad_pcb"].map(name => ({name, bytes: fs.readFileSync(path.join(__dirname, "../fixtures/import", name))}));
     const projectWithMinimum = JSON.parse(kiCadFiles[0].bytes.toString("utf8"));
     projectWithMinimum.board.design_settings.rules.min_via_diameter = .15;

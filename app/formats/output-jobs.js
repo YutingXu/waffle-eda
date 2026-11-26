@@ -855,6 +855,22 @@ globalThis.AtriumOutputJobs = (() => {
     if (opts.signal?.aborted) r.report.ok = false;
     return finish(r, opts, started);
   }
+  function measuredBuild(opts, work) {
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("manufacturing", "build");
+    if (!timing) return work();
+    const complete = result => {
+      timing.end(opts?.signal?.aborted ? "cancelled" : result.report.ok ? "completed" : "failed");
+      return result;
+    };
+    const failed = error => {
+      timing.end(opts?.signal?.aborted || error?.name === "AbortError" ? "cancelled" : "failed");
+      throw error;
+    };
+    try {
+      const result = work();
+      return result?.then ? result.then(complete, failed) : complete(result);
+    } catch (error) { return failed(error); }
+  }
   function outputTranslator(out) {
     const id = GEN[out.kind]?.translator;
     return typeof id === "function" ? id(out.options || {}) : id;
@@ -910,5 +926,8 @@ globalThis.AtriumOutputJobs = (() => {
   }
 
   return Object.freeze({VERSION, KINDS, ORDER, GROUPS, GATES, VENDORS, groupOf, defaultsOf, normalise, migrate, packageOf, list, find, save, remove, presets, resolve,
-    expand, joinPath, safe, dateText, sha256, utf8, bytesOf, run, runAsync, settle, session, translatedOutput, translatorNeeds, describe, layout, open, gerberMaskContext});
+    expand, joinPath, safe, dateText, sha256, utf8, bytesOf,
+    run:(project,ref,opts={})=>measuredBuild(opts,()=>run(project,ref,opts)),
+    runAsync:(project,ref,opts={},progress)=>measuredBuild(opts,()=>runAsync(project,ref,opts,progress)),
+    settle, session, translatedOutput, translatorNeeds, describe, layout, open, gerberMaskContext});
 })();

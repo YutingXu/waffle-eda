@@ -89,6 +89,7 @@ def linux_tests(tmp):
     assert all(row["reason"] == "exited" and row["type"] == "Linux" for row in crash_log)
     app.record_renderer_termination(support, "unresponsive")  # Close Window on the not-responding dialog
     assert app.crash_history(support)[-1]["reason"] == "unresponsive" and len(app.crash_history(support)) == 32
+    assert app.renderer_termination_counts(support) == {"exited": 31, "memoryLimit": 0, "terminated": 0, "unresponsive": 1}
     for folder in (work, outside):
         folder.mkdir()
     manifest = altium_fixture(work, outside)
@@ -307,6 +308,17 @@ CrashHistory.noteTermination()
 let failures = CrashHistory.listing()
 expect(failures.count == 32 && failures.first?["at"] as? Int == 1, "bounded renderer history")
 expect(Set(failures.last!.keys) == Set(["at", "kind", "type", "reason"]), "only renderer codes and time are stored")
+expect(CrashHistory.counts() == ["terminated":32, "unresponsive":0], "support summary contains only known Mac counters")
+HostFiles.storeJSON("renderer-crashes.json", [["kind":"renderer", "type":"macOS", "reason":"unresponsive", "at":7, "path":"Private.waffle"],
+                                            ["kind":"renderer", "type":"macOS", "reason":"memory-limit"],
+                                            ["kind":"renderer", "type":"Linux", "reason":"terminated"]])
+expect(CrashHistory.counts() == ["terminated":0, "unresponsive":1], "support summary discards other host reasons and row details")
+expect([0,1,2,3,8].map(SupportDiagnostics.displayCount) == ["unknown","one","two","three-or-more","three-or-more"], "available display count buckets")
+#if arch(arm64)
+expect(SupportDiagnostics.architecture == "arm64", "Apple silicon host architecture")
+#else
+expect(["x64", "arm64", "unknown"].contains(SupportDiagnostics.architecture), "coarse architecture on Intel or Rosetta")
+#endif
 let manifest = work.appendingPathComponent("Control.PrjPcb"), board = work.appendingPathComponent("B.PcbDoc")
 let manifestData = try! Data(contentsOf: manifest)
 var files = [["name":manifest.lastPathComponent], ["name":board.lastPathComponent]], remaining = 1024

@@ -281,6 +281,16 @@ globalThis.AtriumChecks = (() => {
   // ---------------------------------------------------------------- the live store
   const layers = new Map(), listeners = new Set();
   let revision = 0, notifying = false;
+  const performanceComponent = source => {
+    switch (source) {
+      case "drc": case "drc-waived": case "drc-net": case "pour-drc": case "drc-certs": return "drc";
+      case "erc": case "cross": return "erc";
+      case "dfm": return "dfm";
+      case "insights": return "insights";
+      case "pour-solve": return "pours";
+      default: return null;
+    }
+  };
   function notify() {
     if (notifying) return;
     notifying = true;
@@ -291,8 +301,11 @@ globalThis.AtriumChecks = (() => {
   function publish(scope, source, raw, adapt, meta = {}) {
     const k = scope + "|" + source, old = layers.get(k), list = Array.isArray(raw) ? raw : [];
     if (old && old.raw === list && old.adapt === adapt && JSON.stringify(old.meta) === JSON.stringify(meta)) return false;
+    const component = performanceComponent(source);
+    const span = component && G.AtriumDiagnostics?.performance?.begin(component, "publish");
     layers.set(k, {scope, source, raw: list, adapt, meta, list: null, at: Date.now()});
     revision++; notify();
+    span?.end("completed");
     return true;
   }
   // After an edit: layers of documents that are gone, and DFM results of a board that changed since its
@@ -468,6 +481,7 @@ globalThis.AtriumChecks = (() => {
       if (!k) return;
       k.cancel?.();
       if (k.it && !k.done) { stats.abandoned++; try { k.it.return?.(); } catch { /* finished */ } }
+      k.span?.end("cancelled");
     }
     function cancel(id) {
       for (const c of id ? [clients.get(id)].filter(Boolean) : clients.values()) {
@@ -507,7 +521,11 @@ globalThis.AtriumChecks = (() => {
       prev?.cancel?.();
       const token = task.token = (task.token || 0) + 1;
       c.tasks.set(key, task);
-      if (task !== prev) workChanged(c);
+      if (task !== prev) {
+        const component = performanceComponent(c.id);
+        if (component) task.span = G.AtriumDiagnostics?.performance?.queue(component, component === "pours" ? "compute" : "check");
+        workChanged(c);
+      }
       const run = deadline => {
         if (c.tasks.get(key) !== task || task.token !== token) return; // superseded
         task.cancel = null;
@@ -524,17 +542,29 @@ globalThis.AtriumChecks = (() => {
         if (!task.it) {
           // The task reads the current slice through this view (each slice is a new deadline).
           const view = {timeRemaining: () => task.slice.timeRemaining(), expired: () => task.slice.expired(), get phase() { return phase; }};
-          try { task.it = c.start(d, view, task.o); } catch (e) { G.console?.warn?.("Checks", c.id, e); removeTask(c, key, task); return; }
+          task.span?.start();
+          try { task.it = c.start(d, view, task.o); } catch (e) {
+            task.span?.end("failed"); G.console?.warn?.("Checks", c.id, e); removeTask(c, key, task); return;
+          }
           stats.runs++;
-          if (!task.it) { removeTask(c, key, task); return; }
+          if (!task.it) { task.span?.end("completed"); removeTask(c, key, task); return; }
         }
         try {
           for (;;) {
             const r = task.it.next();
-            if (r.done) { task.done = true; removeTask(c, key, task); stats.last[c.id] = {ms: r3(now() - s.t0), doc: d.id, phase}; c.done?.(d, r.value); return; }
+            if (r.done) {
+              task.done = true; removeTask(c, key, task);
+              stats.last[c.id] = {ms: r3(now() - s.t0), doc: d.id, phase};
+              if (r.value != null) task.span?.ready();
+              c.done?.(d, r.value);
+              task.span?.end("completed");
+              return;
+            }
             if (r.value === WAIT || s.expired()) break;
           }
-        } catch (e) { task.done = true; removeTask(c, key, task); G.console?.warn?.("Checks", c.id, e); return; }
+        } catch (e) {
+          task.done = true; task.span?.end("failed"); removeTask(c, key, task); G.console?.warn?.("Checks", c.id, e); return;
+        }
         queue(c, d, "idle", o); // the rest in the next idle slice
       };
       if (host.stageEdit) {

@@ -121,7 +121,8 @@
       return parts.join("");
     };
   }
-  if (!g.performance) g.performance = {now: () => Date.now()};
+  // Keep the legacy wall clock available to analysis and script code, but never measure with it.
+  if (!g.performance) g.performance = {now: () => Date.now(), __waffleDiagnosticsNow: null};
 })();
 
 globalThis.AtriumHeadless = (() => {
@@ -1495,6 +1496,31 @@ globalThis.AtriumHeadless = (() => {
     if(h.op!=="numeric_settlement" && before!==S.version && Array.isArray(entries) && entries.length)
       head.updateNumericFields=entries.some(entry=>entry?.target?.path?.[0]==="cells") ? ["numeric-fields","table-data"] : ["numeric-fields"];
     return raw == null ? JSON.stringify(head) : JSON.stringify(head) + "\n" + raw;
+  };
+})();
+
+// The stdio host serializes tools. Its control calls never carry command or design data.
+globalThis.AtriumHeadlessDiagnostics = (() => {
+  let lease, span;
+  return function performanceControl(headerText) {
+    const {action, outcome, projection} = JSON.parse(headerText), diagnostics = globalThis.AtriumDiagnostics;
+    if (action === "start") {
+      lease?.stop();
+      lease = diagnostics.startPerformance();
+      span = undefined;
+    } else if (action === "stop") {
+      lease?.stop();
+      lease = span = undefined;
+    } else if (action === "begin") {
+      span = diagnostics.performance?.begin("automation", "request");
+      return "{}";
+    } else if (action === "end") {
+      if (outcome === "completed") span?.ready();
+      span?.end(outcome);
+      span = undefined;
+      return "{}";
+    }
+    return JSON.stringify(diagnostics.performanceSnapshot({shareable: projection !== "exact"}));
   };
 })();
 

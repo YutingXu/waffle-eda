@@ -1266,6 +1266,9 @@ globalThis.__uiProbes = (() => {
   // selection box; a real mouse drag (subtype 0, a button down) must still box-select. Sheet and board, Select tool.
   async function touchBridge(){
     const h=host(),out={},bad=[];
+    const inspect=operation=>post("inputDiagnostics",{operation});
+    log((await inspect("read"))?.rows?.length===0,"native input logging is off before its inspector starts");
+    await inspect("start");
     globalThis.AtriumCamera?.setPref?.("camera.animate",false);
     const pointers=[];document.addEventListener("pointerdown",e=>pointers.push(e.pointerType+(e.isTrusted?"":"*")),true);
     async function run(name,send,expect,keep){
@@ -1318,9 +1321,12 @@ globalThis.__uiProbes = (() => {
       out["chrome tap"]={reply:r,pointers:[...pointers],kind:h.doc().kind};
       if(r?.decision!=="declined"||h.doc().kind!=="schematic")bad.push("chrome tap");
     }
-    const diag=await post("inputDiagnostics");
+    const diag=await inspect("read");
     const routes=new Set((diag?.rows||[]).map(r=>r.route));
+    log(diag.rows.length>0&&diag.rows.length<=20&&diag.rows.every(row=>Object.keys(row).sort().join() === "count,event,route,source"),
+      "native input diagnostics keeps only its bounded event categories");
     out.diagnostics={routes:[...routes],sources:[...new Set((diag?.rows||[]).map(r=>r.source))]};
+    await inspect("stop");
     note("touch bridge "+JSON.stringify(out));
     log(!bad.length,"Touch display fingers, emulated mouse and subtype-touch mouse streams pan 1:1 with no selection box; two fingers zoom; a real mouse drag still box-selects; a finger on chrome still clicks (sheet and board)",bad.length?{bad,out}:out);
     // Help › Troubleshooting › Input Diagnostics lists the host's events and what the touch scheme took.
@@ -1330,6 +1336,9 @@ globalThis.__uiProbes = (() => {
     const textOk=await until(3000,()=>{const t=panel?.querySelector("textarea")?.value||"";return /Host events/.test(t)&&/touch scheme/.test(t)&&/taken/.test(t)&&t;});
     log(!!panel&&!!textOk&&!document.querySelector("dialog[open]:modal"),"Input Diagnostics opens beside the canvas (not modal) and lists host events, their routes and what the touch scheme took",(textOk||panel?.querySelector("textarea")?.value||"no panel").slice(0,1200));
     panel?.close();
+    const stopped=await until(1500,async()=> (await inspect("read"))?.rows?.length===0);
+    if(panel){const at=emptyPoint();if(at)await fingers(false)(...at);}
+    log(stopped&&(await inspect("read"))?.rows?.length===0,"closing Input Diagnostics clears the native ring and leaves collection off");
     // Harness mouse events carry no physical button state, so within the host's half-second after a finger
     // they would read as that finger's emulated mouse: let it pass before the next probe clicks.
     await wait(700);

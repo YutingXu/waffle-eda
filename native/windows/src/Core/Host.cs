@@ -99,17 +99,27 @@ namespace Waffle.Windows
         public CollabLocks Locks => locks;
         public void WaitForCollab() => collab.Wait();
 
-        public Host(IHostFs fs, IHostUi ui, IGitRunner git, string supportFolder, TranslatorFiles translators, RecentProjects recent = null)
+        readonly Func<string> supportArchitecture;
+
+        public Host(IHostFs fs, IHostUi ui, IGitRunner git, string supportFolder, TranslatorFiles translators,
+                    RecentProjects recent = null, Func<string> supportArchitecture = null)
         {
             this.fs = fs;
             this.ui = ui;
             this.git = git;
             this.translators = translators;
+            this.supportArchitecture = supportArchitecture;
             this.supportFolder = supportFolder;
             Recent = recent ?? new RecentProjects(fs, supportFolder);
             libraryReads = new LibraryReads(fs, supportFolder);
             locks = new CollabLocks(fs, supportFolder);
             external = new ExternalTools(supportFolder, fs);
+        }
+
+        string SupportArchitecture()
+        {
+            var architecture = supportArchitecture?.Invoke();
+            return architecture == "x64" || architecture == "arm64" ? architecture : "unknown";
         }
 
         // ------------------------------------------------------------------ window events
@@ -141,9 +151,26 @@ namespace Waffle.Windows
             return log;
         }
 
+        static string CrashCounter(string reason)
+        {
+            return reason switch { "exited" => "exited", "unresponsive" => "unresponsive", "browser-exited" => "browserExited", _ => null };
+        }
+
+        Dictionary<string, object> CrashCounts()
+        {
+            var counts = new Dictionary<string, object> { { "exited", 0 }, { "unresponsive", 0 }, { "browserExited", 0 } };
+            foreach (var row in CrashHistory())
+            {
+                if (Str(row, "kind") != "renderer" || Str(row, "type") != "Windows") continue;
+                var key = CrashCounter(Str(row, "reason"));
+                if (key != null) counts[key] = (int)counts[key] + 1;
+            }
+            return counts;
+        }
+
         public void RecordProcessFailure(string reason)
         {
-            if (reason != "exited" && reason != "unresponsive" && reason != "browser-exited") return;
+            if (CrashCounter(reason) == null) return;
             var log = CrashHistory();
             if (log.Count == CrashLimit) log.RemoveAt(0);
             log.Add(new Dictionary<string, object> {
@@ -409,6 +436,9 @@ namespace Waffle.Windows
                 case "folderConflict": case "folderConflictRead": case "folderResolve": case "folderAdopt":
                     FolderAction(id, action, request); return;
                 case "crashHistory": Reply(id, CrashHistory()); return;
+                case "supportDiagnostics": Reply(id, new Dictionary<string, object> {
+                    { "platform", "windows" }, { "architecture", SupportArchitecture() }, { "rendererTerminations", CrashCounts() }
+                }); return;
                 case "aiCredential":
                     var provider = Str(request, "provider");
                     var operation = Str(request, "operation");
@@ -784,7 +814,7 @@ namespace Waffle.Windows
         {
             var filename = Policy.BaseName(Str(request, "name") ?? "");
             var ext = Policy.Extension(filename);
-            if (!Policy.ExchangeOutputs.Contains(ext)) { Reply(id, null, "Unrecognised save type."); return; }
+            if (!Policy.ExchangeOutputs.Contains(ext) && filename != "waffle-diagnostics.json") { Reply(id, null, "Unrecognised save type."); return; }
             byte[] payload;
             var text = Str(request, "text");
             var data = Str(request, "data");

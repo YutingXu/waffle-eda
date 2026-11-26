@@ -128,6 +128,10 @@ globalThis.AtriumBOM = (() => {
     return v ? {variant: v, project: V.apply(project, v.id)} : null;
   }
   function collect(project, options = {}) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("manufacturing", "compute");
+    return span ? span.run(collectParts, project, options) : collectParts(project, options);
+  }
+  function collectParts(project, options = {}) {
     const live = project, applied = variantFor(project, options);
     if (applied) project = applied.project;
     const variant = applied ? {id: applied.variant.id, name: applied.variant.name} : project.variantApplied || null;
@@ -300,6 +304,10 @@ globalThis.AtriumBOM = (() => {
   const sortList = sort => (Array.isArray(sort) ? sort : sort ? [sort] : []).filter(s => s && typeof s.key === "string").map(s => ({key: s.key, dir: s.dir < 0 ? -1 : 1}));
   // Group included parts and compute every column value and status per line.
   function build(collected, settings = {}) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("manufacturing", "build");
+    return span ? span.run(groupRows, collected, settings) : groupRows(collected, settings);
+  }
+  function groupRows(collected, settings = {}) {
     const all = columns(collected), known = new Set(all.filter(c => c.group).map(c => c.key));
     const groupBy = (settings.groupBy ?? defaultGroups).filter(k => known.has(k));
     const parts = settings.showDnp ? [...collected.parts, ...(collected.dnp || [])] : collected.parts;

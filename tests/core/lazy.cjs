@@ -11,6 +11,9 @@ const exists = f => { try { fs.readFileSync(path.join(app, f)); return true; } c
 
 require("../../app/lazy.js");
 const L = globalThis.AtriumLazy;
+require("../../app/checks/diagnostics.js");
+require("../../app/editor/keymap.js");
+const D = globalThis.AtriumDiagnostics;
 const html = read("index.html");
 const eager = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 const eagerCss = [...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map(m => m[1]);
@@ -21,6 +24,22 @@ assert.ok(!eager.includes(landContours), "physical land contours are absent from
 assert.deepEqual(L.files("AtriumLandContours"), [curveKernel, landContours]);
 assert.ok(L.files("AtriumPolygonPour").includes(curveKernel), "a direct pour request prepares the pad curve sampler");
 
+
+const commitGraph = "ui/commit-graph.js";
+assert.ok(!L.files("AtriumHistoryEntry").includes(commitGraph), "idle History chrome doesn't need commit graph drawing");
+const historyViewFiles = L.files("AtriumHistoryView");
+assert.ok(historyViewFiles.includes(commitGraph) &&
+  historyViewFiles.indexOf(commitGraph) < historyViewFiles.indexOf("history/history-view.js"),
+  "cold History loads the graph before the view");
+
+const styledFeatures = ["checks/erc.css", "pcb/stackup.css", "pcb/board-shape.css", "pcb/viastack.css",
+  "checks/rules-editor.css", "pcb/polygon-pour.css", "project/variants.css"];
+const styleSlots = [...html.matchAll(/<template id="lazy-style:([^"]+)"><\/template>/g)].map(([, href]) => href);
+assert.deepEqual(styleSlots, styledFeatures, "feature styles keep their original relative cascade slots");
+for (const href of styledFeatures) {
+  assert.ok(!eagerCss.includes(href), href + " makes no eager request");
+  assert.ok(L.stylesheets().includes(href), href + " still has a lazy owner");
+}
 
 // ---- registry against the tree ------------------------------------------------------
 assert.ok(eager.includes("lazy.js") && eager.indexOf("lazy.js") < eager.indexOf("editor/editor.js"), "index.html loads lazy.js before editor.js");
@@ -156,7 +175,21 @@ assert.ok(eager.includes("schematic/sch-objects.js") && L.files().includes("sche
 // ---- loader behaviour against a fake document -----------------------------------------
 async function main() {
   const appended = [], tick = () => new Promise(r => setTimeout(r, 0));
-  let failNext = null;
+  let failNext = null, variantSheet, failedStyle;
+  const cascade = styleSlots.map(href => ({id:"lazy-style:" + href}));
+  function attach(node) {
+    appended.push(node.src || node.href);
+    if (node.href === "project/variants.css") { variantSheet = node; return; }
+    // Scripts run in insertion order (async=false); stylesheets just load.
+    setTimeout(() => {
+      if (node.src === failNext || node.href === failedStyle && failedStyle) {
+        failNext = failedStyle = null; node.onerror(); return;
+      }
+      if (motionProviders.has(node.src)) require(path.join(app, node.src));
+      else if (node.src && defines[node.src]) globalThis[defines[node.src]] = {from: node.src};
+      (node.onload || (() => {}))();
+    }, 0);
+  }
   const motionProviders = new Set(["ui/surface-motion.js", "editor/editor-motion.js", "automation/command-broker.js",
     "automation/command-catalog.js", "editor/motion-service.js"]);
   const defines = {"core/zip.js": "AtriumZip", "formats/bom.js": "AtriumBOM", "formats/bom-optimiser.js": "AtriumBOMOptimiser", "pcb/router.js": "AtriumRouter", "core/geometry.js": "AtriumGeometry", "pcb/land-contours.js": "AtriumLandContours", [curves]: "AtriumGeometryCurves",
@@ -170,27 +203,46 @@ async function main() {
   globalThis.document = {
     documentElement: {dataset: {}},
     addEventListener() {},
-    head: {append(node) {
-      appended.push(node.src || node.href);
-      // Scripts run in insertion order (async=false); stylesheets just load.
-      setTimeout(() => {
-        if (node.src && node.src === failNext) { failNext = null; node.onerror(); return; }
-        if (motionProviders.has(node.src)) require(path.join(app, node.src));
-        else if (node.src && defines[node.src]) globalThis[defines[node.src]] = {from: node.src};
-        (node.onload || (() => {}))();
-      }, 0);
-    }},
+    head: {append:attach},
+    getElementById(id) {
+      const slot = cascade.find(node => node.id === id);
+      if (slot) return {before(node) {cascade.splice(cascade.indexOf(slot),1,node,slot); attach(node);}};
+    },
     createElement: tag => ({tag, remove() { this.removed = true; }}),
     querySelectorAll: () => []
   };
   assert.equal(L.has("AtriumBOM"), false);
+  assert.equal(D.performance,null);
+  assert.equal(L.diagnosticAction("bom","pcb"),"manufacturing");
+  assert.equal(L.diagnosticAction("drc","pcb"),"drc");
+  assert.equal(L.diagnosticAction("review-changes","pcb"),"history");
+  assert.equal(L.diagnosticAction("select","panel"),"panel");
+  assert.equal(L.diagnosticAction("route","schematic"),"schematic");
+  assert.equal(L.diagnosticAction("route","pcb"),"routing");
+  assert.equal(L.diagnosticAction("view-3d","pcb"),"3d");
+  assert.equal(L.diagnosticAction("drawing-text","drawing"),"drawing");
+  assert.equal(L.diagnosticAction("panelize","pcb"),"panel");
+  assert.equal(L.diagnosticAction("crash-diagnostics","pcb"),null);
+  assert.equal(L.diagnosticAction("extension.example-private-id","private-doc-kind"),null);
+  const session = D.startPerformance();
+  const rows = () => D.performanceSnapshot().rows;
+  const loadCounts = () => rows().find(row => row.component === "ui" && row.operation === "load").counts;
   const a = L.need("AtriumBOM"), b = L.need("AtriumBOM");
   assert.equal(L.pending("AtriumBOM"), true);
+  await tick();
+  assert.ok(globalThis.AtriumBOM && globalThis.AtriumVariants, "the real provider scripts completed");
+  assert.equal(L.has("AtriumBOM"), false, "dependent actions stay gated while the provider stylesheet loads");
+  assert.ok(variantSheet, "the first use requests the deferred stylesheet");
+  variantSheet.onload();
   const [bom] = await Promise.all([a, b]);
   assert.equal(bom.from, "formats/bom.js");
-  assert.deepEqual(appended, ["core/zip.js", "project/variants.js", "schematic/multichannel.js", "formats/bom.js", "formats/bom-optimiser.js", "ui/spreadsheet.css", "formats/bom.css", "formats/bom-optimiser.css"], "deps first, each file once, with CSS");
+  assert.deepEqual(appended, ["core/zip.js", "project/variants.js", "project/variants.css", "schematic/multichannel.js", "formats/bom.js", "formats/bom-optimiser.js", "ui/spreadsheet.css", "formats/bom.css", "formats/bom-optimiser.css"], "deps first, each file once, with CSS");
   assert.equal(L.pending("AtriumBOM"), false);
   assert.equal(L.has(["AtriumBOM", "AtriumZip"]), true);
+  const bomLoad = loadCounts();
+  assert.equal(bomLoad.started,4,"concurrent BOM requests share one load for each registered module");
+  assert.equal(bomLoad.ready,bomLoad.started);
+  assert.equal(bomLoad.completed,bomLoad.started);
   const constraintSheets = html.match(/AtriumLazy\.register\("AtriumConstraints",\{scripts:\["checks\/constraints\.js"\],css:(\[[^\]]+\])/);
   assert.ok(constraintSheets, "the Constraint Manager declares its CSS in index.html");
   const sheets = JSON.parse(constraintSheets[1]);
@@ -198,21 +250,45 @@ async function main() {
   L.register("AtriumConstraints", {scripts:["checks/constraints.js"], css:sheets});
   defines["checks/constraints.js"] = "AtriumConstraints";
   appended.length = 0;
-  await L.need("AtriumConstraints");
+  const passive = L.need("AtriumConstraints",{measure:false});
+  assert.deepEqual(loadCounts(),bomLoad,"diagnostic demand is passive");
+  await Promise.all([passive,L.need("AtriumConstraints"),L.need("AtriumConstraints")]);
   assert.deepEqual(appended, ["checks/constraints.js", "checks/constraints.css"], "opening Constraints reuses the already loaded BOM stylesheet");
+  assert.equal(loadCounts().started,bomLoad.started+1,"ordinary demand can join a passive flight and counts it once");
+  const afterConstraints = loadCounts();
   // Already loaded: nothing injected.
   appended.length = 0; await L.need("AtriumBOM"); assert.equal(appended.length, 0);
+  assert.deepEqual(loadCounts(),afterConstraints,"cache hits record no load");
+  const beforeRuntime = loadCounts();
+  L.register("PassiveProvider",{scripts:["checks/passive-provider.js"]});
+  defines["checks/passive-provider.js"] = "PassiveProvider";
+  assert.equal((await L.need("PassiveProvider",{measure:false})).from,"checks/passive-provider.js");
+  assert.deepEqual(loadCounts(),beforeRuntime,"an exclusively passive request does not create a load row");
+  L.register("ExampleRuntimeProvider",{scripts:["checks/example-private-script.js"]},["extension.example-private-id"]);
+  defines["checks/example-private-script.js"] = "ExampleRuntimeProvider";
+  defines["canvas/input-diagnostics.js"] = "AtriumInputDiagnostics";
+  await L.need("ExampleRuntimeProvider");
+  const extensionCommand = AtriumKeymap.registerCommand({id:"extension.example-private-id", category:"Reports"});
+  assert.equal(L.diagnosticAction("extension.example-private-id","pcb"),null);
+  extensionCommand.dispose();
+  assert.equal(loadCounts().started,beforeRuntime.started+1,"runtime provider contributes an anonymous aggregate load");
+  const beforeDiagnostics = rows();
+  await L.need("AtriumInputDiagnostics");
+  assert.deepEqual(rows(),beforeDiagnostics,"diagnostics UI does not report its own load");
+  assert.equal(JSON.stringify(rows()).includes("example-private"),false);
+  appended.length = 0;
   // Aliases and dependencies across modules; a defined global is never injected again.
   globalThis.AtriumRouter = {eager: true};
   const [t, dp] = await L.need(["AtriumTeardrops", "AtriumDiffPair"]);
   assert.equal(t.from, "pcb/teardrops.js"); assert.equal(dp.from, "pcb/diffpair.js");
-  assert.deepEqual(appended, [curves, "pcb/land-contours.js", "core/geometry.js", "ui/motion.js", "ui/spatial-motion.js", "ui/spatial-motion.css", "project/doc-views.js", "project/doc-views.css", "checks/net-intent.js", "checks/net-intent-index.js", "core/signals.js", "formats/altium-records.js", "checks/altium-rules.js", "checks/design-query-record.js", "analysis/impedance.js", "pcb/stackup.js", "pcb/viastack.js", "pcb/pcb-pours.js", "pcb/pour-marker.js", "pcb/polygon-pour.js", "pcb/rooms.js", "pcb/component-classes.js", "checks/rules.js", "checks/project-rules.js", "checks/drc-pours.js", "checks/creepage.js", "pcb/diffpair.js", "pcb/route-feel.js", "pcb/drag-reroute.js", "pcb/route-feel.css", "pcb/teardrops.js"],
+  assert.deepEqual(appended, [curves, "pcb/land-contours.js", "core/geometry.js", "ui/motion.js", "ui/spatial-motion.js", "ui/spatial-motion.css", "project/doc-views.js", "project/doc-views.css", "checks/net-intent.js", "checks/net-intent-index.js", "core/signals.js", "formats/altium-records.js", "checks/altium-rules.js", "checks/design-query-record.js", "analysis/impedance.js", "pcb/stackup.js", "pcb/stackup.css", "pcb/viastack.js", "pcb/viastack.css", "pcb/pcb-pours.js", "pcb/pour-marker.js", "pcb/polygon-pour.js", "pcb/polygon-pour.css", "pcb/rooms.js", "pcb/component-classes.js", "checks/rules.js", "checks/project-rules.js", "checks/drc-pours.js", "checks/creepage.js", "checks/rules-editor.css", "pcb/diffpair.js", "pcb/route-feel.js", "pcb/drag-reroute.js", "pcb/route-feel.css", "pcb/teardrops.js"],
     "the board core loads first; router.js was present, so only diffpair.js and route-feel.js load");
   assert.equal(globalThis.AtriumPourMarker.from, "pcb/pour-marker.js");
   assert.equal(globalThis.AtriumRouter.eager, true);
   // A failed load rejects, and a later need() retries.
   appended.length = 0; failNext = "checks/drc.js"; // impedance.js already came in with stackup.js
   await assert.rejects(L.need("AtriumDRC"), /Couldn't load checks\/drc\.js/);
+  assert.equal(loadCounts().failed,1);
   await tick(); await tick();
   assert.equal(L.pending("AtriumDRC"), false);
   appended.length = 0;
@@ -223,6 +299,9 @@ async function main() {
   assert.equal(globalThis.AtriumMaskOpenings?.from, "pcb/mask-openings.js");
   assert.ok(L.files().indexOf("pcb/designator-place.js") < L.files().indexOf("pcb/pcb-draw.js"), "board rendering loads authored designators first");
   await assert.rejects(L.need("AtriumNope"), /not available/);
+  assert.equal(loadCounts().failed,1,"a successful retry preserves the earlier failure");
+  session.stop();
+  assert.equal(D.performance,null);
   // prefetch never throws and loads on idle.
   appended.length = 0; L.prefetch(["AtriumSwap", "AtriumNope"]); assert.equal(appended.length, 0, "nothing before idle");
   for (let i = 0; i < 20 && !appended.length; i++) await new Promise(r => setTimeout(r, 30));
@@ -297,6 +376,15 @@ async function main() {
   assert.throws(() => diagnostics.inspect("unknown", {}), /Unknown motion diagnostic/);
   await L.need("AtriumMotionDiagnostics");
   assert.equal(appended.filter(file => file === "editor/motion-service.js").length, 1);
+  // Both these features are requested after the variants sheet, which remains last in the cascade.
+  Object.assign(defines, {"pcb/board-shape.js":"AtriumBoardShapeAuthoring", "pcb/board-shape-editing.js":"AtriumBoardShapeEditing",
+    "pcb/board-shape-ui.js":"AtriumBoardShapeUI", "editor/messages.js":"AtriumMessages"});
+  failedStyle = "pcb/board-shape.css";
+  const [shape, messages] = await Promise.all([L.need("AtriumBoardShapeUI"), L.need("AtriumMessages")]);
+  assert.equal(shape.from, "pcb/board-shape-ui.js", "a failed stylesheet keeps the feature available");
+  assert.equal(messages.from, "editor/messages.js");
+  assert.deepEqual(cascade.flatMap(node => node.href ? [node.href] : []), styledFeatures,
+    "reverse and concurrent demand still inserts styles into their original positions");
   delete globalThis.AtriumPower;
   delete globalThis.document;
   console.log("lazy loader: registry, order, dedupe, CSS, retry and prefetch OK");

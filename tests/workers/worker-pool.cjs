@@ -12,12 +12,17 @@ globalThis.Worker = class Worker {
   terminate() { this.ended = true; }
 };
 require("../../app/workers/worker-pool.js");
+require("../../app/checks/diagnostics.js");
 const W = AtriumWorkerPool;
+const diagnostics = AtriumDiagnostics;
+const performanceRow = (component, operation) =>
+  diagnostics.performanceSnapshot().rows.find(r => r.component === component && r.operation === operation);
 function answer({worker, packet} = inbox.shift()) {
   worker.onmessage({data:{id:packet.id, result:packet.task}});
 }
 globalThis.__testDone = (async () => {
-  const pool = W.create("test", () => "", {size:4, local: task => task});
+  const recording = diagnostics.startPerformance();
+  const pool = W.create("test-private-pool", () => "", {size:4, local: task => task});
   const warm = pool.map([1, 2, 3, 4]);
   assert.equal(inbox.length, 4);
   while (inbox.length) answer();
@@ -26,6 +31,9 @@ globalThis.__testDone = (async () => {
   W.setCap(2);
   const a = pool.run("cancel"), b = pool.run("keep"), c = pool.run("queued");
   assert.equal(inbox.length, 2, "idle workers above the cap must not be used");
+  assert.deepEqual(
+    [performanceRow("workers", "request").counts.queued, performanceRow("workers", "request").counts.started],
+    [7, 6], "queued work is not yet dispatched");
   const stopped = a.then(() => false, error => error.cancelled);
   const {worker} = inbox.shift();
   a.cancel();
@@ -35,6 +43,8 @@ globalThis.__testDone = (async () => {
   while (inbox.length) answer();
   assert.equal(await b, "keep");
   assert.equal(await c, "queued");
+  assert.deepEqual(performanceRow("workers", "request").counts,
+    {queued:7,started:7,ready:6,visible:0,durable:0,completed:6,cancelled:1,failed:0});
   pool.close();
 
   const fallback = W.create("fallback", () => "", {local: task => task});
@@ -44,6 +54,8 @@ globalThis.__testDone = (async () => {
   const scheduled = fallback.run("cancel local");
   scheduled.cancel();
   assert.equal(await scheduled.then(() => false, error => error.cancelled), true);
+  assert.deepEqual(performanceRow("workers", "fallback").counts,
+    {queued:2,started:1,ready:1,visible:0,durable:0,completed:1,cancelled:1,failed:0});
   fallback.close();
 
   let version = "js";
@@ -56,8 +68,13 @@ globalThis.__testDone = (async () => {
   assert.ok(oldIdle.worker.ended && !oldWorker.worker.ended, "idle JS retires; a running JS job keeps its worker");
   assert.ok(!revoked.includes(oldURL) && selected.worker.url !== oldURL && sources.at(-1) === version);
   assert.equal(dynamic.started, 2, "new and old kernels share the cap");
+  const beforeWaiting = performanceRow("workers", "request").counts;
   const waiting = dynamic.run("cancel queued"); waiting.cancel();
   assert.equal(await waiting.then(() => false, e => e.cancelled), true);
+  const afterWaiting = performanceRow("workers", "request").counts;
+  assert.equal(afterWaiting.queued, beforeWaiting.queued + 1);
+  assert.equal(afterWaiting.cancelled, beforeWaiting.cancelled + 1);
+  assert.equal(afterWaiting.started, beforeWaiting.started, "cancelling in the queue never starts work");
   answer(oldWorker); assert.equal(await earlier, "old work");
   assert.ok(oldWorker.worker.ended && revoked.includes(oldURL), "the old source is reclaimed when its last worker finishes");
   selected.worker.onerror({preventDefault() {}});
@@ -72,15 +89,20 @@ globalThis.__testDone = (async () => {
   // this thread), the next job gets a fresh worker, and the hang is logged and told once.
   W.setCap(0);
   const logged = [], told = [];
-  globalThis.AtriumDiagnostics = {record: (kind, type) => logged.push(kind + ":" + type)};
+  globalThis.AtriumDiagnostics = {get performance() { return diagnostics.performance; },
+    record: (kind, type) => logged.push(kind + ":" + type)};
   globalThis.AtriumNavHost = {info: m => told.push(m)};
   let localRuns = 0;
   const dog = W.create("hang-test", () => "", {size: 1, watchdogMs: 40, local: x => { localRuns++; return x; }});
   assert.equal(W.WATCHDOG_MS > 0, true, "pools have a watchdog by default");
   const stuck = dog.run("loop forever"), [hung] = inbox.splice(0);
+  const prior = performanceRow("workers", "request").counts;
   const queuedBehind = dog.run("after the hang");
   const failure = await stuck.then(() => null, e => e);
   assert.equal(failure?.hung, true, "a silent worker's job rejects as hung");
+  const expired = performanceRow("workers", "request").counts;
+  assert.equal(expired.failed, prior.failed + 1);
+  assert.equal(expired.ready, prior.ready, "the watchdog never received an answer");
   assert.equal(hung.worker.ended, true, "the hung worker is terminated");
   assert.equal(localRuns, 0, "a hung task is not rerun on the main thread");
   const [fresh] = inbox.splice(0);
@@ -103,7 +125,7 @@ globalThis.__testDone = (async () => {
   // crash "fail" (pour solves): a crashed job is sent again, from its original, to a fresh worker;
   // a second crash rejects it (error.crashed). The local solver never runs it.
   let pourLocal = 0;
-  const pours = W.create("pour-test", () => "", {size: 1, crash: "fail", local: x => { pourLocal++; return x; }});
+  const pours = W.create("pour-solve-2", () => "", {size: 1, crash: "fail", local: x => { pourLocal++; return x; }});
   const okFirst = pours.run("first"); answer(); assert.equal(await okFirst, "first");
   const once = pours.run("packed", [], undefined, "unpacked"), [c1] = inbox.splice(0);
   c1.worker.onerror({preventDefault() {}});
@@ -114,9 +136,20 @@ globalThis.__testDone = (async () => {
   c2.worker.onerror({preventDefault() {}});
   const [c3] = inbox.splice(0); c3.worker.onerror({preventDefault() {}});
   assert.equal((await twice.then(() => null, e => e))?.crashed, true, "a second crash rejects the job");
+  assert.deepEqual(performanceRow("pours", "retry").counts,
+    {queued:0,started:2,ready:1,visible:0,durable:0,completed:1,cancelled:0,failed:1});
   assert.equal(pourLocal, 0, "a crashed pour solve never runs on this thread");
   assert.equal(pours.available, true, "the pool keeps running other jobs");
   const after = pours.run("after"); answer(); assert.equal(await after, "after");
+  const beforeError = ["request","compute"].map(op => performanceRow("pours",op).counts);
+  const refused = pours.run("invalid task"), [reply] = inbox.splice(0);
+  reply.worker.onmessage({data:{id:reply.packet.id,error:"invalid task"}});
+  await assert.rejects(refused,/invalid task/);
+  ["request","compute"].forEach((op,i) => {
+    const counts = performanceRow("pours",op).counts;
+    assert.equal(counts.failed,beforeError[i].failed+1);
+    assert.equal(counts.ready,beforeError[i].ready,"an error reply never made a result ready");
+  });
   pours.close();
   // Two crashes before any job ever finished: workers do not run here; later jobs go to local.
   const never = W.create("pour-never", () => "", {size: 1, crash: "fail", local: x => { pourLocal++; return "local " + x; }});
@@ -124,6 +157,9 @@ globalThis.__testDone = (async () => {
   assert.equal((await n1.then(() => null, e => e))?.crashed, true);
   assert.equal(await never.run("y"), "local y", "with no working worker, local runs (polygon-pour: in idle time with a budget)");
   never.close();
+  const excerpt = JSON.stringify(diagnostics.performanceSnapshot({shareable:true}));
+  assert.ok(!excerpt.includes("test-private-pool") && !excerpt.includes("pour-solve-2") && !excerpt.includes("packed"));
+  recording.stop();
   delete globalThis.AtriumDiagnostics; delete globalThis.AtriumNavHost;
 
   // Real solver entry: blob construction rejects, the file worker is the fallback, cancel

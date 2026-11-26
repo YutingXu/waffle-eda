@@ -280,6 +280,7 @@ body[data-kind="drawing"] #tools .tool:is([data-action="library"],[data-action="
 }
 
 /* Status bar */
+body > .statusbar {order:2}
 .statusbar {display:flex;align-items:center;gap:var(--s-4);height:var(--chrome-row-height,var(--s-24));padding-inline:var(--s-8) var(--s-4);
   flex:none;box-shadow:var(--chrome-rule-top) var(--divider);background:var(--chrome);color:var(--dim-ink);font-size:var(--fs-11)}
 #coords {display:flex;align-items:center;gap:var(--s-12);flex:none;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--coords-ink)}

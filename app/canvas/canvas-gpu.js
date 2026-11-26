@@ -38,8 +38,9 @@ globalThis.AtriumCanvasGPU = (() => {
   let appearanceVersion = 0;
   PCB.onChange?.(() => appearanceVersion++);
   const visible = () => G.AtriumPower?.visible?.() ?? G.document?.visibilityState !== "hidden";
-  const decision = () => { try { return G.AtriumCanvasGPUPref?.decision?.() || null; } catch { return null; } };
-  const wanted = () => !failed && (force ?? decision()?.use === true);
+  const canPrepaintWide = I => I.canvas?.isConnected && !G.AtriumPower?.efficient?.();
+  const decision = (probe = false) => { try { return G.AtriumCanvasGPUPref?.decision?.(probe) || null; } catch { return null; } };
+  const wanted = (choice = decision()) => !failed && (force ?? choice?.use === true);
   const repaint = I => {
     if (!visible()) return;
     if (I?.repaint) I.repaint();
@@ -49,7 +50,8 @@ globalThis.AtriumCanvasGPU = (() => {
     preparing.get(I)?.cancel();
     preparing.delete(I);
   }
-  function cancelSettle(st) {
+  function cancelSettle(st, continuing = false) {
+    if (!continuing) releaseCanvas(st, "stripLarge");
     if (st.idle) clearTimeout(st.idle);
     st.idle = 0; st.settling = false;
     cancelSlices(st, "textJob");
@@ -74,12 +76,13 @@ globalThis.AtriumCanvasGPU = (() => {
   }
   let shown = visible();
   G.AtriumPower?.onChange?.(s => {
+    if (s.visible && s.efficient) for (const st of views.values()) cancelWide(st);
     if (s.visible === shown) return;
     shown = s.visible;
     if (shown) refresh();
     else {
       for (const I of preparing.keys()) cancelPreparation(I);
-      for (const st of views.values()) { cancelSettle(st); cancelDriverMemoryProbe(st); }
+      for (const st of views.values()) { cancelSettle(st); cancelWide(st); cancelDriverMemoryProbe(st); }
     }
   });
 
@@ -256,16 +259,27 @@ out vec4 o;
 void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_coarse,1.);}`]
   };
   function program(gl, [vs, fs]) {
-    const sh = (type, src) => {
-      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) throw Error("GPU shader: " + gl.getShaderInfoLog(s));
-      return s;
-    };
-    const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS) && !gl.isContextLost()) throw Error("GPU program: " + gl.getProgramInfoLog(p));
-    const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS) || 0;
-    for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
-    return {p, u, frame: -1, offset: 0, width: 0, height: 0};
+    const p = gl.createProgram(), shaders = [];
+    try {
+      for (const [type, source] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+        const shader = gl.createShader(type);
+        shaders.push(shader);
+        gl.shaderSource(shader, source); gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS) && !gl.isContextLost())
+          throw Error("GPU shader: " + gl.getShaderInfoLog(shader));
+        gl.attachShader(p, shader);
+      }
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS) && !gl.isContextLost()) throw Error("GPU program: " + gl.getProgramInfoLog(p));
+      const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS) || 0;
+      for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
+      return {p, u, frame: -1, offset: 0, width: 0, height: 0};
+    } catch (error) {
+      gl.deleteProgram(p);
+      throw error;
+    } finally {
+      for (const shader of shaders) gl.deleteShader(shader);
+    }
   }
 
   // ------------------------------------------------------------------ instance buffers
@@ -317,7 +331,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
   }
-  function upload(gl, b) {
+  function upload(st, b) {
+    const gl = st.gl;
     if (!b.gl) {
       b.gl = gl.createBuffer(); b.gst = gl.createBuffer(); b.vao = gl.createVertexArray();
       gl.bindVertexArray(b.vao); gl.bindBuffer(gl.ARRAY_BUFFER, b.gl);
@@ -331,6 +346,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     let bytes = 0;
     if (b.glCap < b.cap) {
+      st.checkMemory = true;
       gl.bindBuffer(gl.ARRAY_BUFFER, b.gl); gl.bufferData(gl.ARRAY_BUFFER, b.f, gl.DYNAMIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER, b.gst); gl.bufferData(gl.ARRAY_BUFFER, b.st, gl.DYNAMIC_DRAW);
       b.glCap = b.cap; bytes += b.f.byteLength + b.st.byteLength;
@@ -869,19 +885,28 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     return tex;
   }
-  // WebKit (WKWebView, WebKitGTK) reads a canvas source back whole for every upload, whatever the
-  // sub-rectangle: about 7 ms a frame at a board view's size on an M-series Mac, so a dragged part's small
-  // damaged area cost as much as the whole layer. There every upload reads just its area with getImageData
-  // instead (the same path for whole and partial uploads, so a retained layer matches a fresh one byte for
-  // byte). Chromium copies canvas sources on the GPU.
-  const READBACK = (() => { const ua = G.navigator?.userAgent || ""; return /AppleWebKit/.test(ua) && !/Chrome\/|Chromium\//.test(ua); })();
-  function uploadCanvas(gl, tex, canvas, sx, sy, sw, sh, format=gl.RGBA) {
+  function bandTexture(st, band, w, h) {
+    if (!band.tex) { band.tex = texture(st.gl,w,h); st.checkMemory = true; }
+    return band.tex;
+  }
+  // In WKWebView a small damaged area uploaded directly from the canvas measured about as slow
+  // as a full layer. Read only the changed rectangle there. WebKitGTK also benefits from cropping,
+  // and uploads a full single-channel mask faster directly from the canvas. Chromium uses its
+  // canvas-source upload path throughout.
+  const ua = G.navigator?.userAgent || "";
+  const READBACK = /AppleWebKit/.test(ua) && !/Chrome\/|Chromium\//.test(ua);
+  const gtkMask = READBACK && /^Linux\b/.test(G.navigator?.platform || "") && !/Android/.test(ua);
+  function uploadCanvas(gl, tex, canvas, sx, sy, sw, sh, format=gl.RGBA, timing) {
     const w = canvas.width, h = canvas.height, bottom = h-sy-sh, partial = sw !== w || sh !== h;
     gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    const g = READBACK ? canvas.getContext?.("2d") : null;
+    const directMask = gtkMask && !partial && format === gl.ALPHA;
+    const g = READBACK && !directMask ? canvas.getContext?.("2d") : null;
     if (g) {
       if (format === gl.ALPHA) gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, sx, bottom, sw, sh, format, gl.UNSIGNED_BYTE, g.getImageData(sx, sy, sw, sh));
+      const readbackStart = timing ? now() : 0;
+      const source = g.getImageData(sx, sy, sw, sh);
+      if (timing) timing.readback += now() - readbackStart;
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, sx, bottom, sw, sh, format, gl.UNSIGNED_BYTE, source);
       if (format === gl.ALPHA) gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
       return;
@@ -897,6 +922,25 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   }
+  // Collect the device-pixel bounds of the paths the PCB text painter actually draws.
+  // Null means a fresh/empty texture, undefined means the previous contents are unknown.
+  function bandRectangle() {
+    let box = null;
+    const include = (ctx, x0, y0, x1, y1) => {
+      if (box === undefined) return;
+      if (!ctx?.getTransform) { box = undefined; return; }
+      const {a,b,c,d,e,f} = ctx.getTransform();
+      const x = a * x0 + c * y0 + e, y = b * x0 + d * y0 + f;
+      const xu = a * (x1 - x0), xv = c * (y1 - y0);
+      const yu = b * (x1 - x0), yv = d * (y1 - y0);
+      const next = [x + Math.min(0,xu) + Math.min(0,xv), y + Math.min(0,yu) + Math.min(0,yv),
+        x + Math.max(0,xu) + Math.max(0,xv), y + Math.max(0,yu) + Math.max(0,yv)];
+      box = next.every(Number.isFinite) ? mergeBounds(box, next) : undefined;
+    };
+    const rect = (w,h) => box && [Math.max(0,Math.min(w,Math.floor(box[0])-2)), Math.max(0,Math.min(h,Math.floor(box[1])-2)),
+      Math.max(0,Math.min(w,Math.ceil(box[2])+2)), Math.max(0,Math.min(h,Math.ceil(box[3])+2))];
+    return {include, rect};
+  }
   function damagePixels(I, box, dpr, margin, w, h) {
     const p = I.worldToScreen([box[0],box[1]]), q = I.worldToScreen([box[2],box[3]]);
     const x = Math.max(0, Math.floor(Math.min(p[0],q[0])*dpr - margin));
@@ -908,15 +952,47 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     let box = null;
     for (let n=0; n<Math.max(before.length,after.length); n++) {
       const a = before[n], b = after[n];
-      if (a && b && a.data === b.data && a.count === b.count && a.net === b.net && a.bounds.every((v,i) => v === b.bounds[i])) continue;
+      if (a && b && a.data === b.data && a.count === b.count && a.net === b.net &&
+          (a.bounds === b.bounds || a.bounds && b.bounds && a.bounds.every((v,i) => v === b.bounds[i]))) continue;
+      // Unknown extents require a full repaint. Null means there was no damage.
+      if ((a && !a.bounds) || (b && !b.bounds)) return undefined;
       box = mergeBounds(box, mergeBounds(a?.bounds, b?.bounds));
     }
     return box;
   }
-  // Four stencil samples quantize coverage of narrow clearance curves. At rest, keep the same
-  // coverage that the 2D path computes for subpixel hole edges. Copper geometry, live tiles and
-  // every moving-camera frame still use the retained fans; ordinary edits reuse this texture.
-  function pourCoverage(I, st, doc, defs, opts, cam, V, list, text, c) {
+  const coverageBounds = new WeakMap();
+  function coverageBox(r) {
+    let entry = coverageBounds.get(r);
+    if (!entry || entry.data !== r.data || entry.count !== r.count) {
+      // Stored bounds describe the outer ring. An imported even-odd path
+      // can have other contours outside it. Bound the actual fill once.
+      const b = [Infinity, Infinity, -Infinity, -Infinity];
+      try {
+        for (const xy of G.AtriumPCBPours.contours(r)) for (let i = 0; i < xy.length; i += 2) {
+          b[0] = Math.min(b[0], xy[i]); b[1] = Math.min(b[1], xy[i+1]);
+          b[2] = Math.max(b[2], xy[i]); b[3] = Math.max(b[3], xy[i+1]);
+        }
+      } catch { b.fill(NaN); }
+      entry = {data: r.data, count: r.count, box: b.every(Number.isFinite) ? b : null};
+      coverageBounds.set(r, entry);
+    }
+    return entry.box;
+  }
+  function coveragePixels(I, group, dpr, w, h) {
+    let box = null;
+    for (const {bounds} of group) {
+      if (!bounds) return [0, 0, w, h];
+      box = mergeBounds(box, bounds);
+    }
+    // The existing damage margin includes fill antialiasing and the texture's
+    // one-pixel sampling neighbourhood. Keep the original viewport transform.
+    const [x, y, sw, sh] = damagePixels(I, box, dpr, 2, w, h);
+    return sw > 0 && sh > 0 ? [x, y, x + sw, y + sh] : [0, 0, w, h];
+  }
+  // Stencil coverage can quantize narrow clearance curves. Exact camera paints, including moving
+  // fallbacks, use the same coverage as the 2D path for subpixel hole edges. Retained frames and
+  // live tiles can use the fans; ordinary edits reuse these coverage textures.
+  function pourCoverage(I, st, doc, defs, opts, cam, V, list, text, c, timing) {
     if (!list) {
       if (st.coverage && (st.coverage.doc !== doc || !doc.pcbDrawing?.pours?.length)) freeCoverage(st);
       return null;
@@ -945,7 +1021,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       let band = cover.layers.get(layer);
       if (band && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
       if (!band) {
-        if (bytesOf(st) + w*h*(ink?1:4) > (G.__atriumGpuCapMB || CAP_MB)*1048576) continue;
+        if (bytesOf(st) + backingBytes(st) + w*h*(ink?1:4) > capBytes()) continue;
         band = {tex: texture(gl,w,h,!!ink), ink};
         if (ink && st.alphaTextures == null) {
           const error = gl.getError();
@@ -955,27 +1031,49 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
             return null;
           }
           st.alphaTextures = error === gl.NO_ERROR;
-          if (!st.alphaTextures) { gl.deleteTexture(band.tex); band = {tex:texture(gl,w,h),ink:null}; }
+          if (!st.alphaTextures) {
+            gl.deleteTexture(band.tex);
+            if (bytesOf(st) + backingBytes(st) + w*h*4 > capBytes()) continue;
+            band = {tex:texture(gl,w,h),ink:null};
+          }
         }
         cover.layers.set(layer,band); st.checkMemory = true;
       }
       if (band.ink) band.ink = ink;
-      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:r.bounds.slice()}));
+      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
       const sameView = band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
       band.key = key; band.regions = next;
-      if (sameView && !dirty) continue;
+      if (sameView && dirty === null) continue;
       let sx=0, sy=0, sw=w, sh=h, visibleRegions=group;
       if (dirty) {
         [sx,sy,sw,sh] = damagePixels(I,dirty,dpr,2,w,h);
         if (sw<=0 || sh<=0) continue;
         const pad = 3/(scale*dpr);
-        visibleRegions = group.filter(({bounds:b}) => b[0]<=dirty[2]+pad && b[2]>=dirty[0]-pad && b[1]<=dirty[3]+pad && b[3]>=dirty[1]-pad);
+        visibleRegions = group.filter((r,i) => {
+          const b = next[i].bounds;
+          return !b || b[0]<=dirty[2]+pad && b[2]>=dirty[0]-pad && b[1]<=dirty[3]+pad && b[3]>=dirty[1]-pad;
+        });
       }
-      const g = I.ctx;
-      g.setTransform(1,0,0,1,0,0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; g.clearRect(0,0,w,h);
+      if (READBACK) {
+        const pixels = coveragePixels(I, next, dpr, w, h), both = mergeBounds(band.pixels, pixels);
+        if (!sameView) {
+          // Clear the previous camera's ink in the retained texture as well.
+          sx = both[0]; sy = both[1]; sw = both[2] - sx; sh = both[3] - sy;
+        }
+        band.pixels = sameView ? both : pixels;
+      }
+      const paintStart = timing ? now() : 0, g = I.ctx;
+      g.setTransform(1,0,0,1,0,0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
+      // The sliced settle path also snapshots this canvas between draws.
+      if (READBACK && !st.textJob) g.clearRect(sx,sy,sw,sh); else g.clearRect(0,0,w,h);
       I.boardTransform();
       I.drawBoard(g, [], doc, defs, scale, V.o2, visibleRegions, view, null);
-      uploadCanvas(gl,band.tex,I.canvas,sx,sy,sw,sh,band.ink?gl.ALPHA:gl.RGBA);
+      const uploadStart = timing ? now() : 0;
+      uploadCanvas(gl,band.tex,I.canvas,sx,sy,sw,sh,band.ink?gl.ALPHA:gl.RGBA,timing);
+      if (timing) {
+        timing.paint += uploadStart - paintStart;
+        timing.upload += now() - uploadStart;
+      }
       st.stats.coverageUpload += sw*sh*(band.ink?1:4);
     }
     cover.key = key; cover.list = list; cover.sig = c.pourSig; cover.doc = doc;
@@ -1048,6 +1146,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const px = new Uint8Array((colours.length + 1) * 4);
     colours.forEach((c, k) => { const v = rgb(c); px.set(fault("netColor") ? [v[2] * 255, v[0] * 255, v[1] * 255, 255] : [v[0] * 255, v[1] * 255, v[2] * 255, 255], (k + 1) * 4); });
     if (!T.tex) T.tex = gl.createTexture();
+    if (px.byteLength > (T.bytes || 0)) st.checkMemory = true;
+    T.bytes = px.byteLength;
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, T.tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, colours.length + 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -1057,8 +1157,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
 
   // ------------------------------------------------------------------ per view
-  function hide(I) {
+  function pause(I) {
+    cancelPreparation(I);
     const st = views.get(I);
+    if (!st) return;
+    cancelSettle(st); cancelDriverMemoryProbe(st); cancelWide(st);
+  }
+  function hide(I, st = views.get(I)) {
     if (!st) return;
     cancelSettle(st); cancelDriverMemoryProbe(st);
     if (!st.shown) return;
@@ -1072,26 +1177,38 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     cancelPreparation(I);
     const st = views.get(I);
     if (!st) return;
-    hide(I); st.canvas.remove();
     views.delete(I);
-    try { st.gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch {}
+    hide(I, st);
+    freeViewport(st);
+    freeBoard(st);
+    const gl = st.gl;
+    for (const p of Object.values(st.prog || {})) gl.deleteProgram(p.p);
+    if (st.empty) gl.deleteVertexArray(st.empty);
+    st.canvas.remove();
+    G.AtriumCanvas.resizeBacking(st.canvas,1,1);
+    try { gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch {}
   }
   // Programs and per-context objects; again after a lost context is restored (everything is re-uploaded).
   function init(st) {
     const gl = st.gl, t = now();
-    st.prog = Object.fromEntries(Object.entries(SRC).map(([k, s]) => [k, program(gl, s)]));
+    const [maxW, maxH] = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+    const maxSurface = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+    st.maxW = Math.min(maxW,maxSurface); st.maxH = Math.min(maxH,maxSurface);
+    st.prog = {};
+    for (const [key, source] of Object.entries(SRC)) st.prog[key] = program(gl, source);
     st.empty = gl.createVertexArray(); st.grid = null;
     st.scene = null; st.parked = new Map(); st.pours = new Map(); st.pourAlternates = new Map(); st.pourList = null;
     st.union = null; st.rects = null; st.text = {key: null}; st.wide = null; st.coverage = null; st.alphaTextures = null;
     st.tint = {key: "", byNet: null, tex: null, map: null};
     st.ui = {ring: buffer("blob"), line: buffer("seg"), hFill: buffer("blob"), hOn: buffer("blob"), hLine: buffer("blob"), selOut: buffer("blob"), selIn: buffer("blob")};
-    st.uiKey = null;
-    st.driverOutOfMemory = false; st.driverMemoryPending = false; st.driverMemoryProbe = null; st.commandEpoch = 0;
+    st.uiKey = null; st.backingValid = false; st.checkMemory = true; st.over = null;
+    st.driverOutOfMemory = false; st.driverMemoryPending = false; st.driverMemoryProbe = null; st.driverMemoryEpoch = 0; st.commandEpoch = 0;
     st.stats.setupMs = now() - t; st.stats.pourBytes = 0; st.stats.pourCacheBytes = 0;
   }
   // A WebGL2 canvas of its own under the view's 2D canvas, or null.
   function glCanvas(doc, powerPreference, strict) {
     const canvas = doc.createElement("canvas");
+    canvas.width = canvas.height = 1;
     canvas.className = "atrium-gpu-board"; canvas.setAttribute("aria-hidden", "true");
     canvas.style.cssText = "position:absolute;pointer-events:none;display:none";
     const gl = canvas.getContext("webgl2", {alpha: false, antialias: true, stencil: true, depth: false, premultipliedAlpha: true, preserveDrawingBuffer: false,
@@ -1120,14 +1237,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     });
   }
   function replaceCanvas(I, st) {
-    const old = st.canvas, made = glCanvas(old.ownerDocument, st.powerPreference, false);
+    const old = st.canvas, made = glCanvas(old.ownerDocument, st.powerPreference, st.strict);
     if (!made) throw Error("no WebGL2 context");
     try { st.gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch {}
-    old.replaceWith(made.canvas); old.width = old.height = 1;
+    old.replaceWith(made.canvas); G.AtriumCanvas.resizeBacking(old,1,1);
     st.canvas = made.canvas; st.gl = made.gl; st.shown = false; st.place = "";
     listen(I, st);
   }
-  function state(I) {
+  function state(I, choice) {
     let st = views.get(I);
     if (st) {
       if (st.lost || st.off) return null;
@@ -1144,15 +1261,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     for (const V of [...views.keys()]) if (!V.canvas?.isConnected) destroy(V);
     if (views.size >= MAX_VIEWS) return null;
     // Automatic asks for a hardware context; Renderer: GPU (or a forced session) takes whatever WebGL2 there is.
-    const choice = decision(), strict = force !== true && choice?.mode !== "gpu";
+    const strict = force !== true && choice?.mode !== "gpu";
     const powerPreference = choice?.powerPreference || "low-power";
     const made = glCanvas(doc, powerPreference, strict);
     if (!made) { failed = true; failReason = "no hardware-accelerated WebGL2 context"; return null; }
     const {canvas, gl} = made;
     host.insertBefore(canvas, I.canvas);
-    st = {gl, canvas, powerPreference, position: I.canvas.style.position, shown: false, place: "", lost: false, losses: 0, off: "", lean: false, checkMemory: false,
+    st = {gl, canvas, powerPreference, strict, position: I.canvas.style.position, shown: false, place: "", lost: false, losses: 0, off: "", lean: false, checkMemory: false,
       stats: {builds: 0, buildMs: 0, updates: 0, updateMs: 0, updated: 0, pourBytes: 0, pourMs: 0, pourUploads: 0, pourUploadBytes: 0,
-        pourCacheBytes: 0, pourCacheHits: 0, driverMemoryChecks: 0, driverMemoryCheckMs: 0, setupMs: 0, last: null, restored: 0,
+        pourCacheBytes: 0, pourCacheHits: 0, gridBufferAllocations: 0, driverFenceSubmissions: 0,
+        driverMemoryChecks: 0, driverMemoryCheckMs: 0, setupMs: 0, last: null, restored: 0,
+        textSliceRows: 0, wideSliceRows: 0, textSliceWorkMs: 0, wideSliceWorkMs: 0,
         acc: {n: 0, update: 0, gl: 0, overlay: 0, board: 0, text: 0, textHits: 0, gesture: 0}}};
     listen(I, st);
     views.set(I, st);
@@ -1165,54 +1284,97 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   function place(I, st, width, height) {
     const c = I.canvas, g = st.canvas;
-    if (g.width !== c.width) g.width = c.width;
-    if (g.height !== c.height) g.height = c.height;
+    if (g.width !== c.width || g.height !== c.height) {
+      freeViewport(st);
+      G.AtriumCanvas.resizeBacking(g,c.width,c.height);
+      st.backingValid = false;
+      st.checkMemory = true;
+    }
+    if (!st.backingValid) {
+      if (st.gl.drawingBufferWidth !== c.width || st.gl.drawingBufferHeight !== c.height) return false;
+      st.backingValid = true;
+    }
     const key = c.width + "x" + c.height + "/" + width + "x" + height + "/" + c.offsetLeft + "," + c.offsetTop;
     if (st.place !== key) {
       st.place = key;
       g.style.left = c.offsetLeft + "px"; g.style.top = c.offsetTop + "px"; g.style.width = width + "px"; g.style.height = height + "px";
     }
     if (!st.shown) { g.style.display = "block"; I.canvas.style.position = "relative"; st.shown = true; }
+    return true;
   }
-  // GPU memory of a view: instances, pours, outline, union texture.
+  const capBytes = () => (G.__atriumGpuCapMB || CAP_MB) * 1048576;
+  // The default backing alone takes at least RGBA. Driver copies, multisampling,
+  // and stencil backing may take more than this application estimate.
+  const backingBytes = st => st.canvas.width * st.canvas.height * 4;
+  const bufferBytes = b => b.glCap * (b.stride + 2) * 4;
   function bytesOf(st) {
-    let n = st.stats.pourBytes + (st.grid?.bytes || 0) + (st.union ? st.union.w * st.union.h * 4 : 0) + (st.text?.bands ? st.text.bands.length * st.text.w * st.text.h * 4 : 0) +
-      (st.wide?.text.bands ? st.wide.text.bands.length * st.wide.text.w * st.wide.text.h * 4 : 0);
-    if (st.coverage) for (const b of st.coverage.layers.values()) n += st.coverage.w * st.coverage.h * (b.ink?1:4);
-    for (const S of [st.scene, ...st.parked.values()]) if (S) { for (const b of bufs(S)) if (b.gl) n += b.cap * (b.stride + 2) * 4; n += S.outline?.bytes || 0; }
+    let n = st.stats.pourBytes + (st.grid?.bytes || 0) + (st.rects?.bytes || 0) + (st.tint?.bytes || 0) +
+      (st.union ? st.union.w * st.union.h * 4 : 0);
+    const texts = [st.text, st.wide?.text, st.textJob?.T, st.wideText?.T];
+    for (const [i, T] of texts.entries()) if (T?.bands?.length && texts.indexOf(T) === i) for (const band of T.bands) if (band.tex) n += T.w * T.h * 4;
+    if (st.coverage) for (const band of st.coverage.layers.values()) n += st.coverage.w * st.coverage.h * (band.ink ? 1 : 4);
+    for (const b of Object.values(st.ui || {})) n += bufferBytes(b);
+    for (const S of [st.scene, ...st.parked.values()]) if (S) {
+      for (const b of bufs(S)) n += bufferBytes(b);
+      n += S.outline?.bytes || 0;
+    }
     return n;
   }
-  // Over the cap: parked scenes go first; a board that alone is over it is drawn in 2D (status() says why).
-  function memory(st, doc) {
-    if (st.driverOutOfMemory) {
-      rejectMemory(st, doc, "the GPU ran out of memory");
-      return false;
-    }
-    if (!st.checkMemory) return true;
-    st.checkMemory = false;
-    const cap = (G.__atriumGpuCapMB || CAP_MB) * 1048576;
-    let n = bytesOf(st);
-    if (n > cap && st.stats.pourCacheBytes) {
-      trimPourAlternates(st, Math.max(0, st.stats.pourCacheBytes - (n - cap)));
-      n = bytesOf(st);
-    }
-    if (n > cap && st.wide) { freeWide(st); n = bytesOf(st); }
-    if (n > cap && st.parked.size) { for (const S of st.parked.values()) freeScene(st, S); st.parked.clear(); st.lean = true; n = bytesOf(st); }
-    if (n <= cap) { st.driverMemoryPending = true; return true; }
-    rejectMemory(st, doc, "this board needs " + Math.round(n / 1048576) + " MB of GPU memory (limit " + Math.round(cap / 1048576) + " MB)");
-    return false;
-  }
-  function rejectMemory(st, doc, reason) {
-    cancelDriverMemoryProbe(st);
-    st.driverOutOfMemory = false; st.driverMemoryPending = false;
-    st.over = {doc, cap: G.__atriumGpuCapMB || CAP_MB, reason};
-    freeScene(st, st.scene); st.scene = null;
-    for (const [region, entry] of st.pours) dropPour(st, region, entry);
-    st.pourList = null;
-    for (const band of st.text.bands || []) st.gl.deleteTexture(band.tex);
+  function freeViewport(st) {
+    cancelSettle(st); freeWide(st);
+    for (const band of st.text?.bands || []) st.gl.deleteTexture(band.tex);
     st.text = {key: null};
     freeCoverage(st);
     if (st.union) { st.gl.deleteTexture(st.union.tex); st.gl.deleteFramebuffer(st.union.fb); st.union = null; }
+    for (const key of ["overlayCopy", "overlayWorld", "wideCanvas", "sliceCopy", "stripWide", "stripTall", "stripLarge"]) releaseCanvas(st,key);
+    st.emptyStrip = null;
+    st.exact = st.overlayV = st.ovAt = null;
+  }
+  function freeBoard(st) {
+    const gl = st.gl;
+    freeScene(st, st.scene); st.scene = null;
+    for (const S of st.parked?.values() || []) freeScene(st, S);
+    st.parked?.clear();
+    for (const [region, entry] of st.pours || []) dropPour(st, region, entry);
+    if (st.pourAlternates) trimPourAlternates(st,0);
+    st.pourList = null;
+    freeFan(gl,st.rects); st.rects = null;
+    for (const b of Object.values(st.ui || {})) free(gl,b);
+    st.uiKey = null;
+    if (st.grid) { gl.deleteVertexArray(st.grid.vao); gl.deleteBuffer(st.grid.buffer); st.grid = null; }
+    if (st.tint?.tex) gl.deleteTexture(st.tint.tex);
+    st.tint = {key: "", byNet: null, tex: null, map: null};
+  }
+  const memoryLimit = (n, cap) => "this board needs " + Math.ceil(n / 1048576) + " MB of GPU memory (limit " + Math.round(cap / 1048576) + " MB)";
+  function rejectMemory(I, st, doc, reason) {
+    hide(I);
+    st.driverOutOfMemory = false; st.driverMemoryPending = false;
+    st.over = {doc, cap: capBytes(), rev: I.cache?.rev, w: I.canvas.width, h: I.canvas.height, reason};
+    freeViewport(st);
+    freeBoard(st);
+    G.AtriumCanvas.resizeBacking(st.canvas,1,1);
+    st.backingValid = false;
+    return false;
+  }
+  // Retained alternates and parked scenes give way before a live board falls back to 2D.
+  function memory(I, st, doc) {
+    if (st.driverOutOfMemory) return rejectMemory(I, st, doc, "the GPU ran out of memory");
+    if (!st.checkMemory) return true;
+    const cap = capBytes(), backing = backingBytes(st);
+    st.checkedCap = cap;
+    let n = bytesOf(st) + backing;
+    if (n > cap && st.stats.pourCacheBytes) {
+      trimPourAlternates(st, Math.max(0, st.stats.pourCacheBytes - (n - cap)));
+      n = bytesOf(st) + backing;
+    }
+    if (n > cap && st.wide) { freeWide(st); n = bytesOf(st) + backing; }
+    if (n > cap && st.parked.size) {
+      for (const S of st.parked.values()) freeScene(st, S);
+      st.parked.clear(); st.lean = true; n = bytesOf(st) + backing;
+    }
+    st.checkMemory = false;
+    if (n <= cap) { st.driverMemoryPending = true; st.driverMemoryEpoch++; return true; }
+    return rejectMemory(I, st, doc, memoryLimit(n,cap));
   }
   function cancelDriverMemoryProbe(st) {
     const probe = st.driverMemoryProbe;
@@ -1221,22 +1383,35 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     probe.cancel?.();
     if (probe.fence) st.gl.deleteSync(probe.fence);
   }
-  // A driver error query waits for queued WebGL commands. Check allocation
-  // errors outside paint, after the most recent submission's fence signals.
+  // A driver error query can wait for all queued WebGL commands. Keep one
+  // in-flight fence, and seal newer work only after the renderer has gone quiet.
   function queueDriverMemoryProbe(I, st, doc) {
-    if (!st.driverMemoryPending || !st.shown || st.lost || !visible() || st.driverMemoryProbe?.doc === doc) return;
+    if (!st.driverMemoryPending || !st.shown || st.lost || !visible()) return;
+    const active = st.driverMemoryProbe;
+    if (active?.doc === doc) { active.lastDraw = now(); return; }
     cancelDriverMemoryProbe(st);
-    const gl = st.gl, probe = st.driverMemoryProbe = {doc, cancel:null, fence:null, epoch:-1};
+    const gl = st.gl, idle = G.AtriumIdle;
+    const probe = st.driverMemoryProbe = {doc, cancel:null, fence:null, lastDraw:now(), command:-1, memory:-1};
+    const quietMs = 32; // Avoid the short idle slots between successive animation frames.
     function queue() {
-      const idle = G.AtriumIdle;
       const id = idle ? idle.idle(poll, {timeout:100}) : setTimeout(poll,0);
       probe.cancel = idle ? () => idle.cancel(id) : () => clearTimeout(id);
     }
-    function nextFrame() {
-      const id = G.requestAnimationFrame(queue);
-      probe.cancel = () => G.cancelAnimationFrame(id);
+    function later(ms) {
+      const id = setTimeout(queue, ms);
+      probe.cancel = () => clearTimeout(id);
     }
-    function poll() {
+    function nextFrame() {
+      // Fence polling is observation, not a frame of editor work in WebKit's idle shim.
+      const id = idle ? idle.sampleFrame(queue) : G.requestAnimationFrame(queue);
+      probe.cancel = idle ? () => idle.cancelSample(id) : () => G.cancelAnimationFrame(id);
+    }
+    function unavailable() {
+      if (gl.isContextLost()) { cancelDriverMemoryProbe(st); return; }
+      rejectMemory(I, st, doc, "the GPU could not complete its memory check");
+      repaint(I);
+    }
+    function poll(deadline) {
       probe.cancel = null;
       if (st.driverMemoryProbe !== probe) return;
       if (views.get(I) !== st || !st.shown || !visible() || st.lost ||
@@ -1244,15 +1419,26 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         cancelDriverMemoryProbe(st);
         return;
       }
-      if (probe.epoch !== st.commandEpoch) {
-        if (probe.fence) gl.deleteSync(probe.fence);
-        probe.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);
-        probe.epoch = st.commandEpoch;
-        if (probe.fence) { gl.flush(); nextFrame(); return; }
+      // A slice may still submit commands. If it is cancelled, close its memory accounting here.
+      if (st.checkMemory && (st.textJob || st.wideText)) { later(quietMs); return; }
+      if (st.checkMemory && !memory(I, st, doc)) { repaint(I); return; }
+      if (probe.fence) {
+        const status = gl.clientWaitSync(probe.fence,0,0);
+        const current = probe.command === st.commandEpoch && probe.memory === st.driverMemoryEpoch;
+        if (status === gl.TIMEOUT_EXPIRED) { if (current) nextFrame(); else later(quietMs); return; }
+        if (status !== gl.ALREADY_SIGNALED && status !== gl.CONDITION_SATISFIED) { unavailable(); return; }
+        if (current) { checkErrors(); return; }
+        gl.deleteSync(probe.fence); probe.fence = null;
       }
-      if (probe.fence && gl.clientWaitSync(probe.fence,0,0) === gl.TIMEOUT_EXPIRED) {
-        nextFrame(); return;
-      }
+      const wait = quietMs - (now() - probe.lastDraw);
+      if (wait > 0 || deadline?.didTimeout) { later(deadline?.didTimeout ? quietMs : wait); return; }
+      probe.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);
+      if (!probe.fence) { unavailable(); return; }
+      probe.command = st.commandEpoch; probe.memory = st.driverMemoryEpoch;
+      gl.flush(); st.stats.driverFenceSubmissions++;
+      nextFrame();
+    }
+    function checkErrors() {
       const start = now();
       let oom = false;
       try {
@@ -1268,7 +1454,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       st.stats.driverMemoryCheckMs += now() - start;
       st.driverMemoryPending = false;
       cancelDriverMemoryProbe(st);
-      if (oom) { rejectMemory(st, doc, "the GPU ran out of memory"); hide(I); repaint(I); }
+      if (oom) { rejectMemory(I, st, doc, "the GPU ran out of memory"); repaint(I); }
     }
     queue();
   }
@@ -1434,9 +1620,18 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           each(origin[1], height, sp, dpr, pass, y => lines.push(y, 0, pass));
         }
         const data = new Float32Array(lines);
-        gl.bindBuffer(gl.ARRAY_BUFFER, Gd.buffer); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-        gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0); gl.vertexAttribDivisor(0, 1);
-        Gd.key = key; Gd.count = data.length / 3; Gd.bytes = data.byteLength; bytes += Gd.bytes;
+        gl.bindBuffer(gl.ARRAY_BUFFER, Gd.buffer);
+        if (!Gd.bytes || data.byteLength > Gd.bytes) {
+          // At the minimum grid pitch, a viewport owns at most this many lines.
+          // Zoom changes their positions and count without resizing the GPU buffer.
+          Gd.bytes = Math.max(data.byteLength, (Math.ceil(width / 12) + Math.ceil(height / 12) + 2) * 12);
+          gl.bufferData(gl.ARRAY_BUFFER, Gd.bytes, gl.DYNAMIC_DRAW);
+          st.stats.gridBufferAllocations++;
+          gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0); gl.vertexAttribDivisor(0, 1);
+          st.checkMemory = true;
+        }
+        if (data.length) gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
+        Gd.key = key; Gd.count = data.length / 3; bytes += data.byteLength;
       }
       v3(u.u_fine, fine); v3(u.u_coarse, coarse); v3(u.u_fineOdd, G.AtriumCanvas.tint(fine, bg, fade)); v3(u.u_coarseOdd, G.AtriumCanvas.tint(coarse, bg, fade));
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, Gd.count);
@@ -1490,7 +1685,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const segs = (b, color, alpha, o = {}) => {
       const first = o.first ?? 0, end = o.end ?? b.n;
       if (end <= first) return;
-      bytes += upload(gl, b);
+      bytes += upload(st, b);
       const u = use(P.seg);
       v3(u.u_color, color); gl.uniform1f(u.u_alpha, alpha);
       gl.uniform1f(u.u_onlyLit, o.onlyLit || 0); gl.uniform1f(u.u_minmul, o.minmul || 1); gl.uniform1f(u.u_tintmul, o.tintmul || 1);
@@ -1500,7 +1695,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     };
     const blobs = (b, color, alpha, l) => {
       if (!b.n) return;
-      bytes += upload(gl, b);
+      bytes += upload(st, b);
       const u = use(P.blob);
       v3(u.u_color, color); gl.uniform1f(u.u_alpha, alpha);
       const blind = l?.blind && (opts.layerMode !== "dim" || PCB.onLayer(l.layer, opts.layer || "Top", l.rep));
@@ -1511,7 +1706,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     };
     const tris = (b, color, alpha) => {
       if (!b.n) return;
-      bytes += upload(gl, b);
+      bytes += upload(st, b);
       const u = use(P.tri);
       v3(u.u_color, color); gl.uniform1f(u.u_alpha, alpha);
       geometry(b);
@@ -1569,7 +1764,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       let R = st.rects;
       if (!R) { R = st.rects = {vao: gl.createVertexArray(), vb: gl.createBuffer(), ib: gl.createBuffer(), count: 0}; gl.bindVertexArray(R.vao); gl.bindBuffer(gl.ARRAY_BUFFER, R.vb); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.ib); gl.bindVertexArray(null); }
       gl.bindVertexArray(R.vao); gl.bindBuffer(gl.ARRAY_BUFFER, R.vb); gl.bufferData(gl.ARRAY_BUFFER, v, gl.STREAM_DRAW); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ix, gl.STREAM_DRAW);
-      R.count = ix.length;
+      const size = v.byteLength + ix.byteLength;
+      if (size > (R.bytes || 0)) st.checkMemory = true;
+      R.bytes = size; R.count = ix.length;
       return R;
     };
     const clipRects = (pt, on) => {
@@ -1610,6 +1807,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     let bandAt = 0;
     const textUpTo = o => { while (bandAt < bands.length && bands[bandAt].next <= o) textPass(bands[bandAt++]); };
     const textPass = band => {
+      if (!band.tex) return;
       const u = use(P.copy);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, band.tex); gl.uniform1f(u.u_alpha, 1); gl.uniform1f(u.u_straight, 1);
       if (band.ink) { const v = rgb(band.ink); gl.uniform4f(u.u_maskInk,v[0],v[1],v[2],1); }
@@ -1692,7 +1890,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     } else if (showWires && S.air.n) {
       // Prepare the retained geometry before input starts. Only the overlay paints
       // the lines now, and the first moving frame can reuse these instances.
-      bytes += upload(gl, S.air);
+      bytes += upload(st, S.air);
     }
     gl.bindVertexArray(null);
     st.stats.frameUpload = bytes;
@@ -1816,6 +2014,10 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const liveSignature = liveLayers ? JSON.stringify([...liveLayers].sort()) : "";
     return {viewport, items, all, rawItems, rev, padDetails, top, active, o2, liveLayers, liveSignature};
   }
+  function inkTouches(boxes, viewport, item, bounds) {
+    const b = bounds || boxes.get(item);
+    return !b || b[0] <= viewport[2] && b[1] <= viewport[3] && b[2] >= viewport[0] && b[3] >= viewport[1];
+  }
   // The text layer: drawBoard of those objects into its own canvas, composited by the GPU in layer order (under
   // through-hole copper and a layer painted above everything; connection lines over it), as the 2D path orders
   // them. Redrawn and uploaded only when its key changes (camera, edits, view options, colours), so pointer
@@ -1866,7 +2068,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const key = rest + "|" + S.textRev + "|" + (V.padDetails ? S.padRev : "") + "|" + (exact.size ? S.rev : "") + "|" + JSON.stringify([...selection]);
     if (T.scene !== S.id) { T.scene = S.id; T.key = null; }
     // Bands a pan moved (scrollText) hold the view around another camera: drawn afresh.
-    if (T.valid && (T.valid[0] || T.valid[1])) { T.key = null; T.valid = [0, 0]; }
+    const rolled = T.valid && (T.valid[0] || T.valid[1]);
+    if (rolled) { T.key = null; T.valid = [0, 0]; }
     st.stats.textUpload = 0;
     if (!area && T.key === key && T.pours === bandPours) { T.rev = S.rev; st.stats.acc.textHits++; return T.empty ? null : T; }
     // Which parts of the key changed (stats().textWhy: benchmarks see why the text layer was redrawn).
@@ -1941,37 +2144,63 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const g = T.ctx, o = I.worldToScreen([0, 0]);
     // One band's content for its pass (in g's current transform), from these objects: also how a pan draws
     // the strips it uncovers (scrollText), with the objects there.
-    function paintBand(g, next, items, all, details, entries, viewport) {
+    function paintBand(g, next, items, all, details, entries, viewport, painted, bandBounds) {
       const mine = next === last ? l => !own.has(nextOf(l)) : l => nextOf(l) === next;
-      if (exact.size) I.drawBoard(g, all, doc, defs, scale, {...V.o2, skipPartBoxes: true, hidden: new Hide(opts.hidden || [], l => exact.has(l) && mine(l))}, bandPours, viewport, lod);
-      for (const [layer, list] of details || []) if (!exact.has(layer) && mine(layer)) paintPadDetails(I, g, entries(list), layer, scale, V.o2);
+      if (exact.size) I.drawBoard(g, all, doc, defs, scale, {...V.o2, skipPartBoxes: true, hidden: new Hide(opts.hidden || [], l => exact.has(l) && mine(l))}, bandPours, viewport, lod, painted, bandBounds);
+      for (const [layer, list] of details || []) if (!exact.has(layer) && mine(layer)) {
+        const captions = entries(list);
+        if (painted) for (const {parent,p} of captions) painted(parent || p);
+        if (captions.length) bandBounds?.(null);
+        paintPadDetails(I, g, captions, layer, scale, V.o2);
+      }
       // Each glyph is drawn once in its layer. Component selection rectangles go over all layers.
-      I.drawBoard(g, items, doc, defs, scale, {...o3, skipPartBoxes: true, hidden: exact.size || need.length > 1 ? new Hide(o3.hidden || [], l => !exact.has(l) && mine(l)) : o3.hidden, gpu: i => !twoD(i)}, null, viewport, null);
+      I.drawBoard(g, items, doc, defs, scale, {...o3, skipPartBoxes: true, hidden: exact.size || need.length > 1 ? new Hide(o3.hidden || [], l => !exact.has(l) && mine(l)) : o3.hidden, gpu: i => !twoD(i)}, null, viewport, null, painted, bandBounds);
     }
     // A pan can extend these bands only while they hold just text and pad captions drawn for this camera.
     T.valid = [0, 0];
-    T.strip = planning ? null : {paintBand, need: need.slice(), exact, cam: cam.slice(), padDetails: V.padDetails, o2: V.o2, gone: goneIds(opts)};
+    T.strip = planning ? null : {paintBand, need: need.slice(), exact, lod: !!lod, cam: cam.slice(), padDetails: V.padDetails, o2: V.o2, gone: goneIds(opts)};
     need.forEach((next, n) => {
-      let band = bands[n];
-      if (!band) {
-        // Linear: a gesture frame samples it moved and scaled; at rest it is sampled at pixel centres.
-        band = bands[n] = {tex: texture(gl,W,H)}; st.checkMemory = true;
-      }
+      // Linear: a gesture frame samples it moved and scaled; at rest it is sampled at pixel centres.
+      const band = bands[n] ||= {tex:null};
       band.next = next;
       g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
       if (clipped) g.clearRect(sx, sy, sw, sh); else g.clearRect(0, 0, W, H);
       if (clipped) { g.save(); g.beginPath(); g.rect(sx, sy, sw, sh); g.clip(); }
       g.setTransform((flipped ? -scale : scale) * dpr, 0, 0, scale * dpr, o[0] * dpr, o[1] * dpr); g.lineJoin = "round"; g.lineCap = "round";
       const t1 = now();
-      paintBand(g, next, items, all, details, entries, V.viewport);
+      // In a full WebKit paint, remember whether any of this band’s art can reach the canvas.
+      // Keep the ordered band descriptor so a pan can paint into it if ink comes into view.
+      let ink = !READBACK || !!area || local || T.planning || !!lod;
+      const painted = (item, bounds) => {
+        ink ||= inkTouches(S.cache.boxes, V.viewport, item, bounds);
+      };
+      const bounds = READBACK && !area && !local && !rolled && !T.planning && !lod ? bandRectangle() : null;
+      paintBand(g, next, items, all, details, entries, V.viewport, ink ? null : painted, bounds?.include);
       st.stats.acc.board += now() - t1;
       // Board Planning mode (key 1): regions as tinted areas, bend lines dashed with labels, under the connection lines.
       // The layer goes over every board layer then, so pad numbers and nets join it, under the tints as in canvas.js.
       if (T.planning && next === Infinity && !fault("planning")) G.AtriumRigidFlex.drawPlanning(g, doc, {scale, dpr, worldToScreen: I.worldToScreen, selected: opts.planning?.region, line: opts.planning?.line}, defs);
       if (clipped) g.restore();
       // Straight (not premultiplied) alpha: the copy shader premultiplies (u_straight).
-      uploadCanvas(gl,band.tex,T.canvas,sx,sy,sw,sh);
-      st.stats.textUpload += sw * sh * 4;
+      if (ink) {
+        let x = sx, y = sy, w = sw, h = sh;
+        if (READBACK) {
+          const current = bounds?.rect(W,H), previous = band.tex ? band.inkRect : null;
+          band.inkRect = current;
+          if (current !== undefined && previous !== undefined) {
+            const both = mergeBounds(current, previous);
+            if (both) [x,y,w,h] = [both[0],both[1],both[2]-both[0],both[3]-both[1]];
+            else w = h = 0;
+          }
+        }
+        const tex = bandTexture(st,band,W,H);
+        if (w > 0 && h > 0) {
+          uploadCanvas(gl,tex,T.canvas,x,y,w,h);
+          st.stats.textUpload += w * h * 4;
+        }
+      } else if (band.tex) {
+        gl.deleteTexture(band.tex); band.tex = null;
+      }
     });
     st.stats.acc.text += now() - t;
     return T;
@@ -1997,39 +2226,90 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
     } finally { I.connectivity = saved; }
   }
-  // The text layer for a camera, painted a slice of rows at a time in idle callbacks of about SLICE_MS, into
+  // Views share one work budget after each refresh. Exact-camera work takes priority over
+  // speculative wide artwork. Each indivisible step may overrun; charge its actual time before
+  // starting any successor, and limit work even when the performance clock rounds to zero.
+  // Aim for about half the observed refresh interval, up to 8 ms. Very fast displays and
+  // sufficiently expensive individual steps can still see work span refreshes.
+  const SLICE_MS = 3.5;
+  const cameraSlices = new Set(), wideSlices = new Set();
+  let cancelSliceFrame = null, runningSliceFrame = false, lastSliceFrame = null;
+  function scheduleSliceFrame() {
+    if (runningSliceFrame || cancelSliceFrame) return;
+    if (!(cameraSlices.size || wideSlices.size)) { lastSliceFrame = null; return; }
+    const afterRefresh = at => {
+      const budget = lastSliceFrame === null ? 5 : Math.max(5, Math.min(8, (at - lastSliceFrame) / 2));
+      lastSliceFrame = at;
+      const timer = setTimeout(() => runSliceFrame(budget), 0);
+      cancelSliceFrame = () => clearTimeout(timer);
+    };
+    const idle = G.AtriumIdle;
+    const id = idle ? idle.sampleFrame(afterRefresh) : G.requestAnimationFrame(afterRefresh);
+    cancelSliceFrame = () => idle ? idle.cancelSample(id) : G.cancelAnimationFrame(id);
+  }
+  function runSliceFrame(budget) {
+    cancelSliceFrame = null;
+    runningSliceFrame = true;
+    let remaining = budget;
+    try {
+      while (cameraSlices.size || wideSlices.size) {
+        const jobs = cameraSlices.size ? cameraSlices : wideSlices, job = jobs.values().next().value;
+        if (remaining < budget && job.estimate > remaining) break;
+        jobs.delete(job);
+        const start = now();
+        job.step();
+        remaining -= Math.max(.25, now() - start);
+      }
+    } finally {
+      runningSliceFrame = false;
+      scheduleSliceFrame();
+    }
+  }
+  function queueTextSlice(job, own) {
+    const jobs = own ? cameraSlices : wideSlices;
+    jobs.add(job);
+    job.cancel = () => {
+      jobs.delete(job);
+      if (cameraSlices.size || wideSlices.size) return;
+      cancelSliceFrame?.();
+      cancelSliceFrame = null;
+      scheduleSliceFrame();
+    };
+    scheduleSliceFrame();
+  }
+  // The text layer for a camera, painted a slice of rows at a time in steps of about SLICE_MS, into
   // textures of its own (memory: one more set of bands while it runs), so neither the frame that ends a
   // zoom nor anything after it blocks input: that frame scales the layers it has (as a gesture frame does)
   // and this replaces them once every row is drawn. A camera, revision or visibility change abandons it.
   // target: the canvas the slices are drawn on: the view's own (whose pixels each slice puts back: the
   // overlay drawn for this camera) or the wide copy's; cam: the camera to draw for (I.withCamera).
-  const SLICE_MS = 4;
   function textSlices(I, st, doc, defs, opts, list, name, cam, target, done) {
     cancelSlices(st, name);
     const W = st.canvas.width, H = st.canvas.height, rev = st.scene?.rev, at = I.cam().join();
-    const job = st[name] = {at, T: {key: null}, y: 0, rows: 16, V: null, id: 0, cancel: null};
-    // A task per slice: input and frames run between them. (WebKit's AtriumIdle runs queued callbacks for up to
-    // 50 ms in one task, which would hold input for that long.)
-    const queue = () => { const id = setTimeout(step, 0); job.cancel = () => clearTimeout(id); };
+    const job = st[name] = {at, T: {key: null}, y: 0, rows: 16, V: null, step, estimate: 1, cancel: null};
     const own = target === I.ctx.canvas;
+    const queue = () => queueTextSlice(job, own);
     function step() {
       job.cancel = null;
       if (st[name] !== job) return;
       if (views.get(I) !== st || st.lost || !st.shown || !visible() || st.scene?.rev !== rev || I.cam().join() !== at || I.cache?.doc !== doc ||
-        st.canvas.width !== W || st.canvas.height !== H) {
+        st.canvas.width !== W || st.canvas.height !== H || !own && !canPrepaintWide(I)) {
         // The scaled frame is not left on screen: the next frame is drawn for whatever changed.
         cancelSlices(st, name); st.stats.sliceAbandoned = (st.stats.sliceAbandoned || 0) + 1;
         if (own && views.get(I) === st && st.shown) repaint(I);
         return;
       }
-      // Steps: the objects in view; the text key and pad captions (a slice of no rows); rows of text; the
-      // pour coverage for this camera (the view's own text only). Each is its own idle callback.
+      // Steps: the objects in view, then the text key and pad captions, then rows of text,
+      // then pour coverage for this camera (the view's own text only).
       const t0 = now(), keep = I.ctx, phase = job.phase = (job.phase || 0) + 1, h = phase < 3 ? 0 : Math.min(job.rows, H - job.y);
       if (phase > 1) st.commandEpoch++;
-      let T = job.T;
+      let T = job.T, foreground;
       try {
         // Only the slice's rows are drawn where the drawing is clipped (WebKit): only they are kept and put back.
         if (own && h) st.sliceCopy = READBACK ? copyRows(target, st.sliceCopy, job.y, h) : copyCanvas(target, st.sliceCopy);
+        // The final coverage paint can clear the view despite having no text rows.
+        // Save the visible overlay before it runs and reuse that copy when publishing.
+        else if (own && job.y >= H && st.exact) foreground = st.sliceCopy = copyCanvas(target, st.sliceCopy);
         I.ctx = target.getContext("2d");
         I.withCamera(cam[0], cam[1], cam[2], () => {
           const c2 = I.cam();
@@ -2040,24 +2320,29 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       } catch (e) { cancelSlices(st, name); return; }
       finally {
         I.ctx = keep;
-        if (own && h && st.sliceCopy) {
-          const g = keep; g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "copy";
-          if (READBACK) { g.beginPath(); g.rect(0, job.y, W, h); g.clip(); g.drawImage(st.sliceCopy, 0, 0, W, h, 0, job.y, W, h); } else g.drawImage(st.sliceCopy, 0, 0);
-          g.restore();
+        if (own && h && st.sliceCopy) restorePixels(keep, st.sliceCopy, W, job.y, h);
+        if (foreground && (st[name] !== job || st.driverOutOfMemory)) {
+          restorePixels(keep, foreground);
+          releaseCanvas(st, "sliceCopy");
         }
       }
-      if (st.driverOutOfMemory) { cancelSlices(st, name); memory(st, doc); hide(I); repaint(I); return; }
+      if (st[name] !== job) return;
+      if (st.driverOutOfMemory) { cancelSlices(st, name); memory(I, st, doc); repaint(I); return; }
       const ms = now() - t0, done1 = job.y >= H;
       job.y += h;
       st.stats.slices = (st.stats.slices || 0) + 1; st.stats.sliceMs = Math.max(st.stats.sliceMs || 0, ms);
       (st.stats.slicePhases ||= {})[Math.min(phase, 3) + (done1 ? 1 : 0)] = Math.max(st.stats.slicePhases[Math.min(phase, 3) + (done1 ? 1 : 0)] || 0, +ms.toFixed(1));
-      // Rows for the next slice: about SLICE_MS of work, measured.
+      // Work includes scope, captions and coverage. Rows sum device row heights across jobs.
+      st.stats[own ? "textSliceRows" : "wideSliceRows"] += h;
+      st.stats[own ? "textSliceWorkMs" : "wideSliceWorkMs"] += ms;
+      // Estimate the next raster step from rows just drawn. Scope, setup and coverage have their own costs.
       if (h) job.rows = Math.max(8, Math.min(H, Math.ceil(job.rows * 1.5), Math.round(h * SLICE_MS / Math.max(ms, .25))));
+      job.estimate = phase === 1 ? 1 : h && job.y < H ? Math.max(.25, ms * Math.min(job.rows, H - job.y) / h) : SLICE_MS;
       if (T && (job.y < H || own && !done1)) { queue(); return; }
       st[name] = null;
-      if (own) releaseCanvas(st, "sliceCopy");
-      done(T ? job.T : null, job.V);
-      if (!memory(st, doc)) { hide(I); repaint(I); }
+      if (own && !foreground) releaseCanvas(st, "sliceCopy");
+      done(T ? job.T : null, job.V, foreground);
+      if (!memory(I, st, doc)) repaint(I);
       else queueDriverMemoryProbe(I, st, doc);
     }
     queue();
@@ -2074,8 +2359,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (fault("wireGeometry") || fault("wireTintOrder")) faultWireRaster(I, exactWires, opts, cam[2]*cam[6], paint);
       else paint(opts.netColors);
     }
+    overlayTop(I, doc, defs, opts, null, undefined, V, frame);
+  }
+  function overlayTop(I, doc, defs, opts, area, strips, V, frame) {
+    const before = overlays;
     overlays = true;
-    try { I.paintTop(doc, defs, opts, null, true, doc.outline?.length >= 3 && !opts.hidden?.has("Board"), undefined, V, frame); } finally { overlays = false; }
+    try { I.paintTop(doc, defs, opts, area, true, doc.outline?.length >= 3 && !opts.hidden?.has("Board"), strips, V, frame); }
+    finally { overlays = before; }
   }
   // The world-sized part of the overlay (a zoom gesture scales it), kept in st.overlayWorld.
   // strip: a pan's uncovered strip (scrollOverlay; the caller clips and clears it), not kept as the copy.
@@ -2121,6 +2411,12 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (strip) return;
     if (drew) st.overlayWorld = copyCanvas(I.ctx.canvas, st.overlayWorld); else releaseCanvas(st, "overlayWorld");
   }
+  function stripContext(st, key, w, h) {
+    let c = st[key];
+    if (!c) { c = st[key] = G.document.createElement("canvas"); c.width = c.height = 1; }
+    G.AtriumCanvas.resizeBacking(c,Math.max(c.width,w),Math.max(c.height,h));
+    return c.getContext("2d", {willReadFrequently: true});
+  }
   // A pan (the exact frame's scale) moves the text bands by whole device pixels (X, Y) and draws only what it
   // uncovers. A band's texels hold the view around the exact camera modulo the band's size (the copy shader's
   // u_wrap), so each frame paints the strips that came into view where the strips that left it were, in a
@@ -2143,14 +2439,28 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const split = (a, n, size) => { const t = mod(a, size); return t + n <= size ? [[a, t, n]] : [[a, t, size - t], [a + size - t, 0, n - (size - t)]]; };
     for (const [x, y, w, h] of rects) if (w > 0 && h > 0) for (const [sx, tx, tw] of split(x, w, W)) for (const [sy, ty, th] of split(y, h, H)) pieces.push([sx, sy, tx, ty, tw, th]);
     const k = scale * dpr, o = I.withCamera(ecx, ecy, scale, () => I.worldToScreen([0, 0]));
-    let c = st.stripCanvas;
-    if (!c) { c = st.stripCanvas = G.document.createElement("canvas"); c.width = c.height = 1; }
-    let tw = 1, th = 1;
-    for (const p of pieces) { tw = Math.max(tw, p[4]); th = Math.max(th, p[5]); }
-    if (c.width < tw || c.height < th) { c.width = Math.max(c.width, tw); c.height = Math.max(c.height, th); }
-    const g = c.getContext("2d", {willReadFrequently: true}), gone = P.gone?.length ? new Set(P.gone) : null, t = now();
-    const all = e => e;
+    // Keep the short sides independent: a diagonal pan can need almost the full width and height
+    // in different pieces. Thin pieces hold at most a quarter of a viewport across both backings.
+    const wide = [0, 0], tall = [0, 0];
+    for (const [, , , , w, h] of pieces) {
+      const size = w >= h ? wide : tall;
+      size[0] = Math.max(size[0], w); size[1] = Math.max(size[1], h);
+    }
+    const large = st.stripLarge || Math.max(wide[1], tall[0]) > Math.min(W, H) / 8;
+    let horizontal, vertical;
+    if (large) {
+      // A large jump can need a whole-frame backing. Drop the thin caches before allocating it.
+      if (!st.stripLarge) { releaseCanvas(st, "stripWide"); releaseCanvas(st, "stripTall"); }
+      horizontal = vertical = stripContext(st, "stripLarge", Math.max(wide[0], tall[0]), Math.max(wide[1], tall[1]));
+    } else {
+      if (wide[0]) horizontal = stripContext(st, "stripWide", ...wide);
+      if (tall[0]) vertical = stripContext(st, "stripTall", ...tall);
+    }
+    const gone = P.gone?.length ? new Set(P.gone) : null, t = now();
+    const all = e => e, boxes = st.scene.cache.boxes;
+    let blank = st.emptyStrip;
     for (const [sx, sy, tx, ty, w, h] of pieces) {
+      const g = w >= h ? horizontal : vertical;
       // The strip's world box (device px of the exact frame to world), with a margin for glyphs and strokes.
       const wx0 = (sx / dpr - o[0]) / (f * scale), wx1 = ((sx + w) / dpr - o[0]) / (f * scale), m = 8 / scale;
       const box = [Math.min(wx0, wx1) - m, (sy / dpr - o[1]) / scale - m, Math.max(wx0, wx1) + m, ((sy + h) / dpr - o[1]) / scale + m];
@@ -2160,17 +2470,32 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       let details = null;
       // Captions that later copper covers on a layer the bands do not order (coveredPadDetails) show above it
       // until the exact frame at rest: a pan never stops to redraw whole bands for them.
-      if (P.padDetails) details = padDetails(found, defs, scale, P.o2, doc);
+      if (P.padDetails) details = padDetails(found, defs, scale, P.o2, doc, P.exact);
       P.need.forEach((next, n) => {
-        g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, w, h);
-        g.save(); g.beginPath(); g.rect(0, 0, w, h); g.clip();
-        g.setTransform(f * k, 0, 0, k, o[0] * dpr - sx, o[1] * dpr - sy); g.lineJoin = "round"; g.lineCap = "round";
-        P.paintBand(g, next, items, found, details, all, box);
-        g.restore();
-        gl.bindTexture(gl.TEXTURE_2D, T.bands[n].tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, tx, H - ty - h, w, h, gl.RGBA, gl.UNSIGNED_BYTE, g.getImageData(0, 0, w, h));
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-        st.stats.textUpload += w * h * 4;
+        const band = T.bands[n], bytes = w * h * 4;
+        let ink = P.lod;
+        if (found.length || T.pours || ink) {
+          g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, w, h);
+          g.save(); g.beginPath(); g.rect(0, 0, w, h); g.clip();
+          g.setTransform(f * k, 0, 0, k, o[0] * dpr - sx, o[1] * dpr - sy); g.lineJoin = "round"; g.lineCap = "round";
+          P.paintBand(g, next, items, found, details, all, box, ink ? null : (item, bounds) => {
+            ink ||= inkTouches(boxes, box, item, bounds);
+          });
+          g.restore();
+        }
+        // A never-used band stays unallocated. An existing band can contain old wrapped ink,
+        // so clear the entering strip with zero texels instead of reading a blank canvas.
+        if (!ink && !band.tex) return;
+        if (!ink && (!blank || blank.length < bytes)) {
+          blank = new Uint8Array(bytes);
+          if (bytes <= 256 * 1024) st.emptyStrip = blank;
+        }
+        if (READBACK) band.inkRect = undefined;
+        gl.bindTexture(gl.TEXTURE_2D, bandTexture(st,band,W,H));
+        if (ink) gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, tx, H - ty - h, w, h, gl.RGBA, gl.UNSIGNED_BYTE, ink ? g.getImageData(0, 0, w, h) : blank);
+        if (ink) gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        st.stats.textUpload += bytes;
       });
     }
     T.valid = [nx, ny];
@@ -2190,11 +2515,10 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (Math.abs(dx) < W && Math.abs(dy) < H) g.drawImage(c, dx, dy); else g.clearRect(0, 0, W, H);
     g.restore();
     const w = E.width, h = E.height, ax = dx / dpr, ay = dy / dpr;
-    const strips = Math.abs(dx) >= W || Math.abs(dy) >= H ? [[0, 0, w, h]] : I.exposedPanStrips(w, h, ax, ay);
     // The camera these shifted pixels show.
     const cx = E.cx - X / dpr / (f * E.scale), cy = E.cy - Y / dpr / E.scale, V0 = st.overlayV;
-    const substrate = doc.outline?.length >= 3 && !opts.hidden?.has("Board");
     I.withCamera(cx, cy, E.scale, () => {
+      const strips = Math.abs(dx) >= W || Math.abs(dy) >= H ? [[0, 0, w, h]] : I.exposedPanStrips(w, h, ax, ay, opts);
       g.save(); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.beginPath();
       for (const a of strips) g.rect(a[0], a[1], a[2] - a[0], a[3] - a[1]);
       g.clip(); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
@@ -2203,14 +2527,20 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           const p = I.worldToScreen([0, 0]), sc = E.scale;
           const x0 = (a[0] - p[0]) / (f * sc), x1 = (a[2] - p[0]) / (f * sc), m = 8 / sc;
           const viewport = [Math.min(x0, x1) - m, (a[1] - p[1]) / sc - m, Math.max(x0, x1) + m, (a[3] - p[1]) / sc + m];
+          // A selected object's outline can extend beyond the query's viewport. Confine each
+          // draw to its own strip so translucent ink is composited only once in repaired pixels.
+          if (strips.length > 1) {
+            g.save(); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+            g.beginPath(); g.rect(a[0], a[1], a[2] - a[0], a[3] - a[1]); g.clip();
+          }
           overlayWorld(I, st, doc, defs, opts, [cx, cy, sc], {...V0, viewport}, true);
+          if (strips.length > 1) g.restore();
         }
       }
       // The screen-sized layer (net names, DRC markers, tools) once for all the strips.
       const area = strips.reduce((u, a) => [Math.min(u[0], a[0]), Math.min(u[1], a[1]), Math.max(u[2], a[2]), Math.max(u[3], a[3])]);
       I.boardTransform();
-      overlays = true;
-      try { I.paintTop(doc, defs, opts, area, true, substrate, strips, null, frame); } finally { overlays = false; g.restore(); }
+      try { overlayTop(I, doc, defs, opts, area, strips, null, frame); } finally { g.restore(); }
     });
     return true;
   }
@@ -2227,9 +2557,12 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     return artworkBounds && E.cx - dx <= artworkBounds[0] && E.cx + dx >= artworkBounds[2] &&
       E.cy - dy <= artworkBounds[1] && E.cy + dy >= artworkBounds[3];
   }
-  function freeWide(st) {
+  function cancelWide(st) {
     if (st.wideJob) { clearTimeout(st.wideJob); st.wideJob = 0; }
     cancelSlices(st, "wideText");
+  }
+  function freeWide(st) {
+    cancelWide(st);
     const w = st.wide;
     st.wide = null;
     if (!w) return;
@@ -2240,19 +2573,23 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // After a gesture frame: the frame that ends the move in 140 ms; after that frame, the text for its camera.
   function afterMove(I, st, doc, defs, opts, list, settling, gesture) {
     if (!gesture && !settling) return; // a frame while the text is prepared
-    if (!settling) { cancelSettle(st); st.idle = setTimeout(() => { st.idle = 0; st.settling = true; repaint(I); }, 140); return; }
+    if (!settling) { cancelSettle(st, true); st.idle = setTimeout(() => { st.idle = 0; st.settling = true; repaint(I); }, 140); return; }
     if (st.idle) clearTimeout(st.idle);
     st.idle = 0;
+    releaseCanvas(st, "stripLarge");
     const cam = I.cam();
-    textSlices(I, st, doc, defs, opts, list, "textJob", cam, I.ctx.canvas, (T, V) => {
+    textSlices(I, st, doc, defs, opts, list, "textJob", cam, I.ctx.canvas, (T, V, foreground) => {
       const old = st.text;
       if (old !== T) for (const b of old.bands || []) st.gl.deleteTexture(b.tex);
       st.text = T || {key: null}; st.checkMemory = true;
       // The layers are this camera's from here: the next gesture starts from them, not the previous exact frame's.
       if (st.exact) {
-        const keep = copyCanvas(I.canvas, st.sliceCopy), g = I.ctx;
+        const keep = foreground || (st.sliceCopy = copyCanvas(I.canvas, st.sliceCopy));
         try { overlayWorld(I, st, doc, defs, opts, cam, V); }
-        finally { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "copy"; g.drawImage(keep, 0, 0); g.restore(); releaseCanvas(st, "sliceCopy"); }
+        finally {
+          restorePixels(I.ctx, keep);
+          releaseCanvas(st, "sliceCopy");
+        }
         st.exact = {...st.exact, cx: cam[0], cy: cam[1], scale: cam[2]}; st.ovAt = null; releaseOverlayCopy(st);
       }
       // The exact frame: its text layer is current now, so it only composites (and draws the top layer).
@@ -2265,8 +2602,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const E = st.exact, W = I.canvas.width, H = I.canvas.height, forKey = st.text.key, forOverlay = !!st.overlayWorld;
     let c = st.wideCanvas;
     if (!c) c = st.wideCanvas = G.document.createElement("canvas");
-    if (c.width !== W) c.width = W;
-    if (c.height !== H) c.height = H;
+    G.AtriumCanvas.resizeBacking(c,W,H);
     textSlices(I, st, doc, defs, opts, list, "wideText", [cx, cy, scale], c, (T, V) => {
       if (st.exact !== E || st.text.key !== forKey) { if (T) for (const b of T.bands || []) st.gl.deleteTexture(b.tex); return; }
       const old = st.wide, keep = I.ctx, overlayKeep = st.overlayWorld, overlayView = st.overlayV;
@@ -2287,13 +2623,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   // After an exact frame, once the view has been still for 250 ms (never during a drag or gesture).
   function scheduleWide(I, st, doc, defs, opts, list) {
+    if (!canPrepaintWide(I)) { cancelWide(st); return; }
     if (st.wideJob) clearTimeout(st.wideJob);
     st.wideJob = 0;
     if (opts.transientGeometry || !(st.text.bands?.length && st.text.key && !st.text.empty || st.overlayWorld)) return;
     const E = st.exact;
     st.wideJob = setTimeout(() => {
       st.wideJob = 0;
-      if (views.get(I) !== st || st.exact !== E || st.lost || !st.shown || !visible()) return;
+      if (views.get(I) !== st || st.exact !== E || st.lost || !st.shown || !visible() || !canPrepaintWide(I)) return;
       const w = st.wide;
       if (wideFits(st, E, doc, E.rev, list) && w.cx === E.cx && w.cy === E.cy && w.scale === E.scale * .5) return;
       wideLayers(I, st, doc, defs, opts, list, E.cx, E.cy, E.scale * .5);
@@ -2309,7 +2646,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   let overlays = false;
   // Pad captions belong to their land's pass. Active copper, connection lines
   // and planning tints can cover them in later passes.
-  function padDetails(items, defs, scale, opts, doc) {
+  function padDetails(items, defs, scale, opts, doc, orderedLayers) {
     const groups = new Map(), showCaptions = !fault("padText");
     const one = (p, parent, layer) => {
       const g = PCB.padGeometry(p, opts.layer || "Top", layer);
@@ -2320,14 +2657,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     for (const i of items) {
       if (i.kind === "pad" || i.kind === "via") {
         const layer = boardLayer(i);
-        if (PCB.visible(layer, i, opts)) one(i, null, layer);
+        if (!orderedLayers?.has(layer) && PCB.visible(layer, i, opts)) one(i, null, layer);
         continue;
       }
       if (i.kind !== "part") continue;
       const fp = PCB.readDefinition(defs,i.def,doc)?.footprint;
       if (!fp) continue;
       for (const g of PCB.footprintLayers(i, fp)) {
-        if (!PCB.visible(g.layer, null, opts)) continue;
+        if (orderedLayers?.has(g.layer) || !PCB.visible(g.layer, null, opts)) continue;
         for (const p of g.pads) if (PCB.visible(g.layer, p, opts)) one(p, i, g.layer);
       }
     }
@@ -2375,10 +2712,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   function copyCanvas(c, copy) {
     copy ||= c.ownerDocument.createElement("canvas");
-    if (copy.width !== c.width) copy.width = c.width;
-    if (copy.height !== c.height) copy.height = c.height;
+    G.AtriumCanvas.resizeBacking(copy,c.width,c.height);
     const g = copy.getContext("2d"); g.globalCompositeOperation = "copy"; g.drawImage(c, 0, 0);
     return copy;
+  }
+  function restorePixels(g, copy, w, y, h) {
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "copy";
+    if (READBACK && h) {
+      g.beginPath(); g.rect(0, y, w, h); g.clip();
+      g.drawImage(copy, 0, 0, w, h, 0, y, w, h);
+    } else g.drawImage(copy, 0, 0);
+    g.restore();
   }
   function releaseOverlayCopy(st) { releaseCanvas(st, "overlayCopy"); }
   // Rows y..y+h of a canvas, at the top of a canvas of their own.
@@ -2405,14 +2749,16 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     // Editor frames only (the active pane's carry reuseBase, the other split pane's editorPane): print, PDF,
     // diff, previews and thumbnails stay on the 2D renderer.
     if (!visible()) return false;
-    if (!wanted() || doc.kind !== "pcb" || !opts || !("reuseBase" in opts || opts.editorPane)) {
+    if (doc.kind !== "pcb" || !opts || !("reuseBase" in opts || opts.editorPane)) {
       cancelPreparation(I);
       if (views.has(I)) hide(I);
       return false;
     }
-    // A context's power hint cannot change after creation.
-    const current = views.get(I);
-    if (current && current.powerPreference !== (decision()?.powerPreference || "low-power")) destroy(I);
+    const choice = decision(!failed && force == null);
+    if (!wanted(choice)) { cancelPreparation(I); hide(I); return false; }
+    // Power and strictness are set when the context is created.
+    const current = views.get(I), strict = force !== true && choice?.mode !== "gpu";
+    if (current && (current.powerPreference !== (choice?.powerPreference || "low-power") || current.strict !== strict)) destroy(I);
     // Views whose canvas left the page (a closed split pane) give their context and idle job back.
     for (const V of views.keys()) if (V !== I && !V.canvas?.isConnected) destroy(V);
     for (const V of preparing.keys()) if (V !== I && !V.canvas?.isConnected) cancelPreparation(V);
@@ -2451,7 +2797,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           }
           // A deadline can expire during input. Wait for a real idle interval.
           if (deadline?.didTimeout) { queue(); return; }
-          try { const s = state(I); if (s) update(s, I.sync(doc, defs), opts.layer || "Top", !!opts.transientGeometry); } catch {}
+          try { const s = state(I, choice); if (s) update(s, I.sync(doc, defs), opts.layer || "Top", !!opts.transientGeometry); } catch {}
           repaint(I);
         };
         queue();
@@ -2459,29 +2805,35 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       return false;
     }
     if (preparing.has(I)) cancelPreparation(I);
-    const st = state(I);
-    if (!st || (st.over && st.over.doc === doc && st.over.cap === (G.__atriumGpuCapMB || CAP_MB))) { hide(I); return false; }
-    st.over = null;
+    const st = state(I, choice);
+    if (!st) { hide(I); return false; }
+    const recorder = G.AtriumDiagnostics?.performance;
+    const stages = recorder?.rendererStages ? recorder : null;
     try {
       const t0 = now(), cam = I.cam(), [, , , , width, height] = cam;
       if (!width || !height) return false;
       st.commandEpoch++;
       st.stats.coverageUpload = 0;
       const c = I.sync(doc, defs), active = opts.layer || "Top";
+      const cap = capBytes(), w = I.canvas.width, h = I.canvas.height, over = st.over, backing = w * h * 4;
+      if (over?.doc === doc && over.rev === c.rev && over.cap === cap && over.w === w && over.h === h) return false;
+      if (over) { st.over = null; st.checkMemory = true; }
+      if (cap !== st.checkedCap) st.checkMemory = true;
+      if (w > st.maxW || h > st.maxH) return rejectMemory(I, st, doc, "the viewport exceeds the WebGL backing limit");
+      if (backing > cap) return rejectMemory(I, st, doc, memoryLimit(backing, cap));
+      if (!place(I, st, width, height)) return rejectMemory(I, st, doc, "the GPU could not allocate the viewport backing");
       update(st, c, active, !!opts.transientGeometry);
-      if (!memory(st, doc)) { hide(I); return false; }
-      place(I, st, width, height);
+      if (!memory(I, st, doc)) return false;
       // A camera-only frame can move the retained text bands and world overlay
       // with the live GPU scene when their pixels cover the new camera.
       frame ||= I.pourFrame(doc, defs, opts);
       const E = st.exact, T = st.text, list = frame.pours, [cx, cy, scale, flipped, , , dpr] = cam;
-      // The frame that ends a camera move (140 ms after its last frame) is drawn as a gesture frame, and the
-      // text for this camera follows in idle slices (settle): it never blocks. Back at the exact camera, the
-      // exact frame is free (its text layer is current).
-      let settling = st.settling && !opts.noReuse; st.settling = false;
+      // A completed wheel glide knows its final camera. Other gestures settle after 140 ms of stillness.
+      // Present the retained frame first, then sharpen its text in cancellable slices.
+      let settling = (st.settling || gesture === "wheel-end") && !opts.noReuse; st.settling = false;
       if (settling && E && E.cx === cx && E.cy === cy && E.scale === scale && !(T.valid && (T.valid[0] || T.valid[1]))) settling = false;
-      // Frames while that text is being prepared (a pointer moving over the view) are drawn the same way.
-      const pending = !gesture && !settling && st.textJob?.at === cam.join() && !opts.noReuse;
+      // An overlay-only repaint can reuse the pending camera. Artwork or visibility changes need a fresh draw.
+      const pending = !gesture && !settling && opts.reuseBase && st.textJob?.at === cam.join() && !opts.noReuse;
       if ((gesture || settling || pending) && E && E.doc === doc && E.rev === c.rev && E.flipped === flipped && E.width === width && E.height === height && E.dpr === dpr && E.pourList === list &&
         (!T.pours || T.pours === list) && !opts.noReuse) {
         st.stats.gestureScale = 1;
@@ -2489,15 +2841,25 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         if (scale === E.scale) {
           const f = flipped ? -1 : 1, X = Math.round(f * (E.cx - cx) * scale * dpr), Y = Math.round((E.cy - cy) * scale * dpr);
           const hasText = T.bands?.length && T.key && !T.empty, t1 = now();
-          if ((!hasText || scrollText(I, st, doc, defs, opts, T, X, Y)) && scrollOverlay(I, st, doc, defs, opts, E, X, Y, frame)) {
+          const textReady = !hasText || scrollText(I, st, doc, defs, opts, T, X, Y);
+          const textEnd = stages && hasText && textReady ? now() : t1;
+          if (textReady && scrollOverlay(I, st, doc, defs, opts, E, X, Y, frame)) {
+            const overlayEnd = stages ? now() : 0;
             draw(I, st, doc, defs, opts, cam, c, hasText ? {bands: T.bands, exact: T.exact, pours: T.pours, xf: [1, X, Y], wrap: true} : null, list);
-            if (!memory(st, doc)) { hide(I); return false; }
+            const drawEnd = stages ? now() : 0;
+            if (!memory(I, st, doc)) return false;
             if (st.wideJob) { clearTimeout(st.wideJob); st.wideJob = 0; }
             afterMove(I, st, doc, defs, opts, list, settling, gesture);
             const a = st.stats.acc; a.n++; a.gesture++; a.update += t1 - t0; a.gl += now() - t1;
+            if (stages) {
+              if (hasText) stages.renderStage("retained-pan-text", textEnd - t1);
+              stages.renderStage("retained-pan-overlay", overlayEnd - textEnd);
+              stages.renderStage("retained-pan-draw", drawEnd - overlayEnd);
+            }
             return true;
           }
         }
+        releaseCanvas(st, "stripLarge");
         // The top layer is repainted or moved from its copy below: a later pan starts it afresh.
         st.ovAt = null;
         // Both the exact and wide rasters have finite camera bounds. A panned
@@ -2520,7 +2882,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           const tx = width / 2 * (1 - k) + f * (L.cx - cx) * scale, ty = height / 2 * (1 - k) + (L.cy - cy) * scale;
           const t1 = now();
           draw(I, st, doc, defs, opts, cam, c, LT.bands?.length && LT.key && !LT.empty ? {bands: LT.bands, exact: LT.exact, pours: LT.pours, xf: [k, tx * dpr, ty * dpr]} : null, list);
-          if (!memory(st, doc)) { hide(I); return false; }
+          const drawEnd = stages ? now() : 0;
+          if (!memory(I, st, doc)) return false;
+          const overlayStart = stages ? now() : 0;
           if (k === 1 && L.text === T && !E.exactWires) moveOverlay(I, st, k, tx * dpr, ty * dpr);
           else {
             // Repaint the active layer's world overlay before minification
@@ -2530,10 +2894,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
             if (L.overlay && !fresh) g.drawImage(L.overlay, 0, 0); else { g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, I.canvas.width, I.canvas.height); }
             g.restore();
             if (fresh) overlayWorld(I, st, doc, defs, opts, cam, {...st.overlayV, viewport: I.artworkViewport()}, true, LT);
-            I.boardTransform(); I.paintTop(doc, defs, opts, null, true, doc.outline?.length >= 3 && !opts.hidden?.has("Board"), undefined, null, frame);
+            I.boardTransform(); overlayTop(I, doc, defs, opts, null, undefined, null, frame);
           }
+          const overlayEnd = stages ? now() : 0;
           afterMove(I, st, doc, defs, opts, list, settling, gesture);
           const a = st.stats.acc; a.n++; a.gesture++; a.update += t1 - t0; a.gl += now() - t1;
+          if (stages) {
+            // When a same-scale strip is abandoned, the general retained path can still copy pixels.
+            const sameScale = scale === E.scale;
+            stages.renderStage(sameScale ? "retained-copy-draw" : "retained-zoom-draw", drawEnd - t1);
+            stages.renderStage(sameScale ? "retained-copy-overlay" : "retained-zoom-overlay", overlayEnd - overlayStart);
+          }
           return true;
         }
         // Paint the live viewport when neither source covers it. Otherwise a
@@ -2543,13 +2914,16 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (E && E.pourList !== list) cancelSlices(st, "wideText");
       releaseOverlayCopy(st);
       const t1 = now(), V = scope(I, st, doc, defs, opts, cam, list), ta = now();
+      const bandPaintBefore = stages ? st.stats.acc.board : 0;
       const text = textLayer(I, st, doc, defs, opts, cam, V, list), tb = now();
-      const coverage = pourCoverage(I, st, doc, defs, opts, cam, V, list, text, c), tc = now();
-      if (st.driverOutOfMemory && !memory(st, doc)) { hide(I); return false; }
+      const bandPaint = stages ? st.stats.acc.board - bandPaintBefore : 0;
+      const coverageTiming = stages ? {paint:0, upload:0, readback:0} : null;
+      const coverage = pourCoverage(I, st, doc, defs, opts, cam, V, list, text, c, coverageTiming), tc = now();
+      if (!memory(I, st, doc)) return false;
       const result = opts.showUnrouted && !opts.transientGeometry ? I.airwireConnectivity(doc, defs) ?? null : null;
       const exactWires = result?.airwires, hasWires = !!exactWires?.length;
       draw(I, st, doc, defs, opts, cam, c, text, list, coverage, result);
-      if (!memory(st, doc)) { hide(I); return false; }
+      if (!memory(I, st, doc)) return false;
       const t2 = now();
       overlay(I, st, doc, defs, opts, cam, V, hasWires ? exactWires : null, frame);
       st.exact = {doc, rev: c.rev, cx: cam[0], cy: cam[1], scale: cam[2], flipped: cam[3], width, height, dpr: cam[6], exactWires:hasWires, pourList:list};
@@ -2560,6 +2934,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const t3 = now(), a = st.stats.acc;
       st.stats.last = {update: t1 - t0, gl: t2 - t1, overlay: t3 - t2, scope: ta - t1, text: tb - ta, coverage: tc - tb};
       a.n++; a.update += t1 - t0; a.gl += t2 - t1; a.overlay += t3 - t2;
+      if (stages) {
+        stages.renderStage("full-scope", ta - t1);
+        stages.renderStage("full-text", tb - ta);
+        // The existing board painter counter is nested within textLayer here.
+        stages.renderStage("full-band-paint", bandPaint);
+        stages.renderStage("full-coverage", tc - tb);
+        stages.renderStage("full-coverage-paint", coverageTiming.paint);
+        stages.renderStage("full-coverage-upload", coverageTiming.upload);
+        stages.renderStage("full-coverage-readback", coverageTiming.readback);
+        stages.renderStage("full-overlay", t3 - t2);
+      }
       return true;
     } catch (e) {
       if (st.gl.isContextLost()) { hide(I); return false; }
@@ -2595,20 +2980,46 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (!st) return null;
     const a = st.stats.acc, f = v => +(v / a.n).toFixed(2);
     const avg = a.n ? {frames: a.n, update: f(a.update), gl: f(a.gl), overlay: f(a.overlay), board: f(a.board), text: f(a.text), textHits: a.textHits, gesture: a.gesture} : null;
-    if (reset) st.stats.acc = {n: 0, update: 0, gl: 0, overlay: 0, board: 0, text: 0, textHits: 0, gesture: 0};
+    if (reset) {
+      st.frameOffset = (st.frameOffset ?? 0) + a.n;
+      st.retainedFrameOffset = (st.retainedFrameOffset ?? 0) + a.gesture;
+      st.stats.acc = {n: 0, update: 0, gl: 0, overlay: 0, board: 0, text: 0, textHits: 0, gesture: 0};
+    }
     let instances = 0, dead = 0, bytes = 0, layers = 0;
     if (st.scene) { layers = st.scene.layers.size; for (const b of bufs(st.scene)) { instances += b.n; dead += b.dead; bytes += b.f.byteLength + b.st.byteLength; } }
-    return {...st.stats, acc: avg, exactAt: st.exact ? [st.exact.cx, st.exact.cy, st.exact.scale] : null, slicing: !!st.textJob || !!st.wideText, wideAt: st.wide ? st.wide.scale : null, instances, dead, instanceBytes: bytes, gpuBytes: bytesOf(st), layers, mode, parked: st.parked.size, lost: st.lost,
+    return {...st.stats, acc: avg, exactAt: st.exact ? [st.exact.cx, st.exact.cy, st.exact.scale] : null, slicing: !!st.textJob || !!st.wideText, wideAt: st.wide ? st.wide.scale : null, instances, dead, instanceBytes: bytes, gpuBytes: bytesOf(st), backingBytes: backingBytes(st), layers, mode, parked: st.parked.size, lost: st.lost,
       renderer: (() => { try { const x = st.gl.getExtension("WEBGL_debug_renderer_info"); return x ? st.gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : st.gl.getParameter(st.gl.RENDERER); } catch { return ""; } })()};
+  }
+  function diagnosticRenderState(st) {
+    return !visible() ? "paused" : failed ? "error" : st?.lost || st?.restoring ? "context-lost" :
+      st?.over ? "memory-limit" : st?.off ? "disabled" : st?.shown ? "gpu" : "2d";
   }
   // Timing probes can read counters between draws without querying the driver.
   function resourceCounters(I) {
-    const s = (I ? views.get(I) : views.values().next().value)?.stats;
+    I ??= views.keys().next().value;
+    const st = views.get(I), s = st?.stats;
     if (!s) return null;
+    const exact = st.exact, [cx, cy, scale, flipped, width, height, dpr] = I.cam();
+    const exactCamera = !!exact && exact.doc === I.cache?.doc && exact.rev === I.cache?.rev &&
+      exact.cx === cx && exact.cy === cy && exact.scale === scale && exact.flipped === flipped &&
+      exact.width === width && exact.height === height && exact.dpr === dpr;
     const {pourUploads, pourUploadBytes, pourBytes, pourCacheBytes, pourCacheHits, coverageUpload, textUpload, wideBuilds,
-      driverMemoryChecks, driverMemoryCheckMs} = s;
-    return {pourUploads, pourUploadBytes, pourBytes, pourCacheBytes, pourCacheHits, driverMemoryChecks, driverMemoryCheckMs,
+      gridBufferAllocations, driverFenceSubmissions, driverMemoryChecks, driverMemoryCheckMs,
+      textSliceRows, wideSliceRows, textSliceWorkMs, wideSliceWorkMs} = s;
+    return {renderState:diagnosticRenderState(st), exactCamera, slicing:!!st.textJob || !!st.wideText,
+      frames:(st.frameOffset ?? 0) + s.acc.n, retainedFrames:(st.retainedFrameOffset ?? 0) + s.acc.gesture,
+      gestureScale:s.gestureScale ?? null, gridBufferAllocations, driverFenceSubmissions,
+      pourUploads, pourUploadBytes, pourBytes, pourCacheBytes, pourCacheHits, driverMemoryChecks, driverMemoryCheckMs,
+      textSliceRows, wideSliceRows, textSliceWorkMs, wideSliceWorkMs,
       coverageUpload:coverageUpload || 0, textUpload:textUpload || 0, wideBuilds:wideBuilds || 0};
+  }
+  // Shareable diagnostics read application state only. No driver, DOM readback, or render work.
+  function diagnosticState(I) {
+    const st = views.get(I);
+    const state = diagnosticRenderState(st);
+    return {state, contexts: views.size, warmupPending: preparing.size !== 0,
+      losses: st?.losses ?? 0, activeBytes: st ? bytesOf(st) + backingBytes(st) : 0,
+      parkedScenes: st?.parked.size ?? 0, work: st ? resourceCounters(I) : null};
   }
   // Forces the GPU to finish (benchmarks only: a readback stalls the pipeline).
   function finish(I) { const st = I ? views.get(I) : views.values().next().value; if (st && !st.lost) st.gl.readPixels(0, 0, 1, 1, st.gl.RGBA, st.gl.UNSIGNED_BYTE, new Uint8Array(4)); }
@@ -2633,8 +3044,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (restoreAfterMs != null) setTimeout(() => { try { x.restoreContext(); } catch {} }, restoreAfterMs);
     return true;
   }
-  return Object.freeze({render, damage, stats, resourceCounters, status, finish, composite, reset, release: destroy, refresh, loseContext, overlays: () => overlays,
-    enabled: () => wanted(), failed: () => failed,
+  return Object.freeze({render, damage, stats, resourceCounters, diagnosticState, status, finish, composite, reset, release: destroy, refresh, pause, loseContext, overlays: () => overlays,
+    hasView: I => views.has(I), enabled: () => wanted(), failed: () => failed,
     // enable(true / false) overrides the preference for this session (tests and benchmarks); enable(null) follows it again.
     enable(v) { failed = false; failReason = ""; force = v == null ? null : !!v; refresh(); },
     mode(m) { if (m === "journal" || m === "prints") { mode = m; for (const st of views.values()) { freeScene(st, st.scene); st.scene = null; for (const S of st.parked.values()) freeScene(st, S); st.parked.clear(); } } return mode; }});

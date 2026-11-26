@@ -130,14 +130,43 @@ async function checkTrustedWheel(page) {
   assert.equal(after.tool,before.tool,"a wheel zoom leaves the Wire tool armed");
 }
 
+// Another lazy feature can install CanvasInput before the camera owner is ready.
+async function checkColdWheel(page) {
+  let release;
+  const ready = new Promise(resolve => {release = resolve;});
+  const pattern = "**/canvas/camera.js";
+  await page.route(pattern, async route => {await ready; await route.continue();});
+  try {
+    await page.goto(pathToFileURL(path.join(__dirname, "../../app/index.html")).href);
+    await page.evaluate(async () => {await AtriumLazy.need("AtriumCanvasInput");});
+    await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
+    await page.waitForFunction(() => !!globalThis.AtriumNavHost && AtriumNavHost.doc().kind === "pcb");
+    const before = await page.evaluate(() => {
+      const h = AtriumNavHost, canvas = h.canvas(), view = h.view(), r = canvas.getBoundingClientRect();
+      if (!globalThis.AtriumCanvasInput || globalThis.AtriumCamera) throw Error("Expected only the contact module to be warm");
+      const client = [Math.round(r.left+100), Math.round(r.top+90)], at = [client[0]-r.left,client[1]-r.top];
+      const world = view.screenToWorld(at), scale = view.scale();
+      const wheel = new WheelEvent("wheel",{bubbles:true,cancelable:true,ctrlKey:true,deltaY:-2.5,clientX:client[0],clientY:client[1]});
+      canvas.dispatchEvent(wheel);
+      return {at,world,scale,held:view.scale(),prevented:wheel.defaultPrevented};
+    });
+    assert.equal(before.prevented,true);
+    assert.equal(before.held,before.scale,"the gesture waits for the camera owner");
+    release();
+    await page.evaluate(async () => {await AtriumLazy.need("AtriumCamera");});
+    const target = before.scale * Math.exp(.02);
+    await page.waitForFunction(target => Math.abs(AtriumNavHost.view().scale()/target-1)<1e-9,target,{timeout:2000});
+    const anchor = await page.evaluate(world => AtriumNavHost.view().worldToScreen(world),before.world);
+    assert.ok(Math.hypot(anchor[0]-before.at[0],anchor[1]-before.at[1])<.001,"the first wheel replays once at the original anchor");
+  } finally {release(); await page.unroute(pattern);}
+}
+
 module.exports = async function touchNavigation(browser) {
   const page = await browser.newPage({viewport:{width:1480,height:950}, hasTouch:true}), errors = [];
   await require("../fixtures/notebook-labs.cjs").profile(page);
   page.on("pageerror", err => errors.push(err.message));
   try {
-    await page.goto(pathToFileURL(path.join(__dirname, "../../app/index.html")).href);
-    await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
-    await page.waitForFunction(() => !!globalThis.AtriumNavHost && AtriumNavHost.doc().kind === "pcb");
+    await checkColdWheel(page);
     await page.evaluate(setup);
     const dom = await page.evaluate(checkDomNavigation);
     assert.deepEqual(dom, []);

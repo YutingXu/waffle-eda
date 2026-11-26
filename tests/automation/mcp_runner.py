@@ -85,6 +85,45 @@ class BoardRunnerTests(unittest.TestCase):
                         server.close()
             self.assertEqual(authored_files(temp), before)
 
+    @unittest.skipUnless(load_jsc(), "JavaScriptCore is required")
+    def test_in_process_performance_ignores_wall_clock_changes(self):
+        for native_clock in (True, False):
+            with self.subTest(native_clock=native_clock):
+                runner = BoardRunner("jsc")
+                try:
+                    context = runner.jsc
+                    context.ensure(("headless",))
+                    context.evaluate("globalThis.wallTime = 10000; Date.now = () => wallTime;")
+                    # Advance the real JSC host clock's input deterministically; leave the JS wall
+                    # clock independent. If the C API cannot bind a clock, only counts are valid.
+                    tick = 100_000_000
+                    symbol = getattr(context.lib, "JSObjectMakeFunctionWithCallback", None) if native_clock else None
+                    with patch.object(context.lib, "JSObjectMakeFunctionWithCallback", symbol, create=True), \
+                         patch("board_runner.time.monotonic_ns", side_effect=lambda: tick):
+                        runner.performance_control("start")
+                        runner.performance_control("begin")
+                        context.evaluate("wallTime += 5000;")
+                        tick += 12_000_000
+                        runner.performance_control("end", "completed")
+                        source_time = context.value_text(context.evaluate("String(performance.now())"))
+                        self.assertEqual(source_time, "15000")
+                        row, = runner.performance_control("snapshot", projection="exact")["rows"]
+                        self.assertEqual(row["counts"]["completed"], 1)
+                        self.assertEqual(row["runP95"], 12 if symbol else None)
+                        self.assertEqual(row["endToEndP95"], 12 if symbol else None)
+                        runner.performance_control("begin")
+                        context.evaluate("wallTime -= 9000;")
+                        tick += 20_000_000
+                        runner.performance_control("end", "completed")
+                        row, = runner.performance_control("snapshot", projection="exact")["rows"]
+                        self.assertEqual(row["counts"]["completed"], 2)
+                        self.assertEqual(row["runP95"], 20 if symbol else None)
+                        row, = runner.performance_control("stop")["rows"]
+                        self.assertEqual(row["counts"]["completed"], "1-to-4")
+                        self.assertEqual(row["runP95"], "16-to-33ms" if symbol else "not-measured")
+                finally:
+                    runner.close()
+
     def test_javascriptcore_and_node_report_identically(self):
         if not load_jsc() or not shutil.which("node"):
             self.skipTest("both JS runtimes are required for parity comparison")

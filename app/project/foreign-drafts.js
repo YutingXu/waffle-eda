@@ -84,17 +84,26 @@ globalThis.AtriumForeignDrafts = (() => {
     }
   }
   async function checkpoint(record,pending,model,entries,revision,stillCurrent,originalScope,signal) {
-    const next = await encode(model,entries,record,originalScope,signal);
-    signal?.throwIfAborted();
-    if (!stillCurrent()) return false;
-    const meta = metadata(pending), old = new Map(record.head?.rows.map(r => [r.id,r.hash]));
-    const header = {version:G.AtriumFolderDrafts.version,scope,writer:meta.id,stamp:crypto.randomUUID(),written:Date.now(),
-      session:G.AtriumAutosave?.session,pending:meta,projectVersion:next.version,assets:[],rows:next.rows.map(({id,hash})=>({id,hash}))};
-    discover(meta.id,true);
-    await scopes().write(scope,meta.id,record.head?.stamp,header,next.rows.filter(r => old.get(r.id) !== r.hash));
-    record.head = header; record.revision = revision; record.model = model;
-    record.bindings=next.indexes; record.originals=next.originals;
-    return true;
+    const timing = G.AtriumDiagnostics?.performance?.begin("autosave","save");
+    let outcome = "failed";
+    try {
+      const next = await encode(model,entries,record,originalScope,signal);
+      signal?.throwIfAborted();
+      if (!stillCurrent()) { outcome = "cancelled"; return false; }
+      const meta = metadata(pending), old = new Map(record.head?.rows.map(r => [r.id,r.hash]));
+      const header = {version:G.AtriumFolderDrafts.version,scope,writer:meta.id,stamp:crypto.randomUUID(),written:Date.now(),
+        session:G.AtriumAutosave?.session,pending:meta,projectVersion:next.version,assets:[],rows:next.rows.map(({id,hash})=>({id,hash}))};
+      discover(meta.id,true);
+      timing?.ready();
+      await scopes().write(scope,meta.id,record.head?.stamp,header,next.rows.filter(r => old.get(r.id) !== r.hash));
+      record.head = header; record.revision = revision; record.model = model;
+      record.bindings=next.indexes; record.originals=next.originals;
+      outcome = "completed";
+      return true;
+    } catch (error) {
+      if (signal?.aborted || error?.name === "AbortError") outcome = "cancelled";
+      throw error;
+    } finally { timing?.end(outcome); }
   }
   async function begin({pending,model,entries,signal}) {
     const id = idOf(pending);
@@ -208,6 +217,19 @@ globalThis.AtriumForeignDrafts = (() => {
       r.session===G.AtriumAutosave?.session || !live.has("waffle-editor-draft-session:"+r.session))).sort((a,b)=>b.written-a.written);
   }
   async function restore(head,host=G.AtriumNavHost) {
+    const timing = G.AtriumDiagnostics?.performance?.begin("project","load");
+    let outcome = "failed";
+    try {
+      const adopted = await restoreVerified(head,host);
+      if (adopted) timing?.ready();
+      outcome = adopted ? "completed" : "cancelled";
+      return adopted;
+    } catch (error) {
+      if (error?.name === "AbortError") outcome = "cancelled";
+      throw error;
+    } finally { timing?.end(outcome); }
+  }
+  async function restoreVerified(head,host) {
     requireValue(head.scope===scope && head.writer===idOf(head.pending) && !records.has(head.writer),"This imported project is already open.");
     const bundle=await scopes().read(head), files=new Map(bundle.rows.map(r=>[r.id,r.bytes]));
     // The displayed offer is only a stamp. All restored identity and provenance come from its stored header.

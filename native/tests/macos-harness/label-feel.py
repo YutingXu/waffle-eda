@@ -14,6 +14,7 @@ from tempfile import TemporaryDirectory
 
 HERE = Path(__file__).resolve().parent
 PREFIX = "NOTE  probe summary: LABEL_FEEL "
+GPU_WORK = ("frames", "gridBufferAllocations", "driverFenceSubmissions", "driverMemoryChecks")
 
 
 def digest(path):
@@ -36,7 +37,26 @@ def stats(values):
 
 def difference(before, after):
     return {key: value - before[key] for key, value in after.items()
-            if isinstance(value, (int, float)) and isinstance(before.get(key), (int, float))}
+            if type(value) in (int, float) and type(before.get(key)) in (int, float)}
+
+
+def gpu_work(step):
+    counters = difference(step["before"], step["after"])
+    if any(type(counters.get(key)) is not int or counters[key] < 0 for key in GPU_WORK):
+        return None
+    work = {key: counters[key] for key in GPU_WORK}
+    if "retainedFrames" in step["before"] or "retainedFrames" in step["after"]:
+        retained = counters.get("retainedFrames")
+        if type(retained) is not int or not 0 <= retained <= work["frames"]:
+            return None
+        work["retainedFrames"] = retained
+    for key in ("textSliceRows", "wideSliceRows", "textSliceWorkMs", "wideSliceWorkMs"):
+        if key in step["before"] or key in step["after"]:
+            value = counters.get(key)
+            if value is None or not math.isfinite(value) or value < 0:
+                return None
+            work[key] = value
+    return work
 
 
 def input_rows(phase):
@@ -45,6 +65,9 @@ def input_rows(phase):
 
 def classify(phase, interval):
     ticks, work, draws = phase["ticks"], phase["work"], phase["draws"]
+    counters = gpu_work(phase)
+    if counters is None:
+        return {"invalid": "GPU work counters became invalid"}
     if len(ticks) < 2:
         return {"invalid": "WebKit frame clock did not run"}
     # The final rAF can contain an app draw before the phase returns. Keep its
@@ -98,12 +121,6 @@ def classify(phase, interval):
         if draw:
             dom_latency.append(draw["end"] - event["at"])
             native_latency.append(draw["end"] - event["stamp"])
-    counters = (difference(phase["before"]["perf"], phase["after"]["perf"]) if "perf" in phase["before"] else
-                {"legacyGPUDrawAverages": phase["after"]["legacy"]["acc"],
-                 "wideBuilds": phase["after"]["legacy"]["wideBuilds"] - phase["before"]["legacy"]["wideBuilds"],
-                 "slices": phase["after"]["legacy"].get("slices", 0) - phase["before"]["legacy"].get("slices", 0),
-                 "abandonedSlices": phase["after"]["legacy"].get("abandonedSlices", 0) - phase["before"]["legacy"].get("abandonedSlices", 0),
-                 "lastTextUploadBytes": phase["after"]["legacy"]["lastTextUploadBytes"]})
     return {
         "jsWorkMovingOrHeld": [bins[i] for i in sorted(activity)],
         "jsWorkSettle": [bins[i] for i in settled_bins],
@@ -116,8 +133,8 @@ def classify(phase, interval):
         "callbacks": cadences,
         "motionCallbacks": motion_cadences,
         "settleCallbackSpans": [ticks[i + 1] - ticks[i] for i in settled_bins if i + 1 < len(ticks)],
-        "missedDisplaySlots": sum(max(0, int(value / interval + .5) - 1) for value in cadences),
-        "above120HzFrameMs": sum(value > 1000 / 120 for value in cadences),
+        "missedDisplaySlots": sum(max(0, int(value / interval + .5) - 1) for value in cadences) if interval else None,
+        "aboveRefreshInterval": sum(value > interval for value in cadences) if interval else None,
         "sourceIntervals": [second["ms"] - first["ms"] for first, second in
                             zip(phase["operation"]["sent"], phase["operation"]["sent"][1:])] if events else [],
         "nativeStampToDOM": [event["at"] - event["stamp"] for event in events],
@@ -132,7 +149,7 @@ def classify(phase, interval):
 def summarize(run, budget):
     group = {}
     failed = []
-    interval = 1000 / run["native"]["displayHz"]
+    interval = None if run["drawWork"] else 1000 / run["native"]["displayHz"]
     if not run["nativeEndOK"] or not run["documentUnchanged"]:
         failed.append("Focus, display or authored document changed")
     if run["power"]["requestedBatterySimulation"] and not run["power"]["measured"]["battery"]:
@@ -157,9 +174,9 @@ def summarize(run, budget):
             "jsWorkMovingOrHeld", "jsWorkSettle", "jsWorkTerminalSettle", "workIntervalsAfterLastInput",
             "drawWork", "callbacks", "motionCallbacks", "settleCallbackSpans", "sourceIntervals",
             "nativeStampToDOM", "nativeStampToCompletedDraw", "domToCompletedDraw")}
-        summary[name] = {"trials": len(rows), **metrics,
-                         "missedDisplaySlots": sum(row["missedDisplaySlots"] for row in rows),
-                         "above120HzFrameMs": sum(row["above120HzFrameMs"] for row in rows)}
+        summary[name] = {"trials": len(rows), **metrics, **{
+            key: sum(row[key] for row in rows) if interval else None
+            for key in ("missedDisplaySlots", "aboveRefreshInterval")}}
         for key in ("jsWorkMovingOrHeld", "jsWorkSettle", "jsWorkTerminalSettle"):
             if name == "held" and key != "jsWorkMovingOrHeld":
                 continue
@@ -173,12 +190,21 @@ def summarize(run, budget):
     return {"byPhase": summary, "correctnessFailures": failed, "budgetFailures": budgets}
 
 
+def report_work(name, counters, process):
+    work = "  ".join(f"{key}={value}" for key, value in counters.items()) if counters else "GPU work unavailable"
+    cpu = " ".join(f"{key}={process[key]['cpuMs']:.2f}" for key in ("app", "web", "gpu", "net", "total")
+                   if process and key in process)
+    print(f"{name}  {work}  CPU ms {cpu or 'unavailable'}")
+
+
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", required=True, type=Path, help="Signed WaffleHarness.app")
     parser.add_argument("--project", required=True, type=Path, help="Saved Format 2.0 .waffle manifest")
     parser.add_argument("--display", required=True, type=int, help="CoreGraphics display ID")
-    parser.add_argument("--hz", required=True, type=int, help="Expected active display refresh rate")
+    parser.add_argument("--hz", type=int, help="Expected active display refresh rate")
+    parser.add_argument("--draw-work", action="store_true",
+                        help="Measure native input and render work without certifying physical display cadence")
     parser.add_argument("--repetitions", type=int, default=4, choices=range(1, 11), metavar="1..10")
     parser.add_argument("--settle-ms", type=int, default=380, help="Observation after AppKit input completes, from 380 to 1200 ms")
     parser.add_argument("--layer-mode", choices=("saved", "all", "dim", "single"), default="saved")
@@ -190,8 +216,10 @@ def main():
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("the native GPU labels track requires macOS")
-    if args.hz <= 0 or not math.isfinite(args.work_budget) or args.work_budget <= 0:
+    if (args.hz is not None and args.hz <= 0) or not math.isfinite(args.work_budget) or args.work_budget <= 0:
         parser.error("expected refresh rate and work budget must be positive")
+    if args.hz is None and not args.draw_work:
+        parser.error("provide --hz for physical display cadence, or use --draw-work")
     if not 380 <= args.settle_ms <= 1200:
         parser.error("settle observation must be from 380 to 1200 ms")
     bundle, manifest = args.bundle.resolve(), args.project.resolve()
@@ -218,7 +246,8 @@ def main():
                    HARNESS_PROBES=":".join(str(HERE / name) for name in probes),
                    HARNESS_OPEN_PROJECT=str(copied / manifest.name), NATIVE_FEEL_DISPLAY_ID=str(args.display))
         config = json.dumps({"display": args.display, "hz": args.hz, "repetitions": args.repetitions, "battery": args.battery,
-                             "layerMode": args.layer_mode, "crossView": args.cross_view, "settleMs": args.settle_ms})
+                             "layerMode": args.layer_mode, "crossView": args.cross_view, "settleMs": args.settle_ms,
+                             "drawWork": args.draw_work})
         try:
             run = subprocess.run(["/usr/bin/caffeinate", "-d", str(executable)], env=env,
                                  capture_output=True, input=config, text=True, timeout=25 + 10 * args.repetitions)
@@ -238,16 +267,27 @@ def main():
             result["correctnessFailures"].append("Saved project bytes changed")
         report["budgetMs"] = args.work_budget
         report["result"] = result
+        idle = report["idle"]
+        idle["counters"] = gpu_work(idle)
+        if idle["counters"] is None:
+            result["correctnessFailures"].append("Idle GPU work counters became invalid")
         if args.json:
             print(json.dumps(report, indent=2))
         else:
             print(f"GPU: {report['engine']}, {report['beforeItems']} objects, {report['native']['displayHz']:g} Hz, "
                   f"{report['viewport']['backing'][0]}×{report['viewport']['backing'][1]} backing pixels")
+            if args.draw_work:
+                print("Native draw work only. Physical display cadence is unqualified.")
             for name, metrics in result["byPhase"].items():
                 moving, settled, terminal = (metrics[key] for key in ("jsWorkMovingOrHeld", "jsWorkSettle", "jsWorkTerminalSettle"))
                 print(f"{name}  work p50/p95/max {moving['p50']}/{moving['p95']}/{moving['max']} ms ({moving['n']} frames)  "
                       f"first stationary {settled['p50']}/{settled['p95']}/{settled['max']} ms ({settled['n']} frames)  "
                       f"last stationary {terminal['p50']}/{terminal['p95']}/{terminal['max']} ms ({terminal['n']} frames)")
+            for trial in report["operations"].values():
+                for phase in trial["phases"]:
+                    if "measured" in phase:
+                        report_work(phase["name"], phase["measured"]["counters"], phase["process"])
+            report_work("idle", idle["counters"], idle["process"])
             for fault in result["correctnessFailures"] + result["budgetFailures"]:
                 print(f"FAIL  {fault}")
         if result["correctnessFailures"]:

@@ -2,8 +2,6 @@
 // History commands, quick access, branch status and the first Git log page.
 globalThis.AtriumHistoryEntry = (() => {
   const G = globalThis, L = () => G.AtriumLazy;
-  // The proposed icons (history, branch, more) live with the commit graph until the icon bank takes them.
-  const icons = () => G.AtriumCommitGraph?.icons();
   let host = null, button = null, status = null, branch = "", dirty = false, refsTicket = 0, request = 0;
   function open(options = {}) {
     if (!host) return;
@@ -97,7 +95,6 @@ globalThis.AtriumHistoryEntry = (() => {
   function install(h) {
     if (host) return;
     host = h;
-    icons();
     const redo = document.querySelector('.quick-access [data-action="redo"]');
     if (redo) {
       const chrome = G.AtriumNavCommon;

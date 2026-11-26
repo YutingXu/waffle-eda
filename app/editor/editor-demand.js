@@ -96,6 +96,7 @@ globalThis.AtriumEditorDemand = (() => {
     host.on?.("replace", change);
     host.on?.("document", change);
     host.on?.("panes", change);
+    host.on?.("pane-revealed", () => prepareCanvasGeometry(host.project()));
     globalThis.AtriumPower?.onChange?.(currentView);
     d.addEventListener("visibilitychange", currentView);
     currentView();

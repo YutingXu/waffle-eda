@@ -442,6 +442,10 @@ globalThis.AtriumDiffPair = (() => {
       return null;
     }
     function compute(p) {
+      const span = globalThis.AtriumDiagnostics?.performance?.begin("routing", "compute");
+      return span ? span.run(computeHead, p) : computeHead(p);
+    }
+    function computeHead(p) {
       const t0 = now(), l = leg(), base = C.baseCorner(st.corner), c = context(), lim = shrinkLimits();
       // With auto-shrink available, the full-size attempt gets part of the move budget.
       const canShrink = st.autoShrink && st.mode !== "ignore" && (lim.w < st.width - 1e-9 || lim.g < st.gap - 1e-9);

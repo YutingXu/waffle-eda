@@ -135,7 +135,7 @@ globalThis.AtriumInsightsUI = (() => {
     if (seq != null) seqs.set(d.id, seq);
     lastPass = {docId: d.id, ms: r.ms, mode: r.mode, why: r.why, ran: r.ran};
     shown.delete(d.id);
-    host.invalidate?.();
+    host.invalidate?.({overlay:true});
     publishTo(d);
     refreshMessages(d);
     if (cardFor && !current(d).some(x => x.key === cardFor.key)) closeCard();
@@ -165,24 +165,47 @@ globalThis.AtriumInsightsUI = (() => {
   // right of the land, as problem badges sit, so it never covers the drill it is about.
   function markAt(x, r) { if (!(x.land > 0)) return x.at; const d = (x.land + r) * Math.SQRT1_2; return [x.at[0] + d, x.at[1] - d]; }
   function diamond(ctx, at, r) { ctx.moveTo(at[0], at[1] - r); ctx.lineTo(at[0] + r, at[1]); ctx.lineTo(at[0], at[1] + r); ctx.lineTo(at[0] - r, at[1]); ctx.closePath(); }
+  const markerRank = x => x === cardFor ? 2 : x.severity === "advice" ? 1 : 0;
+  const boardGroups = new WeakMap();
+  function overviewGroups(list, cell, M) {
+    let groups = boardGroups.get(list);
+    if (!groups || groups.cell !== cell || groups.card !== cardFor) {
+      groups = {cell, card:cardFor, all:M.cells(list, x => x.at, 1, cell, markerRank)};
+      boardGroups.set(list,groups);
+    }
+    return groups.all;
+  }
   function markerPlan(d, list, frame) {
     planFor ??= PM().register();
     return planFor(d, frame, [list, cardFor], () => {
-      const M = PM(), {r, screen} = M.size(frame.scale, d.kind, "hint");
+      const M = PM(), {r, screen, w} = M.size(frame.scale, d.kind, "hint"), reach = M.hit(screen * 1.2);
       const view = frame.worldViewport?.(null, screen * 2.1 + 8);
       const atOf = x => markAt(x, r);
-      const near = view ? list.filter(x => {
+      const inView = x => {
         const [mx, my] = atOf(x);
         return mx >= view[0] && mx <= view[2] && my >= view[1] && my <= view[3];
-      }) : list;
+      };
+      const cell = d.kind === "pcb" && M.pcbCell(frame);
+      if (cell && list.length > 1) {
+        // Group at the findings' fixed world anchors, then choose where a visible diamond goes.
+        const groups = [], marks = [];
+        for (const group of overviewGroups(list, cell, M)) {
+          if (view && !group.members.some(inView)) continue;
+          const rep = M.visibleWinner(group, frame, atOf, markerRank);
+          groups.push(group);
+          marks.push({rep, at:atOf(rep), members:group.members, live:true, reach, coarse:true});
+        }
+        return {marks, groups, atOf, damageRadius:screen * 1.8 + w + 2};
+      }
+      const near = view ? list.filter(inView) : list;
       const groups = near.length > LOD && frame.worldToScreen ?
-        M.cells(near, atOf, frame.scale, Math.max(14, screen * 2), x => x === cardFor ? 2 : x.severity === "advice" ? 1 : 0) :
+        M.cells(near, atOf, frame.scale, Math.max(14, screen * 2), markerRank) :
         near.map(x => ({rep: x, at: atOf(x), members: [x]}));
-      return {marks: groups.map(g => ({...g, live: true, reach: M.hit(screen * 1.2)}))};
+      return {marks: groups.map(g => ({...g, live: true, reach}))};
     });
   }
   function overlay(d) {
-    return (ctx, a) => {
+    const paint = (ctx, a) => {
       const list = drawn(d, a.options, a.canvas);
       const {r, px, w, screen} = PM().size(a.scale, d.kind, "hint");
       const clip = a.area && a.worldViewport?.(a.area, screen * 2.1 + 8);
@@ -200,19 +223,30 @@ globalThis.AtriumInsightsUI = (() => {
       const fixPreview = cardFor?.doc === d.id && card?.dataset.preview === "1" ? cardFor.fix?.preview : null;
       if (fixPreview?.kind === "via") { ctx.globalAlpha = .7; ctx.strokeStyle = ink; ctx.lineWidth = 1.5 * px; ctx.setLineDash([2 * px, 2 * px]); ctx.beginPath(); ctx.arc(fixPreview.at[0], fixPreview.at[1], (fixPreview.diameter || .6) / 2, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
       // Markers: halo, then the diamond (filled for advice, hollow with a dot for a tip).
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); for (const {rep, at} of rows) diamond(ctx, at, hot.includes(rep) ? r * 1.2 : r);
-      ctx.lineWidth = 3 * px * w; ctx.strokeStyle = BOARD.halo; ctx.stroke();
-      ctx.beginPath(); for (const {rep, at} of rows) if (rep.severity === "advice") diamond(ctx, at, hot.includes(rep) ? r * 1.2 : r);
-      ctx.fillStyle = ink; ctx.globalAlpha = .85; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.beginPath(); for (const {rep, at} of rows) diamond(ctx, at, hot.includes(rep) ? r * 1.2 : r);
-      ctx.lineWidth = 1.3 * px * w; ctx.strokeStyle = ink; ctx.stroke();
-      const dot = Math.max(1.1 * px, r * .2);
-      ctx.beginPath(); for (const {rep, at} of rows) if (rep.severity !== "advice") { ctx.moveTo(at[0] + dot, at[1]); ctx.arc(at[0], at[1], dot, 0, Math.PI * 2); }
-      ctx.fillStyle = ink; ctx.fill();
+      if (rows.length) {
+        const outlines = new Path2D(), advice = new Path2D(), tips = new Path2D();
+        const dot = Math.max(1.1 * px, r * .2);
+        for (const {rep, at} of rows) {
+          const radius = hot.includes(rep) ? r * 1.2 : r;
+          diamond(outlines, at, radius);
+          if (rep.severity === "advice") diamond(advice, at, radius);
+          else { tips.moveTo(at[0] + dot, at[1]); tips.arc(at[0], at[1], dot, 0, Math.PI * 2); }
+        }
+        ctx.globalAlpha = 1; ctx.lineWidth = 3 * px * w; ctx.strokeStyle = BOARD.halo; ctx.stroke(outlines);
+        ctx.fillStyle = ink; ctx.globalAlpha = .85; ctx.fill(advice);
+        ctx.globalAlpha = 1; ctx.lineWidth = 1.3 * px * w; ctx.strokeStyle = ink; ctx.stroke(outlines);
+        ctx.fill(tips);
+      }
       for (const {rep, at} of rows) if (hot.includes(rep)) { ctx.lineWidth = 1.2 * px * w; ctx.strokeStyle = BOARD.ring; ctx.globalAlpha = .9; ctx.beginPath(); ctx.arc(at[0], at[1], r * 1.8, 0, Math.PI * 2); ctx.stroke(); }
       ctx.restore();
     };
+    if (d.kind === "pcb") paint.panDamage = (frame, dx, dy) => {
+      const M = PM();
+      if (!M.pcbCell(frame)) return [];
+      const plan = markerPlan(d, drawn(d, frame.options, frame.canvas), frame);
+      return plan.groups ? M.groupPanDamage(plan.groups, frame, plan.atOf, markerRank, plan.damageRadius, dx, dy) : [];
+    };
+    return paint;
   }
   const filtered = new WeakMap();
   function drawn(d, options, canvas = d) {

@@ -492,10 +492,10 @@ globalThis.AtriumReleaseUI = (() => {
       try {
         const data = files.length === 1 ? files[0].data : AtriumZip.create(files.map(f => ({name: f.name, data: f.data})), {date: new Date(pkg.manifest.date)});
         const name = files.length === 1 ? files[0].name : pkg.name + ".zip";
-        if (await ctx.exportFile(name, data)) ctx.info?.("Saved " + name);
+        if (await ctx.exportFile(name, data, {manufacturing:true})) ctx.info?.("Saved " + name);
       } catch (e) { say(e.message, true); }
     }
-    async function saveOne(f) { try { const name = f.name.split("/").pop(); if (await ctx.exportFile(name, f.data)) ctx.info?.("Saved " + name); } catch (e) { say(e.message, true); } }
+    async function saveOne(f) { try { const name = f.name.split("/").pop(); if (await ctx.exportFile(name, f.data, {manufacturing:true})) ctx.info?.("Saved " + name); } catch (e) { say(e.message, true); } }
 
     // ------------------------------------------------------------ releases tab
     function paintReleases() {

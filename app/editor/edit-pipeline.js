@@ -20,22 +20,25 @@ globalThis.AtriumEditPipeline = (() => {
       for (const job of pending.values()) if (job.phase < before && (!first || job.phase < first.phase)) first = job;
       return first;
     }
+    function deliver(job, deadline) {
+      pending.delete(job.key);
+      if (job.span) return job.span.run(() => job.callback(job.current, deadline));
+      return job.callback(job.current, deadline);
+    }
     function run(job, deadline) {
       if (!job || !visible()) return;
       running = true;
       const trace = globalThis.__waffleFrameTrace, start = now(), end = start + 6;
       const slice = {timeRemaining: () => Math.max(0, end - now())};
       try {
-        pending.delete(job.key);
-        job.callback(job.current, job.short && job.phase === phases.airwires ? slice : deadline);
+        deliver(job, job.short && job.phase === phases.airwires ? slice : deadline);
         // Run short adjacent phases in one task if there is time. If airwires
         // yield and enqueue another slice, the next task still runs it before tiles.
         while (painted && visible() && job.phase < phases.pours && slice.timeRemaining() >= 2) {
           const following = next();
           if (!following?.short || following.phase <= job.phase || following.phase > phases.pours) break;
           job = following;
-          pending.delete(job.key);
-          job.callback(job.current, slice);
+          deliver(job, slice);
         }
       } finally { trace?.editTask(start, now()); running = false; resume(); }
     }
@@ -66,7 +69,9 @@ globalThis.AtriumEditPipeline = (() => {
       if (typeof rank !== "number") throw new RangeError("Unknown edit phase: " + phase);
       const token = {};
       const current = () => newest.get(key) === token;
-      const job = {key, phase: rank, callback, current, short};
+      pending.get(key)?.span?.end("cancelled");
+      const span = globalThis.AtriumDiagnostics?.performance?.queue("editor", "request");
+      const job = {key, phase: rank, callback, current, short, span};
       newest.set(key, token);
       pending.set(key, job);
       if (rank < phases.idle) cancelIdle();
@@ -74,6 +79,7 @@ globalThis.AtriumEditPipeline = (() => {
       return {current, cancel() {
         if (!current()) return;
         newest.delete(key);
+        pending.get(key)?.span?.end("cancelled");
         pending.delete(key);
         if (!pending.size) cancelIdle();
       }};
@@ -85,6 +91,9 @@ globalThis.AtriumEditPipeline = (() => {
     }
     function supersede() {
       suspend();
+      if (globalThis.AtriumDiagnostics?.performance) {
+        for (const job of pending.values()) job.span?.end("cancelled");
+      }
       pending.clear();
       newest.clear();
     }

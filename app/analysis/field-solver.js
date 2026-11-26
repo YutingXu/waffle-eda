@@ -753,7 +753,14 @@ function AtriumFieldSolverFactory() {
   function retire() {const w = shared; shared = null; if (w) try {w.terminate();} catch (e) { /* already stopped */ }}
   function settle() {
     clearTimeout(idleTimer);
-    if (jobs.size) {const [id, job] = jobs.entries().next().value; job.timer ||= setTimeout(() => timedOut(id), 10000); return;}
+    if (jobs.size) {
+      const [id, job] = jobs.entries().next().value;
+      if (!job.timer) {
+        job.span?.start();
+        job.timer = setTimeout(() => timedOut(id), 10000);
+      }
+      return;
+    }
     idleTimer = setTimeout(() => {if (!jobs.size) retire();}, 30000);
     idleTimer?.unref?.();
   }
@@ -763,7 +770,7 @@ function AtriumFieldSolverFactory() {
     jobs.delete(id); retire();
     job.resolve({ok: false, error: "The field solver took longer than 10 s on this cross-section."});
     const rest = [...jobs.values()]; jobs.clear();
-    for (const j of rest) solveAsync(j.geom, j.opts).then(j.resolve);
+    for (const j of rest) submit(j);
     if (!rest.length) settle();
   }
   function worker() {
@@ -779,21 +786,45 @@ function AtriumFieldSolverFactory() {
       if (w !== shared) return;
       retire(); workerBroken = true;
       const rest = [...jobs.values()]; jobs.clear();
-      for (const j of rest) {clearTimeout(j.timer); j.resolve(solve(j.geom, j.opts));}
+      for (const j of rest) {clearTimeout(j.timer); j.fallback();}
     };
     return shared = w;
   }
+  function submit(job) {
+    const w = worker();
+    if (!w) {Promise.resolve().then(job.fallback); return;}
+    const id = ++seq, {geom, opts} = job;
+    try {w.postMessage({type: "solve", id, geom, opts});}
+    catch (e) {job.resolve({ok: false, error: "The cross-section could not be sent to the field solver."}); return;}
+    jobs.set(id, job);
+    settle();
+  }
+
   // Promise of solve(geom, opts) computed off the UI thread when a worker is
   // available, else synchronously on a later tick.
   function solveAsync(geom, opts = {}) {
-    return new Promise(resolve => {
-      const w = worker();
-      if (!w) {Promise.resolve().then(() => resolve(solve(geom, opts))); return;}
-      const id = ++seq;
-      try {w.postMessage({type: "solve", id, geom, opts});}
-      catch (e) {resolve({ok: false, error: "The cross-section could not be sent to the field solver."}); return;}
-      jobs.set(id, {geom, opts, resolve, timer: null});
-      settle();
+    const perf = globalThis.AtriumDiagnostics?.performance;
+    const span = perf?.queue("analysis", "request");
+    return new Promise((resolve, reject) => {
+      function finish(result) {
+        if (!result?.ok) span?.end("failed");
+        else { span?.ready(); span?.end(); }
+        resolve(result);
+      }
+      function fallback() {
+        span?.start();
+        const local = perf?.begin("analysis", "fallback");
+        try {
+          const result = solve(geom, opts);
+          local?.end(result?.ok ? "completed" : "failed");
+          finish(result);
+        } catch (error) {
+          local?.end("failed");
+          span?.end("failed");
+          reject(error);
+        }
+      }
+      submit({geom, opts, span, resolve: finish, fallback, timer: null});
     });
   }
 

@@ -1,108 +1,77 @@
-// Keep only diagnostic codes and locations of bundled scripts. Error messages and stacks can contain user data.
+"use strict";
+// Persist only bounded counters on failures. Old detailed records are never read by the report.
+// Node and JavaScriptCore unit tests load the source directly. The browser loads the recorder on demand.
+if (typeof require === "function" && typeof module === "object") require("./performance-diagnostics.js");
 globalThis.AtriumDiagnostics = (() => {
-  "use strict";
-  const G = globalThis, KEY = "atrium-diagnostics-v1", LIMIT = 32;
-  const errorNames = new Set(["Error", "TypeError", "ReferenceError", "SyntaxError", "RangeError", "EvalError", "URIError",
-    "AggregateError", "AbortError", "OperationError", "SecurityError", "QuotaExceededError", "CompileError", "LinkError", "RuntimeError"]);
-  const autosaveCodes = new Set(["serialize", "large", "error", "quota"]);
-  const rendererCodes = new Set(["macOS", "Windows", "Linux"]);
-  const rendererReasons = new Set(["exited", "unresponsive", "browser-exited", "memory-limit", "terminated"]);
-  const scriptName = /^(?:[a-z][a-z0-9-]{0,64}\.js|index\.html)$/, task = /^[a-z][a-z0-9-]{0,40}$/;
-  const pos = n => Number.isSafeInteger(n) && n > 0 && n <= 1e8 ? n : undefined;
-  let memory = [], memoryOnly = false, lastKey = "", lastAt = 0;
+  const G = globalThis, MAX = 32, KEY = "atrium-diagnostics-counts-v1";
+  const counts = {javascriptErrors: 0, unhandledRejections: 0, scriptLoadFailures: 0, autosaveFailures: 0,
+    workerFailures: 0, workerTimeouts: 0};
+  const workerKinds = new Map([["worker", "workerFailures"], ["hang", "workerTimeouts"]]);
+  const autosaveKinds = new Set(["serialize", "large", "error", "quota"]);
+  const observed = new WeakSet();
+  const now = () => G.performance?.now?.() ?? 0;
+  let lastNotice = -Infinity;
 
-  function safe(entry) {
-    if (!Number.isSafeInteger(entry?.at) || entry.at < 0 || entry.at > 8e15) return null;
-    const {at, kind, type, module, line, column} = entry;
-    if (kind === "renderer") return rendererCodes.has(type) && rendererReasons.has(entry.reason) ? {at, kind, type, reason: entry.reason} : null;
-    if (kind === "autosave") return autosaveCodes.has(type) ? {at, kind, type} : null;
-    // A worker that failed or hung (worker-pool.js): its task name only.
-    if (kind === "worker" || kind === "hang") return task.test(type) ? {at, kind, type} : null;
-    if (!["error", "rejection", "script-load"].includes(kind) || !errorNames.has(type)) return null;
-    return {at, kind, type, module: typeof module === "string" && scriptName.test(module) ? module : undefined,
-      line: pos(line), column: pos(column)};
-  }
-  function stored() {
-    if (memoryOnly) return memory;
+  function readCounts() {
     try {
       const raw = G.localStorage?.getItem(KEY);
-      if (raw?.length > 16384) return memory;
-      const rows = JSON.parse(raw || "null");
-      return Array.isArray(rows) ? rows.slice(-LIMIT).map(safe).filter(Boolean) : memory;
-    } catch { return memory; }
+      if (typeof raw !== "string" || raw.length > 1024) return;
+      const stored = JSON.parse(raw);
+      for (const key of Object.keys(counts)) {
+        const value = stored?.[key];
+        if (Number.isInteger(value) && value >= 0 && value <= MAX) counts[key] = Math.max(counts[key], value);
+      }
+    } catch { /* storage unavailable or invalid */ }
   }
-  function add(details) {
-    const at = Date.now(), entry = safe({at, ...details});
-    if (!entry) return null;
-    const key = JSON.stringify({...entry, at: 0});
-    if (key === lastKey && at - lastAt < 1000) return null;
-    lastKey = key; lastAt = at;
-    memory = [...stored(), entry].slice(-LIMIT);
-    try { G.localStorage?.setItem(KEY, JSON.stringify(memory)); memoryOnly = false; }
-    catch { memoryOnly = true; }
-    return entry;
+  function increment(key) {
+    if (counts[key] >= MAX) return;
+    readCounts();
+    if (counts[key] >= MAX) return;
+    counts[key]++;
+    try { G.localStorage?.setItem(KEY, JSON.stringify(counts)); } catch { /* bounded in-memory fallback */ }
   }
-  // A failure shows once in the status bar, never as a dialog. Pages loaded from file:// see
-  // "Script error." for every uncaught error, so edit() and act() report what they rethrow
-  // (failed(), with its stack location) and the muted copy that follows is skipped.
-  let told = 0, last = null, mutedUntil = 0;
-  function tell(e) {
-    if (!e || e.at - told < 3e4) return;
-    told = e.at;
-    try { G.AtriumNavHost?.info?.("Internal error (" + e.type + (e.module ? ", " + e.module : "") + "): details in Help › Crash Diagnostics"); } catch { /* no editor yet */ }
+  function notify() {
+    const at = now();
+    if (at - lastNotice < 30000) return;
+    lastNotice = at;
+    try { G.AtriumNavHost?.info?.("Internal error. See Help › Troubleshooting › Crash Diagnostics."); }
+    catch { /* the editor may be starting */ }
   }
   function failed(error) {
-    if (error === last) return;
-    last = error; mutedUntil = Date.now() + 1000;
-    tell(add({kind: "error", type: errorType(error), ...stackLocation(error)}));
-  }
-  function bundledModule(source) {
-    try {
-      const page = new URL(G.location.href), url = new URL(source, page), dir = new URL(".", page);
-      if (url.protocol !== dir.protocol || url.host !== dir.host || !url.pathname.startsWith(dir.pathname)) return;
-      const name = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
-      if (!scriptName.test(name)) return;
-      if (url.pathname === page.pathname || Array.from(G.document.scripts).some(script => script.src === url.href)) return name;
-    } catch { /* the source is unavailable */ }
-  }
-  function errorType(error) {
-    try { if (errorNames.has(error?.name)) return error.name; } catch { /* a thrown object can have a getter */ }
-    return "Error";
-  }
-  function stackLocation(error) {
-    try {
-      if (typeof error?.stack !== "string") return {};
-      for (const frame of error.stack.slice(0, 4096).split("\n")) {
-        const match = frame.match(/((?:file|https?):\/\/[^\n]*?):(\d{1,9})(?::(\d{1,9}))?\)?$/);
-        const module = match && bundledModule(match[1]);
-        if (module) return {module, line: +match[2], column: +match[3]};
-      }
-    } catch { /* the source is unavailable */ }
-    return {};
+    if (error && (typeof error === "object" || typeof error === "function")) {
+      if (observed.has(error)) return;
+      observed.add(error);
+    }
+    increment("javascriptErrors");
+    notify();
   }
   G.addEventListener?.("error", event => {
-    if (typeof event.filename === "string") {
-      if (!event.error && (/^ResizeObserver loop/.test(event.message) || Date.now() < mutedUntil)) return; // benign, or reported by failed()
-      if (event.error && event.error === last) return;
-      const module = event.filename && bundledModule(event.filename);
-      tell(add({kind: "error", type: errorType(event.error), module, line: module ? event.lineno : undefined, column: module ? event.colno : undefined}));
-    } else if (event.target?.localName === "script") {
-      const module = bundledModule(event.target.src);
-      if (module) add({kind: "script-load", type: "Error", module});
-    }
+    if (event.target?.localName === "script") increment("scriptLoadFailures");
+    else if (event.error != null) failed(event.error);
   }, true);
   G.addEventListener?.("unhandledrejection", event => {
-    try { if (event.reason?.cancelled || event.reason?.name === "AbortError") return; } catch { /* a getter */ }
-    tell(add({kind: "rejection", type: errorType(event.reason), ...stackLocation(event.reason)}));
+    try { if (event.reason?.cancelled === true || event.reason?.name === "AbortError") return; }
+    catch { /* a thrown object can have a getter */ }
+    increment("unhandledRejections");
+    notify();
   });
 
-  async function entries() {
-    const local = stored();
-    let native = [];
-    try { native = await G.AtriumHost?.crashHistory?.(); } catch { /* older host */ }
-    return [...local, ...(Array.isArray(native) ? native.slice(-LIMIT).map(safe).filter(row => row?.kind === "renderer") : [])]
-      .sort((a, b) => b.at - a.at).slice(0, LIMIT);
-  }
-  // record("worker" | "hang", task). The dialog and report: recover.js.
-  return Object.freeze({entries, failed, autosaveFailure: type => add({kind: "autosave", type}), record: (kind, type) => !!add({kind, type})});
+  return Object.freeze({
+    get performance() { return G.AtriumPerformanceDiagnostics?.performance ?? null; },
+    get startPerformance() { return G.AtriumPerformanceDiagnostics?.startPerformance; },
+    performanceSnapshot(options) {
+      return G.AtriumPerformanceDiagnostics?.performanceSnapshot(options) ?? {version: 1, recording: false, rows: []};
+    },
+    get durationBucket() { return G.AtriumPerformanceDiagnostics?.durationBucket; },
+    get countBucket() { return G.AtriumPerformanceDiagnostics?.countBucket; },
+    failures() { readCounts(); return {...counts}; },
+    failed,
+    autosaveFailure(kind) { if (autosaveKinds.has(kind)) increment("autosaveFailures"); },
+    record(kind) {
+      const key = workerKinds.get(kind);
+      if (!key) return false;
+      increment(key);
+      return true;
+    }
+  });
 })();

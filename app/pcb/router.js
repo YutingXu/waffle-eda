@@ -1561,6 +1561,10 @@ globalThis.AtriumRouter = (() => {
     const sticky = a => slack && st.side && st.sideAt === a ? {side:st.side, slack:slack * (st.width + context().clr[NONET + NET0])} : {};
     const keepSide = (a, r) => { if (r.ok && r.side) { st.side = r.side; st.sideAt = a; } };
     function compute(p) {
+      const span = globalThis.AtriumDiagnostics?.performance?.begin("routing", "compute");
+      return span ? span.run(computeHead, p) : computeHead(p);
+    }
+    function computeHead(p) {
       const t0 = now(), c = context(), a = legEnd();
       c.deadline = t0 + st.moveMs; c.checks = 0;
       restoreScene();
@@ -1971,6 +1975,10 @@ globalThis.AtriumRouter = (() => {
   }
 
   function gridRoute(W, rules, o) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("routing", "build");
+    return span ? span.run(searchGrid, W, rules, o) : searchGrid(W, rules, o);
+  }
+  function searchGrid(W, rules, o) {
     if (!o.keepScene) W.scene.reset();
     const net = o.net || "", netId = W.netIds.has(net) ? W.netIds.get(net) : net ? 1e9 : NONET;
     const layers = o.layers, L = layers.length, width = finite(o.width) ? o.width : rules.width(net, layers[0], o.from).preferred, hw = width / 2;
@@ -2284,6 +2292,10 @@ globalThis.AtriumRouter = (() => {
       if (!alive) throw Error("This drag session has ended.");
       const dx = finite(delta?.[0]) ? delta[0] : 0, dy = finite(delta?.[1]) ? delta[1] : 0;
       if (last && last.dx === dx && last.dy === dy) return last.out;
+      const span = globalThis.AtriumDiagnostics?.performance?.begin("routing", "compute");
+      return span ? span.run(computeDrag, dx, dy) : computeDrag(dx, dy);
+    }
+    function computeDrag(dx, dy) {
       const t1 = now();
       resetTransient();
       for (const f of shiftFeats) copyFeature(f, dx, dy);

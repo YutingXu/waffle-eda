@@ -2020,9 +2020,18 @@ globalThis.AtriumFabOutputs = (() => {
       p.append(list);
     }
     async function translated(fileName) {
-      const client = await globalThis.AtriumLazy.need("AtriumTranslatorClient");
-      return client.export("fabrication", ctx.project, {...options, documentId:doc.id, fileName,
-        provenance:globalThis.AtriumImportReports?.provenance(), signal:download.signal});
+      const timing = globalThis.AtriumDiagnostics?.performance?.begin("manufacturing", "build");
+      let outcome = "failed";
+      try {
+        const client = await globalThis.AtriumLazy.need("AtriumTranslatorClient");
+        const result = await client.export("fabrication", ctx.project, {...options, documentId:doc.id, fileName,
+          provenance:globalThis.AtriumImportReports?.provenance(), signal:download.signal});
+        outcome = "completed";
+        return result;
+      } catch (error) {
+        if (download.signal.aborted || error?.name === "AbortError") outcome = "cancelled";
+        throw error;
+      } finally { timing?.end(outcome); }
     }
     async function save(file) {
       if (busy) return;
@@ -2034,7 +2043,7 @@ globalThis.AtriumFabOutputs = (() => {
         checkDownload(selected, source);
         const {files} = await translated(file.name);
         checkDownload(selected, source);
-        if (await ctx.exportFile(files[0].name, files[0].text)) ctx.info?.("Exported " + files[0].name);
+        if (await ctx.exportFile(files[0].name, files[0].text, {manufacturing:true})) ctx.info?.("Exported " + files[0].name);
       } catch (e) { if (e?.name !== "AbortError") status.textContent = e.message; }
       finally { busy = false; }
     }
@@ -2056,7 +2065,7 @@ globalThis.AtriumFabOutputs = (() => {
         check();
         const bytes = globalThis.AtriumZip.create(files.map(f => ({name:f.name, data:f.text})), {date:new Date(details.options.date)});
         status.textContent = "";
-        if (await ctx.exportFile(details.packageName, bytes)) { ctx.info?.("Exported " + details.packageName + " (" + files.length + " files)"); d.close(); }
+        if (await ctx.exportFile(details.packageName, bytes, {manufacturing:true})) { ctx.info?.("Exported " + details.packageName + " (" + files.length + " files)"); d.close(); }
       } catch (e) { if (e?.name !== "AbortError") status.textContent = e.message; }
       finally { busy = false; all.disabled = false; }
     });

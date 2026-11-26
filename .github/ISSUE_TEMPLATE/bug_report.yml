@@ -83,5 +83,12 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Messages, console output or screenshots
-      description: Copy from the Messages panel, or attach screenshots.
+      label: Messages or screenshots (optional)
+      description: Include relevant messages or a cropped screenshot you can share publicly.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Waffle diagnostics (optional)
+      description: |
+        In Waffle 0.8.1 or later, choose Help › Troubleshooting › Crash Diagnostics… to preview the report. Use Copy report to paste it here, or Save report… to attach waffle-diagnostics.json.
+        For lag or high resource use, turn on Frame Monitor in the same menu, repeat the action, then open the report while Frame Monitor is still on.

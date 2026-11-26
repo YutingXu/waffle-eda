@@ -123,6 +123,37 @@ globalThis.AtriumProblemMarks = (() => {
     }
     return groups;
   }
+  const CLOSE_PCB_SCALE = 32;
+  // Every world cell becomes four children at the next band. Their boundaries never move with the pane.
+  function pcbCell({scale, worldToScreen}) {
+    return worldToScreen && scale > 0 && scale < CLOSE_PCB_SCALE ?
+      2 ** Math.floor(Math.log2(2 * CLOSE_PCB_SCALE / scale)) : 0;
+  }
+  function visibleWinner(group, {worldToScreen, width, height}, atOf, rank, dx = 0, dy = 0) {
+    if (!width || !height) return group.rep;
+    const onscreen = row => {
+      const [x,y] = worldToScreen(atOf(row));
+      return x - dx >= 0 && x - dx < width && y - dy >= 0 && y - dy < height;
+    };
+    if (onscreen(group.rep)) return group.rep;
+    let best = null;
+    for (const row of group.members) if ((!best || rank(row) > rank(best)) && onscreen(row)) best = row;
+    return best || group.rep;
+  }
+  // Compare both snapped cameras with the same world membership; only changed glyphs need repairs.
+  function groupPanDamage(groups, frame, atOf, rank, radius, dx, dy) {
+    const rects = [];
+    for (const group of groups) {
+      if (group.members.length < 2) continue;
+      const before = visibleWinner(group, frame, atOf, rank, dx, dy), after = visibleWinner(group, frame, atOf, rank);
+      if (before === after) continue;
+      for (const row of [before, after]) {
+        const [x,y] = frame.worldToScreen(atOf(row));
+        rects.push([x - radius, y - radius, x + radius, y + radius]);
+      }
+    }
+    return rects;
+  }
   // The camera determinant detects a flip even when rotation points the world x axis left.
   function mirrored(ctx, a) {
     const m = ctx.getTransform?.();
@@ -215,5 +246,6 @@ globalThis.AtriumProblemMarks = (() => {
     const p = badgeAt(at, scale, kind);
     return {at: [p.x, p.y], radius: hit(p.z.screen)};
   }
-  return Object.freeze({size, hit, scaleOf, cluster, cells, register, paneFrame, pick, count, mirrored, badge, paintBadges, badgeAt, badgeUnder, badgeDetail, hoverStatus, BOARD, MIN, MAX});
+  return Object.freeze({size, hit, scaleOf, cluster, cells, pcbCell, visibleWinner, groupPanDamage, register, paneFrame, pick, count,
+    mirrored, badge, paintBadges, badgeAt, badgeUnder, badgeDetail, hoverStatus, BOARD, MIN, MAX});
 })();

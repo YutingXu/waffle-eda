@@ -78,6 +78,70 @@ compositor feedback. The `waffle-windows-pcb-timing` artifact carries the packag
 and evidence, including measurements that exceeded the budget. The timing step fails when the workload cannot be measured.
 Ordinary push and pull-request builds run unattended. [Windows timing runner](../scripts/ci/windows-view-feel.ps1)
 
+On new Windows captures, `callbackFrameWork` reports the same observed main-thread work
+grouped by the browser's animation-frame callback labels. Timers, input and other
+callbacks stay with their actual start interval. An animation-frame callback whose label
+is absent from the observed frames also stays with its start interval. The statistic is
+separate from the existing start-interval budget and measures callback work, independent
+of compositor feedback. Older receipts omit it.
+
+`terminalWorkAttribution` records the terminal draw, its owning callback and both
+intervals charged by these two measurements. Each interval shows other rAF callbacks,
+callbacks without an rAF label and standalone draws separately. Work outside the
+observed frame intervals is listed separately so totals can be reconciled back to the
+recorded callback and standalone draw durations.
+
+### Investigating a slow board view
+
+Run `scripts/perf-view-feel.sh --json` for a repeatable wheel, pan and drag workload. The probe opens the PCB tab and hit-tests the input point before timing. In the GPU zoom results, each burst includes submitted board frames, grid-buffer allocations, memory-probe fences and completed driver-memory checks. The browser and native probes also report `retainedFrames` when available. Subtract it from `frames` to count frames drawn through the full renderer path. Both frame totals stay cumulative across resets of the legacy timing averages. Reading the counters issues no graphics commands. The issue report groups selected counters into ranges for the active PCB.
+
+Compare builds with the same board, viewport, pixel ratio and input sequence. Check that each moves the camera and draws the same frames. Compare the settled images separately from timing because reading pixels can stall the driver. A main-thread draw duration measures work in the editor callback. WebContent CPU time can include other work, and a submitted frame alone cannot establish that the display showed it.
+
+For a saved board on macOS, run `scripts/perf-view-feel.sh --native --bundle <signed-harness.app> --project <manifest.waffle> --display <display-id> --draw-work`. It sends native input, checks the board under the pointer, and reports the first and final stationary frame alongside the moving frames. The detailed output includes per-process CPU and, on builds with text raster counters, the rows and milliseconds spent sharpening the current view or preparing a wider view. Use `--hz 120` on an awake 120 Hz display to check presentation cadence. The default work budget is 8 ms at p95.
+
+### Recording component performance
+
+Open **Help › Troubleshooting › Frame Monitor** and reproduce the operation. The monitor shows the five operations with the longest p95 times. **Crash Diagnostics…** previews the shareable report. The latest capture stays in memory after the monitor closes and is replaced when the next capture starts. A browser test can acquire its own recording lease. Closing the monitor or completing a test releases only that caller’s lease.
+
+The Demo integration test exercises the production recorder across schematic and PCB edits, routing, library search, design checks, drawing and two browser saves. To keep its exact local JSON for comparison, run the following command with the normal Chromium test dependencies installed.
+
+```sh
+node tests/integration-browser.cjs --demo-workflow-only --performance-snapshot waffle-performance.json
+```
+
+Other workloads use the same API. Acquire the lease immediately before the action and wait for the result that matters, such as a visible board submission or the native writer’s acknowledgement.
+
+```js
+await AtriumLazy.need("AtriumPerformanceDiagnostics");
+const capture = AtriumDiagnostics.startPerformance();
+try {
+  await runWorkload();
+} finally {
+  capture.stop();
+}
+const exact = AtriumDiagnostics.performanceSnapshot();
+const shareable = AtriumDiagnostics.performanceSnapshot({shareable: true});
+```
+
+For a local PCB gesture trace, pass `{rendererStages: true}` to `startPerformance()`. The exact snapshot then includes rows for retained pan, retained zoom and full redraws. Use their run times to distinguish strip repairs, overlay painting, texture-band preparation and drawing. `full-band-paint` measures drawing within `full-text`, which includes lettering and any board artwork sharing those layers. These stages report elapsed wall time on the editor thread. `full-coverage` includes preparation and texture allocation. Its nested `full-coverage-paint` and `full-coverage-upload` rows sum the canvas painting and texture submission work across all pour layers in each full frame. Upload includes synchronous readback and time spent waiting within texture submission. Its nested `full-coverage-readback` measures only the WebKit path's explicit `getImageData` calls and reports zero for direct canvas uploads. For one frame, subtract its readback duration from its upload duration to find the remaining submission time. Percentiles describe separate distributions. GPU completion and display presentation require separate probes. The shareable issue report omits the stage rows.
+
+Compare wheel notches and continuous zoom separately. The 2D editor can glide between notches, while pinch and precise Ctrl+wheel packets follow their input directly. Match the board, starting camera, zoom range and pointer anchor, and record the first pass and a warm repeat. A stationary secondary click opens the canvas menu in Select. A secondary drag pans, including with Control held.
+
+With Frame Monitor open, the exact local snapshot can include `frame.wheelTail` for the trusted Ctrl+wheel sample at `wheelToDrawP95`. Its three durations belong to the same input and add up to that total. `stampToHandlerMs` runs from the event timestamp to the wheel handler, `handlerToDrawMs` ends when the first draw of the changed camera begins, and `drawMs` ends when the editor returns from that draw. When several physical notches contribute to one draw, the oldest contributing notch supplies the timestamp. `stampSource` distinguishes a DOM event from a signed notch reconstructed from a coalesced native packet. These measurements end at draw submission. Measuring display latency requires a separate presentation probe.
+
+Both projections use snapshot version 1. Each row has a fixed component and operation, lifetime counts within this capture, and three elapsed times in milliseconds. **Queue** ends when work starts or is withdrawn. **Run** ends when the result is ready, or when execution finishes if it has a single completion point. **End-to-end** includes the wait for delivery. Each p95 uses the latest 128 eligible samples for that row and phase. Missing samples appear as `null` locally. Overlapping calls, worker waits and parent commands can span the same interval, so adding the rows gives a misleading estimate of CPU usage.
+
+| Outcome | Evidence |
+| --- | --- |
+| Completed | The operation returned, a store accepted the result, or the browser accepted a download. |
+| Visible | The renderer submitted a complete view to a foreground editor pane. Physical display timing requires a presentation measurement. |
+| Durable | The native writer acknowledged the save. |
+| Cancelled or failed | Work was superseded, withdrawn, or ended with an error. Work still in flight at Stop retains its started or queued count. |
+
+The recorder covers editor commands and follow-up work, solver and worker requests, 2D and 3D rendering, design and fabrication checks, routing and pours, library and notebook operations, history and collaboration, project storage, manufacturing, extensions and headless tools. A worker or native request measures elapsed time through the reply. A capture taken with Frame Monitor open also contains its latest two-second frame summary. Use native probes to attribute process CPU, driver work or display timing. The CLI and MCP default to the shareable projection and can return exact measurements for tests. [Headless performance diagnostics](mcp-and-cli.md#performance-diagnostics)
+
+When adding work, use its existing command, scheduler, worker or transaction boundary. A service with its own asynchronous result can call `AtriumDiagnostics.performance?.queue(component, operation)`, `start()`, optionally `ready()`, and `end(outcome)` where work actually changes state. For synchronous work, `span.run(fn, ...args)` preserves the return value and thrown errors. The recorder accepts only fixed component and operation names. Keep identifiers, arguments, paths, and error messages in their owning operation. The shared issue report contains count and duration ranges.
+
 **Release** (`release.yml`):
 
 - On the Mac, generates the worker, extension, locale and other runtime assets, checks freshness and shortcut documentation, then builds:

@@ -76,11 +76,13 @@ globalThis.AtriumPrefs = (() => {
     return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : key.startsWith("butter.") ? false : DEFAULTS[key];
   }
   const changed = () => ({...values});
+  function persist() {
+    if (!Object.keys(values).length && !Object.keys(foreign).length) storage?.removeItem?.(STORE);
+    else storage?.setItem(STORE, JSON.stringify({format: FORMAT, version: VERSION, values: {...foreign, ...values}}));
+  }
   function save() {
-    try {
-      if (!Object.keys(values).length && !Object.keys(foreign).length) storage?.removeItem?.(STORE);
-      else storage?.setItem(STORE, JSON.stringify({format: FORMAT, version: VERSION, values: {...foreign, ...values}}));
-    } catch {}
+    const span = storage && globalThis.AtriumDiagnostics?.performance?.begin("settings","save");
+    try { if (span) span.run(persist); else persist(); } catch {}
   }
   function emit(key, value, old) { for (const l of [...listeners]) if (!l.prefix || key.startsWith(l.prefix)) try { l.fn({key, value, old}); } catch (e) { globalThis.console?.warn?.(e); } }
   function set(key, value) {

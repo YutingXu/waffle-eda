@@ -7,7 +7,7 @@
 const assert = require("node:assert/strict");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};
 for (const m of ["model", "net-ties", "parts", "spatial", "board-shape", "stackup", "pcb-pours", "pcb-appearance", "altium-rules", "pcb-draw", "component-classes", "net-intent", "signals",
-  "rules", "project-rules", "viastack", "polygon-pour", "zip", "vectorize", "pcb-text-rich", "pcb-text", "designator-place", "fab-outputs", "drc-pours", "drc"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+  "rules", "project-rules", "viastack", "polygon-pour", "zip", "vectorize", "pcb-text-rich", "pcb-text", "designator-place", "fab-outputs", "diagnostics", "drc-pours", "drc"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const A = Atrium, P = AtriumDRCPours, PP = AtriumPolygonPour, R = AtriumRules;
 let passed = 0;
 const test = (name, fn) => { fn(); passed++; console.log("ok - " + name); };
@@ -47,7 +47,16 @@ test("batch tallies regular and poured copper under the same rule and cap", () =
   const types = ["clearance"], base = D.run(d, defs, book, {types}), pours = P.verify(d, defs, book).violations;
   assert.ok(base.violations.length && pours.length > 1);
   let reported;
-  const full = D.batch(d, defs, book, {types, onPours: v => reported = v});
+  const recording = AtriumDiagnostics.startPerformance();
+  let full;
+  try {
+    full = D.batch(d, defs, book, {types, onPours: v => reported = v});
+    const rows = AtriumDiagnostics.performanceSnapshot().rows;
+    assert.equal(rows.length,1,"manual DRC records the combined clearance check once");
+    assert.equal(rows[0].component,"drc");
+    assert.equal(rows[0].operation,"check");
+    assert.equal(rows[0].counts.completed,1);
+  } finally { recording.stop(); }
   assert.deepEqual(full.violations, [...base.violations, ...pours]);
   assert.deepEqual(reported, pours);
   assert.equal(full.total, base.total + pours.length);

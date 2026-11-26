@@ -52,21 +52,30 @@ globalThis.AtriumCamera = (() => {
   // ---------------------------------------------------------------- wheel
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const hasWheelDelta = e => !!(e.deltaX || e.deltaY);
-  const nativeWheelSteps = e => e.isTrusted && globalThis.__waffleWheelNotches?.(e);
-  const wheelHasMotion = e => hasWheelDelta(e) || !!nativeWheelSteps(e)?.length;
-  function wheelDetent(e) {
+  function wheelDetent(e, knownNative, minimumPixelNotch = 80, ambiguousLegacyFallback = false) {
     const mode = e.deltaMode, dy = e.deltaY, legacy = e.wheelDeltaY;
     if (mode === 1 || mode === 2) return true;
     if (e.deltaX) return false;
-    if (e.isTrusted && globalThis.__waffleIsWheelNotch) return globalThis.__waffleIsWheelNotch(e);
+    if (e.isTrusted && globalThis.__waffleIsWheelNotch) return knownNative ?? globalThis.__waffleIsWheelNotch(e);
     if (!dy) return false;
     // Pixel-mode notches can still carry the legacy ±120 count. A trackpad often reports −3 × deltaY.
-    if (Number.isFinite(legacy) && legacy !== 0) return legacy % 120 === 0 && legacy !== -3 * dy;
+    if (Number.isFinite(legacy) && legacy !== 0) {
+      if (legacy % 120 === 0 && legacy !== -3 * dy) return true;
+      if (!ambiguousLegacyFallback) return false;
+    }
     // Keep the existing unmodified wheel convention where no device clue is delivered.
     // Chromium may deliver whole-pixel Ctrl+wheel pinch updates, so size alone cannot identify them.
-    return !e.ctrlKey && Math.abs(dy) >= 80 && Number.isInteger(dy) && dy % 40 === 0;
+    return !e.ctrlKey && Math.abs(dy) >= minimumPixelNotch && Number.isInteger(dy) && dy % 40 === 0;
   }
   const wheelPinch = (e, detent = wheelDetent(e)) => hasWheelDelta(e) && !!e.ctrlKey && !e.metaKey && !detent;
+  // A native packet can carry motion even when opposing deltas sum to zero.
+  function wheelPacket(e, minimumPixelNotch, ambiguousLegacyFallback) {
+    const native = e.isTrusted && globalThis.__waffleWheelNotches;
+    const steps = native ? native(e) : null;
+    if (!steps?.length && !hasWheelDelta(e)) return null;
+    const detent = !!steps?.length || wheelDetent(e, native ? false : undefined, minimumPixelNotch, ambiguousLegacyFallback);
+    return {steps, detent, pinch:wheelPinch(e, detent)};
+  }
   function bundledDetents(e, detent) {
     const legacy = e.wheelDeltaY;
     // Chromium can merge same-direction Windows notches. Each detent in this
@@ -77,10 +86,9 @@ globalThis.AtriumCamera = (() => {
     return 1;
   }
   // What one wheel event does: {zoom, at:"pointer"|"centre"} or {pan:[dx, dy]} in canvas pixels.
-  function wheelAction(e, c = cfg, page = 800, detent = wheelDetent(e)) {
+  function wheelAction(e, c = cfg, page = 800, detent = wheelDetent(e), pinch = wheelPinch(e, detent)) {
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? page : 1;
     const dx = (e.deltaX || 0) * unit, dy = (e.deltaY || 0) * unit, mod = !!(e.ctrlKey || e.metaKey);
-    const pinch = wheelPinch(e, detent);
     if (!mod && dx && !dy) return {pan: [-dx, 0]};                        // tilt and thumb side wheels
     if (mod || c["mouse.wheel"] === "zoom" && detent && !e.shiftKey) {
       const count = bundledDetents(e, detent);
@@ -105,18 +113,22 @@ globalThis.AtriumCamera = (() => {
     else wheelInterrupted = now;
     clearWheelFrame(view);
   }
-  function notchZoom(view, canvas, zoom, at, redraw, eventStamp) {
+  const traceWheel = (canvas, {stamp, deliveredAt, source}) => globalThis.__waffleFrameTrace?.wheel?.(canvas, stamp, deliveredAt, source);
+  function notchZoom(view, canvas, zoom, at, redraw, eventTrace) {
     const from = view.camera();
     const prior = wheelMotion?.view === view && same(from, wheelMotion.last) ? wheelMotion : null;
     const target = view.zoomScale((prior?.target ?? from.scale) * zoom);
-    const traceStamp = prior?.traceStamp ?? eventStamp;
+    const trace = eventTrace && (!prior?.trace || eventTrace.stamp < prior.trace.stamp) ? eventTrace : prior?.trace;
     clearWheelFrame();
     if (target === from.scale) return;
-    const motion = wheelMotion = {view, target, last: from, traceStamp};
-    function step(progress, t) {
+    const motion = wheelMotion = {view, canvas, target, last: from, trace, step};
+    function step(progress, t, paint = true) {
       if (wheelMotion !== motion) return;
       const current = view.camera();
-      if (canvas.isConnected === false || current.flipped !== motion.last.flipped || !same(current, motion.last)) { stopWheel(); return; }
+      if (canvas.isConnected === false || current.flipped !== motion.last.flipped || !same(current, motion.last)) {
+        if (paint) stopWheel(); else clearWheelFrame(view);
+        return;
+      }
       if (!animate()) t = 1;
       const scale = t === 1 ? target : from.scale * Math.pow(target / from.scale, progress);
       if (scale !== current.scale) {
@@ -125,120 +137,52 @@ globalThis.AtriumCamera = (() => {
       }
       if (t === 1) clearWheelFrame();
       if (scale !== current.scale) {
-        if (motion.traceStamp != null) {
-          globalThis.__waffleFrameTrace?.wheel?.(canvas, motion.traceStamp);
-          motion.traceStamp = null;
+        if (motion.trace) {
+          traceWheel(canvas, motion.trace);
+          motion.trace = null;
         }
-        redraw(!!motion.track);
+        if (paint) redraw(!!motion.track, t === 1);
       }
     }
     motion.track = globalThis.AtriumMotion.animate({ms:120,ease:"decelerate",camera:true,fromInput:true,step});
   }
-  function wheel(e, view, s, canvas, redraw, action = wheelAction) {
+  function wheel(e, view, at, canvas, redraw, action = wheelAction) {
+    const deliveredAt = globalThis.__waffleFrameTrace && redraw && e.isTrusted && e.ctrlKey ? performance.now() : undefined;
     subscribe();
-    const steps = nativeWheelSteps(e);
+    const packet = wheelPacket(e);
+    if (!packet) return true;
+    const {steps, detent, pinch} = packet;
+    // Contact arbitration can decline this packet before measuring its canvas or moving the camera.
+    if (typeof at === "function" && !(at = at(pinch))) return true;
     if (steps?.length > 1) {
-      // A native packet can include opposing detents. Keep each step's sign, clamp and cutoff.
       for (const step of steps) wheelStep({...step, isTrusted:true, deltaMode:0, deltaX:0,
-        ctrlKey:e.ctrlKey, metaKey:e.metaKey, shiftKey:e.shiftKey, altKey:e.altKey}, view, s, canvas, redraw, action, true);
-      return true;
-    }
-    // A coalesced packet may cancel to zero without conveying either step.
-    // There is no camera input to apply and no reason to interrupt a glide.
-    if (!hasWheelDelta(e) && !steps?.length) return true;
-    return wheelStep(e, view, s, canvas, redraw, action, steps?.length === 1 || wheelDetent(e));
+        ctrlKey:e.ctrlKey, metaKey:e.metaKey, shiftKey:e.shiftKey, altKey:e.altKey},
+        view, at, canvas, redraw, action, true, false, deliveredAt, "native-wheel-replay");
+    } else wheelStep(e, view, at, canvas, redraw, action, detent, pinch, deliveredAt, "dom-event");
+    return true;
   }
-  function wheelStep(e, view, s, canvas, redraw, action, detent) {
+  function wheelStep(e, view, s, canvas, redraw, action, detent, pinch, deliveredAt, source) {
     // macOS forwards a marked notch to WebKit after delivering its classification. A newer focus
     // or tool change wins if it happened before the deferred DOM event reached this view.
     if (detent && e.isTrusted && globalThis.__waffleIsWheelNotch &&
-        e.timeStamp < Math.max(wheelInterrupted, viewWheelInterrupted.get(view) ?? -Infinity)) return true;
-    const a = action(e, cfg, canvas?.clientHeight || 800, detent);
+        e.timeStamp < Math.max(wheelInterrupted, viewWheelInterrupted.get(view) ?? -Infinity)) return;
+    const a = action(e, cfg, canvas?.clientHeight || 800, detent, pinch);
     const glide = detent && a.zoom && redraw && view.zoomScale && globalThis.AtriumMotion?.animate && animate();
-    // A direct wheel update cancels the old glide and preserves the remaining queued wheel events.
-    if (!glide) clearWheelFrame(view);
+    if (!glide) {
+      // Apply the accepted zoom before panning in screen pixels. One draw shows both changes.
+      if (a.pan && !pinch && wheelMotion?.view === view && wheelMotion.canvas === canvas) wheelMotion.step(1, 1, false);
+      else clearWheelFrame(view);
+    }
     takeCamera(view, true);
     if (a.zoom) {
       const at = a.at === "centre" ? [(canvas?.clientWidth || 0) / 2, (canvas?.clientHeight || 0) / 2] : s;
-      const eventStamp = globalThis.__waffleFrameTrace && e.isTrusted && e.ctrlKey && !wheelPinch(e, detent) ? e.timeStamp : null;
-      if (glide) { notchZoom(view, canvas, a.zoom, at, redraw, eventStamp); return true; }
-      const scale = eventStamp == null ? null : view.camera().scale;
+      const trace = deliveredAt !== undefined && !pinch && Number.isFinite(e.timeStamp) ? {stamp:e.timeStamp, deliveredAt, source} : null;
+      if (glide) { notchZoom(view, canvas, a.zoom, at, redraw, trace); return; }
+      const scale = trace && view.camera().scale;
       view.zoom(a.zoom, at);
-      if (scale != null && scale !== view.camera().scale && redraw) globalThis.__waffleFrameTrace?.wheel?.(canvas, eventStamp);
+      if (trace && scale !== view.camera().scale) traceWheel(canvas, trace);
     } else view.pan(a.pan[0], a.pan[1]);
     redraw?.();
-    return true;
-  }
-
-  // Preview's original canvas input. Pen stays on the ordinary editor tool path.
-  function basicInput({frame, busy}) {
-    let states = new WeakMap();
-    const owners = new Map();
-    function state(pane) {
-      if (!states.has(pane)) states.set(pane, {points:new Map(), lastTouch:-Infinity, gesture:null});
-      return states.get(pane);
-    }
-    function screen(e, c) {
-      const b = c.getBoundingClientRect();
-      return [e.clientX-b.left, e.clientY-b.top];
-    }
-    function fingers(points) {
-      const it = points.values(), a = it.next().value, b = it.next().value;
-      return b ? {at:[(a[0]+b[0])/2,(a[1]+b[1])/2], span:Math.hypot(a[0]-b[0],a[1]-b[1])} : {at:a, span:0};
-    }
-    function move(pane, from, to, factor) {
-      if (from[0] === to[0] && from[1] === to[1] && factor === 1) return;
-      pane.view.pan(to[0]-from[0],to[1]-from[1]);
-      if (factor !== 1) pane.view.zoom(factor,to);
-      frame(pane);
-    }
-    function handle(e, pane) {
-      pane = owners.get(e.pointerId) || pane;
-      if (!pane?.view) return false;
-      if (e.type === "pointerdown") stopWheel();
-      const s = state(pane), c = pane.canvas;
-      if (e.type === "wheel") {
-        if (!s.gesture && !s.points.size) wheel(e,pane.view,screen(e,c),c,()=>frame(pane));
-        return true;
-      }
-      if (e.type.startsWith("gesture")) {
-        const g = s.gesture, at = Number.isFinite(e.clientX) && Number.isFinite(e.clientY) ?
-          screen(e,c) : g?.at || [c.clientWidth/2,c.clientHeight/2];
-        if (e.type === "gesturestart") {
-          s.gesture = {at,scale:e.scale>0?e.scale:1,direct:!!s.points.size};
-          takeCamera(pane.view);
-        } else if (e.type === "gestureend") s.gesture = null;
-        else if (g && !g.direct && e.scale > 0 && Number.isFinite(e.scale)) {
-          move(pane,g.at,at,e.scale/g.scale); g.at=at; g.scale=e.scale;
-        }
-        return true;
-      }
-      if (["click","dblclick","auxclick","contextmenu"].includes(e.type))
-        return e.pointerType === "touch" || !!s.points.size || performance.now()-s.lastTouch < 700;
-      if (e.type === "pointerdown" && e.pointerType === "mouse") s.lastTouch = -Infinity;
-      if (e.pointerType !== "touch") return false;
-      if (e.type === "pointerdown") {
-        if (!busy()) {
-          takeCamera(pane.view);
-          s.points.set(e.pointerId,screen(e,c)); owners.set(e.pointerId,pane);
-          if (s.gesture) s.gesture.direct = true;
-          try { c.setPointerCapture(e.pointerId); } catch {}
-        }
-      } else if (s.points.has(e.pointerId)) {
-        if (e.type === "pointermove" || e.type === "pointerup") {
-          const from=fingers(s.points);
-          s.points.set(e.pointerId,screen(e,c));
-          const to=fingers(s.points);
-          move(pane,from.at,to.at,from.span&&to.span?to.span/from.span:1);
-        }
-        if (e.type !== "pointermove") {
-          s.points.delete(e.pointerId); owners.delete(e.pointerId); s.lastTouch=performance.now();
-        }
-      }
-      return true;
-    }
-    return {handle, clear() {stopWheel(); states = new WeakMap(); owners.clear();},
-      prune() {for (const [id,pane] of owners) if (!pane.canvas.isConnected) owners.delete(id);}};
   }
 
   // ---------------------------------------------------------------- motion
@@ -682,6 +626,6 @@ globalThis.AtriumCamera = (() => {
   }
   if (!registerPrefs() && globalThis.document) globalThis.AtriumLazy?.need?.("AtriumPrefs").then(registerPrefs, () => {});
 
-  return {DEFAULTS, wheelAction, wheel, wheelHasMotion, wheelPinch, stopWheel, basicInput, ease, mix, significant, History, jump, flyTo, flightMs, land, glideTo, panBy, stopFly, takeCamera, animate, settle, prefsPage, setPref, cfg,
+  return {DEFAULTS, wheelAction, wheel, wheelPacket, wheelPinch, stopWheel, ease, mix, significant, History, jump, flyTo, flightMs, land, glideTo, panBy, stopFly, takeCamera, animate, settle, prefsPage, setPref, cfg,
     clickMs: () => 250, historyFor, alertTarget, onMoved: f => { moved.add(f); return () => moved.delete(f); }, edgeWanted};
 })();

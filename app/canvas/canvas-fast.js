@@ -200,7 +200,7 @@ globalThis.AtriumCanvasFast = (() => {
     "lineDashOffset", "shadowBlur", "shadowColor", "shadowOffsetX", "shadowOffsetY", "imageSmoothingEnabled", "filter", "direction", "letterSpacing"];
   const views = new WeakMap();
   // Per view: copies by document (the last two), parked caches.
-  const stateOf = I => { let s = views.get(I); if (!s) views.set(I, s = {copies: new Map(), parked: new Map(), geometry: new WeakSet(), tile: null, drag: 0, last: 0}); return s; };
+  const stateOf = I => { let s = views.get(I); if (!s) views.set(I, s = {copies: new Map(), parked: new Map(), geometry: new WeakSet(), drag: 0, last: 0}); return s; };
   const scratch = (W, H) => { try { return typeof OffscreenCanvas === "function" ? new OffscreenCanvas(W, H) : globalThis.document?.createElement("canvas") || null; } catch { return null; } };
   const lost = c => { try { return !!c.getContext("2d")?.isContextLost?.(); } catch { return true; } };
   const free = e => { if (e?.canvas) e.canvas.width = e.canvas.height = 1; freeUnder(e); };
@@ -436,8 +436,7 @@ globalThis.AtriumCanvasFast = (() => {
     const under = pending?.doc === doc && pending.under.width === W && pending.under.height === H ? pending.under : (free(pending), null);
     const g = copy?.getContext("2d"), ctx = I.ctx;
     if (!g) { free({under}); return; }
-    if (copy.width !== W) copy.width = W;
-    if (copy.height !== H) copy.height = H;
+    globalThis.AtriumCanvas.resizeBacking(copy,W,H);
     g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "copy"; g.drawImage(I.canvas, 0, 0); g.globalCompositeOperation = "source-over";
     const state = {}; for (const n of STATE) if (n in ctx) state[n] = ctx[n];
     s.copies.delete(doc);
@@ -461,10 +460,16 @@ globalThis.AtriumCanvasFast = (() => {
     const e = p.get(doc);
     if (e) { p.delete(doc); I.cache = e.cache; if (e.connectivity) I.connectivity = e.connectivity; if (e.pourCache) I.pourCache = e.pourCache; }
   }
+  function releasePixels(I) {
+    const s = views.get(I);
+    if (!s) return;
+    for (const [doc, entry] of s.copies) drop(s, doc, entry);
+    free(s.under); s.under = null;
+  }
   // An edit to a document drops what is kept for it.
   function invalidate(I, doc, geometryChanged = false) {
     const s = stateOf(I);
-    if (!doc) { for (const e of s.copies.values()) free(e); s.copies.clear(); s.parked.clear(); s.geometry = new WeakSet(); s.tile = null; s.lastKey = null; return; }
+    if (!doc) { releasePixels(I); s.parked.clear(); s.geometry = new WeakSet(); s.lastKey = null; return; }
     if (geometryChanged && doc.kind === "pcb") s.geometry.add(doc);
     else s.geometry.delete(doc);
     s.parked.delete(doc);
@@ -479,10 +484,11 @@ globalThis.AtriumCanvasFast = (() => {
     // overlays, so they go (I.surfacesLost) and a restored canvas is drawn in full. Chrome reports the loss on
     // the view's canvas; WebKit only on WebGL contexts (canvas-gpu.js calls I.surfacesLost).
     if (!s.lostWatch && I.canvas?.addEventListener) {
-      s.lostWatch = true;
       const lost = () => { I.surfacesLost?.(); invalidate(I); };
+      const restored = () => { lost(); I.repaint(); };
+      s.lostWatch = {lost, restored};
       I.canvas.addEventListener("contextlost", lost);
-      I.canvas.addEventListener("contextrestored", () => { lost(); I.repaint(); });
+      I.canvas.addEventListener("contextrestored", restored);
     }
     if (s.ro || typeof ResizeObserver !== "function") return;
     try {
@@ -492,24 +498,55 @@ globalThis.AtriumCanvasFast = (() => {
       // observation the browser cannot deliver in that pass ("ResizeObserver loop completed with
       // undelivered notifications"). Observe after the pass; until then the canvas is measured.
       const ro = s.ro;
-      setTimeout(() => { if (s.ro === ro) try { ro.observe(I.canvas); } catch { s.ro = null; } }, 0);
+      s.observeTimer = setTimeout(() => {
+        s.observeTimer = null;
+        if (s.ro === ro) try { ro.observe(I.canvas); } catch { s.ro = null; }
+      }, 0);
     } catch { s.ro = null; }
   }
 
-  // canvas.js: the airwire index of `owner` (a connectivity record; about 5 ms for 10,000 connection
-  // lines), built once this view's frames have stopped for 250 ms (an edit's later frames come first)
-  // in an idle period that holds it. Until then the airwires are scanned.
+  function cancelIndex(s) {
+    const job = s.indexJob;
+    if (!job) return;
+    s.indexJob = null;
+    job.owner.indexing = false;
+    job.idle.cancel(job.id);
+  }
+
+  function release(I) {
+    const s = views.get(I);
+    if (!s) return;
+    if (s.observeTimer != null) clearTimeout(s.observeTimer);
+    s.ro?.disconnect(); s.ro = null;
+    if (s.lostWatch) {
+      I.canvas.removeEventListener?.("contextlost", s.lostWatch.lost);
+      I.canvas.removeEventListener?.("contextrestored", s.lostWatch.restored);
+    }
+    cancelIndex(s);
+    releasePixels(I);
+    views.delete(I);
+  }
+
+  // Build the airwire index once this view's frames have stopped for 250 ms.
+  // Until then the airwires are scanned.
   function later(I, owner, box) {
     const idle = globalThis.AtriumIdle, S = globalThis.AtriumSpatial;
     if (owner.indexing || !S) return;
-    owner.indexing = true;
     if (!idle?.idle) { owner.index = S.create(owner.result.airwires, box, 4); return; }
-    const s = stateOf(I), run = d => {
-      if (I.connectivity !== owner) return;
-      if (!d?.didTimeout && (now() - (s.frame || 0) < 250 || d?.timeRemaining && d.timeRemaining() < 10)) { idle.idle(run, {timeout: 2000}); return; }
-      owner.index = S.create(owner.result.airwires, box, 4);
+    const s = stateOf(I);
+    cancelIndex(s);
+    const job = s.indexJob = {owner, idle, id: null};
+    owner.indexing = true;
+    const run = d => {
+      if (s.indexJob !== job) return;
+      if (I.connectivity === owner && !d?.didTimeout && (now() - (s.frame || 0) < 250 || d?.timeRemaining && d.timeRemaining() < 10)) {
+        job.id = idle.idle(run, {timeout: 2000}); return;
+      }
+      s.indexJob = null;
+      owner.indexing = false;
+      if (I.connectivity === owner) owner.index = S.create(owner.result.airwires, box, 4);
     };
-    idle.idle(run, {timeout: 2000});
+    job.id = idle.idle(run, {timeout: 2000});
   }
-  return Object.freeze({pourRings, paintPour, releasePours, keyOf, reuse, saved, under, later, park, damage, invalidate, observe, lastBoardMs: () => boardMs});
+  return Object.freeze({pourRings, paintPour, releasePours, keyOf, reuse, saved, under, later, park, damage, invalidate, observe, releasePixels, release, lastBoardMs: () => boardMs});
 })();

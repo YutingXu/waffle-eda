@@ -252,40 +252,49 @@ void main(){
   function createRenderer(canvas) {
     const attrs = {antialias: true, depth: true, stencil: true, alpha: false, premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: "default"};
     let gl = canvas.getContext("webgl2", attrs), version = 2, inst = null;
-    if (!gl) {
-      gl = canvas.getContext("webgl", attrs) || canvas.getContext("experimental-webgl", attrs); version = 1;
-      if (!gl) return null;
-      inst = gl.getExtension("ANGLE_instanced_arrays");
-      if (!inst || !gl.getExtension("OES_element_index_uint")) { gl.getExtension("WEBGL_lose_context")?.loseContext(); return null; }
-    }
+    if (!gl) { gl = canvas.getContext("webgl", attrs) || canvas.getContext("experimental-webgl", attrs); version = 1; }
+    if (!gl) return null;
     const divisor = (i, n) => version === 2 ? gl.vertexAttribDivisor(i, n) : inst.vertexAttribDivisorANGLE(i, n);
     const drawInst = (count, n) => version === 2 ? gl.drawElementsInstanced(gl.TRIANGLES, count, gl.UNSIGNED_INT, 0, n) : inst.drawElementsInstancedANGLE(gl.TRIANGLES, count, gl.UNSIGNED_INT, 0, n);
     const live = new Set(), sizes = new Map();
+    const shaders = [], U = {};
+    let prog, samples, stencilAvailable, batches = [];
     const buffer = (target, data, usage = gl.STATIC_DRAW) => {
       const b = gl.createBuffer(); live.add(b); gl.bindBuffer(target, b); gl.bufferData(target, data, usage); sizes.set(b, data.byteLength); return b;
     };
     const drop = b => { if (b && live.delete(b)) { sizes.delete(b); gl.deleteBuffer(b); } };
     const dropVertexArray = g => { if (g.vao) { gl.deleteVertexArray(g.vao); g.vao = null; } };
     function shader(type, src) {
-      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      const s = gl.createShader(type);
+      if (!s) throw Error("3D shader could not be created.");
+      shaders.push(s); gl.shaderSource(s, src); gl.compileShader(s);
       if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) throw Error("3D shader: " + gl.getShaderInfoLog(s));
       return s;
     }
-    const vs = shader(gl.VERTEX_SHADER, VS), fs = shader(gl.FRAGMENT_SHADER, FS), prog = gl.createProgram();
-    gl.attachShader(prog, vs); gl.attachShader(prog, fs);
-    ["aPos", "aNor", "aM0", "aM1", "aM2", "aM3", "aCol"].forEach((n, i) => gl.bindAttribLocation(prog, i, n));
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS) && !gl.isContextLost()) throw Error("3D program: " + gl.getProgramInfoLog(prog));
-    const U = {};
-    for (const n of ["uVP", "uEye", "uLight", "uHemi", "uClip", "uEdge", "uCore"]) U[n] = gl.getUniformLocation(prog, n);
-    gl.useProgram(prog);
     function enableAttributes() {
       for (let i = 0; i < 7; i++) { gl.enableVertexAttribArray(i); divisor(i, i >= 2 ? 1 : 0); }
     }
-    enableAttributes();
-    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
-    const samples = gl.getParameter(gl.SAMPLES) || 0;
-    let batches = [];
+    try {
+      if (version === 1) {
+        inst = gl.getExtension("ANGLE_instanced_arrays");
+        if (!inst || !gl.getExtension("OES_element_index_uint")) { dispose(); return null; }
+      }
+      const vs = shader(gl.VERTEX_SHADER, VS), fs = shader(gl.FRAGMENT_SHADER, FS);
+      prog = gl.createProgram();
+      if (!prog) throw Error("3D program could not be created.");
+      gl.attachShader(prog, vs); gl.attachShader(prog, fs);
+      ["aPos", "aNor", "aM0", "aM1", "aM2", "aM3", "aCol"].forEach((n, i) => gl.bindAttribLocation(prog, i, n));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS) && !gl.isContextLost()) throw Error("3D program: " + gl.getProgramInfoLog(prog));
+      for (const n of ["uVP", "uEye", "uLight", "uHemi", "uClip", "uEdge", "uCore"]) U[n] = gl.getUniformLocation(prog, n);
+      gl.useProgram(prog); enableAttributes();
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+      samples = gl.getParameter(gl.SAMPLES) || 0;
+      stencilAvailable = (gl.getContextAttributes?.()?.stencil ?? true) && gl.getParameter(gl.STENCIL_BITS) > 0;
+    } catch (error) {
+      dispose();
+      throw error;
+    }
     function upload(scene, incremental = false) {
       if (!incremental) release();
       else if (batches === scene.batches) return;
@@ -346,7 +355,6 @@ void main(){
     // after it clears them, and the solder mask openings (kind "opening", drawn last) paint bare copper only
     // where copper shows. Copper elsewhere keeps its mask tint. Without a stencil buffer the openings
     // simply draw over the copper.
-    const STENCIL = (gl.getContextAttributes?.()?.stencil ?? true) && gl.getParameter(gl.STENCIL_BITS) > 0;
     function stencil(b) {
       const bit = b.side === "Bottom" ? 2 : 1;
       if (b.kind === "opening") { gl.stencilFunc(gl.EQUAL, bit, 3); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP); }
@@ -358,17 +366,17 @@ void main(){
     function draw(f) {
       let calls = 0;
       gl.viewport(0, 0, f.w, f.h);
-      gl.clearColor(f.bg[0], f.bg[1], f.bg[2], 1); gl.clearStencil(0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | (STENCIL ? gl.STENCIL_BUFFER_BIT : 0));
+      gl.clearColor(f.bg[0], f.bg[1], f.bg[2], 1); gl.clearStencil(0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | (stencilAvailable ? gl.STENCIL_BUFFER_BIT : 0));
       gl.useProgram(prog);
       gl.uniformMatrix4fv(U.uVP, false, f.m.vp); gl.uniform3fv(U.uEye, f.m.eye); gl.uniform3fv(U.uLight, f.light); gl.uniform3fv(U.uHemi, f.hemi);
       gl.uniform4fv(U.uClip, f.clip || [0, 0, 0, 0]); gl.uniform1f(U.uEdge, f.edge);
       const clipped = !!f.clip;
       const pass = (list, blend) => {
         if (blend) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); } else { gl.disable(gl.BLEND); gl.depthMask(true); }
-        if (STENCIL && !blend) gl.enable(gl.STENCIL_TEST); else gl.disable(gl.STENCIL_TEST);
+        if (stencilAvailable && !blend) gl.enable(gl.STENCIL_TEST); else gl.disable(gl.STENCIL_TEST);
         for (const b of list) {
           if (!b.gl?.count) continue;
-          if (STENCIL && !blend) stencil(b);
+          if (stencilAvailable && !blend) stencil(b);
           else if (b.kind === "opening") { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4); } else gl.disable(gl.POLYGON_OFFSET_FILL);
           // Closed solids: cull back faces unless a section shows their insides.
           if (clipped || blend && b.kind !== "board") gl.disable(gl.CULL_FACE); else gl.enable(gl.CULL_FACE);
@@ -393,7 +401,9 @@ void main(){
     function dispose() {
       release();
       for (const b of [...live]) drop(b);
-      gl.useProgram(null); gl.detachShader(prog, vs); gl.detachShader(prog, fs); gl.deleteShader(vs); gl.deleteShader(fs); gl.deleteProgram(prog);
+      gl.useProgram(null);
+      if (prog) gl.deleteProgram(prog);
+      for (const shader of shaders) gl.deleteShader(shader);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     }
     return {gl, version, samples, upload, instances, draw, release, dispose, bytes, live: () => live.size,
@@ -475,7 +485,7 @@ void main(){
     if (c.layers) c.staleLayers = c.layers;
     c.layers = null; c.layerError = null; c.layerGeneration++; c.layerJob?.cancel();
   }
-  function cachedMesh(project, doc, revision, versions, folder, geometry) {
+  function cachedMesh(project, doc, revision, versions, folder, geometry, build = buildMesh) {
     const c = cache.get(doc);
     if (!c || c.invalid || c.project !== project || c.folder !== folder || modulesChanged(BODY_MODULES, c.bodyModules)) return null;
     if (c.readyModels || c.pendingModels.some(t => globalThis.AtriumSTEPImport?.cached(t)?.parts?.length)) return null;
@@ -492,7 +502,7 @@ void main(){
       if (change.owners.length) {
         const bodies = bodyChanges(c, doc, geometry, change);
         if (bodies.board || bodies.parts.size)
-          return buildMesh(project, doc, revision, versions, folder, geometry, {...bodies, layers: change.layers});
+          return build(project, doc, revision, versions, folder, geometry, {...bodies, layers: change.layers});
       }
       invalidateLayers(c, change.layers);
       // A pending job held the old view. Keep its dirty layers for the new view.
@@ -659,7 +669,9 @@ void main(){
     const generation = c.layerGeneration;
     let size = 256, deadline;
     const steps = layerSteps(c, project, doc, () => size, () => now() >= deadline);
+    let span = globalThis.AtriumDiagnostics?.performance?.queue("3d", "build"), started = false;
     const job = {done: 0, total: 0, timer: 0, cancelled: false, cancel() {
+      span?.end("cancelled"); span = null;
       job.cancelled = true; clearTimeout(job.timer); job.timer = 0;
       if (c.layerJob === job) c.layerJob = null;
     }};
@@ -668,12 +680,17 @@ void main(){
       job.timer = 0;
       if (job.cancelled) return;
       if (c.layerGeneration !== generation || !alive()) { job.cancel(); return; }
+      if (span && !started) { span.start(); started = true; }
       const t = now();
       deadline = t + SLICE * 0.75;
       try {
         for (;;) {
           const s = steps.next();
-          if (s.done) { c.layerJob = null; applyLayers(c, s.value); done(); return; }
+          if (s.done) {
+            c.layerJob = null; applyLayers(c, s.value);
+            span?.ready(); span?.end("completed"); span = null;
+            done(); return;
+          }
           job.done = s.value.done; job.total = s.value.total;
           // Artwork yields at its deadline. Tessellation then fits measured chunks to each slice.
           if (!s.value.n) break;
@@ -682,6 +699,7 @@ void main(){
         }
       } catch (e) {
         c.layerJob = null;
+        span?.end(e.code === "STALE_GEOMETRY" ? "cancelled" : "failed"); span = null;
         if (e.code === "STALE_GEOMETRY") { done(); return; }
         c.layerError = e.message; done(e); return;
       }
@@ -739,7 +757,8 @@ void main(){
     b.addEventListener("click", e => { e.stopPropagation(); fn(e); }); return b;
   }
 
-  function createViewer(ctx) {
+  const alive = ({ctx, stage}) => stage.isConnected && (!ctx.alive || ctx.alive());
+  function createViewer(ctx, openingSpan) {
     const stage = ctx.stage, t0 = now();
     const root = el("div", "v3d ui-viewport-layer"), canvas = el("canvas", "v3d-canvas ui-viewport");
     canvas.setAttribute("data-interaction", "orbit"); canvas.tabIndex = 0; canvas.setAttribute("role", "img"); canvas.setAttribute("aria-label", "3D board view");
@@ -750,15 +769,15 @@ void main(){
     let R = null;
     try { R = createRenderer(canvas); } catch (e) { R = null; globalThis.console?.warn?.(e); }
     const v = {ctx, stage, root, canvas, R, closed: false};
-    if (!R) { fallback(v); return v; }
+    if (!R) { openingSpan?.end("failed"); fallback(v); return v; }
 
     const opt = loadOptions();
     let scene = null, built = {doc: null, revision: null, project: null, mesh: null, layers: null}, cam = null, anim = null;
     let rafId = 0, dirty = true, colorsDirty = true, sceneDirty = false;
-    let renderedSize = null, renderedDpr;
+    let renderedSize = null, renderedDpr, queuedDraw = null, openingReady = false;
     let hover = null, selected = new Set(), selSig = "", pointer = null, hoverPending = false, measure = null, clip = null;
     let lastStats = {draws: 0, ms: 0}, buildMs = 0, rebuildTimer = 0, journalTimer = 0, journalIdle = 0;
-    let rendererPending = false, bodyJob = null, preparing = null;
+    let rendererPending = false, contextLost = false, bodyJob = null, preparing = null;
     let releaseOpening, releaseInput, inputTimer = 0;
     const touches = new Map();
     let drag = null, gesture = null, lastTouch = -Infinity, touchSeen = false, touchOrbit = false;
@@ -784,9 +803,23 @@ void main(){
     canvas.addEventListener("focus", () => ctx.activate?.());
     const docOf = () => { try { return ctx.document ? ctx.document() : ctx.doc; } catch { return null; } };
     const projectOf = () => ctx.currentProject?.() || ctx.project;
+    const openingDoc = openingSpan ? docOf() : null, openingProject = openingSpan ? projectOf() : null;
+    function endOpening(outcome) { openingSpan?.end(outcome); openingSpan = null; }
     const visible = () => !v.closed && globalThis.AtriumPower?.visible?.() !== false && document.visibilityState !== "hidden" &&
       stage.isConnected && stage.clientWidth > 0 && stage.clientHeight > 0 && !root.hidden;
     const wantLayers = () => opt.copper || opt.silk;
+    const completeScene = allowLayerError =>
+      (!wantLayers() || scene.hasLayers || allowLayerError && built.mesh?.layerError) &&
+      (!opt.components || !built.mesh?.pendingBodies.size && !built.mesh?.pendingModels.length);
+    function readyOpening() {
+      if (openingSpan && !openingReady) { openingSpan.ready(); openingReady = true; }
+    }
+    function finishFallbackOpening() {
+      if (!scene || !completeScene()) return;
+      readyOpening();
+      // Unreadable inline models keep the existing boxes without forcing a draw.
+      if (v.lastMatrices && !dirty && !rafId) endOpening("completed");
+    }
     const size = () => [canvas.clientWidth || stage.clientWidth || 1, canvas.clientHeight || stage.clientHeight || 1];
     const pixelRatio = () => Math.min(2, globalThis.devicePixelRatio || 1);
     const aspect = () => { const [w, h] = size(); return w / h; };
@@ -1077,7 +1110,12 @@ void main(){
       Promise.resolve(globalThis.AtriumSTEPImport || globalThis.AtriumLazy?.need("AtriumSTEPImport")).then(I => {
         if (!I || controller.signal.aborted || !current()) return;
         return loadBodyMeshes(c, I, {signal: controller.signal, selected, current, update: () => refreshSoon(d)});
-      }).catch(e => { if (!controller.signal.aborted && current()) ctx.info?.("STEP body could not be read. " + e.message); })
+      }).catch(e => {
+        if (!controller.signal.aborted && current()) {
+          endOpening("failed");
+          ctx.info?.("STEP body could not be read. " + e.message);
+        }
+      })
         .finally(() => {
           if (bodyJob === job) bodyJob = null;
           if (controller.signal.aborted && cache.get(d) === c) refreshSoon(d);
@@ -1087,23 +1125,35 @@ void main(){
       if (!c.pendingModels.length || c.loadingModels) return;
       const L = globalThis.AtriumLazy, importer = globalThis.AtriumSTEPImport;
       if (!importer && !L) return;
-      const current = () => cache.get(d) === c && docOf() === d && projectOf() === project;
+      const current = () => visible() && alive(v) && cache.get(d) === c && docOf() === d && projectOf() === project;
+      const pending = c.pendingModels;
       c.loadingModels = true;
       (importer ? Promise.resolve(importer) : L.need("AtriumSTEPImport"))
-        .then(I => visible() && current() ? Promise.all(c.pendingModels.map(t => I.load(t))) : null)
+        .then(async I => {
+          const results = [];
+          // Do not queue work on the shared importer after this view stops needing it.
+          for (const text of pending) {
+            if (!current()) break;
+            results.push(await I.load(text));
+          }
+          return results;
+        })
         .then(rs => {
           c.loadingModels = false;
-          if (!rs || cache.get(d) !== c) return;
+          if (cache.get(d) !== c) return;
           const ready = new Map();
-          rs.forEach((r, n) => { if (r.parts?.length) ready.set(c.pendingModels[n], r); });
-          c.pendingModels = [];
-          if (ready.size) {
-            c.readyModels = ready;
-            for (const view of viewers.values()) if (view.doc?.() === d) view.refresh();
-          }
+          rs.forEach((r, n) => { if (r.parts?.length) ready.set(pending[n], r); });
+          c.pendingModels = pending.slice(rs.length);
           const bad = rs.filter(r => r.error);
-          if (bad.length && visible() && current()) ctx.info?.(bad.length + " STEP model" + (bad.length === 1 ? "" : "s") + " could not be read and show as boxes: " + bad[0].error);
-        }, () => { c.loadingModels = false; c.pendingModels = []; });
+          if (ready.size) c.readyModels = ready;
+          if (ready.size || c.pendingModels.length) {
+            for (const view of viewers.values()) if (view.doc?.() === d) view.refresh();
+          } else if (openingSpan && opt.components && current()) finishFallbackOpening();
+          if (bad.length && current()) ctx.info?.(bad.length + " STEP model" + (bad.length === 1 ? "" : "s") + " could not be read and show as boxes: " + bad[0].error);
+        }, () => {
+          c.loadingModels = false; c.pendingModels = [];
+          if (openingSpan && opt.components && current()) finishFallbackOpening();
+        });
     }
     function geometryFor(d, project, revision, versions, host) {
       if (!host) return meshGeometry(project, d, revision, versions, cache.get(d));
@@ -1114,13 +1164,17 @@ void main(){
       host.prepareBoardGeometry(d).then(() => {
         if (current()) rebuild();
       }, error => {
-        if (current()) hud.textContent = "3D geometry could not be prepared: " + error.message;
+        if (current()) {
+          endOpening("failed");
+          hud.textContent = "3D geometry could not be prepared: " + error.message;
+        }
       });
       return null;
     }
     function rebuild({force = false, urgent = false, fallback = false} = {}) {
       const d = docOf(), project = projectOf(), revision = ctx.revision?.(), folder = ctx.folder?.();
       if (bodyJob && (built.doc !== d || built.project !== project || bodyJob.cache.folder !== folder)) cancelBodies();
+      if (openingSpan && (openingDoc !== d || openingProject !== project)) endOpening("cancelled");
       if (!d || d.kind !== "pcb") { close(); return; }
       if (force) sceneDirty = true;
       if (!visible()) return;
@@ -1128,8 +1182,12 @@ void main(){
       if (preview && !force) { if (built.doc === d && built.project === project) return; preview = null; }
       const same = built.doc === d && built.project === project;
       const nav = globalThis.AtriumNavHost, host = nav?.project?.() === project && nav.boardGeometry ? nav : null;
-      const t = now();
-      let c;
+      const t = now(), perf = globalThis.AtriumDiagnostics?.performance;
+      let c, span;
+      const build = perf ? (...args) => {
+        span = perf.begin("3d", "build");
+        return buildMesh(...args);
+      } : buildMesh;
       try {
         const versions = versionsOf(project, d, true);
         if (!host && !fallback && same && built.revision !== revision && !versions && globalThis.AtriumUndoStore?.root() === project) {
@@ -1139,35 +1197,47 @@ void main(){
         const geometry = geometryFor(d, project, revision, versions, host);
         if (!geometry) { if (!fallback) waitForJournal(); return; }
         stopJournalWait();
-        c = cachedMesh(project, d, revision, versions, folder, geometry);
+        c = cachedMesh(project, d, revision, versions, folder, geometry, build);
         if (!c && same && buildMs > 40 && !urgent && !force) {
           if (!rebuildTimer) rebuildTimer = setTimeout(() => { rebuildTimer = 0; rebuild({urgent: true, fallback}); }, 150);
           return;
         }
         clearTimeout(rebuildTimer); rebuildTimer = 0;
-        c ||= buildMesh(project, d, revision, versions, folder, geometry);
+        c ||= build(project, d, revision, versions, folder, geometry);
       } catch (e) {
+        span?.end(e.code === "STALE_GEOMETRY" ? "cancelled" : "failed");
         if (e.code === "STALE_GEOMETRY") { if (!fallback) waitForJournal(); return; }
+        endOpening("failed");
         hud.textContent = "3D build failed: " + e.message; return;
       }
-      const layers = wantLayers() ? c.layers || c.staleLayers : c.layers;
-      const unchanged = built.mesh === c && built.layers === layers && built.bodyRevision === c.bodyRevision;
-      built = {doc: d, revision, project, mesh: c, layers, bodyRevision: c.bodyRevision};
-      if (wantLayers() && !layersCurrent(c)) layersSoon(c, d, project);
-      bodiesSoon(c, d);
-      modelsSoon(c, d, project);
-      externalModelsSoon(c, d, project).catch(() => { c.external.clear(); });
-      hudText();
-      if (unchanged && !force && !sceneDirty) return;
-      sceneDirty = false;
-      scene = buildScene({parts: foldedParts(c, d, project, layers)});
-      scene.hasLayers = !!c.layers; scene.notes = c.layers ? c.model.notes.concat(c.layerWarnings) : c.model.notes; scene.thickness = c.model.board.thickness;
-      R.upload(scene, same);
-      buildMs = now() - t; colorsDirty = true;
-      if (!cam || !same) { cam = initialCamera(c); savedCam = cam; }
-      if (clip) clip.pos = Math.max(scene.box[clip.axis === "x" ? 0 : 1], Math.min(scene.box[clip.axis === "x" ? 3 : 4], clip.pos));
-      canvas.setAttribute("aria-label", "3D view of " + (d.name || "the board") + ": " + scene.parts.length + " components");
-      invalidate(); collisionsSoon();
+      try {
+        const layers = wantLayers() ? c.layers || c.staleLayers : c.layers;
+        const unchanged = built.mesh === c && built.layers === layers && built.bodyRevision === c.bodyRevision;
+        built = {doc: d, revision, project, mesh: c, layers, bodyRevision: c.bodyRevision};
+        if (wantLayers() && !layersCurrent(c)) layersSoon(c, d, project);
+        bodiesSoon(c, d);
+        modelsSoon(c, d, project);
+        externalModelsSoon(c, d, project).catch(() => { c.external.clear(); });
+        hudText();
+        if (openingSpan && wantLayers() && c.layerError) endOpening("failed");
+        if (unchanged && !force && !sceneDirty) { span?.ready(); span?.end("completed"); return; }
+        if (span === undefined) span = perf?.begin("3d", "build");
+        sceneDirty = false;
+        scene = buildScene({parts: foldedParts(c, d, project, layers)});
+        scene.hasLayers = !!c.layers; scene.notes = c.layers ? c.model.notes.concat(c.layerWarnings) : c.model.notes; scene.thickness = c.model.board.thickness;
+        try { R.upload(scene, same); }
+        catch (error) {
+          if (v.lastMatrices) throw error;
+          span?.end("failed"); failOpening(error); return;
+        }
+        buildMs = now() - t; colorsDirty = true;
+        if (!cam || !same) { cam = initialCamera(c); savedCam = cam; }
+        if (clip) clip.pos = Math.max(scene.box[clip.axis === "x" ? 0 : 1], Math.min(scene.box[clip.axis === "x" ? 3 : 4], clip.pos));
+        canvas.setAttribute("aria-label", "3D view of " + (d.name || "the board") + ": " + scene.parts.length + " components");
+        span?.ready(); span?.end("completed"); span = null;
+        if (openingSpan && completeScene()) readyOpening();
+        invalidate(); collisionsSoon();
+      } catch (error) { span?.end("failed"); endOpening("failed"); throw error; }
     }
     // ---- camera memory: the board's last 3D camera (storeCamera, or ctx.camera3d when given),
     // else straight down over what the 2D view showed, so pressing 3 only adds depth.
@@ -1222,10 +1292,15 @@ void main(){
 
     // ---- rendering (on demand)
     function invalidate() { dirty = true; requestFrame(); }
-    function requestFrame() { if (!rafId && globalThis.requestAnimationFrame && visible()) rafId = requestAnimationFrame(tick); }
+    function requestFrame() {
+      if (rafId || !globalThis.requestAnimationFrame || !visible()) return;
+      if (scene && dirty) queuedDraw = globalThis.AtriumDiagnostics?.performance?.queue("3d", "draw");
+      rafId = requestAnimationFrame(tick);
+    }
+    function endQueuedDraw(outcome) { const span = queuedDraw; queuedDraw = null; span?.end(outcome); }
     function tick(ts) {
       rafId = 0;
-      if (!visible()) return;
+      if (!visible()) { endQueuedDraw("cancelled"); endOpening("cancelled"); return; }
       if (anim) {
         const t = Math.min(1, (now() - anim.start) / anim.ms);
         cam = lerpCam(anim.from, anim.to, ease(t)); dirty = true;
@@ -1256,10 +1331,31 @@ void main(){
       clearTimeout(inputTimer); inputTimer = setTimeout(finishInput, 100);
     }
     function renderNow() {
-      if (!scene || !visible()) return;
+      if (!visible()) { endQueuedDraw("cancelled"); endOpening("cancelled"); return; }
+      if (!scene) return;
+      let span = queuedDraw; queuedDraw = null;
+      if (span) span.start();
+      else span = globalThis.AtriumDiagnostics?.performance?.begin("3d", "draw");
+      try { paintFrame(); }
+      catch (error) {
+        span?.end("failed");
+        endOpening("failed");
+        if (v.lastMatrices) throw error;
+        failOpening(error); return;
+      }
+      if (!span && !openingSpan) return;
+      if (contextLost) { span?.end("failed"); endOpening("failed"); return; }
+      // The initial board/body preview lacks the requested sliced artwork or
+      // models. Only a complete foreground submission can finish a visible view.
+      const complete = completeScene();
+      const outcome = complete && lastStats.draws && !coveredCanvas?.inert && !root.closest?.("[hidden], [inert]") ? "visible" : "completed";
+      span?.ready(); span?.end(outcome);
+      if (openingSpan && complete) { readyOpening(); endOpening(outcome); }
+    }
+    function paintFrame() {
       const t = now(), dpr = pixelRatio(), cssSize = size(), [cw, ch] = cssSize;
       const w = Math.max(1, Math.round(cw * dpr)), h = Math.max(1, Math.round(ch * dpr));
-      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      globalThis.AtriumCanvas.resizeBacking(canvas, w, h);
       if (colorsDirty) colors();
       const m = matrices(cam, w / h, scene.sphere);
       const light = add(add(m.back, m.right, -0.45), m.up, 0.55), ll = len(light);
@@ -1271,8 +1367,7 @@ void main(){
       renderedSize = cssSize; renderedDpr = dpr;
       lastStats.ms = now() - t; v.lastMatrices = m; dirty = false;
       if (cam !== savedCam && !anim && !camTimer) camTimer = setTimeout(saveCamera, 400);
-      if (releaseOpening && (!wantLayers() || scene.hasLayers || built.mesh?.layerError) &&
-          (!opt.components || !built.mesh?.pendingBodies.size && !built.mesh?.pendingModels.length)) finishOpening();
+      if (releaseOpening && completeScene(true)) finishOpening();
       drawOverlay(m, cw, ch);
     }
     function clipPlane() {
@@ -1310,10 +1405,12 @@ void main(){
       if (Math.abs(d[2]) > 1e-6) { const t = (z - o[2]) / d[2]; if (t > 0) return add(o, d, t); }
       return add(o, d, cam.dist);
     }
-    function zoom(factor, x, y) {
-      cameraInput();
+    function zoomCamera(factor, x, y) {
       const r = scene.sphere.r;
-      cam = zoomAt(cam, x == null ? null : anchorAt(x, y), factor, r * 0.01, r * 40); anim = null; invalidate();
+      cam = zoomAt(cam, x == null ? null : anchorAt(x, y), factor, r * 0.01, r * 40);
+    }
+    function zoom(factor, x, y) {
+      cameraInput(); zoomCamera(factor, x, y); anim = null; invalidate();
     }
 
     // ---- selection
@@ -1513,15 +1610,25 @@ void main(){
     canvas.addEventListener("wheel", e => {
       e.preventDefault();
       if (!scene || gesture || touches.size) return;
-      const h = size()[1], k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      const dx = e.deltaX * k, dy = e.deltaY * k, legacy = e.wheelDeltaY;
+      // Keep the 3D pixel-wheel convention when the host supplies no device signal.
+      const packet = globalThis.AtriumCamera.wheelPacket(e, 40, true);
+      if (!packet) return;
+      const {steps, detent} = packet, modified = e.ctrlKey || e.metaKey, speed = e.ctrlKey ? 0.01 : 0.0015;
+      if (steps?.length > 1 && (modified || !e.shiftKey)) {
+        // Each signed notch clamps around the pointer at its own camera, even when the DOM total is zero.
+        const [x, y] = pos(e);
+        cameraInput();
+        for (const step of steps) zoomCamera(Math.exp(step.deltaY * speed), x, y);
+        anim = null; invalidate();
+        return;
+      }
+      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const dx = e.deltaX * k, dy = e.deltaY * k;
       if (!dx && !dy) return;
-      // WebKit also reports a single macOS notch as a 40-pixel vertical event.
-      const notched = Number.isFinite(legacy) && legacy !== 0 && legacy % 120 === 0 && legacy !== -3 * e.deltaY;
-      const detent = e.deltaMode !== 0 || !dx && (notched || Math.abs(dy) >= 40 && Number.isInteger(dy) && dy % 40 === 0);
-      if (e.ctrlKey || e.metaKey || detent && !e.shiftKey && dy) {
-        zoom(Math.exp((dy || dx) * (e.ctrlKey ? 0.01 : 0.0015)), ...pos(e));
+      if (modified || detent && !e.shiftKey && dy) {
+        zoom(Math.exp((dy || dx) * speed), ...pos(e));
       } else {
+        const h = size()[1];
         cameraInput(); anim = null;
         cam = e.shiftKey && !dx ? pan(cam, -dy, 0, h) : pan(cam, -dx, -dy, h);
         invalidate();
@@ -1550,6 +1657,7 @@ void main(){
     });
     function stopDrawing() {
       renderedSize = null;
+      endQueuedDraw("cancelled"); endOpening("cancelled");
       finishOpening();
       finishInput();
       cancelBodies();
@@ -1584,11 +1692,17 @@ void main(){
     const offTheme = globalThis.AtriumPCBAppearance?.onChange?.(() => invalidate());
     const onTheme = () => { colorsDirty = true; invalidate(); };
     globalThis.addEventListener?.("atrium-theme", onTheme);
-    const onLost = e => { e.preventDefault(); scene && scene.batches.forEach(b => { b.gl = null; }); };
+    const onLost = e => {
+      e.preventDefault(); contextLost = true; endQueuedDraw("failed"); endOpening("failed");
+      scene && scene.batches.forEach(b => { b.gl = null; });
+    };
     const onRestored = () => {
       rendererPending = !visible();
       if (rendererPending) return;
-      try { const r = createRenderer(canvas); if (r) { R = r; v.R = r; rebuild({force: true}); invalidate(); } } catch { /* stay blank */ }
+      try {
+        const r = createRenderer(canvas);
+        if (r) { R = r; v.R = r; contextLost = false; rebuild({force: true}); invalidate(); }
+      } catch { /* stay blank */ }
     };
     canvas.addEventListener("webglcontextlost", onLost); canvas.addEventListener("webglcontextrestored", onRestored);
 
@@ -1619,13 +1733,19 @@ void main(){
     }
     function refresh() {
       if (v.closed) return;
-      if (ctx.alive && !ctx.alive() || !stage.isConnected) { close(); return; }
+      if (!alive(v)) { close(); return; }
       if (rendererPending && visible()) onRestored();
       rebuild();
       if (visible()) syncSelection();
     }
-    function close() {
+    function failOpening(error) {
+      endOpening("failed");
+      close({discard: true});
+      ctx.info?.("3D view could not open: " + error.message);
+    }
+    function close({discard = false} = {}) {
       if (v.closed) return;
+      const retain = !discard && viewers.get(stage) === v;
       saveCamera();
       v.closed = true;
       stopDrawing();
@@ -1646,7 +1766,14 @@ void main(){
         if (coveredAria == null) coveredCanvas.removeAttribute("aria-hidden"); else coveredCanvas.setAttribute("aria-hidden", coveredAria);
       }
       root.remove(); viewers.delete(stage);
-      if (built.doc) { const d = built.doc; clearTimeout(dropTimers.get(d)); dropTimers.set(d, setTimeout(() => { if (![...viewers.values()].some(x => x.doc?.() === d)) cache.delete(d); dropTimers.delete(d); }, 60000)); }
+      if (built.doc) {
+        const d = built.doc, drop = () => {
+          if (![...viewers.values()].some(x => x.doc?.() === d)) { cache.get(d)?.layerJob?.cancel(); cache.delete(d); }
+          dropTimers.delete(d);
+        };
+        clearTimeout(dropTimers.get(d));
+        if (retain) dropTimers.set(d, setTimeout(drop, 60000)); else drop();
+      }
       if (wasFocused) coveredCanvas?.focus({preventScroll: true});
     }
     function stats() {
@@ -1659,11 +1786,15 @@ void main(){
     // ---- open
     // A full online check can take a frame while its requested board detail is still in flight.
     // Hold only idle jobs through the first complete draw. Slow external loads have a short upper bound.
-    if (visible()) releaseOpening = ctx.holdIdle?.(250);
-    rebuild();
+    try {
+      if (visible()) releaseOpening = ctx.holdIdle?.(250);
+      rebuild();
+      if (!v.closed) {
+        if (visible()) syncSelection();
+        renderNow();
+      }
+    } catch (error) { failOpening(error); }
     if (v.closed) return v;
-    if (visible()) syncSelection();
-    renderNow();
     v.openMs = now() - t0;
     Object.assign(v, {command, refresh, close, stats, renderNow, invalidate, screenshot, doc: () => built.doc, visible, wantLayers, progress, pending: pendingText,
       // Test and automation hooks.
@@ -1692,7 +1823,7 @@ void main(){
     box.lastChild.append(back, exp);
     v.root.querySelector(".v3d-hud")?.remove();
     v.root.append(box);
-    Object.assign(v, {command: a => a === "escape" ? (v.close(), true) : false, refresh() {}, stats: () => ({webgl: 0}),
+    Object.assign(v, {command: a => a === "escape" ? (v.close(), true) : false, refresh() { if (!alive(v)) v.close(); }, stats: () => ({webgl: 0}),
       close() { if (v.closed) return; v.closed = true; v.root.remove(); viewers.delete(v.stage); }, renderNow() {}});
     v.ctx.info?.("3D view is unavailable: WebGL is not supported here. Use File → Export 3D STEP… instead.");
     exp.focus();
@@ -1704,8 +1835,12 @@ void main(){
     if (!globalThis.AtriumSTEP) { ctx.info?.("3D needs the STEP geometry module."); return null; }
     const have = viewers.get(ctx.stage);
     if (have && !have.closed) { have.command?.("view-3d"); return have; }
-    ensureCSS();
-    const v = createViewer(ctx);
+    const s = ctx.stage, perf = globalThis.AtriumDiagnostics?.performance;
+    const span = perf && s.isConnected && s.clientWidth > 0 && s.clientHeight > 0 &&
+      globalThis.AtriumPower?.visible?.() !== false && document.visibilityState !== "hidden" ? perf.begin("3d", "load") : null;
+    let v;
+    try { ensureCSS(); v = createViewer(ctx, span); }
+    catch (error) { span?.end("failed"); throw error; }
     if (!v.closed) viewers.set(ctx.stage, v);
     return v;
   }

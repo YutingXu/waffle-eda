@@ -247,6 +247,18 @@ assert.equal(AtriumFabProfiles.outputLayout("oshpark-2l"), null);
 // ---- Asynchronous runner with progress and an asynchronous PDF -----------------
 globalThis.__testDone = (async () => {
   const p = project(), events = [];
+  require("../../app/checks/diagnostics.js");
+  const one = {name:"Synthetic",outputs:[{kind:"readme"}]}, original = J.run(p, one, {date});
+  const recording = AtriumDiagnostics.startPerformance();
+  try {
+    assert.deepEqual(J.run(p, one, {date}).files, original.files);
+    const cancelled = await J.runAsync(p, one, {date, settle:false, signal:{aborted:true}});
+    assert.equal(cancelled.report.ok,false);
+    assert.throws(()=>J.run(p,"missing synthetic job"),/There is no output job/);
+    const rows = AtriumDiagnostics.performanceSnapshot().rows;
+    assert.deepEqual(rows.map(({component,operation,counts})=>[component,operation,counts.completed,counts.cancelled,counts.failed]),
+      [["manufacturing","build",1,1,1]]);
+  } finally {recording.stop();}
   globalThis.AtriumPDF = {build: async (proj, o) => ({name: proj.name + ".pdf", data: new Uint8Array([37, 80, 68, 70, 45]), board: o.board})};
   try {
     const set = {name: "Review", folder: "{job}", outputs: [{kind: "pdf"}, {kind: "assembly"}, {kind: "readme"}]};

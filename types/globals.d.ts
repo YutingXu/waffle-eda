@@ -33,8 +33,8 @@ interface AtriumHostAPI {
   butterDropEnabled?(enabled: boolean): void;
   cancelTypedDrop?(token: string): void;
   finishTypedDrop?(token: string, handled: boolean): void;
-  /** Help › Troubleshooting › Input Diagnostics: the macOS host's last 20 input events (main.swift InputLog). */
-  inputDiagnostics?(): Promise<{os: string; screens: {name: string; touch?: boolean}[]; rows: {event: string; source: string; route: string; count: number; detail: string}[]}>;
+  /** Help › Troubleshooting › Input Diagnostics. A read never starts collection. */
+  inputDiagnostics?(operation?: "start" | "read" | "stop"): Promise<{rows: {event: string; source: string; route: string; count: number}[]}>;
   macShortcutGlyphs?(labels: string[]): Promise<Record<string, {png: string; width: number; height: number; descent: number}>>;
   macShortcutIntent?(): void;
   macShortcutBadge?(node: HTMLElement, visual: HTMLElement, spoken: string): void;
@@ -69,7 +69,7 @@ interface AtriumHostAPI {
   gitRefs?(): Promise<unknown>;
   pickFile(extensions: string[]): Promise<HostFile | null>;
   /** Text exports travel as UTF-8; binary ones (zip, xlsx) as bytes. */
-  exportFile(name: string, data: string | Uint8Array): Promise<unknown>;
+  exportFile(name: string, data: string | Uint8Array, options?: {diagnostics?: boolean}): Promise<unknown>;
   printPDF(name: string, bytes: Uint8Array): Promise<unknown>;
   exportBinaryCopy(name: string, bytes: Uint8Array, file: File): Promise<unknown>;
   /** True when the project was saved. */
@@ -91,6 +91,12 @@ interface AtriumHostAPI {
   lanBrowse?(): Promise<{sessions: {name: string; address: string; port: number}[]}>;
   setDirty(dirty: boolean, projectName?: string | null): void;
   crashHistory(): Promise<unknown[]>;
+  supportDiagnostics?(): Promise<{
+    platform: "macos" | "windows" | "linux";
+    architecture: "arm64" | "x64" | "unknown";
+    displayCount?: "one" | "two" | "three-or-more" | "unknown";
+    rendererTerminations?: Partial<Record<"exited" | "unresponsive" | "browserExited" | "memoryLimit" | "terminated", number>>;
+  } | null>;
   startRecoverySession(session: string): void;
   pendingCrashRecovery(): Promise<unknown> | null;
   restoreCrashProject(path: string): Promise<boolean>;
@@ -284,8 +290,8 @@ interface AtriumModelAPI {
 
 /** app/lazy.js: on-demand module loader. */
 interface AtriumLazyAPI {
-  need<K extends string>(name: K): Promise<any>;
-  need(names: string[]): Promise<any[]>;
+  need<K extends string>(name: K, options?: {measure?: boolean}): Promise<any>;
+  need(names: string[], options?: {measure?: boolean}): Promise<any[]>;
   appendOnLoad(name: string, parent: Element, build: (ui: any, target: DocumentFragment) => void, info?: (message: string) => void): void;
   has(names: string | string[]): boolean;
   pending(names: string | string[]): boolean;
@@ -327,7 +333,7 @@ interface AtriumIOAPI {
   modelNotes(parsed: ImportResult, count: number): void;
   serializer(): Promise<any>;
   pickFile(exts: string[]): Promise<File | null>;
-  exportFile(name: string, text: string | Uint8Array): Promise<unknown>;
+  exportFile(name: string, text: string | Uint8Array, options?: {diagnostics?: boolean; manufacturing?: boolean}): Promise<unknown>;
   exportBinaryCopy(name: string, bytes: Uint8Array, sourceFile: File | null | undefined): Promise<unknown>;
 }
 
@@ -759,6 +765,7 @@ declare var AtriumPDF: AtriumGen<"AtriumPDF">; // app/pdf.js
 declare var AtriumPDFFonts: AtriumGen<"AtriumPDFFonts">; // app/pdf-fonts.js
 declare var AtriumPDN: AtriumGen<"AtriumPDN">; // app/pdn.js
 declare var AtriumPDNView: AtriumGen<"AtriumPDNView">; // app/pdn-view.js
+declare var AtriumPerformanceDiagnostics: AtriumGen<"AtriumPerformanceDiagnostics">; // app/checks/performance-diagnostics.js
 declare var AtriumPinSwap: AtriumGen<"AtriumPinSwap">; // app/pin-swap.js
 declare var AtriumPlacement: AtriumGen<"AtriumPlacement">; // app/placement.js
 declare var AtriumPlaceholders: AtriumGen<"AtriumPlaceholders">; // app/placeholder-parts.js

@@ -164,6 +164,8 @@ globalThis.AtriumButter = (() => {
         staged.set(key, JSON.parse(json));
       }
     });
+    let refused;
+    const timing = G.AtriumDiagnostics?.performance?.begin("automation", "command");
     function complete(output) {
       if (!object(output ?? {})) fail("invalid_result", "A Butter command must return a result record.");
       output ??= {};
@@ -171,7 +173,8 @@ globalThis.AtriumButter = (() => {
       const ops = spec.kind === "edit" ? clone(output.ops) : undefined;
       if (spec.kind === "edit" && (!Array.isArray(ops) || ops.length > 50000))
         fail("invalid_result", "A Butter edit needs a bounded guarded operation list.");
-      const refused = failure(result);
+      refused = failure(result);
+      timing?.ready();
       return finish({command:id, mode, result}, {ops:refused && ops ? [] : ops, failure:refused,
         file:!refused && mode === "write" && spec.kind === "output" ? output.file : undefined,
         commit() {
@@ -190,12 +193,23 @@ globalThis.AtriumButter = (() => {
       const editor = source === "editor" && isCurrent?.() === true ? G.AtriumLinksDesktop : null;
       return (editor ?? G.AtriumLinks).resolveTargets(project, targets, options);
     } : undefined;
-    const output = handler(clone(args), Object.freeze({project:readonly(project), source, mode, documentId, selection:Object.freeze([...(selection ?? [])]),
-      revision, sourceRevision, isCurrent, signal, services:Object.freeze({state, workspace:workspace(scope), native:readonly(context.native),
-        enabled:context.enabled ?? enabled, tableFormulas, resolveLinkTargets,
-        commands:spec.invokesCommands === true && context.plan ? Object.freeze({plan:context.plan}) : undefined})}));
-    if (output?.then) return output.then(complete);
-    return complete(output);
+    function settle(value) {
+      timing.end(signal?.aborted ? "cancelled" : refused ? "failed" : "completed");
+      return value;
+    }
+    function failed(error) {
+      timing?.end(signal?.aborted ? "cancelled" : "failed");
+      throw error;
+    }
+    try {
+      const output = handler(clone(args), Object.freeze({project:readonly(project), source, mode, documentId, selection:Object.freeze([...(selection ?? [])]),
+        revision, sourceRevision, isCurrent, signal, services:Object.freeze({state, workspace:workspace(scope), native:readonly(context.native),
+          enabled:context.enabled ?? enabled, tableFormulas, resolveLinkTargets,
+          commands:spec.invokesCommands === true && context.plan ? Object.freeze({plan:context.plan}) : undefined})}));
+      const result = output?.then ? output.then(complete) : complete(output);
+      if (!timing) return result;
+      return result?.then ? result.then(settle, failed) : settle(result);
+    } catch (error) { return failed(error); }
   }
 
   function requireSuccess({result}, data) {

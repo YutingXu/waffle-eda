@@ -781,7 +781,7 @@ globalThis.AtriumPCBText = (() => {
     return c;
   }
   // draw(ctx, item, scale, ink, {layer, lod}) -> false if nothing was drawn.
-  function draw(ctx, item, scale, ink, o = {}) {
+  function draw(ctx, item, scale, ink, o = {}, bandBounds) {
     if (!item.text) return false;
     item = positioned(item,o);
     ctx.save();
@@ -791,11 +791,20 @@ globalThis.AtriumPCBText = (() => {
     if ((item.size || .75) * scale < lod) {
       const b = recordedBounds(item,o.layer,true) || layoutItem(item,o.layer).box;
       ctx.globalAlpha *= .4; ctx.fillStyle = ink;
-      ctx.fillRect(b[0], b[1], Math.max(b[2] - b[0], 1 / scale), Math.max(b[3] - b[1], 1 / scale));
+      const w = Math.max(b[2] - b[0], 1 / scale), h = Math.max(b[3] - b[1], 1 / scale);
+      bandBounds?.(ctx, b[0], b[1], b[0] + w, b[1] + h);
+      ctx.fillRect(b[0], b[1], w, h);
       ctx.restore();
       return true;
     }
-    const c = pathFor(layoutItem(item,o.layer));
+    const l = layoutItem(item,o.layer), c = pathFor(l);
+    if (bandBounds && (c.fill || c.strokes)) {
+      if (l.polygons.some(p => p.holes.length)) bandBounds(null);
+      else {
+        const [x0, y0, x1, y1] = l.box, pad = c.strokes ? .4 / scale : 0;
+        bandBounds(ctx, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
+      }
+    }
     if (c.fill) { ctx.fillStyle = ink; ctx.fill(c.fill, "nonzero"); }
     if (c.strokes) {
       ctx.strokeStyle = ink; ctx.lineCap = "round"; ctx.lineJoin = "round";

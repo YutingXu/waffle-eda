@@ -309,18 +309,19 @@ globalThis.atriumCanvasDamage = async function () {
       scene.canvas.remove();
     }
 
-    // DRC markers above 250 rows draw as an overview into a layer kept per canvas. A frame that
+    // Close DRC inspections above 250 rows draw into a layer kept per canvas. A frame that
     // reuses the layer equals a fresh view's frame; an edit redraws the pixel rows of its markers'
     // old and new areas, and the frame after the edits stop redraws the layer whole.
     if (globalThis.AtriumDRCMarkers) {
-      const board = makeAtriumBenchmarkBoard().d, near = board.items.filter(i => (i.kind === "via" || i.kind === "track") &&
-        Math.abs((i.x ?? i.points[0][0]) - 182) < 26 && Math.abs((i.y ?? i.points[0][1]) - 135) < 18);
-      const list = [];
-      for (let n = 0; n + 1 < near.length && list.length < 600; n++) {
-        const a = near[n], b = near[n + 1], at = [a.x ?? a.points[0][0], a.y ?? a.points[0][1]], to = [b.x ?? b.points[0][0], b.y ?? b.points[0][1]];
-        list.push({type: n % 6 ? "clearance" : "width", rule: "Clearance", id: a.id, otherId: n % 6 ? b.id : undefined, at, otherAt: n % 6 ? to : undefined, warning: n % 10 === 0, actual: .1, required: .2});
-      }
-      const scene = load(board, defs, camera, {...opts, measure:null});
+      const moved = line("changed-drc-track", [[178,128],[181,128]]);
+      const mate = line("opposing-drc-track", [[178,129],[181,129]]);
+      const board = {id:A.id(),name:"Close DRC patch fixture",kind:"pcb",grid:.25,items:[moved,mate]};
+      const list = [{type:"clearance",id:moved.id,otherId:mate.id,at:[180,128],otherAt:[180,129],actual:.1,required:.2}];
+      // Keep the close scene over the overview threshold and leave undisturbed markers outside the
+      // row patch. Their independent paths make the unchanged/settled pixel guards substantive.
+      for (let y = 135; y <= 143; y += .5) for (let x = 170; x <= 194; x++) list.push({type:"width",at:[x,y]});
+      const close = {...camera, scale:32, referenceScale:32};
+      const scene = load(board, defs, close, {...opts, measure:null});
       let rev = 1;
       const markers = (extra = {}) => ({...scene.drawing, overlay:[AtriumDRCMarkers.overlay(board, defs, list, {rev, ...extra})]});
       const pixels = canvas => canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
@@ -338,8 +339,7 @@ globalThis.atriumCanvasDamage = async function () {
       const again = pixels(scene.canvas), d0 = delta(again, first), d1 = delta(again, fresh(markers()));
       record("DRC overview layer reused on an unchanged frame", d0, d0.n === 0 && stats().reused > s0.reused);
       record("Reused DRC overview layer against a fresh view", d1, d1.n === 0);
-      const moved = near[2];
-      scene.edit(() => { if (moved.points) moved.points = moved.points.map(([x, y]) => [x + .4, y + .2]); else { moved.x += .4; moved.y += .2; } });
+      scene.edit(() => { moved.points = moved.points.map(([x,y]) => [x+.4,y+.2]); });
       rev++;
       const s1 = stats();
       // The board itself in full (its batched patch has its own exact frame): this compares the markers.
@@ -354,6 +354,47 @@ globalThis.atriumCanvasDamage = async function () {
       const hover = delta(pixels(scene.canvas), fresh(markers({hover:list[3]})));
       record("DRC overview with a hovered marker equals a fresh view", hover, hover.n === 0);
       scene.canvas.remove();
+    }
+
+    if (globalThis.AtriumDRCMarkers) {
+      const long = line("long-drc-outline", [[181, 133], [199, 133]]);
+      const board = {id:A.id(),name:"Coarse DRC edit fixture",kind:"pcb",grid:.25,items:[long]};
+      const scene = load(board, defs, camera, {...opts, noReuse:true, measure:null});
+      const error = {type:"width",id:long.id,at:[181,133]};
+      const stable = [{type:"width",at:[173,141]}, {type:"width",at:[174,142]}];
+      const moving = {type:"width",warning:true}, list = [error,moving,...stable];
+      const draw = (view, at) => {
+        moving.at = at;
+        view.render(board, defs, {...scene.drawing, overlay:[AtriumDRCMarkers.overlay(board,defs,list,{rev:1})]});
+      };
+      const pixels = c => c.getContext("2d").getImageData(0,0,c.width,c.height).data;
+      const remote = data => {
+        const x = Math.round(scene.view.worldToScreen([196,133])[0]*devicePixelRatio);
+        const y = Math.round(scene.view.worldToScreen([196,133])[1]*devicePixelRatio);
+        return [...data.slice((y*scene.canvas.width+x)*4,(y*scene.canvas.width+x)*4+4)];
+      };
+      const separate = [184.2,133.5], joined = [181.8,133.5];
+      draw(scene.view,separate);
+      const outlined = remote(pixels(scene.canvas)), intact = AtriumDRCMarkers.overviewStats();
+      const compare = (name,at) => {
+        const reference = surface(), fresh = AtriumCanvas.create(reference);
+        fresh.restoreCamera(camera);
+        draw(scene.view,at); draw(fresh,at);
+        const actual = pixels(scene.canvas), expected = pixels(reference);
+        let difference = 0;
+        for (let i=0;i<expected.length;i++) difference += actual[i] !== expected[i];
+        const changed = remote(actual).some((value,i) => value !== outlined[i]);
+        const pass = !difference && (at === joined ? changed : !changed);
+        cases.push({name,mode:"whole-marker-layer",pixels:difference,remoteOutlineChanged:changed});
+        if (!pass) failures.push(name);
+        fresh.dispose(); reference.remove();
+      };
+      compare("Joining a coarse cell removes the old singleton's remote outline",joined);
+      const rebuilt = AtriumDRCMarkers.overviewStats();
+      if (rebuilt.whole < intact.whole + 1 || rebuilt.patched !== intact.patched)
+        failures.push("Coarse cell changes invalidate the whole retained marker layer");
+      compare("Splitting a coarse cell restores the original singleton outline",separate);
+      scene.view.dispose(); scene.canvas.remove();
     }
 
     if (globalThis.AtriumDRCMarkers) {

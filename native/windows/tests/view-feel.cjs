@@ -123,6 +123,7 @@ function startObserver(mark, freezePaint, observeInputCamera) {
   const begin = performance.now();
   performance.mark(mark + "/start");
   W.__work.length = 0;
+  const workRaf = W.__workRaf = [];
   handle = W.__rawRAF(tick);
   W.__winFeelStop = () => {
     const end = performance.now();
@@ -132,9 +133,10 @@ function startObserver(mark, freezePaint, observeInputCamera) {
     events.abort();
     delete W.__waffleFrameTrace;
     delete W.__waffleInputTrace;
+    delete W.__workRaf;
     delete W.__winFeelStop;
     view.render = render;
-    return {begin,end,start,finish:camera(),inputs,draws,ticks,tracedNotches,work:W.__work.slice()};
+    return {begin,end,start,finish:camera(),inputs,draws,ticks,tracedNotches,work:W.__work.slice(),workRaf};
   };
   // Prime the unwrapped rAF clock before the host sends any input.
   return new Promise(resolve => W.__rawRAF(() => W.__rawRAF(resolve)));
@@ -190,16 +192,30 @@ function summarizeMotion(raw, refreshHz) {
   const first = raw.inputs[0].at, last = raw.inputs.at(-1).at;
   const changed = raw.draws.filter(draw => draw.changed && draw.end >= first);
   const finalMotion = changed.at(-1);
+  const stationary = finalMotion ? raw.draws.filter(draw => !draw.changed && draw.t >= finalMotion.end) : [];
+  // An exact last moving draw can finish a gesture without a separate stationary draw.
+  const terminal = stationary.at(-1) || finalMotion;
   const bounds = raw.end > raw.ticks.at(-1) ? [...raw.ticks,raw.end] : raw.ticks;
   const bins = Array(bounds.length - 1).fill(0);
   const bucket = t => Math.min(bins.length - 1, Math.max(0, bounds.findLastIndex(b => b <= t)));
+  const frames = Array.isArray(raw.workRaf) && raw.workRaf.length === raw.work.length / 2 ? {
+    slots:new Map(raw.ticks.map((stamp,i) => [stamp,Math.min(i,bins.length-1)])),
+    work:Array(bins.length).fill(0), draws:new Map(),
+  } : null;
   const callbacks = [];
+  let outsideCallbacksMs = 0, outsideDrawsMs = 0, terminalOwner;
   for (let i = 0; i < raw.work.length; i += 2) {
     const start = raw.work[i], duration = raw.work[i+1];
-    if (start < bounds[0] || start >= raw.end) continue;
+    if (start < bounds[0] || start >= raw.end) {
+      outsideCallbacksMs += duration;
+      continue;
+    }
     const bin = bucket(start);
-    callbacks.push({start,end:start+duration,bin});
+    const raf = frames ? raw.workRaf[i/2] : null;
+    const frame = frames?.slots.get(raf) ?? bin;
+    callbacks.push({start,end:start+duration,duration,bin,frame,raf});
     bins[bin] += duration;
+    if (frames) frames.work[frame] += duration;
   }
   const drawBins = new Map();
   for (const draw of raw.draws) {
@@ -207,36 +223,62 @@ function summarizeMotion(raw, refreshHz) {
       // The presentation timestamp can be on the opposite side of a bin
       // boundary from the actual callback that contains this draw.
       const owner = callbacks.findLast(c => c.start <= draw.t && c.end + 1e-6 >= draw.end);
-      if (owner) drawBins.set(draw,owner.bin);
+      if (owner) {
+        drawBins.set(draw,owner.bin);
+        frames?.draws.set(draw,owner.frame);
+        if (draw === terminal) terminalOwner = owner;
+      }
     } else if (draw.t >= bounds[0]) {
       const bin = bucket(draw.t);
       drawBins.set(draw,bin);
       bins[bin] += draw.end-draw.t;
+      if (frames) {
+        frames.draws.set(draw,bin);
+        frames.work[bin] += draw.end-draw.t;
+      }
+    } else {
+      outsideDrawsMs += draw.end-draw.t;
     }
   }
   const motionEnd = Math.max(last,finalMotion?.end ?? last);
   const intervals = raw.ticks.slice(1).map((end,i) => [raw.ticks[i],end]).filter(([a,b]) => b >= first && a <= motionEnd);
   const active = intervals.map(([a,b]) => b-a);
-  const work = intervals.map(([a]) => bins[bucket(a)]);
   const paintTimes = [...new Set(changed.map(draw => draw.raf ?? draw.t))];
-  const paintBins = new Set(changed.map(draw => drawBins.get(draw)));
-  paintBins.delete(undefined);
-  const paintFrameWork = [...paintBins].map(i => bins[i]);
-  const stationary = finalMotion ? raw.draws.filter(draw => !draw.changed && draw.t >= finalMotion.end) : [];
-  // A renderer can end a gesture with an exact moving draw and no further draw.
-  // Report which camera draw we actually observed rather than making a settle sample.
-  const terminal = stationary.at(-1) || finalMotion;
-  const terminalBin = drawBins.get(terminal);
-  const terminalWork = terminalBin === undefined ? [] : [bins[terminalBin]];
+  function phaseWork(weights, owners) {
+    const paintBins = new Set(changed.map(draw => owners.get(draw)));
+    paintBins.delete(undefined);
+    const terminalBin = owners.get(terminal);
+    return {
+      work:intervals.map(([a]) => weights[bucket(a)]),
+      paintFrameWork:[...paintBins].map(i => weights[i]),
+      settle:weights.filter((ms,i) => ms > 0 && bounds[i+1] > last),
+      terminal:terminalBin === undefined ? [] : [weights[terminalBin]],
+    };
+  }
+  const phases = phaseWork(bins,drawBins);
+  function terminalInterval(weights, owners, slot) {
+    const bin = owners.get(terminal);
+    if (bin === undefined) return null;
+    let otherRafMs = 0, sameRafMs = 0, nonRafMs = 0;
+    for (const callback of callbacks) {
+      if (callback[slot] !== bin || callback === terminalOwner) continue;
+      if (callback.raf == null) nonRafMs += callback.duration;
+      else if (callback.raf === terminalOwner?.raf) sameRafMs += callback.duration;
+      else otherRafMs += callback.duration;
+    }
+    const standaloneDrawMs = raw.draws.reduce((total,draw) =>
+      total + (!draw.inCallback && owners.get(draw) === bin ? draw.end-draw.t : 0),0);
+    return {startMs:bounds[bin],endMs:bounds[bin+1],totalMs:weights[bin],
+      otherRafMs,sameRafMs,nonRafMs,standaloneDrawMs};
+  }
   const unattributedPaintDraws = [...new Set([...changed,terminal].filter(Boolean))]
     .filter(draw => !drawBins.has(draw)).length;
-  const postInput = bins.filter((ms,i) => ms > 0 && bounds[i+1] > last);
   const drawsAfterInput = raw.inputs.map(event => changed.find(draw => draw.end >= event.at))
     .map((draw,i) => draw && draw.end-raw.inputs[i].at).filter(Number.isFinite);
   return {
-    work:distribution(work), paintFrameWork:distribution(paintFrameWork), drawWork:distribution(changed.map(d => d.end-d.t)),
-    settle:distribution(postInput),
-    terminal:distribution(terminalWork), unattributedPaintDraws,
+    work:distribution(phases.work), paintFrameWork:distribution(phases.paintFrameWork), drawWork:distribution(changed.map(d => d.end-d.t)),
+    settle:distribution(phases.settle),
+    terminal:distribution(phases.terminal), unattributedPaintDraws,
     terminalKind: stationary.length ? "stationary draw" : "last changed draw",
     cadence:distribution(active), callbackHz:active.length ? 1000*active.length/active.reduce((a,b) => a+b,0) : null,
     estimatedMissedCallbackSlots:refreshHz > 0 ?
@@ -244,7 +286,17 @@ function summarizeMotion(raw, refreshHz) {
     changedPaintFrames:paintTimes.length, changedPaintHz:paintTimes.length > 1 ?
       1000*(paintTimes.length-1)/(paintTimes.at(-1)-paintTimes[0]) : null,
     activeInputMs:last-first, domToCompletedDraw:distribution(drawsAfterInput),
-    samples:{work,paintFrameWork,settle:postInput,terminal:terminalWork},
+    samples:phases,
+    ...(frames && {callbackFrameWork:{
+      ...Object.fromEntries(Object.entries(phaseWork(frames.work,frames.draws)).map(([name,samples]) => [name,distribution(samples)])),
+      totalMs:+frames.work.reduce((total,ms) => total+ms,0).toFixed(3),
+    }, terminalWorkAttribution:{
+      drawMs:terminal ? terminal.end-terminal.t : null,
+      owner:terminalOwner ? {startMs:terminalOwner.start,durationMs:terminalOwner.duration,raf:terminalOwner.raf} : null,
+      stockStartInterval:terminalInterval(bins,drawBins,"bin"),
+      callbackFrameInterval:terminalInterval(frames.work,frames.draws,"frame"),
+      outsideObservedIntervals:{callbacksMs:outsideCallbacksMs,standaloneDrawsMs:outsideDrawsMs},
+    }}),
   };
 }
 

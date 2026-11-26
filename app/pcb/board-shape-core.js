@@ -308,15 +308,17 @@ globalThis.AtriumBoardShape = (() => {
 
   // ---------------------------------------------------------------------------
   // User interface: board-shape-ui.js (AtriumBoardShapeUI) loads on first use through lazy.js.
-  const UI = () => globalThis.AtriumBoardShapeUI;
+  const UI = () => globalThis.AtriumLazy?.pending?.("AtriumBoardShapeUI") ? null : globalThis.AtriumBoardShapeUI;
   function open(ctx, opts = {}) {
-    if (UI()) return UI().open(ctx, opts);
+    const ui = UI();
+    if (ui) return ui.open(ctx, opts);
     if (!globalThis.AtriumLazy) throw Error("The board shape dialog is unavailable in this build.");
     return AtriumLazy.need("AtriumBoardShapeUI").then(U => U.open(ctx, opts), e => { ctx.info?.(e.message); });
   }
   // The inspector section: drawn once the interface has loaded, unless the panel was rebuilt.
   function properties(host, ctx, opt = {}) {
-    if (UI()) return UI().properties(host, ctx, opt);
+    const ui = UI();
+    if (ui) return ui.properties(host, ctx, opt);
     host.replaceChildren();
     globalThis.AtriumLazy?.need("AtriumBoardShapeUI").then(U => { if (host.isConnected !== false) U.properties(host, ctx, opt); }, e => { ctx.info?.(e.message); });
   }

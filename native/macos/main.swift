@@ -63,7 +63,7 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
     }
     func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldRecognizeSimultaneouslyWith other: NSGestureRecognizer) -> Bool { !webKitTouch(other) }
     func gestureRecognizer(_ gestureRecognizer: NSGestureRecognizer, shouldBeRequiredToFailBy other: NSGestureRecognizer) -> Bool { webKitTouch(other) }
-    /// WebKit's touch recognizers that are tracking now, by name (Input Diagnostics).
+    /// WebKit's touch recognizers that are tracking now.
     private func webKitActive() -> [NSGestureRecognizer] {
         (view?.gestureRecognizers ?? []).filter { webKitTouch($0) && ($0.state == .began || $0.state == .changed) }
     }
@@ -87,7 +87,7 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
         if ids.isEmpty, route == .page || route == .system { route = nil; next = 1 }
         let started = contacts(event, .began, add: true)
         guard !started.isEmpty, let web = web else { return }
-        InputLog.touches(event, "began", started.count, route == nil || route == .deciding ? "deciding" : route == .page ? "touch scheme" : "WebKit")
+        web.inputLog.touches("began", route == nil || route == .deciding ? "deciding" : route == .page ? "touch scheme" : "WebKit")
         switch route {
         case nil:
             route = .deciding
@@ -101,7 +101,7 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
         guard route != .system, let web = web else { return }
         let moved = contacts(event, .moved, add: false)
         guard !moved.isEmpty else { return }
-        InputLog.touches(event, "moved", moved.count, route == .page ? "touch scheme" : "deciding")
+        web.inputLog.touches("moved", route == .page ? "touch scheme" : "deciding")
         web.sendTouch("move", moved)
         if route == .page { ownedUntil = ProcessInfo.processInfo.systemUptime + 0.5; if state == .began || state == .changed { state = .changed } }
     }
@@ -110,7 +110,7 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
     private func lift(_ event: NSEvent, _ phase: NSTouch.Phase) {
         let ended = contacts(event, phase, add: false)
         if !ended.isEmpty, route != .system, let web = web {
-            InputLog.touches(event, phase == .cancelled ? "cancelled" : "ended", ended.count, route == .page ? "touch scheme" : "deciding")
+            web.inputLog.touches(phase == .cancelled ? "cancelled" : "ended", route == .page ? "touch scheme" : "deciding")
             web.sendTouch(phase == .cancelled ? "cancel" : "end", ended)
         }
         if route == .page { ownedUntil = ProcessInfo.processInfo.systemUptime + 0.5 }
@@ -119,7 +119,7 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
     }
     private func decide(_ taken: Bool) {
         guard route == .deciding else { return }
-        InputLog.decided(taken)
+        web?.inputLog.decided(taken)
         if taken {
             route = .page; ownedUntil = ProcessInfo.processInfo.systemUptime + 0.5
             state = ids.isEmpty ? .ended : .began
@@ -127,10 +127,7 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
             // mouse duplicates, canvas-input.js hostDuplicate).
             let active = webKitActive()
             for other in active { other.isEnabled = false; other.isEnabled = true }
-            InputLog.note("WebKit touch recognizers", active.isEmpty ? "none tracking" : "cancelled " + active.map { other -> String in
-                if #available(macOS 26, *), let name = other.name { return name }
-                return String(describing: type(of: other))
-            }.joined(separator: ", "))
+            web?.inputLog.note("WebKit touch recognizers")
         } else {
             route = .system; state = .failed
         }
@@ -141,39 +138,23 @@ final class DirectTouchRecognizer: NSGestureRecognizer, NSGestureRecognizerDeleg
     }
 }
 
-/// Help › Troubleshooting › Input Diagnostics: the last 20 input events this Mac's windows received, with
-/// where each came from and where it went. Kept in memory only; the page asks for it (inputDiagnostics).
-enum InputLog {
+/// The local Input Diagnostics panel enables a bounded event log for its own editor view.
+/// Closing the panel or losing the page clears these in-memory categories.
+final class InputLog {
     private struct Row {
-        var seq: Int, t: Double, kind: String, source: String, route: String, count: Int, detail: String
+        var kind: String, source: String, route: String, count: Int
     }
-    private static var rows: [Row] = [], seq = 0, names: [Int32: String] = [:]
-    private static func add(_ kind: String, _ source: String, _ route: String, _ detail: @autoclosure () -> String, at time: Double) {
+    private var rows: [Row] = []
+    private var active = false
+    private func add(_ kind: String, _ source: String, _ route: String) {
+        guard active else { return }
         if var last = rows.last, last.kind == kind, last.source == source, last.route == route {
-            last.count += 1; last.t = time; rows[rows.count - 1] = last; return
+            last.count = min(last.count + 1, 1000); rows[rows.count - 1] = last; return
         }
-        seq += 1
-        rows.append(Row(seq: seq, t: time, kind: kind, source: source, route: route, count: 1, detail: detail()))
+        rows.append(Row(kind: kind, source: source, route: route, count: 1))
         if rows.count > 20 { rows.removeFirst(rows.count - 20) }
     }
-    private static func poster(_ event: NSEvent) -> String {
-        guard let pid = event.cgEvent.map({ Int32($0.getIntegerValueField(.eventSourceUnixProcessID)) }), pid > 0 else { return "" }
-        if names[pid] == nil {
-            var buf = [CChar](repeating: 0, count: 256)
-            names[pid] = proc_name(pid, &buf, UInt32(buf.count)) > 0 ? String(cString: buf) : "pid \(pid)"
-        }
-        return " posted by \(names[pid]!)"
-    }
-    private static func subtype(_ event: NSEvent) -> String {
-        switch event.subtype {
-        case .mouseEvent: return "mouse"
-        case .tabletPoint: return "tabletPoint"
-        case .tabletProximity: return "tabletProximity"
-        case .touch: return "touch"
-        default: return String(event.subtype.rawValue)
-        }
-    }
-    private static func type(_ event: NSEvent) -> String {
+    private func type(_ event: NSEvent) -> String {
         switch event.type {
         case .leftMouseDown: return "leftMouseDown"
         case .leftMouseDragged: return "leftMouseDragged"
@@ -181,45 +162,41 @@ enum InputLog {
         case .mouseMoved: return "mouseMoved"
         case .rightMouseDown: return "rightMouseDown"
         case .otherMouseDown: return "otherMouseDown"
-        default: return "type \(event.type.rawValue)"
+        default: return "other"
         }
     }
-    static func mouse(_ event: NSEvent, _ touch: String?, _ route: String) {
+    func mouse(_ event: NSEvent, _ touch: String?, _ route: String) {
+        guard active else { return }
         let source = touch ?? (event.subtype == .tabletPoint ? "pen or tablet" : "mouse or trackpad")
-        add(type(event), source, route, "subtype \(subtype(event)), buttons down \(NSEvent.pressedMouseButtons), pressure \(String(format: "%.2f", event.pressure)), clicks \(event.clickCount)" +
-            (event.subtype == .tabletPoint ? ", device \(event.deviceID)" : "") + poster(event), at: event.timestamp)
+        add(type(event), source, route)
     }
-    static func scroll(_ event: NSEvent) {
+    func scroll(_ event: NSEvent) {
+        guard active else { return }
         let trackpad = event.hasPreciseScrollingDeltas && !(event.phase.isEmpty && event.momentumPhase.isEmpty)
         add(event.momentumPhase.isEmpty ? "scrollWheel" : "scrollWheel momentum", trackpad ? "trackpad or Magic Mouse" : event.hasPreciseScrollingDeltas ? "precise wheel" : "mouse wheel",
-            "WebKit wheel", "phase \(event.phase.rawValue), precise \(event.hasPreciseScrollingDeltas)" + poster(event), at: event.timestamp)
+            "WebKit wheel")
     }
-    static func gesture(_ event: NSEvent, _ kind: String) {
-        add(kind, "trackpad", "WebKit gesture", "phase \(event.phase.rawValue)", at: event.timestamp)
-    }
-    static func proximity(_ event: NSEvent) {
-        add("tabletProximity", "pen or tablet", "WebKit", "entering \(event.isEnteringProximity), device \(event.deviceID), pointing device \(event.pointingDeviceType.rawValue), capabilities \(event.capabilityMask)", at: event.timestamp)
-    }
-    static func note(_ kind: String, _ detail: String) {
-        add(kind, "host", "-", detail, at: ProcessInfo.processInfo.systemUptime)
-    }
-    static func touches(_ event: NSEvent, _ phase: String, _ count: Int, _ route: String) {
-        add("NSTouch " + phase, "touch (direct)", route, "\(count) contact\(count == 1 ? "" : "s")", at: event.timestamp)
+    func gesture(_ kind: String) { add(kind, "trackpad", "WebKit gesture") }
+    func proximity() { add("tabletProximity", "pen or tablet", "WebKit") }
+    func note(_ kind: String) { add(kind, "host", "-") }
+    func touches(_ phase: String, _ route: String) {
+        guard active else { return }
+        add("NSTouch " + phase, "touch (direct)", route)
     }
     /// The page answered for the stream that was waiting: its rows say where it went.
-    static func decided(_ taken: Bool) {
+    func decided(_ taken: Bool) {
+        guard active else { return }
         for i in rows.indices where rows[i].route == "deciding" { rows[i].route = taken ? "touch scheme" : "WebKit (not on a canvas)" }
     }
-    static func report() -> [String: Any] {
-        var screens: [[String: Any]] = []
-        for screen in NSScreen.screens {
-            var row: [String: Any] = ["name": screen.localizedName]
-            if #available(macOS 27, *) { row["touch"] = !screen.touchCapabilities.isEmpty }
-            screens.append(row)
+    func stop() { active = false; rows.removeAll() }
+    func inspect(_ operation: String) -> [String: Any]? {
+        switch operation {
+        case "start": active = true
+        case "read": break
+        case "stop": stop()
+        default: return nil
         }
-        let now = ProcessInfo.processInfo.systemUptime
-        return ["os": ProcessInfo.processInfo.operatingSystemVersionString, "screens": screens, "assumeTouchDisplay": EditorWebView.assumeTouchDisplay,
-                "rows": rows.map { ["seq": $0.seq, "ago": max(0, now - $0.t), "event": $0.kind, "source": $0.source, "route": $0.route, "count": $0.count, "detail": $0.detail] }]
+        return ["rows": rows.map { ["event": $0.kind, "source": $0.source, "route": $0.route, "count": $0.count] }]
     }
 }
 
@@ -228,6 +205,7 @@ enum InputLog {
 /// new-window entries that menu can still carry (Reload, Back, Open Link in New Window…), and shows
 /// nothing when only those were left.
 final class EditorWebView: WKWebView {
+    let inputLog = InputLog()
     var openDroppedFiles: (([URL]) -> Void)?
     typealias DropLoader = (Operation, @escaping (Result<[String:Any],Error>) -> Void) -> Void
     struct DropSource {
@@ -301,7 +279,7 @@ final class EditorWebView: WKWebView {
         """
 
     override func scrollWheel(with event: NSEvent) {
-        InputLog.scroll(event)
+        inputLog.scroll(event)
         wheelSerial &+= 1
         // Continuous scrolling (including trackpad momentum) stays on the direct WebKit path.
         guard !event.hasPreciseScrollingDeltas, event.phase.isEmpty, event.momentumPhase.isEmpty,
@@ -387,7 +365,7 @@ final class EditorWebView: WKWebView {
     private func decide(_ taken: Bool, _ down: NSEvent) {
         guard case .deciding(let queued)? = touchRoute else { return }
         touchRoute = taken ? .page : .system
-        InputLog.decided(taken)
+        inputLog.decided(taken)
         // A finger on chrome stays a mouse stream for WebKit; mark it so no :hover fill sticks (shell.js).
         if !taken { evaluateJavaScript("document.documentElement.dataset.pointer='touch'", completionHandler: nil); systemMouse(down) }
         for event in queued { touchMouse(event) }
@@ -396,35 +374,35 @@ final class EditorWebView: WKWebView {
         if Self.harnessMouseThrough { return super.mouseDown(with: event) }
         swallowing = false
         if fingers.owning, event.subtype != .tabletPoint, NSEvent.pressedMouseButtons & 1 == 0 {
-            swallowing = true; InputLog.mouse(event, "touch (emulated mouse)", "dropped: fingers already on the canvas"); return
+            swallowing = true; inputLog.mouse(event, "touch (emulated mouse)", "dropped: fingers already on the canvas"); return
         }
         let origin = touchRoute == nil ? touchOrigin(event) : "touch"
-        InputLog.mouse(event, origin, origin == nil ? "WebKit" : "deciding")
+        inputLog.mouse(event, origin, origin == nil ? "WebKit" : "deciding")
         origin == nil ? super.mouseDown(with: event) : touchMouse(event)
     }
     override func mouseDragged(with event: NSEvent) {
         if Self.harnessMouseThrough { return super.mouseDragged(with: event) }
         if swallowing { return }
-        InputLog.mouse(event, touchRoute == nil ? nil : "touch", streamRoute)
+        inputLog.mouse(event, touchRoute == nil ? nil : "touch", streamRoute)
         touchRoute == nil ? super.mouseDragged(with: event) : touchMouse(event)
     }
     override func mouseUp(with event: NSEvent) {
         if Self.harnessMouseThrough { return super.mouseUp(with: event) }
         if swallowing { swallowing = false; return }
-        InputLog.mouse(event, touchRoute == nil ? nil : "touch", streamRoute)
+        inputLog.mouse(event, touchRoute == nil ? nil : "touch", streamRoute)
         touchRoute == nil ? super.mouseUp(with: event) : touchMouse(event)
     }
     // A finger never hovers: a touchscreen move without a press would show hover cards and outlines.
     override func mouseMoved(with event: NSEvent) {
         let finger = event.subtype == .touch
-        InputLog.mouse(event, finger ? "touch (mouse subtype)" : nil, finger ? "dropped: a finger never hovers" : "WebKit")
+        inputLog.mouse(event, finger ? "touch (mouse subtype)" : nil, finger ? "dropped: a finger never hovers" : "WebKit")
         if !finger { super.mouseMoved(with: event) }
     }
-    override func rightMouseDown(with event: NSEvent) { InputLog.mouse(event, nil, "WebKit"); super.rightMouseDown(with: event) }
-    override func otherMouseDown(with event: NSEvent) { InputLog.mouse(event, nil, "WebKit"); super.otherMouseDown(with: event) }
-    override func magnify(with event: NSEvent) { InputLog.gesture(event, "pinch"); super.magnify(with: event) }
-    override func rotate(with event: NSEvent) { InputLog.gesture(event, "rotate"); super.rotate(with: event) }
-    override func tabletProximity(with event: NSEvent) { InputLog.proximity(event); super.tabletProximity(with: event) }
+    override func rightMouseDown(with event: NSEvent) { inputLog.mouse(event, nil, "WebKit"); super.rightMouseDown(with: event) }
+    override func otherMouseDown(with event: NSEvent) { inputLog.mouse(event, nil, "WebKit"); super.otherMouseDown(with: event) }
+    override func magnify(with event: NSEvent) { inputLog.gesture("pinch"); super.magnify(with: event) }
+    override func rotate(with event: NSEvent) { inputLog.gesture("rotate"); super.rotate(with: event) }
+    override func tabletProximity(with event: NSEvent) { inputLog.proximity(); super.tabletProximity(with: event) }
 
     private func fileDrop(_ sender: NSDraggingInfo) -> [URL]? {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
@@ -1283,6 +1261,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
     }
 
     func windowWillClose(_ notification: Notification) {
+        (web as? EditorWebView)?.inputLog.stop()
         revealTimer?.invalidate()
         revealTimer = nil
         if webProcessAvailable { notifyWorkspaceWriterUnavailable() }
@@ -1612,6 +1591,10 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         }
     }
 
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        if web === webView { (webView as? EditorWebView)?.inputLog.stop() }
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard web === webView, webProcessAvailable else { return }
         initialPageReady = true
@@ -1637,6 +1620,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard web === webView, webProcessAvailable else { return }
+        (webView as? EditorWebView)?.inputLog.stop()
         let pendingDetachedLaunch = isWorkspacePeer && revealTimer != nil
         if !pendingDetachedLaunch { revealWindow() }
         lan.stop()
@@ -3177,7 +3161,12 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         switch action {
         case "butterDropTake": takeTypedDrop(id,request)
         case "workspaceWindow": performWorkspaceAction(id,request,byteCount:data.count)
-        case "inputDiagnostics": reply(id, InputLog.report())
+        case "inputDiagnostics":
+            let operation = request["operation"] as? String ?? "read"
+            guard let report = (web as? EditorWebView)?.inputLog.inspect(operation) else {
+                reply(id, error: "Invalid input diagnostics operation."); return
+            }
+            reply(id, report)
         case "macShortcutGlyphs":
             reply(id, MacShortcutGlyphs.render(request["labels"] as? [String] ?? []))
         case "reselectImportSave", "importSaveChoice", "writeImportExport", "rememberImportExport", "recalledImportExport", "forgetImportExport":
@@ -3239,6 +3228,10 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         case "lanStop": lan.stop(); reply(id, ["stopped": true])
         case "lanBrowse": LanRelay.browse { found in self.reply(id, ["sessions": found]) }
         case "crashHistory": reply(id, CrashHistory.listing())
+        case "supportDiagnostics":
+            reply(id, ["platform": "macos", "architecture": SupportDiagnostics.architecture,
+                       "displayCount": SupportDiagnostics.displayCount(NSScreen.screens.count),
+                       "rendererTerminations": CrashHistory.counts()])
         case "revealProject":
             // Projects panel › Reveal in Finder: only the file this window opened or saved, never a page-supplied path.
             guard let active = visibleFolder, request["grant"] as? String == active.grant else {
@@ -3443,7 +3436,9 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
             let filename = (request["name"] as? NSString)?.lastPathComponent ?? "Project.waffle"
             let ext = (filename as NSString).pathExtension.lowercased()
             let valid = exchangeOutputs
-            guard valid.contains(ext), let contentType = UTType(filenameExtension:ext) else { reply(id,error:"Unrecognised save type."); return }
+            guard (valid.contains(ext) || filename == "waffle-diagnostics.json"), let contentType = UTType(filenameExtension:ext) else {
+                reply(id,error:"Unrecognised save type."); return
+            }
             let payload: Data
             if let text = request["text"] as? String { payload = Data(text.utf8) }
             else if let encoded = request["data"] as? String, let decoded = Data(base64Encoded: encoded) { payload = decoded }

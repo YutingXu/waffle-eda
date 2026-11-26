@@ -28,6 +28,14 @@ globalThis.AtriumRouteSuggest = (() => {
   const onscreen = () => globalThis.AtriumPower?.visible?.() !== false;
   const boardStamp = () => ({doc: host()?.doc?.(), rev: host()?.revision?.() ?? 0});
   const sameBoard = stamp => stamp?.doc === host()?.doc?.() && stamp?.rev === (host()?.revision?.() ?? 0);
+  let trace = null;
+  function finishTrace(outcome, replied = false, current = trace) {
+    if (!current || current !== trace) return;
+    trace = null;
+    if (replied) { current.attempt?.ready(); current.request.ready(); }
+    current.attempt?.end(outcome);
+    current.request.end(outcome);
+  }
 
   // ------------------------------------------------------------------ worker client
   function base() {
@@ -53,14 +61,16 @@ globalThis.AtriumRouteSuggest = (() => {
     w.onmessage = e => { if (S.worker === w) onWorker(e.data || {}); };
     w.onerror = e => {
       e.preventDefault?.(); if (S.worker !== w) return;
-      stopWorker(); S.workerState = "broken";
+      if (trace?.id === S.wantSeq) finishTrace("failed");
+      stopWorker(true); S.workerState = "broken";
       if (S.query) schedule(true);
     };
     w.postMessage({type: "ping"});
     return w;
   }
-  function stopWorker() {
+  function stopWorker(preserveRequest = false) {
     const worker = S.worker; S.worker = null;
+    if (worker && !preserveRequest) finishTrace("cancelled");
     clearTimeout(S.idleStop); S.pendingSince = 0; S.sentDefs = new Map(); S.sentStamp = null;
     if (S.workerState !== "broken") S.workerState = "none";
     try { worker?.terminate(); } catch { /* gone */ }
@@ -68,9 +78,20 @@ globalThis.AtriumRouteSuggest = (() => {
   function onWorker(m) {
     S.lastWorker = {type: m.type, id: m.id, want: S.wantSeq, partial: !!m.partial, stale: !!m.stale, ok: m.result?.ok, reason: m.result?.reason || m.message || null};
     if (m.type === "ready") { S.workerState = "ready"; return; }
-    if (m.type === "error") { if (m.id === S.wantSeq) { S.pendingSince = 0; globalThis.console?.warn?.("Route suggestion failed: " + m.message); } return; }
-    if (m.type !== "result" || m.id !== S.wantSeq || m.stale) { if (m.id === S.wantSeq && m.stale) S.pendingSince = 0; return; }
-    if (!m.partial) S.pendingSince = 0;
+    if (m.type === "error") {
+      if (m.id === S.wantSeq) {
+        S.pendingSince = 0;
+        if (trace?.id === m.id) finishTrace("failed", true);
+        globalThis.console?.warn?.("Route suggestion failed: " + m.message);
+      }
+      return;
+    }
+    if (m.id !== S.wantSeq) return;
+    if (m.stale || m.type === "result" && !m.partial) {
+      S.pendingSince = 0;
+      if (trace?.id === m.id) finishTrace(m.stale ? "cancelled" : "completed", true);
+    }
+    if (m.type !== "result" || m.stale) return;
     show(m.result, m.id, !!m.partial);
   }
 
@@ -194,6 +215,7 @@ globalThis.AtriumRouteSuggest = (() => {
   const connKey = q => q.net + "|" + [q.from, q.to].map(p => p.map(x => x.toFixed(3)).join(",")).sort().join("|");
   function cancelRequest() {
     clearTimeout(S.timer); clearTimeout(S.nextTimer); S.refreshJob?.cancel(); S.refreshJob = null;
+    finishTrace("cancelled");
     S.wantSeq = ++S.seq; S.firstPaint.clear();
     if (S.pendingSince || S.workerState === "starting") stopWorker();
   }
@@ -202,7 +224,13 @@ globalThis.AtriumRouteSuggest = (() => {
     cancelRequest(); S.key = ""; S.query = null; S.result = null; S.index = 0; S.pinned = false;
     if (redraw) host()?.redrawOverlay?.();
   }
-  function schedule(retry) { clearTimeout(S.timer); S.timer = setTimeout(() => { if (S.query) send(S.query); }, retry ? 0 : DEBOUNCE); }
+  function schedule(retry) {
+    clearTimeout(S.timer);
+    finishTrace("cancelled");
+    const recorder = globalThis.AtriumDiagnostics?.performance, request = recorder?.queue("routing", "request");
+    if (request) trace = {request, recorder, attempt: null, id: null};
+    S.timer = setTimeout(() => { if (S.query) send(S.query); else finishTrace("cancelled"); }, retry ? 0 : DEBOUNCE);
+  }
   function request() { schedule(false); }
 
   // ------------------------------------------------------------------ queries
@@ -275,12 +303,18 @@ globalThis.AtriumRouteSuggest = (() => {
     return {meta, defs, ids, query, project};
   }
   function send(q) {
-    if (S.query !== q || !sameBoard(q) || !routeTool() || !enabled() || !onscreen() || efficient()) return;
+    if (S.query !== q || !sameBoard(q) || !routeTool() || !enabled() || !onscreen() || efficient()) {
+      finishTrace("cancelled");
+      return;
+    }
+    const current = trace;
+    current?.request.start();
     const t0 = now();
     let b;
-    try { b = build(q); } catch (e) { globalThis.console?.warn?.(e); return; }
+    try { b = build(q); } catch (e) { finishTrace("failed"); globalThis.console?.warn?.(e); return; }
     S.mainMs.push(["build", now() - t0]);
     const id = S.wantSeq = ++S.seq;
+    if (current) current.id = id;
     const w = S.worker || startWorker();
     // A worker with no query for IDLE_STOP ms (a minute in Efficiency mode) is stopped; the next query restarts it.
     clearTimeout(S.idleStop); if (w) S.idleStop = setTimeout(() => { if (!S.pendingSince && S.worker) stopWorker(); }, efficient() ? 60000 : IDLE_STOP);
@@ -290,23 +324,31 @@ globalThis.AtriumRouteSuggest = (() => {
       const fresh = [], defIds = [...b.ids];
       for (const id2 of defIds) { const d = b.defs.get(id2); if (d && S.sentDefs.get(id2) !== d) { fresh.push(d); S.sentDefs.set(id2, d); } }
       if (!S.pendingSince) S.pendingSince = now();
+      if (current) current.attempt = current.recorder.begin("routing", "compute");
       try { (S.worker || w).postMessage({type: "suggest", id, board: b.meta, defs: fresh, defIds, query: b.query, options}); S.mainMs.push(["post", now() - t0]); return; }
-      catch { stopWorker(); S.workerState = "broken"; }
+      catch { current?.attempt?.end("failed"); stopWorker(true); S.workerState = "broken"; }
     }
     // No worker (tests, locked-down webviews): run here after the frame, with a small budget.
+    if (current) current.attempt = current.recorder.queue("routing", "fallback");
     setTimeout(() => {
-      if (id !== S.wantSeq) return;
-      const r = E().suggest(b.meta, b.defs, {...b.query, budgetMs: 40}, options);
+      if (id !== S.wantSeq) { finishTrace("cancelled", false, current); return; }
+      let r;
+      current?.attempt?.start();
+      try { r = E().suggest(b.meta, b.defs, {...b.query, budgetMs: 40}, options); }
+      catch (error) { finishTrace("failed", false, current); throw error; }
+      finishTrace("completed", true, current);
       show(r, id, false);
     }, 0);
   }
   function show(result, id, partial) {
     if (id !== S.wantSeq || !S.query || !sameBoard(S.query) || !routeTool() || !enabled() || !onscreen()) return;
     if (!result?.ok) { if (!partial) { S.result = null; host()?.redrawOverlay?.(); } return; }
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("routing", "publish");
     const keep = S.result && partial === false ? S.result.alternatives[S.index] : null;
     S.result = {...result, net: S.query.net, partial};
     if (keep) { const i = result.alternatives.findIndex(a => a.kind === keep.kind); S.index = i >= 0 ? i : 0; } else if (partial) S.index = 0;
     if (!S.firstPaint.has(id)) S.firstPaint.set(id, {t0: S.trigger, t1: 0, worker: result.ms});
+    span?.end("completed");
     host()?.redrawOverlay?.();
   }
 

@@ -25,9 +25,27 @@ globalThis.AtriumIdle = (() => {
   const owner = fn => { const s = String(new Error().stack || "").split("\n").map(l => l.trim()).filter(l => l && !/idle\.js|\[native code\]|^Error|^(at )?(owner|timed|idle)\b/.test(l)); return (s[0] || "") + " " + (fn.name || String(fn).slice(0, 80).replace(/\s+/g, " ")); };
   const guard = (fn, ms, who) => { if (ms <= SLOW * SLICE) return; const o = who || owner(fn); if (slow.length >= 50) slow.shift(); slow.push({ms: Math.round(ms), owner: o}); G.console?.warn?.("AtriumIdle: callback ran " + Math.round(ms) + " ms (slice " + SLICE + " ms): " + o); };
   const timed = fn => { if (!G.ATRIUM_DEV) return fn; const who = owner(fn); return d => { const t = now(); try { return fn(d); } finally { guard(fn, now() - t, who); } }; };
-  if (typeof G.requestIdleCallback === "function")
-    return Object.freeze({idle: (fn, o) => G.requestIdleCallback(timed(fn), {timeout: o?.timeout ?? 2000}), cancel: id => G.cancelIdleCallback?.(id),
+  if (typeof G.requestIdleCallback === "function") {
+    let measured;
+    function idle(fn, o) {
+      const callback = timed(fn), options = {timeout: o?.timeout ?? 2000};
+      const span = G.AtriumDiagnostics?.performance?.queue("idle", "idle");
+      if (!span) return G.requestIdleCallback(callback, options);
+      const id = G.requestIdleCallback(deadline => {
+        measured.delete(id);
+        return span.run(callback, deadline);
+      }, options);
+      (measured ??= new Map()).set(id, span);
+      return id;
+    }
+    function cancel(id) {
+      measured?.get(id)?.end("cancelled");
+      measured?.delete(id);
+      return G.cancelIdleCallback?.(id);
+    }
+    return Object.freeze({idle, cancel,
       afterFrame: fn => typeof raf === "function" ? raf.call(G, () => later(fn)) : later(fn), sampleFrame, cancelSample, native: true, slow});
+  }
   let busy = -Infinity, asked = -Infinity, seq = 0, timer = 0;
   const queue = new Map(), frames = new Set();   // id → {fn, due}; requested animation frames
   const mark = () => { busy = now(); };
@@ -46,7 +64,11 @@ globalThis.AtriumIdle = (() => {
       queue.delete(id);
       const start = now(), late = !q;
       // The slice is shared: a callback that starts late in it gets only what is left (as requestIdleCallback's deadline).
-      try { e.fn({didTimeout: late, timeRemaining: () => late ? 0 : Math.max(0, SLICE - (now() - t))}); } catch (err) { G.console?.error?.(err); }
+      const deadline = {didTimeout: late, timeRemaining: () => late ? 0 : Math.max(0, SLICE - (now() - t))};
+      try {
+        if (e.span) e.span.run(() => e.fn(deadline));
+        else e.fn(deadline);
+      } catch (err) { G.console?.error?.(err); }
       if (G.ATRIUM_DEV) guard(e.fn, now() - start, e.who);
       if (!quiet() || now() - t >= SLICE) break;   // a frame was asked for, input arrived, or the slice is used
     }
@@ -60,11 +82,13 @@ globalThis.AtriumIdle = (() => {
   }
   function idle(fn, o) {
     const id = ++seq;
-    queue.set(id, {fn, due: now() + (o?.timeout ?? 2000), who: G.ATRIUM_DEV ? owner(fn) : ""});
+    const span = G.AtriumDiagnostics?.performance?.queue("idle", "idle");
+    queue.set(id, {fn, due: now() + (o?.timeout ?? 2000), who: G.ATRIUM_DEV ? owner(fn) : "", span});
     arm();
     return id;
   }
   function cancel(id) {
+    queue.get(id)?.span?.end("cancelled");
     if (queue.delete(id) && !queue.size && timer) {
       clearTimeout(timer);
       timer = 0;

@@ -22,6 +22,9 @@ from git_head import ProjectHistory, query as git_query
 from project_history import project_history, repository_info, SOURCE_EXTENSIONS
 
 VERSION = "2025-11-25"
+PERFORMANCE_METHOD = "waffle/diagnostics/performance"
+PERFORMANCE_ACTIONS = ("start", "snapshot", "stop")
+PERFORMANCE_PROJECTIONS = ("shareable", "exact")
 STRING = {"type": "string"}
 PAGES = {"offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}}
 # Mirrors AtriumProposal.V1_FIELDS (app/automation/proposal.js); tests/automation/security-proposals.py checks they match.
@@ -135,6 +138,8 @@ class Server:
         self.project = None
         self.digest = None
         self.board_runner = None
+        self._performance_generation = None
+        self._performance_tool = False
         self.board_reports = {}
         self.history_cache = OrderedDict()
         self.git_baseline = None
@@ -208,7 +213,45 @@ class Server:
         ]
         return visible + self.automation.listing()
 
+    def performance(self, action, projection="shareable"):
+        runner = self.automation.runner()
+        snapshot = runner.performance_control(action, projection=projection)
+        if action == "start":
+            self._performance_generation = runner.generation
+        elif action == "stop" or self._performance_generation != runner.generation:
+            self._performance_generation = None
+        return snapshot
+
+    def _performance_boundary(self, action, outcome=None):
+        runner = self.board_runner
+        if runner.generation != self._performance_generation:
+            self._performance_generation = None
+            return
+        try:
+            runner.performance_control(action, outcome)
+        except (ValueError, OSError):
+            # An engine replacement loses its local recording. The tool keeps
+            # the same result and authority even when its diagnostics stop.
+            self._performance_generation = None
+
     def call(self, name, a):
+        if self._performance_generation is None or self._performance_tool:
+            return self._call(name, a)
+        self._performance_tool = True
+        try:
+            self._performance_boundary("begin")
+            try:
+                result = self._call(name, a)
+            except BaseException as error:
+                outcome = "cancelled" if isinstance(error, KeyboardInterrupt) or getattr(error, "code", None) == "cancelled" else "failed"
+                self._performance_boundary("end", outcome)
+                raise
+            self._performance_boundary("end", "failed" if isinstance(result, dict) and result.get("error") else "completed")
+            return result
+        finally:
+            self._performance_tool = False
+
+    def _call(self, name, a):
         if self.foreign_source and name not in ("import_design", "export_design", "list_translators") and not (self.source_history and name == "project_history"):
             raise ToolError("Use import_design to preview this source, save as a native project, or export a separate copy.", "unknown_tool")
         if self.read_only and name == "propose_component_edits":
@@ -464,10 +507,21 @@ def serve(server, stream, output):
                     reply(error={"code":-32602,"message":"protocolVersion is required"});continue
                 requested=params["protocolVersion"]
                 result={"protocolVersion":requested if requested in (VERSION,"2025-06-18","2025-03-26","2024-11-05") else VERSION,"capabilities":{"tools":{}},"serverInfo":{"name":"waffle-eda","title":"Waffle EDA","version":Automation.app_version()}}
+                if isinstance(server, Server):
+                    result["capabilities"]["experimental"] = {
+                        PERFORMANCE_METHOD: {"actions": PERFORMANCE_ACTIONS, "projections": PERFORMANCE_PROJECTIONS}}
                 server.initialized=True
             elif method=="ping": result={}
             elif not server.initialized:
                 reply(error={"code":-32002,"message":"Initialize the connection first"});continue
+            elif method==PERFORMANCE_METHOD and isinstance(server, Server):
+                if not isinstance(params, dict) or set(params) - {"action", "projection"} or params.get("action") not in PERFORMANCE_ACTIONS:
+                    reply(error={"code":-32602,"message":"Choose start, snapshot or stop."});continue
+                action = params["action"]
+                projection = params.get("projection", "shareable")
+                if projection not in PERFORMANCE_PROJECTIONS or action == "start" and "projection" in params:
+                    reply(error={"code":-32602,"message":"Snapshot and stop can request the shareable or exact projection."});continue
+                result=server.performance(action, projection)
             elif method=="tools/list":
                 result={"tools":server.tool_list()}
             elif method=="tools/call":
@@ -521,7 +575,14 @@ if __name__=="__main__":
                         help="Grant the optional datasheets feature the selected local PDF under an alias.")
     parser.add_argument("--cli",metavar="TOOL",help="Run one tool and print its JSON result instead of serving MCP over stdio. Use \"list\" to list tools.")
     parser.add_argument("--args",metavar="JSON",help="Tool arguments as JSON, or @file.json (with --cli).")
+    performance_flags = parser.add_mutually_exclusive_group()
+    performance_flags.add_argument("--performance", dest="performance", action="store_const", const="shareable",
+                                   help="With --cli TOOL, print a shareable performance snapshot to stderr.")
+    performance_flags.add_argument("--performance-exact", dest="performance", action="store_const", const="exact",
+                                   help="With --cli TOOL, print an exact performance snapshot to stderr for local CI.")
     options=parser.parse_args()
+    if options.performance and (not options.cli or options.cli == "list"):
+        parser.error("Performance recording needs a CLI tool.")
     if options.args is not None and options.cli is None:
         parser.error("--args needs --cli")
     try:
@@ -540,7 +601,22 @@ if __name__=="__main__":
         sys.exit(2)
     try:
         if options.cli:
-            status = cli(server, options.cli, options.args)
+            recording = False
+            if options.performance:
+                try:
+                    server.performance("start")
+                    recording = True
+                except (ValueError, OSError):
+                    sys.stderr.write("waffle: performance recording is unavailable.\n")
+            try:
+                status = cli(server, options.cli, options.args)
+            finally:
+                if recording:
+                    try:
+                        snapshot = server.performance("stop", options.performance)
+                        sys.stderr.write(json.dumps(snapshot, ensure_ascii=False, allow_nan=False) + "\n")
+                    except (ValueError, OSError):
+                        sys.stderr.write("waffle: performance recording is unavailable.\n")
         else:
             serve(server, sys.stdin, sys.stdout)
             status = 0

@@ -196,6 +196,10 @@ globalThis.AtriumSI = (() => {
     const sig = options.revision != null ? "r" + options.revision : null;
     const cached = sig && contexts.get(doc);
     if (cached && cached.sig === sig && cached.project === options.project) { cached.opts = {...DEFAULTS, ...clean(options)}; return cached; }
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("analysis", "build");
+    return span ? span.run(buildContext, doc, defs, options, sig) : buildContext(doc, defs, options, sig);
+  }
+  function buildContext(doc, defs, options, sig) {
     const t0 = now(), St = S(), stack = St.get(doc, defs), notes = new Set();
     const keys = stack.layers.filter(St.isCopper).map(l => l.key), order = new Map(keys.map((k, i) => [k, i]));
     const typeOf = new Map(stack.layers.filter(St.isCopper).map(l => [l.key, l.type]));
@@ -696,6 +700,10 @@ globalThis.AtriumSI = (() => {
 
   // ------------------------------------------------------------------ net and board
   function analyzeNet(ctxOrDoc, net, options = {}) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("analysis", "check");
+    return span ? span.run(screenNet, ctxOrDoc, net, options) : screenNet(ctxOrDoc, net, options);
+  }
+  function screenNet(ctxOrDoc, net, options = {}) {
     const ctx = ctxOrDoc?.segs ? ctxOrDoc : context(ctxOrDoc, options.defs, options);
     const t0 = now(), segs = ctx.byNet.get(net) || [], pair = ctx.pairOf.get(net) || null;
     const endHoles = ctx.holes.filter(h => h.net === net);

@@ -94,13 +94,14 @@ globalThis.AtriumDocViews = (() => {
   function decorate() {
     const d = D(); if (!d) return;
     for (const v of views.values()) place(v);
-    const shown = [...views.values()].filter(v => !v.el.hidden), openPanes = panes();
+    const h = host(), shown = [...views.values()].filter(v => !v.el.hidden), openPanes = panes();
     d.body.classList.toggle("document-view-active", shown.some(v => v.pane === activeIndex()));
     openPanes.forEach((pane, index) => {
       const under = shown.some(v => v.pane === index), stage = pane.canvas.parentElement;
       // The tool bar and canvas are covered by the document view. Remove them
       // from the accessibility tree and the Tab order until the canvas returns.
       if (pane.canvas.inert !== under) pane.canvas.inert = under;
+      h?.paneCoverage?.(pane.canvas, under);
       const toolbar = stage.querySelector(":scope > .active-bar");
       if (toolbar && toolbar.inert !== under) toolbar.inert = under;
       if (stage.id === "canvas-stage" && openPanes.length === 1) {

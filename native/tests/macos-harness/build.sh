@@ -32,6 +32,10 @@ for anchor in (new_folder, '            let panel = NSSavePanel()\n            p
     indent = anchor[:len(anchor) - len(anchor.lstrip())]
     text = text.replace(anchor, anchor + '\n' + indent + 'if suite == "folder" || suite == "legacy-folder" { panel.directoryURL = work.appendingPathComponent("proj",isDirectory:true) }')
 text = text.replace(new_folder, new_folder + '\n        if suite == "projects" { panel.directoryURL = work.appendingPathComponent("altium",isDirectory:true) }')
+report_save = '            panel.nameFieldStringValue = filename\n            panel.beginSheetModal(for: window)'
+export_start = text.index('\n        case "export":\n')
+assert text[export_start:].count(report_save) == 1
+text = text[:export_start] + text[export_start:].replace(report_save, '            if suite == "crash" && filename == "waffle-diagnostics.json" { panel.directoryURL = work.appendingPathComponent("out",isDirectory:true) }\n' + report_save)
 export_parent = '            folder.message="Choose the parent folder for the exported design.";panel=folder'
 assert text.count(export_parent) == 1
 text = text.replace(export_parent, export_parent + '\n' +

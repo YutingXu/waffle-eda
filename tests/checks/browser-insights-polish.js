@@ -133,8 +133,129 @@ async function rotatedMarkers(browser, {capture} = {}) {
   } finally { await page.close(); }
 }
 
+async function groupedMarkers(browser) {
+  const page = await browser.newPage({viewport:{width:1440, height:960}, reducedMotion:"reduce"});
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.setDefaultTimeout(8000);
+  try {
+    await page.goto(editor);
+    await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
+    await page.locator("#doc-name", {hasText:"Sensor board"}).waitFor();
+    await page.evaluate(async () => {
+      await AtriumLazy.need(["AtriumInsightsUI", "AtriumDRCMarkers"]);
+      AtriumDRCMarkers.setVisible(false, AtriumNavHost);
+      AtriumPrefs.set(Object.fromEntries(AtriumInsights.enabledChecks("pcb").map(c => ["insights.check." + c.id, false])));
+      const tracks = AtriumNavHost.doc().items.filter(x => x.kind === "track" && x.net);
+      for (const [i, [id, title, severity, x]] of [
+        ["band-advice", "Board advice", "advice", 10],
+        ["band-tip", "First grouped tip", "tip", 31],
+        ["band-other", "Second grouped tip", "tip", 52]
+      ].entries()) AtriumInsights.register({id, kind:"pcb", title, severity,
+        run:() => [{at:[x,10], objects:[tracks[i].id], net:id, message:title + " detail"}]});
+      AtriumInsightsUI.schedule({force:true, now:true, heavy:true});
+    });
+    await page.waitForFunction(() => AtriumInsightsUI.current().filter(x => x.check.startsWith("band-")).length === 3);
+    const result = await page.evaluate(() => {
+      const h = AtriumNavHost, pane = h.panes().find(p => p.active), view = pane.view, d = h.doc();
+      const b = pane.canvas.getBoundingClientRect(), P = AtriumProblemMarks, I = AtriumInsightsUI;
+      const point = (x, y = 10) => view.worldToScreen([x,y]);
+      const hit = x => {
+        const [px,py] = point(x);
+        const g = I.groupAt(pane, b.left + px, b.top + py);
+        return g && {at:g.at, winner:g.rep.check, members:g.members.map(x => x.check)};
+      };
+      const place = (x, scale = 1) => view.restoreCamera({...view.camera(),cx:x,cy:10,scale,referenceScale:scale});
+      place(b.width/2);
+      const fit = hit(10), unpainted = hit(31);
+      const surface = document.createElement("canvas");
+      surface.width = Math.ceil(b.width); surface.height = Math.ceil(b.height);
+      const ctx = surface.getContext("2d"), [ox,oy] = point(0,0);
+      ctx.setTransform(1,0,0,1,ox,oy);
+      const paint = I._render(d).overlay;
+      paint(ctx, P.paneFrame(pane, b));
+      const painted = [10,31,52].filter(x => {
+        const [sx,sy] = point(x).map(Math.floor);
+        return ctx.getImageData(sx,sy,1,1).data[3] > 0;
+      }).map(x => [x,10]);
+      place(b.width/2 + 15);
+      const cut = hit(31);
+      const damage = paint.panDamage?.(P.paneFrame(pane,b), -15, 0) || [];
+      const repaired = [10,31].map(x => {
+        const [px,py] = point(x);
+        return damage.some(([l,t,r,bottom]) => px>l && px<r && py>t && py<bottom);
+      });
+      const cellBuilds = [], bandWinners = [];
+      globalThis.AtriumProblemMarks = {...P, cells(list, atOf, scale, cell, rank) {
+        if (list[0]?.check?.startsWith("band-")) cellBuilds.push(cell);
+        return P.cells(list, atOf, scale, cell, rank);
+      }};
+      try {
+        place(31, 2); hit(52); // Prewarm a different band, then record only the checked moves.
+        cellBuilds.length = 0;
+        place(b.width/2); bandWinners.push(hit(10));
+        place(b.width/2 / .95 + 15, .95); bandWinners.push(hit(31));
+        place(31, 1.125); bandWinners.push(hit(52));
+      } finally { globalThis.AtriumProblemMarks = P; }
+      place(31, 32);
+      const close = hit(31);
+      place(b.width/2);
+      const [px,py] = point(10), click = {x:b.left+px,y:b.top+py};
+      const items = d.items, iterate = items[Symbol.iterator];
+      let walks = 0, priority, beforeGeometry, boxes, labels, afterGeometry;
+      items[Symbol.iterator] = function(){walks++;return iterate.call(this);};
+      try {
+        priority = AtriumProblemHover.over(pane.canvas, click.x, click.y);
+        const tooltip = AtriumProblemHover._find(pane,click.x,click.y);
+        beforeGeometry = walks;
+        labels = tooltip?.entries.map(e => e.objects);
+        boxes = tooltip?.boxes.length;
+        afterGeometry = walks;
+      } finally {delete items[Symbol.iterator];}
+      h.redraw(true);
+      return {fit, unpainted, cut, repaired, painted, cellBuilds, bandWinners, close, click, priority, beforeGeometry, afterGeometry, boxes, labels};
+    });
+    const members = ["band-advice","band-tip","band-other"];
+    assert.deepEqual(result.fit, {at:[10,10],winner:"band-advice",members});
+    assert.deepEqual(result.painted, [result.fit.at], "the shared pick is the one painted diamond");
+    assert.equal(result.unpainted, null, "a hidden group member has no independent overview hit");
+    assert.deepEqual(result.cut, {at:[31,10],winner:"band-tip",members}, "an onscreen fallback preserves all group members");
+    assert.deepEqual(result.repaired, [true,true], "the retained pan repairs both old and new anchors");
+    assert.deepEqual(result.bandWinners, [result.fit, result.cut, {at:[52,10],winner:"band-other",members:["band-other"]}]);
+    assert.deepEqual(result.cellBuilds, [64,32], "a within-band move reuses membership and a band change rebuilds it");
+    assert.deepEqual(result.close, {at:[31,10],winner:"band-tip",members:["band-tip"]});
+    assert.ok(result.priority);
+    assert.equal(result.boxes, 3);
+    assert.deepEqual([result.beforeGeometry,result.afterGeometry], [0,1], "only a card's details resolve board objects, in one traversal");
+    assert.deepEqual(result.labels.map(x => x.at(-1)), members, "each entry retains its object/net labels");
+    await page.mouse.move(result.click.x, result.click.y);
+    const quiet = page.locator("#waffle-problem-card:visible");
+    await quiet.waitFor();
+    assert.equal(await quiet.locator(".ui-tooltip-head strong").textContent(), "3 problems here");
+    assert.deepEqual(await quiet.locator(".ui-tooltip-list strong").allTextContents(),
+      ["Board advice", "First grouped tip", "Second grouped tip"]);
+    assert.deepEqual(await quiet.locator(".ui-tooltip-value").allTextContents(), ["Advice", "Tip", "Tip"]);
+    await page.mouse.click(result.click.x, result.click.y);
+    await page.locator(".insight-card:visible .insight-title").filter({hasText:/^Board advice$/}).waitFor();
+    await page.evaluate(() => AtriumInsightsUI.open(AtriumInsightsUI.current().find(x => x.check === "band-tip")));
+    await page.locator(".insight-card:visible .insight-title").filter({hasText:/^First grouped tip$/}).waitFor();
+    assert.equal(await page.evaluate(() => {
+      const p = AtriumNavHost.panes().find(p => p.active), b = p.canvas.getBoundingClientRect();
+      const [x,y] = p.view.worldToScreen([31,10]);
+      return AtriumInsightsUI.groupAt(p,b.left+x,b.top+y)?.rep.check;
+    }), "band-tip", "a pinned member keeps its exact marker anchor");
+    await page.locator(".insight-card:visible .insight-close").click();
+    await page.locator(".insight-card").waitFor({state:"hidden"});
+    assert.deepEqual(errors, []);
+    console.log("PASS PCB Insight zoom bands: paint/pick, pan repair, grouped Tip/Advice and pinned members");
+  } finally { await page.close(); }
+}
+
 module.exports = async function insightsPolish(browser, {theme = "light", capture, audit} = {}) {
-  if (theme === "light") await rotatedMarkers(browser);
+  if (theme === "light") {
+    await rotatedMarkers(browser);
+    await groupedMarkers(browser);
+  }
   const page = await browser.newPage({viewport: {width: 1440, height: 1000}, reducedMotion: "reduce"});
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -256,3 +377,5 @@ module.exports = async function insightsPolish(browser, {theme = "light", captur
   } finally { await page.close(); }
 };
 module.exports.rotatedMarkers = rotatedMarkers;
+
+module.exports.groupedMarkers = groupedMarkers;

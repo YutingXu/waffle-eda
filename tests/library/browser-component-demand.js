@@ -50,39 +50,35 @@ async function firstCanvas(browser, replace) {
     }else await page.evaluate(()=>AtriumPower.host({occluded:true}));
     const before=await page.evaluate(()=>AtriumNavHost.view().camera());
     await page.evaluate(()=>{firstCanvas.released=true;firstCanvas.notify(false);});
-    if(!replace){
-      assert.equal(await page.evaluate(()=>firstCanvas.paints.length),0,"the covered canvas does not paint");
+    if(replace){
+      const covered=await page.evaluate(async()=>{
+        const h=AtriumNavHost;
+        h.redraw();
+        for(let i=0;i<2;i++)await new Promise(resolve=>requestAnimationFrame(resolve));
+        return {doc:h.doc().id,camera:h.view().camera(),inert:h.canvas().inert,paints:firstCanvas.paints.length,
+          rendererRequested:!!globalThis.AtriumCanvasGPU || AtriumLazy.pending("AtriumCanvasGPU")};
+      });
+      assert.equal(covered.inert,true,"the Import Report keeps the board inert");
+      assert.deepEqual(covered.camera,before,"the deferred starter fit cannot change an opened project");
+      assert.equal(covered.paints,0,"a paint requested under the Import Report never reaches the canvas");
+      assert.equal(covered.rendererRequested,false,"the covered board keeps the GPU renderer cold");
+      await page.locator('#document-tabs [data-tab="'+covered.doc+'"]').click();
+    }else{
+      assert.equal(await page.evaluate(()=>firstCanvas.paints.length),0,"the occluded canvas does not paint");
       await page.evaluate(()=>AtriumPower.host({occluded:false}));
     }
     await page.waitForFunction(()=>firstCanvas.paints.length>0);
-    const result=await page.evaluate(replace=>{
+    const result=await page.evaluate(()=>{
       const h=AtriumNavHost, view=h.view(), d=h.doc(), first=firstCanvas.paints[0], actual=view.camera();
-      const backing=[h.canvas().width,h.canvas().height], canvas=h.canvas();
-      // The first-Save hint can resize the canvas while the import report still covers it.
-      // A revealed canvas must independently fit that viewport before it paints.
-      const viewport=replace ? firstCanvas.fits.find(f=>f.doc===d.id && f.covered).viewport : first.viewport;
+      const backing=[h.canvas().width,h.canvas().height];
       const reference=AtriumCanvas.create(document.createElement("canvas"));
-      reference.fit(d,h.defs(),d.items.length?undefined:"document",viewport);
+      reference.fit(d,h.defs(),d.items.length?undefined:"document",first.viewport);
       return {doc:d.id,first,actual,expected:reference.camera(),backing};
-    },replace);
+    });
     assert.equal(result.first.doc,result.doc);
+    assert.equal(result.first.covered,false,"the first real paint is on the revealed board");
     assert.deepEqual(result.first.camera,result.actual,"the first paint is already fitted");
     assert.deepEqual(result.actual,result.expected,"camera matches an explicit fit to the opened viewport");
-    if(replace){
-      assert.deepEqual(result.actual,before,"the deferred starter fit cannot change an opened project");
-      const paints=await page.evaluate(()=>firstCanvas.paints.length);
-      await page.locator('#document-tabs [data-tab="'+result.doc+'"]').click();
-      await page.waitForFunction(n=>firstCanvas.paints.slice(n).some(p=>!p.covered),paints);
-      const revealed=await page.evaluate(n=>{
-        const h=AtriumNavHost, v=h.view(), d=h.doc(), actual=v.camera(), first=firstCanvas.paints.slice(n).find(p=>!p.covered);
-        const reference=AtriumCanvas.create(document.createElement("canvas"));
-        reference.fit(d,h.defs(),d.items.length?undefined:"document",h.canvas().getBoundingClientRect());
-        return {actual,first:first.camera,expected:reference.camera(),covered:h.canvas().inert};
-      },paints);
-      assert.equal(revealed.covered,false,"the design tab reveals its canvas");
-      assert.deepEqual(revealed.first,revealed.expected,"the revealed design first paints at its own layout's fit");
-      assert.deepEqual(revealed.actual,revealed.expected,"the report cannot leave its wider camera on the design");
-    }
     assert.ok(result.backing.every(n=>n>0));assert.deepEqual(errors,[]);
   } finally {await page.close();}
 }

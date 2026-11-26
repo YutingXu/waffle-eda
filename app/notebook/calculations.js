@@ -146,6 +146,7 @@ globalThis.AtriumCalculations = (() => {
   function cancelBatch(batch) {
     if (!batch) return;
     batch.controller.abort();
+    batch.timing?.end("cancelled");
     for (const j of batch.jobs.values()) settle(j, abort());
   }
 
@@ -221,6 +222,7 @@ globalThis.AtriumCalculations = (() => {
     s.waiting = null;
     const {revision, controller} = batch;
     try {
+      batch.timing?.start();
       current(project, host, revision, controller.signal);
       const plans = [], roots = new Set(), nodes = new Map(), known = new Map();
       let functions;
@@ -239,6 +241,7 @@ globalThis.AtriumCalculations = (() => {
       current(project, host, revision, controller.signal);
       if (s.running !== batch) throw abort();
       s.model.accept(response);
+      batch.timing?.ready();
       let changed = false;
       for (const {job, selection} of plans) {
         const snapshot = s.model.snapshot(selection, response.stats, revision);
@@ -246,7 +249,9 @@ globalThis.AtriumCalculations = (() => {
         settle(job, null, snapshot);
       }
       if (changed) notify(s, project, host);
+      batch.timing?.end("completed");
     } catch (error) {
+      batch.timing?.end(isAbort(error) || controller.signal.aborted ? "cancelled" : "failed");
       for (const job of batch.jobs.values()) settle(job, error);
     } finally {
       if (s.running === batch) s.running = null;
@@ -275,7 +280,8 @@ globalThis.AtriumCalculations = (() => {
     let batch = s.running?.jobs.has(key) && !s.running.controller.signal.aborted ? s.running : s.waiting;
     if (batch?.controller.signal.aborted) batch = null;
     if (!batch) {
-      batch = s.waiting = {revision, controller: new AbortController(), jobs: new Map()};
+      batch = s.waiting = {revision, controller: new AbortController(), jobs: new Map(),
+        timing:globalThis.AtriumDiagnostics?.performance?.queue("notebook", "compute")};
       queueMicrotask(() => flush(s, project, host));
     }
     let job = batch.jobs.get(key);
@@ -285,7 +291,10 @@ globalThis.AtriumCalculations = (() => {
       const cancel = () => {
         job.waiters.delete(waiter);
         reject(abort());
-        if (![...batch.jobs.values()].some(j => j.waiters.size)) batch.controller.abort();
+        if (![...batch.jobs.values()].some(j => j.waiters.size)) {
+          batch.controller.abort();
+          batch.timing?.end("cancelled");
+        }
       };
       const waiter = {signal, cancel, resolve, reject};
       job.waiters.add(waiter);

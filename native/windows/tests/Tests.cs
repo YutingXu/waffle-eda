@@ -135,6 +135,7 @@ namespace Waffle.Windows.Tests
                 JsonTests();
                 PolicyTests();
                 NativeSupportPathTests(scratch);
+                SupportArchitectureTests(scratch);
                 PromisedDropTests();
                 WinPathTests();
                 WindowedInputControllerTests();
@@ -159,6 +160,37 @@ namespace Waffle.Windows.Tests
             finally { try { Directory.Delete(scratch, true); } catch (Exception) { } }
             Console.WriteLine((failed == 0 ? "PASS" : "FAILED") + ": " + passed + " checks passed, " + failed + " failed.");
             return failed == 0 ? 0 : 1;
+        }
+
+        static void SupportArchitectureTests(string scratch)
+        {
+            group = "Windows support architecture";
+            Check(Native.SupportArchitectureName(0x8664) == "x64", "the AMD64 native machine is x64");
+            Check(Native.SupportArchitectureName(0xAA64) == "arm64", "the ARM64 native machine is arm64");
+            Check(Native.SupportArchitectureName(0) == "unknown" && Native.SupportArchitectureName(0x014C) == "unknown",
+                "other machine codes stay unknown");
+
+            var ui = new FakeUi();
+            int probes = 0;
+            string architecture = null;
+            var host = new Host(new PortableFs(), ui, new FakeGit(), Path.Combine(scratch, "support-architecture"), testTranslators,
+                supportArchitecture: () => { probes++; return architecture; });
+            Check(probes == 0, "creating a host does not probe the machine");
+            foreach (var name in new[] { "x64", "arm64", "synthetic private machine name", null })
+            {
+                architecture = name;
+                host.Receive(Policy.PageUri, Msg("id", probes + 1, "action", "supportDiagnostics"));
+                var facts = (Dictionary<string, object>)ui.Last["result"];
+                Check((string)facts["architecture"] == (name == "x64" || name == "arm64" ? name : "unknown"),
+                    "the report returns only an allowed architecture label");
+            }
+            Check(probes == 4, "the machine is queried only for each requested support report");
+            host.Closing();
+            if (OperatingSystem.IsWindows() && IntPtr.Size == 8)
+            {
+                string native = Native.SupportArchitecture();
+                Check(native == "x64" || native == "arm64", "the native query reports a supported 64-bit host");
+            }
         }
 
         static void NativeSupportPathTests(string scratch)
@@ -524,7 +556,21 @@ namespace Waffle.Windows.Tests
             ui.Saves.Enqueue(zip);
             host.Receive(page, Msg("id", 13, "action", "export", "name", "gerbers.zip", "data", Convert.ToBase64String(new byte[] { 80, 75, 0, 255 })));
             Check(File.ReadAllBytes(zip).SequenceEqual(new byte[] { 80, 75, 0, 255 }), "binary export");
-            foreach (var name in new[] { "x.exe", "x.atrium", "x.bat", "x.lnk", "x" })
+            var report = Path.Combine(work, "waffle-diagnostics.json");
+            var preview = "{\"format\":\"waffle-diagnostics\",\"schemaVersion\":1}\n";
+            ui.Saves.Enqueue(report);
+            host.Receive(page, Msg("id", 13, "action", "export", "name", "waffle-diagnostics.json", "text", preview));
+            Check((bool)ui.Last["result"] && File.ReadAllText(report) == preview, "named support report exports the preview");
+            host.RecordProcessFailure("browser-exited");
+            host.RecordProcessFailure("unresponsive");
+            host.RecordProcessFailure("gpu-or-private");
+            host.Receive(page, Msg("id", 13, "action", "supportDiagnostics"));
+            var facts = (Dictionary<string, object>)ui.Last["result"];
+            var failureCounts = (Dictionary<string, object>)facts["rendererTerminations"];
+            Check(facts.Count == 3 && (string)facts["platform"] == "windows" && failureCounts.Count == 3 &&
+                Equals(failureCounts["browserExited"], 1d) && Equals(failureCounts["unresponsive"], 1d) &&
+                Equals(failureCounts["exited"], 0d), "only coarse Windows host facts and supported failure counters");
+            foreach (var name in new[] { "x.exe", "x.atrium", "x.bat", "x.lnk", "x.json", "x" })
             {
                 host.Receive(page, Msg("id", 14, "action", "export", "name", name, "text", ""));
                 Check((string)ui.Last["error"] == "Unrecognised save type.", "export refuses " + name);

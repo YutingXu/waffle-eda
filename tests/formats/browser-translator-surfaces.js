@@ -200,6 +200,133 @@ async function checkTabs(browser) {
   } finally { await page.close(); }
 }
 
+async function checkCoveredBoard(browser) {
+  const page = await browser.newPage({viewport:{width:1400,height:900}}), errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const settle = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  try {
+    await page.goto(app);
+    await open(page, path.join(fixtures,"import/demo.kicad_pcb"));
+    const initialGeometryDemand = await page.evaluate(() => AtriumNavHost.canvasGeometryRoots().length);
+    const id = await page.evaluate(() => AtriumNavHost.doc().id);
+    const tab = page.getByRole("tab",{name:/Import Report.*demo.kicad_pcb/});
+    await page.locator('#document-tabs [data-tab="'+id+'"]').click();
+    const gpu = await page.evaluate(async id => {
+      const h = AtriumNavHost;
+      await AtriumLazy.need(["AtriumCanvasGPU","AtriumDRCView","AtriumInsightsUI"]);
+      // The frame count isolates reveal from new markers published after checks complete.
+      AtriumDRCView.setEnabled(false);
+      AtriumInsightsUI.setEnabled(false,{quiet:true});
+      const probe = document.createElement("canvas");
+      probe.width=probe.height=1;
+      const gl = probe.getContext("webgl2");
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+      AtriumCanvasGPU.enable(!!gl);
+      await h.openSplit("right",id,{focus:false});
+      return !!gl;
+    },id);
+    await page.waitForFunction(gpu => AtriumNavHost.panes().length===2 && (!gpu ||
+      [...document.querySelectorAll(".atrium-gpu-board")].filter(c=>c.style.display!=="none").length===2),gpu);
+    await page.evaluate(() => {
+      const h = AtriumNavHost, [main,split] = h.panes(), c = main.canvas;
+      const at = main.view.screenToWorld([c.clientWidth*.35,c.clientHeight*.38]);
+      const witness = {id:"covered-pcb-witness",kind:"track",layer:"Top",width:1.5,
+        points:[[at[0]-2,at[1]],[at[0]+2,at[1]]]};
+      const state = window.coveredBoardTest = {at,witness,hidden:0,revealed:0,split:0,
+        gpu:c.parentNode.querySelector(".atrium-gpu-board"),splitGpu:split.canvas.parentNode.querySelector(".atrium-gpu-board")};
+      for (const {canvas,view} of [main,split]) {
+        const render = view.render;
+        view.render = (...args) => {
+          const result = render(...args);
+          if(canvas===split.canvas)state.split++;
+          else if(canvas.inert)state.hidden++;
+          else if(state.capture){
+            const painted = AtriumCanvasGPU.composite(view.internals()) || c;
+            const [x,y] = view.worldToScreen(at), scale = painted.width/c.clientWidth;
+            state.pixel = Array.from(painted.getContext("2d").getImageData(Math.round(x*scale),Math.round(y*scale),1,1).data);
+            state.revealed++;
+          }
+          return result;
+        };
+      }
+      state.capture=true;h.redraw(true);
+    });
+    await settle();
+    const initial = await page.evaluate(() => coveredBoardTest.pixel);
+    assert.equal(initial.length,4);
+    await tab.click();
+    await settle();
+    const covered = await page.evaluate(() => {
+      const [main,split] = AtriumNavHost.panes(), r = main.canvas.getBoundingClientRect();
+      return {inert:main.canvas.inert,splitInert:split.canvas.inert,w:main.canvas.clientWidth,
+        top:!!document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest(".doc-view"),frames:coveredBoardTest.hidden};
+    });
+    assert.ok(covered.inert&&covered.top&&!covered.splitInert,"only the physically covered pane is inert");
+    await page.setViewportSize({width:1520,height:900});
+    await settle();
+    const edit = await page.evaluate(() => {
+      const h = AtriumNavHost, [main] = h.panes(), s = coveredBoardTest;
+      const resized=s.hidden, split=s.split;
+      h.edit(() => h.doc().items.push(s.witness),"Add witness");
+      h.act("undo");
+      const removed = !h.doc().items.some(i=>i.id===s.witness.id);
+      h.act("redo");
+      return {width:main.canvas.clientWidth,removed,restored:h.doc().items.some(i=>i.id===s.witness.id),
+        resized,split};
+    });
+    assert.notEqual(edit.width,covered.w,"covered pane is resized by the browser");
+    assert.ok(edit.removed&&edit.restored,"the covered document still edits, undoes and redoes");
+    await settle();
+    const hidden = await page.evaluate(() => ({hidden:coveredBoardTest.hidden,split:coveredBoardTest.split}));
+    assert.deepEqual([covered.frames,edit.resized,hidden.hidden],[0,0,0],
+      "cumulative covered frames after report, viewport resize, and model edits");
+    assert.equal(initialGeometryDemand,0,"the initial covered import defers rendering geometry work");
+    assert.ok(hidden.split>edit.split,"the visible split repaints while the first board is covered");
+    const before = await page.evaluate(() => {
+      const [main] = AtriumNavHost.panes(), r = main.canvas.getBoundingClientRect();
+      const camera = main.view.camera();
+      main.canvas.dispatchEvent(new WheelEvent("wheel",{bubbles:true,cancelable:true,ctrlKey:true,
+        deltaY:-14,clientX:r.x+r.width/2,clientY:r.y+r.height/2}));
+      return camera;
+    });
+    await settle();
+    assert.deepEqual(await page.evaluate(() => AtriumNavHost.panes()[0].view.camera()),before,
+      "a wheel aimed at an inert canvas cannot move its camera");
+    await page.locator("#canvas-2").click({position:{x:10,y:90}});
+    await page.waitForFunction(() => AtriumNavHost.panes()[1]?.active);
+    await settle();
+    assert.equal(await page.evaluate(() => coveredBoardTest.hidden),0,"the inactive covered pane stays paused");
+    await tab.click();
+    await page.waitForFunction(() => AtriumNavHost.panes()[0]?.active && AtriumNavHost.panes()[0].canvas.inert);
+    await settle();
+    assert.equal(await page.evaluate(() => coveredBoardTest.hidden),0,"activating the report tab stays paused");
+    await page.setViewportSize({width:1400,height:900});
+    await settle();
+    await page.evaluate(() => {coveredBoardTest.revealed=0;});
+    await tab.locator(".view-tab-close").click();
+    await settle();
+    const revealed = await page.evaluate(() => {
+      const s = coveredBoardTest, [main] = AtriumNavHost.panes();
+      return {inert:main.canvas.inert,frames:s.revealed,pixel:s.pixel,gpu:s.gpu===main.canvas.parentNode.querySelector(".atrium-gpu-board")};
+    });
+    assert.ok(!revealed.inert&&revealed.gpu,"revealing the board keeps its live WebGL context");
+    assert.equal(revealed.frames,1,"the revealed pane draws once at its current size");
+    assert.notDeepEqual(revealed.pixel,initial,"the first revealed pixels contain the edited copper");
+    await page.evaluate(() => AtriumNavHost.act("undo"));
+    await settle();
+    assert.deepEqual(await page.evaluate(() => coveredBoardTest.pixel),initial,"Undo restores the original pixels");
+    await page.locator('.pane-tabs[data-pane="1"] .pane-close').click();
+    await page.waitForFunction(() => AtriumNavHost.panes().length===1 && !coveredBoardTest.splitGpu?.isConnected);
+    await page.evaluate(id => AtriumNavHost.openSplit("right",id,{focus:false}),id);
+    await page.waitForFunction(gpu => AtriumNavHost.panes().length===2 && (!gpu ||
+      AtriumNavHost.panes()[1].canvas.parentNode.querySelector(".atrium-gpu-board")),gpu);
+    if (gpu) assert.ok(await page.evaluate(() => coveredBoardTest.gpu.isConnected&&!coveredBoardTest.splitGpu.isConnected));
+    assert.deepEqual(errors,[]);
+    console.log("PASS Import Report defers covered PCB work, preserves split rendering and reveals the edited pixels",
+      {renderer:gpu?"gpu":"2d",covered:hidden.hidden,revealed:revealed.frames,before:initial,edited:revealed.pixel});
+  } finally { await page.close(); }
+}
+
 const rejection = "This file is from a pre-release Waffle build; re-import the design from its source EDA";
 async function checkObsolete(browser) {
   const dir=path.join(fixtures,"compat/projects"), page=await browser.newPage(), errors=[];
@@ -435,8 +562,10 @@ async function checkReferenceColumns(browser) {
 module.exports = async browser => {
   await checkReferenceColumns(browser);
   await checkTabs(browser);
+  await checkCoveredBoard(browser);
   await checkTouchReport(browser);
   await checkObsolete(browser);
   await checkFormat2(browser);
   await checkLocalizedExport(browser);
 };
+module.exports.checkCoveredBoard = checkCoveredBoard;

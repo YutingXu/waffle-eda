@@ -994,7 +994,7 @@ globalThis.AtriumDRCView = (() => {
     }, {passive:true});
     document.addEventListener("pointerleave", () => M()?.hovered?.(host, null), true);
     document.addEventListener("pointerdown", e => {
-      if (e.target?.tagName !== "CANVAS" || e.button !== 0 || e.altKey || e.shiftKey) return;
+      if (e.defaultPrevented || e.target?.tagName !== "CANVAS" || e.button !== 0 || e.altKey || e.shiftKey) return;
       const p = paneOf(e.target), v = p && markerAt(p, e.clientX, e.clientY);
       if (!v || host.tool() !== "select") {if (host.tool() === "select") M()?.clickedEmpty?.(host); return;}
       if (p.active === false && !host.activatePane?.(p)) return;

@@ -192,6 +192,7 @@ test("dense cached marker paths draw the same ordered strokes as a fresh immedia
   const coincident = M.groupAt(host, pane, [a], 2, 3, [w]);
   assert.equal(coincident.v, a, "one live glyph represents coincident active and waived findings");
   assert.deepEqual(coincident.members, [a, w]);
+  assert.deepEqual(coincident.boxes, [M.box(b, defs, a), M.box(b, defs, w)], "active and waived rows keep their own ordered bounds");
   assert.equal(M.markerAt(host, pane, [], 2, 3, [w]), w, "a standalone waived glyph remains selectable");
   // Overlapping markers answer as one (the worst, first); far apart once zoomed in, each answers for itself.
   const warn = {type: "width", at: [10, 10], id: "t1", warning: true}, err = {type: "width", at: [10.2, 10], id: "t1"};
@@ -213,13 +214,15 @@ test("dense overview keeps first encounter ties, exact clip and stable published
     return rec.list;
   };
   U.reset(); U.record(project);
-  assert.deepEqual(draw(list,{publication}),draw([first,...filler]),"equal severity leaves the first marker in its exact cell");
-  const clip = [-3,-3,80,10], clipped = list.filter(v => v.at[0] <= clip[2]);
-  assert.deepEqual(draw(list,{publication},24,clip),draw(clipped,{},24,clip),"clip and zoom still select the exact visible rows");
+  const weaker = {...tied, waived:{id:"waiver"}};
+  assert.deepEqual(draw(list,{publication}),draw([first,weaker,...filler]),"equal severity leaves the first marker in its exact cell");
+  const clip = [-3,-3,79.5,10], clipped = list.filter(v => v.at[0] < 80);
+  assert.deepEqual(draw(list,{publication},24,clip),draw(clipped,{},24,clip),"clip still selects the complete visible cells");
   const pane = {docId:b.id,canvas:{getBoundingClientRect:()=>({left:0,top:0})},
     view:{scale:()=>14,worldToScreen:([x,y])=>[x*14,y*14]}};
   const host = {doc:()=>b,defs:()=>lib,revision:()=>1};
   assert.equal(M.markerAt(host,pane,list,14,14,null,publication),first);
+  assert.deepEqual(M.groupAt(host,pane,list,14,14,null,publication).members,[first,tied],"the tie keeps both published findings");
   const version = () => true;
   tied.at = [8,0]; list.reverse();
   assert.deepEqual(draw(list,{publication:version}),draw(list),"republication can replace and reorder rows without changing the array");
@@ -263,8 +266,12 @@ test("published overview paints and picks the same cell, including when zoom or 
     pick(rows, first.at);
     assert.ok(projections <= 6, `unchanged paint and pick made ${projections} projections`);
 
-    assert.equal(draw(sparse), true);
-    assert.equal(pick(sparse, warning.at).v, warning, "the detail control is painted and pickable");
+    assert.equal(draw(sparse), false);
+    assert.equal(pick(sparse, warning.at), null, "crossing the old dense cutoff preserves cell membership");
+    assert.equal(draw([first, warning]), false);
+    assert.deepEqual(pick([first, warning], first.at).members, [first, warning], "two findings also group when the board is empty elsewhere");
+    assert.equal(draw([warning]), true);
+    assert.equal(pick([warning], warning.at).v, warning, "an isolated finding is painted and pickable");
     scale = 100;
     assert.equal(draw(rows), true);
     assert.equal(pick(rows, warning.at).v, warning, "zoom changes the cell winners for paint and pick");
@@ -393,8 +400,8 @@ test("diagonal pan submits only exposed paths in unchanged overview order", () =
       stroke() { strokes.push({color: this.strokeStyle, points}); }
     };
     M.overlay(b, defs, rows, {rev: 1})(ctx, {
-      area: union, damageRects, scale: 10, worldViewport: rect => rect || union,
-      worldToScreen: ([x, y]) => [x * 10, y * 10]
+      area: union, damageRects, scale: 40, worldViewport: rect => rect || union,
+      worldToScreen: ([x, y]) => [x * 40, y * 40]
     });
     return strokes;
   };
@@ -406,6 +413,96 @@ test("diagonal pan submits only exposed paths in unchanged overview order", () =
   assert.deepEqual(visible[1].points, [[.5, 15], [1.5, 15]]);
   assert.ok(visible.flatMap(s => s.points).length < all.flatMap(s => s.points).length / 4,
     "interior paths are not sent to the canvas rasterizer");
+});
+
+test("coarse groups retain their world band, then split into children at the next zoom level", () => {
+  const b = board([]), host = {doc: () => b, defs: () => defs};
+  const error = {type: "width", at: [-3.5, .4]}, warning = {type: "width", at: [-1.1, .4], warning: true};
+  const north = {type: "width", at: [-1.1, -1.4]}, rows = [error, warning, north];
+  const pick = (scale, ox, at) => {
+    const project = ([x, y]) => [ox + scale * x, 45 + scale * y];
+    const pane = {docId: b.id, canvas: {getBoundingClientRect: () => ({left: 23, top: 35, width: 300, height: 200})},
+      view: {scale: () => scale, worldToScreen: project}};
+    const [x,y] = project(at);
+    return M.groupAt(host, pane, rows, 23 + x, 35 + y);
+  };
+  for (const [scale, x] of [[10, 90], [12, 112], [15.5, 86]]) {
+    assert.deepEqual(pick(scale, x, error.at).members, [error, warning]);
+    assert.deepEqual(pick(scale, x, north.at).members, [north], "world zero remains a cell boundary");
+    assert.equal(pick(scale, x, warning.at), null, "a collapsed position is not a phantom hit target");
+  }
+  assert.deepEqual(pick(18, 95, error.at).members, [error]);
+  assert.deepEqual(pick(18, 95, warning.at).members, [warning], "the finer children are independently actionable");
+  assert.equal(pick(50, 210, warning.at).v, warning, "close inspection keeps the original physical finding");
+});
+
+test("coarse glyphs omit member outlines and dimensions, while isolated or inspected findings draw exactly", () => {
+  const primary = track("primary", "A", [[1, 1], [20, 1]]), secondary = track("secondary", "B", [[3, 3], [22, 3]]);
+  const b = board([primary, secondary]);
+  const error = {type:"clearance", id:primary.id, at:[1,1], otherId:secondary.id, otherAt:[1,2], actual:.15};
+  const warning = {type:"width", id:secondary.id, at:[3,3], warning:true};
+  const draw = (list, options = {}, project = true) => {
+    const {ctx, list: commands} = AtriumPDF.recorder(500, 450), scale = 12;
+    M.overlay(b, defs, list, options)(ctx, {scale, width:500, height:450,
+      worldToScreen: project ? ([x,y]) => [x*scale,y*scale] : undefined});
+    return commands;
+  };
+  const longOutline = (commands, y) => commands.some(c => c.k === "p" && c.d.length === 6 && c.d[2] === y && c.d[5] === y);
+  const isolated = draw([error]), grouped = draw([error, warning]);
+  assert.deepEqual(isolated, draw([error], {}, false), "single low-zoom artwork is the existing exact detail");
+  assert.ok(longOutline(isolated, 1) && longOutline(isolated, 3), "the singleton shows both violating shapes");
+  assert.ok(!longOutline(grouped, 1) && !longOutline(grouped, 3), "a coarse cluster retires the member outlines");
+  assert.equal(grouped.length, 3, "only the halo, marker border and interior are submitted");
+  const pinned = draw([error, warning], {focused:warning, hover:error});
+  assert.ok(longOutline(pinned, 1) && longOutline(pinned, 3), "both pinned and hovered objects retain their detail");
+  const host = {doc: () => b, defs: () => defs}, pane = {docId:b.id,
+    canvas:{getBoundingClientRect:() => ({left:0,top:0,width:500,height:450})},
+    view:{scale:() => 12,worldToScreen:([x,y]) => [12*x,12*y]}};
+  assert.equal(M.groupAt(host,pane,[error,warning],36,36,null,null,warning,error).v, warning);
+  assert.equal(M.groupAt(host,pane,[error,warning],12,12,null,null,warning,error).v, error);
+});
+
+test("a cut coarse cell uses its visible member and repairs both anchors only as it changes", () => {
+  const b = board([]), host = {doc: () => b, defs: () => defs};
+  const error = {type:"width", at:[.1,6]}, warning = {type:"width", at:[1.65,6.4],warning:true};
+  const rows = [error,warning], paint = M.overlay(b,defs,rows), scale = 16;
+  const frame = (offset, flip = false) => ({scale,width:200,height:200,
+    worldToScreen: ([x,y]) => [offset + (flip ? -x : x)*scale,y*scale]});
+  const pick = (f, at) => {
+    const [x,y] = f.worldToScreen(at);
+    const pane = {docId:b.id,canvas:{getBoundingClientRect:() => ({left:0,top:0,width:f.width,height:f.height})},view:f};
+    return M.groupAt(host,pane,rows,x,y);
+  };
+  const before = frame(10), after = frame(-12);
+  assert.equal(pick(before,error.at).v,error);
+  const target = pick(after,warning.at);
+  assert.equal(target.v,warning);
+  assert.deepEqual(target.members,rows,"the visible proxy opens the whole world cell");
+  assert.equal(paint.panDamage(after,-22,0).length,2,"old and new anchors are damaged");
+  assert.equal(paint.panDamage(frame(14),4,0).length,0,"stable groups use only the exposed strips");
+  const flipped = frame(210,true);
+  assert.equal(pick(flipped,warning.at).v,warning,"the reflected viewport uses its opposite edge");
+  assert.equal(paint.panDamage(flipped,24,0).length,2);
+});
+
+test("coarse overlap ties follow paint order and an isolated marker needs no retained layer", () => {
+  const b = board([]), host = {doc: () => b, defs: () => defs}, scale = 16;
+  const error = {type:"width",at:[3.75,2]}, member = {type:"width",at:[1.25,2],warning:true};
+  const single = {type:"width",at:[4.25,2],warning:true}, rows = [error,member,single];
+  const frame = {scale,width:300,height:150,worldToScreen:([x,y]) => [x*scale,y*scale]};
+  const pane = {docId:b.id,canvas:{getBoundingClientRect:() => ({left:0,top:0,width:300,height:150})},view:frame};
+  assert.equal(M.groupAt(host,pane,rows,64,32).v,error,"the group painted above the singleton wins an equidistant hit");
+  const {ctx} = AtriumPDF.recorder(300,150);
+  ctx.getTransform = () => ({a:1,b:0,c:0,d:1,e:0,f:0});
+  const offscreen = globalThis.OffscreenCanvas;
+  let allocations = 0;
+  globalThis.OffscreenCanvas = class { constructor() {allocations++; throw Error("use the direct drawing for this control");} };
+  try {
+    M.overlay(b,defs,[single])(ctx,frame);
+    assert.equal(allocations,0,"no full-size backing for sparse singletons");
+    M.overlay(b,defs,rows)(ctx,frame);
+    assert.equal(allocations,1,"the test reaches the retained layer for a real group");
+  } finally { globalThis.OffscreenCanvas = offscreen; }
 });
 
 test("tooltip: rule, measured against required, objects and location", () => {
@@ -666,6 +763,91 @@ test("ERC and DRC share one status slot; empty space clears only the owning sour
     assert.equal(made.length, 1, "one hover status node");
     assert.equal(status.textContent, "Ready");
   } finally { globalThis.document = saved; }
+});
+
+test("dense problem hover reuses the current marker boxes without walking the board", () => {
+  const nearby = Array.from({length: 96}, (_, i) => track("near-" + i, "N", [[-.5, i / 200], [.5, i / 200]], .02));
+  const distant = Array.from({length: 260}, (_, i) => track("distant-" + i, "N", [[1 + i, 100], [1.5 + i, 100]], .02));
+  const items = nearby.concat(distant, Array.from({length: 11000 - nearby.length - distant.length}, (_, i) =>
+    ({kind:"graphic", id:"body-" + i, layer:"Mechanical", points:[[100 + i, 100], [101 + i, 100]], width:.1})));
+  const d = board(items), project = {library: [], documents: [d]}, U = AtriumUndoStore;
+  d.ruleCheckSelection = {batch: Object.keys(R.types).filter(type => type !== "width")};
+  const canvas = {getBoundingClientRect: () => ({left: 0, top: 0, width: 900, height: 700})};
+  const pane = {docId:d.id, canvas, view:{scale: () => 1, worldToScreen: ([x,y]) => [x+400,y+300]}};
+  let drag = null, hidden = null;
+  const host = {doc: () => d, project: () => project, panes: () => [pane], defs: () => defs, revision: () => 1,
+    connections: () => null, units: () => "mm", hiddenLayers: () => hidden, drag: () => drag,
+    info() {}, registerAction() {}, addRenderer() {}, invalidate() {}};
+  U.reset(); U.record(project); V.attach(host);
+  assert.equal(V.run().violations.length, nearby.length + distant.length);
+  const saved = {document:globalThis.document, hover:globalThis.AtriumCanvasHover, host:globalThis.AtriumNavHost};
+  const groupAt = V.groupAt, iterate = items[Symbol.iterator];
+  globalThis.document = {body:{}, addEventListener() {}};
+  globalThis.AtriumCanvasHover = {register() {}};
+  globalThis.AtriumNavHost = host;
+  try {
+    require("../../app/checks/problem-hover.js");
+    const hover = AtriumProblemHover, hit = () => hover._find(pane, 400, 300);
+    const group = V.groupAt(pane, 400, 300);
+    assert.equal(group.members.length, nearby.length, "the published violations must share the picked marker");
+    const expected = group.members.map(v => M.box(d, defs, v));
+    let walks = 0;
+    items[Symbol.iterator] = function () { walks++; return iterate.call(this); };
+    const found = hit();
+    assert.ok(hover.over(canvas, 400, 300));
+    assert.equal(hover.over(canvas, 740, 640), false);
+    assert.deepEqual(found.entries.map(e => e.raw), group.members);
+    assert.ok(found.entries.every(e => e.severity === "error"));
+    assert.deepEqual(found.boxes, expected, "card placement uses the same full object bounds");
+    assert.equal(walks, 0, "a warmed hit and its card never re-index the PCB");
+
+    let reads = 0;
+    V.groupAt = (...args) => {
+      const g = groupAt(...args);
+      return g && {v:g.v, at:g.at, members:g.members, get boxes() { reads++; return g.boxes; }};
+    };
+    const lazy = hit();
+    assert.ok(hover.over(canvas, 400, 300));
+    assert.equal(reads, 0, "priority-only hits defer card geometry");
+    assert.deepEqual(lazy.boxes, expected);
+    assert.equal(reads, 1);
+
+    V.groupAt = (...args) => {
+      const g = groupAt(...args);
+      return g && {v:g.v, at:g.at, members:g.members};
+    };
+    assert.deepEqual(hit().boxes, expected, "a producer without resolved boxes still supplies card placement");
+    V.groupAt = groupAt;
+    const points = nearby[0].points;
+    nearby[0].points = [[-4, 0], [4, 0]];
+    drag = {before:{}, item:nearby[0]};
+    assert.deepEqual(hit().boxes, group.members.map(v => M.box(d, defs, v)), "use the current preview geometry");
+    nearby[0].points = points; drag = null;
+    assert.deepEqual(hit().boxes, expected, "a cancelled preview retires its bounds");
+    const before = U.mark(project), history = [], future = [];
+    U.checkpoint(history, future, before, "Change track");
+    nearby[0].points = [[-6, 0], [6, 0]];
+    U.record(project);
+    assert.equal(hit(), null, "a board edit invalidates the old published hit");
+    V.run();
+    assert.ok(hit().boxes.some(b => b[0] < -5), "the republished hit uses the edited track box");
+    assert.ok(U.jump(history, future, U.mark(project), -1));
+    V.run();
+    assert.deepEqual(hit().boxes, expected, "Undo restores the full placement geometry");
+    host.selectable = item => item !== nearby[0];
+    const filtered = hit();
+    assert.equal(filtered.entries.length, nearby.length - 1);
+    assert.deepEqual(filtered.boxes, filtered.entries.map(e => M.box(d, defs, e.raw)), "dimmed rows do not affect the card's placement");
+    hidden = new Set(["Top"]);
+    assert.equal(hit(), null, "hidden copper cannot claim hover");
+  } finally {
+    V.groupAt = groupAt;
+    delete items[Symbol.iterator];
+    globalThis.document = saved.document;
+    globalThis.AtriumCanvasHover = saved.hover;
+    globalThis.AtriumNavHost = saved.host;
+    U.reset();
+  }
 });
 
 console.log(passed + " drc-markers tests passed");

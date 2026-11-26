@@ -33,10 +33,31 @@ module.exports = async function focusRings(browser) {
   page.on("pageerror", error => errors.push(error.message));
   page.setDefaultTimeout(7000);
   try {
+    await page.addInitScript(() => {
+      let reads = 0;
+      const getClientRects = Element.prototype.getClientRects;
+      Element.prototype.getClientRects = function() {
+        if (document.currentScript?.src?.endsWith("/editor/shell.js") &&
+            this.closest("[role=toolbar],#projects-tree")) reads++;
+        return getClientRects.call(this);
+      };
+      document.addEventListener("DOMContentLoaded", () => {
+        Element.prototype.getClientRects = getClientRects;
+        globalThis.startupRovingGeometryReads = reads;
+      }, {once:true});
+    });
     await page.goto(pathToFileURL(path.join(__dirname, "../../app/index.html")).href);
     const demo = page.locator("dialog.sp-dialog[open]").getByRole("button", {name:"Try the Demo", exact:true});
     await demo.click();
     await page.locator("#doc-name", {hasText:"Sensor board"}).waitFor();
+    assert.equal(await page.evaluate(() => globalThis.startupRovingGeometryReads), 0,
+      "initial keyboard stops do not force the workbench to lay out during shell startup");
+    const quick = page.getByRole("toolbar", {name:"Quick access"});
+    await quick.getByRole("button", {name:"Open", exact:true}).focus();
+    await page.keyboard.press("ArrowRight");
+    assert.ok(await quick.getByRole("button", {name:"Save", exact:true}).evaluate(n => n === document.activeElement && n.tabIndex === 0));
+    await page.keyboard.press("Tab");
+    assert.ok(await quick.evaluate(n => !n.contains(document.activeElement)), "Quick access remains a single Tab stop");
     const canvas = page.locator("#canvas"), palette = page.locator("#palette");
     const switcher = page.locator(".vsk-switch");
     async function shortcut(keys) {

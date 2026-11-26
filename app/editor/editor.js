@@ -54,9 +54,20 @@
   // pane keeps a copy of its state and re-renders only when its inputs change.
   const panes=[{canvas,stage:$("canvas-stage"),view,docId:null,state:null,version:0,sig:""}];
   // A view asks for an exact frame after a pan or zoom gesture and after deferred airwires (canvas.js).
-  function paneRepaint(p){if(!p.view)return;p.version++;if(p===activePane)draw();else schedule();}
+  function paneRepaint(p){if(!p.view)return;p.version++;if(p.covered)return;if(p===activePane)draw();else schedule();}
   view.onRepaint?.(()=>paneRepaint(panes[0]));
   let activePane=panes[0],splitState=null;
+  function paneCoverage(c,covered){
+    const p=panes.find(p=>p.canvas===c);
+    if(!p||!!p.covered===covered)return;
+    p.covered=covered;
+    if(!covered){paneRepaint(p);navEmit("pane-revealed");return;}
+    pendingInput=pendingInput.filter(q=>q.p!==p);
+    for(const [id,owner] of coldContacts)if(owner===p)coldContacts.delete(id);
+    canvasInput?.prune();
+    globalThis.AtriumCamera?.takeCamera?.(p.view);
+    p.view.pausePaint?.();
+  }
   const splitKey="atrium-split-v1";
   // Sash drags (dock or split). A pane whose full repaint is cheap follows the sash live: paneObserver redraws
   // it in the frame of each layout change. A pane whose repaint costs more than PIN_MS (a dense board)
@@ -76,7 +87,7 @@
     for(const p of panes){
       const c=p.canvas,stage=c?.parentElement;
       const d=p===activePane?doc():docById(p.docId);
-      if(!c?.isConnected||!stage||!(p.resizeCosts?.get(d)>PIN_MS))continue;
+      if(!c?.isConnected||p.covered||!stage||!(p.resizeCosts?.get(d)>PIN_MS))continue;
       const s=stage.getBoundingClientRect();
       for(const n of [c,stage.querySelector(":scope>.atrium-gpu-board")]){
         if(!n||getComputedStyle(n).display==="none")continue;
@@ -116,9 +127,10 @@
         const target=homeFit;homeFit=null;
         if(p===activePane&&doc()===target&&starter)fit(e.contentRect);
       }
-      sized=true;
+      if(!p.covered)sized=true;
     }
-    if(sized&&viewportVisible&&!homeFit){if(frame){cancelAnimationFrame(frame);frame=0;}paintFrame();}else schedule();
+    if(!sized)return;
+    if(viewportVisible&&!homeFit){if(frame){cancelAnimationFrame(frame);frame=0;}paintFrame();}else schedule();
   });
   const otherPane=()=>panes[1]?(activePane===panes[0]?panes[1]:panes[0]):null;
   const docById=id=>folder()?.loadedDocument(id)||project.documents.find(d=>d.id===id);
@@ -130,7 +142,7 @@
     return links.size?target.items.filter(i=>i.link&&links.has(base(i.link))).map(i=>i.id):[];
   }
   function renderOther(trace){
-    const p=otherPane(),d=p&&docById(p.docId);if(!d)return;
+    const p=otherPane(),d=p&&!p.covered&&docById(p.docId);if(!d)return;
     const same=d===doc(),sig=[revision,d.id,highlight,showUnrouted,grid,selectionVersion,p.version,navVersion].join("|");
     if(!same&&sig===p.sig)return;
     p.sig=sig;const t=performance.now();
@@ -249,7 +261,7 @@
       activePane=first;view=first.view;canvas=first.canvas;first.docId=current;view.restoreCamera(cam);
       first.stage.append($("tools"));
     }else if(docById(p.docId))documentViews.set(p.docId,{view:p.view.camera(),...p.state});
-    p.view.onRepaint?.(null);paneObserver.unobserve?.(p.canvas);p.stage.remove();$("canvas-sash")?.remove();
+    paneObserver.unobserve?.(p.canvas);p.view.dispose();p.stage.remove();$("canvas-sash")?.remove();
     p.view=null;panes.length=1;splitState=null;applySplitLayout();
     for(const n of document.querySelectorAll(".pane-caption"))n.remove();
     if(remember)saveSplit();
@@ -469,7 +481,11 @@
   function persist(){return folder()?.flushDrafts() ?? globalThis.AtriumAutosave?.flush();}
   const mirrorWorkspace=()=>globalThis.AtriumProjectWindowClient?.isMirror() ? globalThis.AtriumProjectWindowClient : null;
   function forwardMirror(kind,data){return mirrorWorkspace().forward(kind,data).catch(e=>{info(e.message);return false;});}
-  function change({undoRecorded=false,source,touched,persistDerived=false}={}){
+  function change(options){
+    const span=globalThis.AtriumDiagnostics?.performance?.begin("editor","edit");
+    return span ? span.run(applyChange,options) : applyChange(options);
+  }
+  function applyChange({undoRecorded=false,source,touched,persistDerived=false}={}){
     if(lockRevert){
       const r=lockRevert;lockRevert=null;
       if(r.project===project&&r.mirror){
@@ -578,10 +594,12 @@
     return root?.kind==="pcb"||root?.kind==="panel"?root:null;
   }
   const visibleBoard=()=>viewportVisible&&panes.some(renderedBoard);
+  const visibleBoardForPaint=p=>!p.covered&&renderedBoard(p);
+  const needsBoardRenderer=()=>viewportVisible&&panes.some(visibleBoardForPaint);
   function requestBoardRenderer(){
-    if(globalThis.AtriumCanvasGPU||!visibleBoard())return;
+    if(globalThis.AtriumCanvasGPU||!needsBoardRenderer())return;
     const p=globalThis.AtriumCanvasGPUPref;
-    if(p&&globalThis.AtriumPrefs)p.request(visibleBoard);
+    if(p&&globalThis.AtriumPrefs)p.request(needsBoardRenderer);
     else rendererPref??=globalThis.AtriumLazy?.need?.(["AtriumPrefs","AtriumCanvasGPUPref"]).then(requestBoardRenderer,()=>{});
   }
   function draw(){activeDirty=true;pointerOnly=false;for(const p of panes)p.view?.settle?.();schedule();}
@@ -605,7 +623,7 @@
     frame=0;if((!viewportVisible&&!launch)||homeFit)return;
     const trace=globalThis.__waffleFrameTrace;
     measurePanes();fitRevealed();globalThis.Atrium3D?.refresh?.();
-    if(activeDirty){
+    if(activeDirty&&!activePane.covered){
       activeDirty=false;
       if(!in3D(activePane)){
         const p=activePane,d=doc(),t=performance.now(),reused=renderActive(trace);
@@ -646,9 +664,9 @@
   function fit(measured){homeFit=openFit=null;const d=doc();/* draftsman: a drawing fits all its sheets (sheet 1 until drawing.js loads) */if(d.kind==="drawing"){const b=globalThis.AtriumDrawing?.fitBox?.(d),N=globalThis.AtriumNavCommon;if(b&&N?.cameraFor){view.restoreCamera(N.cameraFor(b,canvas.clientWidth||800,canvas.clientHeight||600,view.camera(),{margin:.06}));refScale=view.scale()||1;draw();return;}view.fit({...d,kind:"schematic"},defs,"document");refScale=view.scale()||1;draw();return;}/* newfix F3: nothing to fit -> the sheet frame (or the board outline) */view.fit(d,defs,d.kind!=="panel"&&!d.items.length?"document":undefined,measured);refScale=view.scale()||1;draw();}
   function fitLayout(){const rect=canvas.getBoundingClientRect();view.resized(rect);fit(rect);}
   // The import report can resize the pane when it opens and again when the design is revealed.
-  function fitOpened(){fitLayout();if(canvas.inert)openFit={view,doc:doc()};}
+  function fitOpened(){fitLayout();if(activePane.covered)openFit={view,doc:doc()};}
   function fitRevealed(){
-    if(!openFit||canvas.inert)return;
+    if(!openFit||activePane.covered)return;
     const target=openFit;openFit=null;
     if(target.view===view&&target.doc===doc())fitLayout();
   }
@@ -686,6 +704,7 @@
     }
     lastToolTitleKind=kind;lastToolTitle=tool;
   }
+  function syncToolCursor(){canvas.style.cursor=tool==="pan"?"var(--ui-cursor-pan)":tool==="select"?"default":"crosshair";}
   function syncTools(){pcbEdit?.sync?.();const h=globalThis.AtriumCollabLive?.historyAvailability?.();
     selectComponent();syncLayerControl();
     toolControls??=actionSelector(["select","pan","route","via","label","junction","split-wire","measure","grid","library",
@@ -705,7 +724,7 @@
       if(a==="layer-mode")chromeAttribute(n,"title","Layer display · "+({all:"All layers",dim:"Dim other layers",single:"Active layer only"})[layerMode]);
     }
     syncToolTitles();
-    syncChecks();canvas.style.cursor=tool==="pan"?"var(--ui-cursor-pan)":tool==="select"?"default":"crosshair";
+    syncChecks();syncToolCursor();
     if(globalThis.AtriumViewConfig){if(pcb())AtriumViewConfig.refresh();else AtriumViewConfig.close();}
   }
   function rememberDocumentView(){
@@ -1566,7 +1585,8 @@
     if(lazyWaiting.has(a)&&!lazyWaiting.get(a)?.aborted)return true;
     const was=$("status")?.textContent,signal=labs?.notebookAction(a)?labs.notebookSignal():null;
     lazyWaiting.set(a,signal);info("Loading…");
-    L.need(names).then(()=>{
+    const loaded=L.isDiagnosticAction?.(a)?L.need(names,{measure:false}):L.need(names);
+    loaded.then(()=>{
       if(lazyWaiting.get(a)!==signal)return;
       lazyWaiting.delete(a);if(loadingStatus())info(was||"Ready");if(signal?.aborted)return;attachExtensions();
       if(a==="view-3d"){const open=opening3D?.pane===activePane&&opening3D?.board===doc()&&viewportVisible;cancel3DIntent();if(!open)return;}
@@ -1613,16 +1633,33 @@
   function act(a){
     // Opening diagnostics never edits the board. Taking an undo snapshot here
     // can synchronize the journal and invalidate the board's render cache.
-    if(a==="frame-monitor"){
+    if(globalThis.AtriumLazy?.isDiagnosticAction?.(a)){
       if(!lazyGate(a,act))navActions.get(a)?.();
       return;
     }
-    if(folder()&&(a==="save"||a==="save-all"||a==="save-as"))return save({all:a==="save-all",as:a==="save-as"});if(acting||!(UNDO||=globalThis.AtriumUndoStore))return act0(a);const before=snapshot(),n=history.length,top=history[n-1];acting=1;try{return act0(a);}catch(e){if(history.length===n&&history[n-1]===top){project=revive(before);current=before.current;assignSelection(before.ids||[],before.selected);refreshDefs();refresh();}globalThis.AtriumDiagnostics?.failed(e);throw e;}finally{acting=0;}}
+    const perf=globalThis.AtriumDiagnostics?.performance;
+    const component=perf&&globalThis.AtriumLazy?.diagnosticAction?.(a,in3D(activePane)?"3d":doc()?.kind);
+    const span=component&&perf.begin(component,"command");
+    // Command spans measure dispatch only. Promises and queued work retain their owners.
+    return span?span.run(dispatchAction,a):dispatchAction(a);
+  }
+  function dispatchAction(a){
+    if(folder()&&(a==="save"||a==="save-all"||a==="save-as"))return save({all:a==="save-all",as:a==="save-as"});
+    if(acting||!(UNDO||=globalThis.AtriumUndoStore))return act0(a);
+    const before=snapshot(),n=history.length,top=history[n-1];
+    acting=1;
+    try{return act0(a);}
+    catch(e){
+      if(history.length===n&&history[n-1]===top){project=revive(before);current=before.current;assignSelection(before.ids||[],before.selected);refreshDefs();refresh();}
+      globalThis.AtriumDiagnostics?.failed(e);
+      throw e;
+    }finally{acting=0;}
+  }
   function act0(a){globalThis.AtriumMotion?.action?.(a);(UNDO||=globalThis.AtriumUndoStore)?.action(a);if(in3D(activePane)&&Atrium3D.command(a,activePane.stage))return;
     // Shift+C clears the Filter and the net highlight; Select Net picks a net when none is in scope.
     if(a==="query-clear")a="highlight-filter-clear";else if(a==="select-net")a="select-net-pick";
     if(a==="drc")return workflow(a);
-    if(lazyGate(a,act))return;installPCBEdit();const i=active();if(pcbEdit?.act(a)){if(a==="hud")prefOut("pcb.hud",!!pcbEdit.state?.hud);return;}switch(a){
+    if(lazyGate(a,dispatchAction))return;installPCBEdit();const i=active();if(pcbEdit?.act(a)){if(a==="hud")prefOut("pcb.hud",!!pcbEdit.state?.hud);return;}switch(a){
     case "unrouted":showUnrouted=!showUnrouted;prefOut("pcb.showRatsnest",showUnrouted);inspect();draw();navEmit("unrouted");info(showUnrouted?"Unrouted connections shown":"Unrouted connections hidden");break;
     case "extensions":globalThis.AtriumExtensions?.openManager();break;
     case "scripting-console":globalThis.AtriumScripting?.toggle();break;
@@ -1637,7 +1674,7 @@
       else info("This feature is unavailable in this build.");break;
     case "drag-reroute-toggle":dragPrefs.enabled=!dragPrefs.enabled;prefOut("pcb.rerouteOnDrag",dragPrefs.enabled);info(dragPrefs.enabled?"Re-route on component drag: on (up to "+dragPrefs.maxConnections+" connections)":"Re-route on component drag: off");break;
     case "length-tune":case "length-tune-pair":case "length-tune-skew":case "length-tune-phase":
-      if(!globalThis.AtriumLength){if(lazyRetry(a,"AtriumLength",()=>act(a)))break;info("This feature is unavailable in this build.");break;}
+      if(!globalThis.AtriumLength){if(lazyRetry(a,"AtriumLength",()=>dispatchAction(a)))break;info("This feature is unavailable in this build.");break;}
       if(!pcb()){const board=A.preferredDocument(project,"pcb",current);if(!board){info("Open a board layout first.");break;}selectDocument(board.id);}
       setTool(a);info(a==="length-tune-phase"?"Click a track of a differential pair: bumps keep it in phase up to the cursor. 1/2 distance, 3/4 tolerance, [/] rounding, Tab properties.":"Click a track to tune its length. 1/2 amplitude, 3/4 gap, ,/. miter, [/] sawtooth rounding, Tab properties.");break;
     case "layer-controls":if(!pcb()){info("Layer controls are for board layouts.");break;}executeKey(a);break;
@@ -1946,7 +1983,11 @@
       }
     }
     if(drag?.reroute&&cancel)drag.reroute.cancel();
-    const ended=!!drag;drag=null;dragPreview=null;guideSession=null;guideResult=null;pcbEdit?.reset();if(ended)navEmit("move-end");syncTools();draw();
+    const ended=drag?.kind;drag=null;dragPreview=null;guideSession=null;guideResult=null;pcbEdit?.reset();
+    if(ended)navEmit("move-end");
+    // A completed pan changed only the view; restore the tool cursor it borrowed.
+    if(ended==="pan"&&!cancel)syncToolCursor();else syncTools();
+    draw();
   }
   function afterWorkspaceGesture(action){
     // Drag previews mutate the live model under an Undo mark until placement or Escape.
@@ -1955,8 +1996,9 @@
       const off=navHost.on("move-end",()=>{off();resolve();});
     }).then(()=>afterWorkspaceGesture(action));
   }
-  function cameraFrame(p,inFrame){
-    paneRepaint(p);p.view.moving?.();
+  function cameraFrame(p,inFrame,wheelEnd){
+    if(p.covered)return;
+    paneRepaint(p);p.view.moving?.(wheelEnd);
     // The wheel animation already runs inside a frame. Include its camera in that paint.
     if(inFrame&&frame){cancelAnimationFrame(frame);paintFrame();}
   }
@@ -1967,12 +2009,13 @@
   // One contact recogniser for every profile. Taps select and cycle, drags pan or move the selection, and
   // a hold picks up the object or opens the context menu on release. Two fingers pan and pinch.
   // Precision editing and the additional camera controls depend on notebook features.
-  const createInput=()=>globalThis.AtriumCanvasInput?.create(inputOps);
+  const createInput=()=>globalThis.AtriumCamera&&globalThis.AtriumCanvasInput?.create(inputOps);
   function inputEvent(e){
     if(globalThis.AtriumCanvasInput?.isReplay(e))return;
     if(e.type==="pointerdown"&&e.pointerType==="touch"&&fieldHover){fieldHover=null;drawPointer();}
     const notebook=globalThis.AtriumLabs?.notebookEnabled()!==false;
     const p=inputOps.find(e.target)||globalThis.AtriumCanvasInput?.surface(e.target)||coldContacts.get(e.pointerId);
+    if(p?.covered){e.preventDefault();e.stopImmediatePropagation();return;}
     if(!canvasInput&&!inputLoad)canvasInput=createInput();
     const firstTouch=notebook&&p?.view&&e.type==="pointerdown"&&e.pointerType==="touch"&&!globalThis.AtriumTouchPrecision&&(!canvasInput||canvasInput.needsTouchPrecision(p.canvas));
     if(firstTouch) {
@@ -1998,7 +2041,7 @@
           if(inputLoad!==load)return;
           canvasInput??=createInput();
           const waiting=pendingInput;pendingInput=[];coldContacts.clear();inputLoad=null;
-          for(const q of waiting)if(q.p.canvas.isConnected&&inputOps.docId(q.p)===q.id)canvasInput?.handle(q.e,q.p);
+          for(const q of waiting)if(!q.p.covered&&q.p.canvas.isConnected&&inputOps.docId(q.p)===q.id)canvasInput?.handle(q.e,q.p);
         },error=>{if(inputLoad===load){pendingInput=[];coldContacts.clear();inputLoad=null;info(error.message);}});
       }
     }
@@ -2088,13 +2131,13 @@
   function in3D(p){return !!(p&&globalThis.Atrium3D?.isOpen?.(p.stage));}
   let load3DBusy=false;
   function load3D(then){
-    if(globalThis.Atrium3D){then();return;}
-    if(load3DBusy)return;load3DBusy=true;info("Loading 3D view…");
-    const s=document.createElement("script");s.src="canvas/view3d.js";
-    const fail=()=>info("The 3D view could not be loaded. Use File → Export 3D STEP… instead.");
-    s.onload=()=>{load3DBusy=false;if(globalThis.Atrium3D)then();else fail();};
-    s.onerror=()=>{load3DBusy=false;s.remove();fail();};
-    document.head.append(s);
+    const L=globalThis.AtriumLazy;
+    if(L?.has("Atrium3D")){then();return;}
+    if(load3DBusy)return;
+    const fail=()=>{load3DBusy=false;info("The 3D view could not be loaded. Use File → Export 3D STEP… instead.");};
+    if(!L){fail();return;}
+    load3DBusy=true;info("Loading 3D view…");
+    L.need("Atrium3D").then(()=>{load3DBusy=false;then();},fail);
   }
   function view3dCtx(){
     const p=activePane,paneDoc=()=>p===activePane?doc():panes.includes(p)?docById(p.docId):null;
@@ -2359,7 +2402,7 @@
       if(schPlacementClicks){schPlacementClicks.push({at:p,angle:ghostAngle,once:true});return true;}
       clickTool(p);if(tool==="place")setTool("select");return true;
     },
-    canvasGeometryRoots:()=>panes.map(renderedBoard).filter(Boolean),
+    canvasGeometryRoots:()=>panes.map(visibleBoardForPaint).filter(Boolean),
     hasBoardArtwork:d=>d?.kind==="panel"||d?.kind==="pcb"&&!!(d.items?.length||d.outline?.length||d.boardShape||d.pcbDrawing?.pours?.length),
     boardGeometry(root=doc(),defaults){return globalThis.AtriumResolvedGeometry?.readEditor(project,root,defaults)??null;},
     async prepareBoardGeometry(root=doc(),defaults){
@@ -2386,7 +2429,15 @@
     hiddenLayers:()=>hidden,selectable:i=>selectable(i),liveRoute:()=>routeSession?{preview:routePreview,net:routeSession.state?.net??null}:null,
     liveTune:()=>lengthSession?{net:lengthSession.net,mode:lengthSession.mode,overlay:lengthSession.overlay?.()||null}:null,
     exportFile:(name,text)=>AtriumIO.exportFile(name,text),
-    canvas:()=>canvas,view:()=>view,panes:()=>panes.filter(p=>p.view).map(paneInfo),
+    canvas:()=>canvas,view:()=>view,panes:()=>panes.filter(p=>p.view).map(paneInfo),paneCoverage,
+    viewportDiagnostics(){
+      const kind=starter?"home":in3D(activePane)?"3d":doc().kind;
+      const node=kind==="3d"?activePane.stage:canvas;
+      const presentation=starter?"not-applicable":activePane.covered?"covered":viewportVisible&&node?.isConnected?"foreground":"hidden";
+      return {kind,presentation,width:node?.clientWidth,height:node?.clientHeight,
+        gpu:globalThis.AtriumCanvasGPU?.diagnosticState(view?.internals())??{
+          state:viewportVisible?"2d":"paused",contexts:0,losses:0,activeBytes:0,parkedScenes:0,warmupPending:false}};
+    },
     ownsPane:owner=>!!paneOwner(owner),activatePane(owner){const p=paneOwner(owner);if(!p)return false;activatePane(p);return true;},repaintPane(owner){const p=paneOwner(owner);if(p)paneRepaint(p);},
     editInProgress:()=>!!drag||!!routeSession||chain.length>0,
     captureViewState(){
@@ -2445,7 +2496,7 @@
     messageContext:()=>({project,currentProject:()=>project,info,exportFile:AtriumIO.exportFile,
       select:id=>{const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);},
       locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();}}),
-    redraw,invalidate(){navVersion++;draw();},
+    redraw,invalidate({overlay=false}={}){navVersion++;if(overlay)drawPointer();else draw();},
     invalidateDocument(id,artwork=false){
       for(const p of panes)if((p===activePane?current:p.docId)===id){
         if(artwork)p.view?.invalidate?.(docById(id));

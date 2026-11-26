@@ -287,7 +287,7 @@ private final class ProbeTouchEvent: NSEvent {
             EditorWebView.assumeTouchDisplay = false
             web.fingers.reset()
             return ["decision": decision, "held": held.count]
-        case "inputDiagnostics": return InputLog.report()
+        case "inputDiagnostics": return (web as? EditorWebView)?.inputLog.inspect(a["operation"] as? String ?? "read") ?? [:]
         case "hitView":
             // The view AppKit would send a mouse event at this page point to (EditorWebView must receive it).
             let v = window.contentView?.superview?.hitTest(point(num("x"), num("y")))
@@ -432,7 +432,9 @@ private final class ProbeTouchEvent: NSEvent {
             window.orderFrontRegardless(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); window.makeFirstResponder(web)
             return ["key": window.isKeyWindow, "active": NSApp.isActive, "visible": window.occlusionState.contains(.visible)]
         // Energy probes (energy.sh): CPU, wakeups and energy of the app and its WebKit processes over a window.
-        case "measure": return await energy.measure(num("seconds"))
+        case "measure":
+            if let boundary = a["boundary"] as? String { return energy.measureBoundary(boundary) }
+            return await energy.measure(num("seconds"))
         // Ends WebKit's GPU process as the system does under memory pressure (canvas-context-loss probes):
         // every WebGL and accelerated 2D canvas of the page loses its contents.
         case "killGPUProcess":

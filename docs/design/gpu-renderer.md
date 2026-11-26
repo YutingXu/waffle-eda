@@ -31,7 +31,7 @@ With the native macOS header and the full PiDP project open, changing the shortc
 
 The full numerical comparison passed every original limit on 157 Chromium frames and 193 WKWebView frames. WKWebView used a 1× backing store on the 2× display for the original numerical budgets. A separate native Retina sample passed all 16 comparisons with zero solid or interior mismatches and a maximum mean edge difference of 0.94. An anonymized comparison board passed all 36 frames with zero solid or interior mismatches. That board exercises thermal vias, pad lettering underneath later copper, and overlapping mechanical layers of equal rank.
 
-The PiDP board's high-contrast fit comparison measured 0.90 mean edge difference against a 1.50 limit. At rest, when a stored clearance curve has sampled edges shorter than one device pixel, the renderer caches the native vector fill's coverage for that copper layer. It reuses the coverage after ordinary edits. Changes to stored contour bytes upload their old and new rectangle. During navigation and live repour, the GPU's retained stencil geometry supplies the current view. Ordinary disjoint pad captions stay in the text bands. A caption underneath later artwork on its own layer follows the original drawing order.
+The PiDP board's high-contrast fit comparison measured 0.90 mean edge difference against a 1.50 limit. When a stored clearance curve has sampled edges shorter than one device pixel, an exact redraw can cache the native vector fill's coverage for that copper layer. It reuses the coverage after ordinary edits. Changes to stored contour bytes upload their old and new rectangle. The GPU's retained stencil geometry supplies live repours and camera frames that can reuse the cached artwork. A camera cache miss takes the exact redraw path, including any required copper masks. Ordinary disjoint pad captions stay in the text bands. A caption underneath later artwork on its own layer follows the original drawing order.
 
 Eleven edit and selection cases, including insertion, deletion, undo, redo, a growing polyline, coalesced edits and selected lettering under translucent copper, matched new GPU scenes byte-for-byte. A separate test moved two stored regions in place, preserving their object identity. It exercised a subpixel clearance texture and an independent GPU stencil fan against the same geometry in a fresh project view. The changed copper layer uploaded 31,857 bytes in Chromium and 36,226 in WKWebView, with zero upload on the next unchanged frame. On a separate physical Retina board with translucent copper, Repour All finished on identical pixels with animations Off and Full on both renderers. Each comparison covered 2,511,130 pixels and the stored copper also matched. After idle processing changes the displayed contour detail, the affected translucent bands refresh. The suite also verifies the normal renderer selection, context restoration, explicit memory fallback, split contexts and live drag tiles.
 
@@ -140,22 +140,18 @@ non-copper layer) has its text on the top 2D layer instead, and the text of othe
 - **Cache key:** scene revision, document signature, camera, size, dpr, active layer, layer mode, hidden layers,
   highlight, route-preview hidden ids, system and layer
   colours, opacity, whether the designator and PCB text modules are loaded.
-- **Measured.** Redraw plus copy is 0.4–0.6 ms (Chrome) and 1.1–1.9 ms (WebKit) on an edit frame; a cache hit
-  costs nothing. Copying in WebKit was 3 ms of a 3.8 ms text frame at fit, which is why gesture frames do not redraw
-  it.
-- **Gesture frames** (canvas.js `moving()`: pan, wheel and pinch zoom): the GPU draws the board exactly for the
-  new camera; the text texture is moved and scaled by an affine transform in the copy shader, and the top 2D canvas
-  by a CSS transform, exactly as the 2D path moves its pixels. 140 ms after the last such frame the frame that
-  ends the move is drawn the same way, and the text for the new camera follows in slices of about 4 ms of rows,
-  one task each (`textSlices`, into textures of its own; the view's pixels under each slice are put back), then
-  the pour coverage, then a composite-only exact frame. The wide copy (half scale, for zooming out) is built
-  the same way at rest; a gesture never draws text. On the user's 4-layer board in WKWebView under load this
-  took the frame that ends a zoom from about 37 ms to 2 ms, with no main-thread task after it over about 10 ms.
-  Text the move uncovers at the edges appears when the slices land.
-- **SDF/MSDF text was not built.** By measurement, text costs nothing on cached frames and gesture frames, and
-  1–2 ms on edit frames; most board text is `fillText` (designators, legacy and Altium-native labels, pad text),
-  which an atlas would have to reproduce glyph for glyph. The PCB stroke font (labels, footprint text via
-  `AtriumPCBText`) could go on the GPU as segments if text ever dominates.
+- **Measured.** Text redraw and copy took 0.4–0.6 ms in Chrome and 1.1–1.9 ms in WebKit on the original edit workload.
+  Copying accounted for 3 ms of a separate 3.8 ms WebKit text frame at fit.
+- **Gesture frames.** The GPU draws retained geometry at the current camera. For zoom it resamples the text bands
+  from the current or half-scale raster when one covers the view at adequate resolution. A same-scale pan can
+  repair exposed strips. If neither path covers the required artwork, the renderer draws the exact viewport
+  synchronously, including its text and any subpixel copper coverage. Cache misses can therefore delay the next input.
+- **After a gesture.** At the end of a wheel glide, or after 140 ms of stillness for other gestures, the renderer
+  can show a retained frame and sharpen its text in cancellable row slices. A final task prepares copper coverage
+  before the exact composite. The half-scale raster becomes eligible after 250 ms at rest. On the original
+  four-layer WKWebView workload, slicing reduced the frame that ended a zoom from about 37 ms to 2 ms.
+- **Glyph rendering.** Designators and pad captions can use system glyphs, whose coverage depends on the native
+  canvas. PCB stroke-font labels and footprint text use vector paths.
 
 ### Top 2D layer
 
@@ -204,8 +200,8 @@ geometry draws after item geometry, as in `drawBoard`.
 
 ### Camera
 
-The camera is two uniforms: `(cx, cy, device px/mm, ±1 for flip)` and the device size. Pan and zoom upload
-nothing, and every gesture frame is an exact frame. There is no blit, no stale ring and no exact repaint on idle.
+The camera uniforms carry the centre, device pixels per millimetre, flip and device size. The same geometry
+buffers draw at each camera. Raster layers follow the reuse and exact-redraw rules in [Text layer](#text-layer).
 
 ### Pours: stencil-then-cover, no tessellation
 
@@ -261,8 +257,8 @@ The earlier comparison measured 1.9–2.2 ms for a synchronous journal scan and 
 
 - **Segments and blobs.** Coverage is analytic, a linear ramp over one device pixel of signed distance. This is
   close to Canvas's area coverage for edges and round caps.
-- **Pours, fills and the board area.** These get 4× MSAA through the stencil, one coverage value per sample, where
-  Canvas uses analytic coverage.
+- **Pours, fills and the board area.** The renderer requests an antialiased stencil framebuffer. The driver
+  chooses the sample count. Exact redraws can use native Canvas coverage for narrow pour clearances.
 - **Grid.** It is not anti-aliased in either path, and the pixels are identical.
 
 

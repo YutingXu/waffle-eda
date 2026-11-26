@@ -213,14 +213,14 @@ globalThis.AtriumCanvas = (() => {
     for(const contour of [region.contour,...region.cutouts])AtriumBoardShape.traceContour(ctx,contour,true);
     return true;
   }
-  function drawShape(ctx, s, kind, scale, selected, substrate, boardInk, layer) {
+  function drawShape(ctx, s, kind, scale, selected, substrate, boardInk, layer, bandBounds) {
     const pcb = kind === "pcb";
     const silk = s.style === "silk" || /silk|overlay/i.test(s.layer || "");
     const packageBody=s.style==="package";
     const ink = boardInk || (selected ? (pcb ? color.lightSelect : color.select) :
       pcb ? (packageBody ? color.packageEdge : silk ? (substrate ? color.silk : "#64736b") : copper(s.layer)) : color.ink);
     ctx.strokeStyle=ink;
-    if (s.kind === "text" && pcb && T) { T.draw(ctx,s,scale,ink,{layer:layer??s.layer}); return; }
+    if (s.kind === "text" && pcb && T) { T.draw(ctx,s,scale,ink,{layer:layer??s.layer},bandBounds); return; }
     if (s.kind === "text") {
       ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(A.rad(s.angle || 0));
       textAt(ctx,s.text,0,0,s.size || (pcb ? .7 : 1.5),ink,s.align || "left",500,pcb);
@@ -539,7 +539,7 @@ globalThis.AtriumCanvas = (() => {
     return opts.layerMode==="dim"&&!PCB.onLayer(boardLayer(i),opts.layer||"Top",i)?null:c;
   }
   const schematicStrokeWidth=i=>i.width||i.schPaint?.width||(i.kind==="wire"?.254:.2);
-  function drawItem(ctx,i,doc,defs,scale,opts,substrate) {
+  function drawItem(ctx,i,doc,defs,scale,opts,substrate,bandBounds) {
     if(opts.hideRegionGuides&&i.cutout)return;
     if(doc.schRestored && SCH)i=SCH.displayItem(doc,i);
     if(i.kind==="imageMarkup")return;
@@ -609,9 +609,9 @@ globalThis.AtriumCanvas = (() => {
       }
       if(pcb&&T&&i.kind==="label"){
         const text=boardText(i,doc);
-        T.draw(ctx,text,scale,selected || lit ? accent : PCB.ink(boardLayer(i),i,opts,false),{layer:boardLayer(i)});
+        T.draw(ctx,text,scale,selected || lit ? accent : PCB.ink(boardLayer(i),i,opts,false),{layer:boardLayer(i)},bandBounds);
         if(selected)boardSelectionBox(ctx,T.hitBox(text),scale);
-        return;
+        return bandBounds && !selected;
       }
       ctx.save();ctx.translate(i.x,i.y);ctx.rotate(A.rad(i.angle || 0));
       const d=labelData(i,pcb), ink=selected || lit ? accent : pcb ? PCB.ink(boardLayer(i),i,opts,false) : i.kind==="netlabel"?color.wire:color.ink;
@@ -667,8 +667,9 @@ globalThis.AtriumCanvas = (() => {
     const ordered=[...layers.values()].sort((a,b)=>layerRank(a.layer,opts,opts.flipped)-layerRank(b.layer,opts,opts.flipped));
     return {ordered,selectedParts};
   }
-  function drawBoard(ctx,items,doc,defs,scale,opts,pours,viewport,lod){
+  function drawBoard(ctx,items,doc,defs,scale,opts,pours,viewport,lod,painted,bandBounds){
     const {ordered,selectedParts}=collectBoardLayers(items,doc,defs,scale,opts,pours,viewport,lod);
+    if(bandBounds && (lod || selectedParts.length)) bandBounds(null);
     if(opts.partBoxesOnly){
       for(const i of selectedParts)boardSelectionBox(ctx,partBox(i,getDef(defs,i,doc).footprint),scale);
       return;
@@ -685,8 +686,10 @@ globalThis.AtriumCanvas = (() => {
       const clip = opts.clipLayer?.(pass.layer,viewport);
       if (clip) {ctx.save();boardPath(ctx,clip,AtriumBoardShape);ctx.clip("evenodd");}
       if(pass.pours.length){
+        bandBounds?.(null);
         ctx.save();ctx.globalAlpha=base*see.pour;
         for(const region of pass.pours){
+          painted?.(region,region.bounds);
           ctx.fillStyle=PCB.ink(region.layer,region,opts,opts.highlight && opts.highlight===region.net);
           if(!(viewport&&hasPath2D&&globalThis.AtriumCanvasFast?.paintPour(ctx,region,viewport)))AtriumPCBPours.paint(ctx,region);
         }
@@ -695,7 +698,9 @@ globalThis.AtriumCanvas = (() => {
       if(lod)batches.draw(ctx,lod,pass.layer,LOD_CATS_ITEMS,scale,opts,fade,see);
       for(const i of pass.items){
         fade(i.kind==="track"?see.track:i.kind==="via"?see.via:i.kind==="pad"?see.pad:1);
-        drawItem(ctx,i,doc,defs,scale,opts,true);
+        painted?.(i);
+        const bounded=drawItem(ctx,i,doc,defs,scale,opts,true,bandBounds);
+        if(bandBounds && !bounded)bandBounds(null);
       }
       fade(1);
       if(lod)batches.draw(ctx,lod,pass.layer,LOD_CATS_PARTS,scale,opts,fade,see);
@@ -706,17 +711,21 @@ globalThis.AtriumCanvas = (() => {
           if(opts.hideRegionGuides&&s.cutout || opts.gpu && s.kind!=="text"&&!s.cutout&&!s.keepout)continue;
           const lit=opts.highlight && s.net===opts.highlight,ink=PCB.ink(pass.layer,s,opts,selected||lit);
           const shape=footprintText(s,i,doc);
+          if(painted)painted(i,s.kind==="text"&&T?T.paintBox(shape,{frame:i,layer:pass.layer}):null);
+          if(bandBounds && (s.kind!=="text" || !T)) bandBounds(null);
           if(s.kind==="text" && (i.mirror || T && s.upright)){
             ctx.save();if(i.mirror)ctx.scale(-1,1);ctx.rotate(-A.rad(i.angle||0));ctx.translate(-i.x,-i.y);
-            if(T)T.draw(ctx,shape,scale,ink,{frame:i,layer:pass.layer});
+            if(T)T.draw(ctx,shape,scale,ink,{frame:i,layer:pass.layer},bandBounds);
             else drawShape(ctx,PCB.placeText(shape,i,pass.layer),"pcb",scale,selected,true,ink,pass.layer);
             ctx.restore();
-          }else drawShape(ctx,shape,"pcb",scale,selected,true,ink,pass.layer);
+          }else drawShape(ctx,shape,"pcb",scale,selected,true,ink,pass.layer,bandBounds);
         }
         if(group.pads.length)fade(see.pad);
         for(const p of group.pads){
           if(opts.gpu || !PCB.visible(pass.layer,p,opts))continue;
           const lit=opts.highlight && (i.pinNets?.[p.number]??p.net)===opts.highlight;
+          painted?.(i);
+          bandBounds?.(null);
           drawPad(ctx,p,scale,selected||lit,true,i,opts);
         }
         fade(1);
@@ -725,9 +734,11 @@ globalThis.AtriumCanvas = (() => {
       for(let n=0;n<pass.labels.length;n+=2){
         const i=pass.labels[n],row=pass.labels[n+1],text=row.text;
         if(text.size*scale<=(row.kind==="designator"?2.4:3.3))continue;
+        if(painted)painted(i,partTextBounds(row,doc));
         const ink=PCB.ink(pass.layer,i,opts,chosen(i,opts));
-        if(T)T.draw(ctx,boardText(text,doc),scale,ink,{lod:0});
+        if(T)T.draw(ctx,boardText(text,doc),scale,ink,{lod:0},bandBounds);
         else{
+          bandBounds?.(null);
           const {x,y,angle,mirror,vertical,horizontal}=fallbackLabel(text);
           ctx.save();ctx.translate(x,y);ctx.rotate(A.rad(angle));if(mirror)ctx.scale(-1,1);
           const baseline=vertical==="top"?text.size:vertical==="middle"?text.size/2:0;
@@ -979,6 +990,12 @@ globalThis.AtriumCanvas = (() => {
   const OPEN_OVERVIEW_MIN=20000, OPEN_OVERVIEW_ITEMS=900;
   const hasPath2D=typeof Path2D==="function";
   const needsBoardBatches=doc=>doc?.kind==="pcb" && doc.items?.length>=LOD_MIN;
+  // Shrink before growing the other axis so neither assignment allocates an oversized intermediate.
+  function resizeBacking(canvas,w,h){
+    if(canvas.height>h)canvas.height=h;
+    if(canvas.width!==w)canvas.width=w;
+    if(canvas.height!==h)canvas.height=h;
+  }
   let batches;
   function boardBatches(){
     return batches ||= globalThis.AtriumCanvasBoardBatches?.create({A,PCB,T,chosen,netInk,boardLayer,union,appendArc});
@@ -999,10 +1016,15 @@ globalThis.AtriumCanvas = (() => {
       // Runs f with the camera at (x, y, s), then restores it (canvas-gpu.js prepares a wider gesture layer).
       withCamera(x,y,s,f){const a=cx,b=cy,k=scale;cx=x;cy=y;scale=s;try{return f();}finally{cx=a;cy=b;scale=k;}},
       // Exposed pan strips in the caller's units, [x0, y0, x1, y1]. The full-width strip owns the corner.
-      exposedPanStrips(width,height,ax,ay){
+      exposedPanStrips(width,height,ax,ay,opts){
         const top=ay>0?ay:0,bottom=ay<0?height+ay:height,strips=[];
         if(ay>0)strips.push([0,0,width,ay]);else if(ay<0)strips.push([0,height+ay,width,height]);
         if(ax>0)strips.push([0,top,ax,bottom]);else if(ax<0)strips.push([width+ax,top,width,bottom]);
+        for (const overlay of opts?.overlay || []) {
+          if (typeof overlay?.panDamage !== "function") continue;
+          const frame = {canvas, scale, dpr, worldToScreen, worldViewport, selectable, options: opts, copper, width, height};
+          for (const rect of overlay.panDamage(frame, ax, ay)) appendPanDamage(strips, rect, width, height);
+        }
         return strips;
       },
       layerRank:(l,opts)=>layerRank(l,opts,flipped),
@@ -1497,8 +1519,7 @@ globalThis.AtriumCanvas = (() => {
       width=rect?rect.width:z.w; height=rect?rect.height:z.h;
       dpr=bounded(globalThis.devicePixelRatio || 1,1,4);
       const w=Math.round(width*dpr),h=Math.round(height*dpr);
-      if(canvas.width!==w)canvas.width=w;
-      if(canvas.height!==h)canvas.height=h;
+      resizeBacking(canvas,w,h);
     }
     function screenToWorld([x,y]) {if(rotation)[x,y]=rotation.point([x,y],width,height,true);return [(flipped?width/2-x:x-width/2)/scale+cx,(y-height/2)/scale+cy];}
     function worldToScreen([x,y]) {const p=[(flipped?cx-x:x-cx)*scale+width/2,(y-cy)*scale+height/2];return rotation?rotation.point(p,width,height):p;}
@@ -1724,14 +1745,15 @@ globalThis.AtriumCanvas = (() => {
       if(s.scale===scale && !zoomLayers.length){
         const DX=Math.round(f*(s.cx-cx)*scale*dpr),DY=Math.round((s.cy-cy)*scale*dpr);
         if(Math.abs(DX)>=W/2 || Math.abs(DY)>=H/2)return false;
-        if(!DX && !DY && s.cx===cx && s.cy===cy)return true;
+        // Keep subpixel motion relative to the last pixels actually painted.
+        if(!DX && !DY)return null;
         ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";
-        if(DX || DY)ctx.drawImage(canvas,DX,DY);
+        ctx.drawImage(canvas,DX,DY);
         ctx.restore();
         // Strips are drawn with the camera that matches the shifted pixels exactly.
         const ax=DX/dpr,ay=DY/dpr,tx=cx,ty=cy;
         cx=s.cx-ax/(f*scale);cy=s.cy-ay/scale;
-        for(const strip of I.exposedPanStrips(width,height,ax,ay))paint(doc,defs,opts,strip,false,false,pourView);
+        for(const strip of I.exposedPanStrips(width,height,ax,ay,opts))paint(doc,defs,opts,strip,false,false,pourView);
         s.cx=cx;s.cy=cy;cx=tx;cy=ty;
         return true;
       }
@@ -1786,6 +1808,30 @@ globalThis.AtriumCanvas = (() => {
       shown={...s,cx,cy,scale,rev:cache?.rev};
       return true;
     }
+    // An overlay representative can change inside the retained area. Add its device pixels once,
+    // removing every portion already covered by an exposed strip or another overlay repair.
+    function appendPanDamage(strips, [left, top, right, bottom], viewWidth, viewHeight) {
+      const x0 = Math.max(0, Math.floor(left * dpr) / dpr), y0 = Math.max(0, Math.floor(top * dpr) / dpr);
+      const x1 = Math.min(viewWidth, Math.ceil(right * dpr) / dpr), y1 = Math.min(viewHeight, Math.ceil(bottom * dpr) / dpr);
+      if (x0 >= x1 || y0 >= y1) return;
+      let uncovered = [[x0, y0, x1, y1]];
+      for (const covered of strips) {
+        uncovered = uncovered.flatMap(rect => {
+          const [l, t, r, b] = rect;
+          const left = Math.max(l, covered[0]), top = Math.max(t, covered[1]);
+          const right = Math.min(r, covered[2]), bottom = Math.min(b, covered[3]);
+          if (left >= right || top >= bottom) return [rect];
+          const pieces = [];
+          if (t < top) pieces.push([l, t, r, top]);
+          if (bottom < b) pieces.push([l, bottom, r, b]);
+          if (l < left) pieces.push([l, top, left, bottom]);
+          if (right < r) pieces.push([right, top, r, bottom]);
+          return pieces;
+        });
+        if (!uncovered.length) return;
+      }
+      strips.push(...uncovered);
+    }
     let lodForce=null,lodUsed=false,orderUsed=null,exactNext=false;
     let viewNote=null;
     function noteView(doc,opts){
@@ -1838,35 +1884,60 @@ globalThis.AtriumCanvas = (() => {
       if(openingOverview?.doc===doc && last?.[0]===doc)render(...last);
     }
     function render(doc,defs,opts={}) {
+      const perf=globalThis.AtriumDiagnostics?.performance;
+      if(!perf)return renderFrame(doc,defs,opts);
+      const kind=doc.kind;
+      const span=!opts.print && canvas.isConnected && ("reuseBase" in opts || opts.editorPane) &&
+        (kind==="pcb" || kind==="schematic" || kind==="panel" && globalThis.AtriumPanel) ? perf.begin(kind,"draw") : null;
+      if(!span)return renderFrame(doc,defs,opts);
+      try{return renderFrame(doc,defs,opts,span);}
+      catch(error){span.end("failed");throw error;}
+    }
+    function finishDraw(span,partial=false){
+      if(!span)return;
+      span.ready();
+      // A bounded opening preview or work under a covered pane does not publish a complete view.
+      span.end(partial || canvas.inert || canvas.closest?.("[hidden], [inert]") ||
+        globalThis.AtriumPower?.visible?.()===false || globalThis.document?.visibilityState==="hidden" ? "completed" : "visible");
+    }
+    function renderFrame(doc,defs,opts,span) {
       if(doc.kind==="panel" && globalThis.AtriumPanel)[doc,defs]=projectedPanel(doc,defs);
       const g=gesture, cold=last?.[0]!==doc;
       const overview=cold && !g && !opts.noReuse && !opts.print && !rotation && repaint &&
         doc.kind==="pcb" && doc.items.length>=OPEN_OVERVIEW_MIN && !openedBoards.has(doc) && doc.outline?.length>=3 &&
         !opts.hidden?.has("Board") && globalThis.AtriumSpatial && typeof requestAnimationFrame==="function" &&
-        !globalThis.AtriumCanvasGPU?.stats?.(I);
+        !globalThis.AtriumCanvasGPU?.hasView?.(I);
       cancelOpeningOverview();
-      if(overview && canvas.inert)return; // A foreground report still covers the new board.
+      if(overview && canvas.inert){span?.end("cancelled");return;} // A foreground report covers the new board.
       gesture=false;last=[doc,defs,opts];
       if(deferred&&(deferred.doc!==doc||!showingAirwires()))cancelAirwires();
       if(!showingAirwires())waitForSave=false;
       dimensions();
-      if(!width || !height)return;
+      if(!width || !height){span?.end("cancelled");return;}
       if(doc.kind!=="pcb")flipped=false;
       noteView(doc,opts);
       if(doc.kind==="pcb" && doc.items.length>=OPEN_OVERVIEW_MIN)openedBoards.add(doc);
-      if(overview && paintOpeningOverview(doc,defs,opts))return;
+      if(overview && paintOpeningOverview(doc,defs,opts)){finishDraw(span,true);return;}
       const frame=doc.kind==="pcb"?pourFrame(doc,defs,opts):null;
       // WebGL2 board renderer (canvas-gpu.js; Preferences › Display › Renderer): it draws the frame when it is in use.
-      if(frame&&globalThis.AtriumCanvasGPU?.render(I,doc,defs,rotation?null:opts,g,frame)){
-        if(shown){finishGesture();shown=null;exactNext=false;}
+      if(globalThis.AtriumCanvasGPU?.render(I,doc,defs,rotation?null:opts,g,frame)){
+        if(shown){finishGesture();globalThis.AtriumCanvasFast?.releasePixels(I);shown=null;exactNext=false;}
+        finishDraw(span);
         prepareGeometry();
         return;
       }
-      if(g && !rotation && !opts.noReuse && blit(doc,defs,opts,frame)){armIdle();return;}
+      if(g && !rotation && !opts.noReuse){
+        const painted=blit(doc,defs,opts,frame);
+        if(painted!==false){
+          if(painted)finishDraw(span);else span?.end("cancelled");
+          armIdle();return;
+        }
+      }
       finishGesture();
       const t=now(), reused=paint(doc,defs,opts,null,false,false,frame);exactNext=false;
       shown={doc,w:canvas.width,h:canvas.height,dpr,flipped,cx,cy,scale,paintMs:now()-t,rev:cache?.rev,
         markKey:cache?.viaMarks?.size?zoomMarkKey(doc,defs,opts,frame):null};
+      finishDraw(span);
       prepareGeometry();
       return reused;
     }
@@ -1963,41 +2034,38 @@ globalThis.AtriumCanvas = (() => {
     }
     // Everything above the board layer: router preview, tools, overlays, marquee and measure.
     // Net names on the current layer's tracks and pours (pcb-net-labels.js), placed for this camera.
-    const widest=new WeakMap();
-    function widestTrack(doc,defs,layer){
-      const c=sync(doc,defs);let e=widest.get(c);
-      if(!e||e.rev!==c.rev){e={rev:c.rev,by:new Map()};widest.set(c,e);}
-      let w=e.by.get(layer);
-      if(w===undefined){w=0;for(const i of c.all)if(i.kind==="track"&&i.layer===layer&&i.net&&i.width>w)w=i.width;e.by.set(layer,w);}
-      return w;
-    }
     let netLabels=[];
     function paintNetLabels(doc,defs,opts,artwork,frame){
       netLabels=[];
       const N=globalThis.AtriumPCBNetLabels;
       if(!N || opts.netNames===false || opts.print || opts.transientGeometry)return;
       const view=artworkViewport(null),pours=(frame||pourFrame(doc,defs,opts)).pours;
-      const layer=opts.layer||"Top",maxWidth=widestTrack(doc,defs,layer);
-      if(maxWidth*scale*.62<N.MIN_PX && !pours?.some(r=>r?.layer===layer&&r.net))return;
-      // Both track names and pour obstacles use the ordered, unfiltered artwork candidates.
-      // A partial repaint or a cached board layer may have no full-view candidates to share.
+      const layer=opts.layer||"Top",maxWidth=N.trackWidthLimit(sync(doc,defs),layer,scale,view);
+      if(!maxWidth && !pours?.some(r=>r?.layer===layer&&r.net))return;
       const reusable=artwork && cache?.doc===doc && artwork.rev===cache.rev &&
         view.every((edge,i)=>edge===artwork.viewport[i]);
-      let items=reusable?artwork.rawItems:null;
+      let items=reusable?artwork.rawItems:null, parts;
       const candidates=()=>items??=query(doc,defs,view);
-      netLabels=N.place({items:maxWidth*scale*.62<N.MIN_PX?[]:candidates(),pours,scale,width,height,toScreen:worldToScreen,view,PCB,opts,maxWidth,
+      const partBoxes=items=>{
+        const out=[];
+        for(const i of items){
+          if(i.kind!=="part")continue;
+          const b=(cache?.doc===doc && cache.boxes.get(i)) || objectBox(i,doc,defs);
+          if(!b)continue;
+          const points=rotation?boxCorners(b):[[b[0],b[1]],[b[2],b[3]]];
+          out.push(A.bounds(points.map(worldToScreen)));
+        }
+        return out;
+      };
+      netLabels=N.place({items:maxWidth?candidates():[],pours,scale,width,height,toScreen:worldToScreen,view,PCB,opts,maxWidth,
         trackInk:i=>chosen(i,opts)||opts.highlight&&i.net===opts.highlight?PCB.system.selection:netInk(i,opts)||PCB.ink(layer,i,opts,false),
         pourInk:r=>PCB.ink(r.layer,r,opts,!!opts.highlight&&opts.highlight===r.net),
-        obstacles:()=>{
-          const out=[];
-          for(const i of candidates()){
-            if(i.kind!=="part")continue;
-            const b=(cache?.doc===doc && cache.boxes.get(i)) || objectBox(i,doc,defs);
-            if(!b)continue;
-            const points=rotation?boxCorners(b):[[b[0],b[1]],[b[2],b[3]]];
-            out.push(A.bounds(points.map(worldToScreen)));
-          }
-          return out;
+        obstaclesFor:box=>{
+          // Reuse the artwork query when present. For unrotated, retained frames, only a
+          // part whose world box reaches this label can block it. A rotated screen bounding
+          // box can overlap even outside its inverse transform, so keep the full view there.
+          if(items || rotation || !globalThis.AtriumSpatial || cache?.preparation)return parts??=partBoxes(candidates());
+          return partBoxes(query(doc,defs,worldViewport(box)));
         }});
       N.draw(ctx,netLabels,dpr,monoFont);
     }
@@ -2170,9 +2238,26 @@ globalThis.AtriumCanvas = (() => {
     }
     const camera=()=>({cx,cy,scale,referenceScale,flipped,...(rotation?{rotation:rotation.rad}:{})});
     function restoreCamera(saved){({cx,cy,scale,referenceScale}=saved);flipped=!!saved.flipped;setAngle(saved.rotation||0);}
-    return {camera,restoreCamera,rotate,selectable,enclosed,pourState,saveWritePending,render,fit,drawingBounds,internals:()=>I,
+    function onRepaint(fn){
+      repaint=typeof fn==="function"?fn:null;
+      if(!repaint){cancelOpeningOverview();cancelPreparation();cancelAirwires();waitForSave=false;heldPourDoc=null;}
+    }
+    function pausePaint(){
+      if(idle){clearTimeout(idle);idle=0;}
+      gesture=false;
+      cancelOpeningOverview();cancelPreparation();cancelAirwires();
+      globalThis.AtriumCanvasGPU?.pause?.(I);
+    }
+    function dispose(){
+      onRepaint(null);finishGesture();
+      last=shown=cache=connectivity=pourCache=null;
+      globalThis.AtriumCanvasFast?.release(I);
+      globalThis.AtriumCanvasGPU?.release(I);
+      resizeBacking(canvas,1,1);
+    }
+    return {camera,restoreCamera,rotate,selectable,enclosed,pourState,saveWritePending,render,fit,drawingBounds,internals:()=>I,onRepaint,pausePaint,dispose,
       resized(rect){const r=rect||canvas.getBoundingClientRect();width=r.width;height=r.height;if(I.size)I.size={w:width,h:height};}, // a dock resized the canvas: map with the new size now, keeping the centre
-      moving(){gesture=true;},settle(){gesture=false;},onRepaint(fn){repaint=typeof fn==="function"?fn:null;if(!repaint){cancelOpeningOverview();cancelPreparation();cancelAirwires();waitForSave=false;heldPourDoc=null;}},screenToWorld,worldToScreen,worldViewport,zoom,zoomScale,hit,hits,snapPoint,query,invalidate,connectedWires,boardConnectivity,
+      moving(wheelEnd=false){gesture=wheelEnd?"wheel-end":true;},settle(){gesture=false;},screenToWorld,worldToScreen,worldViewport,zoom,zoomScale,hit,hits,snapPoint,query,invalidate,connectedWires,boardConnectivity,
       pan(dx,dy){if(rotation)[dx,dy]=rotation.vector(dx,dy,true);cx-=(flipped?-dx:dx)/scale;cy-=dy/scale;},scale:()=>scale,fitScale:()=>referenceScale,
       setFlipped(v){flipped=!!v;},flipped:()=>flipped};
   }
@@ -2194,7 +2279,7 @@ globalThis.AtriumCanvas = (() => {
   }
   // Cropped schematic previews share the editor's exact artwork and culling bounds.
   const schematicArtwork = {box:objectBox, order:drawingOrder, draw:drawItem, prepare:syncPaintGeometry};
-  return {create,preview,referencePositions,partBox,partTextDistance,boardText,schematicArtwork,artBounds,needsBoardBatches,canContact,routingLayers,tint,eachGridLine,edited(libraryPossible=true){
+  return {create,preview,resizeBacking,referencePositions,partBox,partTextDistance,boardText,schematicArtwork,artBounds,needsBoardBatches,canContact,routingLayers,tint,eachGridLine,edited(libraryPossible=true){
     editEpoch++;
     if(libraryPossible && globalThis.AtriumUndoStore?.unrecorded?.())pendingGeometry++;
   }};

@@ -16,7 +16,7 @@ globalThis.AtriumExtensionNotebookHost = {create({
     const worker = owner.worker;
     // A mixed package may also run ordinary commands. Reclaim its worker only if
     // a notebook invocation is still executing when the user switches Labs off.
-    const cancel = () => {if (owner.worker === worker) stop(owner,"Notebook turned off.");};
+    const cancel = () => {if (owner.worker === worker) stop(owner,"Notebook turned off.","cancelled");};
     epoch.addEventListener("abort",cancel,{once:true});
     try {
       const result = await request(owner, {t: protocol, ext: e.id, command, args: [event]}, budget, e.id);
@@ -40,7 +40,7 @@ globalThis.AtriumExtensionNotebookHost = {create({
         p.post({t: "cancelSearch"}); flush(p);
         // Cancellation is observable by the provider, and its worker is reclaimed even if it ignores it.
         for (const n of p.nets.values()) n.ctrl?.abort();
-        setTimeout(() => stop(p, "Search cancelled."), 0);
+        setTimeout(() => stop(p, "Search cancelled.", "cancelled"), 0);
       }
     };
     p.search = {pool: p, hosts, rate: {at: 0, calls: 0, logs: 0}, cancel, emit(rows) {
@@ -114,7 +114,7 @@ globalThis.AtriumExtensionNotebookHost = {create({
   function remove(e,stopOwner=false) {
     if (stopOwner) {
       const owner=pools.get("ext:"+e.id);
-      if (owner?.worker) stop(owner,"Notebook turned off.");
+      if (owner?.worker) stop(owner,"Notebook turned off.","cancelled");
     }
     admitted.delete(e); checkedMath.delete(e.manifest);
     cancelSearches(e);

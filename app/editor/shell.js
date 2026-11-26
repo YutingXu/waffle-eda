@@ -159,7 +159,7 @@ globalThis.AtriumShell = (() => {
     body.inert = !details.open;
   });
 
-  const {FIELD, visible, available, dialog, adoptDialog, openDialog, setupDialogs} = AtriumUI;
+  const {FIELD, visible, available, focusableFromMarkup, dialog, adoptDialog, openDialog, setupDialogs} = AtriumUI;
   function focusEditor() {
     if (globalThis.AtriumStartPage?.isOpen?.()) return;
     const canvas = globalThis.AtriumNavHost?.canvas?.();
@@ -173,12 +173,14 @@ globalThis.AtriumShell = (() => {
   // ------------------------------------------------- Roving focus (toolbars, Projects)
   // Each toolbar and the Projects tree is one Tab stop; arrow keys move inside it.
   const ROVE = "button:not(:disabled):not([hidden])";
-  function roveItems(group) {
-    if (group.id === "projects-tree") return Array.from(group.querySelectorAll("summary, #documents > button")).filter(available);
-    return Array.from(group.querySelectorAll(ROVE)).filter(n => visible(n) && n.closest("[role=toolbar]") === group);
+  function roveItems(group, fromMarkup = false) {
+    const tree = group.id === "projects-tree";
+    const eligible = fromMarkup ? focusableFromMarkup : tree ? available : visible;
+    return Array.from(group.querySelectorAll(tree ? "summary, #documents > button" : ROVE))
+      .filter(n => (tree || n.closest("[role=toolbar]") === group) && eligible(n));
   }
-  function roveSync(group) {
-    const items = roveItems(group); if (!items.length) return;
+  function roveSync(group, fromMarkup = false) {
+    const items = roveItems(group, fromMarkup); if (!items.length) return;
     const keep = items.find(n => n.tabIndex === 0 && n.dataset.rove === "on") || items.find(n => n.matches("[aria-current=true],[aria-pressed=true],[aria-selected=true]")) || items[0];
     for (const n of items) { n.tabIndex = n === keep ? 0 : -1; n.dataset.rove = n === keep ? "on" : ""; }
   }
@@ -224,7 +226,12 @@ globalThis.AtriumShell = (() => {
   });
   if (typeof MutationObserver !== "undefined") {
     const resync = new MutationObserver(records => { const seen = new Set(); for (const r of records) { const g = r.target.closest?.("[role=toolbar],#projects-tree"); if (g && !seen.has(g)) { seen.add(g); roveSync(g); } } });
-    for (const g of roveGroups()) { roveSync(g); resync.observe(g, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "disabled", "aria-current", "open"] }); }
+    for (const g of roveGroups()) {
+      // The authored groups already carry their initial hidden and disabled state.
+      // Real visibility is still used for later updates and keyboard navigation.
+      roveSync(g, g.hasAttribute("data-initial-roving"));
+      resync.observe(g, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "disabled", "aria-current", "open"] });
+    }
   }
 
   // ------------------------------------------------- Native behaviour (docs/design-system.md)

@@ -140,6 +140,8 @@ const td = new TextDecoder(), te = new TextEncoder();
   let unrelated = 0, readerRefreshes = 0;
   const wasOccluded = AtriumPower.state().occluded;
   AtriumPower.host({occluded:true});
+  // The edit already queued a Problems status update. Let it finish before watching Save.
+  await Promise.resolve();
   Object.defineProperty(docs,other,{configurable:true,get() {
     unrelated++; throw Error("Saving a board visited an unrelated sheet.");
   }});

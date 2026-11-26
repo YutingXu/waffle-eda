@@ -303,10 +303,7 @@ globalThis.AtriumUIGallery = (() => {
     function art(ratio) { const a = k.el("span", "ui-gallery-art"); a.style.aspectRatio = ratio; return a; }
     const graph = node.querySelector(".ui-gallery-graph");
     if (graph) {
-      const L = globalThis.AtriumLazy;
-      L.register("AtriumCommitGraph", {scripts: ["ui/commit-graph.js"]});
-      L.need("AtriumCommitGraph").then(CG => {
-        CG.icons();
+      globalThis.AtriumLazy.need("AtriumCommitGraph").then(CG => {
         const entries = [["working", "Working design", ["e1"], true], ["e1", "Rotate R2", ["c1"], true], ["c1", "Merge review", ["c2", "c4"]],
           ["c2", "Fab notes", ["c3"]], ["c4", "Check creepage", ["c5"]], ["c3", "Reroute supply", ["c5"]], ["c5", "Add sensor interface", []]];
         const rows = CG.lanes(entries.map(([revision, , parents, pseudo]) => ({revision, parents, pseudo})));

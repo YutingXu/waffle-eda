@@ -868,9 +868,27 @@ globalThis.AtriumPalette = (() => {
       });
     }
     for (const [id,provider] of providers) if (provider.stream) {
-      Promise.resolve().then(() => valid() && provider.stream(request,batch => emit(id,batch))).then(batch => {
-        if (Array.isArray(batch)) emit(id,batch);
-      },() => {});
+      let timing;
+      const cancel = () => timing.end("cancelled");
+      const finish = outcome => {
+        if (!timing) return;
+        request.signal.removeEventListener("abort",cancel);
+        timing.end(valid() ? outcome : "cancelled");
+      };
+      Promise.resolve().then(() => {
+        if (!valid()) return;
+        timing = globalThis.AtriumDiagnostics?.performance?.begin("search", "request");
+        if (timing) request.signal.addEventListener("abort",cancel,{once:true});
+        return provider.stream(request,batch => emit(id,batch));
+      }).then(batch => {
+        try {
+          if (Array.isArray(batch)) emit(id,batch);
+          finish("completed");
+        } catch (error) {
+          finish("failed");
+          throw error;
+        }
+      }, error => finish(error?.name === "AbortError" ? "cancelled" : "failed"));
     }
   }
   const spatialQuery = node => node?.type === "near" || node?.args?.some(spatialQuery) || node?.arg && spatialQuery(node.arg);
@@ -879,6 +897,8 @@ globalThis.AtriumPalette = (() => {
     let revision;
     const current = () => query === captured && !signal.aborted && host.project() === project &&
       (revision == null || host.revision?.() === revision);
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("search", "search");
+    let outcome = "cancelled";
     try {
       const service = await globalThis.AtriumLabs.designQueryService(source);
       if (!current()) return;
@@ -921,9 +941,13 @@ globalThis.AtriumPalette = (() => {
       if (!result.complete) captured.diagnostic = result.diagnostic?.message;
       if (result.rows) publish(result);
       else results = groupEntries([]);
+      outcome = result.complete ? "completed" : "failed";
     } catch (error) {
       if (!current()) return;
       captured.diagnostic = error.message;
+      outcome = error?.name === "AbortError" ? "cancelled" : "failed";
+    } finally {
+      timing?.end(outcome);
     }
     captured.designQuery = "ready";
     render();
@@ -949,7 +973,15 @@ globalThis.AtriumPalette = (() => {
     }
     const rich = session.enhanced;
     query.sourceVersion = indexChanges;
-    let next = !rich && !q && mode !== ":" ? search(sources(mode,q),"",{recent}) : ranked(mode,q,rich ? session : null,true);
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("search", "search");
+    let next;
+    try {
+      next = !rich && !q && mode !== ":" ? search(sources(mode,q),"",{recent}) : ranked(mode,q,rich ? session : null,true);
+      timing?.end("completed");
+    } catch (error) {
+      timing?.end("failed");
+      throw error;
+    }
     next.groups ??= [];
     next.total ??= next.length;
     next = arrangeCommandMatches(next,mode,!rich);

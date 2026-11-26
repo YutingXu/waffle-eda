@@ -96,3 +96,36 @@ assert.equal(result.fresh, true);
 assert.deepEqual(result.roundTrip, [9, 14]);
 assert.deepEqual(result.retained, {version:7, value:"untouched"});
 console.log("PASS first board paint, cutout connectivity, hit, and native validation match the full shape library");
+
+async function shapeBeforeItsStyle() {
+  const calls = [], api = {
+    open: () => { calls.push("open"); return "dialog"; },
+    properties: () => { calls.push("properties"); }
+  };
+  let sheet;
+  fullContext.document = {
+    createElement: () => ({}),
+    head: {append(node) {
+      if (node.href === "pcb/board-shape.css") { sheet = node; return; }
+      if (node.src === "pcb/board-shape-ui.js") fullContext.AtriumBoardShapeUI = api;
+      else load(fullContext, [node.src]);
+      node.onload();
+    }}
+  };
+  const loadUI = fullContext.AtriumLazy.need("AtriumBoardShapeUI");
+  assert.equal(fullContext.AtriumBoardShapeUI, api);
+  assert.ok(sheet && fullContext.AtriumLazy.pending("AtriumBoardShapeUI"));
+  const shape = fullContext.AtriumBoardShape;
+  const opening = shape.open({});
+  shape.properties({replaceChildren() {}}, {});
+  shape.properties({isConnected:false, replaceChildren() {}}, {});
+  assert.deepEqual(calls, [], "direct dialog and inspector entries wait while the style is in flight");
+  sheet.onerror(); // Preserve usable controls if a stylesheet cannot be read.
+  await loadUI;
+  assert.equal(await opening, "dialog");
+  assert.deepEqual(calls, ["open", "properties"]);
+  assert.equal(shape.open({}), "dialog", "a settled UI still opens synchronously");
+  console.log("PASS direct Board Shape dialog and inspector wait for their shared startup stylesheet");
+}
+globalThis.__testDone = shapeBeforeItsStyle();
+globalThis.__testDone.catch(error => { console.error(error); process.exitCode = 1; });

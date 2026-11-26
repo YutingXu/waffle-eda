@@ -137,57 +137,146 @@ globalThis.AtriumRecover = (() => {
     return d;
   }
 
-  // Crash Diagnostics (Help menu): the local failure log (diagnostics.js) with a header a tester can
-  // attach to a bug report. Only codes, counts and Waffle script locations: no file names, paths,
-  // project names, error messages or anything typed. Nothing is sent anywhere.
-  const LABELS = {error: "JavaScript error", rejection: "Unhandled promise rejection", "script-load": "Script load failed",
-    autosave: "Autosave failed", renderer: "Editor process failure", worker: "Background worker failed",
-    hang: "Background task stopped responding and was restarted"};
-  function format(rows) {
-    return rows.map(row => {
-      const where = row.module ? " · " + row.module + (row.line ? ":" + row.line + (row.column ? ":" + row.column : "") : "") : "";
-      return new Date(row.at).toISOString() + " · " + (LABELS[row.kind] || row.kind) + " · " + row.type + (row.reason ? " · " + row.reason : "") + where;
-    }).join("\n");
+  const FAILURE_FIELDS = ["javascriptErrors", "unhandledRejections", "scriptLoadFailures", "autosaveFailures",
+    "workerFailures", "workerTimeouts"];
+  const TERMINATION_FIELDS = ["exited", "unresponsive", "browserExited", "memoryLimit", "terminated"];
+  const GPU_WORK_FIELDS = ["frames", "gridBufferAllocations", "driverFenceSubmissions", "driverMemoryChecks"];
+  const MIB = 1048576;
+  const read = fn => { try { return fn(); } catch { return undefined; } };
+  const field = (obj, key) => read(() => Object.getOwnPropertyDescriptor(obj, key)?.value);
+  const oneOf = (value, choices) => choices.includes(value) ? value : "unknown";
+  const flag = value => typeof value === "boolean" ? value : null;
+  const band = (value, bounds, labels, unknown = "unknown") => {
+    if (!Number.isFinite(value) || value < 0 || value > 2 ** 40) return unknown;
+    const index = bounds.findIndex(bound => value < bound);
+    return labels[index < 0 ? bounds.length : index];
+  };
+  const count = value => Number.isSafeInteger(value) && value <= 32
+    ? band(value, [1, 2, 5], ["none", "one", "two-to-four", "five-or-more"]) : "unknown";
+  const counts = (source, fields) => Object.fromEntries(fields.map(key => [key, count(field(source, key))]));
+  function gpuWork(source) {
+    const available = source != null && typeof source === "object" && !Array.isArray(source);
+    return {scope: available ? "active-pcb-gpu-view" : "not-applicable", ...Object.fromEntries(GPU_WORK_FIELDS.map(key => {
+      const value = field(source, key);
+      return [key, !available ? "not-applicable" : globalThis.AtriumDiagnostics?.countBucket?.(value) ?? "unknown"];
+    }))};
   }
-  function report(rows, A) {
-    const G = globalThis, nav = /** @type {any} */ (G.navigator || {}), mb = n => Math.round(n / 1048576) + " MB";
-    const ua = String(nav.userAgent || ""), browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /AppleWebKit/.test(ua) ? "WebKit" : "unknown";
-    const host = G.AtriumHost ? (/Mac/.test(nav.platform) ? "macOS" : /Win/.test(nav.platform) ? "Windows" : "Linux") + " app" : "browser";
-    const heap = /** @type {any} */ (G.performance)?.memory, undo = G.AtriumUndoStore?.stats?.();
-    const lines = ["Waffle " + (G.AtriumAbout?.VERSION || "") + " diagnostics report", "Host: " + host + " (" + browser + ")",
-      "Processor threads: " + (nav.hardwareConcurrency || "unknown") + (nav.deviceMemory ? " · device memory: " + nav.deviceMemory + " GB" : ""),
-      "Session: " + Math.round((G.performance?.now?.() || 0) / 60000) + " min" + (heap ? " · JavaScript heap: " + mb(heap.usedJSHeapSize) + " of " + mb(heap.jsHeapSizeLimit) : ""),
-      "Recovery storage: " + (A?.backend?.() || "unknown") + (undo?.bytes != null ? " · undo history: " + mb(undo.bytes) : ""),
-      "Privacy: codes and Waffle script locations only (no file names, paths, project names or messages).", "",
-      rows.length ? format(rows) : "No failures recorded."];
-    return lines.join("\n");
+  function applicationVersion() {
+    const value = read(() => /** @type {HTMLMetaElement | null} */ (
+      document.querySelector('meta[name="application-version"]')
+    )?.content);
+    return typeof value === "string" && /^(?:0|[1-9]\d{0,2})\.(?:0|[1-9]\d{0,2})\.(?:0|[1-9]\d{0,2})$/.test(value)
+      ? value.split(".").map(Number) : null;
+  }
+  async function nativeState() {
+    const pending = read(() => globalThis.AtriumHost?.supportDiagnostics?.());
+    if (!pending) return null;
+    let timeout;
+    try {
+      return await Promise.race([pending, new Promise(resolve => { timeout = setTimeout(() => resolve(null), 1500); })]);
+    } catch { return null; }
+    finally { clearTimeout(timeout); }
+  }
+  // The report is a one-time projection. Its keys are fixed, and no producer object, free text,
+  // exception, or identifier is retained or passed to the serializer.
+  async function report() {
+    const G = globalThis;
+    if (!G.AtriumPerformanceDiagnostics) {
+      try { await G.AtriumLazy?.need("AtriumPerformanceDiagnostics", {measure: false}); }
+      catch { /* startup failure counts are still available */ }
+    }
+    const viewport = read(() => G.AtriumNavHost?.viewportDiagnostics?.()), gpu = field(viewport, "gpu");
+    const preference = read(() => G.AtriumCanvasGPUPref?.diagnosticState?.());
+    const visible = flag(read(() => G.AtriumPower?.visible?.()));
+    const efficiencyActive = flag(read(() => G.AtriumPower?.efficient?.()));
+    const activity = read(() => G.AtriumDiagnostics?.performanceSnapshot?.({shareable: true}));
+    const frame = field(activity, "frame");
+    const timing = key => field(frame, key) ?? "not-measured";
+    const failures = read(() => G.AtriumDiagnostics?.failures?.());
+    const version = applicationVersion();
+    const pixelRatio = read(() => G.devicePixelRatio);
+    const kind = oneOf(field(viewport, "kind"), ["home", "pcb", "schematic", "drawing", "panel", "3d"]);
+    const presentation = oneOf(field(viewport, "presentation"), ["foreground", "covered", "hidden", "not-applicable"]);
+    const width = field(viewport, "width"), height = field(viewport, "height");
+    const area = Number.isSafeInteger(width) && width > 0 && Number.isSafeInteger(height) && height > 0 ? width * height : null;
+    const native = await nativeState();
+    const platform = oneOf(field(native, "platform"), ["macos", "windows", "linux"]);
+    const renderState = kind !== "pcb" ? "not-applicable" : presentation === "covered" ? "covered" :
+      presentation === "hidden" ? "paused" : oneOf(field(gpu, "state"),
+        ["gpu", "2d", "paused", "context-lost", "memory-limit", "disabled", "error"]);
+    return JSON.stringify({
+      format: "waffle-diagnostics",
+      schemaVersion: 1,
+      applicationVersion: version,
+      host: {kind: G.AtriumHost ? "desktop" : "browser", platform,
+        architecture: oneOf(field(native, "architecture"), ["arm64", "x64"]),
+        availableDisplays: oneOf(field(native, "displayCount"), ["one", "two", "three-or-more"])},
+      viewport: {
+        kind, presentation, windowVisible: visible, efficiencyActive,
+        cssArea: band(area, [500000, 1200000, 2500000], ["small", "medium", "large", "very-large"]),
+        pixelRatio: band(Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : null,
+          [1.25, 1.75, 2.5], ["near-1", "near-1.5", "near-2", "above-2"])
+      },
+      boardRenderer: {
+        preference: oneOf(field(preference, "preference"), ["auto", "gpu", "2d"]),
+        webgl2: oneOf(field(preference, "capability"), ["disabled", "available", "unavailable", "software"]),
+        renderState, retainedContexts: count(field(gpu, "contexts")), contextLosses: count(field(gpu, "losses")),
+        warmupPending: flag(field(gpu, "warmupPending")), activeParkedScenes: count(field(gpu, "parkedScenes")),
+        activeEstimatedGpuBytes: band(field(gpu, "activeBytes"), [1, 32 * MIB, 128 * MIB, 512 * MIB],
+          ["none", "under-32MiB", "32-to-128MiB", "128-to-512MiB", "512MiB-or-more"]),
+        activeViewWork: gpuWork(kind === "pcb" ? field(gpu, "work") : null)
+      },
+      performance: {
+        canvasMainThreadP95: timing("drawCpuP95"),
+        controlWheelToDrawP95: timing("wheelToDrawP95"),
+        editCommitMainThreadP95: timing("commitCpuP95"),
+        editFollowUpMainThreadP95: timing("followUpCpuP95"),
+        animationCallbackIntervalP95: timing("callbackIntervalP95"),
+        displayPresentedFps: "not-measured",
+        systemCpuUtilization: "not-measured",
+        activity: activity ?? {version: 1, recording: false, rows: []}
+      },
+      recordedEditorFailures: counts(failures, FAILURE_FIELDS),
+      rendererTerminations: counts(field(native, "rendererTerminations"), TERMINATION_FIELDS)
+    }, null, 2) + "\n";
   }
   async function diagnostics(A, host) {
-    const d = dialog("Crash Diagnostics", "diagnostics-dialog"), D = globalThis.AtriumDiagnostics;
-    const log = el("textarea", null, "diagnostics-log"), foot = el("div", null, "work-actions");
+    const d = dialog("Crash Diagnostics", "diagnostics-dialog");
+    const log = el("textarea", null, "diagnostics-log ui-field"), foot = el("div", null, "work-actions");
     log.readOnly = true;
     log.setAttribute("aria-label", "Diagnostics report");
+    let preview;
     const copy = button("Copy report", async () => {
-      try { await navigator.clipboard.writeText(log.value); }
-      catch { log.focus(); log.select(); document.execCommand?.("copy"); }
+      if (!preview) return;
+      try { await navigator.clipboard.writeText(preview); }
+      catch {
+        log.value = preview;
+        log.focus();
+        log.select();
+        if (!read(() => document.execCommand?.("copy"))) {
+          host?.info?.("Could not copy the diagnostics report");
+          return;
+        }
+      }
       host?.info?.("Diagnostics report copied");
     });
-    const save = button("Save report…", () => {
-      const name = "atrium-diagnostics-" + new Date().toISOString().slice(0, 10) + ".txt";
-      Promise.resolve(globalThis.AtriumIO?.exportFile?.(name, log.value + "\n")).catch(e => host?.info?.(e.message));
+    const save = button("Save report…", async () => {
+      if (!preview) return;
+      try { await globalThis.AtriumIO.exportFile("waffle-diagnostics.json", preview, {diagnostics: true}); }
+      catch { host?.info?.("Could not save the diagnostics report"); }
     });
     copy.disabled = save.disabled = true;
     const close = button("Close", () => d.close());
     close.dataset.variant = "primary";
     foot.append(button("Recover unsaved work…", () => { d.close(); A.openBrowser(); }, "recover-link"), copy, save, close);
-    const title = el("h2", "Crash Diagnostics"), detail = el("p", "Recent editor failures and autosave errors on this device. The report stays on this computer until you copy or save it; attach it to a bug report.");
+    const title = el("h2", "Crash Diagnostics"), detail = el("p",
+      "Preview the report you can copy or save for a bug report. It includes recorded failure counts on this device. Frame Monitor samples animation callbacks and elapsed operation times. System CPU utilization is not measured.");
     d.append(title, detail, log, foot);
-    log.classList.add("ui-field");
     AtriumShell.adoptDialog(d, {title, body:[detail, log], actions:foot, initialFocus:close});
     document.body.append(d); d.showModal();
-    const rows = await D?.entries() || [];
-    try { await globalThis.AtriumLazy?.need?.("AtriumAbout"); } catch { /* the version is optional */ }
-    log.value = report(rows, A);
+    const text = await report();
+    if (!d.open) return d;
+    preview = log.value = text;
     copy.disabled = save.disabled = false;
     return d;
   }
@@ -209,5 +298,5 @@ globalThis.AtriumRecover = (() => {
     return bar;
   }
   function hideWarning() { bar?.remove(); bar = null; }
-  return Object.freeze({prompt, browser, diagnostics, warning, hideWarning, format, report});
+  return Object.freeze({prompt, browser, diagnostics, warning, hideWarning, report});
 })();

@@ -3,6 +3,10 @@
 // Installed before the app. Record the wall time of each outermost wrapped callback.
 function instrumentCallbacks() {
   const W = window;
+  W.__requireBoardAt = (canvas, x, y) => {
+    if (canvas.inert || document.elementFromPoint(x, y) !== canvas)
+      throw Error("The benchmark input point is not on the visible board");
+  };
   W.__work = [];
   W.__rawTimeout = W.setTimeout.bind(W);
   let depth = 0;
@@ -50,6 +54,7 @@ async function measureZoomSettle({bursts, events, quietMs, renderer, prepare}) {
     H.redraw(true); await wait(400);
     view.zoom(4, [x, y]); H.redraw(true); await wait(1500);
   }
+  window.__requireBoardAt(canvas, r.left + x, r.top + y);
   const gesture = [], settled = [], fallback = new Set(), perBurst = [];
   const render = view.render, move = view.moving;
   let moving = false;
@@ -59,8 +64,9 @@ async function measureZoomSettle({bursts, events, quietMs, renderer, prepare}) {
     moving = false;
     const start = performance.now(), result = render.apply(this, args);
     if (gestureFrame) gesture.push(performance.now() - start);
-    const actual = G?.status(I);
-    if ((actual?.renderer || "2d") !== renderer) fallback.add(actual?.reason || actual?.renderer || "2d");
+    const state = G?.resourceCounters?.(I)?.renderState;
+    const actual = state ?? G?.status(I)?.renderer ?? "2d";
+    if (actual !== renderer) fallback.add(actual);
     return result;
   };
   const wheel = options => canvas.dispatchEvent(new WheelEvent("wheel", {
@@ -69,6 +75,8 @@ async function measureZoomSettle({bursts, events, quietMs, renderer, prepare}) {
   try {
     for (const options of bursts) {
       const firstGesture = gesture.length, firstSettle = settled.length;
+      const surface = canvas.previousElementSibling;
+      const before = renderer === "gpu" ? G.resourceCounters?.(I) : null;
       for (let n = 0; n < events; n++) {
         wheel(options);
         if (n + 1 < events) await wait(16);
@@ -78,7 +86,31 @@ async function measureZoomSettle({bursts, events, quietMs, renderer, prepare}) {
       await wait(quietMs);
       for (let k = 0; k < window.__work.length; k += 2)
         if (window.__work[k] >= start && window.__work[k] < start + quietMs) settled.push(window.__work[k + 1]);
-      perBurst.push({gesture:gesture.length - firstGesture, settled:settled.length - firstSettle});
+      const work = {gesture:gesture.length - firstGesture, settled:settled.length - firstSettle};
+      if (before && Number.isSafeInteger(before.frames)) {
+        const after = G.resourceCounters(I);
+        if (!after || surface !== canvas.previousElementSibling) throw Error("The GPU view changed during the benchmark");
+        work.gpu = {};
+        for (const key of ["frames", "gridBufferAllocations", "driverFenceSubmissions", "driverMemoryChecks"]) {
+          const delta = after[key] - before[key];
+          if (!Number.isSafeInteger(delta) || delta < 0) throw Error("Invalid GPU work counter: " + key);
+          work.gpu[key] = delta;
+        }
+        if ("retainedFrames" in before || "retainedFrames" in after) {
+          const delta = after.retainedFrames - before.retainedFrames;
+          if (!Number.isSafeInteger(before.retainedFrames) || !Number.isSafeInteger(after.retainedFrames) ||
+              !Number.isSafeInteger(delta) || delta < 0 || delta > work.gpu.frames)
+            throw Error("Invalid GPU work counter: retainedFrames");
+          work.gpu.retainedFrames = delta;
+        }
+        for (const key of ["textSliceRows", "wideSliceRows", "textSliceWorkMs", "wideSliceWorkMs"]) {
+          if (!(key in before) && !(key in after)) continue;
+          const delta = after[key] - before[key];
+          if (!Number.isFinite(delta) || delta < 0) throw Error("Invalid text raster work counter: " + key);
+          work.gpu[key] = delta;
+        }
+      }
+      perBurst.push(work);
     }
   } finally {
     view.render = render;

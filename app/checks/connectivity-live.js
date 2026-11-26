@@ -391,14 +391,34 @@ globalThis.AtriumConnectivityLive = (() => {
   // started: a number runs the pass now for that many ms first (in the edit's own frame, with its
   // geometry): finished, it is published at once (publish(result,cost,true)). Or quick()'s pass.
   function deferAirwires(doc,defs,journal,stage,key,ready,publish,started){
-    if(typeof started==="number"){const q=quick(doc,defs,journal,started);if(q.result){if(ready())publish(q.result,q.cost,true);return {current:()=>false,cancel(){}};}started=q;}
+    const recorder=globalThis.AtriumDiagnostics?.performance;
+    function put(result,cost,immediate){
+      const span=recorder?.begin("connectivity","publish");
+      try{publish(result,cost,immediate);span?.end("completed");}
+      catch(error){span?.end("failed");throw error;}
+    }
+    if(typeof started==="number"){
+      const span=recorder?.begin("connectivity","compute");
+      try{started=quick(doc,defs,journal,started);}
+      catch(error){span?.end("failed");throw error;}
+      if(started.result)span?.ready();
+      span?.end("completed");
+      if(started.result){if(ready())put(started.result,started.cost,true);return {current:()=>false,cancel(){}};}
+    }
+    const span=recorder?.queue("connectivity","compute");
     let job, work, cost=0;
     const clock=()=>performance.now();
     const usable=()=>job.current()&&ready();
-    const cancel=()=>{job.cancel();work?.return();};
-    const continueProjection=()=>stage("airwires",key,projectAirwires,{short:true});
-    function projectAirwires(_current,deadline){
+    const stop=()=>{job.cancel();work?.return();};
+    const cancel=()=>{span?.end("cancelled");stop();};
+    function run(step,deadline){
       if(!usable()){cancel();return;}
+      span?.start();
+      try{step(deadline);}
+      catch(error){span?.end("failed");throw error;}
+    }
+    const continueProjection=()=>stage("airwires",key,(_current,deadline)=>run(projectAirwires,deadline),{short:true});
+    function projectAirwires(deadline){
       const at=clock(),budget=Math.min(4,deadline?.timeRemaining()??4);
       let result=work.next();while(!result.done&&result.value!==NEXT_TASK&&clock()-at<budget)result=work.next();
       cost+=clock()-at;
@@ -409,18 +429,22 @@ globalThis.AtriumConnectivityLive = (() => {
           // can finish on its own graph without displacing the other pass.
           work=stages(doc,defs,journal,new WeakMap());job=continueProjection();return;
         }
-        cancel();if(use)publish(result.value,cost);
+        if(!use){cancel();return;}
+        span?.ready();
+        stop();
+        put(result.value,cost);
+        span?.end("completed");
       }
       else job=continueProjection();
     }
     if(started?.work){work=started.work;cost=started.cost;job=continueProjection();return {current:()=>job.current(),cancel};}
-    job=stage("connectivity",key,()=>{
-      if(!usable()){cancel();return;}
+    function beginProjection(){
       const at=clock();
       work=stages(doc,defs,journal);
       work.next();cost+=clock()-at;
       job=continueProjection();
-    });
+    }
+    job=stage("connectivity",key,()=>run(beginProjection));
     return {current:()=>job.current(),cancel};
   }
   return Object.freeze({inspect, stages, quick, deferAirwires});

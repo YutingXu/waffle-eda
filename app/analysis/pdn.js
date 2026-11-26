@@ -689,7 +689,9 @@ function AtriumPDNServe(scope, core) {
 
 // One worker or one foreground solve, with a single terminal transition.
 function AtriumSolverClient(job, {onProgress, foreground = false} = {}, adapt) {
-  let cancel, timer, worker, settled = false;
+  const perf = globalThis.AtriumDiagnostics?.performance;
+  const span = perf?.queue("analysis", "compute");
+  let cancel, timer, worker, fallbackSpan, settled = false;
   const meta = job.meta;
   const promise = new Promise((resolve, reject) => {
     function release() {
@@ -701,24 +703,42 @@ function AtriumSolverClient(job, {onProgress, foreground = false} = {}, adapt) {
         active.terminate();
       }
     }
-    function finish(error, result) {
+    function finish(error, result, cancelled = false) {
       if (settled) return;
       settled = true;
       try {
         release();
-        if (error) reject(error);
-        else resolve(Object.assign(result, {meta}));
-      } catch (failure) { reject(error || failure); }
+        if (error) {
+          const outcome = cancelled ? "cancelled" : "failed";
+          fallbackSpan?.end(outcome);
+          span?.end(outcome);
+          reject(error);
+        } else {
+          const value = Object.assign(result, {meta});
+          fallbackSpan?.end();
+          span?.ready();
+          span?.end();
+          resolve(value);
+        }
+      } catch (failure) {
+        fallbackSpan?.end("failed");
+        span?.end("failed");
+        reject(error || failure);
+      }
     }
-    cancel = () => finish(Error("Cancelled."));
+    cancel = () => finish(Error("Cancelled."), null, true);
     const progress = value => { if (!settled) onProgress?.(value); };
     const fore = () => {
       timer = setTimeout(() => {
         if (settled) return;
+        span?.start();
+        if (!foreground) fallbackSpan = perf?.begin("analysis", "fallback");
         try { finish(null, adapt.compute(job, progress)); } catch (error) { finish(error); }
       }, 0);
     };
-    const active = foreground ? null : adapt.makeWorker();
+    let active;
+    try { active = foreground ? null : adapt.makeWorker(); }
+    catch (error) { finish(error); return; }
     if (!active) { fore(); return; }
     worker = active;
     let ready = false;
@@ -734,6 +754,7 @@ function AtriumSolverClient(job, {onProgress, foreground = false} = {}, adapt) {
       if (data.type === "ready" && !ready) {
         ready = true;
         clearTimeout(timer);
+        span?.start();
         const {meta: _meta, ...plain} = job, message = {type: "solve", id: 1, job: plain};
         try {
           const transfers = adapt.transfers?.(plain);

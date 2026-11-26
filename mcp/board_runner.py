@@ -30,6 +30,8 @@ def _app(name, *deps, optional=False):
 # name -> (file, dependencies, optional)
 MODULES = {
     "headless": (HERE / "headless.js", (), False),
+    "diagnostic-failures": _app("checks/diagnostics"),
+    "diagnostics": _app("checks/performance-diagnostics", "diagnostic-failures"),
     "motion": _app("editor/editor-motion"),
     "proposal": (APP / "automation/proposal.js", (), False),
     "format-2-codec": _app("formats/format-2-codec", "source-file"),
@@ -371,6 +373,8 @@ def load_jsc():
 
 
 _SIGNATURES = None
+_JSC_FUNCTION = c.CFUNCTYPE(c.c_void_p, c.c_void_p, c.c_void_p, c.c_void_p, c.c_size_t,
+                           c.POINTER(c.c_void_p), c.POINTER(c.c_void_p))
 
 
 def _bind(lib):
@@ -396,6 +400,8 @@ def _bind(lib):
         "JSObjectCallAsFunction": (ref, [ref, ref, ref, c.c_size_t, exception, exception]),
     }
     optional = {
+        "JSValueMakeNumber": (ref, [ref, c.c_double]),
+        "JSObjectMakeFunctionWithCallback": (ref, [ref, ref, _JSC_FUNCTION]),
         # Private but exported by every JavaScriptCore build: a watchdog that
         # terminates long-running scripts.
         "JSContextGroupSetExecutionTimeLimit": (None, [ref, c.c_double, ref, ref]),
@@ -434,6 +440,7 @@ class JavaScriptCore:
         if not self.context:
             raise ValueError("Could not create the JavaScriptCore context.")
         self.loaded, self.functions = set(), {}
+        self.diagnostics_clock = None
         self.timer = hasattr(lib, "JSContextGroupSetExecutionTimeLimit")
         self.armed = None  # Seconds per API entry while the watchdog stays armed (scripts).
         try:
@@ -447,6 +454,40 @@ class JavaScriptCore:
         if self.context:
             self.lib.JSGlobalContextRelease(self.context)
             self.context = None
+            self.diagnostics_clock = None
+
+    def install_diagnostics_clock(self):
+        """Install a monotonic clock in the trusted board context on first recording."""
+        if self.diagnostics_clock is not None:
+            return
+        make_number = getattr(self.lib, "JSValueMakeNumber", None)
+        make_function = getattr(self.lib, "JSObjectMakeFunctionWithCallback", None)
+        if not make_number or not make_function:
+            return  # The headless wall-clock shim tells the recorder to omit durations.
+        if self.value_text(self.evaluate('Object.hasOwn(globalThis.performance ?? {}, "__waffleDiagnosticsNow")')) != "true":
+            return  # This engine already has its own performance clock.
+        monotonic_ns = time.monotonic_ns
+        try:
+            epoch = monotonic_ns()
+        except OSError:
+            return
+
+        @_JSC_FUNCTION
+        def now(context, _function, _receiver, _argc, _argv, _exception):
+            try:
+                elapsed = (monotonic_ns() - epoch) / 1_000_000
+            except OSError:
+                elapsed = float("nan")
+            return make_number(context, elapsed)
+
+        install = self.evaluate('(now) => Object.defineProperty(performance, "__waffleDiagnosticsNow", {value: now})')
+        self.lib.JSValueProtect(self.context, install)
+        try:
+            clock = make_function(self.context, None, now)
+            if clock and self.lib.JSObjectCallAsFunction(self.context, install, None, 1, (c.c_void_p * 1)(clock), None):
+                self.diagnostics_clock = now  # ctypes must retain the callback until JSGlobalContextRelease.
+        finally:
+            self.lib.JSValueUnprotect(self.context, install)
 
     def ensure(self, names):
         for name, path in resolve(names):
@@ -823,6 +864,14 @@ class BoardRunner:
                     raise TimeoutError("Numeric field updates exceeded the operation time limit.")
                 time.sleep(0.001)
         return head, raw
+
+    def performance_control(self, action, outcome=None, *, projection="shareable"):
+        if action == "start" and self.jsc and not self.cli:
+            self.jsc.ensure(("headless",))
+            self.jsc.install_diagnostics_clock()
+        text = self.call("AtriumHeadlessDiagnostics", ("diagnostics",), {"action": action, "outcome": outcome, "projection": projection},
+                         timeout=5, retry=True)
+        return json.loads(text)
 
     def collect(self):
         if self.jsc:

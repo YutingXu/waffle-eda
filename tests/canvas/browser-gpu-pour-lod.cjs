@@ -30,7 +30,7 @@ async function testPourLOD({requireHardware = false} = {}) {
       long:{levels:[7,6,5,4,-1],fresh:true}, edited:{changed:true,fresh:true,reuploaded:true},
       undone:{matches:true,reuploaded:true}, removed:{pourBytes:0,pourCacheBytes:0},
       cap:{gpu:true,evicted:true,rejected:true}, restored:{freshCanvas:true,freshPixels:true,reuploaded:true},
-      driverOOM:{waited:true,replacedFence:true,readAfterSignal:true,reported:true,canvasInk:true}
+      driverOOM:{waited:true,keptFence:true,readAfterSignal:true,reported:true,canvasInk:true}
     };
     for (const [name, value] of Object.entries(expected)) assert.deepEqual(result[name],value,name);
     assert.deepEqual([result.warm.uploads,result.warm.uploadBytes,result.warm.reuses],[0,0,6],JSON.stringify(result.warm));
@@ -200,17 +200,17 @@ async function pourLOD() {
       await waitFor(() => waits >= 2 || reads > 0,"The allocation check did not poll its fence");
       if (reads) throw Error("The allocation error was read while the completion fence was pending");
       const waited = G.status(I).renderer === "gpu";
-      const oldFences = fences;
+      const oldFences = fences, oldWaits = waits;
       draw(10,false);
-      await waitFor(() => fences > oldFences,"Drawing again must replace the old completion fence");
-      const replacedFence = !reads;
+      await waitFor(() => waits > oldWaits || reads > 0,"The check must keep polling after another draw");
+      const keptFence = fences === oldFences && !reads;
       hold = false;
       await waitFor(() => /GPU ran out of memory/.test(G.status(I).reason),"The driver allocation failure did not fall back");
       const reported = G.status(I).renderer === "2d" && G.composite(I) === null;
       draw(6,false);
       const pixels = cv.getContext("2d").getImageData(0,0,cv.width,cv.height).data;
       const canvasInk = pixels.some((r,i) => i % 4 === 0 && r > pixels[i+1]+30 && r > pixels[i+2]+30);
-      return {waited,replacedFence,readAfterSignal:reads === 2 && readAfterSignal.every(Boolean),reported,canvasInk};
+      return {waited,keptFence,readAfterSignal:reads === 2 && readAfterSignal.every(Boolean),reported,canvasInk};
     } finally { Object.assign(gl,{fenceSync,clientWaitSync,getError}); }
   }
   try {

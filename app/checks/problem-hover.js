@@ -61,13 +61,20 @@ globalThis.AtriumProblemHover = (() => {
     if (!out.at && d.kind === "pcb" && V) {
       const g = V.groupAt ? V.groupAt(pane, x, y) :
         M?.groupAt?.(host, pane, V.violations(d.id), x, y, V.waived?.(d.id));
-      if (g) { out.at = g.at; for (const v of g.members) out.entries.push(fromDRC(d, defs, v, out.boxes)); }
+      if (g?.at) return g.members.length ? {
+        ...out, at: g.at, entries: g.members.map(fromDRC),
+        // Picking and hover arbitration do not need card placement geometry.
+        get boxes() { return g.boxes ?? g.members.map(v => safe(() => M.box(d, defs, v))).filter(Boolean); }
+      } : null;
     }
     if (!out.at && I?.markerAt && I.enabled?.() && !I.expandOnHover?.()) {
-      const ins = I.markerAt(pane, x, y);
+      const boardGroup = d.kind === "pcb" && I.groupAt;
+      const g = boardGroup ? I.groupAt(pane, x, y) : null;
+      const ins = boardGroup ? g?.rep : I.markerAt(pane, x, y);
       if (ins && I.cardFor?.() !== ins) {
+        if (g?.coarse && g.members.length > 1) return fromInsightGroup(out, defs, g);
         out.at = I._markAt ? I._markAt(ins, P.size(scale, d.kind, "hint").r) : ins.at;
-        out.entries.push(fromInsight(d, defs, ins, out.boxes));
+        out.entries.push({...insightEntry(ins), objects: insightObjects(d, defs, ins, out.boxes)});
       }
     }
     if (!out.at && X?.badgeAt) {
@@ -76,7 +83,8 @@ globalThis.AtriumProblemHover = (() => {
         const p = P.badgeDetail(badge.at, scale, d.kind);
         out.at = p.at; out.radius = p.radius;
         const where = t(d.kind === "schematic" ? "problems.hover.board" : "problems.hover.sheet");
-        for (const v of badge.problems) out.entries.push({...describeCheck(v), objects: [badge.label], where, raw: v, kind: "cross"});
+        for (const {raw, labels} of badge.entries || badge.problems.map(v => ({raw:v, labels:[badge.label]})))
+          out.entries.push({...describeCheck(raw), objects: labels, where, raw, kind: "cross"});
       }
     }
     return out.at && out.entries.length ? out : null;
@@ -93,11 +101,11 @@ globalThis.AtriumProblemHover = (() => {
     return {severity: v.waiver ? "waived" : v.severity, word: v.waiver ? word("waived") : words(v), title, text};
   }
   // Designators and net names for the objects of a problem; their world boxes go to `boxes`.
-  function names(d, defs, ids, boxes) {
+  function names(d, defs, ids, boxes, items = d.items) {
     const out = [];
     if (!ids.length) return out;
     const want = new Set(ids);
-    for (const item of d.items) {
+    for (const item of items) {
       if (!want.has(item.id)) continue;
       const b = objectBox(d, defs, item);
       if (b) boxes.push(b);
@@ -120,22 +128,46 @@ globalThis.AtriumProblemHover = (() => {
     if (v.subject?.net && !objects.includes(v.subject.net)) objects.push(v.subject.net);
     return {...describeCheck(v), objects, raw: v, kind: "check"};
   }
-  function fromDRC(d, defs, v, boxes) {
+  function fromDRC(v) {
     const M = G.AtriumDRCMarkers, R = G.AtriumRules, info = M.describe(v, unit());
     const title = R?.types?.[v.type]?.title || v.typeTitle || v.ruleName || v.type;
     // value: the measured and required values (never shortened); text: the line as a whole.
     const value = /required/.test(info.measured) ? info.measured.replace(/^Measured\s+/, "") : "";
     const text = [info.measured || info.detail || "", v.ruleName && v.ruleName !== title ? t("problems.hover.rule", {name: v.ruleName}) : ""].filter(Boolean).join(" · ");
-    const b = safe(() => M.box(d, defs, v));
-    if (b) boxes.push(b);
     const severity = M.severity(v);
     return {severity, word: word(severity), title, text, value, note: value ? text.slice(info.measured.length).replace(/^ · /, "") : text, objects: info.objects.map(M.shortObject), raw: v, kind: "drc"};
   }
-  function fromInsight(d, defs, x, boxes) {
-    const objects = names(d, defs, x.objects || [], boxes);
+  const insightEntry = x => ({severity: "hint", word: t(x.severity === "advice" ? "problems.hover.advice" : "problems.hover.tip"),
+    title: x.title || x.check, text: x.message || "", raw: x, kind: "insight"});
+  function insightObjects(d, defs, x, boxes, items) {
+    const objects = names(d, defs, x.objects || [], boxes, items);
     if (x.net && !objects.includes(x.net)) objects.push(x.net);
     if (x.line) boxes.push([Math.min(x.line[0][0], x.line[1][0]), Math.min(x.line[0][1], x.line[1][1]), Math.max(x.line[0][0], x.line[1][0]), Math.max(x.line[0][1], x.line[1][1])]);
-    return {severity: "hint", word: t(x.severity === "advice" ? "problems.hover.advice" : "problems.hover.tip"), title: x.title || x.check, text: x.message || "", objects, raw: x, kind: "insight"};
+    return objects;
+  }
+  function fromInsightGroup(out, defs, group) {
+    const {d, boxes} = out, members = [group.rep, ...group.members.filter(x => x !== group.rep)];
+    let objects;
+    function resolve() {
+      if (!objects) {
+        const byId = new Map(), items = members.map(x => {
+          const row = [];
+          for (const id of new Set(x.objects || [])) {
+            if (!byId.has(id)) byId.set(id, []);
+            byId.get(id).push(row);
+          }
+          return row;
+        });
+        if (byId.size) for (const item of d.items) byId.get(item.id)?.forEach(row => row.push(item));
+        objects = members.map((x, i) => insightObjects(d, defs, x, boxes, items[i]));
+      }
+      return objects;
+    }
+    const entries = members.map((x, i) => {
+      const row = insightEntry(x);
+      return {...row, value:row.word, note:row.text, get objects() { return resolve()[i]; }};
+    });
+    return {...out, at:group.at, radius:group.reach, entries, get boxes() { resolve(); return boxes; }};
   }
   const same = (a, b) => !!a && !!b && a.pane.canvas === b.pane.canvas && a.d === b.d &&
     a.entries.length === b.entries.length && a.entries.every((e, i) => e.raw === b.entries[i].raw);

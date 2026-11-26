@@ -9,6 +9,7 @@ globalThis.CFB ??= (() => { try { return require("../../app/vendor/cfb.min.js");
 for (const f of ["model", "parts", "sch-objects", "hierarchy", "board-shape", "stackup", "viastack", "pcb-pours", "import-link", "connectivity", "net-ties", "rules", "router", "keymap"]) require(require("../support/app-source-paths.cjs").appFile(f + ".js"));
 for (const f of ["sexpr", "altium-rules", "source-file", "sch-import", "pcb-import", "io"]) { try { require(require("../support/app-source-paths.cjs").appFile(f + ".js")); } catch { /* importer optional */ } }
 require("../../app/pcb/route-suggest-engine.js"); require("../../app/pcb/route-habits.js"); require("../../app/pcb/route-suggest.js");
+require("../../app/checks/diagnostics.js");
 require("./autorouter-bench-boards.js");
 const H = require("./autorouter.cjs");
 const A = globalThis.Atrium, E = globalThis.AtriumRouteSuggestEngine, HB = globalThis.AtriumRouteHabits, RS = globalThis.AtriumRouteSuggest, R = globalThis.AtriumRouter;
@@ -140,6 +141,7 @@ test("a moved obstacle invalidates the preview with the same net and endpoints",
   const wall = {id: "wall", kind: "track", layer: "Top", width: 0.5, net: "GND", points: [[20, 0], [20, 8]], locked: true};
   d.items.push(wall);
   const h = fakeHost(d, defs, wiresOf(d));
+  const recording = AtriumDiagnostics.startPerformance();
   globalThis.AtriumNavHost = h;
   try {
     RS.install();
@@ -158,8 +160,12 @@ test("a moved obstacle invalidates the preview with the same net and endpoints",
     const full = E.suggest(d, defs, {...built.query, budgetMs: 400});
     assert.ok(full.ok);
     assert.deepEqual(revised.legs, full.alternatives[0].legs, "the new preview matches a fresh search on the full board");
+    const rows = AtriumDiagnostics.performanceSnapshot().rows;
+    assert.equal(rows.find(row => row.component === "routing" && row.operation === "fallback").counts.completed, 2);
+    assert.equal(rows.find(row => row.component === "routing" && row.operation === "publish").counts.completed, 2);
   } finally {
     RS.probe(null); RS._state.installed = false; delete globalThis.AtriumNavHost;
+    recording.stop();
   }
 });
 
@@ -168,6 +174,7 @@ test("workers require routing intent and cancel when it is lost", async () => {
   const h = fakeHost(d, defs, wiresOf(d)), workers = [];
   let efficient = false;
   const priorWorker = globalThis.Worker;
+  const recording = AtriumDiagnostics.startPerformance();
   globalThis.AtriumNavHost = h;
   globalThis.AtriumPower = {visible: () => true, efficient: () => efficient};
   globalThis.Worker = class {
@@ -194,6 +201,10 @@ test("workers require routing intent and cancel when it is lost", async () => {
     const msg = workers[0].suggestion, late = E.suggest(msg.board, defs, msg.query, msg.options);
     workers[0].onmessage({data: {type: "result", id: msg.id, result: late}});
     assert.equal(RS.visible(), false, "a result from the cancelled worker cannot paint");
+    const counts = operation => AtriumDiagnostics.performanceSnapshot().rows
+      .find(row => row.component === "routing" && row.operation === operation).counts;
+    assert.equal(counts("compute").cancelled, 1);
+    assert.equal(counts("compute").ready, 0, "the late reply is ignored by the recorder as well");
     efficient = true;
     h.routeSessionNow = () => ({anchor: () => ({point: [5, 15], layer: "Top", anchors: 0, width: 0.3}), state: {net: "SIG"}});
     RS.probe(null);
@@ -202,10 +213,16 @@ test("workers require routing intent and cancel when it is lost", async () => {
     efficient=false; RS.probe(null);
     await until(() => workers[1]?.suggestion);
     assert.equal(workers[1].suggestion.query.net,"SIG","a live route recomputes when normal power resumes");
+    const active = workers[1].suggestion;
+    workers[1].onmessage({data: {type: "result", id: active.id, result: E.suggest(active.board, defs, active.query, active.options)}});
+    assert.equal(counts("compute").completed, 1);
+    assert.equal(counts("compute").ready, 1);
+    assert.equal(counts("publish").completed, 1);
   } finally {
     h.routeSessionNow = null; RS.probe(null); RS.stopWorker(); RS._state.installed = false;
     delete globalThis.AtriumNavHost; delete globalThis.AtriumPower;
     if (priorWorker) globalThis.Worker = priorWorker; else delete globalThis.Worker;
+    recording.stop();
   }
 });
 

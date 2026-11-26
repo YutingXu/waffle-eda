@@ -1812,45 +1812,80 @@ globalThis.AtriumAutorouter = (() => {
   // Runs a job; returns {promise, cancel}. Uses a Worker when possible, otherwise
   // time-slices the generator on the UI thread.
   function run(job, {onProgress, foreground = false} = {}) {
-    let cancelled = false, worker = null, timer = null, rejectRun = null;
+    const perf = globalThis.AtriumDiagnostics?.performance;
+    const span = perf?.queue("routing", "request");
+    let settled = false, worker = null, timer = null, startupTimer = null, fallbackSpan, cancel;
     const promise = new Promise((resolve, reject) => {
-      rejectRun = reject;
+      function release() {
+        clearTimeout(startupTimer);
+        const active = worker;
+        worker = null;
+        if (active) { active.onmessage = active.onerror = null; active.terminate(); }
+      }
+      function finish(error, result, cancelled = false) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        release();
+        const outcome = error ? cancelled ? "cancelled" : "failed" : "completed";
+        if (!error) span?.ready();
+        span?.end(outcome);
+        fallbackSpan?.end(outcome);
+        if (error) reject(error); else resolve(result);
+      }
+      cancel = () => finish(Object.assign(Error("Routing cancelled."), {cancelled: true}), null, true);
       const fore = () => {
-        job.options = {...(job.options || {}), yieldMs: 12};
-        const it = core.route(job);
+        span?.start();
+        if (!foreground) fallbackSpan = perf?.begin("routing", "fallback");
+        let it;
+        try {
+          job.options = {...(job.options || {}), yieldMs: 12};
+          it = core.route(job);
+        } catch (error) { finish(error); return; }
         const slice = () => {
-          if (cancelled) return;
+          if (settled) return;
           const end = Date.now() + 14;
           try {
-            while (Date.now() < end) {
+            while (!settled && Date.now() < end) {
               const s = it.next();
-              if (s.done) { resolve(s.value); return; }
+              if (s.done) { finish(null, s.value); return; }
               onProgress?.(s.value);
             }
-          } catch (error) { reject(error); return; }
-          timer = setTimeout(slice, 0);
+          } catch (error) { finish(error); return; }
+          if (!settled) timer = setTimeout(slice, 0);
         };
         slice();
       };
       if (!foreground) worker = makeWorker();
       if (!worker) { fore(); return; }
+      const active = worker;
       let ready = false;
-      const fallback = setTimeout(() => { if (!ready) { worker.terminate(); worker = null; workerBroken = true; fore(); } }, 4000);
-      worker.onmessage = ({data}) => {
-        if (data.type === "ready") { ready = true; clearTimeout(fallback); worker.postMessage({type: "route", id: 1, job}); return; }
-        if (data.type === "progress") onProgress?.(data.value);
-        else if (data.type === "result") { worker.terminate(); worker = null; resolve(data.value); }
-        else if (data.type === "error") { worker.terminate(); worker = null; reject(Error(data.message)); }
+      const fallback = () => {
+        if (ready || worker !== active) return;
+        release();
+        workerBroken = true;
+        fore();
       };
-      worker.onerror = e => {
+      startupTimer = setTimeout(fallback, 4000);
+      active.onmessage = ({data}) => {
+        if (worker !== active) return;
+        if (data.type === "ready" && !ready) {
+          ready = true;
+          clearTimeout(startupTimer);
+          span?.start();
+          try { active.postMessage({type: "route", id: 1, job}); }
+          catch (error) { finish(error); }
+        } else if (data.type === "progress") onProgress?.(data.value);
+        else if (data.type === "result") finish(null, data.value);
+        else if (data.type === "error") finish(Error(data.message));
+      };
+      active.onerror = e => {
         e.preventDefault?.();
-        clearTimeout(fallback);
-        if (worker) worker.terminate();
-        worker = null;
-        if (!ready) { workerBroken = true; fore(); } else reject(Error(e.message || "Autorouter worker failed."));
+        if (worker !== active) return;
+        if (ready) finish(Error(e.message || "Autorouter worker failed.")); else fallback();
       };
     });
-    return {promise, cancel() { cancelled = true; if (timer) clearTimeout(timer); if (worker) { worker.terminate(); worker = null; } rejectRun?.(Object.assign(Error("Routing cancelled."), {cancelled: true})); }};
+    return {promise, cancel};
   }
 
   // Synchronous convenience for tests and scripts: route a board, return the plan.

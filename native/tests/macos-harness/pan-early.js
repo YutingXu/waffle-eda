@@ -7,10 +7,14 @@
   const W = window, now = () => performance.now();
   W.__work = []; W.__depth = 0; W.__rawTimeout = W.setTimeout.bind(W); W.__uploads = 0; W.__wheels = [];
   W.__inputs = [];
-  const timed = f => typeof f !== "function" ? f : function (...a) {
+  const timed = (f, animationFrame = false) => typeof f !== "function" ? f : function (...a) {
     if (W.__depth) return f.apply(this, a);
     W.__depth = 1; const t = now();
-    try { return f.apply(this, a); } finally { W.__depth = 0; W.__work.push(t, now() - t); }
+    try { return f.apply(this, a); } finally {
+      W.__depth = 0;
+      const length = W.__work.push(t, now() - t);
+      if (W.__workRaf) W.__workRaf[length / 2 - 1] = animationFrame ? a[0] : null;
+    }
   };
   const wrap = (o, k) => { const raw = o[k]; if (typeof raw === "function") o[k] = function (f, ...a) { return raw.call(this, timed(f), ...a); }; };
   for (const k of ["setTimeout", "setInterval", "requestIdleCallback", "queueMicrotask"]) wrap(W, k);
@@ -18,7 +22,7 @@
   W.requestAnimationFrame = f => raf(timed(function (t) {
     W.__rafTime = t;
     try { return f.call(this, t); } finally { W.__rafTime = null; }
-  }));
+  }, true));
   const listeners = new WeakMap(), add = EventTarget.prototype.addEventListener, remove = EventTarget.prototype.removeEventListener;
   const wrapped = f => {
     if (typeof f !== "function" && typeof f?.handleEvent !== "function") return f;

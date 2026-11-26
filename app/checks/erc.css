@@ -92,7 +92,6 @@
 .erc-legend span {display:inline-flex;align-items:center;gap:4px}
 .work-dialog .work-actions .erc-reset {margin-right:auto}
 
-body > .statusbar {order:2}
 /* Messages › Problems and Log (messages.js): the view tabs and the hint tier (a quiet violet, as Design Insights). */
 /* One face for the whole panel: the view tabs, the counters, the chips and every row use --font-ui (no mono). */
 .msg-chips {margin-left:4px;gap:var(--s-4)}
