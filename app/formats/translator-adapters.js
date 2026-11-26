@@ -204,6 +204,8 @@ globalThis.AtriumTranslatorAdapters = (() => {
     AtriumPCB.addProfileJobs(p,manifest);
     P().adoptIdentities(p, provenance, options.identityBindings);
     const linked = AtriumImportLink.reconcile(p, docs, manifest?.netScope);
+    // Altium's per-sheet component classes that equal the classes Waffle generates from the linked sheets.
+    globalThis.AtriumPCB?.settleComponentClasses?.(p);
     notes.unshift(...linked.notes);
     notes.push(...(p.importNotes || []));
     if (manifest) {

@@ -40,8 +40,13 @@ Board tracks, footprint artwork and board outlines retain their circular arcs. S
 their series parts) and xSignal classes become signals and tags, and rules scoped to them (for example
 `InDifferentialPairClass('HS_PAIRS')`, `InxSignalClass('PCIE_TX_XSIGNALS')`) apply once you use the board's
 rules. Export writes them back, keeping Altium's unique IDs. Checked on a board saved by Altium Designer 26
-(`tests/fixtures/altium/pairs-xsignals`, `tests/signals-altium.cjs`). Component, pad, layer and polygon
-classes are not imported.
+(`tests/fixtures/altium/pairs-xsignals`, `tests/signals-altium.cjs`). Component classes become the board's
+component classes (**Design → Classes…**), so `InComponentClass('Name')` rules match their members. A class
+that Altium generated for a schematic sheet and that has the same members as the class Waffle generates for
+that sheet is not stored twice. Altium's automatic Top Side, Bottom Side, Inside Board and Outside Board classes
+keep the members they had at import; Waffle does not update them when parts move. The built-in All Nets, All
+Components and All Differential Pairs classes work as in Altium. Pad, layer, polygon and from-to classes are
+not imported, and export does not write component classes yet.
 
 Altium's relative PCB origin (**Edit → Origin**) comes in with the board. **Fabrication Outputs** uses that datum by default for Gerber, NC Drill and pick-and-place. Choose **Design origin (absolute)** or **Board lower-left corner** to match an existing job. If the job used a separate Excellon datum, set **NC drill origin** in the **NC Drill** tab or in the **Gerber and drill** job settings. The MCP setting is `drill_origin`. [Altium fabrication setup](https://www.altium.com/documentation/altium-designer/preparing-for-manufacture/output-jobs/fabrication-data)
 
