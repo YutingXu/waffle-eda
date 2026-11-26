@@ -45,7 +45,7 @@ async function fixture(dir, count) {
   return {design, merge, head: m2, review: r2};
 }
 
-function host(page, design) {
+function host(page, design, beforeRead = () => {}) {
   const projectFolder = path.dirname(design), manifest = path.basename(design);
   const stats = {reads: 0};
   async function git(op, args = {}) {
@@ -60,7 +60,7 @@ function host(page, design) {
       const bytes = await fs.readFile(member);
       return {path: name, data: bytes.toString("base64"), length: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex")};
     }))}));
-    await page.exposeFunction("historyGit", async (op, args) => { stats.reads++; return git(op, args); });
+    await page.exposeFunction("historyGit", async (op, args) => { stats.reads++; await beforeRead(op, args); return git(op, args); });
     await page.addInitScript(manifest => {
       const entry = {grant: "bench-folder", manifest, name: "Bench"};
       window.AtriumHost = {
@@ -165,33 +165,65 @@ async function splitHistory(browser, server) {
   } finally { await page.close(); }
 }
 
-async function historyFailure(browser, server) {
+async function historyActions(browser, server) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),"waffle-history-actions-"));
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   try {
-    const fx=await fixture(dir,40), message="Could not read the fixture revision.";
-    await host(page,fx.design).install();
+    const fx=await fixture(dir,40);
+    let nextRead;
+    const h=host(page,fx.design,async (op,args)=>{
+      if (!nextRead?.matches(op,args)) return;
+      const read=nextRead;
+      nextRead=null;
+      read.arrive();
+      const failure=await read.resume;
+      if (failure) throw Error(failure);
+    });
+    function hold(name, matches) {
+      let release, arrive;
+      const entered=new Promise(done=>{arrive=done;});
+      const resume=new Promise(done=>{release=done;});
+      nextRead={matches, arrive, resume};
+      async function waitUntilEntered() {
+        let timer;
+        try {
+          await Promise.race([entered, new Promise((_, reject) => {
+            timer=setTimeout(() => reject(Error(name + " did not start its Git read")), 8000);
+          })]);
+        } finally { clearTimeout(timer); }
+      }
+      return {waitUntilEntered,release};
+    }
+    await h.install();
     await page.goto(server+"/app/index.html");
     await openProject(page);
     await page.locator(".quick-access .hv-entry").click();
-    const view=page.locator(".hv-view"), compare=view.getByRole("button",{name:"Compare with last commit",exact:true});
+    const view=page.locator(".hv-view");
+    const compare=view.getByRole("button",{name:"Compare with last commit",exact:true});
     await compare.waitFor();
-    await page.waitForFunction(()=>!AtriumHistoryView.state().loading);
-    await page.evaluate(text=>{
-      const source=globalThis.AtriumSourceHistory;
-      globalThis.AtriumSourceHistory={...source,open(){
-        const reader=source.open();
-        return {...reader,async compare(){
-          globalThis.AtriumSourceHistory=source;
-          throw Error(text);
-        }};
-      }};
-    },message);
+    const read=hold("Compare", (op,args)=>op==="folderRevisions" && args.known===undefined && args.revisions?.[0]===fx.head);
     await compare.click();
-    await page.waitForFunction(text=>document.getElementById("status").textContent.includes(text),message,{timeout:5000});
-    assert.equal(await view.getByText(message).count(),0,"the status line already reports the failure");
-    await compare.click();
+    await read.waitUntilEntered();
+    const opening=await view.locator(".hv-foot .ui-spinner").count();
+    read.release("Could not read the fixture revision.");
+    assert.equal(opening,1,"Compare shows progress while reading the Git revision");
+    const failure=view.getByRole("alert").filter({hasText:"Could not read the fixture revision."});
+    await failure.waitFor({timeout:3000});
+    const status = await page.locator("#status").textContent();
+    assert.ok(!status.includes("Could not read the fixture revision."),"one failure should produce one message: " + status);
+    await failure.getByRole("button",{name:"Try again",exact:true}).click();
     await page.locator(".dv-close").waitFor();
+    assert.equal(await page.evaluate(()=>AtriumDiffView.session().a.label),"Working design");
+    await page.locator(".dv-close").click();
+
+    const refresh=view.getByRole("button",{name:"Refresh",exact:true});
+    const log=hold("Refresh", op=>op==="projectLog");
+    await refresh.click();
+    await log.waitUntilEntered();
+    const refreshing=await refresh.locator(".ui-spinner").count();
+    log.release();
+    assert.equal(refreshing,1,"Refresh shows a spinner in the button while loading");
+    await refresh.locator(".ui-spinner").waitFor({state:"detached"});
   } finally {
     await page.close();
     await fs.rm(dir,{recursive:true,force:true});
@@ -444,7 +476,22 @@ async function noGit(browser, server) {
     await page.locator(".quick-access .hv-entry").click();
     const view = page.locator(".hv-view"), details = view.locator(".hv-details");
     await view.locator(".hv-notice .ui-notice", {hasText: "No Git history"}).waitFor();
+    await page.evaluate(async () => {
+      const panel=await AtriumLazy.need("AtriumHistoryPanel");
+      const ready=new Promise(resolve=>{window.releaseCheckpoint=resolve;});
+      globalThis.AtriumHistoryPanel={...panel,async checkpoint(...args) {
+        await ready;
+        globalThis.AtriumHistoryPanel=panel;
+        return panel.checkpoint(...args);
+      }};
+    });
     await details.getByRole("button", {name: "Save checkpoint"}).click();
+    try {
+      await view.locator(".hv-foot .ui-spinner").waitFor();
+      assert.match(await view.locator(".hv-foot").textContent(),/Saving checkpoint/);
+    } finally {
+      await page.evaluate(() => window.releaseCheckpoint());
+    }
     const localRow = view.locator('.hv-row[data-key="local"]');
     await localRow.waitFor();
     await localRow.locator(".ui-disclosure").click();
@@ -626,9 +673,10 @@ async function run(browser) {
   try {
     if (process.argv.includes("--retry-only")) { await retry(browser, url); return; }
     if (process.argv.includes("--split-only")) { await splitHistory(browser, url); return; }
-    if (process.argv.includes("--actions-only")) { await historyFailure(browser, url); return; }
+    if (process.argv.includes("--actions-only")) { await historyActions(browser, url); return; }
+    if (process.argv.includes("--snapshots-only")) { await noGit(browser, url); return; }
     await splitHistory(browser, url);
-    await historyFailure(browser, url);
+    await historyActions(browser, url);
     await functional(browser, url);
     await noGit(browser, url);
     await retry(browser, url);
