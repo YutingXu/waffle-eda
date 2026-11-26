@@ -1093,6 +1093,8 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       {
         rows.offscreen = [];
         board.outline = rect(-100,-100,200,200);
+        // Keep the copper layer in the draw list even when both pours leave the viewport.
+        board.items.push({id:"visible-track",kind:"track",layer:"Top",width:.4,points:[[-2,0],[2,0]]});
         board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
         for (const [w,h,flipped] of [[360,256,false],[842,717,true]]) {
           stage.style.width = w+"px"; stage.style.height = h+"px";
