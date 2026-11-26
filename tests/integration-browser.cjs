@@ -870,6 +870,7 @@ async function main(){
     await require("./canvas/browser-view3d-open.js")(browser,["navigation","open","folder"]);
     await require("./editor/browser-editing-input.js")(browser);
     await require("./schematic/browser-sch-terminal-drag.js")(browser);
+    await require("./pcb/browser-route-no-op.cjs")(browser);
     await require("./canvas/browser-dense-edit-refresh.js")(browser);
   }
 

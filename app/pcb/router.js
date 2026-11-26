@@ -1654,7 +1654,9 @@ globalThis.AtriumRouter = (() => {
       click() {
         if (!st.last && st.cursor) st.last = compute(st.cursor);
         const r = st.last;
-        if (!r || r.status === "violation" && st.mode !== "ignore" || r.path.length < 2 && !r.neck) return {anchored:false, done:false};
+        if (!r || r.status === "violation" && st.mode !== "ignore") return {anchored:false, done:false};
+        const neck = r.neck && trackPoints(r.neck.path).length > 1 ? r.neck : null;
+        if (trackPoints(r.path).length < 2 && !neck) return {anchored:false, done:false};
         const leg = st.legs[st.legs.length - 1];
         st.undo.push({legs:st.legs.length, points:leg.points.length, vias:st.vias.length, base:new Map(st.base), width:leg.width, layer:leg.layer});
         if (leg.points.length > 1 && Math.abs(leg.width - st.width) > 1e-9) {
@@ -1663,7 +1665,7 @@ globalThis.AtriumRouter = (() => {
         }
         const cur = st.legs[st.legs.length - 1]; cur.width = st.width;
         cur.points = simplify([...cur.points, ...r.path.slice(1)]);
-        if (r.neck) st.legs.push({layer:cur.layer, width:r.neck.width, points:r.neck.path.map(q => [q[0], q[1]])});
+        if (neck) st.legs.push({layer:cur.layer, width:neck.width, points:neck.path.map(q => [q[0], q[1]])});
         st.base = new Map(W.scene.mods);
         st.last = null;
         if (ctx) ctx.exempt = new Set();
@@ -1798,11 +1800,12 @@ globalThis.AtriumRouter = (() => {
             restoreScene();
             pts = optimize(gctx, pts, isOctilinear(pts) ? (baseCorner(st.corner) === "90" && isOrthogonal(pts) ? "90" : "45") : "any", 300);
           }
-          add.push({id:idOf(), kind:"track", points:pts.map(p => [round6(p[0]), round6(p[1])]), width:l.width, layer:l.layer, net});
+          const points = trackPoints(pts);
+          if (points.length > 1) add.push({id:idOf(), kind:"track", points, width:l.width, layer:l.layer, net});
         }
         for (const v of st.vias) add.push(...viaItems(v, idOf, net));
         const modify = [];
-        for (const [o, g] of st.base) {
+        if (add.length) for (const [o, g] of st.base) {
           const rec = W.owners[o];
           if (g.kind === "track") modify.push({id:rec.id, points:g.points.map(p => [round6(p[0]), round6(p[1])])});
           else modify.push({id:rec.id, x:round6(g.x), y:round6(g.y)});
@@ -1819,6 +1822,15 @@ globalThis.AtriumRouter = (() => {
     return api;
   }
   const round6 = v => Math.round(v * 1e6) / 1e6;
+  // Geometry that coincides at the stored precision cannot form a track.
+  function trackPoints(path) {
+    const points = [];
+    for (const [x, y] of path) {
+      const point = [round6(x), round6(y)], last = points.at(-1);
+      if (!last || last[0] !== point[0] || last[1] !== point[1]) points.push(point);
+    }
+    return points;
+  }
   // True when every segment is within `tol` radians of a multiple of 45 degrees.
   function isOctilinear(pts, tol = 1e-6) {
     for (let i = 1; i < pts.length; i++) {
@@ -1921,10 +1933,13 @@ globalThis.AtriumRouter = (() => {
       if (walked.length <= gl) return {...walked, ms:now() - t0};
     }
     const idOf = o.makeId || newId, add = [];
-    for (const leg of g.legs) add.push({id:idOf(), kind:"track", points:leg.points.map(p => [round6(p[0]), round6(p[1])]), width:g.width, layer:leg.layer, net});
+    for (const leg of g.legs) {
+      const points = trackPoints(leg.points);
+      if (points.length > 1) add.push({id:idOf(), kind:"track", points, width:g.width, layer:leg.layer, net});
+    }
     for (const v of g.vias) add.push(...viaItems(v, idOf, net));
     let length = 0; for (const t of add) if (t.points) length += pathLength(t.points);
-    return {ok:true, method:"grid", plan:{add, remove:[], modify:[]}, points:g.legs.length === 1 ? add[0].points : null, legs:g.legs, vias:g.vias, length, ms:now() - t0};
+    return {ok:true, method:"grid", plan:{add, remove:[], modify:[]}, points:g.legs.length === 1 ? add[0]?.points || [] : null, legs:g.legs, vias:g.vias, length, ms:now() - t0};
   }
   // Binary min-heap of numeric priority and nonnegative routing state.
   function routeHeap(capacity = 1024) {
@@ -2561,7 +2576,7 @@ globalThis.AtriumRouter = (() => {
   }
 
   const core = {routeHeap, viaFitsSpan,layerIndex, layerName, rulesFor, worldFor, buildWorld, makeContext, walkaround, optimize, shove, connector, fillet, simplify, pathLength,
-    pathHit, pathClear, segmentHit, segSeg2, truncate, candidates, fdist, required, isOrthogonal, makeContextFor:makeContext, baseCorner, hasArc, sameNetAt, viaSpan, viaClear, boundaries, insideOutline, isOctilinear, round6, NONET, MODES, CORNERS, MODE_NAMES, CORNER_NAMES};
+    pathHit, pathClear, segmentHit, segSeg2, truncate, candidates, fdist, required, isOrthogonal, makeContextFor:makeContext, baseCorner, hasArc, sameNetAt, viaSpan, viaClear, boundaries, insideOutline, isOctilinear, round6, trackPoints, NONET, MODES, CORNERS, MODE_NAMES, CORNER_NAMES};
   return Object.freeze({begin, route, gloss, retrace, presets, apply, invalidate, updateWorld, world:worldFor, check, copperLayers, dragSession, tabs,
     modes:MODES.slice(), corners:CORNERS.slice(), modeNames:MODE_NAMES, cornerNames:CORNER_NAMES, dragStatusNames:DRAG_STATUS, core});
 })();

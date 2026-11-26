@@ -403,19 +403,23 @@
     const members=instance?occurrences?.get(instance):occurrences?.values().next().value;
     return members||emptyHighlightMembers;
   }
-  // One defs map per library content: item edits keep it, so caches keyed on it stay valid; a new map when the
-  // project, its library list or a definition (or its footprint or symbol object) changed, or the undo store
-  // applied records outside the documents' items (library or rules undo/redo; outer()). force: always a new map.
-  let defsKey=null,observedLibraryStore=null;
-  function libraryKey(){const L=project.library,k=[project,L,L.length,UNDO?.outer?.()];for(const d of L)k.push(d,d?.id,d?.footprint,d?.symbol);return k;}
+  // Keep the definition index stable across item edits. Library changes and outer journal records invalidate it.
+  let defsKey=null,defsOuter,observedLibraryStore=null;
+  function libraryKey(){const L=project.library,k=[project,L,L.length];for(const d of L)k.push(d,d?.id,d?.footprint,d?.symbol);return k;}
+  function syncDefinitionIndex(store,force){
+    const key=libraryKey(),outer=store?.outer?.();
+    if(force===true||!defs||!defsKey||defsOuter!==outer||key.length!==defsKey.length||key.some((value,i)=>value!==defsKey[i]))
+      defs=new Map(project.library.map(d=>[d.id,d]));
+    defsKey=key;defsOuter=outer;
+  }
   function refreshDefs(force,libraryPossible=true){
     const store=globalThis.AtriumUndoStore;
     if(store&&store!==observedLibraryStore){
       observedLibraryStore=store;
       store.onLibraryChange?.(()=>{refreshDefs(true);if(viewportVisible)redraw(true);});
     }
-    layerCache=null;globalThis.AtriumCanvas?.edited?.(libraryPossible);const k=libraryKey();
-    if(force===true||!defs||!defsKey||k.length!==defsKey.length||k.some((v,n)=>v!==defsKey[n]))defs=new Map(project.library.map(d=>[d.id,d]));defsKey=k;}
+    layerCache=null;globalThis.AtriumCanvas?.edited?.(libraryPossible);syncDefinitionIndex(store,force);
+  }
   // Related copies keep document IDs. A separate identity follows Undo across File › Open.
   let fileSession={}, folderDerived=false, folderPending=false, folderSaving=false, releaseSavedWork=null;
   const folder=()=>fileSession.folder,FUI=()=>globalThis.AtriumFolderProjectUI;
@@ -519,11 +523,15 @@
     if(clearNet)navEmit("highlight");
     trace?.commit(started,performance.now());
   }
-  // history: AtriumUndoStore (undo-store.js, lazy: idle prefetch or the first edit) keeps compact, shared snapshots;
-  // until it loads, whole-project JSON as before (the store lifts those entries). revive() turns one back into a project.
+  // Keep JSON snapshots until the lazy undo store can lift them into shared history.
   let UNDO=globalThis.AtriumUndoStore;const revive=(s,h)=>UNDO?UNDO.rollback(s,h):JSON.parse(s.project);
   const snapshot=()=>{const meta={current,selected,ids:[...selectedIds],fileSession,imports:globalThis.AtriumImportReports?.capture()};
-    return (UNDO||=globalThis.AtriumUndoStore)?UNDO.mark(project,meta):{project:JSON.stringify(project),...meta};};
+    if(!(UNDO||=globalThis.AtriumUndoStore))return {project:JSON.stringify(project),...meta};
+    const state=UNDO.mark(project,meta);
+    // Align the index to the journal before a command caches geometry.
+    if(defsOuter!==UNDO.outer?.())syncDefinitionIndex(UNDO);
+    return state;
+  };
   // revisions: a released revision is read-only. Direct edits (drags, placement) that checkpoint are
   // reverted at their change(); a project replaced meanwhile (Open) keeps its undo step.
   var lockRevert=null,scopeCheckpoint=false;function checkpoint(state=snapshot(),label,targets=[current]){const mirror=mirrorWorkspace();if(mirror||targets.some(id=>folder()?.canEdit(id)===false||globalThis.AtriumCollabLock?.guard(id))||globalThis.AtriumRevisions?.guard?.(project,true)){lockRevert={state,label,project,mirror};return;}return checkpoint0(state,label);}
@@ -1384,7 +1392,7 @@
   }
   function prewarmRouter(){if(useRouter()){
     globalThis.AtriumLazy?.need?.("AtriumRouteSuggest").catch(()=>{});
-    if(!globalThis.AtriumPower?.efficient?.())try{AtriumRouter.world(doc(),defs,{revision});}catch{}
+    if(!globalThis.AtriumPower?.efficient?.())try{AtriumRouter.world(doc(),defs,{revision,project});}catch{}
   }}
   // Arm the real tool immediately. Only its first anchor is retained if the JS is still loading.
   function armRouter(){

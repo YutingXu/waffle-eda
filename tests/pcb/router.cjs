@@ -116,6 +116,53 @@ test("walkaround routes around vias and tracks, keeps clearance and reaches the 
   }
 });
 
+test("coincident route clicks produce no anchors or copper at board precision", () => {
+  const board = Atrium.sheet("pcb", "Stationary route"), defs = new Map(), start = [1, 1];
+  for (const mode of R.modes) {
+    const session = R.begin(board, defs, {net:"SIG", layer:"Top", start, mode});
+    for (const end of [start, [1.0000002, 1]]) {
+      session.move(end);
+      assert.equal(session.click().anchored, false, mode);
+      assert.equal(session.state.anchors, 0, mode);
+      assert.deepEqual(session.commit(), {add:[], remove:[], modify:[], length:0}, mode);
+    }
+    session.move([2, 1]);
+    assert.equal(session.click().anchored, true, mode);
+    session.move([2, 1]);
+    assert.equal(session.click().anchored, false, mode);
+    assert.deepEqual(session.commit().add.map(t => t.points), [[[1, 1], [2, 1]]], mode);
+  }
+  const retraced = R.begin(board, defs, {net:"SIG", layer:"Top", start, mode:"ignore"});
+  for (const end of [[2, 1], start]) {
+    retraced.move(end);
+    assert.equal(retraced.click().anchored, true);
+  }
+  assert.deepEqual(retraced.commit(), {add:[], remove:[], modify:[], length:0}, "an entirely retraced leg leaves no copper");
+  assert.equal(retraced.addVia().ok, true);
+  assert.deepEqual(retraced.commit().add.map(item => item.kind), ["via"], "an explicit via still commits without a track");
+
+  for (const method of ["walkaround", "grid"]) {
+    const result = R.route(board, defs, {net:"SIG", from:start, to:[1.0000002, 1], method});
+    assert.equal(result.ok, true, method);
+    assert.deepEqual(result.plan.add, [], method);
+    assert.deepEqual(result.points, [], method);
+  }
+});
+
+test("a differential pair does not commit lanes that collapse at board precision", () => {
+  const board = Atrium.sheet("pcb", "Stationary pair");
+  const session = AtriumDiffPair.begin(board, new Map(), {
+    pair:{name:"PAIR", positive:"P", negative:"N"}, startP:[1, .7], startN:[1, 1.3], width:.2, gap:.4
+  });
+  session.move([1.0000002, 1]);
+  const empty = session.commit({head:true});
+  assert.deepEqual([empty.add, empty.remove, empty.modify], [[], [], []]);
+  session.cancel();
+  session.move([2, 1]);
+  const routed = session.commit({head:true});
+  assert.deepEqual(routed.add.map(track => track.points), [[[1, .7], [2, .7]], [[1, 1.3], [2, 1.3]]]);
+});
+
 test("rounded corners keep the authored waypoint count at an exact tolerance boundary", () => {
   const radius=.002/(1-Math.SQRT1_2);
   const points=R.core.fillet([[0,0],[4,0],[4,6]],radius,null);
