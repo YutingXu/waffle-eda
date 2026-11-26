@@ -285,15 +285,22 @@ function performanceRecorder(D) {
 async function main() {
   const G = globalThis, HANDLERS = new Map(), writes = [], reads = [], infos = [], privateReads = [];
   const source = file => fs.readFileSync(path.join(__dirname, "../..", file), "utf8");
-  const legacy = "atrium-diagnostics-v1", key = "atrium-diagnostics-counts-v1";
+  const legacy = "atrium-diagnostics-v1", oldCounts = "atrium-diagnostics-counts-v1", key = "atrium-diagnostics-counts-v2";
+  const day = 86400000, firstDay = 20782;
+  let wall = firstDay * day + day - 1, unavailable = false;
+  Date.now = () => wall;
   const marker = "PRIVATE_MARKER_48B1", privatePath = "file:///fixtures/example/" + marker + ".waffle";
-  const storage = new Map([[legacy, JSON.stringify([{at: 1795665432100, type: marker, module: privatePath}])],
-    [key, JSON.stringify({workerTimeouts: 1, javascriptErrors: -4, autosaveFailures: 999999,
+  const oldRows = [{at: wall - 6 * day, kind: "hang", type: marker, module: privatePath},
+    {at: wall - 7 * day, kind: "error"}, {at: wall + 1, kind: "error"}, {at: "invalid", kind: "error"},
+    {at: wall, kind: marker, module: privatePath}];
+  const storage = new Map([[legacy, JSON.stringify(oldRows)],
+    [oldCounts, JSON.stringify({workerTimeouts: 17, javascriptErrors: 32, autosaveFailures: 999999,
       scriptLoadFailures: privatePath, extra: marker, toJSON: marker})]]);
   G.addEventListener = (kind, fn) => HANDLERS.set(kind, fn);
   Object.defineProperty(G, "localStorage", {configurable: true, value: {
-    getItem(k) { reads.push(k); return storage.get(k); },
-    setItem(k, v) { writes.push([k, v]); storage.set(k, v); }
+    getItem(k) { if (unavailable) throw Error("Storage unavailable"); reads.push(k); return storage.get(k) ?? null; },
+    setItem(k, v) { if (unavailable) throw Error("Storage unavailable"); writes.push([k, v]); storage.set(k, v); },
+    removeItem(k) { if (unavailable) throw Error("Storage unavailable"); storage.delete(k); }
   }});
   const privateGetter = () => { privateReads.push(true); throw new Error(marker); };
   let failureClock = 100;
@@ -335,6 +342,9 @@ async function main() {
 
   const thrown = {get stack() { return privateGetter(); }, get message() { return privateGetter(); }};
   const errorEvent = HANDLERS.get("error"), muted = () => errorEvent(new G.ErrorEvent("Script error."));
+  assert.equal(D.failures().workerTimeouts, 1, "only eligible dated legacy failures are imported");
+  assert.equal(storage.has(legacy), false, "migration removes the old detailed log");
+  assert.equal(storage.has(oldCounts), false, "undated totals cannot be assigned a retention day");
   muted();
   assert.equal(D.failures().javascriptErrors, 1, "a desktop muted Script error counts without a handled exception");
   D.failed(thrown);
@@ -362,8 +372,9 @@ async function main() {
     workerFailures: 1, workerTimeouts: 2};
   assert.deepEqual(D.failures(), expected);
   assert.ok(writes.every(([k, v]) => k === key && !v.includes(marker) && !v.includes("Users") &&
-    Object.keys(JSON.parse(v)).sort().join() === Object.keys(expected).sort().join()));
-  assert.ok(!reads.includes(legacy));
+    JSON.parse(v).days.every(([number, fields]) => Number.isInteger(number) &&
+      Object.keys(fields).every(name => Object.hasOwn(expected, name)))));
+  assert.equal(reads.filter(name => name === legacy).length, 1);
   const before = writes.length;
   const frameLease = D.startPerformance();
   assert.equal(D.performance.frame({drawCpuP95: 7.443, wheelToDrawP95: 23.334,
@@ -390,6 +401,7 @@ async function main() {
   });
   assert.doesNotMatch(report, /PRIVATE_MARKER|\/Users\/|1795665432100|111235|1234|881|7\.443|23\.334|7351|9876\.456/);
   assert.doesNotMatch(report, /3\.739|14\.119|42\.681|241\.093/);
+  assert.doesNotMatch(report, new RegExp(String(firstDay)), "the report carries no UTC day buckets");
   assert.equal(writes.length, before, "previewing does not write storage");
   frameLease.stop();
 
@@ -457,16 +469,47 @@ async function main() {
   assert.deepEqual(privateReads, [], "private property traps were never accessed");
 
   new Function(source("app/checks/performance-diagnostics.js"))();
+  const sibling = D;
+  storage.set(legacy, JSON.stringify(oldRows));
   new Function(source("app/checks/diagnostics.js"))();
   D = G.AtriumDiagnostics;
   assert.deepEqual(D.failures(), expected, "bounded safe counts survive a reload");
+  assert.equal(storage.has(legacy), false, "a valid v2 store also removes old detailed data without re-importing it");
+  wall++;
+  assert.equal(D.failures().workerTimeouts, 1, "the oldest UTC day expires at the midnight boundary");
   for (let n = 0; n < 200; n++) D.record("hang", marker);
   assert.equal(D.failures().workerTimeouts, 32, "recorded counts saturate");
-  const saturated = {writes: writes.length, reads: reads.length};
+  const saturatedWrites = writes.length;
   D.record("hang");
-  assert.deepEqual({writes: writes.length, reads: reads.length}, saturated, "a saturated counter does not touch storage");
+  assert.equal(writes.length, saturatedWrites, "a saturated counter does not write storage");
+  const saturated = {writes: writes.length, reads: reads.length};
   performanceRecorder(D);
   assert.deepEqual({writes: writes.length, reads: reads.length}, saturated, "performance never reads or writes storage");
+  const zero = Object.fromEntries(Object.keys(expected).map(field => [field, 0]));
+  const stale = storage.get(key);
+  sibling.failures(); // Another page has already read these nonzero counts.
+  D.clearFailures();
+  assert.deepEqual(D.failures(), zero);
+  assert.deepEqual(sibling.failures(), zero, "an open sibling observes the clear");
+  storage.set(key, stale); // A write begun before the clear arrived afterward.
+  assert.deepEqual(sibling.failures(), zero, "a late pre-clear write cannot restore cleared counts");
+  sibling.record("worker");
+  assert.equal(D.failures().workerFailures, 1, "new failures are recorded after clearing");
+  unavailable = true;
+  D.record("worker");
+  assert.equal(D.failures().workerFailures, 2, "failures still count in memory when storage is unavailable");
+  D.clearFailures();
+  assert.deepEqual(D.failures(), zero, "clear works in memory while the store is unavailable");
+  unavailable = false;
+  assert.deepEqual(D.failures(), zero, "recovering storage cannot undo a local clear");
+  D.record("hang");
+  wall += 7 * day;
+  assert.deepEqual(D.failures(), zero, "even the newest UTC bucket expires after seven days");
+  storage.set(key, "{malformed" + marker);
+  storage.set(legacy, JSON.stringify(oldRows));
+  new Function(source("app/checks/diagnostics.js"))();
+  assert.deepEqual(G.AtriumDiagnostics.failures(), zero, "a malformed aggregate is safely discarded");
+  assert.equal(storage.has(legacy), false);
   console.log("diagnostics: fixed schema, privacy, bounded persistence and opt-in elapsed performance recorder OK");
 }
 globalThis.__testDone = main();

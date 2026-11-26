@@ -1,34 +1,122 @@
 "use strict";
-// Persist only bounded counters on failures. Old detailed records are never read by the report.
+// Persist only bounded editor failure counts for the current and previous six UTC days.
 // Node and JavaScriptCore unit tests load the source directly. The browser loads the recorder on demand.
 if (typeof require === "function" && typeof module === "object") require("./performance-diagnostics.js");
 globalThis.AtriumDiagnostics = (() => {
-  const G = globalThis, MAX = 32, KEY = "atrium-diagnostics-counts-v1";
-  const counts = {javascriptErrors: 0, unhandledRejections: 0, scriptLoadFailures: 0, autosaveFailures: 0,
+  const G = globalThis, MAX = 32, DAY = 86400000, KEY = "atrium-diagnostics-counts-v2";
+  const RESET_KEY = "atrium-diagnostics-clear-v2", LEGACY_KEY = "atrium-diagnostics-v1", UNDATED_KEY = "atrium-diagnostics-counts-v1";
+  const emptyCounts = {javascriptErrors: 0, unhandledRejections: 0, scriptLoadFailures: 0, autosaveFailures: 0,
     workerFailures: 0, workerTimeouts: 0};
   const workerKinds = new Map([["worker", "workerFailures"], ["hang", "workerTimeouts"]]);
+  const legacyKinds = new Map([...workerKinds, ["error", "javascriptErrors"], ["rejection", "unhandledRejections"],
+    ["script-load", "scriptLoadFailures"], ["autosave", "autosaveFailures"]]);
   const autosaveKinds = new Set(["serialize", "large", "error", "quota"]);
-  const observed = new WeakSet();
+  let observed = new WeakSet();
   const now = () => G.performance?.now?.() ?? Date.now();
+  const utcDay = () => Math.floor(Date.now() / DAY);
+  const within = (day, today) => Number.isInteger(day) && day >= today - 6 && day <= today;
   let lastNotice = -Infinity, lastHandledError = -Infinity;
+  let days = new Map(), generation = 0, lastRaw = null, legacyScanned = false, legacyRemoved = false, clearPending = false;
 
-  function readCounts() {
+  function parse(raw, limit) {
     try {
-      const raw = G.localStorage?.getItem(KEY);
-      if (typeof raw !== "string" || raw.length > 1024) return;
-      const stored = JSON.parse(raw);
-      for (const key of Object.keys(counts)) {
-        const value = stored?.[key];
-        if (Number.isInteger(value) && value >= 0 && value <= MAX) counts[key] = Math.max(counts[key], value);
-      }
-    } catch { /* storage unavailable or invalid */ }
+      if (typeof raw === "string" && raw.length <= limit) return JSON.parse(raw);
+    } catch { /* invalid saved diagnostics */ }
   }
-  function increment(key) {
-    if (counts[key] >= MAX) return;
-    readCounts();
-    if (counts[key] >= MAX) return;
-    counts[key]++;
-    try { G.localStorage?.setItem(KEY, JSON.stringify(counts)); } catch { /* bounded in-memory fallback */ }
+  function resetVersion(store) {
+    const value = Number(store.getItem(RESET_KEY));
+    return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  }
+  function save(store, previous = lastRaw) {
+    if (!store) return;
+    const raw = JSON.stringify({generation, days: [...days]});
+    if (raw === previous) { lastRaw = raw; return; }
+    try {
+      // Even if a sibling clears after this check, it can reject the stale generation.
+      if (resetVersion(store) !== generation) return;
+      store.setItem(KEY, raw);
+      lastRaw = raw;
+    } catch { /* bounded in-memory fallback */ }
+  }
+  function add(day, field) {
+    const row = days.get(day) ?? {};
+    const value = row[field] ?? 0;
+    if (value >= MAX) return false;
+    row[field] = value + 1;
+    days.set(day, row);
+    return true;
+  }
+  function sync(today) {
+    for (const day of days.keys()) if (!within(day, today)) days.delete(day);
+    try {
+      const store = G.localStorage;
+      if (!store) return null;
+      let current = resetVersion(store);
+      const raw = store.getItem(KEY);
+      if (clearPending) {
+        current = current === Number.MAX_SAFE_INTEGER ? 1 : current + 1;
+        store.setItem(RESET_KEY, String(current));
+        clearPending = false;
+        legacyScanned = true;
+        generation = current;
+        lastRaw = null;
+      } else if (generation !== current || lastRaw !== raw) {
+        generation = current;
+        lastRaw = null;
+        days = new Map();
+        const saved = parse(raw, 4096);
+        if (saved?.generation === current && Array.isArray(saved.days)) for (const entry of saved.days.slice(-7)) {
+          if (!Array.isArray(entry) || !within(entry[0], today)) continue;
+          const row = {};
+          for (const field of Object.keys(emptyCounts)) {
+            const value = entry[1]?.[field];
+            if (Number.isInteger(value) && value > 0 && value <= MAX) row[field] = value;
+          }
+          if (Object.keys(row).length) days.set(entry[0], row);
+        }
+      }
+      if (!legacyScanned) {
+        if (raw == null && generation === 0) {
+          const old = parse(store.getItem(LEGACY_KEY), 16384);
+          if (Array.isArray(old)) for (const row of old.slice(-MAX)) {
+            const field = legacyKinds.get(row?.kind);
+            if (!field || !Number.isSafeInteger(row.at) || row.at < 0) continue;
+            const day = Math.floor(row.at / DAY);
+            if (within(day, today)) add(day, field);
+          }
+        }
+        legacyScanned = true;
+      }
+      if (!legacyRemoved) {
+        try {
+          store.removeItem(LEGACY_KEY);
+          store.removeItem(UNDATED_KEY);
+          legacyRemoved = true;
+        } catch { /* retry removal on the next access */ }
+      }
+      if (raw != null || days.size) save(store, raw);
+      return store;
+    } catch { return null; }
+  }
+  function increment(field) {
+    const day = utcDay(), store = sync(day);
+    if (add(day, field)) save(store);
+  }
+  function clearFailures() {
+    days.clear();
+    observed = new WeakSet();
+    lastNotice = lastHandledError = -Infinity;
+    legacyRemoved = false;
+    clearPending = true;
+    sync(utcDay());
+  }
+  function failures() {
+    sync(utcDay());
+    const totals = {...emptyCounts};
+    for (const row of days.values()) for (const field of Object.keys(emptyCounts)) {
+      totals[field] = Math.min(MAX, totals[field] + (row[field] ?? 0));
+    }
+    return totals;
   }
   function notify(at = now()) {
     if (at - lastNotice < 30000) return;
@@ -69,7 +157,8 @@ globalThis.AtriumDiagnostics = (() => {
     },
     get durationBucket() { return G.AtriumPerformanceDiagnostics?.durationBucket; },
     get countBucket() { return G.AtriumPerformanceDiagnostics?.countBucket; },
-    failures() { readCounts(); return {...counts}; },
+    failures,
+    clearFailures,
     failed,
     autosaveFailure(kind) { if (autosaveKinds.has(kind)) increment("autosaveFailures"); },
     record(kind) {

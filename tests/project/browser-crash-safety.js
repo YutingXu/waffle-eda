@@ -159,6 +159,16 @@ module.exports = async function crashSafety(browser) {
     assert.equal(await fs.readFile(await download.path(), "utf8"), text, "saved file is byte-identical to the preview and copy");
     assert.deepEqual(await page.evaluate(() => window.__diagnosticProbe.exports),
       [{name: "waffle-diagnostics.json", text, diagnostics: true}]);
+    await dialog.getByRole("button", {name: "Clear error counts"}).click();
+    const clearedText = await dialog.locator("textarea").inputValue();
+    const cleared = Object.fromEntries(Object.keys(report.recordedEditorFailures).map(key => [key, "none"]));
+    assert.deepEqual(JSON.parse(clearedText), {...report, recordedEditorFailures: cleared});
+    assert.equal(await page.evaluate(() => window.__diagnosticProbe.native), 1, "clearing reuses the existing host snapshot");
+    await dialog.getByRole("button", {name: "Copy report"}).click();
+    await page.waitForFunction(() => window.__diagnosticProbe.copies.length === 3);
+    assert.deepEqual(await page.evaluate(() => window.__diagnosticProbe.copies), [text, text, clearedText]);
+    const [clearedDownload] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", {name: "Save report…"}).click()]);
+    assert.equal(await fs.readFile(await clearedDownload.path(), "utf8"), clearedText);
     await dialog.getByRole("button", {name: "Close"}).click();
 
     // Input inspection has no raw share path and shuts down its native poll before previewing.
@@ -190,7 +200,7 @@ module.exports = async function crashSafety(browser) {
     await page.waitForTimeout(600);
     assert.deepEqual(await page.evaluate(() => window.__diagnosticProbe.input), polled, "the live inspector stopped polling");
     assert.equal(await page.evaluate(() => window.__diagnosticProbe.native), 2, "the preview never polls diagnostics");
-    assert.deepEqual(await page.evaluate(() => window.__diagnosticProbe.copies), [text, text], "previewing through Input never copies");
+    assert.deepEqual(await page.evaluate(() => window.__diagnosticProbe.copies), [text, text, clearedText], "previewing through Input never copies");
     await dialog.getByRole("button", {name: "Close"}).click();
     await page.evaluate(() => AtriumDocViews.close("diagnostics-coverage-fixture"));
 

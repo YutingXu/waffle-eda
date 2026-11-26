@@ -154,6 +154,8 @@ globalThis.AtriumRecover = (() => {
   const count = value => Number.isSafeInteger(value) && value <= 32
     ? band(value, [1, 2, 5], ["none", "one", "two-to-four", "five-or-more"]) : "unknown";
   const counts = (source, fields) => Object.fromEntries(fields.map(key => [key, count(field(source, key))]));
+  const editorFailures = () => counts(read(() => globalThis.AtriumDiagnostics?.failures?.()), FAILURE_FIELDS);
+  const reportText = value => JSON.stringify(value, null, 2) + "\n";
   function gpuWork(source) {
     const available = source != null && typeof source === "object" && !Array.isArray(source);
     return {scope: available ? "active-pcb-gpu-view" : "not-applicable", ...Object.fromEntries(GPU_WORK_FIELDS.map(key => {
@@ -192,7 +194,7 @@ globalThis.AtriumRecover = (() => {
     const activity = read(() => G.AtriumDiagnostics?.performanceSnapshot?.({shareable: true}));
     const frame = field(activity, "frame");
     const timing = key => field(frame, key) ?? "not-measured";
-    const failures = read(() => G.AtriumDiagnostics?.failures?.());
+    const failures = editorFailures();
     const version = applicationVersion();
     const pixelRatio = read(() => G.devicePixelRatio);
     const kind = oneOf(field(viewport, "kind"), ["home", "pcb", "schematic", "drawing", "panel", "3d"]);
@@ -204,7 +206,7 @@ globalThis.AtriumRecover = (() => {
     const renderState = kind !== "pcb" ? "not-applicable" : presentation === "covered" ? "covered" :
       presentation === "hidden" ? "paused" : oneOf(field(gpu, "state"),
         ["gpu", "2d", "paused", "context-lost", "memory-limit", "disabled", "error"]);
-    return JSON.stringify({
+    return reportText({
       format: "waffle-diagnostics",
       schemaVersion: 1,
       applicationVersion: version,
@@ -236,9 +238,9 @@ globalThis.AtriumRecover = (() => {
         systemCpuUtilization: "not-measured",
         activity: activity ?? {version: 1, recording: false, rows: []}
       },
-      recordedEditorFailures: counts(failures, FAILURE_FIELDS),
+      recordedEditorFailures: failures,
       rendererTerminations: counts(field(native, "rendererTerminations"), TERMINATION_FIELDS)
-    }, null, 2) + "\n";
+    });
   }
   async function diagnostics(A, host) {
     const d = dialog("Crash Diagnostics", "diagnostics-dialog");
@@ -265,12 +267,20 @@ globalThis.AtriumRecover = (() => {
       try { await globalThis.AtriumIO.exportFile("waffle-diagnostics.json", preview, {diagnostics: true}); }
       catch { host?.info?.("Could not save the diagnostics report"); }
     });
-    copy.disabled = save.disabled = true;
+    const clear = button("Clear error counts", () => {
+      if (!preview) return;
+      globalThis.AtriumDiagnostics?.clearFailures?.();
+      const report = JSON.parse(preview);
+      report.recordedEditorFailures = editorFailures();
+      preview = log.value = reportText(report);
+    });
+    clear.dataset.variant = "quiet";
+    copy.disabled = save.disabled = clear.disabled = true;
     const close = button("Close", () => d.close());
     close.dataset.variant = "primary";
-    foot.append(button("Recover unsaved work…", () => { d.close(); A.openBrowser(); }, "recover-link"), copy, save, close);
+    foot.append(button("Recover unsaved work…", () => { d.close(); A.openBrowser(); }, "recover-link"), clear, copy, save, close);
     const title = el("h2", "Crash Diagnostics"), detail = el("p",
-      "Preview the report you can copy or save for a bug report. It includes recorded failure counts on this device. Frame Monitor samples animation callbacks and elapsed operation times. System CPU utilization is not measured.");
+      "Preview the report you can copy or save for a bug report. Editor error counts cover today and the previous six UTC days. Frame Monitor samples animation callbacks and elapsed operation times. System CPU utilization is not measured.");
     d.append(title, detail, log, foot);
     AtriumShell.adoptDialog(d, {title, body:[detail, log], actions:foot, initialFocus:close});
     document.body.append(d); d.showModal();
@@ -278,6 +288,7 @@ globalThis.AtriumRecover = (() => {
     if (!d.open) return d;
     preview = log.value = text;
     copy.disabled = save.disabled = false;
+    clear.disabled = !globalThis.AtriumDiagnostics?.clearFailures;
     return d;
   }
 

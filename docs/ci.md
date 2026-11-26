@@ -103,6 +103,8 @@ For a saved board on macOS, run `scripts/perf-view-feel.sh --native --bundle <si
 
 Open **Help › Troubleshooting › Frame Monitor** and reproduce the operation. The monitor shows the five operations with the longest p95 times. **Crash Diagnostics…** previews the shareable report. The latest capture stays in memory after the monitor closes and is replaced when the next capture starts. A browser test can acquire its own recording lease. Closing the monitor or completing a test releases only that caller’s lease.
 
+Crash Diagnostics keeps six editor failure counts per UTC day for today and the previous six UTC days. The report contains only the combined count ranges. **Clear error counts** resets those counters for windows sharing the same local storage and updates the preview and subsequent copies and saves. On upgrade, the editor counts eligible entries from the previous detailed log once and removes that log. Older totals without dates are discarded because their retention window cannot be determined.
+
 The Demo integration test exercises the production recorder across schematic and PCB edits, routing, library search, design checks, drawing and two browser saves. To keep its exact local JSON for comparison, run the following command with the normal Chromium test dependencies installed.
 
 ```sh
