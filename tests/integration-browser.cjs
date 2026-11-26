@@ -697,12 +697,27 @@ async function main(){
     const priorDrc=await page.evaluate(()=>AtriumDiagnostics.performanceSnapshot().rows.find(
       row=>row.component==="drc" && row.operation==="publish")?.counts.completed ?? 0);
     await action("drc");
-    const messages=page.locator(".msg-panel");
+    const messages=page.getByRole("region",{name:"Messages",exact:true});
     await waitForFunction(page,prior=>{
       const row=AtriumDiagnostics.performanceSnapshot().rows.find(row=>row.component==="drc" && row.operation==="publish");
       return row?.counts.completed>prior && globalThis.AtriumMessages?.messages().some(m=>m.group==="DRC" && m.source==="Rule summary");
     },priorDrc);
-    await messages.getByRole("button",{name:"Close Messages",exact:true}).click();
+    const messagesTab=page.getByRole("tab",{name:"Messages",exact:true});
+    const dock=page.locator("#properties .dock-group").filter({has:messagesTab});
+    await waitFor(dock);
+    await waitFor(messages);
+    assert.equal(await messagesTab.getAttribute("aria-selected"),"true","DRC activates the right-dock Messages tab");
+    assert.equal(await messagesTab.getAttribute("aria-controls"),await messages.getAttribute("id"),"the selected Messages tab controls the result region");
+    await waitForFunction(page,()=>document.activeElement?.matches(".msg-panel .msg-grid"));
+    const closeName={name:"Close Messages",exact:true};
+    const closeMessages=dock.getByRole("button",closeName);
+    assert.equal(await page.getByRole("button",closeName).count(),1,"a docked Messages panel exposes one Close control");
+    assert.equal(await closeMessages.getAttribute("data-dock-close"),"messages","the selected tab owns the visible Close control");
+    await closeMessages.click();
+    await waitFor(messages,{state:"hidden"});
+    await waitFor(messagesTab,{state:"hidden"});
+    await waitForFunction(page,()=>!AtriumMessages.isOpen() &&
+      document.activeElement?.matches('#properties [data-dock-tab="properties"][aria-selected="true"]'));
     await page.locator("#project-name").click({button:"right"});
     await waitFor(page.getByRole("menuitem",{name:"Add Existing to Project…",exact:true}));
     assert.equal(await page.locator(".nav-menu-portal > .nav-menu [aria-haspopup=menu]",{hasText:"Add New to Project"}).count(),1);
