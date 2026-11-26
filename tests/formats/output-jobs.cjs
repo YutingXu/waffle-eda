@@ -80,6 +80,11 @@ assert.equal(J.resolve(project(), "Full release").zip, true);
 for (const s of presets) assert.deepEqual(J.normalise(s).outputs.map(o => o.kind), s.outputs.map(o => o.kind));
 assert.equal(AtriumFabProfiles.outputLayout("jlcpcb-2l").vendor, "JLCPCB");
 assert.equal(AtriumFabProfiles.outputLayout("PCBWay").pnp.style, "altium");
+// The listed vendor orders write Gerbers the way the vendor's fab preset says (JLCPCB: no X2 attributes).
+for (const [name, vendor] of [["JLCPCB order", "JLCPCB"], ["PCBWay order", "PCBWay"]]) {
+  const gerber = presets.find(p => p.name === name).outputs.find(o => o.kind === "gerber");
+  assert.equal(gerber.options.x2, AtriumFabProfiles.outputLayout(vendor).x2, name + " uses the vendor's X2 choice");
+}
 assert.equal(AtriumFabProfiles.outputLayout("oshpark-2l"), null);
 
 // Auxiliary films can contain artwork entirely owned by placed footprints.
@@ -132,6 +137,8 @@ assert.equal(AtriumFabProfiles.outputLayout("oshpark-2l"), null);
   assert.equal(r.ok, false); assert.deepEqual(r.failed, ["drc"]);
   assert.equal(r.outputs[0].status, "failed"); assert.match(r.outputs[0].message, /^1 rule violation \(more than 0\)\.$/);
   const gerberZip = unzip(out.files[1].data).map(e => e.name);
+  const copper = unzip(out.files[1].data).find(e => e.name === "Sensor-interface.GTL");
+  assert.ok(copper && !/^%T[FAOD]/m.test(text(copper.data)), "JLCPCB Gerbers carry no X2 attributes, as its preset asks");
   assert.ok(gerberZip.includes("Sensor-interface.GTL") && gerberZip.includes("Sensor-interface-Plated.TXT") && !gerberZip.some(n => /Readme|csv|svg/i.test(n)), gerberZip.join());
   const bom = text(out.files[2].data).split("\r\n");
   assert.equal(bom[0], "Comment,Designator,Footprint,LCSC Part #", "JLC BOM header, no byte-order mark or title block");
