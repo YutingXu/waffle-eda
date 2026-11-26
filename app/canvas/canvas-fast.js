@@ -181,9 +181,13 @@ globalThis.AtriumCanvasFast = (() => {
     const pours = pcb && !opts.hidden?.has("Source pours") && doc.pcbDrawing?.pours?.length ? frame?.state ?? I.pourState(doc, defs) : null;
     const airwires = pcb && opts.showUnrouted && !opts.transientGeometry ? I.connectivity : null;
     const labels = pcb ? globalThis.AtriumNavHost?.units?.() : new Date().toDateString();
+    const lod = pcb ? globalThis.AtriumPCBPours?.lod : null, scale = v[2] * v[6];
+    // The camera-independent gesture key still needs the global epoch. For an unrotated
+    // backing at a known camera, match the device-pixel scale of the pour painter's transform.
+    const detail = lod && Number.isFinite(scale) && scale !== 0 ? lod.keyAt?.(Math.sqrt(scale * scale)) : undefined;
     const k = [doc, doc.items, defs, airwires, pours, labels, doc.pcbDrawing, doc.pcbDrawing?.pours, doc.outline, doc.outline?.length, doc.grid, doc.origin,
       ...v, I.canvas.width, I.canvas.height, P?.system, P?.opacity, looks, !!globalThis.AtriumStackup?.isPlanning?.(), globalThis.AtriumPolygonPour?.tiles?.version,
-      globalThis.AtriumPourAnim?.version, globalThis.AtriumPCBPours?.lod?.version, d?.scripts?.length, d?.fonts?.status];
+      globalThis.AtriumPourAnim?.version, detail ?? lod?.version, d?.scripts?.length, d?.fonts?.status];
     for (const n of Object.keys(opts).sort()) { if (TOP.has(n) || SEL.has(n)) continue; k.push(n); flatInto(k, opts[n]); }
     k.push("routeHidden"); flatInto(k, opts.routePreview?.hidden || null);
     return k;
