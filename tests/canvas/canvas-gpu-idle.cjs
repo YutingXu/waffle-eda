@@ -426,6 +426,38 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   assert.deepEqual(received,[["Top",2],["Multi",1],["Bottom",1]],"without ordered copper the separate painter receives every caption");
 }
 
+// Reuse unchanged coverage regions and keep the old snapshot for in-place edits.
+{
+  const W=47,H=31, reads=[], region={data:"body",count:2,layer:"Top",net:"GND",bounds:[8,9,15,13]};
+  const rings=[[8,9,15,9,15,13,8,13],[9,10,9.1,10,9.1,10.1]];
+  let inkChecks=0, paints=0;
+  const context=vm.createContext({
+    navigator:{userAgent:"AppleWebKit"},
+    AtriumPCBAppearance:{...AtriumPCBAppearance,ink(...args){inkChecks++;return AtriumPCBAppearance.ink(...args);}},
+    AtriumPCBPours:{contours:()=>rings}
+  });
+  vm.runInContext(gpuCode.replace(sceneExport,"{pourCoverage, render, damage, stats,"),context);
+  const ctx={setTransform(){},clearRect(){},getImageData(...rect){reads.push(rect);return {};}};
+  const canvas={width:W,height:H,getContext:()=>ctx};
+  const gl={RGBA:2,createTexture:()=>({}),bindTexture(){},texStorage2D(){},texParameteri(){},pixelStorei(){},texSubImage2D(){}};
+  const st={gl,canvas,alphaTextures:false,parked:new Map(),stats:{pourBytes:0,coverageUpload:0}};
+  const I={canvas,ctx,worldToScreen:point=>point,boardTransform(){},drawBoard(){paints++;}};
+  const list=[region], doc={pcbDrawing:{pours:list}}, defs=new Map(), c={pourSig:[]};
+  const opts={layer:"Top"}, view={o2:opts,viewport:[0,0,W,H]};
+  const cover=x=>context.AtriumCanvasGPU.pourCoverage(I,st,doc,defs,opts,[x,0,1,false,W,H,1],view,list,null,c).get("Top");
+  const prior=cover(0).regions[0];
+  assert.equal(cover(1).regions[0],prior,"moving the camera reuses the same geometry record");
+  assert.equal(inkChecks,0,"RGBA fallback does not inspect mask colours");
+  assert.deepEqual(reads,[[6,7,11,8],[6,7,11,8]],"the two camera keys retain a nonzero cropped readback");
+  region.net="CHANGED";c.pourSig=[];
+  const edited=cover(1).regions[0];
+  assert.notEqual(edited,prior,"an in-place edit produces a new coverage record");
+  assert.equal(prior.net,"GND");
+  assert.equal(edited.net,"CHANGED");
+  assert.equal(edited.bounds,prior.bounds,"a net change does not traverse the contour again");
+  assert.equal(paints,3,"an in-place net change still paints the dirty texture");
+}
+
 // Only a complete, single-colour coverage mask takes the direct WebKitGTK transfer.
 {
   const W=47,H=31, gtk={platform:"Linux aarch64",userAgent:"AppleWebKit/605.1 Safari/605.1"};

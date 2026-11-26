@@ -957,7 +957,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     let box = null;
     for (let n=0; n<Math.max(before.length,after.length); n++) {
       const a = before[n], b = after[n];
-      if (a && b && a.data === b.data && a.count === b.count && a.net === b.net &&
+      if (a === b || a && b && a.data === b.data && a.count === b.count && a.net === b.net &&
           (a.bounds === b.bounds || a.bounds && b.bounds && a.bounds.every((v,i) => v === b.bounds[i]))) continue;
       // Unknown extents require a full repaint. Null means there was no damage.
       if ((a && !a.bounds) || (b && !b.bounds)) return undefined;
@@ -965,10 +965,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return box;
   }
-  const coverageBounds = new WeakMap();
-  function coverageBox(r) {
-    let entry = coverageBounds.get(r);
-    if (!entry || entry.data !== r.data || entry.count !== r.count) {
+  const coverageRegions = new WeakMap();
+  function coverageRegion(r) {
+    const prior = coverageRegions.get(r);
+    const sameGeometry = prior && prior.data === r.data && prior.count === r.count;
+    if (sameGeometry && prior.net === r.net) return prior;
+    let bounds = sameGeometry ? prior.bounds : null;
+    if (!sameGeometry) {
       // Stored bounds describe the outer ring. An imported even-odd path
       // can have other contours outside it. Bound the actual fill once.
       const b = [Infinity, Infinity, -Infinity, -Infinity];
@@ -978,10 +981,12 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           b[2] = Math.max(b[2], xy[i]); b[3] = Math.max(b[3], xy[i+1]);
         }
       } catch { b.fill(NaN); }
-      entry = {data: r.data, count: r.count, box: b.every(Number.isFinite) ? b : null};
-      coverageBounds.set(r, entry);
+      if (b.every(Number.isFinite)) bounds = b;
     }
-    return entry.box;
+    // Bands keep these records for comparisons across edits, including in-place changes.
+    const entry = {data: r.data, count: r.count, net: r.net, bounds};
+    coverageRegions.set(r, entry);
+    return entry;
   }
   function coveragePixels(I, group, dpr, w, h, firstOnly) {
     let pixels = null;
@@ -989,13 +994,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (!bounds) return [0, 0, w, h];
       // Clip each region before joining it. The padded artwork viewport can
       // admit disjoint pours whose combined bounds cross an empty viewport.
-      const [x, y, sw, sh] = damagePixels(I, bounds, dpr, 2, w, h);
-      if (sw > 0 && sh > 0) {
-        const rect = [x, y, x + sw, y + sh];
-        // A full-canvas upload only needs to know whether any copper reaches the view.
-        if (firstOnly) return rect;
-        pixels = mergeBounds(pixels, rect);
+      const rect = damagePixels(I, bounds, dpr, 2, w, h);
+      if (!(rect[2] > 0 && rect[3] > 0)) continue;
+      rect[2] += rect[0]; rect[3] += rect[1];
+      // A full-canvas upload only needs to know whether any copper reaches the view.
+      if (firstOnly) return rect;
+      if (!pixels) pixels = rect;
+      else {
+        pixels[0] = Math.min(pixels[0],rect[0]); pixels[1] = Math.min(pixels[1],rect[1]);
+        pixels[2] = Math.max(pixels[2],rect[2]); pixels[3] = Math.max(pixels[3],rect[3]);
       }
+      if (pixels[0] === 0 && pixels[1] === 0 && pixels[2] === w && pixels[3] === h) break;
     }
     return pixels;
   }
@@ -1036,12 +1045,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       cover.layers.delete(layer);
     }
     for (const layer of active) {
-      const group = candidates.get(layer), inks = new Set(group.map(r => PCB.ink(layer,r,opts,!!opts.highlight && opts.highlight === r.net)));
-      const ink = inks.size === 1 && st.alphaTextures !== false ? inks.values().next().value : null;
+      const group = candidates.get(layer);
+      const inkFor = r => PCB.ink(layer,r,opts,!!opts.highlight && opts.highlight === r.net);
+      let ink = st.alphaTextures === false ? null : inkFor(group[0]);
+      for (let n = 1; ink && n < group.length; n++) if (inkFor(group[n]) !== ink) ink = null;
       let band = cover.layers.get(layer);
       if (band?.tex && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
       const needsTexture = !band?.tex;
-      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
+      const next = group.map(coverageRegion);
       const sameView = !needsTexture && band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
       if (band?.ink) band.ink = ink;
       if (sameView && dirty === null) { band.offscreen = false; continue; }
