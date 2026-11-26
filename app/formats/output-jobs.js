@@ -254,7 +254,7 @@ globalThis.AtriumOutputJobs = (() => {
       description: "The files " + vendor + " asks for, laid out flat for its upload form. " + (L.notes || []).join(" "),
       folder: "{project}-{rev}-" + vendor + "-{date}", zip: false, outputs: [
         o("drc", {failOver: 0, format: "html"}),
-        o("gerber", {units: L.gerberUnits || "mm", drillUnits: L.drillUnits || "mm", readme: false, pack: L.gerberZip}, {folder: ""}),
+        o("gerber", {units: L.gerberUnits || "mm", drillUnits: L.drillUnits || "mm", readme: false, pack: L.gerberZip, ...(L.x2 != null ? {x2: L.x2} : {})}, {folder: ""}),
         o("bom", {style: L.bom.style, format: L.bom.format, source: "pcb", name: L.bom.name}, {folder: ""}),
         o("pnp", {style: L.pnp.style, units: "mm", name: L.pnp.name}, {folder: ""}),
         ...more,
