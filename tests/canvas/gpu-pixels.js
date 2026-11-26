@@ -1155,6 +1155,31 @@ globalThis.atriumGpuPixels = async function (o = {}) {
             failLifecycle("pourCoverageOffscreenBounce",JSON.stringify(report.bounces));
 
           const mixedAt = offset => paint(offset,0,10,flipped,"GND");
+          const dormant = mixedAt(0);
+          const backing = dormant.image.width * dormant.image.height * 4;
+          const cap = globalThis.__atriumGpuCapMB;
+          let pressured;
+          try {
+            globalThis.__atriumGpuCapMB = (dormant.memory + backing - 1) / 1048576;
+            pressured = mixedAt(0);
+          } finally {
+            if (cap === undefined) delete globalThis.__atriumGpuCapMB;
+            else globalThis.__atriumGpuCapMB = cap;
+          }
+          const returned = mixedAt(enteringCamera);
+          const emptyAgain = mixedAt(0), retainedAgain = mixedAt(enteringCamera);
+          GPU().release(I); view.invalidate();
+          const freshReturn = mixedAt(enteringCamera);
+          report.pressure = {freed: dormant.memory - pressured.memory, expected: visible.allocated,
+            whileOffscreen: imageDelta(clear,pressured), allocationOnReturn: returned.allocated,
+            uploadOnReturn: returned.uploaded, freshDelta: imageDelta(returned,freshReturn),
+            nextUpload: emptyAgain.uploaded + retainedAgain.uploaded,
+            nextAllocation: emptyAgain.allocated + retainedAgain.allocated};
+          if (report.pressure.freed !== visible.allocated || report.pressure.whileOffscreen ||
+              pressured.uploaded || pressured.allocated || returned.allocated !== visible.allocated ||
+              !returned.uploaded || report.pressure.freshDelta || report.pressure.nextUpload || report.pressure.nextAllocation)
+            failLifecycle("pourCoveragePressure",JSON.stringify(report.pressure));
+
           mixedAt(0);
           const otherCamera = mixedAt(enteringCamera+1);
           GPU().release(I); view.invalidate();

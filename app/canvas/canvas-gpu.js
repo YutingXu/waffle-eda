@@ -1010,6 +1010,35 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   // Keep the layer claimed by coverage without submitting a texture or stencil fans.
   const emptyCoverageBand = Object.freeze({tex:null});
+  function trimOffscreenCoverage(I, st, doc, used, cap) {
+    if (used <= cap) return used;
+    const cover = st.coverage, regions = doc.pcbDrawing?.pours;
+    if (!cover || !Array.isArray(regions)) return used;
+    const {layers,w,h} = cover, dormant = new Set();
+    for (const [layer, band] of layers) if (band.tex && band.offscreen) dormant.add(layer);
+    if (!dormant.size) return used;
+    const dpr = I.cam()[6];
+    // The camera can have returned before coverage has reactivated a band.
+    for (const region of regions) {
+      const layer = region?.layer;
+      if (dormant.has(layer) && (!region.bounds || coveragePixels(I,[coverageRegion(region)],dpr,w,h,true))) {
+        dormant.delete(layer);
+        if (!dormant.size) return used;
+      }
+    }
+    for (const layer of dormant) {
+      const band = layers.get(layer);
+      st.gl.deleteTexture(band.tex);
+      layers.set(layer,emptyCoverageBand);
+      used -= w*h*(band.ink ? 1 : 4);
+      if (used <= cap) break;
+    }
+    return used;
+  }
+  function coverageFits(I, st, doc, bytes) {
+    const cap = capBytes();
+    return trimOffscreenCoverage(I,st,doc,bytesOf(st) + backingBytes(st) + bytes,cap) <= cap;
+  }
   function pourLodKey(scale, dpr) {
     const lod = G.AtriumPCBPours.lod, k = scale*dpr;
     // The unrotated Canvas painter uses the transform determinant for device scale.
@@ -1066,7 +1095,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
       if (needsTexture) {
         if (band) cover.layers.delete(layer);
-        if (bytesOf(st) + backingBytes(st) + w*h*(ink?1:4) > capBytes()) continue;
+        if (!coverageFits(I,st,doc,w*h*(ink?1:4))) continue;
         band = {tex: texture(gl,w,h,!!ink), ink};
         if (ink && st.alphaTextures == null) {
           const error = gl.getError();
@@ -1078,7 +1107,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           st.alphaTextures = error === gl.NO_ERROR;
           if (!st.alphaTextures) {
             gl.deleteTexture(band.tex);
-            if (bytesOf(st) + backingBytes(st) + w*h*4 > capBytes()) continue;
+            if (!coverageFits(I,st,doc,w*h*4)) continue;
             band = {tex:texture(gl,w,h),ink:null};
           }
         }
@@ -1429,7 +1458,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (!st.checkMemory) return true;
     const cap = capBytes(), backing = backingBytes(st);
     st.checkedCap = cap;
-    let n = bytesOf(st) + backing;
+    let n = trimOffscreenCoverage(I,st,doc,bytesOf(st) + backing,cap);
     if (n > cap && st.stats.pourCacheBytes) {
       trimPourAlternates(st, Math.max(0, st.stats.pourCacheBytes - (n - cap)));
       n = bytesOf(st) + backing;
