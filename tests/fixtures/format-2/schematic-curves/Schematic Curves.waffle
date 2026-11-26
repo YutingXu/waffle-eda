@@ -1,0 +1,3 @@
+{"kind":"project","formatVersion":"2.0","id":"01900000-0000-7000-8000-000000000103","name":"Schematic Curves"}
+{"kind":"library","id":"01900000-0000-7000-8000-000000000101","order":"V","path":"libraries/Curved symbol.wlib"}
+{"kind":"document","id":"01900000-0000-7000-8000-000000000102","docKind":"schematic","name":"Curves","order":"V","path":"Curves.wsch"}

@@ -243,4 +243,19 @@ function recorder() {
   const againShape = againDef.symbol.shapes.find(x => x.bezier);
   againShape.points.forEach((q, k) => near(q, shape.points[k], 2e-5));
 }
+// The immutable native fixture with these optional fields opens with every curve and directive intact.
+{
+  const fs = require("node:fs"), path = require("node:path"), M = AtriumFormat2Model;
+  const dir = path.join(__dirname, "../fixtures/format-2/schematic-curves"), read = f => new Uint8Array(fs.readFileSync(path.join(dir, f)));
+  const {project, members} = M.manifest(M.parse(read("Schematic Curves.waffle")));
+  for (const m of members) { const r = M.parse(read(m.path)); if (m.kind === "library") project.library.push(M.library(r, {})); else project.documents.push(M.document(r, {name:m.name})); }
+  A.validate(project);
+  const shapes = project.library[0].symbol.shapes, items = project.documents[0].items;
+  assert.deepEqual(shapes.map(s => s.kind === "circle" ? "circle" : C.arc(s) ? "arc" : C.ellipse(s) ? "ellipse" : C.bezier(s) ? "bezier" : "points"), ["circle", "arc", "ellipse", "ellipse", "bezier"]);
+  assert.ok(A.pathArc(items.find(i => i.arc)) && C.ellipse(items.find(i => i.ellipse)) && C.bezier(items.find(i => i.bezier)));
+  project.documents.push(A.sheet("pcb", "Board"));
+  const M2 = S.model(project, project.documents[1]);
+  assert.equal(M2.signals.find(x => x.name === "CAN").kind, "diff");
+  assert.deepEqual([...M2.netsOfTag("PowerNets")], ["RS485_A"]);
+}
 console.log("altium-sch-intent: ok");
