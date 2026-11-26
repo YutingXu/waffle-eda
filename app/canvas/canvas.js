@@ -1466,7 +1466,7 @@ globalThis.AtriumCanvas = (() => {
       // While the grid is being built, query every exact cached bound in document order.
       // Selection, snapping and the frame never consume a partial grid.
       if(c.preparation)return c.all.filter(item=>AtriumSpatial.overlaps(c.boxes.get(item),box));
-      return spatial(c).query(box);
+      return spatial(c).query(box,c.all);
     }
     function paintLayers(doc,defs,i){
       if(i.kind!=="part"){
