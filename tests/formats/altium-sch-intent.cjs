@@ -1,12 +1,14 @@
 "use strict";
 // Altium schematic intent and curves: parameter sets (directives) become signal directive fields,
-// and KiCad net class directive labels do too. Synthetic ASCII SchDoc records only.
+// and KiCad net class directive labels do too; arcs and ellipses keep their exact curves beside their
+// points. Synthetic ASCII SchDoc records only.
 const assert = require("node:assert/strict");
 globalThis.CFB = require("../../app/vendor/cfb.min.js");
-for (const name of ["model", "parts", "sch-objects", "hierarchy", "net-intent", "signals", "board-shape", "board-shape-sources", "stackup", "sexpr", "import-kicad", "import-link", "sch-import", "io"])
+for (const name of ["model", "parts", "sch-objects", "hierarchy", "net-intent", "signals", "board-shape", "board-shape-sources", "stackup", "sexpr", "import-kicad", "import-link", "sch-import", "io",
+  "spatial", "pcb-appearance", "sch-appearance", "sch-curves", "altium-export"])
   require(require("../support/app-source-paths.cjs").appFile(name + ".js"));
 const {nativeRoundTrip} = require("../support/native-cad.cjs");
-const A = Atrium, S = AtriumSignals;
+const A = Atrium, S = AtriumSignals, C = AtriumSchCurves;
 
 function ascii(build) {
   const lines = [];
@@ -117,5 +119,89 @@ function sheetProject(res) {
   assert.match(dirs[0].reason, /Owner are not translated/);
   const p = sheetProject(res);
   assert.deepEqual(S.model(p, p.documents.find(d => d.kind === "pcb")).netClasses(), {Fast:["CLK"]});
+}
+// B. Arcs, ellipses and elliptical arcs keep an exact curve beside their points, on symbols (also
+// rotated) and on the sheet; they draw as curves, survive a native save and export as Altium curves.
+const MM = .254, alt = (x, y, rx, ry, deg) => [x * MM + rx * MM * Math.cos(deg * Math.PI / 180), -y * MM - ry * MM * Math.sin(deg * Math.PI / 180)];
+const near = (p, q, tol = 2e-6) => assert.ok(Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol, JSON.stringify(p) + " is not " + JSON.stringify(q));
+function curvesSheet() {
+  return ascii(r => {
+    const comp = r({RECORD:1, LIBREFERENCE:"Curves", "LOCATION.X":500, "LOCATION.Y":500, ORIENTATION:1, CURRENTPARTID:1, DISPLAYMODE:0});
+    const own = o => r({OWNERINDEX:comp, OWNERPARTID:1, ...o});
+    own({RECORD:2, DESIGNATOR:"1", NAME:"A", "LOCATION.X":540, "LOCATION.Y":500, PINLENGTH:10, ELECTRICAL:4, PINCONGLOMERATE:0});
+    own({RECORD:34, NAME:"Designator", TEXT:"U1", "LOCATION.X":500, "LOCATION.Y":540});
+    own({RECORD:12, "LOCATION.X":520, "LOCATION.Y":500, RADIUS:10, STARTANGLE:"30.000", ENDANGLE:"120.000"});
+    own({RECORD:8, "LOCATION.X":480, "LOCATION.Y":500, RADIUS:5, SECONDARYRADIUS:5, ISSOLID:"T"});
+    own({RECORD:8, "LOCATION.X":500, "LOCATION.Y":520, RADIUS:8, SECONDARYRADIUS:4, ISSOLID:"T"});
+    own({RECORD:11, "LOCATION.X":500, "LOCATION.Y":480, RADIUS:6, SECONDARYRADIUS:3, STARTANGLE:"200.000", ENDANGLE:"20.000"});
+    r({RECORD:12, "LOCATION.X":100, "LOCATION.Y":100, RADIUS:20, ENDANGLE:"270.000"});
+    r({RECORD:11, "LOCATION.X":200, "LOCATION.Y":100, RADIUS:20, SECONDARYRADIUS:10, STARTANGLE:"45.000", ENDANGLE:"300.000"});
+    r({RECORD:8, "LOCATION.X":300, "LOCATION.Y":100, RADIUS:10, SECONDARYRADIUS:10, ISSOLID:"T"});
+  });
+}
+function recorder() {
+  const calls = [];
+  return new Proxy({calls}, {get: (t, k) => k in t ? t[k] : typeof k === "string" && /^[a-z]/.test(k) ? (...a) => calls.push(k) : undefined, set: () => true});
+}
+{
+  const f = sink(), res = AtriumSCH.read("Curves.SchDoc", null, curvesSheet(), {fidelity:f});
+  assert.ok(!res.notes.some(n => /Curves use line segments/.test(n)), res.notes.join(" | "));
+  assert.ok(!f.rows.some(x => /^(Arc|Ellipse|Elliptical arc)$/.test(x.kind) && x.status !== "kept"), JSON.stringify(f.rows.filter(x => x.status !== "kept")));
+  const doc = res.documents[0], part = doc.items.find(i => i.kind === "part"), def = res.library.find(d => d.id === part.def);
+  assert.equal(part.angle, 270);
+  const shapes = def.symbol.shapes.filter(s => s.kind === "circle" || s.arc || s.ellipse), world = p => A.world(p, part);
+  assert.deepEqual(shapes.map(s => s.kind === "circle" ? "circle" : s.arc ? "arc" : "ellipse"), ["arc", "circle", "ellipse", "ellipse"]);
+  // The arc: the symbol editor's form, centred and turned with the part.
+  const arc = C.arc(shapes[0]);
+  assert.ok(arc, "the arc still matches its points");
+  near(world([arc.x, arc.y]), alt(520, 500, 0, 0, 0));
+  near(world([arc.x + arc.r * Math.cos(arc.start * Math.PI / 180), arc.y + arc.r * Math.sin(arc.start * Math.PI / 180)]), alt(520, 500, 10, 10, 120));
+  near(world([arc.x + arc.r * Math.cos(arc.end * Math.PI / 180), arc.y + arc.r * Math.sin(arc.end * Math.PI / 180)]), alt(520, 500, 10, 10, 30));
+  assert.equal(arc.end - arc.start, 90);
+  const circle = shapes[1];
+  near(world([circle.x, circle.y]), alt(480, 500, 0, 0, 0));
+  assert.deepEqual([circle.r, circle.fill], [5 * MM, true]);
+  const full = C.ellipse(shapes[2]), part11 = C.ellipse(shapes[3]);
+  assert.ok(full && part11, "the ellipses still match their points");
+  assert.equal(full.sweep, 360);
+  assert.equal(shapes[2].fill, true);
+  for (const t of [0, 90, 180]) near(world(C.ellipsePoint(full, t)), alt(500, 520, 8, 4, t));
+  assert.equal(part11.sweep, 180);
+  for (const t of [0, 45, 180]) near(world(C.ellipsePoint(part11, t)), alt(500, 480, 6, 3, 200 + t));
+  // Sheet graphics: a centre/radius arc (the board convention) and an ellipse.
+  const graphics = doc.items.filter(i => i.kind === "graphic");
+  const sheetArc = A.pathArc(graphics[0]), sheetEllipse = C.ellipse(graphics[1]), disc = A.pathArc(graphics[2]);
+  assert.ok(sheetArc && sheetEllipse && disc);
+  near(A.arcPoint(sheetArc, sheetArc.start + A.arcSweep(sheetArc)), alt(100, 100, 20, 20, 270));
+  near(C.ellipsePoint(sheetEllipse, sheetEllipse.sweep), alt(200, 100, 20, 10, 300));
+  assert.deepEqual([A.arcSweep(disc), graphics[2].closed, graphics[2].fill], [360, true, true]);
+  // Drawing: the curves, not their chords.
+  for (const s of [shapes[0], shapes[2], shapes[3]]) {
+    const ctx = recorder(); AtriumSchAppearance.shape(ctx, s, 10, false);
+    assert.ok(ctx.calls.includes("arc") && !ctx.calls.includes("lineTo"), ctx.calls.join(","));
+  }
+  // A moved sheet ellipse keeps its curve; an edited point falls back to the points.
+  const moved = JSON.parse(JSON.stringify(graphics[1])); A.moveItem(moved, 5, -3);
+  assert.ok(C.ellipse(moved));
+  moved.points[2] = [0, 0];
+  assert.equal(C.ellipse(moved), null);
+  // A native save keeps every curve, rounded to nanometres.
+  const p = sheetProject(res), back = A.validate(nativeRoundTrip(p));
+  const backDef = back.library.find(d => d.id === def.id), backShapes = backDef.symbol.shapes.filter(s => s.kind === "circle" || s.arc || s.ellipse);
+  assert.ok(C.arc(backShapes[0]) && C.ellipse(backShapes[2]) && C.ellipse(backShapes[3]));
+  const backGraphics = back.documents[0].items.filter(i => i.kind === "graphic");
+  assert.ok(A.pathArc(backGraphics[0]) && C.ellipse(backGraphics[1]) && A.pathArc(backGraphics[2]));
+  // Altium export writes true arcs, ellipses and elliptical arcs, and they read back the same.
+  const out = AtriumAltiumExport.exportSchematic(p, doc.id), records = out.content.split(/\r?\n/).map(l => Object.fromEntries(l.split("|").filter(Boolean).map(kv => kv.split("="))));
+  const curves = records.filter(x => ["8", "11", "12"].includes(x.RECORD));
+  assert.deepEqual(curves.map(x => x.RECORD), ["12", "11", "8", "12", "8", "8", "11"]);
+  assert.ok(!out.diagnostics.some(d => /curve|segment/i.test(d)), out.diagnostics.join(" | "));
+  const again = AtriumSCH.read("Again.SchDoc", null, out.content), againDoc = again.documents[0];
+  const againPart = againDoc.items.find(i => i.kind === "part"), againDef = again.library.find(d => d.id === againPart.def);
+  const againShapes = againDef.symbol.shapes.filter(s => s.kind === "circle" || s.arc || s.ellipse);
+  assert.equal(againPart.angle, part.angle);
+  againShapes.forEach((s, i) => { assert.equal(s.kind, shapes[i].kind); assert.equal(s.points?.length, shapes[i].points?.length); (s.points || []).forEach((q, k) => near(q, shapes[i].points[k], 2e-5)); });
+  const againGraphics = againDoc.items.filter(i => i.kind === "graphic"), shift = [out.offset[0], -out.offset[1]];
+  againGraphics.forEach((g, i) => g.points.forEach((q, k) => near(q, [graphics[i].points[k][0] + shift[0], graphics[i].points[k][1] + shift[1]], 2e-5)));
 }
 console.log("altium-sch-intent: ok");

@@ -859,6 +859,7 @@ declare var AtriumSaveCache: AtriumGen<"AtriumSaveCache">; // app/save-cache.js
 declare var AtriumSCH: AtriumGen<"AtriumSCH">; // app/sch-import.js
 declare var AtriumSHA256: AtriumGen<"AtriumSHA256">; // app/sha256.js
 declare var AtriumSchAppearance: AtriumGen<"AtriumSchAppearance">; // app/sch-appearance.js
+declare var AtriumSchCurves: AtriumGen<"AtriumSchCurves">; // app/schematic/sch-curves.js
 declare var AtriumSchAuthor: AtriumGen<"AtriumSchAuthor">; // app/sch-author.js
 declare var AtriumSchematicOutput: AtriumGen<"AtriumSchematicOutput">; // app/schematic-output.js
 declare var AtriumSchMarkers: AtriumGen<"AtriumSchMarkers">; // app/sch-markers.js

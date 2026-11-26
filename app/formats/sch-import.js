@@ -94,15 +94,19 @@ globalThis.AtriumSCH = (() => {
     const a=at(r),b=at(r,"CORNER");
     return [a,[b[0],a[1]],b,[a[0],b[1]]];
   }
-  function ellipse(r,t) {
+  // Arcs (12), ellipses (8) and elliptical arcs (11): points at most 8° apart and the exact curve
+  // (sch-curves.js). Altium angles turn counterclockwise from +X on its Y-up sheet; Waffle's Y is down.
+  function curve(r,t) {
     const [x,y]=at(r),rx=mm(r,"RADIUS"), ry=t===8||t===11?mm(r,"SECONDARYRADIUS")||rx:rx;
-    if(rx<=0||ry<=0)return [];
+    if(rx<=0||ry<=0)return null;
     const full=t===8,start=full?0:numeric(r.STARTANGLE),end=full?360:numeric(r.ENDANGLE);
     const span=((end-start)%360+360)%360 || 360;
-    const n=Math.max(4,Math.ceil(span/8));
-    return Array.from({length:n+1},(_,i)=>{
+    const n=Math.max(4,Math.ceil(span/8)),s=A.rad(start);
+    const points=Array.from({length:n+1},(_,i)=>{
       const a=A.rad(start+span*i/n);return [x+rx*Math.cos(a),y-ry*Math.sin(a)];
     });
+    return {points,c:[x,y],r:rx,circle:rx===ry,start,span,
+      ellipse:{a:[rx*Math.cos(s),-ry*Math.sin(s)],b:[-rx*Math.sin(s),-ry*Math.cos(s)],sweep:span}};
   }
   const sheetSizes=[[1150,760],[1550,1110],[2230,1570],[3150,2230],[4460,3150],[950,750],[1500,950],[2000,1500],[3200,2000],[4200,3200],[1100,850],[1400,850],[1700,1100],[990,790],[1540,990],[2060,1560],[3260,2060],[4280,3280]];
   function ink(raw,fallback){
@@ -413,7 +417,21 @@ globalThis.AtriumSCH = (() => {
         if(t===6||t===7){graphic(vertices(r),t===7,isTrue(r.ISSOLID));continue;}
         if(t===13){graphic([position,at(r,"CORNER")]);continue;}
         if(t===10||t===14){graphic(rectangle(r),true,isTrue(r.ISSOLID));if(t===10){simplified.add("Rounded rectangles use square corners.");approximated("Rounded rectangles use square corners.");}continue;}
-        if([8,11,12].includes(t)){graphic(ellipse(r,t),t===8,isTrue(r.ISSOLID));simplified.add("Curves use line segments.");approximated("Curve tessellated to line segments.");continue;}
+        if([8,11,12].includes(t)){
+          const g=curve(r,t),closed=t===8,fill=isTrue(r.ISSOLID),paint=appearance?{schPaint:stroke(r)}:{};
+          if(!g)continue;
+          if(c){
+            // A full circle is a circle shape. Circular arcs use the symbol editor's arc
+            // (screen degrees, clockwise from start to end); other ellipses carry an ellipse.
+            const turn=v=>(v%360+360)%360,from=turn(-(g.start+g.span));
+            const shape=g.circle&&closed?{kind:"circle",...xy(local(g.c)),r:g.r,style:"body",fill,...paint}:
+              {...path(g.points.map(local),closed,fill),...(g.circle?{arc:{...xy(local(g.c)),r:g.r,start:from,end:from+g.span}}:
+                {ellipse:g.ellipse}),...paint};
+            c.symbol.shapes.push(shape);kept(shape);
+          }else if(doc)addItem({id:A.id(),kind:"graphic",points:g.points,...(g.circle?{arc:{kind:"arc",c:g.c,r:g.r,start:g.start,end:g.start+g.span,ccw:true}}:{ellipse:g.ellipse}),
+            ...paint,...(appearance?{closed,fill}:{})},idx);
+          recognized++;continue;
+        }
         if(t===27 && doc && !c){
           const points=vertices(r);if(points.length>=2)addItem({id:A.id(),kind:"wire",points,...(appearance?{schPaint:stroke(r,"#000080")}:{})},idx);
           recognized++;continue;
@@ -501,9 +519,12 @@ globalThis.AtriumSCH = (() => {
         // Undo the placed instance rotation before sharing its library geometry.
         // Rounding removes harmless binary float differences after translation.
         const normalize=p=>A.rotate(p,-c.angle).map(v=>Math.round(v*1e8)/1e8);
+        const turned=a=>Math.round((a-c.angle)*1e8)/1e8;
         for(const s of c.symbol.shapes){
           if(s.points)s.points=s.points.map(normalize);
           else Object.assign(s,xy(normalize([s.x,s.y])));
+          if(s.arc){const [x,y]=normalize([s.arc.x,s.arc.y]);s.arc={...s.arc,x,y,start:turned(s.arc.start),end:turned(s.arc.end)};}
+          if(s.ellipse)s.ellipse={...s.ellipse,a:normalize(s.ellipse.a),b:normalize(s.ellipse.b)};
         }
         for(const p of c.symbol.pins)Object.assign(p,xy(normalize([p.x,p.y])));
         const def={id:A.id(),name:c.name,description:c.desc,category:"Imported symbols",prefix:c.prefix,value,

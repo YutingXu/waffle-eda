@@ -36,7 +36,7 @@ globalThis.AtriumLazy = (() => {
     AtriumRichTextView: {scripts:["notebook/rich-text-view.js"],deps:["AtriumNotebookFonts","AtriumNoteFields"]},
     AtriumRichText: {scripts:["notebook/rich-text.js"],deps:["AtriumNotebook","AtriumRichTextView"]},
     AtriumRichTextEditor: {scripts:["notebook/rich-text-editor.js"],css:["notebook/rich-text-editor.css"],deps:["AtriumLayer","AtriumRichText"]},
-    AtriumWireEdit: {scripts: ["schematic/wire-edit.js"]},
+    AtriumWireEdit: {scripts: ["schematic/wire-edit.js"]}, AtriumSchCurves: {scripts: ["schematic/sch-curves.js"]},
     AtriumCanvasInput: {scripts: ["canvas/canvas-input.js"], deps:["AtriumWireEdit"]},
     AtriumActiveBarMenu: {scripts: ["editor/active-bar-menu.js"]},
     AtriumNavigator: {scripts: ["editor/navigator.js"]},
@@ -1065,7 +1065,7 @@ globalThis.AtriumLazy = (() => {
     host.on?.("replace", lockFile);
     d.addEventListener("visibilitychange", () => { if (visible()) lockFile(); });
     lockFile();
-    requestAnimationFrame(() => idle(() => need("AtriumHistoryEntry").catch(() => {})));
+    requestAnimationFrame(() => idle(() => need(["AtriumHistoryEntry", "AtriumSchCurves"]).catch(() => {})));
     if (/^#atrium(-host)?=1&/.test(globalThis.location?.hash || "")) need("AtriumCollabPresence").catch(() => {}); // invitation link
     start();
     power();
