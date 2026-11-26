@@ -296,6 +296,12 @@ async function main() {
     setItem(k, v) { writes.push([k, v]); storage.set(k, v); }
   }});
   const privateGetter = () => { privateReads.push(true); throw new Error(marker); };
+  let failureClock = 100;
+  Object.defineProperty(G, "performance", {configurable: true, value: {now: () => failureClock}});
+  G.ErrorEvent = class {
+    constructor(message, error = null) { this.message = message; this.error = error; }
+    get filename() { return privateGetter(); }
+  };
   Object.defineProperty(G, "navigator", {configurable: true, value: {
     get userAgent() { return privateGetter(); },
     get hardwareConcurrency() { return privateGetter(); }
@@ -328,9 +334,18 @@ async function main() {
   assert.deepEqual(writes, [], "starting diagnostics does not write its storage");
 
   const thrown = {get stack() { return privateGetter(); }, get message() { return privateGetter(); }};
-  HANDLERS.get("error")({get filename() { return privateGetter(); }, error: thrown});
+  const errorEvent = HANDLERS.get("error"), muted = () => errorEvent(new G.ErrorEvent("Script error."));
+  muted();
+  assert.equal(D.failures().javascriptErrors, 1, "a desktop muted Script error counts without a handled exception");
   D.failed(thrown);
-  HANDLERS.get("error")({get filename() { return privateGetter(); }, error: null});
+  errorEvent(new G.ErrorEvent("Uncaught", thrown));
+  failureClock += 999;
+  muted();
+  assert.equal(D.failures().javascriptErrors, 2, "the muted echo of a recently handled failure is skipped");
+  failureClock++;
+  muted();
+  errorEvent(new G.ErrorEvent("ResizeObserver loop completed with undelivered notifications."));
+  errorEvent({target: {localName: "img"}, error: null});
   HANDLERS.get("error")({target: {localName: "script", get src() { return privateGetter(); }}});
   HANDLERS.get("unhandledrejection")({reason: {name: marker, get stack() { return privateGetter(); }}});
   HANDLERS.get("unhandledrejection")({reason: {cancelled: true, message: marker}});
@@ -343,7 +358,7 @@ async function main() {
   assert.equal(infos.length, 1, "a burst of editor failures shows one notice");
   assert.match(infos[0], /Help › Troubleshooting › Crash Diagnostics/);
 
-  const expected = {javascriptErrors: 1, unhandledRejections: 1, scriptLoadFailures: 1, autosaveFailures: 1,
+  const expected = {javascriptErrors: 3, unhandledRejections: 1, scriptLoadFailures: 1, autosaveFailures: 1,
     workerFailures: 1, workerTimeouts: 2};
   assert.deepEqual(D.failures(), expected);
   assert.ok(writes.every(([k, v]) => k === key && !v.includes(marker) && !v.includes("Users") &&
@@ -368,7 +383,7 @@ async function main() {
       displayPresentedFps: "not-measured", systemCpuUtilization: "not-measured", activity: {version: 1, recording: true, rows: [],
         frame: {drawCpuP95: "4-to-8ms", wheelToDrawP95: "16-to-33ms", commitCpuP95: "under-4ms",
           followUpCpuP95: "8-to-16ms", callbackIntervalP95: "33-to-67ms"}}},
-    recordedEditorFailures: {javascriptErrors: "one", unhandledRejections: "one", scriptLoadFailures: "one",
+    recordedEditorFailures: {javascriptErrors: "two-to-four", unhandledRejections: "one", scriptLoadFailures: "one",
       autosaveFailures: "one", workerFailures: "one", workerTimeouts: "two-to-four"},
     rendererTerminations: {exited: "none", unresponsive: "two-to-four", browserExited: "unknown",
       memoryLimit: "five-or-more", terminated: "one"}

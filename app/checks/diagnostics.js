@@ -9,8 +9,8 @@ globalThis.AtriumDiagnostics = (() => {
   const workerKinds = new Map([["worker", "workerFailures"], ["hang", "workerTimeouts"]]);
   const autosaveKinds = new Set(["serialize", "large", "error", "quota"]);
   const observed = new WeakSet();
-  const now = () => G.performance?.now?.() ?? 0;
-  let lastNotice = -Infinity;
+  const now = () => G.performance?.now?.() ?? Date.now();
+  let lastNotice = -Infinity, lastHandledError = -Infinity;
 
   function readCounts() {
     try {
@@ -30,24 +30,29 @@ globalThis.AtriumDiagnostics = (() => {
     counts[key]++;
     try { G.localStorage?.setItem(KEY, JSON.stringify(counts)); } catch { /* bounded in-memory fallback */ }
   }
-  function notify() {
-    const at = now();
+  function notify(at = now()) {
     if (at - lastNotice < 30000) return;
     lastNotice = at;
     try { G.AtriumNavHost?.info?.("Internal error. See Help › Troubleshooting › Crash Diagnostics."); }
     catch { /* the editor may be starting */ }
   }
-  function failed(error) {
+  function noteError(error, handled = false) {
     if (error && (typeof error === "object" || typeof error === "function")) {
       if (observed.has(error)) return;
       observed.add(error);
     }
+    const at = now();
+    if (handled) lastHandledError = at;
     increment("javascriptErrors");
-    notify();
+    notify(at);
   }
+  const failed = error => noteError(error, true);
   G.addEventListener?.("error", event => {
     if (event.target?.localName === "script") increment("scriptLoadFailures");
-    else if (event.error != null) failed(event.error);
+    else if (event.error != null) noteError(event.error);
+    // On file:// the browser can mute an uncaught exception before dispatching its ErrorEvent.
+    else if (typeof G.ErrorEvent === "function" && event instanceof G.ErrorEvent &&
+             !event.message.startsWith("ResizeObserver loop") && now() - lastHandledError >= 1000) noteError();
   }, true);
   G.addEventListener?.("unhandledrejection", event => {
     try { if (event.reason?.cancelled === true || event.reason?.name === "AbortError") return; }
