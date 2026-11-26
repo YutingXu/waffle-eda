@@ -1047,9 +1047,10 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       // Center a 0.55-device-pixel clearance on a sample column. Its contrast
       // must survive Canvas coverage and the actual GPU composite.
       const k = 10*dpr, x = (Math.floor(width/2+6*k)+.5-width/2)/k;
-      const body = rect(4,-8,4,6), gap = rect(x-.275/k,-7,.55/k,3);
-      const otherGap = rect(7-.275/k,-7,.55/k,3);
-      const narrow = AtriumPCBPours.region([body,gap,otherGap],"Top","GND");
+      const widthPx = .55, body = rect(4,-8,4,6);
+      const gapAt = (cx,y=-7,h=3) => rect(cx-widthPx/(2*k),y,widthPx/k,h);
+      const otherGap = gapAt(7);
+      const narrow = AtriumPCBPours.region([body,gapAt(x),otherGap],"Top","GND");
       board.pcbDrawing.pours = [narrow];
       view.invalidate();
       GPU().enable(false);
@@ -1058,22 +1059,35 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       const reference = ctx.getImageData(0,0,width,height).data;
       GPU().enable(true);
       const actual = paint(0,-1,10);
-      // Leave the second clearance so the intentionally filled control stays
-      // in the same production coverage path.
-      Object.assign(narrow,AtriumPCBPours.region([body,otherGap],"Top","GND"));
-      view.invalidate();
-      const filled = paint(0,-1,10);
+      // Keep the second clearance so the fault controls use the same coverage path.
+      const repaint = holes => {
+        Object.assign(narrow,AtriumPCBPours.region([body,...holes,otherGap],"Top","GND"));
+        view.invalidate();
+        return paint(0,-1,10);
+      };
+      const filled = repaint([]), shiftX = x+1/k, shifted = repaint([gapAt(shiftX)]);
+      const interrupted = repaint([gapAt(x,-7,2),gapAt(x,-5+1/k,1-1/k)]);
       const clear = at(3,-6), copper = at(5,-6);
       const channel = [0,1,2].reduce((a,b) => Math.abs(reference[copper+b]-reference[clear+b]) >
         Math.abs(reference[copper+a]-reference[clear+a]) ? b : a);
       const start = reference[clear+channel], contrast = reference[copper+channel]-start;
-      const profile = A => [-6.5,-6,-5.5,-5,-4.5].map(y => (A[at(x,y)+channel]-start)/contrast);
+      const profile = (pixels,cx=x) => {
+        const row = width*4, ink = [];
+        for (let i = at(cx,-7)+row; i < at(cx,-4)-row; i += row) ink.push((pixels[i+channel]-start)/contrast);
+        return ink;
+      };
       const a = profile(reference), b = profile(actual.image.data), c = profile(filled.image.data);
-      const visible = row => row.every(ink => ink>=0 && ink<.5);
-      const result = rows.narrowGap = {reference:a,composite:b,filled:c,uploaded:[actual.uploaded,filled.uploaded]};
-      if (Math.abs(contrast)<16 || !visible(a) || !visible(b) || c.some(ink=>ink<.9))
+      const oldPosition = profile(shifted.image.data), newPosition = profile(shifted.image.data,shiftX);
+      // A half-covered pixel can show nearly the same gap as Canvas. Check the
+      // contrast along the entire slit so a one-pixel interruption is still detected.
+      const retainsContrast = (ink,i) => 1-ink >= .75*(1-a[i]);
+      const brokenRows = profile(interrupted.image.data).filter((ink,i) => !retainsContrast(ink,i)).length;
+      const result = rows.narrowGap = {reference:a,composite:b,filled:c,oldPosition,newPosition,brokenRows,uploaded:[actual.uploaded,filled.uploaded]};
+      if (Math.abs(contrast)<16 || !a.every(ink => 1-ink >= .75*widthPx) || !b.every(retainsContrast) ||
+          c.some(ink => ink<.9) || oldPosition.some(retainsContrast) || !newPosition.every(retainsContrast) ||
+          !brokenRows || brokenRows>3)
         failLifecycle("pourCoverageNarrowGap",JSON.stringify(result));
-      else okLifecycle("pourCoverageNarrowGap","a subpixel clearance survives the exact GPU composite");
+      else okLifecycle("pourCoverageNarrowGap","a subpixel clearance retains contrast where drawn, including after a one-pixel move");
 
       if (usesReadback) {
         rows.offscreen = [];
