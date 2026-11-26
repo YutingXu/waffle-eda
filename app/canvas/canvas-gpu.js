@@ -879,7 +879,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   function freeCoverage(st) {
     if (!st.coverage) return;
-    for (const band of st.coverage.layers.values()) st.gl.deleteTexture(band.tex);
+    for (const band of st.coverage.layers.values()) if (band.tex) st.gl.deleteTexture(band.tex);
     st.coverage = null;
   }
   function texture(gl, w, h, alpha=false) {
@@ -994,6 +994,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return pixels;
   }
+  // Keep the layer claimed by coverage without submitting a texture or stencil fans.
+  const emptyCoverageBand = Object.freeze({tex:null});
   // Stencil coverage can quantize narrow clearance curves. Exact camera paints, including moving
   // fallbacks, use the same coverage as the 2D path for subpixel hole edges. Retained frames and
   // live tiles can use the fans; ordinary edits reuse these coverage textures.
@@ -1019,14 +1021,27 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       group.push(r);
       if (!active.has(r.layer) && smallHoleEdges(r,scale*dpr)) active.add(r.layer);
     }
-    for (const [layer, band] of cover.layers) if (!active.has(layer)) { gl.deleteTexture(band.tex); cover.layers.delete(layer); }
+    for (const [layer, band] of cover.layers) if (!active.has(layer)) {
+      if (band.tex) gl.deleteTexture(band.tex);
+      cover.layers.delete(layer);
+    }
     for (const layer of active) {
       const group = candidates.get(layer), inks = new Set(group.map(r => PCB.ink(layer,r,opts,!!opts.highlight && opts.highlight === r.net)));
       const ink = inks.size === 1 && st.alphaTextures !== false ? inks.values().next().value : null;
       let band = cover.layers.get(layer);
-      if (band && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
-      if (!band) {
+      if (band?.tex && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
+      const needsTexture = !band?.tex;
+      if (needsTexture) {
+        if (band) cover.layers.delete(layer);
         if (bytesOf(st) + backingBytes(st) + w*h*(ink?1:4) > capBytes()) continue;
+      }
+      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
+      let pixels;
+      if (needsTexture) {
+        if (READBACK && !(pixels = coveragePixels(I,next,dpr,w,h))) {
+          cover.layers.set(layer,emptyCoverageBand);
+          continue;
+        }
         band = {tex: texture(gl,w,h,!!ink), ink};
         if (ink && st.alphaTextures == null) {
           const error = gl.getError();
@@ -1045,7 +1060,6 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         cover.layers.set(layer,band); st.checkMemory = true;
       }
       if (band.ink) band.ink = ink;
-      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
       const sameView = band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
       band.key = key; band.regions = next;
       if (sameView && dirty === null) continue;
@@ -1060,7 +1074,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         });
       }
       if (READBACK) {
-        const pixels = coveragePixels(I, next, dpr, w, h), both = mergeBounds(band.pixels, pixels);
+        pixels ??= coveragePixels(I,next,dpr,w,h);
+        const both = mergeBounds(band.pixels, pixels);
         band.pixels = sameView ? both : pixels;
         if (!both) continue;
         if (!sameView) {
@@ -1318,7 +1333,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       (st.union ? st.union.w * st.union.h * 4 : 0);
     const texts = [st.text, st.wide?.text, st.textJob?.T, st.wideText?.T];
     for (const [i, T] of texts.entries()) if (T?.bands?.length && texts.indexOf(T) === i) for (const band of T.bands) if (band.tex) n += T.w * T.h * 4;
-    if (st.coverage) for (const band of st.coverage.layers.values()) n += st.coverage.w * st.coverage.h * (band.ink ? 1 : 4);
+    if (st.coverage) for (const band of st.coverage.layers.values()) if (band.tex) n += st.coverage.w * st.coverage.h * (band.ink ? 1 : 4);
     for (const b of Object.values(st.ui || {})) n += bufferBytes(b);
     for (const S of [st.scene, ...st.parked.values()]) if (S) {
       for (const b of bufs(S)) n += bufferBytes(b);

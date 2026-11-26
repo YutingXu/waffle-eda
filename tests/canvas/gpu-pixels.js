@@ -987,7 +987,14 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
     const opts = {editorPane:true,noReuse:true,grid:false,origin:false,showUnrouted:false,netNames:false};
     const getImage = ctx.getImageData;
-    let bytes = 0;
+    let bytes = 0, allocated = 0;
+    const proto = globalThis.WebGL2RenderingContext.prototype;
+    const storage = usesReadback ? ["texImage2D","texStorage2D"].map(name =>
+      [name,proto[name],Object.getOwnPropertyDescriptor(proto,name)]) : [];
+    for (const [name,call] of storage) proto[name] = function (...args) {
+      if (new Error().stack?.includes("pourCoverage")) allocated += args[3]*args[4]*(args[2]===this.ALPHA?1:4);
+      return call.apply(this,args);
+    };
     ctx.getImageData = function (...args) {
       if (new Error().stack?.includes("pourCoverage")) bytes += args[2]*args[3]*4;
       return getImage.apply(this,args);
@@ -995,11 +1002,12 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     const paint = (cx,cy,scale,flipped=false,highlight=undefined,moving=false) => {
       view.restoreCamera({cx,cy,scale,flipped,referenceScale:10});
       if (moving) view.moving();
-      bytes = 0;
+      bytes = allocated = 0;
       view.render(board,defs,{...opts,highlight,noReuse:!moving});
       const stats = GPU().stats(I), c = GPU().composite(I);
       if (!c || !stats) throw Error("no GPU coverage frame");
-      return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, uploaded:stats.coverageUpload, memory:stats.gpuBytes};
+      return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, allocated,
+        uploaded:stats.coverageUpload, memory:stats.gpuBytes, fanUploads:stats.pourUploads};
     };
     try {
       const close = paint(0,-1,10), retreat = paint(8,-2,8), reverse = paint(0,-1,10,true,"GND");
@@ -1099,6 +1107,7 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           };
           const report = {flipped,width:empty.image.width,height:empty.image.height,
             upload:track.map(frame=>frame.uploaded), readback:track.map(frame=>frame.bytes),
+            allocated:track.map(frame=>frame.allocated), fanUploads:track.map(frame=>frame.fanUploads),
             noInk:[single,disjoint,exit,edited,fresh].map(frame=>imageDelta(empty,frame)),
             entered:rasterResidual(emptyEnter.image.data,enter.image.data,enter.image.width,enter.image.height),
             hole:sample(edge+2.4,north+2), ink:sample(edge+1.4,north+2)};
@@ -1108,12 +1117,18 @@ globalThis.atriumGpuPixels = async function (o = {}) {
               [single,disjoint,edited,fresh].some(frame=>frame.uploaded || frame.bytes) ||
               [enter,exit].some(frame=>!frame.uploaded || frame.uploaded>=limit || !frame.bytes || frame.bytes>=limit*4))
             failLifecycle("pourCoverageOffscreen",JSON.stringify({...report,entered:undefined}));
+          if ([single,disjoint,exit,edited,fresh].some(frame=>frame.allocated) || !enter.allocated || report.fanUploads.some(Boolean))
+            failLifecycle("pourCoverageOffscreenStorage",JSON.stringify({allocated:report.allocated,fanUploads:report.fanUploads}));
         }
         if (!out.failures.some(f=>f.includes("pourCoverageOffscreen")))
           okLifecycle("pourCoverageOffscreen","empty padded pours skip readback and leaving ink is cleared locally");
       }
     } finally {
       ctx.getImageData = getImage;
+      for (const [name,,descriptor] of storage) {
+        if (descriptor) Object.defineProperty(proto,name,descriptor);
+        else delete proto[name];
+      }
       view.dispose(); stage.remove();
     }
   }
