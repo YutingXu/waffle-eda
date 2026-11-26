@@ -2,6 +2,7 @@
 
 // Real Chromium smoke test with an isolated profile. Requires playwright-core and an installed
 // Chrome/Chromium. Run: node tests/integration-browser.cjs [--executable PATH] [--snapshot PATH]
+// The Demo workflow can also write its shared capture with --performance-snapshot PATH.
 // Use --group NAME for a complete group (listed by --list-groups) or a CI subgroup
 // (listed by --list-ci-groups), or a --*-only switch for one check.
 const assert=require("node:assert/strict");
@@ -531,7 +532,7 @@ async function main(){
   const groupAt=process.argv.indexOf("--group");
   const group=groupAt<0 ? null : [...groups,...ciGroups].find(({name})=>name===process.argv[groupAt+1]);
   if(groupAt>=0)assert.ok(group,"Unknown Chromium integration group: "+(process.argv[groupAt+1]||"(missing)"));
-  const executable=arg("--executable"),snapshot=arg("--snapshot");
+  const executable=arg("--executable"),snapshot=arg("--snapshot"),performancePath=arg("--performance-snapshot");
   // GPU-process recovery uses its own Chromium process and keeps the suite's executable.
   if(executable)process.env.CHROME=executable;
   const dockOnly=process.argv.includes("--dock-only"),safeAreaOnly=process.argv.includes("--safe-area-only");
@@ -567,6 +568,7 @@ async function main(){
     if(process.argv.includes("--review-composer-only")){await require("./history/browser-review-composer.js")(browser);return;}
     if(process.argv.includes("--calculators-only")){await require("./analysis/browser-calculators.js")(browser);return;}
     if(process.argv.includes("--import-only")){await importSurfaces(browser);return;}
+    if(process.argv.includes("--demo-workflow-only")){await demoProjectWorkflow();return;}
     if(process.argv.includes("--home-only")){await require("./project/browser-home-projects.js")(browser);return;}
     if(process.argv.includes("--welcome-only")){await require("./project/browser-welcome-open.js")(browser);return;}
     if(process.argv.includes("--frames-only")){await require("./notebook/browser-infinite-frames.js")(browser);return;}
@@ -596,6 +598,10 @@ async function main(){
     await require("./motion/diff-blink-browser.cjs")(browser);
     await require("./analysis/browser-calculators.js")(browser);
     await importSurfaces(browser);
+    await demoProjectWorkflow();
+  }
+
+  async function demoProjectWorkflow(){
     const context=await browser.newContext({viewport:{width:1400,height:960},acceptDownloads:true});
     const page=await context.newPage(),errors=[];
     page.setDefaultTimeout(5000);
@@ -641,6 +647,18 @@ async function main(){
       throw new TimeoutError("Timed out waiting for copper, silkscreen and substrate on the visible board canvas");
     });
     if(snapshot)await page.screenshot({path:snapshot});
+    const initial=await page.evaluate(async()=>{
+      const D=globalThis.AtriumDiagnostics;
+      const off=D.performanceSnapshot(), enabledWhileOff=D.performance!==null;
+      const loadedWhileOff=!!globalThis.AtriumPerformanceDiagnostics;
+      await AtriumLazy.need("AtriumPerformanceDiagnostics");
+      globalThis.demoPerformanceLease=D.startPerformance();
+      return {off,enabledWhileOff,loadedWhileOff,active:D.performanceSnapshot()};
+    });
+    assert.deepEqual(initial.off,{version:1,recording:false,rows:[]},"the ordinary Demo opens and paints without recording");
+    assert.equal(initial.enabledWhileOff,false);
+    assert.equal(initial.loadedWhileOff,false,"the recorder stays unloaded during ordinary Demo startup");
+    assert.deepEqual(initial.active,{version:1,recording:true,rows:[]});
     assert.deepEqual(await page.evaluate(()=>[!!globalThis.AtriumPCBTextInspector,!!globalThis.AtriumPCBSelectionInspector,
       !!globalThis.AtriumSchObjectInspector,!!globalThis.AtriumSheetInspector]),[false,false,false,false]);
     const pcbText=await page.evaluate(async()=>{
@@ -676,6 +694,30 @@ async function main(){
     assert.ok(await page.evaluate(ids=>ids.every(id=>AtriumNavHost.doc().items.find(i=>i.id===id).locked),tracks));
     await action("undo");assert.equal(await lock.isChecked(),false);
     await page.evaluate(()=>AtriumNavHost.select([]));
+    const priorDrc=await page.evaluate(()=>AtriumDiagnostics.performanceSnapshot().rows.find(
+      row=>row.component==="drc" && row.operation==="publish")?.counts.completed ?? 0);
+    await action("drc");
+    const messages=page.getByRole("region",{name:"Messages",exact:true});
+    await waitForFunction(page,prior=>{
+      const row=AtriumDiagnostics.performanceSnapshot().rows.find(row=>row.component==="drc" && row.operation==="publish");
+      return row?.counts.completed>prior && globalThis.AtriumMessages?.messages().some(m=>m.group==="DRC" && m.source==="Rule summary");
+    },priorDrc);
+    const messagesTab=page.getByRole("tab",{name:"Messages",exact:true});
+    const dock=page.locator("#properties .dock-group").filter({has:messagesTab});
+    await waitFor(dock);
+    await waitFor(messages);
+    assert.equal(await messagesTab.getAttribute("aria-selected"),"true","DRC activates the right-dock Messages tab");
+    assert.equal(await messagesTab.getAttribute("aria-controls"),await messages.getAttribute("id"),"the selected Messages tab controls the result region");
+    await waitForFunction(page,()=>document.activeElement?.matches(".msg-panel .msg-grid"));
+    const closeName={name:"Close Messages",exact:true};
+    const closeMessages=dock.getByRole("button",closeName);
+    assert.equal(await page.getByRole("button",closeName).count(),1,"a docked Messages panel exposes one Close control");
+    assert.equal(await closeMessages.getAttribute("data-dock-close"),"messages","the selected tab owns the visible Close control");
+    await closeMessages.click();
+    await waitFor(messages,{state:"hidden"});
+    await waitFor(messagesTab,{state:"hidden"});
+    await waitForFunction(page,()=>!AtriumMessages.isOpen() &&
+      document.activeElement?.matches('#properties [data-dock-tab="properties"][aria-selected="true"]'));
     await page.locator("#project-name").click({button:"right"});
     await waitFor(page.getByRole("menuitem",{name:"Add Existing to Project…",exact:true}));
     assert.equal(await page.locator(".nav-menu-portal > .nav-menu [aria-haspopup=menu]",{hasText:"Add New to Project"}).count(),1);
@@ -758,6 +800,42 @@ async function main(){
     const after=await save(), count=(p,kind)=>board(p).items.filter(i=>i.kind===kind).length;
     assert.equal(count(after,"part"),count(before,"part")+1,"placed Test point");
     assert.ok(count(after,"track")>count(before,"track"),"committed copper from J1");
+    const capture=await page.evaluate(()=>{
+      const D=globalThis.AtriumDiagnostics, running=D.performanceSnapshot();
+      const stopped=globalThis.demoPerformanceLease.stop();
+      delete globalThis.demoPerformanceLease;
+      return {running,stopped,retained:D.performanceSnapshot()};
+    });
+    assert.equal(capture.running.recording,true);
+    assert.equal(capture.stopped,true);
+    assert.deepEqual(capture.retained,{...capture.running,recording:false});
+    for(const [component,operation,outcome] of [
+      ["pcb","draw","visible"],["schematic","draw","visible"],["drc","publish","completed"],
+      ["library","search","completed"],["routing","compute","completed"],["save","save","completed"]
+    ]){
+      const row=capture.running.rows.find(row=>row.component===component && row.operation===operation);
+      assert.ok(row?.counts[outcome]>0,component+"/"+operation+" records "+outcome+" real work");
+      assert.ok(Number.isFinite(row.runP95) && row.runP95>=0,component+"/"+operation+" has a run duration");
+      assert.ok(Number.isFinite(row.endToEndP95) && row.endToEndP95>=0,component+"/"+operation+" has an end-to-end duration");
+      if(component==="save"){
+        assert.ok(row.counts.completed>=2 && row.counts.queued>0,"both downloads complete, including a queued folder save");
+        assert.equal(row.counts.durable,0,"browser ZIP downloads do not report native durable writes");
+      }
+    }
+    await action("library-catalogue");
+    await page.locator("#library-search").fill("resistor");
+    await waitFor(page.locator("#library-list button").filter({hasText:/resistor/i}).first());
+    await page.locator("#library-search").press("Escape");
+    await page.locator("#library-search").press("Escape");
+    const afterStop=await page.evaluate(async()=>{
+      const D=globalThis.AtriumDiagnostics, R=await AtriumLazy.need("AtriumRecover");
+      return {snapshot:D.performanceSnapshot(), disabled:D.performance===null,
+        shareable:D.performanceSnapshot({shareable:true}), report:JSON.parse(await R.report()).performance.activity};
+    });
+    assert.equal(afterStop.disabled,true);
+    assert.deepEqual(afterStop.snapshot,capture.retained,"a real catalogue search after Stop leaves the capture unchanged");
+    assert.deepEqual(afterStop.report,afterStop.shareable,"Crash Diagnostics reads the shared, bucketed capture");
+    if(performancePath)await fs.writeFile(performancePath,JSON.stringify(capture.retained,null,2)+"\n");
     const sibling="Second project.kicad_pcb";
     const buffer=await fs.readFile(path.join(__dirname,"fixtures/import/demo.kicad_pcb"));
     await page.locator("#file-input").setInputFiles({name:sibling,mimeType:"application/octet-stream",buffer});
@@ -776,7 +854,7 @@ async function main(){
     assert.equal(await page.evaluate(()=>AtriumNavHost.project().name),after.name);
     await second.close();
     assert.deepEqual(errors,[]);
-    console.log("PASS browser canvas pixels, schematic edits, undo/redo, ECO, cross-probe, placement, routing, downloads, explorer menus, panels, Escape, and separate project windows");
+    console.log("PASS browser canvas pixels, schematic edits, undo/redo, DRC, ECO, cross-probe, placement, routing, downloads, shared performance capture, explorer menus, panels, Escape, and separate project windows");
   }
 
   async function editorInteractionChecks(){

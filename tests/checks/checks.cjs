@@ -16,7 +16,7 @@ const {publicPiDP}=require("../support/public-pidp.cjs");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};
 for (const m of ["model", "parts", "nav-common", "spatial", "sch-objects", "hierarchy", "board-shape", "stackup", "pcb-appearance", "pcb-pours", "altium-rules",
   "pcb-draw", "component-classes", "rules", "signals", "viastack", "polygon-pour", "net-ties", "connectivity", "messages", "erc", "drc", "undo-store", "eco",
-  "fab-presets", "fab-presets/jlcpcb", "pcb-text-rich", "pcb-text", "vectorize", "dfm", "insights", "insights-pcb", "insights-sch", "drc-fixes", "checks", "drc-view"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+  "fab-presets", "fab-presets/jlcpcb", "pcb-text-rich", "pcb-text", "vectorize", "dfm", "insights", "insights-pcb", "insights-sch", "drc-fixes", "diagnostics", "checks", "drc-view"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 require("../support/drc-geometry.cjs");
 const K = AtriumChecks, A = Atrium, U = AtriumUndoStore, E = AtriumERC, R = AtriumRules;
 let passed = 0;
@@ -260,8 +260,19 @@ test("one scheduler: layout rules first, hints and live ERC at idle, abandon, sl
     U.reset(); U.touch(project.value);
     K.scheduler.reset(); K.clear();
     const host = harness(project, panes);
-    AtriumNavCommon.hostReady(host); // checks.js, drc-view.js and insights-ui.js attach as in the editor
-    const first = drain();
+    const recording = AtriumDiagnostics.startPerformance();
+    let first;
+    try {
+      AtriumNavCommon.hostReady(host); // checks.js, drc-view.js and insights-ui.js attach as in the editor
+      first = drain();
+      const rows = AtriumDiagnostics.performanceSnapshot().rows;
+      for (const component of ["drc", "erc", "insights"]) {
+        const check = rows.find(row => row.component === component && row.operation === "check");
+        const publish = rows.find(row => row.component === component && row.operation === "publish");
+        assert.ok(check.counts.queued >= 1 && check.counts.ready >= 1 && check.counts.completed >= 1, component + " ran through the live scheduler");
+        assert.ok(publish.counts.completed >= 1, component + " published to the live store");
+      }
+    } finally { recording.stop(); }
     assert.ok(first.includes("idle:online-drc:b"), "a board's first check waits for idle: " + first);
     assert.ok(first.includes("idle:erc:live"), "live ERC runs at idle: " + first);
     assert.ok(first.includes("idle:insights:b"), "Design Insights run at idle");

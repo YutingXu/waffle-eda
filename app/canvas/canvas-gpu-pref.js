@@ -23,26 +23,33 @@ globalThis.AtriumCanvasGPUPref = (() => {
   // The two power hints may resolve to different adapters. Probe each once, on screen.
   function probe(m = mode()) {
     const powerPreference = powerFor(m);
+    const result = {webgl2: false, software: false, device: ""};
+    if (m === "2d" || !visible()) return result;
     if (probes.has(powerPreference)) return probes.get(powerPreference);
-    const probed = {webgl2: false, software: false, device: ""};
-    if (m === "2d" || !visible()) return probed;
-    probes.set(powerPreference, probed);
+    probes.set(powerPreference, result);
+    const strict = m === "auto";
+    let gl;
     try {
       const doc = G.document;
-      if (!doc || typeof G.WebGL2RenderingContext !== "function") return probed;
-      let gl = doc.createElement("canvas").getContext("webgl2", {powerPreference, failIfMajorPerformanceCaveat: true}), caveat = false;
-      if (!gl) { gl = doc.createElement("canvas").getContext("webgl2", {powerPreference}); caveat = !!gl; }
-      if (!gl) return probed;
-      const x = gl.getExtension("WEBGL_debug_renderer_info");
-      probed.webgl2 = true;
-      probed.device = String(gl.getParameter(x ? x.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || "");
-      probed.software = caveat || SOFT.test(probed.device);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
-    } catch {}
-    return probed;
+      if (!doc || typeof G.WebGL2RenderingContext !== "function") return result;
+      const canvas = doc.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      gl = canvas.getContext("webgl2", {powerPreference, failIfMajorPerformanceCaveat: strict});
+      if (!gl || gl.isContextLost()) return result;
+      try {
+        const info = gl.getExtension("WEBGL_debug_renderer_info");
+        result.device = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || "");
+      } catch { if (strict) return result; }
+      result.webgl2 = !gl.isContextLost();
+      result.software = SOFT.test(result.device);
+    } catch {} finally {
+      try { gl?.getExtension("WEBGL_lose_context")?.loseContext(); }
+      catch { if (strict) result.webgl2 = false; }
+    }
+    return result;
   }
   // Reason says why the 2D renderer is used or why the board view is paused.
-  function decision() {
+  function decision(allowProbe = false) {
     const m = mode();
     const paused = m !== "2d" && !visible();
     if (!paused && cached?.mode === m) return cached;
@@ -50,8 +57,9 @@ globalThis.AtriumCanvasGPUPref = (() => {
     const options = {mode: m, powerPreference, use: false, reason: "", device: "", software: false};
     if (paused) return {...options, reason: "the editor window is hidden"};
     if (m === "2d") return cached = {...options, reason: "Preferences › Display › Renderer is set to 2D"};
+    if (!allowProbe && !probes.has(powerPreference)) return {...options, reason: "no PCB view has requested this renderer"};
     const p = probe(m), out = {...options, device: p.device, software: p.software};
-    if (!p.webgl2) out.reason = "WebGL2 is not available here";
+    if (!p.webgl2) out.reason = m === "auto" ? "hardware-accelerated WebGL2 is not available here" : "WebGL2 is not available here";
     else if (m === "gpu") out.use = true;
     else if (p.software) out.reason = "WebGL2 is not hardware-accelerated here (" + (p.device || "software renderer") + ")";
     else if (!AUTO_GPU) out.reason = "Automatic uses the 2D renderer in this version";
@@ -68,7 +76,7 @@ globalThis.AtriumCanvasGPUPref = (() => {
     if (!L || G.AtriumCanvasGPU || cancelRequest || requested || !visible() || m === "2d" || (cached?.mode === m && !cached.use) || !needsBoard()) return;
     const start = () => {
       cancelRequest = null;
-      if (!visible() || !needsBoard() || !decision().use) return;
+      if (!visible() || !needsBoard() || !decision(true).use) return;
       requested = true;
       L.need("AtriumCanvasGPU").then(() => {
         if (visible() && needsBoard()) G.AtriumNavHost?.redraw?.(true);
@@ -91,6 +99,14 @@ globalThis.AtriumCanvasGPUPref = (() => {
     const gpu = s ? s.renderer === "gpu" : d.use;
     const device = s?.device || d.device;
     return gpu ? "GPU (WebGL2" + (device ? ", " + device : "") + ")" : "2D: " + (s?.reason || d.reason || "the GPU renderer is not in use");
+  }
+  // Read the existing decision without making a WebGL context or returning a device string.
+  function diagnosticState() {
+    const preference = mode();
+    const known = cached?.mode === preference ? cached : null;
+    const capability = preference === "2d" ? "disabled" : !known ? "unknown" :
+      known.software ? "software" : known.use ? "available" : "unavailable";
+    return {preference, capability};
   }
   function attach() {
     const P = G.AtriumPrefs;
@@ -129,5 +145,5 @@ globalThis.AtriumCanvasGPUPref = (() => {
     return true;
   }
   if (!attach() && G.document) G.AtriumLazy?.need?.("AtriumPrefs").then(attach, () => {});
-  return Object.freeze({attach, key: KEY, modes: MODES, decision, describe, probe, request, autoGPU: AUTO_GPU});
+  return Object.freeze({attach, key: KEY, modes: MODES, decision, describe, diagnosticState, probe, request, autoGPU: AUTO_GPU});
 })();

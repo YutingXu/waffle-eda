@@ -232,6 +232,37 @@ async function desktop(browser, {theme, shots}) {
     const away2 = await empty(page);
     await page.mouse.move(away2.x, away2.y, {steps: 3});
     await hidden(page, "leaving the Insight");
+
+    // A projected ERC badge owns the press even though the local DRC overlay is hidden.
+    const cross = await page.evaluate(async () => {
+      const h = AtriumNavHost, d = h.doc(), pane = h.panes().find(p => p.active);
+      // A previously used inspector opens in the pointerdown turn.
+      await AtriumLazy.need("AtriumDRCInspector");
+      AtriumMessages.close();
+      AtriumDRCMarkers.setVisible(false, h);
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const rect = pane.canvas.getBoundingClientRect(), P = AtriumProblemMarks;
+      for (const b of AtriumChecksCross.projected(h, d)) {
+        const {at} = P.badgeDetail(b.at, P.scaleOf(pane.view), "pcb");
+        const [sx, sy] = pane.view.worldToScreen(at), x = sx + rect.left, y = sy + rect.top;
+        if (document.elementFromPoint(x, y) !== pane.canvas) continue;
+        const v = AtriumChecksCross.badgeAt(h, pane, x, y)?.problems[0];
+        const id = v?.objects[0]?.id;
+        if (id && v.source === "erc" && h.docById(v.doc)?.kind === "schematic") return {x, y, id, doc:v.doc, key:v.key};
+      }
+    });
+    assert.ok(cross, "a compiled schematic issue is pickable from the board");
+    await page.mouse.click(cross.x, cross.y);
+    await page.waitForFunction(doc => AtriumNavHost.currentId() === doc, cross.doc);
+    assert.deepEqual(await page.evaluate(() => AtriumNavHost.selection()), [cross.id]);
+    await page.locator(".drc-insp").waitFor({state:"visible", timeout:1800}).catch(() => {
+      assert.fail("the cross-probe keeps the destination problem inspector open");
+    });
+    assert.deepEqual(await page.evaluate(() => [AtriumDRCInspector.current()?.key, AtriumSchMarkers.focused()?.key]), [cross.key, cross.key]);
+    const blank = await empty(page);
+    await page.mouse.click(blank.x, blank.y);
+    assert.equal(await page.evaluate(() => AtriumDRCInspector.isOpen()), false, "a blank canvas press still dismisses the inspector");
+
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 }

@@ -452,6 +452,26 @@ async function main() {
     assert.equal(await A.restore(saved.id),true);
     assert.equal(h.p.name,"Untitled");
   }
+  {
+    require("../../app/checks/diagnostics.js");
+    const recording = AtriumDiagnostics.startPerformance();
+    const counts = component => AtriumDiagnostics.performanceSnapshot().rows.find(row => row.component === component)?.counts;
+    const A = AS.create({indexedDB:null,localStorage:fakeStorage(),now,serializer:null,schedule() {}});
+    const host = fakeHost(project("Private snapshot witness"));
+    A.attach(host);
+    const draft = await A.flush();
+    assert.ok(draft);
+    assert.equal(counts("autosave").completed,1);
+    assert.equal(counts("autosave").durable,0);
+    const replace = host.replaceProject;
+    host.replaceProject = async () => false;
+    assert.equal(await A.restore(draft.id),false);
+    assert.equal(counts("project").cancelled,1);
+    host.replaceProject = replace;
+    assert.equal(await A.restore(draft.id),true);
+    assert.equal(counts("project").completed,1);
+    recording.stop();
+  }
   console.log("autosave: native folder isolation, in-flight adoption, window recovery, typed restore, retention and quota OK");
 }
 globalThis.__testDone = main();

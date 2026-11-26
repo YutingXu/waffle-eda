@@ -109,13 +109,16 @@ globalThis.AtriumDRCMarkers = (() => {
   // `rev` (the editor's revision) keeps each violation's shapes and box between frames; `view` (a world
   // box) leaves out the rows that cannot reach it.
   function visibleList(doc, defs, list, {hidden = null, selectable = null, rev = null, view = null, preview = null, publication = null} = {}, eligibility = null) {
-    const out = [], entry = rowsOf(doc, defs, list, rev, preview, publication);
+    return rowViews(rowsOf(doc, defs, list, rev, preview, publication), {hidden, selectable, view, publication}, eligibility);
+  }
+  function rowViews(entry, {hidden, selectable, view, publication}, eligibility, members = null) {
+    const out = [];
     if (!entry) return out;
     let cached = eligibility?.get(entry);
     if (eligibility && !cached) eligibility.set(entry, cached = []);
     for (let i = 0; i < entry.rows.length; i++) {
       const r = entry.rows[i];
-      if (!r || !reaches(r.box, view)) continue;
+      if (!r || !reaches(r.box, view) && !members?.(r.v)) continue;
       let row = cached?.[i];
       if (row === undefined) {
         row = rowView(r, hidden, selectable, !!publication);
@@ -249,17 +252,14 @@ globalThis.AtriumDRCMarkers = (() => {
     else { const d = Math.max(r * .22, 1.2 * px); path.moveTo(at[0] + d, cy); path.arc(at[0], cy, d, 0, Math.PI * 2); }
   }
   // The marker outline for a severity: ring (error), triangle (warning), ring drawn dashed (waived).
-  function markPath(ctx, at, r, sev) {
-    ctx.beginPath();
-    appendMarkerBorder(ctx, at, r, sev);
-  }
   // z: P.size() for the frame's scale (the marker's radius and stroke factor).
   function drawMarker(ctx, v, at, z, {hot = false, pinned = false, live = true} = {}) {
     const px = z.px, w = z.w, sev = severity(v), r = z.r * (hot || pinned ? 1.2 : 1), color = live ? COLORS[sev] : COLORS.dim;
     if (pinned) { ctx.lineWidth = 1.5 * px * w; ctx.strokeStyle = COLORS.ring; ctx.beginPath(); ctx.arc(at[0], at[1], r + 4 * px * w, 0, Math.PI * 2); ctx.stroke(); }
     ctx.setLineDash(sev === "waived" ? [2.5 * px * w, 2 * px * w] : []);
-    ctx.lineWidth = 3.2 * px * w; ctx.strokeStyle = COLORS.halo; markPath(ctx, at, r, sev); ctx.stroke();
-    ctx.lineWidth = (hot || pinned ? 2.2 : 1.6) * px * w; ctx.strokeStyle = color; markPath(ctx, at, r, sev); ctx.stroke();
+    ctx.beginPath(); appendMarkerBorder(ctx, at, r, sev);
+    ctx.lineWidth = 3.2 * px * w; ctx.strokeStyle = COLORS.halo; ctx.stroke();
+    ctx.lineWidth = (hot || pinned ? 2.2 : 1.6) * px * w; ctx.strokeStyle = color; ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = color; ctx.strokeStyle = color;
     const cross = glyph(v) === "x" && sev !== "waived";
@@ -300,15 +300,18 @@ globalThis.AtriumDRCMarkers = (() => {
           return allowed.get(item);
         };
       }
+      const cell = P.pcbCell(frame);
+      const z = P.size(frame.scale, "pcb");
+      if (cell) return coarsePlan(doc, defs, list, q, frame, z, cell, eligibility?.rows);
       const rows = visibleList(doc, defs, list, q, eligibility?.rows);
       const waived = visibleList(doc, defs, o.waived, q, eligibility?.rows);
       const overview = rows.length + waived.length > LOD_ROWS && !!frame.worldToScreen;
-      const z = P.size(frame.scale, "pcb"), detail = overview ? null : detailMarks(rows, waived, o, z, frame.scale);
+      const detail = overview ? null : detailMarks(rows, waived, o, z, frame.scale);
       return {rows, waived, overview, ...(overview ? overviewMarks(rows, waived, o, z, frame.scale) : {marks: detail})};
     });
   }
   function overlay(doc, defs, list, o = {}) {
-    return (ctx, a) => {
+    const paint = (ctx, a) => {
       const plan = markerPlan(doc, defs, list, o, a);
       const {rows, waived} = plan;
       if (!rows.length && !waived.length) return;
@@ -316,13 +319,20 @@ globalThis.AtriumDRCMarkers = (() => {
       if (plan.overview) {
         // A damage strip uses the whole view's cell winners and outline style order.
         const strips = clip && (a.damageRects?.length > 1 ? a.damageRects.map(rect => a.worldViewport(rect, PADDING)) : [clip]);
-        if (!retainedOverview(ctx, a, plan, o)) drawOverview(ctx, a, rows, o, plan, strips);
+        const retain = !plan.cell || plan.clustered.length;
+        if (!retain || !retainedOverview(ctx, a, plan, o)) drawOverview(ctx, a, rows, o, plan, strips);
         return;
       }
       if (!clip) drawRows(ctx, a, rows, o, plan.marks);
       else drawRows(ctx, a, rows.filter(r => reaches(r.row.box, clip)), o,
         plan.marks.filter(({at: [x, y]}) => x >= clip[0] && x <= clip[2] && y >= clip[1] && y <= clip[3]));
     };
+    paint.panDamage = (frame, dx, dy) => {
+      if (!P.pcbCell(frame) || (list?.length || 0) + (o.waived?.length || 0) < 2) return [];
+      const radius = P.hit(P.size(frame.scale, "pcb").screen * 1.2) + 2;
+      return P.groupPanDamage(markerPlan(doc, defs, list, o, frame).clustered, frame, atOf, scoreOf, radius, dx, dy);
+    };
+    return paint;
   }
   // A whole-frame overview is drawn into a transparent layer kept per canvas, then composited.
   // Every whole frame takes this path, so a frame that reuses the layer (same rows, camera,
@@ -356,7 +366,8 @@ globalThis.AtriumDRCMarkers = (() => {
       if (c.height !== target.height) c.height = target.height;
       const g = c.getContext("2d");
       if (!g) return false;
-      const patched = !!changed && patchLayer(g, a, m, ctx.globalAlpha, L.items, items, changed, waived.length, o, plan);
+      // A new group can retire an unchanged singleton's entire outline, including remote track geometry.
+      const patched = !plan.cell && !!changed && patchLayer(g, a, m, ctx.globalAlpha, L.items, items, changed, waived.length, o, plan);
       layerStats[patched ? "patched" : "whole"]++;
       if (!patched) {
         g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height);
@@ -439,6 +450,51 @@ globalThis.AtriumDRCMarkers = (() => {
   }
   // Close markers merged (problem-marks.js cluster): errors outrank warnings, warnings waived ones.
   const RANK_OF = {error: 0, warning: 1, waived: 2}, atOf = r => r.v.at || r.v.otherAt;
+  const scoreOf = r => r.score;
+  function coarsePlan(doc, defs, list, o, frame, z, cell, eligibility) {
+    const entry = rowsOf(doc, defs, list, o.rev, o.preview, o.publication);
+    const exceptions = rowsOf(doc, defs, o.waived, o.rev, o.preview, o.publication);
+    const cellKey = v => {
+      const at = v.at || v.otherAt;
+      return at && Math.floor(at[0] / cell) + "," + Math.floor(at[1] / cell);
+    };
+    // Select whole cells where their artwork reaches the padded view. A long track can make a cell
+    // relevant even when the marker's anchor is far away. Take every eligible member of that cell.
+    const relevant = new Set();
+    if (o.view) for (const e of [entry, exceptions]) for (const r of e?.rows || []) {
+      if (!r || !reaches(r.box, o.view)) continue;
+      const key = cellKey(r.v);
+      if (key) relevant.add(key);
+    }
+    const members = o.view && (v => relevant.has(cellKey(v)));
+    const rows = rowViews(entry, o, eligibility, members), waived = rowViews(exceptions, o, eligibility, members);
+    const groups = P.cells([...rows, ...waived], atOf, 1, cell, scoreOf);
+    const ordinary = [], single = [], inspected = [], outlines = rows.filter(r => !atOf(r));
+    const inspect = [], clustered = [], reach = P.hit(z.screen * 1.2);
+    const mark = (row, members) => ({row, score: row.score, v: row.v, at: atOf(row), live: row.live,
+      members, reach, n: 1, hot: row.v === o.hover, pinned: row.v === o.focused});
+    for (const group of groups) {
+      if (group.members.length === 1) {
+        const row = group.rep, m = mark(row, group.members);
+        if (m.hot || m.pinned) { inspect.push(row); inspected.push(m); }
+        else { single.push(m); if (!row.v.waived) outlines.push(row); }
+        continue;
+      }
+      clustered.push(group);
+      const row = P.visibleWinner(group, frame, atOf, scoreOf);
+      if (row.v !== o.hover && row.v !== o.focused) ordinary.push(mark(row, group.members));
+      if (o.hover || o.focused) for (const member of group.members) {
+        if (member.v !== o.hover && member.v !== o.focused) continue;
+        inspect.push(member); inspected.push(mark(member, group.members));
+      }
+    }
+    // Painting singles first and sorting group styles by severity keeps overlap ties deterministic,
+    // even when a proxy changes at a distant edge. The picker uses this same order.
+    ordinary.sort((a, b) => markerStyle(a) - markerStyle(b));
+    inspected.sort((a, b) => Number(a.pinned) - Number(b.pinned));
+    return {rows, waived, overview: true, cell, clustered, ordinary, single, outlines, inspected, inspect,
+      marks: [...single, ...ordinary, ...inspected]};
+  }
   const mergeAt = (rows, scale) => P.cluster(rows, atOf, scale, "pcb", r => RANK_OF[severity(r.v)]);
   function detailMarks(rows, waived, o, z, scale) {
     const asMark = c => {
@@ -525,6 +581,7 @@ globalThis.AtriumDRCMarkers = (() => {
     return next;
   }
   const severityAt = [null, "waived", "warning", "error"];
+  const markerStyle = ({score, row}) => (score << 1) + Number(row.cross);
   const padKeys = new WeakMap();
   function outlineKey(shape, published) {
     const id = String(shape.item?.id || "");
@@ -550,6 +607,13 @@ globalThis.AtriumDRCMarkers = (() => {
     const px = 1 / a.scale, hot = [], drawn = new Set();
     const lineStyles = new Map(), fixedStyles = [], groups = [], z = P.size(a.scale, "pcb");
     const inDamage = row => (!included || included(row)) && (!strips || strips.some(box => reaches(row.row.box, box)));
+    if (plan.cell) {
+      if (plan.outlines.length || plan.single.length)
+        drawRows(ctx, a, plan.outlines.filter(inDamage), o, plan.single.filter(m => inDamage(m.row)));
+      drawOverviewGlyphs(ctx, z, px, plan.ordinary, inDamage);
+      if (plan.inspected.length) drawRows(ctx, a, plan.inspect.filter(inDamage), o, plan.inspected.filter(m => inDamage(m.row)));
+      return;
+    }
     // Even a clipped outline fixes its style's place in the stroke order.
     const push = (slots, slot, kind, color, alpha, width, shape, draw) => {
       let group = slots[slot];
@@ -589,11 +653,19 @@ globalThis.AtriumDRCMarkers = (() => {
       else { ctx.setLineDash([4 * px, 3 * px]); for (const v of g.list) { ctx.moveTo(v.at[0], v.at[1]); ctx.lineTo(v.otherAt[0], v.otherAt[1]); } }
       ctx.stroke(); ctx.setLineDash([]);
     }
-    // Markers by style: halo, outline and glyph, each one path.
+    ctx.restore();
+    drawOverviewGlyphs(ctx, z, px, plan.ordinary, inDamage);
+    if (plan.hot.length) drawRows(ctx, a, hot, o, plan.hot.filter(m => inDamage(m.row)));
+  }
+  // Markers by style: halo, outline and glyph, each one path.
+  function drawOverviewGlyphs(ctx, z, px, ordinary, inDamage) {
+    if (!ordinary.length) return;
+    ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
     const styles = new Map();
-    for (const {row, score, at} of plan.ordinary) {
+    for (const mark of ordinary) {
+      const {row, score, at} = mark;
       const rank = score & 3, sev = severityAt[rank];
-      const live = row.live, waived = !(score & 4), x = row.cross, key = (score << 1) + +x;
+      const live = row.live, waived = !(score & 4), x = row.cross, key = markerStyle(mark);
       let st = styles.get(key);
       if (!st) styles.set(key, st = {sev, x: x && sev !== "waived", live, waived, list: []});
       if (inDamage(row)) st.list.push(at);
@@ -614,7 +686,6 @@ globalThis.AtriumDRCMarkers = (() => {
       else { ctx.beginPath(); markerGlyphs(ctx, st, r, px); if (st.x) ctx.stroke(); else ctx.fill(); }
     }
     ctx.restore();
-    if (plan.hot.length) drawRows(ctx, a, hot, o, plan.hot.filter(m => inDamage(m.row)));
   }
   const revOf = host => { try { return host?.revision?.() ?? null; } catch { return null; } };
   // drc-view.js renderer: null when markers are off.
@@ -627,7 +698,7 @@ globalThis.AtriumDRCMarkers = (() => {
   // The live marker under a screen point of a pane, within the drawn marker's reach (P.hit). Markers
   // merged on screen answer as one: the group's worst (and first) violation; F8 still steps through each.
   function markerAt(host, pane, list, clientX, clientY, waived, publication) { return groupAt(host, pane, list, clientX, clientY, waived, publication)?.v || null; }
-  // The same marker as a group: {v (the one a click opens), members (every violation merged into it), at}.
+  // The same marker as a group, with lazily projected world boxes for the hover card.
   function groupAt(host, pane, list, clientX, clientY, waived, publication = null, focused = null, hover = null) {
     if (!visible || !list?.length && !waived?.length) return null;
     const doc = host.docById?.(pane.docId) || host.doc();
@@ -637,8 +708,9 @@ globalThis.AtriumDRCMarkers = (() => {
     const plan = markerPlan(doc, host.defs(), list || [], {host, rev: revOf(host), waived, publication, focused, hover}, frame);
     const mark = P.pick(plan, clientX - b.left, clientY - b.top);
     if (!mark) return null;
-    const members = mark.members.filter(r => r.live).map(r => r.v), K = globalThis.AtriumChecks;
+    const rows = mark.members.filter(r => r.live), members = rows.map(r => r.v), K = globalThis.AtriumChecks;
     return {v: mark.v, members, at: mark.at, reach: mark.reach,
+      get boxes() { return rows.map(r => r.row.box).filter(Boolean); },
       get findings() { return K ? members.map(v => K.fromDRC(v, doc.id)) : []; }};
   }
   // Tooltip text: {title, measured, objects[], where}.

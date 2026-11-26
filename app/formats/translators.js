@@ -215,12 +215,26 @@ globalThis.AtriumTranslators = (() => {
     }
     return {files, report: sink.report(options.referencePage), ...(result.details != null ? {details: result.details} : {})};
   }
+  function measured(component, operation, options, work) {
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin(component, operation);
+    if (!timing) return work();
+    let outcome = "failed";
+    try {
+      const result = work();
+      outcome = "completed";
+      return result;
+    } catch (error) {
+      if (options?.signal?.aborted || error?.name === "AbortError") outcome = "cancelled";
+      throw error;
+    } finally { timing.end(outcome); }
+  }
   function exportSession() {
     // The owner supplies immutable project snapshots and releases this function
     // when the output job finishes. Each export still owns its own fidelity sink.
     const prepared = new WeakMap();
-    return (id, model, options) => exportFiles(id, model, options, prepared);
+    return (id, model, options) => measured("export", "build", options, () => exportFiles(id, model, options, prepared));
   }
-  return Object.freeze({detect: R.detect, import: importFiles,
-    export:(id,model,options={})=>exportFiles(id,model,options), exportSession, limits});
+  return Object.freeze({detect: R.detect,
+    import:(input,options={})=>measured("import", "load", options, () => importFiles(input,options)),
+    export:(id,model,options={})=>measured("export", "build", options, () => exportFiles(id,model,options)), exportSession, limits});
 })();

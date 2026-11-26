@@ -39,6 +39,9 @@ test("trusted sustained PCB movement with changing compositor pixels qualifies",
 
 test("camera movement and plausible frame timing cannot qualify frozen pixels", () => {
   const trial = wheelTrial();
+  trial.raw.workRaf = trial.raw.draws.map(draw => draw.raf);
+  trial.metrics = summarizeMotion(trial.raw,240);
+  assert.ok(trial.metrics.callbackFrameWork);
   trial.pixels.changedFraction = 0;
   assert.deepEqual(validateMotion(trial),["nonblank changed compositor pixels"]);
   trial.raw.draws = [];
@@ -130,6 +133,63 @@ test("paint and terminal work include their own draw across a rAF-label boundary
   assert.ok(stats.paintFrameWork.p95 >= changed.end-changed.t);
   assert.ok(stats.terminal.p95 >= terminal.end-terminal.t);
   assert.equal(stats.unattributedPaintDraws,0);
+});
+
+test("frame-labeled work follows an rAF callback across clock roundoff while a nearby timer stays with its start", () => {
+  const changed = {changed:true,t:25.1,end:26.2,raf:24,inCallback:true};
+  const terminal = {changed:false,t:36.1,end:43,raf:36,inCallback:true};
+  const raw = {inputs:[{at:8},{at:20}],ticks:[0,12,24,36,48],end:50,
+    work:[23.9999999999,.7,25,2,35.9999999999,7.2,44,.2],
+    workRaf:[null,24,36,null],draws:[changed,terminal]};
+  const {callbackFrameWork,terminalWorkAttribution,...observed} = summarizeMotion(raw,240);
+  const {workRaf,...older} = raw;
+  assert.deepEqual(observed,summarizeMotion(older,240));
+  assert.equal(observed.terminal.p95,9.2);
+  assert.equal(callbackFrameWork.terminal.p95,7.4);
+  assert.equal(callbackFrameWork.paintFrameWork.p95,2);
+  assert.equal(callbackFrameWork.settle.p50,2);
+  assert.equal(callbackFrameWork.totalMs,10.1);
+  assert.equal(observed.unattributedPaintDraws,0);
+  assert.equal(terminalWorkAttribution.owner.raf,36);
+  assert.equal(terminalWorkAttribution.owner.durationMs,7.2);
+  assert.equal(terminalWorkAttribution.stockStartInterval.otherRafMs,2);
+  assert.equal(terminalWorkAttribution.callbackFrameInterval.otherRafMs,0);
+  assert.equal(terminalWorkAttribution.callbackFrameInterval.nonRafMs,.2);
+
+  // A label absent from the witness's observed frames leaves the old placement.
+  raw.workRaf[2] = 36.1;
+  assert.equal(summarizeMotion(raw,240).callbackFrameWork.terminal.p95,9.2);
+});
+
+test("frame-labeled work retains a genuinely over-budget terminal draw", () => {
+  const trial = wheelTrial();
+  const {raw} = trial;
+  const terminal = raw.draws.at(-1);
+  terminal.end = terminal.t + 8.2;
+  raw.work[raw.work.length-1] = 8.2;
+  raw.workRaf = raw.draws.map(draw => draw.raf);
+  const timing = summarizeMotion(raw,240);
+  assert.equal(timing.callbackFrameWork.terminal.p95,8.2);
+  assert.equal(timing.terminal.p95,8.2);
+  assert.equal(timing.terminalWorkAttribution.owner.durationMs,8.2);
+  assert.deepEqual(validateMotion({...trial,metrics:timing}),[]);
+});
+
+test("terminal attribution conserves callback and standalone draw work outside observed frames", () => {
+  const raw = {inputs:[{at:11},{at:22}],ticks:[10,20,30],end:36,
+    work:[2,1.25,14,.75,35,.5],workRaf:[null,null,null],draws:[
+      {t:5,end:6,changed:false},
+      {t:12,end:13,changed:true},
+      {t:34,end:35,changed:false},
+    ]};
+  const {terminalWorkAttribution,callbackFrameWork} = summarizeMotion(raw,240);
+  assert.equal(terminalWorkAttribution.owner,null);
+  assert.equal(terminalWorkAttribution.stockStartInterval.standaloneDrawMs,1);
+  assert.equal(terminalWorkAttribution.callbackFrameInterval.nonRafMs,.5);
+  assert.equal(terminalWorkAttribution.callbackFrameInterval.totalMs,1.5);
+  const outside=terminalWorkAttribution.outsideObservedIntervals;
+  assert.deepEqual(outside,{callbacksMs:1.25,standaloneDrawsMs:1});
+  assert.equal(callbackFrameWork.totalMs + outside.callbacksMs + outside.standaloneDrawsMs,5.5);
 });
 
 test("draws claimed inside a callback need observable callback ownership", () => {

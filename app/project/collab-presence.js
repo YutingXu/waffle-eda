@@ -686,6 +686,8 @@ globalThis.AtriumCollabPresence = (() => {
       // File > Open can dispatch replace after switching the active project.
       // Finish a pending edit in the old session without touching the new editor.
       if (project !== host.project()) { plan.apply(); return plan; }
+      const timing = fromPeer ? globalThis.AtriumDiagnostics?.performance?.begin("collaboration", "sync") : null;
+      let outcome = "failed";
       session.applying = true;
       try {
         const apply = () => host.derive(() => {
@@ -695,7 +697,11 @@ globalThis.AtriumCollabPresence = (() => {
         }, {touched: plan.scopes});
         if (fromPeer && G.AtriumLabs?.butterEnabled("visualHistory") && G.AtriumUndoStore?.peerPatch) G.AtriumUndoStore.peerPatch(project, apply); else apply();
         rememberCursor(session);
-      } finally { session.applying = false; }
+        outcome = "completed";
+      } finally {
+        session.applying = false;
+        timing?.end(outcome);
+      }
       return plan;
     }
     // Undo and Redo buttons follow personal history during a session (editor.js syncTools asks too).

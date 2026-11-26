@@ -3,7 +3,7 @@
 // compaction, the build cache, GL resource lifetime against a recording mock
 // context, the WebGL fallback decision, and the editor's lazy loading.
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
-for(const m of ["model","parts","pcb-appearance","pcb-pours","stackup","board-shape","rigid-flex","zip","bom","variants","fab-outputs","step-export","step-import","undo-store","nav-common","view3d"])require(require("../support/app-source-paths.cjs").appFile(m+".js"));
+for(const m of ["model","parts","pcb-appearance","canvas","pcb-pours","stackup","board-shape","rigid-flex","zip","bom","variants","fab-outputs","step-export","step-import","undo-store","nav-common","view3d","diagnostics"])require(require("../support/app-source-paths.cjs").appFile(m+".js"));
 require("../support/3d-geometry.cjs");
 const A=Atrium,S=AtriumSTEP,V=Atrium3D,M=V.math;
 const log=(...a)=>(globalThis.console?.log||globalThis.print||(()=>{}))(...a);
@@ -330,6 +330,17 @@ function mockGL(version,{exts={},samples=4,allocateVertexArray=()=>true}={}){
   assert.equal(mk.live.size,0);
 }
 // Fallbacks: WebGL1 needs instancing and 32-bit indices; nothing at all returns null.
+for(const [name,fault] of [
+  ["shader",gl=>{gl.getShaderParameter=shader=>shader.id===1;}],
+  ["program",gl=>{gl.getProgramParameter=()=>false;}],
+  ["uniform setup",gl=>{gl.getUniformLocation=()=>{throw Error("uniform setup");};}]
+]){
+  const mk=mockGL(2);
+  fault(mk.gl);
+  assert.throws(()=>V.createRenderer({getContext:()=>mk.gl}),new RegExp(name));
+  assert.equal(mk.live.size,0,name+" failure deletes partial GL objects");
+  assert.ok(mk.log.lost,name+" failure releases the context");
+}
 {
   assert.equal(V.createRenderer({getContext:()=>null}),null);
   const bare=mockGL(1);assert.equal(V.createRenderer({getContext:k=>k==="webgl"?bare.gl:null}),null,"WebGL1 without extensions falls back");
@@ -350,23 +361,28 @@ assert.equal(typeof V.reducedMotion(),"boolean");
 
 // A real viewer using a minimal surface and recording GL context. A hidden edit
 // must leave both the CPU mesh and the uploaded scene at the last painted revision.
-{
-  const restored=new Map(), frames=new Map(), timers=new Map(), powerListeners=new Set(), mk=mockGL(2), U=AtriumUndoStore;
-  const install=(name,value)=>{restored.set(name,Object.getOwnPropertyDescriptor(globalThis,name));globalThis[name]=value;};
-  let seq=0, shown=true, builds=0;
-  const elt=()=>({style:{},children:[],isConnected:true,clientWidth:500,clientHeight:360,
-    append(...children){this.children.push(...children);},insertBefore(){},setAttribute(){},querySelector(){return null;},
-    addEventListener(){},removeEventListener(){},remove(){},focus(){},contains(){return false;},
-    getContext:k=>k==="webgl2"?mk.gl:null});
+async function viewerLifetime(){
+  const restored=new Map(), frames=new Map(), timers=new Map(), powerListeners=new Set(), observers=new Set(), mk=mockGL(2), U=AtriumUndoStore;
+  const install=(name,value)=>{if(!restored.has(name))restored.set(name,Object.getOwnPropertyDescriptor(globalThis,name));globalThis[name]=value;};
+  let seq=0, shown=true, builds=0, gl=mk.gl, covered;
+  const elt=()=>({style:{},dataset:{},children:[],attributes:new Map(),isConnected:true,clientWidth:500,clientHeight:360,
+    get lastChild(){return this.children.at(-1);},
+    append(...children){this.children.push(...children);},insertBefore(){},setAttribute(k,v){this.attributes.set(k,v);},
+    getAttribute(k){return this.attributes.get(k)??null;},hasAttribute(k){return this.attributes.has(k);},removeAttribute(k){this.attributes.delete(k);},
+    querySelector(s){return s===":scope > canvas[tabindex]"?covered:null;},
+    addEventListener(){},removeEventListener(){},remove(){this.isConnected=false;},focus(){},contains(){return false;},
+    getContext:k=>k==="webgl2"?gl:null});
   // Copper and silk build in time slices (one timer each): drain the timers a slice schedules.
   const run=jobs=>{for(let n=0;n<200&&jobs.size;n++)for(const [id,fn] of [...jobs])if(jobs.delete(id))fn();};
   const setVisible=value=>{shown=value;for(const f of powerListeners)f({visible:value});};
   install("document",{createElement:elt,createElementNS:elt,querySelector:()=>null,head:elt(),visibilityState:"visible"});
+  const nextTask=globalThis.setTimeout.bind(globalThis);
   install("requestAnimationFrame",fn=>{frames.set(++seq,fn);return seq;});
   install("cancelAnimationFrame",id=>frames.delete(id));
   install("setTimeout",fn=>{timers.set(++seq,fn);return seq;});
   install("clearTimeout",id=>timers.delete(id));
   install("AtriumPower",{visible:()=>shown,onChange(fn){powerListeners.add(fn);return ()=>powerListeners.delete(fn);}});
+  install("ResizeObserver",class {observe(){observers.add(this);} disconnect(){observers.delete(this);}});
   // One model per build: the board and bodies, or the copper and silk overlay (meshed in chunks).
   install("AtriumSTEP",{...S,model(...args){builds++;return S.model(...args);},
     layerStepsFor(...args){builds++;return S.layerStepsFor(...args);}});
@@ -375,9 +391,27 @@ assert.equal(typeof V.reducedMotion(),"boolean");
   project.parameters={...project.parameters,Revision:"A"};
   doc.items.push({id:"revision-silk",kind:"label",layer:"Silk",x:6,y:8,text:".Revision",size:2});
   let v;
+  const trace=AtriumDiagnostics.startPerformance();
+  const measured=operation=>AtriumDiagnostics.performanceSnapshot().rows.find(row=>row.component==="3d"&&row.operation===operation).counts;
   try {
-    U.record(project);v=V.open({doc,stage,project,revision:()=>revision});run(timers);run(frames);
+    covered=elt();covered.setAttribute("tabindex","0");
+    U.record(project);v=V.open({doc,stage,project,revision:()=>revision});run(frames);
+    assert.ok(mk.log.draws > 0 && !v.scene().hasLayers,"the first GL submission can precede the requested layer artwork");
+    assert.deepEqual([measured("load").ready,measured("load").visible],[0,0],"the partial scene leaves opening in flight");
+    assert.deepEqual([measured("draw").completed,measured("draw").visible],[1,0],"a partial submission is completed but not a complete visible view");
+    run(timers);run(frames);
     assert.equal(builds,2,"first visible view computes body and overlay once");
+    assert.deepEqual([measured("load").ready,measured("load").visible],[1,1],"opening publishes only after a real GL frame");
+    assert.ok(measured("draw").visible>=1);
+    assert.deepEqual([measured("build").queued,measured("build").completed,measured("build").visible],[1,3,0],
+      "the sliced overlay is queued and the mesh, overlay and upload are built before drawing");
+    covered.inert=true;
+    const beforeCover = measured("draw"), coveredDraws=mk.log.draws;
+    v.renderNow();
+    assert.ok(mk.log.draws>coveredDraws);
+    assert.deepEqual([measured("draw").visible,measured("draw").completed],[beforeCover.visible,beforeCover.completed+1],
+      "submissions behind a document cover are not visible frames");
+    covered.inert=false;
     const first=v.scene(), draws=mk.log.draws;
     v.camera({yaw:35});run(frames);
     assert.equal(v.scene(),first,"moving the camera reuses the uploaded scene");
@@ -390,11 +424,16 @@ assert.equal(typeof V.reducedMotion(),"boolean");
     const parameterScene=v.scene(), parameterBuilds=builds;
     const silkPositions=scene=>scene.batches.filter(b=>b.kind==="silk").map(b=>b.positions);
     assert.notDeepEqual(silkPositions(parameterScene),silkPositions(first),"a project parameter changes the uploaded board inscription");
+    v.invalidate();
+    const cancellations=measured("draw").cancelled, visibleDraws=measured("draw").visible, buildStarts=measured("build").started;
     setVisible(false);
+    assert.equal(measured("draw").cancelled,cancellations+1,"hiding cancels a queued frame before it starts");
     const hiddenDraws=mk.log.draws;
     part.x+=1;U.record(project);revision++;v.refresh();v.camera({yaw:45});v.renderNow();v.refold();
     run(timers);run(frames);
     assert.equal(builds,parameterBuilds,"hidden changes leave the mesh untouched");
+    assert.equal(measured("draw").visible,visibleDraws);
+    assert.equal(measured("build").started,buildStarts);
     assert.equal(mk.log.draws,hiddenDraws,"hidden camera and refold requests do not draw");
     assert.equal(v.scene(),parameterScene,"no scene is uploaded while hidden");
     setVisible(true);run(timers);run(frames);
@@ -519,9 +558,10 @@ assert.equal(typeof V.reducedMotion(),"boolean");
         assert.ok(U.jump(undo,redo,U.mark(p),direction));U.record(p);revision++;v.refresh();settle();compare(label);
       }
       edit(()=>{d.items.push({...track,layer:"Top",points:[[8,8],[10,8]]});},false);
-      const late=[...timers.values()];
+      const late=[...timers.values()], replacedBuilds=measured("build").cancelled;
       edit(()=>{d.items.find(i=>i.id===track.id).points=[[12,15],[16,15]];});
       for(const callback of late)callback();
+      assert.equal(measured("build").cancelled,replacedBuilds+1,"a superseded layer build ends once as cancelled");
       compare("a delayed publication cannot replace a newer film");
       const secondBody=v.scene().parts.find(part=>part.id===secondPart.id).batch.positions;
       edit(()=>{firstPart.x+=2;});
@@ -535,8 +575,109 @@ assert.equal(typeof V.reducedMotion(),"boolean");
       active=d;v.refresh();settle();compare("first document keeps its current mesh");
       assert.equal(v.scene().batches.find(b=>b.kind==="silk").positions,beforeSwitch);
     }
+    const canvas=v.canvas, allocated=[];
+    let width=canvas.width,height=canvas.height;
+    Object.defineProperties(canvas,{width:{get:()=>width,set:w=>{width=w;allocated.push([width,height]);}},
+      height:{get:()=>height,set:h=>{height=h;allocated.push([width,height]);}}});
+    canvas.clientWidth=150;canvas.clientHeight=1000;
+    install("devicePixelRatio",2);
+    v.renderNow();allocated.length=0;
+    canvas.clientWidth=1000;canvas.clientHeight=150;
+    v.renderNow();
+    assert.deepEqual(allocated,[[300,300],[2000,300]],"retaining the viewer shrinks one axis before growing the other at 2× DPI");
+    v.close();run(timers);
+    for(const method of ["bufferData","drawElementsInstanced"]){
+      const failed=mockGL(2), pane=elt();
+      gl=failed.gl;gl[method]=()=>{throw Error(method);};
+      covered=elt();covered.setAttribute("tabindex","0");
+      let held=0, message;
+      const loadFailures=measured("load").failed;
+      const operation=method==="bufferData"?"build":"draw", failures=measured(operation).failed;
+      const closed=V.open({doc,stage:pane,project,holdIdle(){held++;return ()=>held--;},info:text=>{message=text;}});
+      assert.ok(closed.closed&&!closed.root.isConnected&&!V.isOpen(pane),method+" failure removes the viewer");
+      assert.match(message,new RegExp(method));
+      assert.equal(measured("load").failed,loadFailures+1);
+      assert.equal(measured(operation).failed,failures+1);
+      assert.equal(failed.live.size,0,method+" failure deletes buffers, VAOs, shaders and program");
+      assert.ok(failed.log.lost);
+      assert.equal(covered.getAttribute("aria-hidden"),null,"the 2D canvas is accessible again");
+      assert.deepEqual([held,frames.size,timers.size,powerListeners.size,observers.size],[0,0,0,0,0]);
+      covered=undefined;
+    }
+    for(const method of ["bufferData","drawElementsInstanced"]){
+      const deferred=mockGL(2), pane=elt();
+      gl=deferred.gl;gl[method]=()=>{throw Error("deferred "+method);};
+      let message;
+      setVisible(false);
+      v=V.open({doc,stage:pane,project,info:text=>{message=text;}});
+      assert.ok(V.isOpen(pane));
+      setVisible(true);run(frames);
+      assert.match(message,new RegExp("deferred "+method));
+      assert.ok(v.closed&&!V.isOpen(pane)&&deferred.log.lost);
+      assert.equal(deferred.live.size,0,"the deferred opening releases allocated GL objects");
+      assert.deepEqual([frames.size,timers.size,powerListeners.size,observers.size],[0,0,0,0]);
+    }
+    const previousHost=globalThis.AtriumNavHost;
+    let completeGeometry;
+    install("AtriumNavHost",{project:()=>project,boardGeometry:()=>null,
+      prepareBoardGeometry:()=>new Promise(resolve=>{completeGeometry=resolve;})});
+    gl=mockGL(2).gl;
+    const beforeClose=measured("load");
+    const waiting=V.open({doc,stage:elt(),project});
+    assert.ok(completeGeometry && !waiting.scene(),"the viewer is waiting for actual geometry");
+    waiting.close();
+    completeGeometry();await Promise.resolve();
+    assert.deepEqual([measured("load").cancelled,measured("load").visible],[beforeClose.cancelled+1,beforeClose.visible],
+      "a closed view does not publish late geometry");
+    globalThis.AtriumNavHost=previousHost;
+    run(timers);
+
+    gl=null;
+    const unsupported=elt(), fallback=V.open({doc,stage:unsupported,project});
+    assert.ok(fallback.fallback&&V.isOpen(unsupported));
+    unsupported.isConnected=false;V.refresh();
+    assert.ok(fallback.closed&&!fallback.root.isConnected&&!V.isOpen(unsupported),"detach closes the WebGL fallback");
+
+    gl=mockGL(2).gl;
+    const loads=[], ready=new Map(), flush=()=>new Promise(resolve=>nextTask(resolve,0));
+    install("AtriumSTEPImport",{cached:text=>ready.get(text),load(text){
+      return new Promise(resolve=>loads.push({text,finish(){const result={parts:[]};ready.set(text,result);resolve(result);}}));
+    }});
+    const texts=doc.items.filter(i=>i.kind==="part").slice(0,3).map((part,i)=>{
+      const p=A.project("Inline STEP "+i), body=p.documents.find(d=>d.kind==="pcb");
+      body.outline=[[0,0],[3+i,0],[3+i,2],[0,2]];
+      const text=S.export(p,body,{deterministic:true});part.model3d={stepText:text};return text;
+    });
+    U.record(project);revision++;
+    const beforeModels=measured("load");
+    v=V.open({doc,stage:elt(),project,revision:()=>revision});await flush();run(timers);run(frames);
+    assert.deepEqual(loads.map(job=>job.text),texts.slice(0,1),"only one inline STEP decode is in flight");
+    assert.ok(v.scene().hasLayers,"copper and silk can finish before a component model");
+    assert.deepEqual([measured("load").ready,measured("load").visible],[beforeModels.ready,beforeModels.visible],
+      "a view with requested STEP models still pending is not complete");
+    setVisible(false);loads[0].finish();await flush();
+    assert.equal(loads.length,1,"settling an inline STEP decode while hidden queues no more work");
+    setVisible(true);await flush();
+    assert.deepEqual(loads.map(job=>job.text),texts.slice(0,2),"revealing the view resumes at the next body");
+    v.close();loads[1].finish();await flush();
+    assert.equal(loads.length,2,"settling an inline STEP decode after close queues no more work");
+    const fallbackProject=AtriumParts.example(), fallbackBoard=fallbackProject.documents.find(d=>d.kind==="pcb");
+    const fallbackPart=fallbackBoard.items.find(i=>i.kind==="part");
+    fallbackPart.model3d={stepText:texts[0]};
+    let resolveModel;
+    install("AtriumSTEPImport",{cached:()=>null,load:()=>new Promise(resolve=>{resolveModel=resolve;})});
+    const beforeFallback=measured("load");
+    v=V.open({doc:fallbackBoard,stage:elt(),project:fallbackProject});await flush();run(timers);run(frames);
+    const boxScene=v.scene();
+    assert.ok(resolveModel && boxScene.parts.some(part=>part.id===fallbackPart.id && part.boundsOnly));
+    resolveModel({parts:[],error:"unreadable synthetic model"});await flush();
+    assert.equal(v.scene(),boxScene,"a resolved failure keeps the submitted bounding-box fallback");
+    const afterFallback=measured("load");
+    assert.deepEqual([afterFallback.ready-beforeFallback.ready,afterFallback.completed-beforeFallback.completed,
+      afterFallback.visible-beforeFallback.visible,afterFallback.failed-beforeFallback.failed],[1,1,0,0]);
   } finally {
-    v?.close();run(timers);U.reset();
+    trace.stop();
+    V.close();run(timers);U.reset();
     for(const [name,descriptor] of restored)if(descriptor)Object.defineProperty(globalThis,name,descriptor);else delete globalThis[name];
   }
 }
@@ -549,23 +690,30 @@ assert.equal(typeof V.reducedMotion(),"boolean");
   const at=editor.indexOf("function load3D(then){");
   if(at<0)log("SKIP lazy-load check: the view3d integration patch is not applied to editor.js");
   else{
-    // Run the editor's loader against a fake document.
+    // Run the editor's public loader against the registry, including a failed first demand.
     let end=at,depth=0;for(let i=editor.indexOf("{",at);i<editor.length;i++){if(editor[i]==="{")depth++;else if(editor[i]==="}"&&--depth===0){end=i+1;break;}}
-    const src=editor.slice(at,end),scripts=[],notes=[];
-    const doc={createElement:t=>({tag:t,remove(){this.removed=true;}}),head:{append:s=>scripts.push(s)}};
-    const make=new Function("document","info","globalThis","let load3DBusy=false;"+src+";return load3D;");
-    const G={};const load=make(doc,t=>notes.push(t),G);
+    const src=editor.slice(at,end),requests=[],notes=[];
+    let ready=false;
+    const G={AtriumLazy:{
+      has:name=>name==="Atrium3D"&&ready,
+      need:name=>({then:(resolve,reject)=>requests.push({name,resolve,reject})})
+    }};
+    const load=new Function("info","globalThis","let load3DBusy=false;"+src+";return load3D;")(text=>notes.push(text),G);
     let opened=0;
     load(()=>opened++);load(()=>opened++);
-    assert.equal(scripts.length,1,"one script tag while loading");assert.equal(scripts[0].src,"canvas/view3d.js","relative src works under file://");
-    assert.equal(opened,0);
-    G.Atrium3D={};scripts[0].onload();assert.equal(opened,1,"opens once the module is defined");
-    load(()=>opened++);assert.equal(opened,2);assert.equal(scripts.length,1,"never injected twice");
-    // A failed load reports and can be retried.
-    const G2={},s2=[],n2=[];const load2=new Function("document","info","globalThis","let load3DBusy=false;"+src+";return load3D;")({createElement:()=>({remove(){this.removed=true;}}),head:{append:s=>s2.push(s)}},t=>n2.push(t),G2);
-    load2(()=>{throw Error("must not open");});s2[0].onerror();assert.ok(s2[0].removed&&/STEP/.test(n2.at(-1)),"failure offers STEP export");
-    load2(()=>{});assert.equal(s2.length,2,"retry after a failure");
-    log("lazy load: one relative <script> on the first 3, none at startup");
+    assert.equal(requests.length,1,"one registry request while loading");
+    assert.equal(requests[0].name,"Atrium3D");
+    requests[0].reject();
+    assert.equal(opened,0,"a failed load never opens the scene");
+    assert.match(notes.at(-1),/STEP/,"failure offers STEP export");
+    load(()=>opened++);
+    assert.equal(requests.length,2,"retry after a failure");
+    ready=true;requests[1].resolve();
+    assert.equal(opened,1,"opens once after its dependencies are ready");
+    load(()=>opened++);
+    assert.equal(opened,2);
+    assert.equal(requests.length,2,"a warm open makes no new request");
+    log("lazy load: one registry request on the first 3, none at startup");
   }
 }
 
@@ -588,4 +736,6 @@ assert.equal(typeof V.reducedMotion(),"boolean");
   assert.equal(hb.inst?.kind,"board","surface pick reaches the board");
   log("synthetic: model+mesh "+(t1-t0).toFixed(0)+" ms, scene "+(t2-t1).toFixed(1)+" ms, "+scene.triangles+" triangles (no copper/silk), "+(scene.cpuBytes/1048576).toFixed(1)+" MB; hover pick "+((t4-t3)/200).toFixed(3)+" ms ("+hits+"/200 hits); board surface pick "+(t6-t5).toFixed(1)+" ms");
 }
-log("PASS view3d: camera maths, instanced scene, picking, layer compaction, cache, GL lifetime, fallback and lazy loading.");
+viewerLifetime().then(()=>{
+  log("PASS view3d: camera maths, instanced scene, picking, layer compaction, cache, GL and STEP lifetime, fallback and lazy loading.");
+}).catch(error=>{console.error(error);process.exitCode=1;});

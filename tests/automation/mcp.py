@@ -84,12 +84,12 @@ class MCPTests(Client, unittest.TestCase):
         self.digest = revision(self.path)
         self.open_project(self.path)
 
-    def open_project(self, path):
+    def open_project(self, path, *flags):
         if hasattr(self, "proc"):
             self.stop_server()
         self.path = path
         self.proc = subprocess.Popen(
-            [sys.executable, str(SERVER), "--project", str(self.path)],
+            [sys.executable, str(SERVER), "--project", str(self.path), *flags],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, bufsize=1,
         )
@@ -141,6 +141,69 @@ class MCPTests(Client, unittest.TestCase):
         self.tool("undefined_tool", error=True)
         self.assertEqual(self.request("unknown", {})["error"]["code"], -32601)
         self.assertEqual(authored_files(self.path.parent), self.original)
+
+    def test_headless_performance_session_uses_the_shared_snapshot(self):
+        self.open_project(make_sample(Path(self.temp.name) / "performance", "Sensor.waffle"),
+                          "--read-only", "--enable-butter", "motion")
+        original = authored_files(self.path.parent)
+        project = read_design(self.path)
+        pcb = next(doc["id"] for doc in project["documents"] if doc["kind"] == "pcb")
+        method = "waffle/diagnostics/performance"
+        self.assertEqual(self.request(method, {"action": "start"})["error"]["code"], -32002)
+        init = self.request("initialize", {"protocolVersion": "2025-06-18"})["result"]
+        capability = init["capabilities"]["experimental"][method]
+        self.assertEqual(capability["actions"], ["start", "snapshot", "stop"])
+        self.assertEqual(capability["projections"], ["shareable", "exact"])
+        for bad in ({"action": "begin"}, {"action": "start", "projection": "exact"},
+                    {"action": "snapshot", "projection": "private"}):
+            self.assertEqual(self.request(method, bad)["error"]["code"], -32602)
+
+        def capture(action, **options):
+            return self.request(method, {"action": action, **options})["result"]
+
+        secret = "PERFORMANCE_PRIVATE_COMPONENT_FILTER"
+        args = {"document_id": pcb, "query": secret}
+        self.assertEqual(self.tool("list_components", args)["total"], 0)
+        self.assertEqual(capture("snapshot"), {"version": 1, "recording": False, "rows": []})
+        self.assertEqual(capture("start"), {"version": 1, "recording": True, "rows": []})
+        self.assertEqual(self.tool("list_components", args)["total"], 0)
+        self.assertEqual(self.tool("run_drc", {"rules": ["width"]}, timeout=30)["total"], 1)
+        command = "butter.motion.policy"
+        self.assertEqual(self.tool("run_command", {"command": command, "args": {"requested": "full", "osReduced": True}})
+                         ["untrusted_design_text"]["level"], "reduced")
+        self.assertIn("read-only", self.tool("propose_component_edits", {"changes": []}, error=True))
+        snapshot = capture("snapshot")
+        self.assertEqual(snapshot["version"], 1)
+        self.assertTrue(snapshot["recording"])
+        by_key = {(row["component"], row["operation"]): row for row in snapshot["rows"]}
+        automation = by_key["automation", "request"]
+        self.assertEqual(automation["counts"]["completed"], "1-to-4")
+        self.assertEqual(automation["counts"]["failed"], "1-to-4")
+        self.assertIsNotNone(automation["runP95"])
+        self.assertEqual(by_key["automation", "command"]["counts"]["completed"], "1-to-4")
+        self.assertEqual(by_key["drc", "check"]["counts"]["completed"], "1-to-4")
+        exact = capture("snapshot", projection="exact")
+        self.assertEqual(set(exact), set(snapshot))
+        self.assertEqual(exact["version"], snapshot["version"])
+        exact_rows = {(row["component"], row["operation"]): row for row in exact["rows"]}
+        self.assertEqual(exact_rows.keys(), by_key.keys())
+        self.assertEqual(exact_rows["automation", "request"]["counts"]["completed"], 3)
+        self.assertEqual(exact_rows["automation", "request"]["counts"]["failed"], 1)
+        self.assertEqual(exact_rows["automation", "command"]["counts"]["completed"], 1)
+        self.assertEqual(exact_rows["drc", "check"]["counts"]["completed"], 1)
+        self.assertIsInstance(automation["runP95"], str)
+        self.assertIsInstance(exact_rows["automation", "request"]["runP95"], (int, float))
+        for projection in (snapshot, exact):
+            encoded = json.dumps(projection)
+            for value in (secret, "list_components", "run_drc", command, project["id"], pcb, str(self.path), revision(self.path)):
+                self.assertNotIn(value, encoded)
+        stopped = capture("stop", projection="exact")
+        self.assertEqual(stopped, {**exact, "recording": False})
+        self.tool("list_components", args)
+        self.assertEqual(capture("snapshot"), {**snapshot, "recording": False})
+        self.assertEqual(capture("start")["rows"], [])
+        self.assertEqual(capture("stop")["rows"], [])
+        self.assertEqual(authored_files(self.path.parent), original)
 
     def test_compare_git_head_reads_committed_to_saved_changes(self):
         def git(*args):
@@ -1655,6 +1718,30 @@ class HeadlessToolTests(HeadlessFixture):
         drc = subprocess.run([sys.executable, "-B", str(SERVER), "--project", str(self.path), "--cli", "run_drc", "--args", "@" + str(self.dir / "args.json")],
                              capture_output=True, text=True, timeout=60)
         self.assertEqual(json.loads(drc.stdout)["total"], 1)
+        self.assertEqual(drc.stderr, "")
+        traced = subprocess.run([sys.executable, "-B", str(SERVER), "--project", str(self.path), "--performance", "--cli",
+                                 "run_drc", "--args", "@" + str(self.dir / "args.json")],
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(traced.returncode, drc.returncode)
+        self.assertEqual(json.loads(traced.stdout)["total"], json.loads(drc.stdout)["total"])
+        snapshot = json.loads(traced.stderr)
+        self.assertEqual(snapshot["version"], 1)
+        self.assertFalse(snapshot["recording"])
+        self.assertEqual(next(row["counts"]["completed"] for row in snapshot["rows"]
+                              if (row["component"], row["operation"]) == ("automation", "request")), "1-to-4")
+        exact_result = subprocess.run([sys.executable, "-B", str(SERVER), "--project", str(self.path), "--performance-exact",
+                                       "--cli", "run_drc", "--args", "@" + str(self.dir / "args.json")],
+                                      capture_output=True, text=True, timeout=60)
+        self.assertEqual(exact_result.returncode, drc.returncode)
+        self.assertEqual(json.loads(exact_result.stdout)["total"], json.loads(drc.stdout)["total"])
+        exact = json.loads(exact_result.stderr)
+        exact_row = next(row for row in exact["rows"] if (row["component"], row["operation"]) == ("automation", "request"))
+        self.assertEqual(exact["version"], snapshot["version"])
+        self.assertFalse(exact["recording"])
+        self.assertEqual(exact_row["counts"]["completed"], 1)
+        self.assertIsInstance(exact_row["runP95"], (int, float))
+        self.assertNotIn("run_drc", exact_result.stderr)
+        self.assertNotIn(str(self.path), exact_result.stderr)
         bad = subprocess.run([sys.executable, "-B", str(SERVER), "--project", str(self.path), "--cli", "run_drc", "--args", '{"limit": 999}'],
                              capture_output=True, text=True, timeout=60)
         self.assertEqual((bad.returncode, bad.stdout), (1, ""))

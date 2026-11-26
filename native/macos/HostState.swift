@@ -466,6 +466,34 @@ enum LibraryFolders {
     }
 }
 
+/// The hardware architecture for a user-requested support report. WKWebView's UA is not authoritative.
+enum SupportDiagnostics {
+    static func displayCount(_ count: Int) -> String {
+        switch count {
+        case 1: return "one"
+        case 2: return "two"
+        case 3...: return "three-or-more"
+        default: return "unknown"
+        }
+    }
+
+    static var architecture: String {
+        #if arch(arm64)
+        return "arm64"
+        #elseif arch(x86_64)
+        var translated: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        if sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0) != 0 {
+            return errno == ENOENT ? "x64" : "unknown"
+        }
+        if translated == 1 { return "arm64" }
+        return translated == 0 ? "x64" : "unknown"
+        #else
+        return "unknown"
+        #endif
+    }
+}
+
 /// WebKit failures are recorded by the shell even when the page cannot run JavaScript.
 enum CrashHistory {
     private static let limit = 32
@@ -473,6 +501,14 @@ enum CrashHistory {
 
     static func listing() -> [[String: Any]] {
         Array(HostFiles.loadJSON(file, cap: 16 * 1024).suffix(limit))
+    }
+
+    static func counts() -> [String: Int] {
+        var result = ["terminated": 0, "unresponsive": 0]
+        for row in listing() where row["kind"] as? String == "renderer" && row["type"] as? String == "macOS" {
+            if let reason = row["reason"] as? String, let count = result[reason] { result[reason] = count + 1 }
+        }
+        return result
     }
 
     /// reason: "terminated" (a crash or the system), "unresponsive" (ended from the not-responding sheet).

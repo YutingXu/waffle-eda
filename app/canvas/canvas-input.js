@@ -139,7 +139,7 @@ globalThis.AtriumCanvasInput = (() => {
     const host = s => s.pane.input?.host || ops.host();
     const active = s => s.pane.input?.active() ?? ops.active(s.pane);
     const docId = p => p.input?.host.currentId() || ops.docId(p);
-    const frame = (p,inFrame) => p.input ? p.input.frame() : ops.frame(p,inFrame);
+    const frame = (p,inFrame,wheelEnd) => p.input ? p.input.frame() : ops.frame(p,inFrame,wheelEnd);
     const state = p => {
       if (!states.has(p)) {
         const s={pane:p,points:new Map(),mode:"idle",recent:-Infinity}; states.set(p,s);
@@ -198,7 +198,7 @@ globalThis.AtriumCanvasInput = (() => {
       palms.clear();shadows.clear();mouseShadows.clear();legacy.clear();
     }
     function prune() {
-      for (const [p,s] of states) if (!p.canvas.isConnected || s.points.size && !valid(s)) {
+      for (const [p,s] of states) if (p.covered || !p.canvas.isConnected || s.points.size && !valid(s)) {
         reset(s); states.delete(p); if(coast?.state===s) stopMotion();
       }
     }
@@ -616,14 +616,13 @@ globalThis.AtriumCanvasInput = (() => {
       const s=state(pane);
       if(e.type.startsWith("gesture")) return web(e,s);
       if(e.type==="wheel") {
-        const camera=C();
-        if(camera?.wheelHasMotion?.(e)===false) return true;
-        const at=client(e),pinch=camera?.wheelPinch?.(e);
-        if(!s.web&&!s.points.size && !(pinch && s.webEnd && time.now()-s.webEnd.t<65 && distance(s.webEnd.at,at)<26)) {
+        if(!s.web&&!s.points.size) C()?.wheel(e,pane.view,pinch=>{
+          const at=client(e);
+          if(pinch && s.webEnd && time.now()-s.webEnd.t<65 && distance(s.webEnd.at,at)<26) return null;
           stopMotion(); s.webEnd=null;
           s.wheelPinch=pinch?{at,t:time.now(),before:pane.view.camera()}:null;
-          camera?.wheel(e,pane.view,loc(s,at),pane.canvas,inFrame=>frame(pane,inFrame));
-        }
+          return loc(s,at);
+        },pane.canvas,(inFrame,wheelEnd)=>frame(pane,inFrame,wheelEnd));
         return true;
       }
       // Direct input already selected, placed or opened a menu. Retain real mouse/keyboard menus.

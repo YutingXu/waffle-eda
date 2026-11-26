@@ -8,10 +8,11 @@ const app = pathToFileURL(path.join(__dirname, "../../app/index.html")).href;
 async function fresh(browser, run, settings) {
   const page = await browser.newPage({viewport: {width: 1400, height: 900}});
   const errors = [];
-  const legacyContractRequests = [];
+  const legacyContractRequests = [], graphRequests = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("request", request => {
     if (request.url().endsWith("/automation/legacy-command-contract.js")) legacyContractRequests.push(request.url());
+    if (request.url().endsWith("/ui/commit-graph.js")) graphRequests.push(request.url());
   });
   page.setDefaultTimeout(8000);
   try {
@@ -20,7 +21,7 @@ async function fresh(browser, run, settings) {
     },settings);
     if (settings) await page.clock.install();
     await page.goto(app);
-    await run(page);
+    await run(page, graphRequests);
     assert.deepEqual(errors, []);
     assert.deepEqual(legacyContractRequests, [], "the legacy worker catalogue stays out of the editor and its workers");
   } finally {
@@ -33,7 +34,27 @@ async function demo(page) {
   await page.waitForFunction(() => AtriumNavHost.doc()?.name === "Sensor board");
 }
 
+async function historyDemand(browser) {
+  await fresh(browser, async (page, graphRequests) => {
+    await page.locator("dialog.sp-dialog[open]").waitFor();
+    // Wait for the real idle registration, including History's toolbar and status markup.
+    await page.waitForFunction(() => globalThis.AtriumHistoryEntry?.status().installed);
+    assert.equal(await page.locator(".hv-entry use").getAttribute("href"), "#i-history");
+    for (const id of ["history", "branch", "more"])
+      assert.equal(await page.locator(`.icon-bank symbol#i-${id}[data-proposed]`).count(), 1);
+    assert.deepEqual(graphRequests, [], "Home needs no commit graph script");
+    await demo(page);
+    await page.evaluate(() => new Promise(resolve => AtriumIdle.idle(() => resolve(), {timeout:2000})));
+    assert.deepEqual(graphRequests, [], "an idle editor still needs no commit graph script");
+    await page.getByRole("button", {name:"History", exact:true}).click();
+    await page.locator(".hv-view canvas.hv-graph").waitFor();
+    assert.equal(graphRequests.length, 1, "first History use loads its graph");
+    assert.ok(await page.evaluate(() => AtriumCommitGraph.lanes([{revision:"one"}]).length === 1));
+  });
+}
+
 module.exports = async browser => {
+  await historyDemand(browser);
   for (const efficiency of ["off", "always"]) {
     await fresh(browser, async page => {
       await page.locator("dialog.sp-dialog[open]").waitFor();
@@ -180,3 +201,5 @@ module.exports = async browser => {
   console.log("PASS default Preferences caret and opted-in numeric entry on the first click");
   console.log("PASS cold Cross Probe gesture, Cross Select menu, Nets table, and Altium file open");
 };
+
+module.exports.historyDemand = historyDemand;

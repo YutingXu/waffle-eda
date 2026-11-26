@@ -10,6 +10,7 @@ require("../../app/core/model.js");require("../../app/library/parts.js");require
 require("../../app/checks/rules.js");require("../../app/checks/connectivity.js");require("../../app/core/zip.js");require("../../app/editor/keymap.js");require("../../app/automation/proposal.js");
 require("../../app/core/atrium-api.js");require("../../app/workers/extension-host-worker.js");require("../../app/extension-host/extensions.js");require("../../app/automation/scripting.js");
 require("../../app/extensions/manifests.js");
+require("../../app/checks/diagnostics.js");
 const A=Atrium,X=AtriumExtensions;
 const loadedBuiltins=()=>AtriumBuiltinExtensionManifests.map(({manifest})=>manifest.id).filter(id=>
   !!require.cache[require.resolve("../../app/extensions/packages/"+id+".js")]);
@@ -324,6 +325,14 @@ const done=(async()=>{
 
   // --------------------------------------------- scripts: one undo step, own worker
   const hist=history.length;
+  const performanceLease=AtriumDiagnostics.startPerformance(), privateArgument="DEVELOPER_SCRIPT_PRIVATE_MARKER";
+  assert.equal((await X.runScript("return args",{args:privateArgument})).value,privateArgument);
+  performanceLease.stop();
+  const performanceSnapshot=AtriumDiagnostics.performanceSnapshot();
+  const scriptTiming=performanceSnapshot.rows.find(row=>row.component==="automation"&&row.operation==="command");
+  assert.equal(scriptTiming.counts.completed,1);
+  assert.equal(scriptTiming.counts.started,1);
+  assert.ok(!JSON.stringify(performanceSnapshot).includes(privateArgument));
   let r=await X.runScript(`
     const parts = await api.items.list({kind: "part", fields: ["id", "x"]});
     await api.transaction("A", tx => tx.move(parts[0].id, 1, 0));

@@ -5,7 +5,7 @@
 # scripts/perf-view-feel.cjs (playwright-core, from node_modules, scripts/ci/node_modules or the pinned
 # CI dependencies that scripts/typecheck.sh installs under ~/.cache/atrium-ci).
 # Usage: scripts/perf-view-feel.sh [--json] [--skip-if-no-browser]   Env as for perf-view-feel.cjs (CHROME=/path/to/chrome).
-#        scripts/perf-view-feel.sh --native --help  (signed WKWebView, real saved PCB GPU labels)
+#        scripts/perf-view-feel.sh --native --help  (saved PCB on signed WKWebView, --draw-work without physical cadence)
 root=${0:A:h:h}
 if [[ ${1:-} == --native ]]; then
   shift

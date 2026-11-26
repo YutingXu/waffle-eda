@@ -9,7 +9,7 @@ const {appFileFrom} = require("../support/app-source-paths.cjs");
 const {nativeRoundTrip} = require(resolve(app,"../tests/support/native-cad.cjs"));
 const source = readFileSync(resolve(app,"translator-worker-modules.js"),"utf8");
 new Function(source)();
-for (const file of [...AtriumTranslatorWorkerModules["polygon-pour"], "viastack.js", "rooms.js", "dfa.js", "undo-store.js", "live-pour-client.js",
+for (const file of [...AtriumTranslatorWorkerModules["polygon-pour"], "viastack.js", "rooms.js", "dfa.js", "undo-store.js", "live-pour-client.js", "diagnostics.js",
   "zip.js", "fab-outputs.js"])
   require(appFileFrom(app,file));
 
@@ -145,6 +145,7 @@ async function settle(label, fabrication) {
 }
 
 async function main() {
+  const recording = AtriumDiagnostics.startPerformance();
   P.live.setMode("live");P.live.attach(host);
   assert.equal(workers,0,"Attaching does not start the worker");
   move(6);
@@ -267,6 +268,15 @@ async function main() {
   assert.deepEqual(P.stale(saved,defs,{project:reopened}),[],"native round-trip retains fresh copper after recovery");
   assert.deepEqual(saved.pcbDrawing.pours.map(r => r.data),board.pcbDrawing.pours.map(r => r.data));
   assert.deepEqual(messages,[]);
+  recording.stop();
+  const rows = AtriumDiagnostics.performanceSnapshot().rows;
+  const counts = operation => rows.find(row => row.component === "pours" && row.operation === operation).counts;
+  const remote = counts("request");
+  assert.ok(remote.ready === remote.completed && remote.completed >= 3, "accepted worker replies terminate once");
+  assert.ok(remote.cancelled >= 1 && remote.failed === 1, "an obsolete reply and a crashed worker have distinct outcomes");
+  assert.equal(counts("publish").completed, commits, "only actual derived copper publications are recorded");
+  assert.equal(counts("fallback").completed, 1, "the real fallback completes after the worker crash");
+  assert.equal(counts("build").completed, 1, "a deliberately disabled worker uses the ordinary local path");
   console.log("live pour mirror: cold and one-row refill, cancelled reply, undo/redo, scoped save, crash recovery, fresh output and native copper");
 }
 async function dormantScope() {
@@ -383,6 +393,7 @@ async function interruptedRefill(mode) {
   P.live.attach(H);
   P.live.useWorker(true);
   const setTimeoutOriginal = globalThis.setTimeout;
+  const recording = AtriumDiagnostics.startPerformance();
   let fireTimeout;
   try {
     // Capture the production watchdog and fire it after retaining the worker reply.
@@ -402,6 +413,13 @@ async function interruptedRefill(mode) {
     } else if (mode === "manual") P.live.setMode("manual");
     else {visible = false;onVisibility({visible});}
     await save;
+    const rows = AtriumDiagnostics.performanceSnapshot().rows;
+    const counts = rows.find(row => row.component === "pours" && row.operation === "request").counts;
+    assert.equal(counts.started, 1);
+    assert.equal(counts.ready, 0, "the held worker reply has not reached the client");
+    assert.equal(counts.failed, mode === "timeout" ? 1 : 0);
+    assert.equal(counts.cancelled, mode === "timeout" ? 0 : 1);
+    assert.ok(!rows.some(row => row.component === "pours" && row.operation === "publish"));
     assert.deepEqual(seen,[wanted],"the interruption publishes only stale metadata");
     assert.deepEqual(persisted,[wanted],"the interruption opts in to native folder persistence");
     assert.equal(doc.pcbDrawing.pours,retained);
@@ -441,6 +459,7 @@ async function interruptedRefill(mode) {
     assert.deepEqual(persisted,[wanted],"ordinary live copper stays derived");
     console.log("interrupted worker ("+mode+"): pending Save records stale dependencies and recovery refills exactly");
   } finally {
+    recording.stop();
     globalThis.setTimeout = setTimeoutOriginal;
     held = null;
     holdResult = false;
@@ -448,9 +467,27 @@ async function interruptedRefill(mode) {
     if (mode === "occluded") G.AtriumPower = previousPower;
   }
 }
+async function rejectedResult() {
+  const saved = G.AtriumWorkerPool, capture = AtriumDiagnostics.startPerformance();
+  const transport = {postMessage(data) {
+    if (data.type === "refill") queueMicrotask(() => transport.onmessage({data:{id:data.id,type:"result",error:"invalid pour"}}));
+  }, terminate() {}};
+  G.AtriumWorkerPool = {script:() => transport};
+  const client = AtriumLivePourClient.create();
+  try {
+    await assert.rejects(client.refill(board,defs,project,U,new Map(),{},()=>true),/invalid pour/);
+    const {counts} = AtriumDiagnostics.performanceSnapshot().rows.find(row=>row.component==="pours"&&row.operation==="request");
+    assert.deepEqual([counts.started,counts.ready,counts.failed],[1,0,1],"a rejected worker reply publishes no ready result");
+  } finally {
+    client.close();
+    G.AtriumWorkerPool = saved;
+    capture.stop();
+  }
+}
 const cases = [
   [main], [dormantScope],
-  ...["timeout","manual","occluded"].map(mode => [interruptedRefill, mode])
+  ...["timeout","manual","occluded"].map(mode => [interruptedRefill, mode]),
+  [rejectedResult]
 ];
 globalThis.__testDone = (async () => {
   for (const [check, fixture] of cases) await check(fixture);

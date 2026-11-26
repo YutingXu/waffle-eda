@@ -4,7 +4,7 @@
 // courtyards) are not run again; a real edit, a library edit or a layer-name edit still re-checks.
 // Node: node tests/checks/drc-repour.cjs   JSC: scripts/test-jsc.sh drc-repour
 const assert = require("node:assert/strict");
-for (const m of ["model", "nav-common", "spatial", "connectivity", "rules", "drc", "pcb-edit", "drc-view", "problem-marks", "drc-markers", "drc-fixes", "drc-pours", "checks", "undo-store"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+for (const m of ["model", "nav-common", "spatial", "connectivity", "rules", "drc", "pcb-edit", "drc-view", "problem-marks", "drc-markers", "drc-fixes", "drc-pours", "diagnostics", "checks", "undo-store"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 require("../support/drc-geometry.cjs");
 const V = AtriumDRCView, U = AtriumUndoStore, F0 = AtriumDRCFixes, scheduler = AtriumChecks.scheduler;
 let passed = 0;
@@ -59,7 +59,17 @@ test("a pour-only repour reuses the extra checks; real edits re-check", () => {
   const types = () => V.violations("b1").map(v => v.type).sort();
   V.attach(host);
   try {
-    let [n, r] = count(() => check(true)); assert.equal(n, 1, "first check");
+    const recording = AtriumDiagnostics.startPerformance();
+    let n, r;
+    try {
+      [n, r] = count(() => check(true)); assert.equal(n, 1, "first check");
+      const rows = AtriumDiagnostics.performanceSnapshot().rows;
+      const checks = rows.find(row => row.component === "drc" && row.operation === "check").counts;
+      const publications = rows.find(row => row.component === "drc" && row.operation === "publish").counts;
+      assert.ok(checks.queued >= 1 && checks.completed === checks.ready && checks.ready >= 1,
+        "the scheduled pour clearance reports work through to its result");
+      assert.ok(publications.completed >= 1 && publications.visible === 0, "the live store reports publication");
+    } finally { recording.stop(); }
     const first = V.violations("b1");
     assert.ok(first.some(v => v.type === "netAntennae"), JSON.stringify(types()));
 

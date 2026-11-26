@@ -10,6 +10,7 @@ import IOKit.ps
 @MainActor final class EnergyProbes {
     let h: Harness
     var cover: NSWindow?
+    private var workload: Sample?
     init(_ h: Harness) { self.h = h }
     var web: WKWebView { h.d.web }
     var window: NSWindow { h.d.window }
@@ -26,17 +27,39 @@ import IOKit.ps
                                         ("net", spi(web.configuration.websiteDataStore, "_networkProcessIdentifier"))]
         return list.filter { $0.1 > 0 }
     }
-    struct Usage { var cpuNs = 0.0, idleW = 0.0, intW = 0.0, energyNj = 0.0 }
-    func usage(_ pid: Int32) -> Usage? {
+    private struct Usage {
+        let cpuNs, idleW, intW: Double
+        let energyNj, processStart: UInt64
+
+        func delta(since before: Usage) -> Delta? {
+            guard processStart != 0, processStart == before.processStart, energyNj >= before.energyNj else { return nil }
+            return Delta(cpuNs: cpuNs - before.cpuNs, idleW: idleW - before.idleW,
+                         intW: intW - before.intW, energyJ: Double(energyNj - before.energyNj) / 1e9)
+        }
+    }
+    private struct Delta {
+        var cpuNs = 0.0, idleW = 0.0, intW = 0.0, energyJ = 0.0
+
+        func row(_ seconds: TimeInterval) -> [String: Any] {
+            ["cpu": cpuNs / 1e9 / seconds * 100, "cpuMs": cpuNs / 1e6, "idleW": idleW / seconds,
+             "intW": intW / seconds, "mW": energyJ * 1000 / seconds, "energyJ": energyJ]
+        }
+    }
+    private struct Sample {
+        let at: TimeInterval
+        let processes: [(String, Int32)]
+        let usage: [Usage?]
+    }
+    private func usage(_ pid: Int32) -> Usage? {
         var r = rusage_info_v6()
         let rc = withUnsafeMutablePointer(to: &r) { p in p.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V6, $0) } }
         guard rc == 0 else { return nil }
         // ri_user_time and ri_system_time are mach time units on Apple silicon.
         return Usage(cpuNs: Double(r.ri_user_time + r.ri_system_time) * EnergyProbes.timebase, idleW: Double(r.ri_pkg_idle_wkups),
-                     intW: Double(r.ri_interrupt_wkups), energyNj: Double(r.ri_energy_nj))
+                     intW: Double(r.ri_interrupt_wkups), energyNj: r.ri_energy_nj, processStart: r.ri_proc_start_abstime)
     }
     /// Deltas over `seconds` for each process and their sum: cpu (% of one core), idle and interrupt
-    /// wakeups a second, energy (mW), and top's POWER for the same window.
+    /// wakeups per second, energy (J), mean power (mW), and top's POWER for the same window.
     func measure(_ seconds: Double) async -> [String: Any] {
         let s = max(0.25, seconds), procs = pids()
         let top = Process(), pipe = Pipe()
@@ -44,18 +67,9 @@ import IOKit.ps
         top.arguments = ["-l", "2", "-s", String(max(1, Int(s.rounded()))), "-stats", "pid,cpu,idlew,power"] + procs.flatMap { ["-pid", String($0.1)] }
         top.standardOutput = pipe; top.standardError = FileHandle.nullDevice
         let topRuns = s >= 1.5 && (try? top.run()) != nil
-        let t0 = Date(), before = procs.map { usage($0.1) }
+        let before = sample(procs)
         await h.pause(s)
-        let dt = Date().timeIntervalSince(t0), after = procs.map { usage($0.1) }
-        var out: [String: Any] = ["seconds": dt]
-        var total = Usage()
-        for (i, p) in procs.enumerated() {
-            guard let a = before[i], let b = after[i] else { continue }
-            let d = Usage(cpuNs: b.cpuNs - a.cpuNs, idleW: b.idleW - a.idleW, intW: b.intW - a.intW, energyNj: b.energyNj - a.energyNj)
-            total.cpuNs += d.cpuNs; total.idleW += d.idleW; total.intW += d.intW; total.energyNj += d.energyNj
-            out[p.0] = row(d, dt)
-        }
-        out["total"] = row(total, dt)
+        var out = delta(before)
         // top's second sample is the window's delta; it can lag the window by a moment.
         let deadline = Date().addingTimeInterval(4)
         while top.isRunning && Date() < deadline { await h.pause(0.1) }
@@ -70,8 +84,37 @@ import IOKit.ps
         out["topPower"] = power
         return out
     }
-    func row(_ d: Usage, _ dt: Double) -> [String: Any] {
-        ["cpu": d.cpuNs / 1e9 / dt * 100, "cpuMs": d.cpuNs / 1e6, "idleW": d.idleW / dt, "intW": d.intW / dt, "mW": d.energyNj / 1e6 / dt]
+    // Bracket the caller's actual workload with the same process sampler. No subprocess is needed.
+    func measureBoundary(_ boundary: String) -> Any {
+        if boundary == "begin", workload == nil {
+            workload = sample(pids())
+            return true
+        }
+        guard boundary == "end", let before = workload else { return NSNull() }
+        workload = nil
+        return delta(before)
+    }
+    private func sample(_ processes: [(String, Int32)]) -> Sample {
+        Sample(at: ProcessInfo.processInfo.systemUptime, processes: processes, usage: processes.map { usage($0.1) })
+    }
+    private func delta(_ before: Sample) -> [String: Any] {
+        let dt = ProcessInfo.processInfo.systemUptime - before.at, after = pids()
+        return Self.delta(before, after: after, seconds: dt, read: usage)
+    }
+    private static func delta(_ before: Sample, after: [(String, Int32)], seconds: TimeInterval,
+                              read: (Int32) -> Usage?) -> [String: Any] {
+        var out: [String: Any] = ["seconds": seconds]
+        var total = Delta()
+        for (i, p) in before.processes.enumerated() {
+            guard after.contains(where: { $0 == p }), let a = before.usage[i], let b = read(p.1),
+                  let d = b.delta(since: a) else { continue }
+            total.cpuNs += d.cpuNs; total.idleW += d.idleW; total.intW += d.intW; total.energyJ += d.energyJ
+            out[p.0] = d.row(seconds)
+        }
+        // A missing or replaced process makes this total partial.
+        out["completeProcessCoverage"] = ["app", "web", "gpu", "net"].allSatisfy { out[$0] != nil }
+        out["total"] = total.row(seconds)
+        return out
     }
     func window(_ act: String) async -> [String: Any] {
         switch act {

@@ -27,6 +27,8 @@ module.exports=async function run(browser) {
     const begun=await first.evaluate(async text=>{
       const parser=await AtriumLazy.need("AtriumTranslatorClient"), data=new TextEncoder().encode(text);
       const parsed=await parser.import([{name:"Source.kicad_pcb",bytes:data}],{translator:"kicad"});
+      await AtriumLazy.need("AtriumPerformanceDiagnostics");
+      const recording=AtriumDiagnostics.startPerformance();
       const ids=parsed.model.documents.map(d=>d.id), scopes=[], writes=[];
       const storage=AtriumFolderDrafts.storage, write=storage.write.bind(storage);
       storage.write=(...args)=>{writes.push((args[4] || []).filter(row=>row.id.endsWith("/source")).length);return write(...args);};
@@ -73,9 +75,14 @@ module.exports=async function run(browser) {
         Worker.prototype.postMessage=originalPost;
       }
       const heads=await AtriumFolderDrafts.storage.list("foreign-import-v1");
-      return {writes,scopes,ids:heads.map(h=>h.writer).sort(),safe:heads.every(h=>!("grant" in h.pending) && !("sourceFile" in h.pending))};
+      const counts=AtriumDiagnostics.performanceSnapshot().rows.find(r=>r.component==="autosave" && r.operation==="save")?.counts;
+      recording.stop();
+      return {writes,scopes,counts,ids:heads.map(h=>h.writer).sort(),safe:heads.every(h=>!("grant" in h.pending) && !("sourceFile" in h.pending))};
     },source);
     assert.deepEqual(begun.writes,[1,1,0]);
+    assert.equal(begun.counts.completed,3);
+    assert.equal(begun.counts.cancelled,1,"aborted foreign capture does not finish as a private write");
+    assert.equal(begun.counts.durable,0);
     assert.equal(new Set(begun.scopes).size,2);assert.deepEqual(begun.ids,["draft-alpha","draft-bravo"]);assert.ok(begun.safe);
     assert.equal(await first.evaluate(()=>typeof globalThis.AtriumFolderCopperWorkerSource),"string");
     await first.evaluate(()=>{for(const key of Object.keys(localStorage)) if(key.startsWith("waffle-foreign-draft:")) localStorage.removeItem(key);});
@@ -87,7 +94,11 @@ module.exports=async function run(browser) {
       const first=heads.find(row=>row.writer==="draft-alpha");
       // Display metadata is never trusted as restored source or grant authority.
       const tampered={...first,pending:{...first.pending,sourceKey:"a-forged-offer"}};
+      await AtriumLazy.need("AtriumPerformanceDiagnostics");
+      const recording=AtriumDiagnostics.startPerformance();
       if(!await D.restore(tampered,h))throw Error("Untouched import could not recover");
+      const load=AtriumDiagnostics.performanceSnapshot().rows.find(r=>r.component==="project" && r.operation==="load")?.counts;
+      recording.stop();
       const baseline={name:h.model.documents[0].name,key:h.pending.sourceKey,original:h.entries[0].provenance.files[0].sha256,
         raw:await AtriumImportSidecars.sha(h.entries[0].provenance.files[0].bytes),status:AtriumForeignDraftUI.status(h.pending)};
       const known=()=>AtriumFolderDrafts.storage.list("foreign-import-v1");
@@ -110,12 +121,15 @@ module.exports=async function run(browser) {
       const kept=(await known())[0];
       if(!await D.restore(kept,h))throw Error("Kept draft missing");
       h.saveResult=true;outcome.push(await D.resolveClose(h,h.pending,"save"),(await known()).length,h.saves);
-      return {baseline,editedName,outcome};
+      return {baseline,editedName,outcome,load};
     });
     const sha=require("node:crypto").createHash("sha256").update(source).digest("hex");
     assert.equal(result.baseline.key,"same-source");assert.equal(result.baseline.original,sha);assert.equal(result.baseline.raw,sha);
     assert.equal(result.baseline.status,"Not saved yet (imported from KiCad)");
     assert.notEqual(result.baseline.name,result.editedName);assert.equal(result.editedName,"Edited before crash");
+    assert.equal(result.load.ready,1);
+    assert.equal(result.load.completed,1);
+    assert.equal(result.load.visible,0,"a restored project is ready before any view is measured");
     assert.deepEqual(result.outcome,[false,false,1,2,false,1,1,true,0,2]);
     assert.equal(await page.evaluate(()=>typeof globalThis.AtriumFolderCopperWorkerSource),"undefined");
   } finally {await context.close();}

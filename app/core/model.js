@@ -520,6 +520,10 @@ globalThis.Atrium = (() => {
   const wireContactTolerance = 0.00011;
   // Wires connect at terminals and explicit junctions. A bare crossing joins neither net.
   function connectivity(doc, defs) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("schematic", "compute");
+    return span ? span.run(buildConnectivity, doc, defs) : buildConnectivity(doc, defs);
+  }
+  function buildConnectivity(doc, defs) {
     const parent = new Map(), coords = new Map(), contacts = [], names = [], wires=[];
     function node(p) {const k=pointKey(p); if(!parent.has(k)){parent.set(k,k);coords.set(k,p);} return k;}
     function root(k) {let r=k;while(parent.get(r)!==r)r=parent.get(r);while(k!==r){const next=parent.get(k);parent.set(k,r);k=next;}return r;}

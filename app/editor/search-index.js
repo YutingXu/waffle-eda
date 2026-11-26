@@ -918,23 +918,30 @@ globalThis.AtriumSearchIndex = (() => {
   function runIdle(gen, done, progress) {
     const ric = globalThis.AtriumIdle?.idle || globalThis.requestIdleCallback || (f => setTimeout(() => f({timeRemaining: () => 8, didTimeout: false}), 1));
     const cancel = globalThis.AtriumIdle?.cancel || globalThis.cancelIdleCallback || clearTimeout;
+    const timing = globalThis.AtriumDiagnostics?.performance?.queue("search", "build");
     let stopped = false, handle;
-    const step = deadline => {
-      if (stopped) return;
-      const t0 = now();
-      for (;;) {
-        const r = gen.next();
-        if (r.done) {stopped = true; done?.(r.value); return;}
-        if ((deadline.timeRemaining ? deadline.timeRemaining() < 2 : false) || now() - t0 > 3) break;
+    const step = (deadline, finishing = false) => {
+      if (stopped && !finishing) return;
+      timing?.start();
+      const t0 = deadline && now();
+      try {
+        for (;;) {
+          const r = gen.next();
+          if (r.done) {stopped = true; timing?.end("completed"); done?.(r.value); return;}
+          if (deadline && ((deadline.timeRemaining ? deadline.timeRemaining() < 2 : false) || now() - t0 > 3)) break;
+        }
+        progress?.();
+        handle = ric(step, {timeout: 1000});
+      } catch (error) {
+        timing?.end("failed");
+        throw error;
       }
-      progress?.();
-      handle = ric(step, {timeout: 1000});
     };
     handle = ric(step, {timeout: 1000});
     // finish(): complete the rest now (the user opened the search before the build ended).
     return {
-      finish() {if (stopped) return; stopped = true; cancel(handle); let r; do r = gen.next(); while (!r.done); done?.(r.value);},
-      cancel() {if (!stopped) {stopped = true; cancel(handle); gen.return?.();}},
+      finish() {if (stopped) return; stopped = true; cancel(handle); step(null, true);},
+      cancel() {if (!stopped) {stopped = true; cancel(handle); timing?.end("cancelled"); gen.return?.();}},
       get done() {return stopped;}
     };
   }

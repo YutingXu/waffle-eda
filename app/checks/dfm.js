@@ -246,7 +246,11 @@ globalThis.AtriumDFM = (() => {
   }
 
   function createCache() { return {items: new Map(), hits: 0, misses: 0}; }
-  function run(doc, defs, limits, o = {}) {
+  function run(doc, defs, limits, o) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("dfm", "check");
+    return span ? span.run(inspectBoard, doc, defs, limits, o) : inspectBoard(doc, defs, limits, o);
+  }
+  function inspectBoard(doc, defs, limits, o = {}) {
     const t0 = Date.now(), L = limits || {}, want = new Set(o.checks || CHECKS.map(c => c.id)), cache = o.cache || createCache();
     const issues = [], notes = [], seen = new Map();
     const skippedTraces=[];

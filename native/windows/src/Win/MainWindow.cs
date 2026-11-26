@@ -97,7 +97,7 @@ namespace Waffle.Windows
             this.startupLink = startupLink;
             this.qualification = qualification;
             openingAtStartup = startup.Count > 0;
-            host = new Host(fs, this, new GitRunner(root), support, translators, recent);
+            host = new Host(fs, this, new GitRunner(root), support, translators, recent, supportArchitecture: Native.SupportArchitecture);
             host.ExternalUi = this;
             try { captionScript = File.ReadAllText(Path.Combine(root, "window-caption.js"), Encoding.UTF8); } catch (Exception) { captionScript = null; }
             Text = "Waffle";

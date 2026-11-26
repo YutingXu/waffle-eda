@@ -13,6 +13,7 @@
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSSupportsAutomaticGraphicsSwitching</key><true/>
 <key>NSLocalNetworkUsageDescription</key><string>Waffle uses your local network only while you share a live session as “Visible on this network”, or look for one, so that people near you can join with its code.</string>
 <key>NSBonjourServices</key><array><string>_waffle._tcp</string></array>
 <key>CFBundleURLTypes</key><array><dict>

@@ -757,18 +757,29 @@ globalThis.AtriumDrawing = (() => {
   function paintScreen(c, doc, env0) {
     if (!V()) return;
     const D = drawingData(doc);
+    const canvas = env0.canvas, perf = globalThis.AtriumDiagnostics?.performance, opts = env0.options;
+    const span = perf && canvas?.isConnected && opts && !opts.print && ("reuseBase" in opts || opts.editorPane)
+      ? perf.begin("drawing", "draw") : null;
     let ctx;
-    try { ctx = ctxNow(); } catch { return; }
-    const env = screenEnv(env0.scale), os = sheetOrigins(D);
-    D.sheets.forEach((s, i) => {
-      c.save(); c.translate(os[i][0], os[i][1]);
-      try { V().paintSheet(c, ctx, s, i, env); } catch (e) { globalThis.console?.error?.(e); }
-      paintSelection(c, ctx, s, env);
-      // Sheet name above the paper.
-      c.fillStyle = env.ink; c.font = V().font(Math.max(2.5, 12 / env0.scale)); c.textBaseline = "bottom";
-      c.globalAlpha = .7; c.fillText((i + 1) + ". " + s.name + " · " + V().sheetSize(s).size + " " + s.orientation, 0, -1.5); c.globalAlpha = 1;
-      c.restore();
-    });
+    try { ctx = ctxNow(); } catch { span?.end("failed"); return; }
+    let failed = false;
+    try {
+      const env = screenEnv(env0.scale), os = sheetOrigins(D);
+      D.sheets.forEach((s, i) => {
+        c.save(); c.translate(os[i][0], os[i][1]);
+        try { V().paintSheet(c, ctx, s, i, env); } catch (e) { failed = true; globalThis.console?.error?.(e); }
+        paintSelection(c, ctx, s, env);
+        // Sheet name above the paper.
+        c.fillStyle = env.ink; c.font = V().font(Math.max(2.5, 12 / env0.scale)); c.textBaseline = "bottom";
+        c.globalAlpha = .7; c.fillText((i + 1) + ". " + s.name + " · " + V().sheetSize(s).size + " " + s.orientation, 0, -1.5); c.globalAlpha = 1;
+        c.restore();
+      });
+      if (span && !failed) {
+        span.ready();
+        span.end(!D.sheets.length || canvas.inert || canvas.closest?.("[hidden], [inert]") ||
+          globalThis.AtriumPower?.visible?.() === false || globalThis.document?.visibilityState === "hidden" ? "completed" : "visible");
+      } else if (failed) span?.end("failed");
+    } catch (error) { span?.end("failed"); throw error; }
   }
   // The sheet box of any selectable object (views, dimensions, callouts, text, lines).
   function objectBox(ctx, kind, id) {

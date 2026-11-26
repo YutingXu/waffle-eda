@@ -15,9 +15,17 @@ Object.assign(globalThis.AtriumIO ??= {}, (() => {
     if(G.AtriumSaveCache)return G.AtriumSaveCache;
     try{return G.AtriumLazy?await AtriumLazy.need("AtriumSaveCache"):null;}catch{return null;}
   }
-  async function exportFile(name,text){
-    if(globalThis.AtriumHost?.exportFile)return await AtriumHost.exportFile(name,text);
-    browserSave(name,text);return true;
+  async function exportFile(name,text,options){
+    const timing=options?.diagnostics===true?null:G.AtriumDiagnostics?.performance?.begin(options?.manufacturing===true?"manufacturing":"export","publish");
+    let outcome="failed";
+    try {
+      if(G.AtriumHost?.exportFile){
+        const saved=await G.AtriumHost.exportFile(name,text,options);
+        outcome=saved?"durable":"cancelled";
+        return saved;
+      }
+      browserSave(name,text);outcome="completed";return true;
+    } finally {timing?.end(outcome);}
   }
   async function exportBinaryCopy(name,bytes,sourceFile){
     const review=G.AtriumDesignReview||await AtriumLazy.need("AtriumDesignReview");

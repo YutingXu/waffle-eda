@@ -169,14 +169,15 @@ async function setup({demo=true}={}) {
   // LinkeDOM parses the page but does not execute its scripts or emit normal loading events.
   // Register inline feature gates in document order, then expose the whole offline build.
   document.readyState="loading";
-  const append=document.head.append.bind(document.head);
-  document.head.append=(...nodes)=>{
-    append(...nodes);
-    for(const n of nodes)if(n.localName==="script" || n.localName==="link")queueMicrotask(()=>{
+  const attached=new WeakSet();
+  new window.MutationObserver(records=>{
+    for(const {addedNodes} of records)for(const n of addedNodes){
+      if(attached.has(n) || n.localName!=="script" && n.localName!=="link")continue;
+      attached.add(n);
       if(n.localName==="script")readScript(n.getAttribute("src"));
       n.onload?.();
-    });
-  };
+    }
+  }).observe(document.head,{childList:true});
   for(const node of [...document.querySelectorAll("script")]){
     if(node.hasAttribute("src"))readScript(node.getAttribute("src"));
     else if(node.textContent.trim())vm.runInThisContext(node.textContent,{filename:"index.html"});
@@ -240,9 +241,9 @@ async function run(){
   function button(selector,label){const buttons=[...document.querySelectorAll(selector)],b=buttons.find(n=>n.textContent.includes(label));assert.ok(b,selector+" "+label+"; available: "+buttons.map(n=>n.textContent.trim()).join(", "));b.click();}
   function change(label,value){const input=node('[aria-label="'+label+'"]');input.value=value;input.dispatchEvent(new window.Event("change",{bubbles:true}));}
   function key(k){const e=new window.Event("keydown",{bubbles:true,cancelable:true});Object.assign(e,{key:k,code:k});node("#canvas").dispatchEvent(e);}
-  function pointerEvent(type,x,y){
+  function pointerEvent(type,x,y,button=0){
     const e=new window.Event(type,{bubbles:true,cancelable:true});
-    Object.assign(e,{button:0,pointerId:1,clientX:x,clientY:y});node("#canvas").dispatchEvent(e);
+    Object.assign(e,{button,pointerId:1,clientX:x,clientY:y});node("#canvas").dispatchEvent(e);
   }
   function pointer(x,y){pointerEvent("pointerdown",x,y);pointerEvent("pointerup",x,y);}
   const status=()=>node("#status").textContent;
@@ -250,6 +251,32 @@ async function run(){
   function closeDialog(){const dlg=node("dialog[open]");dlg.close();if(dlg.isConnected && dlg.id!=="library-dialog")dlg.remove();}
   await until(()=>calls.get("stroke")>0,"first frame");
   assert.equal(node("#doc-name").textContent,"Sensor board");
+  {
+    const host=AtriumNavHost, view=host.view(), originalCamera=view.camera(), originalCursor=host.canvas().style.cursor;
+    const originalQuery=document.querySelectorAll;
+    let toolQueries=0;
+    document.querySelectorAll=function(selector){
+      if(selector.includes('[data-action="select"]')&&selector.includes('[data-action="paste"]'))toolQueries++;
+      return originalQuery.call(this,selector);
+    };
+    try {
+      for(const event of ["pointerup","pointercancel"]){
+        pointerEvent("pointerdown",410,310,1);
+        pointerEvent("pointermove",455,328,1);
+        assert.equal(host.drag()?.kind,"pan");
+        const camera=view.camera(), before=toolQueries;
+        assert.notDeepEqual(camera,originalCamera,"the pan moved the camera");
+        pointerEvent(event,455,328,1);
+        assert.equal(toolQueries-before,event==="pointercancel"?1:0,"only cancellation refreshes the tool controls");
+        assert.deepEqual(view.camera(),camera,"release leaves the camera at its last moving position");
+        assert.equal(host.canvas().style.cursor,originalCursor);
+        assert.equal(host.drag(),null);
+      }
+    } finally {
+      document.querySelectorAll=originalQuery;
+      view.restoreCamera(originalCamera);
+    }
+  }
   button("#documents button","Analog front end");assert.equal(node("#doc-kind").textContent,"Schematic");
   await selectComponent("s-R1");
   const initial=node('[aria-label="Comment"]').value;
@@ -267,6 +294,9 @@ async function run(){
   for(const [cmd,title] of [["mcp","AI integration"],["rules","Rules and Constraints Editor"],["blocks","Layout blocks"],["symbols","Symbol styles"]]){
     action(cmd);await until(()=>document.querySelector("dialog[open] h2"),"open "+cmd);assert.equal(node("dialog[open] h2").textContent.toLowerCase(),title.toLowerCase());
     if(cmd==="rules"){
+      const stylesheet=node('head link[rel="stylesheet"][href="checks/rules-editor.css"]');
+      assert.equal(stylesheet.nextElementSibling?.id,"lazy-style:checks/rules-editor.css",
+        "the Rules stylesheet settles in its original cascade slot");
       // A document tab over the pane (doc-views.js), not a floating window: Escape shows the canvas and keeps the tab.
       assert.ok(node(".doc-view:not([hidden]) dialog.rules-window"),"the editor is in a view over the pane");
       const tab=node('#document-tabs .view-tab[data-view="rules"]');assert.equal(tab.getAttribute("aria-selected"),"true");

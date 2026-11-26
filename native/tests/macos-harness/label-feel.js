@@ -7,7 +7,7 @@ globalThis.__uiProbes = {async run(only, config) {
   catch (error) { return "JSERROR LABEL_FEEL: " + error.message + "\n" + error.stack; }
 }};
 
-async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, crossView, settleMs}) {
+async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, crossView, settleMs, drawWork}) {
   const H = AtriumNavHost, W = window;
   const [C, G, M] = await AtriumLazy.need(["AtriumCamera", "AtriumCanvasGPU", "AtriumMotion", "AtriumCanvasInput"]);
   const post = (op, args = {}) => webkit.messageHandlers.harness.postMessage({op, ...args});
@@ -24,9 +24,10 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
       await pause(15);
     }
   }
-  const displayOK = state => state.displayID === display && state.displayHz === hz &&
-    state.requestedDisplayMatched && state.wheelEventBindingSupported && state.windowVisible && state.windowKey &&
-    state.appActive && state.orderedOnScreen && state.screenLocked !== true && document.visibilityState === "visible";
+  const displayOK = state => state.displayID === display && (hz === null || state.displayHz === hz) &&
+    state.requestedDisplayMatched && state.wheelEventBindingSupported &&
+    state.orderedOnScreen && document.visibilityState === "visible" &&
+    (drawWork && state.screenLocked === true || state.windowVisible && state.windowKey && state.appActive && state.screenLocked !== true);
   await post("feel-state"); // Move this test window to its requested monitor before checking focus.
   await post("focusWindow");
   const native = await post("feel-state");
@@ -40,8 +41,29 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     const r = tab.getBoundingClientRect();
     await post("mouse", {x: r.left + r.width / 2, y: r.top + r.height / 2});
   }
-  await until(() => H.doc()?.id === board.id && H.doc().items.length && !H.canvas().inert, "Saved PCB is not active");
+  await until(() => H.doc()?.id === board.id && H.doc().items.length, "Saved PCB is not active");
   const doc = H.doc(), v = H.view(), canvas = H.canvas(), I = v.internals(), defs = H.defs();
+  const checkBoard = at => {
+    check(H.doc() === doc && !canvas.inert && !canvas.parentElement.querySelector(":scope > .doc-view:not([hidden])") &&
+      !document.querySelector("dialog[open]") &&
+      (!at || document.elementFromPoint(...at) === canvas), "PCB canvas is covered or inactive");
+  };
+  checkBoard();
+  check(G.resourceCounters, "This harness needs a build with PCB GPU diagnostics");
+  const counters = () => G.resourceCounters(I);
+  const exact = sample => sample?.renderState === "gpu" && sample.exactCamera && !sample.slicing;
+  async function waitExact() {
+    let frames = null, since = now();
+    await until(() => {
+      const sample = counters();
+      if (moving || M.active() || !exact(sample) || sample.frames !== frames) {
+        frames = sample?.frames;
+        since = now();
+        return false;
+      }
+      return now() - since >= 150;
+    }, "GPU did not submit a stable exact camera");
+  }
   const physical = await post("power"), priorPower = AtriumPower.state();
   if (battery) AtriumPower.host({...priorPower, battery: true});
   C.setPref("camera.animate", true);
@@ -51,7 +73,7 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
   G.enable(true);
   H.redraw(true);
   try {
-    await until(() => G.status(I).renderer === "gpu" && G.stats(I)?.submitted,
+    await until(() => counters()?.renderState === "gpu" && counters()?.frames > 0,
       () => "GPU renderer did not submit real PCB geometry: " + JSON.stringify(G.status(I)));
   } catch (error) {
     const consoleState = await post("consoleEvents");
@@ -59,6 +81,8 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     const reports = rows.filter(row => /gpu|webgl|texture/i.test(row.text || "")).slice(-8);
     throw Error(error.message + " " + JSON.stringify(reports));
   }
+  check(["gridBufferAllocations", "driverFenceSubmissions", "driverMemoryChecks"].every(key => typeof counters()?.[key] === "number") &&
+    typeof counters().exactCamera === "boolean", "GPU build lacks shared frame, allocation, fence or exact-camera diagnostics");
   const revision = H.authoredRevision(), dirty = H.isDirty(), beforeItems = doc.items.length;
   const engine = G.stats(I).renderer;
   const counts = {};
@@ -115,16 +139,9 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     return result;
   };
 
-  const counters = reset => {
-    if (G.perfCounters) return {perf: G.perfCounters(I)};
-    const {acc, textUpload, wideBuilds, textWhy, slices, sliceAbandoned} = G.stats(I, reset);
-    return {legacy: {acc, lastTextUploadBytes: textUpload ?? null, textWhy: textWhy ?? null,
-      wideBuilds: wideBuilds || 0, slices: slices || 0, abandonedSlices: sliceAbandoned || 0}};
-  };
   async function measure(name, operation) {
-    // Start the clock only after the baseline counter read. The raw sampler
-    // observes WebKit's frame scheduler and contributes no wrapped work.
-    const before = counters(true), canvasBefore = {...fullSurfaces}, row = {name, draws: [], ticks: [], surfaceUploads: []};
+    const sampling = await post("measure", {boundary: "begin"}) === true;
+    const before = counters(), canvasBefore = {...fullSurfaces}, row = {name, draws: [], ticks: [], surfaceUploads: []};
     W.__work.length = 0;
     W.__inputs.length = 0;
     let running = true;
@@ -140,19 +157,20 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     phase = row;
     try {
       row.operation = await operation();
-      row.cameraAfter = v.camera();
       await frame();
+      row.cameraAfter = v.camera();
       row.end = now();
     } finally {
       running = false;
       phase = null;
+      row.after = counters();
+      row.process = sampling ? await post("measure", {boundary: "end"}) : null;
     }
     row.inputs = W.__inputs.slice();
     row.work = W.__work.slice();
     row.before = before;
-    row.after = counters(false);
     row.fullSurfaces = {before: canvasBefore, after: {...fullSurfaces}};
-    row.gpu = G.status(I).renderer === "gpu";
+    row.gpu = exact(row.after) && row.after.frames > before.frames;
     return row;
   }
 
@@ -164,8 +182,7 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
   async function durableFit() {
     // Use the normal Fit command; its action and time are outside the subsequently timed approach.
     H.act("fit");
-    await pause(440);
-    await until(() => !moving && !M.active(), "Fit camera did not settle");
+    await waitExact();
     return v.camera();
   }
   function anchor() {
@@ -228,10 +245,13 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
   }
 
   async function gesture(name, kind, steps, ms, [x, y]) {
+    checkBoard([x, y]);
     const row = await measure(name, async () => {
       const sent = await post("feel-input", {kind, steps, ms, x, y});
       const sentAcknowledged = now();
       await pause(settleMs);
+      await waitExact();
+      checkBoard([x, y]);
       return {sent, sentAcknowledged, sourceIntervalMs: ms, target: [x, y]};
     });
     const events = row.inputs.filter(changesCamera), sent = row.operation.sent;
@@ -254,6 +274,7 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
   }
 
   async function held() {
+    checkBoard();
     const row = await measure("held", async () => {
       for (let n = 0; n < 4; n++) {
         await new Promise(resolve => requestAnimationFrame(() => {
@@ -262,6 +283,7 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
         }));
         await pause(32);
       }
+      await waitExact();
     });
     row.verification = {camera: !different(row.cameraBefore, row.cameraAfter),
       drew: row.draws.length >= 4, cameraHeld: row.draws.every(draw => !draw.changed && !draw.moving)};
@@ -300,17 +322,19 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     for (const {phases} of Object.values(operations)) for (const row of phases) {
       row.authoredOrigins = {start: origins(row.cameraBefore), end: origins(row.cameraAfter)};
     }
-    await pause(500);
+    await waitExact();
+    const idleSampling = await post("measure", {boundary: "begin"}) === true;
     const idleStart = now(), idleRenders = renders, idleTracks = M.active(), idleBytes = W.__uploads;
-    const idleCounters = counters(false), idleCallbacks = W.__work.length / 2, idleSurfaces = {...fullSurfaces};
+    const idleCounters = counters(), idleCallbacks = W.__work.length / 2, idleSurfaces = {...fullSurfaces};
     // No measurement rAF is queued continuously here. Observe callbacks scheduled by the app.
     await pause(400);
     const idle = {elapsedMs: now() - idleStart, renders: renders - idleRenders, tracks: [idleTracks, M.active()],
       callbacks: W.__work.length / 2 - idleCallbacks, uploadBytes: W.__uploads - idleBytes,
-      before: idleCounters, after: counters(false), fullSurfaces: {before: idleSurfaces, after: {...fullSurfaces}}};
+      before: idleCounters, after: counters(), fullSurfaces: {before: idleSurfaces, after: {...fullSurfaces}}};
+    idle.process = idleSampling ? await post("measure", {boundary: "end"}) : null;
     const nativeEnd = await post("feel-state");
     return {native, nativeEnd, nativeEndOK: displayOK(nativeEnd) && nativeEnd.backingScale === native.backingScale, engine,
-      viewport, normalRenderer, counts, beforeItems, layerMode: lastOptions?.layerMode, activeLayer: lastOptions?.layer, settleMs,
+      viewport, normalRenderer, counts, beforeItems, layerMode: lastOptions?.layerMode, activeLayer: lastOptions?.layer, settleMs, drawWork,
       power: {physical, requestedBatterySimulation: battery,
         actualPriorState: priorPower, measured: AtriumPower.state()}, operations, idle,
       documentUnchanged: H.doc() === doc && H.authoredRevision() === revision && H.isDirty() === dirty && doc.items.length === beforeItems};

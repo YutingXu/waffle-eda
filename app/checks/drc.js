@@ -14,7 +14,11 @@ globalThis.AtriumDRC = (() => {
       return lazy.need("AtriumDesignQuery");
   }
 
-  function batch(doc, defs, rules, options = {}) {
+  function batch(doc, defs, rules, options) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("drc", "check");
+    return span ? span.run(checkBoard, doc, defs, rules, options) : checkBoard(doc, defs, rules, options);
+  }
+  function checkBoard(doc, defs, rules, options = {}) {
     const result = run(doc, defs, rules, options);
     if (!R().checkSelected(doc,"clearance",options) || !globalThis.AtriumDRCPours) {
       options.onPours?.([]);

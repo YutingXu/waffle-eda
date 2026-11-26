@@ -105,7 +105,9 @@ const LEFT_OUT={
   "atrium.ext.settings.":"extensions","atrium.ext.storage.":"extensions","atrium.ext.trust.v1":"extensions","atrium.ext.code.":"extensions","atrium-routing-habits":"format name","atrium.dev":"developer switch",
   "atrium-split-follow-v1":"sessionStorage","waffle-editor-drafts-v1":"recovery","waffle-foreign-draft:":"recovery","waffle-editor-draft-session:":"a Web Locks name, not storage",
   "atrium.ai.project.":"per-project AI permission policy, never exported","atrium.kicad-model-folders.v1":"this machine's folders",
-  "atrium-diagnostics-v1":"local diagnostic log, kept through a settings reset","atrium.":"review.author fallback before AtriumPref (eager) existed"};
+  "atrium-diagnostics-v1":"legacy diagnostic migration","atrium-diagnostics-counts-v1":"legacy undated diagnostic counts",
+  "atrium-diagnostics-counts-v2":"local rolling diagnostic counts","atrium-diagnostics-clear-v2":"diagnostic clear generation",
+  "atrium.":"review.author fallback before AtriumPref (eager) existed"};
 const app=path.join(__dirname,"../../app");
 // Every app module that touches localStorage, found by scanning, so a new tool cannot be missed.
 const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?(e.name==="vendor"?[]:walk(path.join(dir,e.name))):e.name.endsWith(".js")?[path.join(dir,e.name)]:[]);

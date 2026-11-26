@@ -5,8 +5,9 @@ globalThis.AtriumUI = (() => {
   const FIELD = "input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color]),select";
   const FOCUSABLE = "button, a[href], input:not([type=hidden]), select, textarea, details > summary, [contenteditable=true], [tabindex]";
   const visible = n => !!(n?.getClientRects?.().length && getComputedStyle(n).visibility === "visible");
-  const available = n => visible(n) && !n.matches(":disabled")
+  const focusableFromMarkup = n => !n.matches(":disabled")
     && !n.closest("[hidden],[inert],[aria-hidden=true],details:not([open]) > :not(summary)");
+  const available = n => visible(n) && focusableFromMarkup(n);
   const dialogOptions = new WeakMap();
   let id = 0;
 
@@ -294,5 +295,5 @@ globalThis.AtriumUI = (() => {
     return globalThis.AtriumUIKit?.adoptSearch(input) || box;
   }
 
-  return {adoptDialog, button, nativeButton, dialog, openDialog, setupDialogs, searchField, FIELD, visible, available};
+  return {adoptDialog, button, nativeButton, dialog, openDialog, setupDialogs, searchField, FIELD, visible, available, focusableFromMarkup};
 })();

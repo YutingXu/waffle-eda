@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const store = new Map(), storage = {getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k)};
 Object.defineProperty(globalThis, "localStorage", {value: storage, configurable: true, writable: true});
-for (const m of ["model", "theme", "keymap", "editor-keys", "nav-common", "pcb-appearance", "spatial", "connectivity", "canvas", "motion", "camera", "selection-memory", "minimap"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+for (const m of ["model", "theme", "keymap", "editor-keys", "nav-common", "pcb-appearance", "spatial", "connectivity", "canvas", "motion", "camera", "canvas-input", "selection-memory", "minimap"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const C = AtriumCamera, KM = AtriumKeymap;
 
 function nativeWheelProbe() {
@@ -112,13 +112,16 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
     cancelAnimationFrame: id => queue.delete(id)
   });
   const tick = ms => { now += ms; const batch = [...queue.values()]; queue.clear(); for (const step of batch) step(now); };
-  const canvas = {isConnected: true, clientWidth: 400, clientHeight: 300};
-  const view = AtriumCanvas.create({...canvas, getContext: () => ({}), getBoundingClientRect: () => ({width: 400, height: 300})});
+  const canvas = {isConnected: true, clientWidth: 400, clientHeight: 300, getContext: () => ({}),
+    getBoundingClientRect: () => ({left: 0, top: 0, width: 400, height: 300})};
+  const view = AtriumCanvas.create(canvas);
   view.resized();
   const anchor = [83, 114], latest = [276, 62], close = (a, b) => Math.abs(a - b) < 1e-9;
   const notch = {deltaX: 0, deltaY: -100, deltaMode: 0, wheelDeltaY: 120}, factor = C.wheelAction(notch).zoom;
   const trackpad = {deltaX: 0, deltaY: -80, deltaMode: 0, wheelDeltaY: 240};
-  const turn = (e, at = anchor) => C.wheel(e, view, at, canvas, inFrame => { draws++; drawInFrame.push(inFrame); });
+  const redraw = inFrame => { draws++; drawInFrame.push(inFrame); };
+  const turn = (e, at = anchor) => C.wheel(e, view, at, canvas, redraw);
+  const pane = {canvas, view}, input = AtriumCanvasInput.create({frame: (_, inFrame) => redraw(inFrame)});
   try {
     const initial = view.scale(), world = view.screenToWorld(anchor);
     turn(notch);
@@ -154,7 +157,6 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
     const zero = ctrlPacket(0,0);
     turn(zero);
     assert.equal(C.wheelPinch(zero), false, "a net-zero packet is not a touchpad pinch");
-    assert.equal(C.wheelHasMotion(zero), false);
     assert.equal(draws, beforeZero, "a net-zero packet does not draw");
     assert.deepEqual(view.camera(), partial);
     assert.equal(queue.size, 1, "a net-zero packet does not interrupt the pending glide");
@@ -170,27 +172,89 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
     assert.ok(close(view.scale(), beforePinch*Math.exp(.32)), "a genuine pinch immediately takes over an in-flight glide");
     assert.equal(queue.size, 0);
 
-    const beforePan = view.camera();
-    turn(notch); turn(trackpad);
-    assert.equal(view.scale(), beforePan.scale, "large continuous trackpad deltas do not become a notch");
-    assert.notEqual(view.camera().cy, beforePan.cy, "trackpad pan applies immediately");
-    assert.equal(drawInFrame.at(-1), undefined, "input handlers keep scheduling their normal draw");
+    const beforePan = {...view.camera(), cx:2.25, cy:-3.125, scale:8};
+    const firstScale = beforePan.scale*factor;
+    const zoomThenPan = {
+      cx:beforePan.cx + (anchor[0]-200)*(1/beforePan.scale-1/firstScale) + 11.5/firstScale,
+      cy:beforePan.cy + (anchor[1]-150)*(1/beforePan.scale-1/firstScale) - 80/firstScale,
+      scale:firstScale
+    };
+    const endOfMix = {
+      cx:zoomThenPan.cx + (latest[0]-200)*(1/firstScale-1/beforePan.scale),
+      cy:zoomThenPan.cy + (latest[1]-150)*(1/firstScale-1/beforePan.scale),
+      scale:beforePan.scale
+    };
+    const matchesPose = (actual, expected) => ["cx", "cy", "scale"].every(key => close(actual[key], expected[key]));
+    for (const elapsed of [null, 0, 24, 120, "reduced"]) {
+      view.restoreCamera(beforePan);
+      turn(notch);
+      if (typeof elapsed === "number") tick(elapsed);
+      moves = elapsed !== "reduced";
+      const beforeDraw = draws;
+      turn({...trackpad, deltaX:11.5}, latest);
+      assert.ok(matchesPose(view.camera(), zoomThenPan), `trackpad pan lands the prior notch at its own anchor (${elapsed})`);
+      assert.equal(draws, beforeDraw+1, "zoom and pan share the direct draw");
+      assert.equal(drawInFrame.at(-1), undefined, "input handlers keep scheduling their normal draw");
+      assert.equal(queue.size, 0, "the landed notch leaves no scheduled frame");
+      turn({...notch, deltaY:100, wheelDeltaY:-120}, latest);
+      tick(121);
+      assert.ok(matchesPose(view.camera(), endOfMix), "mixed motion keeps the signed detents and pinpoints the final affine camera");
+      moves = true;
+    }
+    view.restoreCamera(beforePan);
+    turn(notch);
+    const otherPanCanvas = {...canvas}, otherPanView = AtriumCanvas.create(otherPanCanvas);
+    C.wheel(trackpad, otherPanView, latest, otherPanCanvas, redraw);
+    assert.deepEqual(view.camera(), beforePan, "another pane's direct wheel does not land this pane's glide");
+    assert.equal(queue.size, 1);
+    otherPanView.dispose();
+    const beforeDetach = draws;
+    canvas.isConnected = false;
+    tick(121);
+    assert.deepEqual(view.camera(), beforePan, "detaching the old pane discards an unpainted glide");
+    assert.equal(draws, beforeDetach);
+    assert.equal(queue.size, 0);
+    canvas.isConnected = true;
+    turn(notch);
+    const replacedCamera = {...beforePan, scale:9};
+    view.restoreCamera(replacedCamera);
+    turn(trackpad);
+    assert.ok(matchesPose(view.camera(), {...replacedCamera, cy:replacedCamera.cy-80/9}), "pan does not restore a glide whose camera was replaced");
     assert.equal(queue.size, 0);
     turn({...trackpad, wheelDeltaY: 0, ctrlKey: true});
     assert.ok(view.scale() > beforePan.scale, "even an integral Ctrl pixel pinch applies immediately");
     assert.equal(queue.size, 0);
     turn(notch);
-    C.basicInput({frame() {}, busy: () => false}).clear();
+    input.clear();
     assert.equal(queue.size, 0, "input context cleanup cancels the frame");
     globalThis.__waffleIsWheelNotch = () => true;
     turn({...notch, isTrusted: true, timeStamp: now - 1});
     assert.equal(queue.size, 0, "a deferred native notch from before the context switch cannot restart it");
-    globalThis.__waffleFrameTrace = {wheel: (_, stamp) => traced.push(stamp)};
-    const eventStamp = now;
-    const ctrl = {...notch, ctrlKey: true, isTrusted: true, timeStamp: eventStamp};
-    turn(ctrl); turn({...ctrl, timeStamp: now + 1});
+    globalThis.__waffleFrameTrace = {wheel: (...sample) => traced.push(sample)};
+    const earlier = now + 5;
+    now += 15;
+    const ctrl = {...notch, ctrlKey:true, isTrusted:true, timeStamp:now - 1};
+    turn(ctrl);
+    const earlierDelivered = now += 7;
+    turn({...ctrl, timeStamp:earlier});
     tick(16); tick(120);
-    assert.deepEqual(traced, [eventStamp], "the first draw is attributed to the earliest pending Control notch");
+    assert.deepEqual(traced, [[canvas, earlier, earlierDelivered, "dom-event"]],
+      "an out-of-order Control notch retains its own handler time with the earliest source stamp");
+    const otherCanvas = {...canvas}, otherView = AtriumCanvas.create(otherCanvas);
+    const otherDelivery = now;
+    C.wheel({...ctrl,timeStamp:otherDelivery}, otherView, anchor, otherCanvas, redraw);
+    tick(120);
+    assert.deepEqual(traced.at(-1), [otherCanvas, otherDelivery, otherDelivery, "dom-event"],
+      "a different canvas reports its own wheel transaction");
+    otherView.dispose();
+    globalThis.__waffleIsWheelNotch = event => event.ctrlKey;
+    const beforeCombinedDraw = draws, combinedTime = now;
+    turn({...ctrl, timeStamp:combinedTime});
+    turn(trackpad);
+    assert.equal(draws, beforeCombinedDraw + 1, "the combined first changed frame is drawn once");
+    assert.deepEqual(traced.at(-1), [canvas, combinedTime, combinedTime, "dom-event"],
+      "the direct pan draw reports the prior notch's own source and handler times");
+    globalThis.__waffleIsWheelNotch = () => true;
     moves = false;
     turn({...notch, deltaY: 100, wheelDeltaY: -120});
     assert.equal(queue.size, 0, "reduced and off use the same direct camera path");
@@ -223,8 +287,9 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
       assert.equal(queue.size, 0, "the wheel leaves no animation after settling");
     }
     const native = nativeWheelProbe();
-    globalThis.__waffleIsWheelNotch = native.page.__waffleIsWheelNotch;
-    globalThis.__waffleWheelNotches = native.page.__waffleWheelNotches;
+    let reads = 0;
+    globalThis.__waffleWheelNotches = event => { reads++; return native.page.__waffleWheelNotches(event); };
+    globalThis.__waffleIsWheelNotch = event => !!globalThis.__waffleWheelNotches(event);
     C.setPref("mouse.wheel", "zoom"); efficient = false;
     C.setPref("mouse.zoomSpeed", 1.25);
     let nativeSerial = 0;
@@ -236,17 +301,40 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
       view.restoreCamera({...view.camera(),cx:0,cy:0,scale}); C.stopWheel(view);
       const cut = now, pointer = view.screenToWorld(anchor);
       const first = cut + (staleFirst ? -7 : 1), end = first + (steps.length-1)*8;
-      steps.forEach((dy,i)=>native.mark(first+i*8,dy,++nativeSerial));
+      steps.forEach((dy,i)=>native.mark(first+i*8,dy,++nativeSerial,staleFirst?2:0));
       now = end + 30;
-      const packet = nativeEvent(end, steps.reduce((n,dy)=>n+dy,0));
-      assert.equal(C.wheelHasMotion(packet), true, "a zero-sum macOS packet with actual marked steps remains actionable");
-      turn(packet);
+      const packet = nativeEvent(end, steps.reduce((n,dy)=>n+dy,0), {
+        type:"wheel", clientX:anchor[0], clientY:anchor[1], ctrlKey:staleFirst
+      });
+      const priorReads = reads;
+      assert.equal(input.handle(packet, pane), true);
+      assert.equal(reads - priorReads, 1, "arbitration and dispatch reuse the same native packet");
       if (fullMotion) tick(121);
       const expected = steps.slice(staleFirst ? 1 : 0).reduce((n,dy)=>Math.min(2000,n*Math.exp(-dy*.008*1.25)),scale);
       assert.ok(close(view.scale(),expected), "coalesced native steps apply in order with per-step limits and owner cutoff");
       assert.ok(pointer.every((n,i)=>close(n,view.screenToWorld(anchor)[i])), "coalesced steps keep the actual pointer anchor");
+      if (staleFirst) assert.deepEqual(traced.at(-1), [canvas, end, now, "native-wheel-replay"],
+        "the first retained replay source stamp keeps the containing DOM handler time");
     }
+    const accepted = traced.length;
+    turn({...ctrl, deltaY:-2.5, wheelDeltaY:0, timeStamp:now});
+    assert.equal(traced.length,accepted,"a trusted pixel pinch does not publish a wheel-detent sample");
     C.setPref("mouse.zoomSpeed", 1);
+    let detachedFrames = 0;
+    const surface = {canvas,view,input:{frame:()=>detachedFrames++}};
+    const release = AtriumCanvasInput.registerView(surface);
+    try {
+      const event = {type:"wheel",deltaMode:1,deltaY:-1,clientX:anchor[0],clientY:anchor[1]};
+      const from = view.scale();
+      assert.equal(input.handle(event,AtriumCanvasInput.surface(canvas)),true);
+      assert.ok(close(view.scale(),from*Math.exp(.128)) && detachedFrames===1,"registered surfaces keep the shared wheel dispatch");
+      const preview = view.scale();
+      C.wheel(event,view,anchor,canvas,redraw,()=>({zoom:1.1,at:"pointer"}));
+      assert.ok(close(view.scale(),preview*1.1),"a stage may still choose its own wheel factor");
+      const readOnly = view.scale();
+      C.wheel(event,view,anchor,canvas);
+      assert.ok(close(view.scale(),readOnly*Math.exp(.128)),"the read-only wheel caller can still apply a step without a redraw callback");
+    } finally {release();}
     moves = true;
     efficient = false;
     view.restoreCamera({...view.camera(), scale: view.zoomScale(Infinity)});

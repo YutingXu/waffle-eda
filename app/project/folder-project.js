@@ -954,14 +954,24 @@ globalThis.AtriumFolderProject = (() => {
     }
     function save({documentId = activeDoc, all = false, only, editorMs = 0, started = stamp()} = {}) {
       const selecting = stamp();
-      if (readOnly) return Promise.reject(Error(formatDiagnostic || "This project is read-only. Save a copy to edit it."));
+      const diagnostics = globalThis.AtriumDiagnostics?.performance;
+      if (readOnly) {
+        diagnostics?.begin("save","save")?.end("failed");
+        return Promise.reject(Error(formatDiagnostic || "This project is read-only. Save a copy to edit it."));
+      }
       const activeOnly = !all && (!only || only.length === 1 && only[0] === documentId) && documentId === activeDoc;
       const activeUpgrade = activeOnly && saved.get(documentId)?.upgradePending ? documentId : undefined;
       const use = all ? [...dirty.values()] : only ? only.map(id => dirty.get(id)).filter(Boolean) : [dirty.get(documentId)].filter(Boolean);
       const selected = new Set(use.map(row => row.id));
       if (activeUpgrade) selected.add(activeUpgrade);
-      if ([...selected].some(id => conflicts.has(id))) return Promise.reject(Error("Resolve the changed file before saving."));
-      if (all && conflicts.has(project.id)) return Promise.reject(Error("Resolve the project settings conflict before saving."));
+      if ([...selected].some(id => conflicts.has(id))) {
+        diagnostics?.begin("save","save")?.end("failed");
+        return Promise.reject(Error("Resolve the changed file before saving."));
+      }
+      if (all && conflicts.has(project.id)) {
+        diagnostics?.begin("save","save")?.end("failed");
+        return Promise.reject(Error("Resolve the project settings conflict before saving."));
+      }
       function unsavedDefinition(value){
         const item=typeof value==="string"?JSON.parse(value):value;
         return item.def && dirty.has(item.def) && !membership.has(item.def) && !selected.has(item.def);
@@ -970,11 +980,15 @@ globalThis.AtriumFolderProject = (() => {
         [...dirty.values()].some(other => other.group === row.group && !selected.has(other.id))) ||
         [...row.put].some(([id,value])=>!row.tableCells?.has(id)&&!value?.tableJSON&&unsavedDefinition(value)) ||
         row.owner?.items?.some(unsavedDefinition));
-      if (!all && mustSaveAll) return Promise.resolve({saved: false, needsSaveAll: true});
+      if (!all && mustSaveAll) {
+        diagnostics?.begin("save","save")?.end("cancelled");
+        return Promise.resolve({saved: false, needsSaveAll: true});
+      }
       const projectEdit = all ? sharedEdit : null;
       const sidecarEdit = all ? sidecarsDirty : 0;
       const attachments = [...staged.values()].filter(a => selected.has(a.ownerId) || projectEdit && a.ownerId === project.id);
       if (!use.length && !projectEdit && !sidecarEdit && !activeUpgrade) return Promise.resolve({saved:true,clean:true});
+      let timing = diagnostics?.queue("save","save");
       const copper = captureSavedCopper(use);
       const capture = compact => use.map(row => ({...captureChange(row,compact),...copper.get(row.id)?.change}));
       cancelBackground();
@@ -989,6 +1003,7 @@ globalThis.AtriumFolderProject = (() => {
       const write = writeQueue.then(async () => {
         await Promise.all(readers);
         check(readAbort.signal);
+        timing?.start();
         const locks = globalThis.AtriumCollabLock;
         // The worker can prepare a plan while the host refreshes ownership. The plan is
         // still private, and a refusal must discard its token before the next queued write.
@@ -1033,10 +1048,15 @@ globalThis.AtriumFolderProject = (() => {
           slice = stamp();
           if (plan.length) notify("write-start");
           const posted = stamp();
+          // Ready separates preparation from the host commit round trip.
+          timing?.ready();
           const writing = plan.length ? host.folderCommit({grant,projectId:project.id,manifest:manifestPath,plan}) : {saved:true,hashes:{}};
           editorMs += stamp() - slice;
           const reply = await writing, acknowledged = stamp();
           if (!reply.saved) throw Error(reply.error || "The folder could not be saved.");
+          timing?.end(plan.length && reply.saved === true && !folder.temporary &&
+            (!folder.standalone || folder.standalone.nativeGrant) ? "durable" : "completed");
+          timing = null;
           for (const {doc,stamp} of copper.values()) savedCopper.set(doc,stamp);
           manifestHash = reply.hashes?.[manifestPath] || manifestHash;
           const upgradedOwner = saved.get(pending.upgraded);
@@ -1095,6 +1115,7 @@ globalThis.AtriumFolderProject = (() => {
           throw error;
         }
       }).catch(error => {
+        timing?.end(error?.name === "AbortError" ? "cancelled" : "failed");
         if (!acknowledgedToEditor) settle(error);
         else {
           readOnly = true;
@@ -1180,7 +1201,22 @@ globalThis.AtriumFolderProject = (() => {
       });
     }
     function synchronize(paths, uncertain = false) {
-      const work = latestRead.then(() => writeQueue).then(() => reload(paths, uncertain));
+      const timing = globalThis.AtriumDiagnostics?.performance?.queue("project","sync");
+      const work = latestRead.then(() => writeQueue).then(() => {
+        if (!timing) return reload(paths, uncertain);
+        timing.start();
+        return reload(paths, uncertain).then(result => {
+          timing.ready();
+          timing.end("completed");
+          return result;
+        }, error => {
+          timing.end(error?.name === "AbortError" ? "cancelled" : "failed");
+          throw error;
+        });
+      }, error => {
+        timing?.end(error?.name === "AbortError" ? "cancelled" : "failed");
+        throw error;
+      });
       latestRead = work.catch(e => { if (e.name !== "AbortError") notify("diagnostic",{message:e.message}); });
       return work;
     }

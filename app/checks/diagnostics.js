@@ -1,108 +1,171 @@
-// Keep only diagnostic codes and locations of bundled scripts. Error messages and stacks can contain user data.
+"use strict";
+// Persist only bounded editor failure counts for the current and previous six UTC days.
+// Node and JavaScriptCore unit tests load the source directly. The browser loads the recorder on demand.
+if (typeof require === "function" && typeof module === "object") require("./performance-diagnostics.js");
 globalThis.AtriumDiagnostics = (() => {
-  "use strict";
-  const G = globalThis, KEY = "atrium-diagnostics-v1", LIMIT = 32;
-  const errorNames = new Set(["Error", "TypeError", "ReferenceError", "SyntaxError", "RangeError", "EvalError", "URIError",
-    "AggregateError", "AbortError", "OperationError", "SecurityError", "QuotaExceededError", "CompileError", "LinkError", "RuntimeError"]);
-  const autosaveCodes = new Set(["serialize", "large", "error", "quota"]);
-  const rendererCodes = new Set(["macOS", "Windows", "Linux"]);
-  const rendererReasons = new Set(["exited", "unresponsive", "browser-exited", "memory-limit", "terminated"]);
-  const scriptName = /^(?:[a-z][a-z0-9-]{0,64}\.js|index\.html)$/, task = /^[a-z][a-z0-9-]{0,40}$/;
-  const pos = n => Number.isSafeInteger(n) && n > 0 && n <= 1e8 ? n : undefined;
-  let memory = [], memoryOnly = false, lastKey = "", lastAt = 0;
+  const G = globalThis, MAX = 32, DAY = 86400000, KEY = "atrium-diagnostics-counts-v2";
+  const RESET_KEY = "atrium-diagnostics-clear-v2", LEGACY_KEY = "atrium-diagnostics-v1", UNDATED_KEY = "atrium-diagnostics-counts-v1";
+  const emptyCounts = {javascriptErrors: 0, unhandledRejections: 0, scriptLoadFailures: 0, autosaveFailures: 0,
+    workerFailures: 0, workerTimeouts: 0};
+  const workerKinds = new Map([["worker", "workerFailures"], ["hang", "workerTimeouts"]]);
+  const legacyKinds = new Map([...workerKinds, ["error", "javascriptErrors"], ["rejection", "unhandledRejections"],
+    ["script-load", "scriptLoadFailures"], ["autosave", "autosaveFailures"]]);
+  const autosaveKinds = new Set(["serialize", "large", "error", "quota"]);
+  let observed = new WeakSet();
+  const now = () => G.performance?.now?.() ?? Date.now();
+  const utcDay = () => Math.floor(Date.now() / DAY);
+  const within = (day, today) => Number.isInteger(day) && day >= today - 6 && day <= today;
+  let lastNotice = -Infinity, lastHandledError = -Infinity;
+  let days = new Map(), generation = 0, lastRaw = null, legacyScanned = false, legacyRemoved = false, clearPending = false;
 
-  function safe(entry) {
-    if (!Number.isSafeInteger(entry?.at) || entry.at < 0 || entry.at > 8e15) return null;
-    const {at, kind, type, module, line, column} = entry;
-    if (kind === "renderer") return rendererCodes.has(type) && rendererReasons.has(entry.reason) ? {at, kind, type, reason: entry.reason} : null;
-    if (kind === "autosave") return autosaveCodes.has(type) ? {at, kind, type} : null;
-    // A worker that failed or hung (worker-pool.js): its task name only.
-    if (kind === "worker" || kind === "hang") return task.test(type) ? {at, kind, type} : null;
-    if (!["error", "rejection", "script-load"].includes(kind) || !errorNames.has(type)) return null;
-    return {at, kind, type, module: typeof module === "string" && scriptName.test(module) ? module : undefined,
-      line: pos(line), column: pos(column)};
-  }
-  function stored() {
-    if (memoryOnly) return memory;
+  function parse(raw, limit) {
     try {
-      const raw = G.localStorage?.getItem(KEY);
-      if (raw?.length > 16384) return memory;
-      const rows = JSON.parse(raw || "null");
-      return Array.isArray(rows) ? rows.slice(-LIMIT).map(safe).filter(Boolean) : memory;
-    } catch { return memory; }
+      if (typeof raw === "string" && raw.length <= limit) return JSON.parse(raw);
+    } catch { /* invalid saved diagnostics */ }
   }
-  function add(details) {
-    const at = Date.now(), entry = safe({at, ...details});
-    if (!entry) return null;
-    const key = JSON.stringify({...entry, at: 0});
-    if (key === lastKey && at - lastAt < 1000) return null;
-    lastKey = key; lastAt = at;
-    memory = [...stored(), entry].slice(-LIMIT);
-    try { G.localStorage?.setItem(KEY, JSON.stringify(memory)); memoryOnly = false; }
-    catch { memoryOnly = true; }
-    return entry;
+  function resetVersion(store) {
+    const value = Number(store.getItem(RESET_KEY));
+    return Number.isSafeInteger(value) && value >= 0 ? value : 0;
   }
-  // A failure shows once in the status bar, never as a dialog. Pages loaded from file:// see
-  // "Script error." for every uncaught error, so edit() and act() report what they rethrow
-  // (failed(), with its stack location) and the muted copy that follows is skipped.
-  let told = 0, last = null, mutedUntil = 0;
-  function tell(e) {
-    if (!e || e.at - told < 3e4) return;
-    told = e.at;
-    try { G.AtriumNavHost?.info?.("Internal error (" + e.type + (e.module ? ", " + e.module : "") + "): details in Help › Crash Diagnostics"); } catch { /* no editor yet */ }
-  }
-  function failed(error) {
-    if (error === last) return;
-    last = error; mutedUntil = Date.now() + 1000;
-    tell(add({kind: "error", type: errorType(error), ...stackLocation(error)}));
-  }
-  function bundledModule(source) {
+  function save(store, previous = lastRaw) {
+    if (!store) return;
+    const raw = JSON.stringify({generation, days: [...days]});
+    if (raw === previous) { lastRaw = raw; return; }
     try {
-      const page = new URL(G.location.href), url = new URL(source, page), dir = new URL(".", page);
-      if (url.protocol !== dir.protocol || url.host !== dir.host || !url.pathname.startsWith(dir.pathname)) return;
-      const name = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
-      if (!scriptName.test(name)) return;
-      if (url.pathname === page.pathname || Array.from(G.document.scripts).some(script => script.src === url.href)) return name;
-    } catch { /* the source is unavailable */ }
+      // Even if a sibling clears after this check, it can reject the stale generation.
+      if (resetVersion(store) !== generation) return;
+      store.setItem(KEY, raw);
+      lastRaw = raw;
+    } catch { /* bounded in-memory fallback */ }
   }
-  function errorType(error) {
-    try { if (errorNames.has(error?.name)) return error.name; } catch { /* a thrown object can have a getter */ }
-    return "Error";
+  function add(day, field) {
+    const row = days.get(day) ?? {};
+    const value = row[field] ?? 0;
+    if (value >= MAX) return false;
+    row[field] = value + 1;
+    days.set(day, row);
+    return true;
   }
-  function stackLocation(error) {
+  function sync(today) {
+    for (const day of days.keys()) if (!within(day, today)) days.delete(day);
     try {
-      if (typeof error?.stack !== "string") return {};
-      for (const frame of error.stack.slice(0, 4096).split("\n")) {
-        const match = frame.match(/((?:file|https?):\/\/[^\n]*?):(\d{1,9})(?::(\d{1,9}))?\)?$/);
-        const module = match && bundledModule(match[1]);
-        if (module) return {module, line: +match[2], column: +match[3]};
+      const store = G.localStorage;
+      if (!store) return null;
+      let current = resetVersion(store);
+      const raw = store.getItem(KEY);
+      if (clearPending) {
+        current = current === Number.MAX_SAFE_INTEGER ? 1 : current + 1;
+        store.setItem(RESET_KEY, String(current));
+        clearPending = false;
+        legacyScanned = true;
+        generation = current;
+        lastRaw = null;
+      } else if (generation !== current || lastRaw !== raw) {
+        generation = current;
+        lastRaw = null;
+        days = new Map();
+        const saved = parse(raw, 4096);
+        if (saved?.generation === current && Array.isArray(saved.days)) for (const entry of saved.days.slice(-7)) {
+          if (!Array.isArray(entry) || !within(entry[0], today)) continue;
+          const row = {};
+          for (const field of Object.keys(emptyCounts)) {
+            const value = entry[1]?.[field];
+            if (Number.isInteger(value) && value > 0 && value <= MAX) row[field] = value;
+          }
+          if (Object.keys(row).length) days.set(entry[0], row);
+        }
       }
-    } catch { /* the source is unavailable */ }
-    return {};
+      if (!legacyScanned) {
+        if (raw == null && generation === 0) {
+          const old = parse(store.getItem(LEGACY_KEY), 16384);
+          if (Array.isArray(old)) for (const row of old.slice(-MAX)) {
+            const field = legacyKinds.get(row?.kind);
+            if (!field || !Number.isSafeInteger(row.at) || row.at < 0) continue;
+            const day = Math.floor(row.at / DAY);
+            if (within(day, today)) add(day, field);
+          }
+        }
+        legacyScanned = true;
+      }
+      if (!legacyRemoved) {
+        try {
+          store.removeItem(LEGACY_KEY);
+          store.removeItem(UNDATED_KEY);
+          legacyRemoved = true;
+        } catch { /* retry removal on the next access */ }
+      }
+      if (raw != null || days.size) save(store, raw);
+      return store;
+    } catch { return null; }
   }
-  G.addEventListener?.("error", event => {
-    if (typeof event.filename === "string") {
-      if (!event.error && (/^ResizeObserver loop/.test(event.message) || Date.now() < mutedUntil)) return; // benign, or reported by failed()
-      if (event.error && event.error === last) return;
-      const module = event.filename && bundledModule(event.filename);
-      tell(add({kind: "error", type: errorType(event.error), module, line: module ? event.lineno : undefined, column: module ? event.colno : undefined}));
-    } else if (event.target?.localName === "script") {
-      const module = bundledModule(event.target.src);
-      if (module) add({kind: "script-load", type: "Error", module});
+  function increment(field) {
+    const day = utcDay(), store = sync(day);
+    if (add(day, field)) save(store);
+  }
+  function clearFailures() {
+    days.clear();
+    observed = new WeakSet();
+    lastNotice = lastHandledError = -Infinity;
+    legacyRemoved = false;
+    clearPending = true;
+    sync(utcDay());
+  }
+  function failures() {
+    sync(utcDay());
+    const totals = {...emptyCounts};
+    for (const row of days.values()) for (const field of Object.keys(emptyCounts)) {
+      totals[field] = Math.min(MAX, totals[field] + (row[field] ?? 0));
     }
+    return totals;
+  }
+  function notify(at = now()) {
+    if (at - lastNotice < 30000) return;
+    lastNotice = at;
+    try { G.AtriumNavHost?.info?.("Internal error. See Help › Troubleshooting › Crash Diagnostics."); }
+    catch { /* the editor may be starting */ }
+  }
+  function noteError(error, handled = false) {
+    if (error && (typeof error === "object" || typeof error === "function")) {
+      if (observed.has(error)) return;
+      observed.add(error);
+    }
+    const at = now();
+    if (handled) lastHandledError = at;
+    increment("javascriptErrors");
+    notify(at);
+  }
+  const failed = error => noteError(error, true);
+  G.addEventListener?.("error", event => {
+    if (event.target?.localName === "script") increment("scriptLoadFailures");
+    else if (event.error != null) noteError(event.error);
+    // On file:// the browser can mute an uncaught exception before dispatching its ErrorEvent.
+    else if (typeof G.ErrorEvent === "function" && event instanceof G.ErrorEvent &&
+             !event.message.startsWith("ResizeObserver loop") && now() - lastHandledError >= 1000) noteError();
   }, true);
   G.addEventListener?.("unhandledrejection", event => {
-    try { if (event.reason?.cancelled || event.reason?.name === "AbortError") return; } catch { /* a getter */ }
-    tell(add({kind: "rejection", type: errorType(event.reason), ...stackLocation(event.reason)}));
+    try { if (event.reason?.cancelled === true || event.reason?.name === "AbortError") return; }
+    catch { /* a thrown object can have a getter */ }
+    increment("unhandledRejections");
+    notify();
   });
 
-  async function entries() {
-    const local = stored();
-    let native = [];
-    try { native = await G.AtriumHost?.crashHistory?.(); } catch { /* older host */ }
-    return [...local, ...(Array.isArray(native) ? native.slice(-LIMIT).map(safe).filter(row => row?.kind === "renderer") : [])]
-      .sort((a, b) => b.at - a.at).slice(0, LIMIT);
-  }
-  // record("worker" | "hang", task). The dialog and report: recover.js.
-  return Object.freeze({entries, failed, autosaveFailure: type => add({kind: "autosave", type}), record: (kind, type) => !!add({kind, type})});
+  return Object.freeze({
+    get performance() { return G.AtriumPerformanceDiagnostics?.performance ?? null; },
+    get startPerformance() { return G.AtriumPerformanceDiagnostics?.startPerformance; },
+    performanceSnapshot(options) {
+      return G.AtriumPerformanceDiagnostics?.performanceSnapshot(options) ?? {version: 1, recording: false, rows: []};
+    },
+    get durationBucket() { return G.AtriumPerformanceDiagnostics?.durationBucket; },
+    get countBucket() { return G.AtriumPerformanceDiagnostics?.countBucket; },
+    failures,
+    clearFailures,
+    failed,
+    autosaveFailure(kind) { if (autosaveKinds.has(kind)) increment("autosaveFailures"); },
+    record(kind) {
+      const key = workerKinds.get(kind);
+      if (!key) return false;
+      increment(key);
+      return true;
+    }
+  });
 })();

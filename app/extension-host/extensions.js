@@ -483,6 +483,7 @@ globalThis.AtriumExtensions = (() => {
     if (!p.queue.length || !p.worker) { p.queue.length = 0; p.moving = []; return; }
     const batch = p.queue, transfer = p.moving; p.queue = []; p.moving = [];
     stats.batchesOut++; stats.messagesOut += batch.length;
+    if (globalThis.AtriumDiagnostics?.performance) for (const message of batch) p.requests.get(message.cid)?.timing?.start();
     try { p.worker.postMessage({batch}, transfer); }
     catch {
       // One uncloneable reply must not drop the rest of the batch: send each message on
@@ -495,11 +496,18 @@ globalThis.AtriumExtensions = (() => {
   }
   async function start(p) {
     if (p.worker) return p.ready;
-    await loadRuntime();
-    if (p.cancelled) throw p.ai ? aiError("cancelled", "The AI request was cancelled.") : Error("Search cancelled.");
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("extensions", "load");
+    let w;
+    try {
+      await loadRuntime();
+      if (p.cancelled) throw p.ai ? aiError("cancelled", "The AI request was cancelled.") : Error("Search cancelled.");
+      w = p.worker = createWorker({...p.config, heartbeat: heartbeatMs()});
+    } catch (error) {
+      timing?.end(p.cancelled ? "cancelled" : "failed");
+      throw error;
+    }
     let resolveReady, rejectReady;
     p.ready = new Promise((res, rej) => { resolveReady = res; rejectReady = rej; });
-    const w = p.worker = createWorker({...p.config, heartbeat: heartbeatMs()});
     p.inline = !!w.inline; p.cpu = []; p.lastUse = Date.now();
     const timer = setTimeout(() => stop(p, "The extension host did not start."), 5000);
     w.onmessage = ev => {
@@ -509,7 +517,9 @@ globalThis.AtriumExtensions = (() => {
       if (n > LIMITS.batchMessages) { stop(p, "An extension flooded the host with messages and was stopped."); return; }
       for (const m of ev.data?.batch || []) {
         if (p.worker !== w) return;
-        if (m?.t === "ready") { clearTimeout(timer); resolveReady(); watch(p); }
+        if (m?.t === "ready") {
+          clearTimeout(timer); timing?.ready(); timing?.end("completed"); resolveReady(); watch(p);
+        }
         else if (m?.t === "paletteRows" && p.search && p.requests.has(m.cid)) {
           try { p.search.emit(m.rows); } catch { p.search.cancel(); }
         }
@@ -521,17 +531,17 @@ globalThis.AtriumExtensions = (() => {
     };
     w.onerror = ev => { ev.preventDefault?.(); stop(p, ev.message || "The extension host stopped."); };
     p.ready.catch(() => {});
-    p._rejectReady = rejectReady;
+    p._rejectReady = (error, outcome) => { clearTimeout(timer); timing?.end(outcome); rejectReady(error); };
     return p.ready;
   }
-  function stop(p, reason) {
+  function stop(p, reason, outcome = "failed") {
     if (p.ai) p.cancelled = true;
     if (!p.worker) return;
     const error = reason instanceof Error ? reason : Error(reason);
     try { p.worker.terminate(); } catch {}
     p.worker = null; p.queue.length = 0; p.moving = [];
-    p._rejectReady?.(error);
-    for (const [cid, r] of p.requests) { p.requests.delete(cid); r.reject(error); }
+    p._rejectReady?.(error, outcome);
+    for (const [cid, r] of p.requests) { p.requests.delete(cid); r.reject(error, outcome); }
     for (const n of p.nets.values()) { try { n.ctrl?.abort(); } catch {} }
     p.nets.clear();
     for (const id of p.members) { const e = exts.get(id); if (e) { deactivateLocal(e); if (e.status === "active" || e.status === "activating") e.status = "inactive"; touch(e); } }
@@ -575,9 +585,14 @@ globalThis.AtriumExtensions = (() => {
         if (e) { e.strikes++; log(e, "error", "Stopped: exceeded the " + timeoutMs + " ms time limit."); if (e.strikes >= 3) setEnabled(e.id, false, "Disabled after repeated time-outs."); }
         stop(p, (e?.manifest.name || "A script") + " exceeded its " + timeoutMs + " ms time limit and its worker was stopped.");
       };
-      const entry = {timer: setTimeout(fire, timeoutMs), slow: setTimeout(() => slowNotice(p, owner, true), LIMITS.slowMs),
-        resolve: v => { done(); resolve(v); }, reject: e => { done(); reject(e); }};
-      const done = () => { clearTimeout(entry.timer); clearTimeout(entry.slow); p.lastUse = Date.now(); slowNotice(p, owner, false); };
+      const performance = globalThis.AtriumDiagnostics?.performance;
+      const timing = message.t === "script" ? performance?.queue("automation", "command") : performance?.queue("extensions", "request");
+      const entry = {timer: setTimeout(fire, timeoutMs), slow: setTimeout(() => slowNotice(p, owner, true), LIMITS.slowMs), timing,
+        resolve: v => { timing?.ready(); done("completed"); resolve(v); },
+        reject: (e, outcome = "failed") => { done(outcome); reject(e); }};
+      const done = outcome => {
+        timing?.end(outcome); clearTimeout(entry.timer); clearTimeout(entry.slow); p.lastUse = Date.now(); slowNotice(p, owner, false);
+      };
       p.requests.set(cid, entry);
       p.post({...message, cid});
     });
@@ -587,7 +602,7 @@ globalThis.AtriumExtensions = (() => {
     const r = scriptRecord("waffle.kill");
     if (!on) { if (![...pools.values()].some(q => [...q.requests.values()].some(x => x.slowShown))) ui.status(r, "stop", null); return; }
     for (const x of p.requests.values()) x.slowShown = true;
-    ui.status(r, "stop", {text: "■ Stop " + (exts.get(owner)?.manifest.name || "script"), tooltip: "Stop the running extension or script", _action: () => stop(p, "Stopped by the user.")});
+    ui.status(r, "stop", {text: "■ Stop " + (exts.get(owner)?.manifest.name || "script"), tooltip: "Stop the running extension or script", _action: () => stop(p, "Stopped by the user.", "cancelled")});
   }
   // Keep a pool's time limit from firing while the user answers a prompt.
   function hold(p, value) {
@@ -1050,7 +1065,7 @@ globalThis.AtriumExtensions = (() => {
   // only raises the time limit now; every extension is isolated.)
   function poolFor(e) {
     const hosts = hostsOf(e), p = pool("ext:" + e.id, {network: hosts}, e.id);
-    if (p.worker && p.config.network.join() !== hosts.join()) stop(p, "Network permissions changed.");
+    if (p.worker && p.config.network.join() !== hosts.join()) stop(p, "Network permissions changed.", "cancelled");
     if (!p.worker) p.config = {network: hosts};
     return p;
   }
@@ -1086,7 +1101,7 @@ globalThis.AtriumExtensions = (() => {
     e.aiGeneration = (e.aiGeneration ?? 0) + 1;
     for (const listener of e.aiListeners ?? []) listener();
     for (const p of pools.values())
-      if (p.owner === e.id && p.ai) stop(p,aiError("stale_source","The AI permission changed. Start a fresh request."));
+      if (p.owner === e.id && p.ai) stop(p,aiError("stale_source","The AI permission changed. Start a fresh request."),"cancelled");
   }
   globalThis.addEventListener?.("storage", event => {
     if (event.key === SAFE_MODE && event.newValue === "true") {
@@ -1160,7 +1175,7 @@ globalThis.AtriumExtensions = (() => {
     const p = pool("ai:" + (++nextAI), {network:[...provider.hosts]}, e.id);
     p.ai = {account:aiAccount(id,provider), available:() => !p.cancelled && available(),
       hosts:provider.hosts, auth:provider.auth, secrets:new Set(), pool:p, rate:{at:0,calls:0}};
-    const cancel = () => stop(p,stale());
+    const cancel = () => stop(p,stale(),"cancelled");
     signal?.addEventListener("abort",cancel,{once:true});
     let watch;
     function check() {
@@ -1264,7 +1279,7 @@ globalThis.AtriumExtensions = (() => {
     if (c) {
       // The hook has run. Remaining requests belong to the retired realm.
       c.pool.members.delete(id);
-      stop(c.pool, "The extension was deactivated.");
+      stop(c.pool, "The extension was deactivated.", "cancelled");
     }
     if (e.status !== "error") e.status = e.enabled ? "inactive" : "disabled";
     touch(e);
@@ -2245,7 +2260,7 @@ globalThis.AtriumExtensions = (() => {
     if (exts.get(id) !== e) return;
     removeContributions(e);
     const key = "ext:" + id, owner = pools.get(key);
-    if (owner?.worker) stop(owner, "Extension uninstalled.");
+    if (owner?.worker) stop(owner, "Extension uninstalled.", "cancelled");
     pools.delete(key);
     exts.delete(id); await code.delete(id); ls.del(STORE + id); ls.del(SETTINGS + id); saveGrant(id, null);
     saveIndex(); touch(e);
@@ -2484,11 +2499,11 @@ globalThis.AtriumExtensions = (() => {
     }
   }
   // Kill switch: stop every extension and script now. Safe mode keeps them stopped.
-  function stopAll(reason = "Stopped by the user.") { activationEpoch++; scriptEpoch++; for (const p of [...pools.values()]) { p.search?.cancel(); stop(p, reason); } }
+  function stopAll(reason = "Stopped by the user.") { activationEpoch++; scriptEpoch++; for (const p of [...pools.values()]) { p.search?.cancel(); stop(p, reason, "cancelled"); } }
   function setSafeMode(on) { ls.set(SAFE_MODE, !!on); globalThis.AtriumExtensionPalette?.invalidate(); if (on) stopAll("Extensions paused."); for (const e of exts.values()) touch(e); }
   // Stop every worker and timer (page unload, tests).
   function shutdown() { for (const p of [...pools.values()]) clearTimeout(p.idle); stopAll("The extension host shut down."); clearTimeout(sweepTimer); }
-  function stopScripts() { scriptEpoch++; for (const p of [...pools.values()]) if (p.key.startsWith("script:") && p.worker) stop(p, "Stopped by the user."); }
+  function stopScripts() { scriptEpoch++; for (const p of [...pools.values()]) if (p.key.startsWith("script:") && p.worker) stop(p, "Stopped by the user.", "cancelled"); }
   // The escape hatch: pause every extension, stop every script and close every
   // extension dialog. Bound to Esc pressed three times quickly (works while a modal is
   // open) and meant for a native "Pause Extensions" menu item.

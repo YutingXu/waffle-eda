@@ -78,16 +78,25 @@
   const markVerified = verifiedReads.add.bind(verifiedReads), isVerified = verifiedReads.has.bind(verifiedReads);
   const random = wk && channel === wk ? window.crypto?.getRandomValues?.bind(window.crypto) : undefined;
   const bytes = Uint8Array, hex = "0123456789abcdef";
+  const untimedRequests = new Set(["supportDiagnostics", "inputDiagnostics", "crashHistory", "macShortcutGlyphs",
+    "recentFiles", "folderStatus", "folderLocalState", "recalledImportExport", "notebookDropTarget", "notebookDropCancel"]);
+  const dialogRequests = new Set(["open", "pick", "chooseProjectFolder", "chooseLibraryFolder", "externalToolChoose",
+    "folderPickAsset", "folderResolve", "nativeMemberExportCopy", "installProjectArchive", "folderConvertSibling",
+    "reselectImportSave", "importSaveChoice", "writeImportExport", "export", "exportBinaryCopy", "printPDF"]);
   let next = window.__atriumBridgeRequestBase || 0;
-  function request(action, payload = {}, verificationNonce) {
+  function request(action, payload = {}, verificationNonce, measure = true) {
     const id = ++next;
+    // Elapsed round-trip time includes the host, IPC and any system picker.
+    const timing = measure && !untimedRequests.has(action) ? globalThis.AtriumDiagnostics?.performance?.begin("native", "request") : null;
     return new Promise((resolve, reject) => {
-      setPending(id,{resolve,reject,verificationNonce,verificationLease:verificationNonce && payload.lease});
+      setPending(id,{resolve,reject,verificationNonce,verificationLease:verificationNonce && payload.lease,
+        timing,dialog:!!timing && dialogRequests.has(action)});
       try {
         // The request id and action always win: a payload never names them (tool ids travel as toolId).
         send(stringify({...payload,id,action}));
       } catch (error) {
         removePending(id);
+        timing?.end("failed");
         reject(error);
       }
     });
@@ -96,20 +105,27 @@
     const job = getPending(id);
     if (!job || Boolean(job.verificationNonce) !== verified) return;
     removePending(id);
+    let failure;
     if (verified && result?.verificationNonce !== job.verificationNonce)
-      job.reject(Error("The native model verification reply could not be authenticated."));
+      failure = Error("The native model verification reply could not be authenticated.");
     else if (verified && result?.lease !== job.verificationLease)
-      job.reject(Error("The verified read did not match its native lease."));
+      failure = Error("The verified read did not match its native lease.");
     else if (error) {
-      const failure = Error(error);
+      failure = Error(error);
       if (error === (globalThis.AtriumObsoleteProject?.note ??
           "This file is from a pre-release Waffle build; re-import the design from its source EDA"))
         Object.assign(failure,{code:"pre-release-format"});
       if (/^The export destination (?:changed|grant expired)/.test(error))
         Object.assign(failure,{code:"stale_destination"});
-      job.reject(failure);
     }
-    else job.resolve(result);
+    if (failure) {
+      job.timing?.end("failed");
+      job.reject(failure);
+    } else {
+      job.timing?.end(result?.cancelled === true || job.dialog &&
+        (result == null || result === false || result === "cancel" || Array.isArray(result) && !result.length) ? "cancelled" : "completed");
+      job.resolve(result);
+    }
   }
   function macShortcutGlyphs(labels) {return request("macShortcutGlyphs", {labels});}
   // Keep platform graphics out of startup and off hidden or disconnected controls.
@@ -578,7 +594,8 @@
     },
     async pickFile(extensions){const files=await request("pick",{extensions});return files.length?makeFile(files[0]):null;},
     // Text exports travel as UTF-8 text; binary ones (zip, xlsx) as base64 data.
-    exportFile(name,data){return request("export",data instanceof Uint8Array?{name,data:encodeBytes(data)}:{name,text:data});},
+    exportFile(name,data,options){return request("export",data instanceof Uint8Array?{name,data:encodeBytes(data)}:{name,text:data},
+      undefined,options?.diagnostics!==true);},
     // Print a finished PDF natively (macOS: PDFKit; Linux: the WebKit view, with the pages mounted by print.js).
     // Windows: WebView2 prints the mounted pages itself (window.print shows the system print preview).
     printPDF(name,bytes){
@@ -676,11 +693,30 @@
     lanBrowse(){return request("lanBrowse");},
     setDirty(dirty, projectName){const host=globalThis.AtriumNavHost;const id=globalThis.AtriumForeignDrafts?.needsReview(host) && host.importSession?.()?.id;channel.postMessage(JSON.stringify({action:"dirty",dirty:!!dirty,projectName:typeof projectName === "string" ? projectName : null,...(typeof id==="string" ? {importId:id} : {})}));},
     crashHistory(){return request("crashHistory");},
+    async supportDiagnostics(){
+      const info = await request("supportDiagnostics").catch(() => null);
+      const platform = info?.platform;
+      if (!["macos", "windows", "linux"].includes(platform)) return null;
+      const architecture = info.architecture === "arm64" || info.architecture === "x64" ? info.architecture : "unknown";
+      const facts = {platform, architecture};
+      if (platform === "macos" && ["one", "two", "three-or-more", "unknown"].includes(info.displayCount)) facts.displayCount = info.displayCount;
+      const keys = platform === "macos" ? ["terminated", "unresponsive"] : platform === "windows"
+        ? ["exited", "unresponsive", "browserExited"] : ["exited", "unresponsive", "memoryLimit", "terminated"];
+      const counts = {};
+      for (const key of keys) {
+        const n = Object.getOwnPropertyDescriptor(info.rendererTerminations ?? {}, key)?.value;
+        if (Number.isSafeInteger(n) && n >= 0 && n <= 32) counts[key] = n;
+      }
+      return Object.keys(counts).length ? {...facts, rendererTerminations:counts} : facts;
+    },
     startRecoverySession(session){channel.postMessage(JSON.stringify({action:"recoverySession",session}));},
     ...(globalThis.document?.documentElement?.dataset?.atriumNativeTitlebar === "macos" ? {
       macShortcutGlyphs,
-      // Help › Troubleshooting › Input Diagnostics: the host's last 20 input events (kept in memory only).
-      inputDiagnostics(){return request("inputDiagnostics");},
+      // Help › Troubleshooting › Input Diagnostics: collection belongs to the open inspector.
+      inputDiagnostics(operation = "read"){
+        if (!["start", "read", "stop"].includes(operation)) throw Error("Invalid input diagnostics operation.");
+        return request("inputDiagnostics", {operation});
+      },
       macShortcutIntent(){macPresenter().intent();},
       macShortcutBadge(node, visual, spoken){macPresenter().badge(node, visual, spoken);}
     } : {}),

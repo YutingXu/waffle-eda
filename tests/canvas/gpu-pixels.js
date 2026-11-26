@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, hidden, parked, splitPane, layoutResize};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -271,10 +271,11 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     H().selectDocument(board.id);
     for (let n = 0; n < 26 && !GPU()?.stats()?.acc?.frames; n++) {
       await wait(80);
-      if (globalThis.AtriumCanvasGPUPref?.decision().use === false) break;
+      const pref = globalThis.AtriumCanvasGPUPref;
+      if (pref && !pref.decision().use && pref.describe() !== "No PCB view is using a renderer") break;
     }
     const mode = globalThis.AtriumCanvasGPUPref?.decision();
-    const demanded = mode && (!mode.use || !!GPU()?.stats()?.acc?.frames);
+    const demanded = mode && globalThis.AtriumCanvasGPUPref.describe() !== "No PCB view is using a renderer" && (!mode.use || !!GPU()?.stats()?.acc?.frames);
     startup = {idle, demanded: !!demanded, hardware: mode?.use ?? false};
     H().selectDocument(initial);
     startupPower.host(was);
@@ -390,8 +391,11 @@ globalThis.atriumGpuPixels = async function (o = {}) {
         if (d) { H().selectDocument(d.id); break; }
         await wait(50);
       }
+      // Import may already select the board underneath its report. Choose its actual tab.
+      if (cv().inert) document.querySelector('#document-tabs [data-tab="' + CSS.escape(H().currentId()) + '"]')?.click();
       await wait(500);
-      return H().doc()?.kind === "pcb" ? {} : null;
+      const c = cv(), r = c.getBoundingClientRect();
+      return H().doc()?.kind === "pcb" && !c.inert && document.elementFromPoint(r.x+r.width/2,r.y+r.height/2) === c ? {} : null;
     }
   };
 
@@ -764,6 +768,508 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     if(capLabel)H().edit(()=>H().doc().items.splice(H().doc().items.indexOf(capLabel),1));
   }
 
+  async function viewportResources() {
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const v = AtriumCanvas.create(canvas), I = v.internals();
+    const board = Atrium.sheet("pcb", "Viewport resources"), defs = new Map();
+    const track = {id:"resource-track",kind:"track",layer:"Top",points:[[0,0],[4,2],[8,0]],width:.5};
+    board.items.push(track);
+    const dpr = Math.max(1, Math.min(4, devicePixelRatio || 1)), opacity = PCB.opacity.track;
+    const opts = {editorPane:true,noReuse:true,grid:false,origin:false};
+    const size = (w,h) => {
+      stage.style.width = w/dpr + "px"; stage.style.height = h/dpr + "px";
+      v.resized();
+    };
+    const sample = () => {
+      v.render(board,defs,opts);
+      const s = GPU().stats(I), gpu = canvas.previousElementSibling, status = GPU().status(I);
+      return {renderer:status.renderer,reason:status.reason,backing:gpu && [gpu.width,gpu.height],
+        bytes:s?.gpuBytes,backingBytes:gpu && gpu.width * gpu.height * 4,builds:s?.builds,frames:s?.acc?.frames};
+    };
+    try {
+      PCB.setOpacity("track", .5);
+      size(384,384); v.fit(board,defs);
+      const control = sample(), cap = 1048576;
+      globalThis.__atriumGpuCapMB = 1;
+      const rejected = sample(), repeated = sample();
+      size(180,160); const recovered = sample();
+      size(720,480); const tooLarge = sample();
+      size(180,160); const back = sample();
+      const states = {control,rejected,repeated,recovered,tooLarge,back};
+      if (control.renderer !== "gpu" || !(control.backingBytes < cap && control.bytes < cap && control.backingBytes + control.bytes > cap) ||
+          rejected.renderer !== "2d" || !/GPU memory/.test(rejected.reason) || rejected.bytes !== 0 || rejected.backing?.join("x") !== "1x1" ||
+          JSON.stringify(rejected) !== JSON.stringify(repeated) || recovered.renderer !== "gpu" || recovered.backing?.join("x") !== "180x160" ||
+          tooLarge.renderer !== "2d" || tooLarge.bytes !== 0 || back.renderer !== "gpu" || back.bytes !== recovered.bytes)
+        failLifecycle("viewportResources", JSON.stringify(states));
+      else okLifecycle("viewportResources", JSON.stringify(states));
+
+      PCB.setOpacity("track", 1); size(96,96);
+      globalThis.__atriumGpuCapMB = .08;
+      const original = sample();
+      const gl = canvas.previousElementSibling.getContext("webgl2");
+      const {bufferData,getError} = gl, clock = performance.now.bind(performance);
+      const previousClock = Object.getOwnPropertyDescriptor(performance,"now");
+      let time = clock(), offset = 0, uploads = 0, injectOOM = false;
+      Object.defineProperty(performance,"now",{configurable:true,value:() => time ?? clock() + offset});
+      gl.bufferData = function (...args) { uploads++; return bufferData.apply(this,args); };
+      gl.getError = function () {
+        if (!injectOOM) return getError.call(this);
+        injectOOM = false;
+        return this.OUT_OF_MEMORY;
+      };
+      const witness = () => ({...sample(), uploads});
+      const ordinaryEdits = () => Array.from({length:6}, (_,i) => {
+        track.width = .6+i/100;
+        v.invalidate(board,[track]);
+        return witness();
+      });
+      const stayed = (blocked, rows) => rows.every(row => row.renderer === "2d" && row.builds === blocked.builds &&
+        row.uploads === blocked.uploads && row.bytes === 0 && row.reason === blocked.reason);
+      try {
+        const added = Array.from({length:2500}, (_,i) => ({...track,id:"resource-growth-"+i}));
+        board.items = [...board.items,...added];
+        const edited = witness(), retry = witness();
+        board.items = [track]; const shrunk = witness();
+        const growth = {original,edited,retry,shrunk};
+        if (original.renderer !== "gpu" || edited.renderer !== "2d" || !/GPU memory/.test(edited.reason) ||
+            !stayed(edited,[retry]) || shrunk.renderer !== "gpu")
+          failLifecycle("geometryCap", JSON.stringify(growth));
+        else okLifecycle("geometryCap", JSON.stringify(growth));
+
+        // Replace one track's contour without changing its identity or the number of items.
+        const longPath = {id:"resource-contour",kind:"track",layer:"Top",width:.5,
+          points:Array.from({length:2500},(_,n) => [n / 420,1 + n%2 / 40])};
+        globalThis.__atriumGpuCapMB = .09;
+        board.items.push(longPath);
+        const contour = witness(), cappedEdits = ordinaryEdits();
+        longPath.points = longPath.points.slice(0,2);
+        v.invalidate(board,[longPath]);
+        const simplified = witness();
+        if (contour.renderer !== "2d" || !/GPU memory/.test(contour.reason) || !stayed(contour,cappedEdits) ||
+            simplified.renderer !== "gpu" || simplified.builds !== cappedEdits.at(-1).builds + 1 ||
+            simplified.uploads <= cappedEdits.at(-1).uploads)
+          failLifecycle("geometryRetry", JSON.stringify({contour,cappedEdits,simplified}));
+        else okLifecycle("geometryRetry", JSON.stringify({contour,lastEdit:cappedEdits.at(-1),simplified}));
+
+        // Inject the driver's response after the real WebGL allocation and fence.
+        time = null;
+        delete globalThis.__atriumGpuCapMB;
+        injectOOM = true;
+        size(128,112); witness();
+        const rejectedByDriver = await until(() => /GPU ran out of memory/.test(GPU().status(I).reason));
+        if (!rejectedByDriver) { failLifecycle("driverMemoryRetry", JSON.stringify(GPU().status(I))); return; }
+        time = clock();
+        const oom = witness(), oomEdits = ordinaryEdits();
+        const rev = I.cache.rev;
+        const beforeIdle = {builds:GPU().stats(I).builds, uploads, ...GPU().resourceCounters(I)};
+        time += 520;
+        await settle(0);
+        const afterIdle = {builds:GPU().stats(I).builds, uploads, ...GPU().resourceCounters(I)};
+        offset = time - clock(); time = null;
+        const resumed = witness();
+        const fenced = await until(() => GPU().resourceCounters(I).driverMemoryChecks > beforeIdle.driverMemoryChecks);
+        if (!stayed(oom,oomEdits) || beforeIdle.builds !== afterIdle.builds || beforeIdle.uploads !== afterIdle.uploads ||
+            beforeIdle.driverFenceSubmissions !== afterIdle.driverFenceSubmissions || resumed.renderer !== "gpu" ||
+            resumed.builds !== oom.builds+1 || resumed.uploads <= oom.uploads || I.cache.rev !== rev || !fenced ||
+            GPU().status(I).renderer !== "gpu")
+          failLifecycle("driverMemoryRetry", JSON.stringify({oom,oomEdits,beforeIdle,afterIdle,resumed,fenced}));
+        else okLifecycle("driverMemoryRetry", JSON.stringify({oom,lastEdit:oomEdits.at(-1),resumed,fenced}));
+      } finally {
+        Object.assign(gl,{bufferData,getError});
+        if (previousClock) Object.defineProperty(performance,"now",previousClock); else delete performance.now;
+      }
+    } finally {
+      delete globalThis.__atriumGpuCapMB;
+      PCB.setOpacity("track", opacity);
+      if (v.dispose) v.dispose(); else GPU().release(I);
+      stage.remove();
+    }
+  }
+
+  function gridCapacity() {
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:320px;height:240px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const board = Atrium.sheet("pcb", "Grid capacity"), defs = new Map(), view = AtriumCanvas.create(canvas), I = view.internals();
+    board.outline = []; board.grid = 1;
+    const opts = {editorPane:true,noReuse:true,grid:true,origin:false};
+    view.restoreCamera({cx:1.3,cy:-2.7,scale:13,referenceScale:13});
+    view.render(board,defs,{...opts,grid:false});
+    const gl = canvas.previousElementSibling?.getContext("webgl2");
+    if (!gl) { view.dispose(); stage.remove(); failLifecycle("gridCapacity", "no GPU drawing context"); return; }
+    const bufferData = gl.bufferData, bufferSubData = gl.bufferSubData;
+    let allocations = 0, writes = 0;
+    gl.bufferData = function (target,data,usage) {
+      if (target === this.ARRAY_BUFFER && usage === this.DYNAMIC_DRAW) allocations++;
+      return bufferData.apply(this,arguments);
+    };
+    gl.bufferSubData = function (target) {
+      if (target === this.ARRAY_BUFFER) writes++;
+      return bufferSubData.apply(this,arguments);
+    };
+    const image = () => {
+      const c = GPU().composite(I);
+      return c?.getContext("2d").getImageData(0,0,c.width,c.height).data;
+    };
+    const counts = () => ({allocations,writes,reported:GPU().resourceCounters(I).gridBufferAllocations});
+    try {
+      view.render(board,defs,opts);
+      const first = image();
+      for (let i = 0; i < 24; i++) {
+        view.zoom(Math.exp(i % 8 < 4 ? .112 : -.112),[181,103]);
+        view.render(board,defs,opts);
+      }
+      const stable = counts();
+      view.zoom(1.19,[181,103]); view.render(board,defs,opts);
+      const moved = image();
+      stage.style.width = "1050px"; view.resized(); view.render(board,defs,opts);
+      const wider = counts();
+      const queries = ["getParameter","getError","fenceSync","clientWaitSync","readPixels"];
+      const original = queries.map(k => gl[k]);
+      let queried = 0, reports;
+      try {
+        queries.forEach((key,i) => { gl[key] = function () { queried++; return original[i].apply(this,arguments); }; });
+        reports = Array.from({length:4}, () => [GPU().resourceCounters(I),GPU().diagnosticState?.(I)]);
+      } finally {
+        queries.forEach((key,i) => { gl[key] = original[i]; });
+      }
+      const recorded = reports[0][0], unchanged = reports.every(report => JSON.stringify(report) === JSON.stringify(reports[0]));
+      if (stable.allocations !== 1 || stable.writes !== 25 || wider.allocations !== 2 || wider.writes !== 27 ||
+          stable.reported !== stable.allocations || wider.reported !== wider.allocations ||
+          queried || !unchanged || typeof recorded.exactCamera !== "boolean" || typeof recorded.slicing !== "boolean" ||
+          reports[0][1]?.work?.gridBufferAllocations !== wider.allocations ||
+          !first || !moved || !differentBytes(first,moved))
+        failLifecycle("gridCapacity", JSON.stringify({stable,wider,queried,unchanged,changed:!!first && !!moved && differentBytes(first,moved)}));
+      else okLifecycle("gridCapacity", "25 updates shared one buffer, a resize grew it once, and diagnostic reads issued zero driver queries");
+    } finally {
+      gl.bufferData = bufferData; gl.bufferSubData = bufferSubData;
+      view.dispose(); stage.remove();
+    }
+  }
+
+  function earlySettle() {
+    const row = gpuEarlySettle(GPU());
+    if (!row.moved || !row.sharpening || !row.retained || !row.markerDrawn || !row.appearanceExact || row.appearanceMismatch || !row.hiddenPixels)
+      failLifecycle("earlySettle", JSON.stringify(row));
+    else okLifecycle("earlySettle", "early repaint draws the marker over the retained zoom and hiding silk draws the new appearance");
+  }
+
+  async function terminalOverlay() {
+    const row = await gpuTerminalOverlay(GPU());
+    if (!row.marker || !row.coverage || row.beforeCallback || row.beforeAfter || row.nextFresh || row.nextFreshComposite)
+      failLifecycle("terminalOverlay", JSON.stringify(row));
+    else okLifecycle("terminalOverlay", "analytic coverage preserves the visible overlay until the fresh exact frame");
+  }
+
+  function pourCoverageBounds() {
+    const usesReadback = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\//.test(navigator.userAgent);
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:360px;height:256px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const ctx = canvas.getContext("2d",{willReadFrequently:true}), view = AtriumCanvas.create(canvas), I = view.internals();
+    const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+    const region = (x,y,layer,escaped=false) => {
+      const thin = Array.from({length:96}, (_,n) => [x+2+.37*Math.cos(n*Math.PI/48),y+2+.24*Math.sin(n*Math.PI/48)]);
+      const rings = [rect(x,y,9,7), thin];
+      if (escaped) rings.push(rect(x+14,y+3,2,2));
+      return AtriumPCBPours.region(rings,layer,"GND");
+    };
+    const board = Atrium.sheet("pcb","Pour mask bounds"), defs = new Map();
+    const top = region(-12,-9,"Top");
+    const original = {...top}, bottom = region(-7,3,"Bottom",true);
+    board.outline = rect(-45,-35,90,70);
+    board.pcbDrawing = {annotations:{},pours:[top,bottom,AtriumPCBPours.region([rect(-14,-4,2,3)],"Top","SIG")]};
+    board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
+    const opts = {editorPane:true,noReuse:true,grid:false,origin:false,showUnrouted:false,netNames:false};
+    const getImage = ctx.getImageData;
+    let bytes = 0;
+    ctx.getImageData = function (...args) {
+      if (new Error().stack?.includes("pourCoverage")) bytes += args[2]*args[3]*4;
+      return getImage.apply(this,args);
+    };
+    const paint = (cx,cy,scale,flipped=false,highlight=undefined,moving=false) => {
+      view.restoreCamera({cx,cy,scale,flipped,referenceScale:10});
+      if (moving) view.moving();
+      bytes = 0;
+      view.render(board,defs,{...opts,highlight,noReuse:!moving});
+      const stats = GPU().stats(I), c = GPU().composite(I);
+      if (!c || !stats) throw Error("no GPU coverage frame");
+      return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, uploaded:stats.coverageUpload, memory:stats.gpuBytes};
+    };
+    try {
+      const close = paint(0,-1,10), retreat = paint(8,-2,8), reverse = paint(0,-1,10,true,"GND");
+      const moving = paint(-3,-1,11,true,"GND",true);
+      const settled = paint(0,-1,10,true,"GND");
+      Object.assign(top,region(-4,-12,"Top"));
+      view.invalidate();
+      const edited = paint(0,-1,10,true,"GND");
+      const repeated = paint(0,-1,10,true,"GND");
+      GPU().release(I); view.invalidate();
+      const fresh = paint(0,-1,10,true,"GND");
+      Object.assign(top,original);
+      view.invalidate();
+      const restored = paint(0,-1,10,true,"GND");
+      const withIsland = paint(0,-1,10);
+      Object.assign(bottom,region(-7,3,"Bottom")); view.invalidate();
+      const removedIsland = paint(0,-1,10);
+      GPU().release(I); view.invalidate();
+      const freshWithoutIsland = paint(0,-1,10);
+      const islandRemoved = differentBytes(withIsland.image.data,freshWithoutIsland.image.data);
+      const islandStale = differentBytes(removedIsland.image.data,freshWithoutIsland.image.data);
+      const rows = out.pourCoverageBounds = Object.fromEntries(Object.entries({close,retreat,reverse,moving,settled,edited,repeated,fresh,restored})
+        .map(([key,{image:{data,width,height},...work}]) => [key,{...work,raster:rasterResidual(new Uint8ClampedArray(data.length),data,width,height)}]));
+      const frameBytes = close.image.data.length;
+      const changes = differentBytes(settled.image.data,edited.image.data), stale = differentBytes(edited.image.data,fresh.image.data);
+      const restoredDiff = differentBytes(settled.image.data,restored.image.data);
+      const {data,width,height} = close.image, dpr = width/360;
+      const at = (x,y) => (Math.floor(height/2 + (y+1)*10*dpr)*width + Math.floor(width/2+x*10*dpr))*4;
+      const thinHole = rgbDifference(data,data,at(-10,-7),at(-9,-7));
+      const escapedInk = rgbDifference(data,data,at(8,7),at(10,7));
+      if (!changes || stale || restoredDiff || !islandRemoved || islandStale || thinHole <= 16 || escapedInk <= 16 || repeated.uploaded ||
+          usesReadback && [close,retreat,reverse].some(row => row.bytes <= 0 || row.bytes >= frameBytes))
+        failLifecycle("pourCoverageBounds", JSON.stringify({changes,stale,restoredDiff,islandRemoved,islandStale,thinHole,escapedInk,frameBytes,reads:Object.values(rows).map(r=>r.bytes),
+          repeated:repeated.uploaded,memory:[settled.memory,fresh.memory]}));
+      else okLifecycle("pourCoverageBounds","camera reversal and edit match fresh copper, with bounded mask readbacks");
+
+      // Center a 0.55-device-pixel clearance on a sample column. Its contrast
+      // must survive Canvas coverage and the actual GPU composite.
+      const k = 10*dpr, x = (Math.floor(width/2+6*k)+.5-width/2)/k;
+      const body = rect(4,-8,4,6), gap = rect(x-.275/k,-7,.55/k,3);
+      const otherGap = rect(7-.275/k,-7,.55/k,3);
+      const narrow = AtriumPCBPours.region([body,gap,otherGap],"Top","GND");
+      board.pcbDrawing.pours = [narrow];
+      view.invalidate();
+      GPU().enable(false);
+      view.restoreCamera({cx:0,cy:-1,scale:10,referenceScale:10});
+      view.render(board,defs,opts);
+      const reference = ctx.getImageData(0,0,width,height).data;
+      GPU().enable(true);
+      const actual = paint(0,-1,10);
+      // Leave the second clearance so the intentionally filled control stays
+      // in the same production coverage path.
+      Object.assign(narrow,AtriumPCBPours.region([body,otherGap],"Top","GND"));
+      view.invalidate();
+      const filled = paint(0,-1,10);
+      const clear = at(3,-6), copper = at(5,-6);
+      const channel = [0,1,2].reduce((a,b) => Math.abs(reference[copper+b]-reference[clear+b]) >
+        Math.abs(reference[copper+a]-reference[clear+a]) ? b : a);
+      const start = reference[clear+channel], contrast = reference[copper+channel]-start;
+      const profile = A => [-6.5,-6,-5.5,-5,-4.5].map(y => (A[at(x,y)+channel]-start)/contrast);
+      const a = profile(reference), b = profile(actual.image.data), c = profile(filled.image.data);
+      const visible = row => row.every(ink => ink>=0 && ink<.5);
+      const result = rows.narrowGap = {reference:a,composite:b,filled:c,uploaded:[actual.uploaded,filled.uploaded]};
+      if (Math.abs(contrast)<16 || !visible(a) || !visible(b) || c.some(ink=>ink<.9))
+        failLifecycle("pourCoverageNarrowGap",JSON.stringify(result));
+      else okLifecycle("pourCoverageNarrowGap","a subpixel clearance survives the exact GPU composite");
+    } finally {
+      ctx.getImageData = getImage;
+      view.dispose(); stage.remove();
+    }
+  }
+
+  function emptyTextBands() {
+    const readsImageData = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\//.test(navigator.userAgent);
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:324px;height:240px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    // Keep this diagnostic's repeated readbacks on one Canvas2D raster backend.
+    canvas.getContext("2d",{willReadFrequently:true});
+    const board = Atrium.sheet("pcb", "Ordered text bands"), view = AtriumCanvas.create(canvas), I = view.internals();
+    const part = {id:"band-part",kind:"part",def:"band-footprint",layer:"Top",x:0,y:0,showRef:false};
+    const track = {id:"band-track",kind:"track",layer:"Top",width:.4,points:[[-4,4],[4,4]]};
+    const visible = {kind:"text",layer:"Top",x:0,y:0,text:"Occupied",size:1.2,width:.13};
+    const moved = {kind:"text",layer:"Mechanical 15",x:35,y:-2,text:"Refill",size:1.3,width:.16,angle:37,align:"center"};
+    const hairline = {id:"band-stroke",kind:"graphic",layer:"Mechanical 15",keepout:true,width:.06,
+      points:[[9.02,-4],[9.02,2]]};
+    const opts = {editorPane:true,noReuse:true,grid:false,origin:false,showUnrouted:false,netNames:false};
+    const defs = x => new Map([[part.def,{footprint:{shapes:[visible,{...moved,x}],pads:[]}}]]);
+    board.items = [track,part];
+    view.restoreCamera({cx:0,cy:0,scale:18,referenceScale:18});
+    view.render(board,defs(35),{...opts,hidden:new Set(["Top","Mechanical 15"])});
+    const gl = canvas.previousElementSibling?.getContext("webgl2");
+    if (!gl) { view.dispose(); stage.remove(); failLifecycle("emptyTextBands", "no GPU drawing context"); return; }
+    const upload = gl.texSubImage2D, ctx2d = canvas.getContext("2d");
+    let uploads = [];
+    gl.texSubImage2D = function (...args) {
+      const [target,level,x,bottom,w,h,format,type,source] = args;
+      // This fixture has no pours. Only RGBA canvas and ImageData transfers carry text bands.
+      if (args.length === 9 && target === gl.TEXTURE_2D && level === 0 && format === gl.RGBA && type === gl.UNSIGNED_BYTE &&
+          (source === canvas || source instanceof ImageData)) {
+        const y = canvas.height-bottom-h;
+        const valid = w > 0 && h > 0 && x >= 0 && y >= 0 && x+w <= canvas.width && y+h <= canvas.height &&
+          (source === canvas || source.width === w && source.height === h);
+        const pixels = valid && (source === canvas ? ctx2d.getImageData(x,y,w,h) : source);
+        uploads.push({rect:[x,y,w,h],valid,cropped:w < canvas.width || h < canvas.height,
+          ink:!!pixels && pixels.data.some((value,index) => index%4===3 && value!==0)});
+      }
+      return upload.apply(this,args);
+    };
+    const paint = (x, stroke=false) => {
+      uploads = [];
+      board.items = stroke ? [track,part,hairline] : [track,part];
+      view.invalidate();
+      view.render(board,defs(x),opts);
+      return {uploads,bands:uploads.map(row => row.ink),pixels:GPU().composite(I)?.toDataURL()};
+    };
+    try {
+      const empty = paint(35), occupied = paint(1), edgeText = paint(9.02), edgeStroke = paint(35,true), cleared = paint(35);
+      const cases = {empty,occupied,edgeText,edgeStroke,cleared}, ref = document.createElement("canvas"), dpr = I.cam()[6];
+      ref.width=canvas.width; ref.height=canvas.height;
+      const ctx = ref.getContext("2d",{willReadFrequently:true}), k = view.scale()*dpr;
+      ctx.setTransform(k,0,0,k,ref.width/2,ref.height/2);
+      AtriumPCBDraw.drawKeepout(ctx,hairline,{scale:view.scale(),ink:"#ff0000"});
+      const ink = ctx.getImageData(ref.width-2,0,2,ref.height).data.some((value,index) => index%4===3 && value!==0);
+      const emptyBands = readsImageData ? "true" : "false,true";
+      const croppedText = occupied.uploads.some(row => row.cropped && row.ink);
+      const croppedEdge = edgeText.uploads.some(({rect:[x,,w],cropped,ink}) => cropped && ink && x+w === canvas.width);
+      if (!ink || !Object.values(cases).every(row => row.pixels && row.uploads.every(upload => upload.valid)) ||
+          readsImageData && (!croppedText || !croppedEdge) ||
+          String(empty.bands)!==emptyBands || String(cleared.bands)!==emptyBands ||
+          [occupied,edgeText,edgeStroke].some(row => String(row.bands)!=="true,true" || row.pixels===empty.pixels) ||
+          empty.pixels!==cleared.pixels)
+        failLifecycle("emptyTextBands", JSON.stringify({ink,croppedText,croppedEdge,cases:Object.fromEntries(Object.entries(cases).map(([k,row]) =>
+          [k,{uploads:row.uploads,pixelsChanged:!!row.pixels&&row.pixels!==empty.pixels}]))}));
+      else okLifecycle("emptyTextBands", "empty band skipped, edit and edge ink refilled it, removal cleared it");
+    } finally {
+      gl.texSubImage2D = upload;
+      view.dispose(); stage.remove();
+    }
+  }
+
+  function emptyBandPan() {
+    const readsImageData = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\//.test(navigator.userAgent);
+    if (!readsImageData) { okLifecycle("emptyBandPan", "skipped: empty textures are deferred on the WebKit upload path"); return; }
+    const result = gpuEmptyBandPan(GPU());
+    if (result.frames !== 8 || result.allocations || result.readbacks || result.clears !== 8 || !result.refilled || !result.restored)
+      failLifecycle("emptyBandPan", JSON.stringify({frames:result.frames,allocations:result.allocations,
+        readbacks:result.readbacks,clears:result.clears,refilled:result.refilled,restored:result.restored}));
+    else okLifecycle("emptyBandPan", "pans retain the empty band without uploading it, and the exposed ink refills the texture");
+  }
+
+  async function drcMarkerPan() {
+    await AtriumLazy.need("AtriumDRCMarkers");
+    const board = Atrium.sheet("pcb", "DRC marker crossing the viewport edge"), defs = new Map();
+    const track = (id, x, y) => ({id,kind:"track",layer:"Top",width:.09,points:[[x-.12,y],[x+.12,y]]});
+    // At this scale the one-CSS-pixel outline covers whole device pixels at DPR 1 and 2.
+    const via = {id:"selected",kind:"via",layer:"Multi",x:21/32,y:175/32,diameter:.5,drill:.25};
+    board.items = [track("strong",.04,6.02),track("visible",.74,6.7),via];
+    board.outline = [[-3,-2],[25,-2],[25,16],[-3,16]];
+    const findings = [{id:"strong",type:"width",at:[.04,6.02]}, {id:"visible",type:"width",warning:true,at:[.74,6.7]}];
+    const paint = AtriumDRCMarkers.overlay(board,defs,findings);
+    let damage = [];
+    const trace = (ctx, frame) => { damage = frame.damageRects || []; paint(ctx, frame); };
+    trace.panDamage = paint.panDamage;
+    const stage = document.createElement("div");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden";
+    document.body.append(stage);
+    const make = () => {
+      const canvas = document.createElement("canvas");
+      canvas.style.cssText = "display:block;width:384px;height:192px";
+      stage.append(canvas);
+      return AtriumCanvas.create(canvas);
+    };
+    const view = make(), exact = make();
+    const opts = {editorPane:true,grid:false,origin:false,showUnrouted:false,netNames:false,
+      layer:"Top",selected:via.id,overlay:[trace]};
+    const scale = 16, cropTop = 79, cropWidth = 24, cropHeight = 8;
+    function draw(v, left, moving) {
+      v.restoreCamera({cx:12+left,cy:6,scale,referenceScale:scale});
+      if (moving) v.moving();
+      v.render(board, defs, {...opts,noReuse:!moving});
+      if (GPU().status(v.internals()).renderer !== "gpu") throw Error("no GPU frame");
+      const I = v.internals(), dpr = I.cam()[6];
+      // The top edge and upper arms are above the DRC glyph and the lower rounded joins.
+      const pixels = I.ctx.getImageData(0,cropTop*dpr,cropWidth*dpr,cropHeight*dpr);
+      return {pixels,dpr};
+    }
+    try {
+      draw(view, -.5, false);
+      const steps = [.125,.6875,-.5].map(left => {
+        const retained = draw(view,left,true).pixels, rects = damage.length;
+        const {pixels:fresh,dpr} = draw(exact,left,false);
+        if (retained.width !== fresh.width || retained.height !== fresh.height) throw Error("DRC pan and fresh frame differ in backing size");
+        const half = via.diameter * scale / 2 + 2, center = (via.x - left) * scale;
+        const lo = center - half, hi = center + half, top = via.y * scale - half;
+        const devicePixel = 1 / dpr, singleStroke = Math.round(.7 * 255);
+        const covered = (at, from, to) => at >= from && at + devicePixel <= to;
+        let maxAlpha = 0, core = 0, strokeErrors = 0, clearErrors = 0;
+        for (let row = 0; row < fresh.height; row++) for (let col = 0; col < fresh.width; col++) {
+          const x = col / dpr, y = cropTop + row / dpr, i = (row * fresh.width + col) * 4 + 3;
+          const a = fresh.data[i], b = retained.data[i];
+          maxAlpha = Math.max(maxAlpha, Math.abs(a - b));
+          const topEdge = covered(y,top-.5,top+.5) && covered(x,lo+1,hi-1);
+          const sideEdge = y >= top+1.5 && (covered(x,lo-.5,lo+.5) || covered(x,hi-.5,hi+.5));
+          if (topEdge || sideEdge) {
+            // A full straight stroke must be present, at one pass of the 70% selection opacity.
+            core++;
+            if (Math.abs(a-singleStroke) > 5 || Math.abs(b-singleStroke) > 5) strokeErrors++;
+          } else if (y + devicePixel <= top-.5 || y >= top+1.5 &&
+              (x + devicePixel <= lo-.5 || x >= hi+.5 || covered(x,lo+.5,hi-.5))) {
+            // The pixels alongside each straight arm must stay clear as the repaired area moves.
+            if (a > 8 || b > 8) clearErrors++;
+          }
+        }
+        return {left,rects,maxAlpha,core,strokeErrors,clearErrors};
+      });
+      const zoom = [false,true].map(flipped => {
+        const gpu = GPU(), drc = AtriumDRCMarkers, I = view.internals();
+        const ink = v => {
+          const {ctx,canvas} = v.internals();
+          return ctx.getImageData(0,0,canvas.width,canvas.height).data;
+        };
+        const markerOpts = {...opts,selected:null};
+        view.restoreCamera({cx:11.5,cy:6,scale,referenceScale:scale,flipped});
+        view.render(board,defs,{...markerOpts,noReuse:true});
+        const retained = gpu.resourceCounters(I).retainedFrames, whole = drc.overviewStats().whole;
+        view.zoom(1.125,view.worldToScreen(findings[0].at)); view.moving();
+        view.render(board,defs,markerOpts);
+        const moving = ink(view), end = drc.overviewStats().whole, frames = gpu.resourceCounters(I).retainedFrames-retained;
+        exact.restoreCamera(view.camera());
+        exact.render(board,defs,{...markerOpts,noReuse:true});
+        return {flipped,frames,offscreen:end-whole,different:differentBytes(moving,ink(exact)),
+          marker:moving.some((v,i) => i%4 === 3 && v > 200)};
+      });
+      const composition = [false,true].map(flipped => {
+        const gpu = GPU(), I = view.internals(), markerOpts = {...opts,selected:null,overlay:[paint]};
+        const pose = cx => ({cx,cy:6,scale,referenceScale:scale,flipped});
+        const pixel = v => {
+          const image = gpu.composite(v.internals()), dpr = v.internals().cam()[6];
+          if (!image) throw Error("expected the composited GPU frame");
+          const [x,y] = v.worldToScreen(findings[0].at);
+          return image.getContext("2d").getImageData(Math.floor(x*dpr),Math.floor(y*dpr),1,1).data;
+        };
+        const isMarker = p => p[0] > 180 && p[1] > 50 && p[1] < 140 && p[2] > 45 && p[2] < 135;
+        view.restoreCamera(pose(8)); view.render(board,defs,{...markerOpts,noReuse:true});
+        const first = isMarker(pixel(view)), before = gpu.resourceCounters(I).retainedFrames;
+        view.restoreCamera(pose(9.25)); view.moving(); view.render(board,defs,markerOpts);
+        const pan = isMarker(pixel(view)), retained = gpu.resourceCounters(I).retainedFrames - before;
+        view.render(board,defs,{...markerOpts,noReuse:true});
+        const exact = isMarker(pixel(view));
+        view.render(board,defs,{...markerOpts,overlay:[],noReuse:true});
+        const omitted = isMarker(pixel(view));
+        return {flipped,first,pan,retained,exact,omitted};
+      });
+      out.drcMarkerPan = steps;
+      out.drcMarkerZoom = zoom;
+      out.drcMarkerComposite = composition;
+      if (composition.some(row => !row.first || !row.pan || row.retained !== 1 || !row.exact || row.omitted))
+        failLifecycle("drcMarkerComposite", JSON.stringify(composition));
+      else okLifecycle("drcMarkerComposite", "the composed frame keeps the visible marker at its anchor through retained pan and repaint");
+      if (steps[0].rects < 2 || steps[2].rects < 2 || steps.some(row => !row.rects || !row.core || row.strokeErrors || row.clearErrors) ||
+          zoom.some(row => row.frames !== 1 || row.offscreen || row.different || !row.marker))
+        failLifecycle("drcMarkerPan", JSON.stringify({steps,zoom}));
+      else okLifecycle("drcMarkerPan", "edge repairs preserve the via outline and retained zoom draws exact markers directly");
+    } finally {
+      view.dispose(); exact.dispose(); stage.remove();
+    }
+  }
+
   async function hidden() {
     const pane = H().panes().find(p => p.active), {canvas, view: pv} = pane, r0 = pv.render;
     const via = H().doc().items.find(i => i.kind === "via");
@@ -801,6 +1307,12 @@ globalThis.atriumGpuPixels = async function (o = {}) {
   }
 
   async function splitPane() {
+    H().redraw();
+    const oneDrawn = await until(() => {
+      const pane = H().panes()[0], st = pane?.view?.internals();
+      return st && GPU().stats(st)?.acc?.frames && GPU().status(st).renderer === "gpu";
+    });
+    if (!oneDrawn) { failLifecycle("splitPane", "the original PCB pane did not draw"); return; }
     const before = document.querySelectorAll(".atrium-gpu-board").length;
     const pcbDoc = H().doc();
     H().openSplit("right", pcbDoc.id); await settle(700);
@@ -815,6 +1327,24 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     const counts = "GPU canvases " + before + " → " + during + " → " + after;
     if (why || splitErrors.length || before !== 1 || during !== 2 || after !== 1) failLifecycle("splitPane", [...splitErrors, why, counts].filter(Boolean).join("; "));
     else okLifecycle("splitPane", counts);
+    // The closed GPU pane must let go immediately even when a schematic survives.
+    const sheet = H().project().documents.find(d => d.kind === "schematic");
+    if (sheet) {
+      H().selectDocument(sheet.id);
+      await until(() => H().doc().id === sheet.id);
+      H().openSplit("right", pcbDoc.id, {focus:false});
+      const other = H().panes().find(p => !p.active)?.view.internals();
+      const rendered = other && await until(() => GPU().status(other).renderer === "gpu" && GPU().stats(other)?.acc?.frames);
+      const resources = other && GPU().stats(other)?.gpuBytes;
+      act("split-close");
+      const released = !!other && GPU().stats(other) === null && other.canvas.width === 1 && other.canvas.height === 1;
+      const survivor = H().doc().id === sheet.id;
+      await settle(180);
+      const settled = !!other && GPU().stats(other) === null && other.canvas.width === 1 && other.canvas.height === 1;
+      if (!rendered || !released || !survivor || !settled) failLifecycle("splitRelease", JSON.stringify({rendered,released,survivor,settled,resources}));
+      else okLifecycle("splitRelease", "released " + resources + " tracked bytes before any later PCB paint");
+      H().selectDocument(pcbDoc.id); await settle(400); await ready();
+    }
   }
 
   async function layoutResize() {
@@ -888,24 +1418,28 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     try {
       const P = AtriumPCBPours, project = Atrium.project("Mutable stored copper"), d = project.documents.find(doc => doc.kind === "pcb");
       const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
-      const area = x => P.region([rect(x,3,6,6), Array.from({length:96}, (_,i) => {
-        const a = i*Math.PI/48; return [x+3+Math.cos(a)*.4,6+Math.sin(a)*.4];
+      // Preserve selection of antialiased masks on high-density backings.
+      const area = x => P.region([rect(x,3,6,6), Array.from({length:192}, (_,i) => {
+        const a = i*Math.PI/96; return [x+3+Math.cos(a)*.4,6+Math.sin(a)*.4];
       })],"Top","GND");
       const solid = x => P.region([rect(x,12,6,5)],"Bottom","GND");
       d.outline = rect(0,0,32,20); d.pcbDrawing = {annotations:{},pours:[area(2),solid(12)]};
       d.sourcePourSignature = P.signature(d,new Map());
       await H().replaceProject(project,{force:true}); H().selectDocument(d.id); act("fit"); await settle(200);
-      const h=H(), doc=h.doc(), v=h.view(), regs=doc.pcbDrawing.pours;
-      const paint=()=>{v.render(doc,h.defs(),{editorPane:true,noReuse:true,grid:false,showUnrouted:false});
+      const h=H(), v=h.view(), regs=h.doc().pcbDrawing.pours;
+      const paint=()=>{v.render(h.doc(),h.defs(),{editorPane:true,noReuse:true,grid:false,showUnrouted:false});
         const c=GPU().composite();return c.getContext("2d").getImageData(0,0,c.width,c.height).data;};
       GPU().enable(true);const before=paint();
       h.edit(()=>{Object.assign(regs[0],area(12));Object.assign(regs[1],solid(22));});
       globalThis.AtriumUndoStore?.sync();const after=paint(),uploaded=GPU().stats().coverageUpload;
       paint();const repeated=GPU().stats().coverageUpload;
-      h.edit(()=>{doc.pcbDrawing.pours=regs.map(r=>({...r}));});
-      P.release(regs,[]);GPU().reset();v.invalidate();const full=paint();
-      out.mutablePours = {changedBytes:differentBytes(before,after),differentBytes:differentBytes(after,full),coverageUpload:uploaded,repeatedUpload:repeated};
-      if (!out.mutablePours.changedBytes || out.mutablePours.differentBytes || !(uploaded>0 && uploaded<after.length) || repeated)
+      act("undo");const undoBytes=differentBytes(before,paint());
+      act("redo");const redoBytes=differentBytes(after,paint());
+      const doc=h.doc(), edited=doc.pcbDrawing.pours;
+      h.edit(()=>{doc.pcbDrawing.pours=edited.map(r=>({...r}));});
+      P.release(edited,[]);GPU().reset();v.invalidate();const full=paint();
+      out.mutablePours = {changedBytes:differentBytes(before,after),differentBytes:differentBytes(after,full),undoBytes,redoBytes,coverageUpload:uploaded,repeatedUpload:repeated};
+      if (!out.mutablePours.changedBytes || out.mutablePours.differentBytes || undoBytes || redoBytes || !(uploaded>0 && uploaded<after.length) || repeated)
         out.failures.push("mutable stored copper: "+JSON.stringify(out.mutablePours));
 
       // A translucent layer initially draws the stored rings. Its cached fill must pick up the
@@ -1054,6 +1588,153 @@ async function gpuPowerVisibility(host, gpu, wait, until) {
     view.render = render;
     window.removeEventListener("atrium-power", rememberHostState, true);
     power.host(lastHostState);
+  }
+}
+
+function gpuEmptyBandPan(GPU) {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:324px;height:240px";
+  document.body.append(canvas);
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), board = Atrium.sheet("pcb", "Empty band during pan");
+  const part = {id:"pan-part",kind:"part",def:"pan-footprint",layer:"Top",x:0,y:0,showRef:false};
+  const visible = {kind:"text",layer:"Top",x:0,y:0,text:"A",size:1.2,width:.13};
+  const outside = {kind:"text",layer:"Mechanical 15",x:35,y:-2,text:"Refill",size:1.3,width:.16,angle:37,align:"center"};
+  const defs = new Map([[part.def,{footprint:{shapes:[visible,outside],pads:[]}}]]);
+  board.items = [{id:"pan-track",kind:"track",layer:"Top",width:.4,points:[[-4,4],[4,4]]},part];
+  const opts = {editorPane:true,grid:false,origin:false,showUnrouted:false,netNames:false};
+  function pan(dx) { view.pan(dx,0); view.moving(); view.render(board,defs,opts); }
+
+  try {
+    view.restoreCamera({cx:0,cy:0,scale:18,referenceScale:18});
+    view.render(board,defs,{...opts,noReuse:true});
+    const gl = canvas.previousElementSibling?.getContext("webgl2");
+    if (!gl) throw Error("empty band needs a real GPU context");
+    const texStorage = gl.texStorage2D, texUpload = gl.texSubImage2D;
+    const uploads = [];
+    let allocations = 0, clears = 0;
+    gl.texStorage2D = function (...args) { allocations++; return texStorage.apply(this,args); };
+    gl.texSubImage2D = function (...args) {
+      const data = args.at(-1);
+      if (data instanceof ImageData) uploads.push(data);
+      else if (data instanceof Uint8Array && !data.some(Boolean)) clears++;
+      return texUpload.apply(this,args);
+    };
+    try {
+      const base = GPU.resourceCounters(I).retainedFrames;
+      for (let i=0;i<8;i++) pan(-3);
+      const result = {frames:GPU.resourceCounters(I).retainedFrames-base,allocations,readbacks:uploads.length,clears};
+      const beforeRefill = GPU.composite(I)?.toDataURL(), before = view.camera();
+      uploads.length=0;
+      pan(-570);
+      const refilled = uploads.some(({data}) => data.some((a,i) => i%4===3 && a!==0));
+      const afterRefill = GPU.composite(I)?.toDataURL();
+      view.restoreCamera(before); view.moving(); view.render(board,defs,opts);
+      const restored = !!beforeRefill && beforeRefill === GPU.composite(I)?.toDataURL();
+      return {...result,refilled,restored,beforeRefill,afterRefill};
+    } finally { gl.texStorage2D = texStorage; gl.texSubImage2D = texUpload; }
+  } finally { view.dispose(); canvas.remove(); }
+}
+
+// Wheel motion ends before the exact-camera timer. A repaint in that window
+// should keep the moving image until there is new content or the timer settles it.
+function gpuEarlySettle(GPU) {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:320px;height:200px";
+  document.body.append(canvas);
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map();
+  const doc = Atrium.sheet("pcb", "Early zoom settle");
+  doc.outline = [[-25,-16],[25,-16],[25,16],[-25,16]];
+  doc.items.push({kind:"label",id:"legend",layer:"Silk",x:-5,y:0,size:3,text:"Silk"},
+    {kind:"track",id:"track",layer:"Top",width:.8,points:[[-10,6],[10,6]]});
+  const hidden = new Set(), opts = {editorPane:true, hidden, grid:false, origin:false, showUnrouted:false};
+  function frame(extra = {}) {
+    view.render(doc, defs, {...opts,...extra});
+    const counters = GPU.resourceCounters(I), image = GPU.composite(I);
+    if (counters?.renderState !== "gpu" || !image) throw Error("early settle needs an actual GPU frame");
+    return {counters, pixels:image.getContext("2d").getImageData(0,0,image.width,image.height).data};
+  }
+
+  try {
+    view.restoreCamera({cx:0,cy:0,scale:5,referenceScale:5});
+    frame({noReuse:true});
+    view.zoom(1.6);
+    view.moving(true); // The final frame of an eased wheel notch.
+    const motion = frame();
+    view.settle();
+    // Keep these renders in one task so the real settle timer cannot have run.
+    const marker = ctx => {
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = "#ff00ff"; ctx.fillRect(5,5,1,1); ctx.restore();
+    };
+    const early = frame({reuseBase:true, overlay:[marker]});
+    const offset = (5 * canvas.width + 5) * 4;
+    const markerDrawn = early.pixels.subarray(offset,offset + 4).join(",") === "255,0,255,255";
+    early.pixels.set(motion.pixels.subarray(offset,offset + 4),offset);
+    hidden.add("Silk");
+    const appearance = frame({reuseBase:false});
+    view.invalidate();
+    const coldHidden = frame({noReuse:true});
+    hidden.delete("Silk");
+    view.invalidate();
+    const coldVisible = frame({noReuse:true});
+    return {moved:!motion.counters.exactCamera && Math.abs(motion.counters.gestureScale - 1.6) < .001,
+      sharpening:motion.counters.slicing, retained:!early.counters.exactCamera && !differentBytes(motion.pixels, early.pixels),
+      markerDrawn, appearanceExact:appearance.counters.exactCamera, appearanceMismatch:differentBytes(appearance.pixels,coldHidden.pixels),
+      hiddenPixels:differentPixels(coldHidden.pixels,coldVisible.pixels,48)};
+  } finally {
+    view.dispose(); canvas.remove();
+  }
+}
+
+// Exercise the real zero-row coverage slice, with a frame boundary before the exact repaint.
+async function gpuTerminalOverlay(GPU) {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;left:0;top:0;width:320px;height:220px";
+  document.body.append(canvas);
+  canvas.getContext("2d",{willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals();
+  const board = Atrium.sheet("pcb","Exact settle overlay"), defs = new Map();
+  const rect = (l,t,r,b) => [[l,t],[r,t],[r,b],[l,b]];
+  board.outline = rect(-30,-20,30,20);
+  board.items.push({kind:"label",id:"silk",layer:"Silk",x:-6,y:-2,text:"LABEL",size:1},
+    {kind:"track",id:"track",layer:"Top",points:[[-7,-4],[6,-4]],width:.6},
+    {kind:"via",id:"via",layer:"Multi",x:8,y:-4,diameter:1,drill:.4,fromLayer:"Top",toLayer:"Bottom"});
+  board.pcbDrawing = {pours:[AtriumPCBPours.region([rect(-8,0,9,8),rect(-2,2,2,2.02)],"Top","GND")]};
+  board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
+  const marker = g => {
+    g.save(); g.setTransform(1,0,0,1,0,0); g.fillStyle = "#ff00ff"; g.fillRect(11,11,5,5); g.restore();
+  };
+  const opts = {editorPane:true,grid:false,origin:false,showUnrouted:false,netNames:false,overlay:[marker],selected:"via"};
+  const pixels = (surface = canvas) => surface.getContext("2d").getImageData(0,0,surface.width,surface.height).data;
+  let timeout;
+  try {
+    view.restoreCamera({cx:0,cy:0,scale:12,referenceScale:12});
+    view.render(board,defs,{...opts,noReuse:true});
+    view.zoom(1.25); view.moving(true); view.render(board,defs,opts);
+    const retained = GPU.resourceCounters(I), before = pixels();
+    if (!retained?.slicing || retained.exactCamera || retained.coverageUpload)
+      throw Error("zoom did not schedule exact text slices from a retained frame");
+    const {atCallback,coverage} = await new Promise((resolve,reject) => {
+      timeout = setTimeout(() => reject(Error("the exact coverage slice did not finish")),3000);
+      view.onRepaint(() => {
+        const work = GPU.resourceCounters(I);
+        if (work?.exactCamera && work.coverageUpload)
+          resolve({atCallback:pixels(),coverage:work.coverageUpload});
+      });
+    });
+    const after = pixels();
+    const offset = (13 * canvas.width + 13) * 4;
+    const markerDrawn = before.subarray(offset,offset + 4).join(",") === "255,0,255,255";
+    await new Promise(requestAnimationFrame);
+    view.render(board,defs,opts);
+    const next = pixels(), nextComposite = pixels(GPU.composite(I));
+    GPU.release(I); view.invalidate();
+    view.render(board,defs,{...opts,noReuse:true});
+    return {marker:markerDrawn, coverage, beforeCallback:differentBytes(before,atCallback), beforeAfter:differentBytes(before,after),
+      nextFresh:differentBytes(next,pixels()), nextFreshComposite:differentBytes(nextComposite,pixels(GPU.composite(I)))};
+  } finally {
+    clearTimeout(timeout); view.dispose(); canvas.remove();
   }
 }
 

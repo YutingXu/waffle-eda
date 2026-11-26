@@ -53,6 +53,9 @@ globalThis.AtriumWorkerPool = (() => {
   function setCap(n) { cap = Math.max(0, Math.floor(+n || 0)); }
   const canStart = () => typeof Worker === "function" && typeof Blob === "function" && typeof globalThis.URL?.createObjectURL === "function";
   const later = (/** @type {() => void} */ f) => setTimeout(f, 0);
+  const performanceComponent = name => /^pour-solve(?:-[1-8])?$/.test(name) ? "pours"
+    : name === "calculations" ? "analysis" : name === "Notebook images" ? "notebook"
+    : name === "component-matching" ? "library" : "workers";
   class Cancelled extends Error { constructor() { super("cancelled"); this.cancelled = true; } }
   class Hung extends Error { constructor(name) { super("The background task " + name + " stopped responding and was restarted."); this.hung = true; } }
   class Crashed extends Error { constructor(name) { super("The background task " + name + " crashed in two workers."); this.crashed = true; } }
@@ -102,6 +105,7 @@ globalThis.AtriumWorkerPool = (() => {
    */
   function create(name, source, options = {}) {
     const watchdog = options.watchdogMs ?? WATCHDOG_MS;
+    const component = performanceComponent(name);
     const fixed = options.size || 0, size = () => Math.max(1, Math.min(MAX_WORKERS, fixed ? Math.min(fixed, cores()) : cores()));
     const stat = {jobs: 0, workerMs: 0, local: 0, started: 0};
     const clock = () => globalThis.performance?.now?.() ?? Date.now();
@@ -113,6 +117,24 @@ globalThis.AtriumWorkerPool = (() => {
     const localJobs = new Set();
     let broken = !canStart(), seq = 0, closed = false;
     const local = options.local || null;
+    // The attempt measures dispatch to reply across the worker boundary. It includes
+    // message transport and worker wait; only the worker itself could report CPU time.
+    function startRequest(job) {
+      if (!job.span || job.started) return;
+      job.started = true;
+      job.span.start();
+    }
+    function finishAttempt(job, outcome, replied = false) {
+      if (!job.attempt) return;
+      if (replied) job.attempt.ready();
+      job.attempt.end(outcome);
+      job.attempt = null;
+    }
+    function finishRequest(job, outcome, replied = false) {
+      finishAttempt(job, outcome, replied);
+      if (replied) job.span?.ready();
+      job.span?.end(outcome);
+    }
     function releaseSource(g) {
       if (g.url && (closed || g !== generation) && !workers.some(s => s.source === g)) {
         try { URL.revokeObjectURL(g.url); } catch { /* already gone */ }
@@ -137,18 +159,24 @@ globalThis.AtriumWorkerPool = (() => {
       releaseSource(old);
     }
     function runLocal(job) {
-      if (!local) { job.reject(Error("No worker is available for " + name + ".")); return; }
+      if (!local) { finishRequest(job, "failed"); job.reject(Error("No worker is available for " + name + ".")); return; }
       stat.local++;
       localJobs.add(job);
-      const finish = (callback, value) => {
+      job.attempt = job.recorder?.queue(component, "fallback");
+      const finish = (ok, value) => {
         localJobs.delete(job);
-        if (!job.cancelled) callback(value);
+        if (!job.cancelled) {
+          finishRequest(job, ok ? "completed" : "failed", ok);
+          if (ok) job.resolve(value); else job.reject(value);
+        }
         pump();
       };
       job.timer = later(() => {
         if (job.cancelled) return;
-        try { const p = local(job.original ?? job.task); job.stopLocal = p?.cancel; Promise.resolve(p).then(value => finish(job.resolve, value), e => finish(job.reject, e)); }
-        catch (e) { finish(job.reject, e); }
+        startRequest(job);
+        job.attempt?.start();
+        try { const p = local(job.original ?? job.task); job.stopLocal = p?.cancel; Promise.resolve(p).then(value => finish(true, value), e => finish(false, e)); }
+        catch (e) { finish(false, e); }
       });
     }
     function spawn() {
@@ -163,6 +191,7 @@ globalThis.AtriumWorkerPool = (() => {
           // A progress message (e.g. a pour preview ahead of the exact solve): the job goes on.
           if ("progress" in d) { guard(slot); try { job.progress?.(d.progress); } catch { /* the caller's */ } return; }
           slot.job = null; guard(slot); stat.jobs++; stat.workerMs += clock() - job.at;
+          finishRequest(job, d.error ? "failed" : "completed", !d.error);
           if (d.error) job.reject(Error(d.error)); else job.resolve(d.result);
           if (slot.source !== generation) retire(slot);
           pump();
@@ -176,6 +205,7 @@ globalThis.AtriumWorkerPool = (() => {
           report("worker", name);
           const job = slot.job; slot.job = null;
           retire(slot);
+          if (job) finishAttempt(job, "failed");
           // options.crash "fail" (pour solves: a crash may be the task itself, e.g. out of memory): the
           // job runs once more in a fresh worker, sent again from its original (the first post may have
           // transferred its buffers); a second crash rejects it (error.crashed). Never on this thread.
@@ -183,7 +213,7 @@ globalThis.AtriumWorkerPool = (() => {
             if (job && !job.cancelled) {
               if (!job.retried) { job.retried = true; if (job.original) { job.task = job.original; job.transfer = []; } queue.unshift(job); }
               else {
-                job.cancelled = true; job.reject(new Crashed(name));
+                job.cancelled = true; finishRequest(job, "failed"); job.reject(new Crashed(name));
                 // Two crashes before any job ever finished: workers do not run here (later jobs go to local).
                 if (!stat.jobs) broken = true;
               }
@@ -202,7 +232,7 @@ globalThis.AtriumWorkerPool = (() => {
     function pump() {
       if (queue.length && options.sourceVersion) selectSource(options.sourceVersion());
       while (!closed && queue.length && localJobs.size + workers.filter(s => s.job).length < size()) {
-        if (queue[0].retried && broken && !workers.some(s => s.source === generation)) { const job = queue.shift(); job.cancelled = true; job.reject(new Crashed(name)); continue; }
+        if (queue[0].retried && broken && !workers.some(s => s.source === generation)) { const job = queue.shift(); job.cancelled = true; finishRequest(job, "failed"); job.reject(new Crashed(name)); continue; }
         if (queue[0].useLocal || broken && !workers.some(s => s.source === generation)) { runLocal(queue.shift()); continue; }
         let slot = workers.find(s => !s.job);
         if (!slot && workers.length < size()) slot = spawn();
@@ -215,8 +245,10 @@ globalThis.AtriumWorkerPool = (() => {
         slot.job = job; job.at = clock();
         if (slot.idle) { clearTimeout(slot.idle); slot.idle = 0; }
         guard(slot);
+        startRequest(job);
+        job.attempt = job.recorder?.begin(component, job.retried ? "retry" : "compute");
         try { slot.w.postMessage({id: job.id, task: job.task}, job.transfer || []); }
-        catch { slot.job = null; runLocal(job); rest(slot); }
+        catch { slot.job = null; finishAttempt(job, "failed"); runLocal(job); rest(slot); }
       }
     }
     // (Re)arm the watchdog while the slot has a job; a message from the worker re-arms it.
@@ -230,7 +262,7 @@ globalThis.AtriumWorkerPool = (() => {
         slot.job = null;
         retire(slot);
         report("hang", name);
-        if (!job.cancelled) { job.cancelled = true; job.reject(new Hung(name)); }
+        if (!job.cancelled) { job.cancelled = true; finishRequest(job, "failed"); job.reject(new Hung(name)); }
         pump();
       }, watchdog);
     }
@@ -243,6 +275,11 @@ globalThis.AtriumWorkerPool = (() => {
         retire(slot);
       }, IDLE_MS);
     }
+    function abandon(job) {
+      job.cancelled = true;
+      finishRequest(job, "cancelled");
+      job.reject(new Cancelled());
+    }
     function cancelJob(job) {
       const queued = queue.indexOf(job), index = workers.findIndex(s => s.job === job);
       if (queued >= 0) queue.splice(queued, 1);
@@ -252,8 +289,7 @@ globalThis.AtriumWorkerPool = (() => {
         retire(slot);
       } else if (localJobs.delete(job)) { clearTimeout(job.timer); try { job.stopLocal?.(); } catch { /* finished */ } }
       else return;
-      job.cancelled = true;
-      job.reject(new Cancelled());
+      abandon(job);
       pump();
     }
     /** @param {any} task @param {Transferable[]} [transfer] @param {(p: any) => void} [progress] messages the worker posts before its result @param {any} [original] task used in the local fallback @returns {Promise<any> & {cancel?: () => void}} */
@@ -261,7 +297,9 @@ globalThis.AtriumWorkerPool = (() => {
       if (closed) return Promise.reject(new Cancelled());
       let job;
       const result = new Promise((resolve, reject) => {
-        job = {id: ++seq, task, transfer, progress, original, resolve, reject, cancelled: false};
+        const recorder = globalThis.AtriumDiagnostics?.performance;
+        const span = recorder?.queue(component, "request");
+        job = {id: ++seq, task, transfer, progress, original, resolve, reject, cancelled: false, recorder, span};
         queue.push(job); pump();
       });
       return Object.assign(result, {cancel: () => cancelJob(job)});
@@ -269,14 +307,19 @@ globalThis.AtriumWorkerPool = (() => {
     /** @param {any[]} tasks */
     const map = tasks => Promise.all(tasks.map(t => run(t)));
     function cancel() {
-      for (const job of queue) { job.cancelled = true; job.reject(new Cancelled()); }
+      for (const job of queue) abandon(job);
       queue.length = 0;
-      for (const job of localJobs) { clearTimeout(job.timer); job.cancelled = true; try { job.stopLocal?.(); } catch { /* finished */ } job.reject(new Cancelled()); }
+      for (const job of localJobs) {
+        clearTimeout(job.timer);
+        job.cancelled = true;
+        try { job.stopLocal?.(); } catch { /* finished */ }
+        abandon(job);
+      }
       localJobs.clear();
       for (let i = workers.length - 1; i >= 0; i--) {
         const s = workers[i];
         if (!s.job) continue;
-        s.job.cancelled = true; s.job.reject(new Cancelled());
+        abandon(s.job);
         s.job = null;
         retire(s);
       }

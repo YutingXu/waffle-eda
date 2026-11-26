@@ -6,7 +6,7 @@
 const assert = require("node:assert/strict");
 const {cpuNow: now, retryTiming} = require("../analysis/timing-check.js");
 for (const m of ["model", "parts", "spatial", "pcb-pours", "pcb-appearance", "pcb-text-rich", "pcb-text", "designator-place", "board-shape", "hierarchy", "component-classes", "query", "stackup", "rules", "viastack",
-  "polygon-pour", "fab-presets", "fab-presets/jlcpcb", "dfm"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+  "polygon-pour", "fab-presets", "fab-presets/jlcpcb", "diagnostics", "dfm"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const D = AtriumDFM, FP = AtriumFabPresets, PP = AtriumPolygonPour;
 const L = FP.limits("jlcpcb-2l");
 const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -33,7 +33,16 @@ pair("acid", [track("t", [[5, 5], [15, 5], [7, 10]])], [track("t", [[5, 5], [15,
 //    and a T-junction meeting at 45°
 pair("acid", [track("a", [[5, 20], [25, 20]]), track("b", [[15, 20], [25, 30]], "A")], [track("a", [[5, 20], [25, 20]]), track("b", [[15, 20], [15, 30]], "A")]);
 // 2. copper slivers: a 0.05 mm copper line.
-pair("sliver", [track("t", [[5, 5], [15, 5]], "A", .05)], [track("t", [[5, 5], [15, 5]], "A", .2)]);
+{
+  const recording = AtriumDiagnostics.startPerformance();
+  try {
+    pair("sliver", [track("t", [[5, 5], [15, 5]], "A", .05)], [track("t", [[5, 5], [15, 5]], "A", .2)]);
+    const row = AtriumDiagnostics.performanceSnapshot().rows.find(row => row.component === "dfm" && row.operation === "check");
+    assert.equal(row.counts.started, 2);
+    assert.equal(row.counts.completed, 2, "a real finding is still a successfully run check");
+    assert.ok(Number.isFinite(row.runP95));
+  } finally { recording.stop(); }
+}
 // 3. annular ring: via ring 0.04 (< 0.05), PTH ring 0.1 (< 0.18); good: 0.3/0.6 via, 1.0/1.8 pad.
 pair("ring", [via("v", 10, 10, .38, .3)], [via("v", 10, 10, .6, .3)]);
 const ring = pair("ring", [tht("p", 10, 10, 1.2, 1)], [tht("p", 10, 10, 1.8, 1)]);

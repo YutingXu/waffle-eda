@@ -237,13 +237,36 @@ async function canvasContextMenu(page) {
     await page.keyboard.press("Escape");
     await menu.waitFor({state:"hidden"});
 
-    const camera = await page.evaluate(() => AtriumNavHost.view().camera());
-    await page.mouse.move(...empty);
-    await page.mouse.down({button:"right"});
-    await page.mouse.move(empty[0] + 30, empty[1] + 20, {steps:4});
-    await page.mouse.up({button:"right"});
-    assert.notEqual(await page.evaluate(() => AtriumNavHost.view().camera().cx), camera.cx);
-    assert.equal(await menu.isVisible(), false);
+    const camera = () => page.evaluate(() => AtriumNavHost.view().camera());
+    const initial = await camera();
+    const pan = async () => {
+      await page.mouse.move(...empty);
+      await page.mouse.down({button:"right"});
+      await page.mouse.move(empty[0] + 30, empty[1] + 20, {steps:4});
+      await page.mouse.up({button:"right"});
+      assert.equal(await menu.isVisible(), false);
+      return camera();
+    };
+    const plain = await pan();
+    assert.notEqual(plain.cx, initial.cx);
+    assert.notEqual(plain.cy, initial.cy);
+    assert.equal(plain.scale, initial.scale);
+    await page.evaluate(pose => {
+      const h = AtriumNavHost;
+      h.view().restoreCamera(pose);
+      h.redraw();
+    }, initial);
+    const selection = await page.evaluate(() => AtriumNavHost.selection());
+    await page.keyboard.down("Control");
+    try {
+      assert.deepEqual(await show(empty), {draws:0, selection, rebuilt:false, finalDraws:0});
+      assert.deepEqual(await camera(), initial, "Ctrl+secondary click opens the same menu at the same zoom");
+      await page.keyboard.press("Escape");
+      await menu.waitFor({state:"hidden"});
+      assert.deepEqual(await pan(), plain, "Ctrl+secondary drag pans exactly like secondary drag");
+    } finally {
+      await page.keyboard.up("Control");
+    }
   } finally {
     await page.evaluate(visible => AtriumDRCMarkers.setVisible(visible, AtriumNavHost), markersVisible);
   }

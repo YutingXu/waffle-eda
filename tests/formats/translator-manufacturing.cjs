@@ -43,7 +43,13 @@ assert.deepEqual(glb.files[0].bytes, AtriumSTEP.build(p, doc, {format:"glb"}).da
 assert.equal(JSON.stringify(p), original);
 const file = (name, data) => ({name, bytes:typeof data === "string" ? new TextEncoder().encode(data) : Uint8Array.from(data)});
 const tray = file("tray.step", fs.readFileSync(path.join(__dirname, "../fixtures/mcad/tray.step")));
+require("../../app/checks/diagnostics.js");
+const capture = AtriumDiagnostics.startPerformance();
 const incoming = T.import([tray]);
+assert.deepEqual(T.exportSession()("fabrication", p, opts),fab);
+capture.stop();
+assert.deepEqual(AtriumDiagnostics.performanceSnapshot().rows.map(({component,operation,counts})=>[component,operation,counts.completed]),
+  [["import","load",1],["export","build",1],["manufacturing","compute",1]], "one translator build includes one BOM collection");
 assert.equal(incoming.model.documents.length, 0);
 assert.deepEqual(incoming.provenance.files[0].bytes, tray.bytes);
 const mesh = incoming.provenance.mechanical.mesh;

@@ -87,7 +87,8 @@ The same gestures work on every canvas, however dense the design:
 
 ## 5. Check
 
-- Online DRC is on by default. Violations show on the canvas, with hover details.
+- Online DRC is on by default. Zoom out on a PCB and nearby violations share a marker for the most severe finding in view. Hover to inspect the group, or zoom in to separate nearby locations. You can also select an individual finding in **Messages → Problems**.
+- A badge with a double outline points to a problem on the schematic. Click it to open the finding at its source. Purple diamonds are Design Insights. Both types of marker also group nearby findings as you zoom out on the board.
 - **Tools → Run Design Rule Check** (`T` `D`) runs every rule and lists the results in Messages; the rules that passed collapse into one row (click it to list them). Choose **Report…** for an HTML report.
 - **Shift+H** toggles the heads-up display (deltas, net and layer under the cursor).
 - On a PCB, choose **View → 3D Layout Mode** or press **3**. Use **0** for Top, **9** for Bottom and **F** to flip the view. The toolbar’s **Fit** button shows the active shortcut. Press **2** for 2D or **1** for Board Planning.

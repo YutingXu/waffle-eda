@@ -98,10 +98,16 @@ async function open(browser) {
   await (await choosing).setFiles(files);
   await page.waitForFunction(() => globalThis.AtriumNavHost?.project().documents.some(d => d.kind === "pcb" && d.items.length > 20), null, {timeout: 120000});
   await page.evaluate(() => { for (const d of document.querySelectorAll("dialog[open]")) d.close(); });
-  await page.evaluate(() => { const H = AtriumNavHost; H.selectDocument(H.project().documents.find(d => d.kind === "pcb").id); });
   await page.evaluate(() => AtriumLazy.need("AtriumCanvasGPU").then(() => undefined));
   // Post-import work (drafts, checks, pour tiles) settles before anything is timed.
   await page.waitForTimeout(6000);
+  // Import can leave a report over the already-selected PCB. Choose the document tab as a user would.
+  const target = await page.evaluate(() => {
+    const board = AtriumNavHost.project().documents.find(d => d.kind === "pcb" && d.items.length > 20);
+    return {id: board.id, tab: '#document-tabs [data-tab="' + CSS.escape(board.id) + '"]'};
+  });
+  await page.locator(target.tab).click();
+  await page.waitForFunction(id => AtriumNavHost.doc()?.id === id && !AtriumNavHost.canvas().inert, target.id);
   return {page, errors};
 }
 
@@ -124,6 +130,7 @@ function zoomProbe(page, which) {
     const wait = ms => new Promise(r => window.__rawTimeout(r, ms));
     const frame = () => new Promise(r => requestAnimationFrame(() => r()));
     const r = cv.getBoundingClientRect(), at = [r.left + r.width * .45, r.top + r.height * .55];
+    window.__requireBoardAt(cv, ...at);
     // Zoomed in far enough for pad numbers, around the middle of the board.
     v.zoom(4, [r.width * .45, r.height * .55]); H.redraw(true); await wait(500);
     const W = 480, Hh = Math.round(W * cv.height / cv.width), probe = document.createElement("canvas");
@@ -144,8 +151,9 @@ function zoomProbe(page, which) {
       let data = null;
       if (src) { g.clearRect(0, 0, W, Hh); g.drawImage(src, 0, 0, W, Hh); data = g.getImageData(0, 0, W, Hh).data; }
       if (actual.renderer !== which || !src) fallback.add(actual.reason || `no ${which} frame`);
-      shots.push({gesture, camera:JSON.stringify(v.camera()), data, backend,
-        scaled:backend === "legacy" ? G.stats(I)?.gestureScale : null});
+      const counters = backend === "legacy" && G.resourceCounters?.(I);
+      const scaled = backend === "legacy" && (counters && "gestureScale" in counters ? counters.gestureScale : G.stats(I)?.gestureScale);
+      shots.push({gesture, camera:JSON.stringify(v.camera()), data, backend, scaled});
       if (shots.length > 3) shots.shift();
       return out;
     };
@@ -193,6 +201,7 @@ function dragProbe(page, part) {
     const r = cv.getBoundingClientRect(), s = v.worldToScreen([p.x, p.y]);
     v.pan(r.width / 2 - s[0], r.height / 2 - s[1]); v.zoom(3, [r.width / 2, r.height / 2]); H.redraw(true); await wait(800);
     const q = v.worldToScreen([p.x, p.y]), x0 = r.left + q[0], y0 = r.top + q[1];
+    window.__requireBoardAt(cv, x0, y0);
     const pev = (type, x, y, o = {}) => cv.dispatchEvent(new PointerEvent(type, {clientX: x, clientY: y, button: 0, buttons: type === "pointerup" ? 0 : 1,
       pointerId: 1, bubbles: true, cancelable: true, isPrimary: true, pointerType: "mouse", ...o}));
     // Each render's main-thread time and, on the GPU, the bytes of 2D layers it uploaded (text bands, pour coverage).
@@ -200,7 +209,7 @@ function dragProbe(page, part) {
     let renders = 0; const render = v.render;
     v.render = function (...a) {
       const t = performance.now(), out = render.apply(this, a); ms.push(performance.now() - t); renders++;
-      if (gpu) { const s = G.stats(I); bytes.push([s?.textUpload || 0, s?.coverageUpload || 0]); }
+      if (gpu) { const s = G.resourceCounters(I); bytes.push([s?.textUpload || 0, s?.coverageUpload || 0]); }
       return out;
     };
     const before = [p.x, p.y];
@@ -269,6 +278,7 @@ function panProbe(page, zoom, stream, capture) {
     const gpu = G?.status?.(I).renderer === "gpu";
     window.dispatchEvent(new CustomEvent("atrium-command", {detail: "fit"})); H.redraw(true); await wait(400);
     const r = cv.getBoundingClientRect(), at = [r.left + r.width * .5, r.top + r.height * .5];
+    window.__requireBoardAt(cv, ...at);
     if (zoom > 1) { v.zoom(zoom, [r.width * .47, r.height * .53]); H.redraw(true); }
     // At rest long enough for the exact frame and anything prepared after it (the GPU path's wide copy).
     await wait(900); await frame();
@@ -300,7 +310,7 @@ function panProbe(page, zoom, stream, capture) {
     let ticking = true;
     const tick = t => { ticks.push(t); if (ticking) requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
-    const wide0 = gpu ? G.stats(I)?.wideBuilds || 0 : 0;
+    const wide0 = gpu ? G.resourceCounters(I)?.wideBuilds || 0 : 0;
     window.__work.length = 0;
     const times = [], t0 = performance.now(), step = 1000 / 120;
     try {
@@ -326,7 +336,7 @@ function panProbe(page, zoom, stream, capture) {
         if (t - times[lo] <= 34) per[lo] += work[k + 1];
       }
       const during = renders;
-      const wide = gpu ? (G.stats(I)?.wideBuilds || 0) - wide0 : 0;
+      const wide = gpu ? (G.resourceCounters(I)?.wideBuilds || 0) - wide0 : 0;
       // At rest: the exact frame replaces the last pan frame; compare them at the same camera.
       await wait(500); await frame(); await frame();
       if (capture && shots[shots.length - 1]?.gesture) { H.redraw(true); await frame(); await frame(); }

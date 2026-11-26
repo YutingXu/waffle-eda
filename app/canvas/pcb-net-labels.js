@@ -53,9 +53,47 @@ globalThis.AtriumPCBNetLabels = (() => {
   }
 
   // ---------------------------------------------------------------- tracks
+  const trackSize = (width, scale) => width * scale * TRACK_FONT;
+  // Each view provides its own scene cache. Parked/rebuilt scenes never share bounds.
+  const trackWidths=new WeakMap();
+  function netTrackWidths(c,layer){
+    let e=trackWidths.get(c);
+    if(!e||e.rev!==c.rev){
+      const d=c.delta;
+      // A complete, consecutive non-track change can only leave an extra
+      // bound if a track changed kind. The item query still owns placement.
+      if(e&&d?.from===e.rev&&d.to===c.rev&&d.itemsKnown&&!d.removed.length&&!d.changed.some(i=>i.kind==="track"))e.rev=c.rev;
+      else{e={rev:c.rev,by:new Map()};trackWidths.set(c,e);}
+    }
+    const cached=e.by.get(layer);
+    if(cached)return cached;
+    let max=0,bounds=new Map();
+    for(const i of c.all){
+      if(i.kind!=="track"||i.layer!==layer||!i.net||!(i.width>0))continue;
+      max=Math.max(max,i.width);
+      if(!bounds)continue;
+      const box=c.boxes.get(i), prior=bounds.get(i.width);
+      // Bounds can prove a whole width group is offscreen. Imported custom
+      // widths can be unbounded, so fall back to the ordinary item query.
+      if(!box||!prior&&bounds.size>=64){bounds=null;continue;}
+      if(prior){
+        prior[0]=Math.min(prior[0],box[0]);prior[1]=Math.min(prior[1],box[1]);
+        prior[2]=Math.max(prior[2],box[2]);prior[3]=Math.max(prior[3],box[3]);
+      }else bounds.set(i.width,box.slice());
+    }
+    const result={max,bounds:bounds&&[...bounds]};
+    e.by.set(layer,result);return result;
+  }
+  // A conservative upper width bound, or zero if no legible track can reach the view.
+  function trackWidthLimit(scene,layer,scale,view){
+    const {max,bounds}=netTrackWidths(scene,layer);
+    if(!(trackSize(max,scale)>=MIN_PX))return 0;
+    return !bounds || !globalThis.AtriumSpatial ||
+      bounds.some(([width,box])=>trackSize(width,scale)>=MIN_PX&&AtriumSpatial.overlaps(box,view)) ? max : 0;
+  }
   function trackLabels(out, placed, i, v) {
     const {scale, toScreen, screen, PCB, opts} = v;
-    const w = i.width || 0, size = Math.min(MAX_PX, w * scale * TRACK_FONT);
+    const w = i.width || 0, size = Math.min(MAX_PX, trackSize(w, scale));
     if (size < MIN_PX) return;
     const text = String(i.net), tw = text.length * GLYPH * size, need = tw + size * 1.2;
     const keep = Math.max(w * scale * .75, size);
@@ -104,22 +142,27 @@ globalThis.AtriumPCBNetLabels = (() => {
     ringBoxes.set(region, {rings, boxes});
     return boxes;
   }
-  function inside(rings, boxes, x, y) {
+  function scanline(xy, y) {
+    const crossings = [], n = xy.length;
+    for (let k = 0, j = n - 2; k < n; j = k, k += 2) {
+      const yi = xy[k + 1], yj = xy[j + 1];
+      if ((yi > y) !== (yj > y)) crossings.push((xy[j] - xy[k]) * (y - yi) / (yj - yi) + xy[k]);
+    }
+    return crossings;
+  }
+  function inside(rings, boxes, x, y, row) {
     let odd = false;
     for (let r = 0; r < rings.length; r++) {
       const b = boxes[r];
       if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
-      const xy = rings[r], n = xy.length;
-      for (let k = 0, j = n - 2; k < n; j = k, k += 2) {
-        const yi = xy[k + 1], yj = xy[j + 1];
-        if ((yi > y) !== (yj > y) && x < (xy[j] - xy[k]) * (y - yi) / (yj - yi) + xy[k]) odd = !odd;
-      }
+      const crossings = row[r] ||= scanline(rings[r], y);
+      for (const at of crossings) if (x < at) odd = !odd;
     }
     return odd;
   }
   // Per region: grid-cell results ("cell|ix|iy|w|h" → room for the label there), kept while the region is.
   const memo = new WeakMap();
-  function pourLabels(out, placed, region, v) {
+  function pourLabels(out, placed, region, v, obstacles) {
     const {scale, toScreen, view, PCB, opts} = v;
     const b = region.bounds;
     if ((b[2] - b[0]) * scale < POUR_CELL * .6 || (b[3] - b[1]) * scale < POUR_PX * 3) return;
@@ -137,15 +180,24 @@ globalThis.AtriumPCBNetLabels = (() => {
     const x0 = Math.max(view[0], b[0]) + hw, x1 = Math.min(view[2], b[2]) - hw, y0 = Math.max(view[1], b[1]) + hh, y1 = Math.min(view[3], b[3]) - hh;
     if (x0 > x1 || y0 > y1) return;
     const cx = (view[0] + view[2]) / 2, cy = (view[1] + view[3]) / 2, spots = [];
-    for (let iy = Math.ceil(y0 / cell - .5); (iy + .5) * cell <= y1; iy++) for (let ix = Math.ceil(x0 / cell - .5); (ix + .5) * cell <= x1; ix++) {
-      const x = (ix + .5) * cell, y = (iy + .5) * cell, key = cell + "|" + ix + "|" + iy + "|" + hw.toFixed(6) + "|" + hh.toFixed(6);
-      let ok = m.map.get(key);
-      if (ok === undefined) {
-        ok = inside(rings, boxes, x, y) && inside(rings, boxes, x - hw, y - hh) && inside(rings, boxes, x + hw, y - hh) &&
-          inside(rings, boxes, x - hw, y + hh) && inside(rings, boxes, x + hw, y + hh) && inside(rings, boxes, x - hw, y) && inside(rings, boxes, x + hw, y);
-        m.map.set(key, ok);
+    const firstX = Math.ceil(x0 / cell - .5), dimensions = "|" + hw.toFixed(6) + "|" + hh.toFixed(6);
+    for (let iy = Math.ceil(y0 / cell - .5); (iy + .5) * cell <= y1; iy++) {
+      const y = (iy + .5) * cell;
+      // Positions on the same grid row share the three horizontal edge tests.
+      let scanlines;
+      for (let ix = firstX; (ix + .5) * cell <= x1; ix++) {
+        const x = (ix + .5) * cell, key = cell + "|" + ix + "|" + iy + dimensions;
+        let ok = m.map.get(key);
+        if (ok === undefined) {
+          const [middle, low, high] = scanlines ||= [[], [], []];
+          ok = inside(rings, boxes, x, y, middle) &&
+            inside(rings, boxes, x - hw, y - hh, low) && inside(rings, boxes, x + hw, y + hh, high) &&
+            inside(rings, boxes, x - hw, y + hh, high) && inside(rings, boxes, x + hw, y - hh, low) &&
+            inside(rings, boxes, x - hw, y, middle) && inside(rings, boxes, x + hw, y, middle);
+          m.map.set(key, ok);
+        }
+        if (ok) spots.push([x, y, Math.hypot(x - cx, y - cy)]);
       }
-      if (ok) spots.push([x, y, Math.hypot(x - cx, y - cy)]);
     }
     if (!spots.length) return;
     spots.sort((p, q) => p[2] - q[2]);
@@ -154,7 +206,7 @@ globalThis.AtriumPCBNetLabels = (() => {
       if (chosen.length >= POUR_PER_REGION) break;
       if (chosen.some(c => Math.hypot(c[0] - x, c[1] - y) < cell * 3.5)) continue;
       const [sx, sy] = toScreen([x, y]), box = boxOf(sx, sy, tw, size, 0);
-      if (overlaps(placed, box)) continue;
+      if (overlaps(placed, box) || overlaps(obstacles(box), box)) continue;
       placed.push(box); chosen.push([x, y]);
       out.push({kind: "pour", id: region.id ?? null, text, x: sx, y: sy, angle: 0, size, ink, layer: region.layer});
     }
@@ -164,33 +216,33 @@ globalThis.AtriumPCBNetLabels = (() => {
   // place(v) -> labels [{kind, id, text, x, y (screen px), angle (radians), size (px), ink, layer}].
   // v: {items (objects in view), pours, scale, width, height, toScreen, view (world box), PCB, opts, trackInk(i), pourInk(region),
   //     maxWidth (widest track on the layer, to skip the whole pass when no track can carry a label),
-//     obstacles() (screen boxes pour names avoid: the components in view)}
+  //     obstacles() or obstaclesFor(box) (screen boxes of components that could block a pour name)}
   function place(v) {
     const out = [], placed = [], {PCB, opts} = v, layer = opts.layer || "Top";
     if (opts.netNames === false || PCB.index(layer) < 0 || !PCB.visible(layer, null, opts)) return out;
     v.screen = [2, 2, v.width - 2, v.height - 2];
     const hidden = opts.hide, gone = opts.routePreview?.hidden?.length ? new Set(opts.routePreview.hidden) : null;
-    if (!(v.maxWidth >= 0) || v.maxWidth * v.scale * TRACK_FONT >= MIN_PX) {
+    if (!(v.maxWidth >= 0) || trackSize(v.maxWidth, v.scale) >= MIN_PX) {
       // Wider tracks first: they carry the larger text.
       const tracks = [];
       for (const i of v.items) {
         if (i.kind !== "track" || i.layer !== layer || !i.net || !(i.points?.length > 1) || hidden?.has(i) || gone?.has(i.id)) continue;
         if (globalThis.Atrium?.pathArc?.(i)) continue;
-        if ((i.width || 0) * v.scale * TRACK_FONT < MIN_PX) continue;
+        if (trackSize(i.width || 0, v.scale) < MIN_PX) continue;
         tracks.push(i);
       }
       tracks.sort((a, b) => (b.width || 0) - (a.width || 0));
       for (const i of tracks) { trackLabels(out, placed, i, v); if (out.length >= MAX_LABELS) return out; }
     }
     if (!opts.hidden?.has("Source pours") && v.pours?.length) {
-      // Pour names keep off components (their bodies, pads and lettering), as well as off other labels.
-      const parts = v.obstacles?.() || [];
-      const free = placed.concat(parts);
+      // Ask for obstacles only after copper and label collision tests find a usable spot.
+      let parts;
+      const obstacles = v.obstaclesFor || (() => parts ??= v.obstacles?.() || []);
       for (const region of v.pours || []) {
         if (region?.layer !== layer || !region.net || !Array.isArray(region.bounds) || region.bounds.length !== 4) continue;
         const b = region.bounds;
         if (b[0] > v.view[2] || b[1] > v.view[3] || b[2] < v.view[0] || b[3] < v.view[1]) continue;
-        pourLabels(out, free, region, v);
+        pourLabels(out, placed, region, v, obstacles);
         if (out.length >= MAX_LABELS) break;
       }
     }
@@ -212,5 +264,5 @@ globalThis.AtriumPCBNetLabels = (() => {
     }
     ctx.restore();
   }
-  return Object.freeze({place, draw, clip, upright, MIN_PX});
+  return Object.freeze({place, draw, clip, upright, MIN_PX, trackWidthLimit});
 })();

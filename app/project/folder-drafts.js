@@ -104,7 +104,7 @@ globalThis.AtriumFolderDrafts = (() => {
       else schedule(immediate);
     }
     configure();
-    async function saveVersion(capturing, required) {
+    async function saveVersion(capturing, required, timing) {
       const capture = cursor(), before = new Map(own?.rows.map(r => [r.id,r]));
       const active = new Set(capture.rows.map(r => r.id));
       const changed = capturing ? capture.rows.filter(row => {
@@ -125,13 +125,14 @@ globalThis.AtriumFolderDrafts = (() => {
       const head = rows.length || settings ? {version:VERSION,scope:key,writer,stamp:uuid(),projectId,
         rows,settings,assets,written:capturing ? Date.now() : own.written} : null;
       if ((own || head) && (capturing || rows.length !== before.size || (settings ?? undefined) !== (own?.settings ?? undefined))) {
+        timing?.ready();
         try { await store.write(key,writer,own?.stamp,head,fresh.rows,fresh.assets); }
         catch (e) {
           if (e.code !== "draft-removed") throw e;
           // A different window explicitly retired our reviewed version. Its next edit needs all
           // private rows and originals again; do not build a partial version from the old index.
           own = undefined;
-          if (head) return saveVersion(capturing, required);
+          if (head) return saveVersion(capturing, required, timing);
         }
         own = head; writes++;
         if (!head) lastWrite = undefined;
@@ -156,19 +157,23 @@ globalThis.AtriumFolderDrafts = (() => {
           schedule();
           return;
         }
+        const timing = globalThis.AtriumDiagnostics?.performance?.begin("autosave","save");
+        let outcome = "failed";
         try {
-          const stored = await saveVersion(capturing, required) || required && await saveVersion(true, true);
+          const stored = await saveVersion(capturing, required, timing) || required && await saveVersion(true, true, timing);
           if (required && !stored) throw Error("The saved project changed before the detached edit could be kept in recovery.");
           if (stored) {
             if (capturing) completed = target;
             failure = null;
           }
+          outcome = stored ? "completed" : "cancelled";
         }
         catch (e) {
+          if (e?.name === "AbortError") outcome = "cancelled";
           const detail = "Private draft could not be saved. Your changes are still open. " + message(e);
           if (failure !== detail) diagnose(detail);
           failure = detail; throw e;
-        }
+        } finally { timing?.end(outcome); }
       });
       return queue;
     }
@@ -187,10 +192,22 @@ globalThis.AtriumFolderDrafts = (() => {
       if (choice === "keep") return;
       if (choice === "discard") return store.write(key,offer.head.writer,offer.head.stamp,null);
       if (offer.head.version !== VERSION) throw Error("This draft requires a newer Waffle version.");
-      const bundle = await store.read(offer.head), state = await classify(bundle.header);
-      if (disposed || state === "saved" || choice !== "separate" && state !== "matches") throw Error("The saved or working document changed. Review the draft separately.");
-      const acknowledged = await restore(bundle,choice === "separate");
-      if (acknowledged) pins.set(bundle.header,acknowledged);
+      const timing = globalThis.AtriumDiagnostics?.performance?.begin("project","load");
+      let outcome = "failed";
+      try {
+        const bundle = await store.read(offer.head), state = await classify(bundle.header);
+        if (disposed || state === "saved" || choice !== "separate" && state !== "matches") {
+          outcome = "cancelled";
+          throw Error("The saved or working document changed. Review the draft separately.");
+        }
+        const acknowledged = await restore(bundle,choice === "separate");
+        if (acknowledged) pins.set(bundle.header,acknowledged);
+        timing?.ready();
+        outcome = "completed";
+      } catch (e) {
+        if (e?.name === "AbortError") outcome = "cancelled";
+        throw e;
+      } finally { timing?.end(outcome); }
     }
     return {changed,configure,flush,checkpoint:() => flush(false,false,true),list,decide, async close() { stop(); try { await flush(); } finally { disposed=true; stop(); } },
       metrics:() => ({writes,pending:!!timer,error:failure})};

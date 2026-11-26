@@ -116,6 +116,85 @@ test("projection: board problems as one badge per net on the sheet, schematic pr
   K.clear();
 });
 
+test("PCB projection ignores board-owned ERC and pending schematic hints without removing findings", () => {
+  const p = design(), [sheet, board] = p.documents, host = {project: () => p};
+  board.items.push({...board.items[0], id:"orphan", ref:"U99", link:"orphan"});
+  const result = E.run(p), orphan = result.messages.find(m => m.check === "boardMismatch" && m.objectId === "orphan");
+  const own = result.messages.find(m => m.documentId === sheet.id && m.objectId === "su1" && m.class === "Warning");
+  assert.ok(orphan && own, "the fixture generates a real board-owned mismatch and a real sheet warning");
+  K.clear();
+  try {
+    K.publish("project", "erc", [orphan, own], m => K.fromERC(m, {live:true}));
+    assert.deepEqual(K.violations({source:"erc"}).map(v => v.severity), ["hint", "hint"]);
+    assert.deepEqual(X.projected(host, board), [], "pending findings do not draw error badges on the board");
+    K.compiled(p, {...result, messages:[orphan, own]});
+    const compiled = K.violations({source:"erc"});
+    assert.ok(compiled.some(v => v.doc === board.id && v.severity === "warning"), "board-owned warning remains in Problems");
+    assert.deepEqual(X.projected(host,board).map(b => [b.label,b.severity,b.problems[0].doc]), [["U1","warning",sheet.id]]);
+  } finally { K.clear(); }
+});
+
+test("coarse PCB badges preserve member labels, rank real findings and repair an offscreen winner", () => {
+  const P = AtriumProblemMarks, p = design(), [sheet, board] = p.documents;
+  const other = {...sheet,id:"other",items:[sheet.items[1]]};
+  sheet.items = sheet.items.filter(i => i.id !== "su2");
+  p.documents.push(other);
+  board.items[0].x = 8.25; board.items[1].x = 10.75;
+  let renderer;
+  const host = {project:() => p,docById:id => p.documents.find(d => d.id === id), addRenderer:fn => {renderer = fn;}};
+  const warning = K.fromERC({class:"Warning",check:"boardMismatch",documentId:sheet.id,objectId:"su1",text:"One warning"});
+  const error = K.fromERC({class:"Error",check:"boardMismatch",documentId:sheet.id,objectId:"su1",text:"One error"});
+  const shared = {...K.fromERC({class:"Warning",check:"boardMismatch",documentId:other.id,objectId:"su2",text:"Shared warning"}),
+    objects:[{doc:other.id,id:"su2"},{doc:sheet.id,id:"su1"}]};
+  const rect = {left:25,top:30,width:1200,height:650};
+  const canvas = {getBoundingClientRect:() => rect};
+  const frame = (scale, offset = 0) => ({canvas,scale,width:rect.width,height:rect.height,worldToScreen:([x,y]) => [x*scale+offset,y*scale]});
+  const center = (b, f) => f.worldToScreen(P.badgeDetail(b.at,f.scale,"pcb").at);
+  const pick = (b, f) => {
+    const [x,y] = center(b,f);
+    return X.badgeAt(host,{docId:board.id,canvas,view:f},rect.left+x,rect.top+y);
+  };
+  const drawn = (overlay, f) => {
+    const ink = [], counts = [];
+    const ctx = new Proxy({stroke() {ink.push(this.strokeStyle);}, fillText(text) {counts.push(text);}},
+      {get:(t,k) => t[k] ?? (() => {})});
+    overlay(ctx,f);
+    return {ink,counts};
+  };
+  K.clear();
+  try {
+    K.publish("project","erc",[warning,error,shared],v => v);
+    X.attach(host);
+    const list = X.projected(host,board), u1 = list.find(b => b.label === "U1"), u2 = list.find(b => b.label === "U2");
+    assert.equal(list.length,2);
+    assert.deepEqual(u1.problems,[warning,error,shared]);
+    assert.deepEqual(u2.problems,[shared]);
+    const {overlay} = renderer(board), fit = frame(10), coarse = drawn(overlay,fit);
+    assert.equal(coarse.ink.length,5,"the two projected groups emit only one existing badge symbol in overview");
+    assert.deepEqual(coarse.counts,[],"a multi-footprint cell needs no count text");
+    const picked = pick(u1,fit);
+    assert.equal(picked.label,"U1");
+    assert.equal(pick(u1,fit),picked,"repeated hover on the same camera reuses the assembled findings");
+    assert.deepEqual(picked.problems,[error,warning,shared],"the cross-probe opens the real winning-component error");
+    assert.deepEqual(picked.entries.map(e => e.labels),[["U1"],["U1"],["U1","U2"]]);
+    assert.equal(picked.count,3,"shared underlying findings are counted once");
+    assert.equal(pick(u2,fit),null,"the collapsed badge was not painted and is not a hit target");
+    const cut = frame(10,-center(u1,fit)[0]-4);
+    const proxy = pick(u2,cut);
+    assert.equal(proxy.label,"U2");
+    assert.equal(proxy.problems[0],shared,"clicking the proxy still opens a finding about that component");
+    assert.equal(proxy.count,3);
+    assert.notEqual(pick(u1,fit),picked,"the detail lives only as long as the pane's latest camera plan");
+    assert.equal(overlay.panDamage(cut,-20,0).length,2,"repair bounds include both badge centers");
+    assert.deepEqual(overlay.panDamage(fit,1,0),[],"unchanged representatives use ordinary pan strips");
+    const split = frame(20), close = frame(48);
+    assert.equal(pick(u1,split),u1);
+    assert.equal(pick(u2,split),u2,"a finer band splits the group at the same world origin");
+    assert.equal(pick(u2,close),u2,"close inspection returns the original projected badge");
+    assert.equal(drawn(overlay,close).ink.length,10,"both close badges use the existing artwork");
+  } finally { K.clear(); }
+});
+
 test("problem markers: one size for sheet and board, grown with zoom and clamped on screen; hits track it", () => {
   const M = globalThis.AtriumProblemMarks;
   for (const kind of ["schematic", "pcb"]) {

@@ -2,13 +2,17 @@
 const assert=require("node:assert/strict");
 const vm=require("node:vm");
 const source=require("node:fs").readFileSync(require("node:path").join(__dirname,"../bridge.js"),"utf8");
+const diagnostics=["performance-diagnostics.js","diagnostics.js"].map(file=>
+  require("node:fs").readFileSync(require("node:path").join(__dirname,"../../app/checks",file),"utf8")).join("\n");
 const crypto=require("node:crypto").webcrypto;
 
 async function main() {
   const messages=[];
   const window={crypto,webkit:{messageHandlers:{atriumHost:{postMessage:s=>messages.push(JSON.parse(s))}}}};
   window.top=window;
-  vm.runInNewContext(source,{window,File,Uint8Array,atob,btoa,AbortController,DOMException});
+  const context=vm.createContext({window,File,Uint8Array,atob,btoa,AbortController,DOMException,performance});
+  vm.runInContext(diagnostics,context);
+  vm.runInContext(source,context);
   const host=window.AtriumHost;
   const key="d".repeat(64);
   const row={name:"Board.kicad_pcb",data:"YQ==",importSaveKey:key,retainedInputToken:"private-input"};
@@ -29,6 +33,21 @@ async function main() {
   const bytes=Uint8Array.of(1,2,255);const exported=host.writeImportExport({file,name:"Board",files:[{name:"nested/child.kicad_sch",bytes}]});
   assert.deepEqual(messages.at(-1).files,[{name:"nested/child.kicad_sch",data:"AQL/"}]);
   done({destination:"destination-grant",name:"Board"});assert.equal((await exported).name,"Board");
+  const recorder=context.AtriumDiagnostics, capture=recorder.startPerformance();
+  for(const [pending,value] of [
+    [()=>host.importSaveChoice(args),"cancel"],
+    [()=>host.writeImportExport({file,name:"Board.kicad_pcb",bytes}),false],
+    [()=>host.folderConvertSibling({file,manifest:"Board.waffle",version:"2.0",files:[]}),false]
+  ]){
+    const request=pending();done(value);assert.equal(await request,value);
+  }
+  const chosen=host.importSaveChoice(args);done("waffle");assert.equal(await chosen,"waffle");
+  capture.stop();
+  const {rows:[{component,operation,counts}]}=recorder.performanceSnapshot();
+  assert.equal(component,"native");
+  assert.equal(operation,"request");
+  assert.equal(counts.cancelled,3,"returning from a dismissed import dialogue records cancellation");
+  assert.equal(counts.completed,1,"a real Save choice records completion");
   const abort=new AbortController();const waiting=host.importSaveChoice({...args,signal:abort.signal});
   const original=messages.at(-1);abort.abort();assert.equal(messages.at(-1).action,"cancelImportSave");
   assert.equal(messages.at(-1).operation,original.operation);done("cancel",original);

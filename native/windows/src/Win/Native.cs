@@ -84,6 +84,31 @@ namespace Waffle.Windows
         [DllImport("kernel32.dll")]
         public static extern bool FindClose(IntPtr handle);
 
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        static extern IntPtr GetCurrentProcess();
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool IsWow64Process2(IntPtr process, out ushort processMachine, out ushort nativeMachine);
+
+        public static string SupportArchitecture()
+        {
+            try
+            {
+                // The native machine identifies the host even when Waffle runs under emulation.
+                return IsWow64Process2(GetCurrentProcess(), out _, out ushort nativeMachine)
+                    ? SupportArchitectureName(nativeMachine) : "unknown";
+            }
+            catch (EntryPointNotFoundException) { return "unknown"; }
+        }
+
+        internal static string SupportArchitectureName(ushort nativeMachine) => nativeMachine switch
+        {
+            0x8664 => "x64",
+            0xAA64 => "arm64",
+            _ => "unknown"
+        };
+
         // ------------------------------------------------------------------ shell and windows
 
         public const uint SHARD_PATHW = 3;

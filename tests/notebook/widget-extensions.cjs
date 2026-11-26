@@ -1,5 +1,6 @@
 "use strict";
 require("../fixtures/notebook-labs.cjs").enable();
+require("../../app/checks/diagnostics.js");
 const assert=require("node:assert/strict"),root=__dirname+"/../../extensions/examples/",harness=require(root+"harness.cjs");
 for(const m of ["widget-catalogue","sheet-widgets","extension-widgets"])require(require("../support/app-source-paths.cjs").appFile(m+".js"));
 async function additiveState(h,E,type,p,doc) {
@@ -106,7 +107,14 @@ async function run(){
   const [counter,rail]=E.entries().map(e=>e.type);assert.equal(counter,"ext.example.inspection.counter");
   const doc=h.sheet(),p=h.project,ctx={revision:1,fields:{resolve:()=>({text:"3.3 V"})}};
   const a=E.make(counter,[0,0]),r=E.make(rail,[0,0]);
+  const recording=AtriumDiagnostics.startPerformance();
   const out=await E.request(p,doc,a,ctx);assert.equal(out.view.rows[0].cells[0].text,"0 complete");assert(Object.isFrozen(out.view.rows[1].cells));
+  recording.stop();
+  const snapshot=AtriumDiagnostics.performanceSnapshot(), requests=snapshot.rows.find(row=>row.component==="extensions"&&row.operation==="request");
+  assert.ok(requests.counts.completed>=1,"installed widget reply is counted at the worker boundary");
+  assert.equal(requests.counts.queued,requests.counts.started);
+  if (globalThis.performance?.now) assert.notEqual(requests.runP95,null);
+  assert.ok(!JSON.stringify(snapshot).includes("example.inspection"));
   assert.equal(await E.request(p,doc,a,ctx),null);
   const changed=await E.request(p,doc,a,ctx,{type:"touch",action:"increment"});assert.equal(changed.state.count,1);assert.equal(a.widget.state.count,0);
   const ra=await E.request(p,doc,r,ctx);assert.equal(ra.view.rows[0].cells[1].text,"3.3 V");

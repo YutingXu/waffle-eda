@@ -53,6 +53,7 @@ module.exports = async function frameMonitor(browser, screenshot) {
     });
     const {callbacks, pending, traced} = await work();
     assert.deepEqual({callbacks, pending, traced}, {callbacks: 0, pending: 0, traced: false});
+    assert.equal(await page.evaluate(() => AtriumDiagnostics.performance), null, "starting the editor does not start a performance capture");
 
     const toggle = page.locator('[data-action="frame-monitor"]');
     const hud = page.locator("#frame-monitor");
@@ -67,6 +68,7 @@ module.exports = async function frameMonitor(browser, screenshot) {
     // Opening the demo initializes its Undo shadow on idle and advances the library version.
     await page.waitForFunction(() => AtriumUndoStore.stats().shadow > 0);
     assert.deepEqual(requests, [], "the monitor stays cold during ordinary startup");
+    assert.equal(await page.evaluate(() => !!globalThis.AtriumPerformanceDiagnostics), false, "the recorder also stays cold");
     await openMenu();
     const editState = () => page.evaluate(() => {
       const {history, future} = AtriumNavHost.undoSteps();
@@ -77,6 +79,7 @@ module.exports = async function frameMonitor(browser, screenshot) {
     await page.keyboard.press("Enter");
     await hud.waitFor();
     assert.deepEqual(await editState(), beforeOpen, "opening the Frame Monitor leaves the edit journal untouched");
+    assert.equal(await page.evaluate(() => AtriumDiagnostics.performanceSnapshot().recording), true);
     assert.equal(await toggle.getAttribute("aria-checked"), "true");
     assert.equal(await hud.getByRole("button", {name: "Close", exact: true}).evaluate(node => node === document.activeElement), true);
     assert.equal(await page.locator("dialog:modal").count(), 0, "the canvas stays usable");
@@ -95,6 +98,33 @@ module.exports = async function frameMonitor(browser, screenshot) {
     assert.ok(parked?.callbacks > 0, "a parked monitor schedules no callbacks and causes zero draws");
     assert.equal(parked.pending, 0);
 
+    // A completed background operation appears through a shared QA lease while the clock is parked.
+    const parkedFrame = await page.evaluate(() => {
+      const D = AtriumDiagnostics;
+      const probe = window.__frameMonitorWork;
+      probe.qa = D.startPerformance();
+      probe.span = D.performance.queue("routing", "compute");
+      return D.performanceSnapshot().frame;
+    });
+    assert.ok(Number.isFinite(parkedFrame?.callbackIntervalP95), "QA can read the monitor's frame cadence");
+    await page.clock.runFor(130);
+    await page.evaluate(() => window.__frameMonitorWork.span.start());
+    await page.clock.runFor(60);
+    await page.evaluate(() => window.__frameMonitorWork.span.end());
+    const operation = hud.locator(".ui-prop-row", {hasText: "Routing · Compute"});
+    await operation.waitFor();
+    const columns = await page.evaluate(() => {
+      const row = AtriumDiagnostics.performanceSnapshot().rows.find(row => row.component === "routing" && row.operation === "compute");
+      const format = new Intl.NumberFormat(AtriumI18n.locale(), {maximumFractionDigits: 1});
+      return [row.queueP95, row.runP95, row.endToEndP95].map(value => format.format(value)).join(" / ");
+    });
+    await page.waitForFunction(expected => document.querySelector("#frame-monitor .ui-section")
+      ?.textContent.includes(expected), columns);
+    assert.equal(await operation.locator(".ui-prop-value").textContent(), columns);
+    assert.equal(await hud.getAttribute("data-state"), "idle", "operation updates preserve the legacy sampled frame window");
+    assert.deepEqual(await page.evaluate(() => AtriumDiagnostics.performanceSnapshot().frame), parkedFrame,
+      "a passive activity refresh does not add a frame sample");
+
     // Actual editor work wakes the monitor and updates its rows.
     const canvas = page.locator("#canvas"), box = await canvas.boundingBox();
     await page.mouse.move(box.x + box.width * .45, box.y + box.height * .45);
@@ -104,23 +134,75 @@ module.exports = async function frameMonitor(browser, screenshot) {
       const {draws, callbacks} = window.__frameMonitorWork;
       return /ms p95/.test(row?.textContent) && draws > parked.draws && callbacks > parked.callbacks;
     }, parked);
+    const samples = await page.evaluate(async () => {
+      const recover = await AtriumLazy.need("AtriumRecover");
+      const D = AtriumDiagnostics, exact = D.performanceSnapshot().frame;
+      const shared = D.performanceSnapshot({shareable: true});
+      const row = [...document.querySelectorAll("#frame-monitor .ui-prop-row")]
+        .find(node => node.firstElementChild.textContent === "Canvas draw CPU");
+      const format = new Intl.NumberFormat(AtriumI18n.locale(), {maximumFractionDigits: 1});
+      const shown = row.lastElementChild.textContent;
+      const report = JSON.parse(await recover.report()).performance;
+      return {exact, shown, formatted: format.format(exact.drawCpuP95) + " ms p95", shared, report};
+    });
+    assert.ok(Number.isFinite(samples.exact.drawCpuP95));
+    assert.equal(samples.shown, samples.formatted, "the Monitor and QA read the same draw measurement");
+    assert.deepEqual(samples.report.activity, samples.shared, "the report contains the same shareable snapshot");
+    assert.deepEqual([
+      samples.report.canvasMainThreadP95, samples.report.controlWheelToDrawP95, samples.report.editCommitMainThreadP95,
+      samples.report.editFollowUpMainThreadP95, samples.report.animationCallbackIntervalP95
+    ], Object.values(samples.shared.frame), "the five legacy report aliases come from the shared frame");
     if (screenshot) await page.screenshot({path: screenshot});
-    await page.evaluate(() => AtriumPower.host({occluded: true}));
+    const previousFrame = await page.evaluate(() => {
+      const frame = AtriumDiagnostics.performanceSnapshot().frame;
+      AtriumPower.host({occluded: true});
+      return frame;
+    });
     await page.waitForFunction(() => document.querySelector("#frame-monitor").dataset.state === "paused");
     const hidden = await work();
     assert.equal(hidden.pending, 0);
     assert.equal(hidden.traced, false);
     await page.clock.runFor(300);
     assert.deepEqual(await work(), hidden, "a hidden window schedules no sampler callbacks or redraws");
+    assert.deepEqual(await page.evaluate(() => AtriumDiagnostics.performanceSnapshot().frame), previousFrame,
+      "hiding preserves the last sampled frame while QA is recording");
 
-    await page.evaluate(() => AtriumPower.host({occluded: false}));
-    await page.waitForFunction(() => document.querySelector("#frame-monitor").dataset.state === "measuring");
+    const resumed = await page.evaluate(() => {
+      AtriumPower.host({occluded: false});
+      const D = AtriumDiagnostics, panel = document.querySelector("#frame-monitor");
+      return {state: panel.dataset.state, exact: D.performanceSnapshot().frame,
+        shared: D.performanceSnapshot({shareable: true}).frame};
+    });
+    assert.deepEqual(resumed, {state: "measuring", exact: undefined, shared: undefined},
+      "a fresh visible sampling window must start without stale metrics in either projection");
+    await page.mouse.wheel(0, 120);
+    await page.waitForFunction(() => Number.isFinite(AtriumDiagnostics.performanceSnapshot().frame?.drawCpuP95));
     await hud.getByRole("button", {name: "Close", exact: true}).press("Escape");
     await hud.waitFor({state: "detached"});
     assert.equal(await toggle.getAttribute("aria-checked"), "false");
     const closed = await work();
     assert.equal(closed.pending, 0);
     assert.equal(closed.traced, false);
+    const afterClose = await page.evaluate(() => {
+      const D = AtriumDiagnostics, retained = D.performanceSnapshot();
+      D.performance.begin("routing", "compute").end();
+      window.__frameMonitorWork.qa.stop();
+      const stopped = D.performance === null, keptFrame = D.performanceSnapshot().frame;
+      const next = D.startPerformance(), nextFrame = D.performanceSnapshot().frame;
+      next.stop();
+      return {recording: retained.recording, retainedFrame: retained.frame, keptFrame, nextFrame, stopped,
+        completed: retained.rows.find(row => row.component === "routing" && row.operation === "compute")?.counts.completed};
+    });
+    assert.equal(afterClose.recording, true, "closing releases only the monitor lease");
+    assert.equal(afterClose.stopped, true);
+    assert.equal(afterClose.completed, 1);
+    assert.ok(Number.isFinite(afterClose.retainedFrame?.callbackIntervalP95) || Number.isFinite(afterClose.retainedFrame?.drawCpuP95));
+    assert.deepEqual(afterClose.keptFrame, afterClose.retainedFrame, "stopping preserves the last sampled frame");
+    assert.equal(afterClose.nextFrame, undefined, "a new capture starts without an earlier frame sample");
+    await page.clock.runFor(100);
+    const quiet = await work();
+    assert.equal(quiet.callbacks, closed.callbacks, "an independent capture cannot wake a closed monitor");
+    assert.equal(quiet.pending, 0);
 
     const beforeToggle = await editState();
     await openMenu();

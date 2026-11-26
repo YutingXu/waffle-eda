@@ -209,9 +209,14 @@ globalThis.AtriumFolderProjectUI = (() => {
   }
   async function open(folder, ctx, {confirmed = false, signal, current, fromSave = false, expectedProjectId} = {}) {
     const H = folder.host || globalThis.AtriumHost;
-    if (!confirmed && !await ctx.mayReplace()) { await H.folderClose?.({grant:folder.grant}); return false; }
+    if (!confirmed && !await ctx.mayReplace()) {
+      globalThis.AtriumDiagnostics?.performance?.begin("project","load")?.end("cancelled");
+      await H.folderClose?.({grant:folder.grant});
+      return false;
+    }
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("project","load");
     const U = globalThis.AtriumUndoStore;
-    let session, off, subscribed;
+    let session, off, subscribed, outcome = "failed";
     function install({result,old,list,at,project,batch}) {
       const owner = old || result.owner, mutate = () => {
         if (old) updateInPlace(old, result.owner); else list.splice(at,0,owner);
@@ -230,6 +235,7 @@ globalThis.AtriumFolderProjectUI = (() => {
     }
     try {
       if (folder.status?.state === "conflict" && !await reviewJournal(folder,ctx)) {
+        outcome = "cancelled";
         await H.folderClose?.({grant:folder.grant});
         return false;
       }
@@ -245,11 +251,15 @@ globalThis.AtriumFolderProjectUI = (() => {
       await globalThis.AtriumLazy?.need?.(globalThis.AtriumLazy.validatorsFor(session.project));
       const editor = ctx.host(), previous = editor.project(), edited = editor.authoredRevision?.();
       await editor.prepareWorkbench?.(session.project,{starterView:false});
-      if (editor.project() !== previous || editor.authoredRevision?.() !== edited)
+      if (editor.project() !== previous || editor.authoredRevision?.() !== edited || current && !current()) {
+        outcome = "cancelled";
         throw Error(t("import_save.folder.changed_before_open"));
-      if (current && !current()) throw Error(t("import_save.folder.changed_before_open"));
+      }
       if (await H.folderAdopt({grant:folder.grant,fromSave}) === false) throw Error("The folder could not be opened.");
-      if (current && !current()) throw Error(t("import_save.folder.changed_before_open"));
+      if (current && !current()) {
+        outcome = "cancelled";
+        throw Error(t("import_save.folder.changed_before_open"));
+      }
       off = U.onAuthored((records, dir, project, action, restored) => {
         if (ctx.session() !== session || project !== session.project || ctx.derived()) return;
         const changes = ownerChanges(records, dir, project);
@@ -297,6 +307,7 @@ globalThis.AtriumFolderProjectUI = (() => {
         checkRecovery();
       };
       ctx.adopt(session, () => { off(); subscribed(); session.close().catch(() => {}); });
+      timing?.ready();
       // A folder opened by Finder can be occluded from its first frame. WebKit suppresses rAF
       // there. Its explicit Open still needs a single recovery check before the user edits it.
       if (globalThis.document?.visibilityState === "hidden") queueMicrotask(checkRecovery);
@@ -315,12 +326,14 @@ globalThis.AtriumFolderProjectUI = (() => {
         })().finally(() => { reports = null; });
       };
       ctx.info(session.initialDiagnostic || (session.readOnly ? "This Waffle folder is read-only." : "Opened " + session.project.name));
+      outcome = "completed";
       return true;
     } catch (error) {
+      if (signal?.aborted || error?.name === "AbortError" || error?.code === "cancelled" || error?.code === "stale_target") outcome = "cancelled";
       off?.(); subscribed?.();
       await session?.close();
       throw error;
-    }
+    } finally { timing?.end(outcome); }
   }
   function present(session, id) {
     if (!session || session.activeId !== id || session.hasPresented(id)) return;
@@ -527,9 +540,13 @@ globalThis.AtriumFolderProjectUI = (() => {
     const revision = () => (firstSave ? host.authoredRevision?.() : null) ?? host.revision();
     const started = revision();
     const same = () => host.fileSession() === session && ctx.project() === current && revision() === started;
+    let superseded = false;
     const checkAuthored = () => {
       signal?.throwIfAborted();
-      if (firstSave && !same()) throw Error(t("import_save.folder.changed_before_save"));
+      if (firstSave && !same()) {
+        superseded = true;
+        throw Error(t("import_save.folder.changed_before_save"));
+      }
     };
     let stem = String(name || current.name || "Project").normalize("NFC").replace(/[\\/:*?"<>|\x00-\x1f]/g,"-").trim().replace(/\.+$/g,"");
     if (!stem || /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(stem)) stem = "Project";
@@ -537,7 +554,11 @@ globalThis.AtriumFolderProjectUI = (() => {
     if (prior?.hasImportIndexes() && !source) await prior.verifySavedVersion({purpose:"save as",signal,localSources:true});
     const target = source ? {manifest:hostName} : native?.chooseProjectFolder ? await native.chooseProjectFolder({mode:"create",name:hostName}) :
       (await AtriumLazy.need("AtriumBrowserProject")).create(hostName);
-    if (!target) return false;
+    if (!target) {
+      globalThis.AtriumDiagnostics?.performance?.begin("save","save")?.end("cancelled");
+      return false;
+    }
+    let timing = globalThis.AtriumDiagnostics?.performance?.begin("save","save"), outcome = "cancelled";
     const H = target.host || native;
     let worker;
     const stop = () => worker?.close();
@@ -577,10 +598,13 @@ globalThis.AtriumFolderProjectUI = (() => {
         const files = plan.map(({path,data}) => ({path,data}));
         // The host asks where to put the project, suggesting this name (suffixed when taken) outside
         // the source project folder. A cancelled choice returns false and writes nothing.
+        timing?.ready();
         const installed = await H.folderConvertSibling({file:source,manifest:target.manifest,files,version:prepared.version,
           folderName:stem,signal});
         if (!installed) return false;
         const folder = installed.folderProject || installed;
+        timing?.end(typeof folder.grant === "string" ? "durable" : "completed");
+        timing = null;
         if (!same()) {
           await H.folderClose?.({grant:folder.grant});
           ctx.info(t("import_save.folder.saved_snapshot"));
@@ -590,8 +614,11 @@ globalThis.AtriumFolderProjectUI = (() => {
         ctx.info(t("import_save.folder.saved",{name:ctx.project().name}));
         return true;
       }
+      timing?.ready();
       const committed = await H.folderCommit({grant:target.grant,projectId:prepared.projectId,manifest:target.manifest,plan});
       if (!committed?.saved) throw Error("The new folder could not be saved.");
+      timing?.end(plan.length && committed.saved === true && !target.temporary ? "durable" : "completed");
+      timing = null;
       if (!same()) {
         await H.folderClose?.({grant:target.grant});
         ctx.info(t("import_save.folder.saved_snapshot"));
@@ -600,9 +627,10 @@ globalThis.AtriumFolderProjectUI = (() => {
       const opened=await open(target,ctx,{confirmed:true,current:firstSave ? same : undefined,fromSave:true});
       return opened && target.temporary && download ? downloadSaved(ctx.session(),ctx) : opened;
     } catch (error) {
+      if (!superseded && !signal?.aborted && error?.name !== "AbortError") outcome = "failed";
       if (target.grant) await H.folderClose?.({grant:target.grant});
       throw error;
-    } finally { signal?.removeEventListener("abort",stop); stop(); }
+    } finally { timing?.end(outcome); signal?.removeEventListener("abort",stop); stop(); }
   }
   function retainRecoveryFiles(project,files) {
     recoveryFiles.set(project,new Map([...files].map(([path,bytes])=>[path,globalThis.AtriumFolderDrafts.base64(bytes)])));

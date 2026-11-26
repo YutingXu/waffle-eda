@@ -200,4 +200,25 @@ for (const [contactTime, projectionTime, firstTurn, secondTurn] of [
   assert.deepEqual(ran, ["interactive","current pour","current rules","viewer idle"]);
 }
 
+{
+  require("../../app/checks/diagnostics.js");
+  const diagnostics = globalThis.AtriumDiagnostics, capture = diagnostics.startPerformance();
+  const h = harness(), p = h.pipeline, called = [];
+  const cancel = p.stage("pours", "private-board", () => assert.fail("cancelled callback ran"));
+  cancel.cancel();
+  p.stage("rules", "private-rule", () => assert.fail("superseded callback ran"));
+  p.supersede();
+  p.stage("airwires", "private-net", () => assert.fail("replaced callback ran"));
+  p.stage("airwires", "private-net", () => called.push("applied"));
+  h.frame(); h.frame();
+  assert.deepEqual(called, ["applied"]);
+  const expected = new Error("fixture failure");
+  p.stage("rules", "private-rule", () => { throw expected; });
+  assert.throws(() => h.frame(), e => e === expected);
+  capture.stop();
+  const rows = diagnostics.performanceSnapshot().rows;
+  assert.deepEqual(rows.map(r => [r.component, r.operation, r.counts.queued, r.counts.started,
+    r.counts.completed, r.counts.cancelled, r.counts.failed]), [["editor", "request", 5, 2, 1, 3, 1]]);
+  assert.ok(!JSON.stringify(rows).includes("private-"));
+}
 console.log("PASS edit phases, repaint tickets, hidden work, superseded results, and cumulative journal changes");

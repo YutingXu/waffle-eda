@@ -30,7 +30,7 @@ async function testPourLOD({requireHardware = false} = {}) {
       long:{levels:[7,6,5,4,-1],fresh:true}, edited:{changed:true,fresh:true,reuploaded:true},
       undone:{matches:true,reuploaded:true}, removed:{pourBytes:0,pourCacheBytes:0},
       cap:{gpu:true,evicted:true,rejected:true}, restored:{freshCanvas:true,freshPixels:true,reuploaded:true},
-      driverOOM:{waited:true,replacedFence:true,readAfterSignal:true,reported:true,canvasInk:true}
+      driverOOM:{waited:true,keptFence:true,readAfterSignal:true,reported:true,canvasInk:true}
     };
     for (const [name, value] of Object.entries(expected)) assert.deepEqual(result[name],value,name);
     assert.deepEqual([result.warm.uploads,result.warm.uploadBytes,result.warm.reuses],[0,0,6],JSON.stringify(result.warm));
@@ -48,7 +48,7 @@ async function testPourLOD({requireHardware = false} = {}) {
 
 async function pourLOD() {
   await AtriumLazy.need(["AtriumCanvasGPU","AtriumPolygonPour"]);
-  const G = AtriumCanvasGPU, P = AtriumPCBPours, hardware = AtriumCanvasGPUPref.decision();
+  const G = AtriumCanvasGPU, P = AtriumPCBPours, hardware = AtriumCanvasGPUPref.decision(true);
   if (!hardware.use || hardware.software) return {skip:hardware.reason || "no hardware WebGL2"};
   const cv = document.createElement("canvas");
   cv.style.cssText = "position:fixed;left:20px;top:20px;width:360px;height:260px";
@@ -155,7 +155,7 @@ async function pourLOD() {
       const status = G.status(I);
       const fallback = status.renderer === "2d" && /interrupted pour pass/.test(status.reason) && G.composite(I) === null;
       globalThis.AtriumPourAnim = previousAnim;
-      G.enable(true);
+      G.enable(null);
       const pixels = equal(expected,draw(20,true,ordinary));
       retried = {injected,fallback,pixels,freshCanvas:glCanvas() !== before};
     } finally {
@@ -200,21 +200,21 @@ async function pourLOD() {
       await waitFor(() => waits >= 2 || reads > 0,"The allocation check did not poll its fence");
       if (reads) throw Error("The allocation error was read while the completion fence was pending");
       const waited = G.status(I).renderer === "gpu";
-      const oldFences = fences;
+      const oldFences = fences, oldWaits = waits;
       draw(10,false);
-      await waitFor(() => fences > oldFences,"Drawing again must replace the old completion fence");
-      const replacedFence = !reads;
+      await waitFor(() => waits > oldWaits || reads > 0,"The check must keep polling after another draw");
+      const keptFence = fences === oldFences && !reads;
       hold = false;
       await waitFor(() => /GPU ran out of memory/.test(G.status(I).reason),"The driver allocation failure did not fall back");
       const reported = G.status(I).renderer === "2d" && G.composite(I) === null;
       draw(6,false);
       const pixels = cv.getContext("2d").getImageData(0,0,cv.width,cv.height).data;
       const canvasInk = pixels.some((r,i) => i % 4 === 0 && r > pixels[i+1]+30 && r > pixels[i+2]+30);
-      return {waited,replacedFence,readAfterSignal:reads === 2 && readAfterSignal.every(Boolean),reported,canvasInk};
+      return {waited,keptFence,readAfterSignal:reads === 2 && readAfterSignal.every(Boolean),reported,canvasInk};
     } finally { Object.assign(gl,{fenceSync,clientWaitSync,getError}); }
   }
   try {
-    G.enable(true);
+    G.enable(null);
     await prepare();
     const levels = [6,10,20].map(pitch => P.lodRingsAt(region,pitch)?.level ?? -1);
     const initial = reversals(), warm = initial.metrics;
@@ -231,8 +231,9 @@ async function pourLOD() {
     const traversal = extended.concat(extended.slice(0,-1).reverse()).map(([pitch]) => [pitch,draw(pitch)]);
     const long = {levels:extended.map(([pitch]) => P.lodRingsAt(region,pitch)?.level ?? -1),
       fresh:traversal.every(([pitch,image]) => equal(image,fresh(pitch)))};
-    const fallbackPixels = fresh(6), lowBytes = G.stats(I).gpuBytes;
-    const highPixels = fresh(10), highBytes = G.stats(I).gpuBytes;
+    // Each cold total includes the viewport backing charged by the memory cap.
+    const fallbackPixels = fresh(6), lowBytes = G.diagnosticState(I).activeBytes;
+    const highPixels = fresh(10), highBytes = G.diagnosticState(I).activeBytes;
     const photos = equal(initial.a,fallbackPixels) && equal(initial.b,highPixels);
     globalThis.__atriumGpuFault = "pourLodReuse";
     G.release(I);

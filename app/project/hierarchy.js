@@ -220,6 +220,10 @@ globalThis.AtriumHierarchy = (() => {
   }
   // ------------------------------------------------------------------ compile
   function compile(project, opts = {}) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("schematic", "build");
+    return span ? span.run(compileInstances, project, opts) : compileInstances(project, opts);
+  }
+  function compileInstances(project, opts = {}) {
     const defs = opts.defs || new Map(project.library.map(d => [d.id, d]));
     const scope = opts.scope || scopeSetting(project), effective = effectiveScope(project, scope);
     const {instances:insts, roots, issues:structureIssues} = opts.structure || instances(project);

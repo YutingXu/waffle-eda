@@ -25,7 +25,8 @@ const short = {id: "short", kind: "track", layer: "Top", width: .5, net: "SHORT"
 const thin = {id: "thin", kind: "track", layer: "Top", width: .05, net: "THIN", points: [[-50, 10], [50, 10]]};
 const diag = {id: "diag", kind: "track", layer: "Top", width: .5, net: "DIAG", points: [[20, -20], [-20, -8]]};
 const under = {id: "under", kind: "track", layer: "Bottom", width: .5, net: "BACK", points: [[-50, -4], [50, -4]]};
-board.items = [long, short, thin, diag, under];
+const via = {id:"via",kind:"via",x:3,y:4,diameter:.8,drill:.4,layer:"Multi"};
+board.items = [long, short, thin, diag, under, via];
 const cam = c => view.restoreCamera({...view.camera(), ...c, referenceScale: view.fitScale()});
 function render(opts = {}) { texts.length = 0; view.render(board, new Map(), {grid: false, origin: false, layer: "Top", ...opts}); return view.internals().netLabels(); }
 const onScreen = l => l.x >= 0 && l.x <= W && l.y >= 0 && l.y <= H;
@@ -114,5 +115,119 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
   // Zoomed out so the pour is small on screen: none.
   const tiny = N.place({...v, scale: 2, toScreen: p => [p[0] * 2 + W / 2, p[1] * 2 + H / 2], view: [-200, -150, 200, 150]});
   assert.ok(tiny.length <= 1);
+}
+{
+  const rect = (x0,y0,x1,y1) => [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+  const region = (box, layer="Top", net="GND") => AtriumPCBPours.region([rect(...box)],layer,net);
+  const wrongLayer=region([-40,-25,40,25],"Bottom"), noNet=region([-40,-25,40,25],"Top",""),
+    distant=region([200,80,240,120]), tiny=region([-1,-1,0,1]);
+  const noCopperInView=AtriumPCBPours.region([rect(-40,-25,40,25),rect(-20,-15,20,15)],"Top","GND");
+  const pours=[wrongLayer,noNet,distant,tiny,noCopperInView];
+  let calls=0;
+  const input={items:[],pours,scale:40,width:W,height:H,PCB,opts:{layer:"Top"},maxWidth:0,
+    toScreen:([x,y])=>[W/2+x*40,H/2+y*40],view:[-10,-7.5,10,7.5],pourInk:()=>"#ff0000",
+    obstacles:()=>{calls++;return [];}};
+  assert.deepEqual(N.place(input),[]);
+  assert.equal(calls,0,"nothing eligible reaches the part-obstacle lookup");
+  const left=region([-30,-20,-.1,20]),right=region([.1,-20,30,20],"Top","VCC");
+  input.pours=[...pours,left,right];
+  const unblocked=N.place(input);
+  assert.equal(calls,1,"several eligible pours share a single obstacle read");
+  assert.deepEqual([...new Set(unblocked.map(l=>l.text))],["GND","VCC"],"pour order is preserved");
+  const [first]=unblocked, blocker=[first.x-30,first.y-10,first.x+30,first.y+10];
+  const blocked=N.place({...input,obstacles:()=>{calls++;return [blocker];}});
+  assert.equal(calls,2);
+  assert.ok(blocked.length && !blocked.some(l=>l.x===first.x&&l.y===first.y),"part bodies still exclude a viable label");
+  assert.deepEqual(N.place({...input,opts:{layer:"Top",hidden:new Set(["Source pours"])}}),[]);
+  assert.equal(calls,2,"hidden source pours need no part obstacles");
+
+  // The retained GPU overlay does not provide a full artwork query. Reproduce its
+  // paintTop entry point at a scale where no track can carry a name.
+  const I=view.internals(), grid=I.cache.index, query=grid.query;
+  const walks=[];
+  grid.query=box=>{walks.push(box);return query(box);};
+  try {
+    cam({cx:16,cy:0,scale:6});
+    const overlay=pours=>{
+      texts.length=0;
+      I.paintTop(board,I.cache.defs,{layer:"Top"},null,true,true,undefined,null,{pours});
+      return I.netLabels();
+    };
+    assert.deepEqual(overlay([wrongLayer,distant]),[]);
+    assert.equal(walks.length,0,"an offscreen active-layer pour cannot force a full spatial query during pan");
+    const shown=overlay([wrongLayer,region([-40,-30,50,30])]);
+    assert.ok(shown.some(l=>l.kind==="pour"));
+    assert.ok(walks.length && walks.every(([x0,y0,x1,y1])=>x1-x0<10 && y1-y0<5),
+      "visible pour names query only the world space occupied by each candidate label");
+    assert.deepEqual(texts.map(({text,x,y})=>({text,x,y})),shown.map(({text,x,y})=>({text,x,y})),"the label order and placement reach the canvas");
+  } finally { grid.query=query; }
+}
+{
+  // A wide track elsewhere on the board cannot force a viewport query.
+  const I=view.internals(), defs=I.cache.defs, grid=I.cache.index, query=grid.query;
+  const items=I.cache.all, iterate=items[Symbol.iterator];
+  let walks=0, scans=0;
+  grid.query=box=>{walks++;return query(box);};
+  items[Symbol.iterator]=function(){scans++;return iterate.call(this);};
+  const overlay=()=>{
+    I.paintTop(board,defs,{layer:"Top"},null,true,true,undefined,null,{pours:[]});
+    return I.netLabels();
+  };
+  const points=long.points;
+  try {
+    cam({cx:200,cy:200,scale:40});
+    assert.deepEqual(overlay(),[]);
+    assert.equal(walks,0,"a legible but offscreen track needs no full item query");
+    const warmed=scans;
+    via.x+=.15;
+    view.invalidate(board,[via]);
+    assert.deepEqual(overlay(),[]);
+    assert.equal(scans,warmed,"a known via move keeps the width summary");
+    long.points=[[185,200],[215,200]];
+    view.invalidate(board,[long]);
+    assert.ok(overlay().some(label=>label.text==="VBUS"),"a geometry edit updates cached track extents");
+    assert.equal(walks,1,"an intersecting width group retains the exact item query");
+    assert.equal(scans,warmed+1,"a track move rebuilds the width summary");
+    short.kind="part";short.x=0;short.y=5;short.def="fixture";
+    const shortPoints=short.points;
+    delete short.points;
+    try {
+      view.invalidate(board,[short]);
+      assert.ok(overlay().some(label=>label.text==="VBUS"),"a track converted to a part cannot hide another track label");
+      assert.equal(scans,warmed+1,"the old track bounds are still conservative");
+    } finally {
+      short.kind="track";short.points=shortPoints;
+      delete short.x;delete short.y;delete short.def;
+      view.invalidate(board,[short]);
+    }
+    long.points=points;
+    view.invalidate(board,[long]);
+    assert.deepEqual(overlay(),[]);
+    assert.equal(walks,2,"moving the track back retires the changed extents");
+    assert.equal(scans,warmed+2,"the unseen revision is incorporated on the new walk");
+  } finally {
+    long.points=points;
+    via.x=3;
+    view.invalidate(board,[long,via]);
+    delete items[Symbol.iterator];
+    grid.query=query;
+  }
+}
+{
+  // Several grid columns cross the same two sloped cutouts. A new row or scale needs its own intersections.
+  const region = AtriumPCBPours.region([
+    [[-68,-33],[68,-33],[68,33],[-68,33]],
+    [[-36,-16],[-4,-16],[-10,14],[-35,14]],
+    [[12,-12],[35,-12],[33,16],[8,16]]
+  ],"Top","GND");
+  const at = (cx,cy,scale) => N.place({items:[],pours:[region],scale,width:W,height:H,PCB,
+    opts:{layer:"Top"},maxWidth:0,pourInk:()=>"#ff0000",
+    view:[cx-W/2/scale,cy-H/2/scale,cx+W/2/scale,cy+H/2/scale],
+    toScreen:([x,y])=>[(x-cx)*scale+W/2,(y-cy)*scale+H/2]
+  }).map(({x,y})=>[x,y]);
+  assert.deepEqual(at(0,0,8),[[464,236],[80,492]],"columns through different sides of a cutout retain their parity");
+  assert.deepEqual(at(12,3,8),[[368,212],[752,468]],"panning keeps the newly exposed spots");
+  assert.deepEqual(at(-7,6,9),[[391,462],[679,30],[103,30]],"zooming retests the changed label dimensions");
+  assert.deepEqual(at(0,0,8),[[464,236],[80,492]],"returning to the original camera preserves the label order");
 }
 console.log("PASS net names on tracks (level of detail, repeats, pan, upright, current layer) and pours (interior points in view).");

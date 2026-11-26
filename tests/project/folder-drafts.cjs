@@ -59,6 +59,9 @@ async function restoreLayoutBlocks() {
   }
 }
 async function main() {
+  require("../../app/checks/diagnostics.js");
+  const recording = AtriumDiagnostics.startPerformance();
+  const counts = component => AtriumDiagnostics.performanceSnapshot().rows.find(row => row.component === component)?.counts;
   const store = shelf(), disk = new Map([["s1","original"]]), diagnostics = [];
   let seq = 0;
   function window(scope="physical folder one") {
@@ -84,6 +87,8 @@ async function main() {
   const a=window(), b=window(), copy=window("equally named different directory");
   assert.deepEqual(a.editor.metrics(),{writes:0,pending:false,error:undefined});
   a.put("s1","A");b.put("s1","B");await Promise.all([a.editor.flush(),b.editor.flush()]);
+  assert.equal(counts("autosave").completed,2);
+  assert.equal(counts("autosave").durable,0,"private draft transactions do not claim a native Save receipt");
   assert.equal(store.data.size,2);assert.equal(a.rows.size,1);assert.equal(disk.get("s1"),"original");
   assert.deepEqual(await copy.editor.list(),[]);assert.equal(copy.editor.metrics().writes,0);
   const afterCrash=window();let offers=await afterCrash.editor.list();
@@ -94,10 +99,12 @@ async function main() {
   await assert.rejects(afterCrash.editor.decide(offers[0],"discard"),/stale/);
   offers=await afterCrash.editor.list();const first=offers.find(o=>o.head.rows[0].desiredHash==="newer A");
   await afterCrash.editor.decide(first,"restore");assert.equal(afterCrash.work.get("s1"),"newer A");
+  assert.equal(counts("project").completed,1);
   assert.equal(disk.get("s1"),"original");assert.equal(store.data.size,2);
   afterCrash.saved("s1");await afterCrash.editor.flush();assert.equal(store.data.size,1,"durable Save retires the restored version even before a new local snapshot");
   offers=await afterCrash.editor.list();assert.equal(offers[0].state,"changed");
   await assert.rejects(afterCrash.editor.decide(offers[0],"restore"),/separately/);
+  assert.equal(counts("project").cancelled,1);
   await afterCrash.editor.decide(offers[0],"separate");assert.equal(afterCrash.recovery.rows[0].owner.working,"B");
   assert.equal(disk.get("s1"),"newer A");assert.equal(store.data.size,1);
   await afterCrash.editor.decide(offers[0],"discard");assert.equal(store.data.size,0);
@@ -110,6 +117,7 @@ async function main() {
   assert.equal([...store.data.values()][0].head.rows.find(r=>r.id==="s1").baseHash,"acknowledged predecessor");
   b.put("s1","quota failure");store.fail="Private store is full";
   await assert.rejects(b.editor.flush(),/full/);assert.equal(diagnostics.length,1);assert.equal(b.rows.size,2);
+  assert.equal(counts("autosave").failed,1);
   assert.equal([...store.data.values()][0].head.rows.find(r=>r.id==="s1").desiredHash,"after discard");
   store.fail=null;await b.editor.flush();assert.equal([...store.data.values()][0].head.rows.find(r=>r.id==="s1").desiredHash,"quota failure");
   assert.equal(b.editor.metrics().pending,false);
@@ -151,6 +159,7 @@ async function main() {
     globalThis.setTimeout=set;globalThis.clearTimeout=clear;Date.now=clock;globalThis.AtriumPower=power;
     await quiet.editor.close();
   }
+  recording.stop();
   await restoreLayoutBlocks();
   console.log("PASS private per-window draft lifecycle, durable acknowledgement, covered owners, conflicting bases, live-tab retirement, failed storage and copy isolation");
 }

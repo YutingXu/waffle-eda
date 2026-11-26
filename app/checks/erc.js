@@ -253,6 +253,10 @@ globalThis.AtriumERC = (() => {
     return C.evaluate(project, options);
   }
   function run(project, options = {}) {
+    const span = globalThis.AtriumDiagnostics?.performance?.begin("erc", "check");
+    return span ? span.run(compileChecks, project, options) : compileChecks(project, options);
+  }
+  function compileChecks(project, options = {}) {
     if (options.calculationSnapshot === undefined && hasCalculationAssertions(project)) {
       const calculations = globalThis.AtriumCalculations;
       if (!calculations) throw Error("Prepare the calculation snapshot before checking assertions.");

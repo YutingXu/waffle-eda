@@ -27,6 +27,18 @@ async function main() {
   const reply = (result,error) => window.__atriumReceive(calls.at(-1).id,result,error);
 
   assert.equal(calls.length,0);
+  const diagnostics=host.supportDiagnostics();
+  assert.deepEqual(Object.keys(calls.at(-1)).sort(),["action","id"],"native support facts need no project or user arguments");
+  assert.equal(calls.at(-1).action,"supportDiagnostics");
+  reply({platform:"macos",architecture:"arm64",displayCount:"two",device:"Private device /fixtures/synthetic", at:73731,
+    rendererTerminations:{terminated:27,unresponsive:1,memoryLimit:2,row:"/fixtures/synthetic/Private.waffle"}});
+  const publicFacts=JSON.parse(JSON.stringify(await diagnostics));
+  assert.deepEqual(publicFacts,{platform:"macos",architecture:"arm64",displayCount:"two",rendererTerminations:{unresponsive:1,terminated:27}});
+  assert.equal(calls.length,1,"only the coarse native snapshot is requested; chronological history is never fetched");
+  const older=host.supportDiagnostics();reply(null,"Unknown command.");assert.equal(await older,null);
+  const partial=host.supportDiagnostics();reply({platform:"windows",architecture:"Private CPU",displayCount:"one",
+    rendererTerminations:{exited:33,unresponsive:"1",browserExited:-1}});
+  assert.deepEqual(JSON.parse(JSON.stringify(await partial)),{platform:"windows",architecture:"unknown"});
   const clipboardPacket={summary:"Waffle PCB · 1 object · R1",data:'{"format":"atrium-selection"}'};
   const written=host.writeSelection(clipboardPacket);
   assert.equal(calls.at(-1).action,"writeSelection");assert.equal(calls.at(-1).data,clipboardPacket.data);reply(true);assert.equal(await written,true);

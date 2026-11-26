@@ -2343,7 +2343,7 @@ globalThis.AtriumDiff = (() => {
       w.postMessage({before, after, opts: {...(opts || {}), worker: false}});
     });
   }
-  async function compareAsync(before, after, opts = {}, active = () => true) {
+  async function compareInBackground(before, after, opts, active) {
     if(!globalThis.AtriumNotebook && globalThis.AtriumLazy && [before,after].some(p=>p?.documents?.some(d=>d.items?.some(noteOwner)))) await globalThis.AtriumLazy.need("AtriumNotebook");
     if(globalThis.AtriumNotebook) await AtriumNotebook.demand([before,after]);
     const o = {...DEFAULTS, ...opts};
@@ -2354,6 +2354,18 @@ globalThis.AtriumDiff = (() => {
       if (A()?.validationSteps) { const v1 = await runInSlices(A().validationSteps(before), active); if (!active()) return null; void v1; const v2 = await runInSlices(A().validationSteps(after), active); if (!active()) return null; void v2; }
     }
     return runInSlices(compareSteps(before, after, opts, opts.cache || null), active);
+  }
+  function compareAsync(before, after, opts = {}, active = () => true) {
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("history", "compute");
+    const result = compareInBackground(before, after, opts, active);
+    if (!timing) return result;
+    return result.then(value => {
+      timing.end(value == null ? "cancelled" : "completed");
+      return value;
+    }, error => {
+      timing.end(error?.name === "AbortError" || error?.cancelled ? "cancelled" : "failed");
+      throw error;
+    });
   }
   // Incremental comparisons against one baseline (Git HEAD, a saved file): its index and netlist
   // are built once, then each compare(after) only indexes the working design.

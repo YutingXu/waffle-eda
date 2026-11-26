@@ -10,6 +10,25 @@ require("../../app/core/model.js");
 require("../../app/editor/labs.js");
 require("../../app/editor/prefs.js");
 const P=AtriumPrefs;
+require("../../app/checks/diagnostics.js");
+const D=AtriumDiagnostics;
+assert.equal(D.performance,null);
+const lease=D.startPerformance(), telemetry=()=>D.performanceSnapshot().rows;
+P.set("general.units","mil");
+P.set("general.units","mil");
+const setItem=storage.setItem;
+storage.setItem=()=>{throw Error("private storage failure");};
+try {P.set("general.units","mm");} finally {storage.setItem=setItem;}
+const [settings]=telemetry();
+assert.equal(telemetry().length,1);
+assert.equal(settings.component,"settings");
+assert.equal(settings.operation,"save");
+assert.equal(settings.counts.started,2,"an unchanged preference is not saved");
+assert.equal(settings.counts.completed,1);
+assert.equal(settings.counts.failed,1);
+assert.doesNotMatch(JSON.stringify(settings),/general.units|private storage failure/);
+lease.stop();
+P.set("general.units","mil");P.reset(["general.units"]); // restore the test's original file bytes
 
 // Migration: the snap key becomes prefs; the old key stays for pcb-edit.js.
 assert.equal(P.get("pcb.snapObjects"),false);

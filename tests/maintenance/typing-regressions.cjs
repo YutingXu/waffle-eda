@@ -162,5 +162,61 @@ async function importDXF() {
   assert.ok(names.includes("Mechanical 1") && names.includes("Top Overlay") && names.includes("Mechanical 7"), "the picker offers the board's own layers: " + names.join(", "));
 }
 
+// These owners do work directly or through dedicated clients. Exercise the same
+// recorder across their normal boundaries, including an idle and a retired lease.
+async function sharedPerformanceOwners() {
+  const {appFile} = require("../support/app-source-paths.cjs");
+  for (const file of ["diagnostics", "erc", "connectivity", "router", "autorouter", "pdn", "impedance", "field-solver", "hierarchy", "bom"])
+    require(appFile(file + ".js"));
+  const D = AtriumDiagnostics, secret = "fixture private project";
+  const project = Atrium.project(secret), defs = new Map();
+  const sheet = project.documents.find(d => d.kind === "schematic"), board = project.documents.find(d => d.kind === "pcb");
+  sheet.items.push({id:"wire", kind:"wire", net:secret, points:[[0, 0], [1, 0]]});
+  const graph = () => Atrium.connectivity(sheet, defs);
+  assert.equal(graph().byWire.get("wire"), secret);
+  assert.deepEqual(D.performanceSnapshot().rows, [], "ordinary work leaves the recorder off");
+
+  const lease = D.startPerformance();
+  try {
+    assert.equal(graph().byWire.get("wire"), secret);
+    assert.ok(AtriumERC.run(project).messages);
+    const builds = () => D.performanceSnapshot().rows.find(row =>
+      row.component === "schematic" && row.operation === "build")?.counts.completed || 0;
+    const before = builds();
+    assert.ok(AtriumHierarchy.compile(project).instances.length);
+    assert.equal(builds(), before + 1, "direct hierarchy assembly is observable independently of ERC");
+    assert.deepEqual(AtriumBOM.build(AtriumBOM.collect(project)), []);
+    const route = AtriumRouter.begin(board, defs, {net:secret, start:[0, 0], layer:"Top"});
+    const preview = route.move([1, 0]);
+    assert.equal(route.move([1, 0]), preview, "snap-cell memo hits do no routing work");
+    const batch = AtriumAutorouter.prepare(board, defs, {}).job;
+    assert.ok((await AtriumAutorouter.run(batch, {foreground:true}).promise).stats);
+
+    const adapt = {compute: job => ({value: job.input}), makeWorker: () => null};
+    const finished = AtriumPDN.runSolver({input:7}, {foreground:true}, adapt);
+    const cancelled = AtriumPDN.runSolver({input:9}, {foreground:true}, adapt);
+    cancelled.cancel();
+    await assert.rejects(cancelled.promise, /Cancelled/);
+    assert.equal((await finished.promise).value, 7);
+    assert.ok((await AtriumFieldSolver.async({structure:"microstrip", w:1, h:1, er:1})).ok);
+
+    const snapshot = D.performanceSnapshot();
+    const counts = (component, operation) => snapshot.rows.find(row => row.component === component && row.operation === operation)?.counts;
+    for (const [component, operation] of [["schematic","compute"], ["routing","compute"], ["routing","request"],
+      ["erc","check"], ["analysis","request"], ["manufacturing","compute"], ["manufacturing","build"]]) {
+      assert.equal(counts(component, operation)?.completed, 1, component + "/" + operation + " reports its real operation");
+    }
+    for (const [component, operation] of [["analysis","request"], ["routing","request"]]) {
+      assert.equal(counts(component, operation)?.ready, 1);
+    }
+    const solve = counts("analysis", "compute");
+    assert.deepEqual([solve.queued, solve.started, solve.ready, solve.completed, solve.cancelled], [2, 1, 1, 1, 1]);
+    assert.equal(JSON.stringify(D.performanceSnapshot({shareable:true})).includes(secret), false);
+  } finally { lease.stop(); }
+  const stopped = D.performanceSnapshot();
+  graph();
+  assert.deepEqual(D.performanceSnapshot(), stopped, "a stopped recorder gains no work from any producer");
+}
+
 const restoreWorker = require("../support/import-worker.cjs")({client: true});
-globalThis.__testDone = importDXF().then(() => console.log("typing-regressions: ok")).finally(restoreWorker);
+globalThis.__testDone = importDXF().finally(restoreWorker).then(sharedPerformanceOwners).then(() => console.log("typing-regressions: ok"));

@@ -13,11 +13,13 @@ globalThis.AtriumLivePourClient = (() => {
     let worker, mirror, active, retire, sequence = 0;
     function ask(data, still, drive) {
       return new Promise((resolve, reject) => {
-        const request = {id:++sequence, resolve, reject, rows:[], receive:0};
+        const span = globalThis.AtriumDiagnostics?.performance?.queue("pours", "request");
+        const request = {id:++sequence, resolve, reject, rows:[], receive:0, span};
         active = request;
         request.timer = setTimeout(() => close(Object.assign(Error("The live pour worker stopped responding."), {hung:true})), TIMEOUT_MS);
         drive(request.id).then(() => {
           if (active !== request || !still()) throw moved();
+          request.span?.start();
           worker.postMessage({...data, id:request.id});
         }).catch(error => {
           if (active !== request) return;
@@ -32,6 +34,7 @@ globalThis.AtriumLivePourClient = (() => {
       if (active !== request) return;
       active = null; clearTimeout(request.timer);
       if (worker) retire = setTimeout(() => close(), IDLE_MS);
+      request.span?.end(error?.cancelled ? "cancelled" : error ? "failed" : "completed");
       if (error) request.reject(error);
       else request.resolve(result);
     }
@@ -70,8 +73,12 @@ globalThis.AtriumLivePourClient = (() => {
           if (field == null) row[data.field] = data.value;
           else if (Array.isArray(field)) field.push(...data.value);
           else row[data.field] += data.value;
-        } else if (data.error) {mirror = null;finish(request, Error(data.error));}
-        else finish(request, null, {...data.result, rows:request.rows, request:request.id, receive:request.receive});
+        } else if (data.error) {
+          mirror = null; finish(request, Error(data.error));
+        } else {
+          request.span?.ready();
+          finish(request, null, {...data.result, rows:request.rows, request:request.id, receive:request.receive});
+        }
         request.receive = Math.max(request.receive, performance.now() - t);
       };
     }

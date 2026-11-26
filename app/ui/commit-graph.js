@@ -106,22 +106,5 @@ globalThis.AtriumCommitGraph = (() => {
       if (n.current) { ctx.beginPath(); ctx.arc(cx, cy, radius + 2.5, 0, Math.PI * 2); ctx.strokeStyle = tint; ctx.lineWidth = 1; ctx.stroke(); }
     }
   }
-  // Proposed icon-bank symbols (docs/ui-library.md › Commit graph): History, a Git branch and More (⋯).
-  // Added to the page's icon bank on first use until they are approved for index.html.
-  const ICONS = {
-    history: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/><path d="M12 8v4l3 2"/>',
-    branch: '<circle cx="7" cy="6" r="2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="8" r="2"/><path d="M7 8v8M17 10c0 4-6 3-9.2 6.4"/>',
-    more: '<g fill="currentColor" stroke="none"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></g>'
-  };
-  function icons() {
-    const bank = document.querySelector("svg symbol[id^=i-]")?.parentElement;
-    if (!bank) return;
-    for (const [name, body] of Object.entries(ICONS)) {
-      if (document.getElementById("i-" + name)) continue;
-      const s = document.createElementNS("http://www.w3.org/2000/svg", "symbol");
-      s.id = "i-" + name; s.setAttribute("viewBox", "0 0 24 24"); s.dataset.proposed = "";
-      s.innerHTML = body; bank.append(s);
-    }
-  }
-  return Object.freeze({LANE, lanes, width, paint, palette, reset, icons});
+  return Object.freeze({LANE, lanes, width, paint, palette, reset});
 })();

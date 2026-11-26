@@ -4,6 +4,7 @@ require("../../app/core/model.js");
 require("../../app/core/spatial.js");
 require("../../app/pcb/pcb-appearance.js");
 require("../../app/canvas/canvas.js");
+require("../../app/canvas/pcb-net-labels.js");
 
 const events = [], defs = new Map();
 const ctx = new Proxy({}, {get: (target, key) => target[key] ?? (() => {})});
@@ -28,7 +29,7 @@ globalThis.AtriumPolygonPour = {
   tiles: {dragVisible: () => drag},
 };
 globalThis.AtriumPourAnim = {active: () => animated};
-globalThis.AtriumPCBNetLabels = {MIN_PX: 12,
+globalThis.AtriumPCBNetLabels = {...AtriumPCBNetLabels,
   place({pours}) { events.push(["labels", pours]); return []; }, draw() {},
 };
 globalThis.AtriumIdle = {idle() { return ++idle; }, cancel() {}};

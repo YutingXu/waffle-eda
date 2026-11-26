@@ -12,6 +12,7 @@ require("../../app/project/folder-project-engine.js");
 require("../../app/project/folder-project.js");
 require("../../app/editor/i18n.js");
 require("../../app/project/editor-files.js");
+require("../../app/checks/diagnostics.js");
 
 const F = AtriumFolderProjectEngine, C = AtriumFolderProject;
 const encode = text => new TextEncoder().encode(text);
@@ -179,14 +180,28 @@ globalThis.__testDone = (async () => {
   assert.equal(p.dirty,false,"hydrating documents does not create edits");
   const a = p.project.documents.find(d=>d.id==="doc-1"), b = p.project.documents.find(d=>d.id==="doc-2");
   const change = (d,x) => ({id:d.id,kind:d.kind,put:[{...d.items[0],x}]});
+  const recording = AtriumDiagnostics.startPerformance();
+  const counts = (component, operation) => AtriumDiagnostics.performanceSnapshot().rows
+    .find(row => row.component === component && row.operation === operation)?.counts;
+  assert.equal((await p.save()).clean,true);
+  assert.equal(counts("save","save"),undefined,"an unchanged project never pretends to write");
   p.record([change(a,1)]); p.record([change(b,2)]);
-  let resume;
+  let resume, posted;
+  const handedOff = new Promise(resolve => {posted=resolve;});
+  const hostCommit = disk.host.folderCommit;
+  disk.host.folderCommit = payload => {posted();return hostCommit(payload);};
   disk.hold(new Promise(resolve=>{resume=resolve;}));
   const first = p.save({documentId:a.id});
   assert.equal(p.pendingSave,true);
+  assert.equal(counts("save","save").queued,1);
   p.record([change(a,3)]); // New edit to the same record while the captured save is in flight.
+  await handedOff;
+  assert.equal(counts("save","save").ready,1);
+  assert.equal(counts("save","save").durable,0,"posting a Save is not a durable acknowledgment");
   resume();
   await first;
+  disk.host.folderCommit = hostCommit;
+  assert.equal(counts("save","save").durable,1);
   assert.equal(p.modified(a.id),true); assert.equal(p.modified(b.id),true);
   assert.deepEqual(disk.writes[0].map(x=>x.path),[disk.doc(1)]);
   assert.equal(disk.writes[0][0].splice.edits.length,1);
@@ -194,8 +209,14 @@ globalThis.__testDone = (async () => {
   await p.save({documentId:a.id});
   assert.equal(disk.writes.length,1,"undo to saved cursor produces no disk writes");
   assert.equal(p.modified(a.id),false); assert.equal(p.modified(b.id),true);
+  disk.host.folderCommit = async () => ({saved:false,error:"busy"});
+  await assert.rejects(p.save({documentId:b.id}),/busy/);
+  disk.host.folderCommit = hostCommit;
+  assert.equal(counts("save","save").durable,1);
+  assert.equal(counts("save","save").failed,1);
   p.record([change(a,4),change(b,5)],{atomic:true});
   assert.equal((await p.save({documentId:a.id})).needsSaveAll,true);
+  assert.equal(counts("save","save").cancelled,1);
   await p.save({all:true});
   assert.deepEqual(disk.writes[1].map(x=>x.path).sort(),[disk.doc(1),disk.doc(2)]);
 
@@ -217,9 +238,11 @@ globalThis.__testDone = (async () => {
   const otherRead = disk.reads.length;
   p.record([change(b,6)]);
   await p.synchronize([disk.doc(2)]);
+  assert.equal(counts("project","sync").completed,1);
   assert.deepEqual(disk.reads.slice(otherRead),[disk.doc(2)],"the watcher reads only the changed document");
   assert.ok(p.conflicts.has(b.id));
   await assert.rejects(p.save({documentId:b.id}),/resolve/i);
+  assert.equal(counts("save","save").failed,2);
   await p.resolveConflict(b.id,"merge");
   const merged = p.project.documents.find(d=>d.id===b.id);
   assert.equal(merged.items.find(i=>i.id===b.items[0].id).x,6);
@@ -277,5 +300,19 @@ globalThis.__testDone = (async () => {
   await versioned.activate("doc-3");
   assert.equal(versioned.activeId,"doc-3");
   await versioned.close();
+  const browser = mock();
+  const temporary = await C.open({...browser.open,temporary:true},{host:browser.host,workerFactory});
+  try {
+    const {durable,completed} = counts("save","save");
+    temporary.record([change(temporary.project.documents[0],18)]);
+    await temporary.save();
+    assert.equal(counts("save","save").completed,completed + 1);
+    assert.equal(counts("save","save").durable,durable,"an in-memory save never claims a native receipt");
+    recording.stop();
+    const stopped = AtriumDiagnostics.performanceSnapshot();
+    temporary.record([change(temporary.project.documents[0],19)]);
+    await temporary.save();
+    assert.deepEqual(AtriumDiagnostics.performanceSnapshot(),stopped,"a Save after recording stops adds no diagnostic sample");
+  } finally { await temporary.close(); recording.stop(); }
   console.log("PASS visible-only folder open, six boards, coherent leases, document scope, Undo, concurrent Save, atomic asset and Save All");
 })().catch(error=>{console.error(error);process.exitCode=1;});

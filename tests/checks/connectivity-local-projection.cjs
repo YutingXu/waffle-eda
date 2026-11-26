@@ -1,7 +1,7 @@
 "use strict";
 // Exact airwires after an item moves within its existing contact graph.
 const assert = require("node:assert/strict");
-for (const f of ["model", "parts", "board-shape", "net-ties", "undo-store", "engine-core", "connectivity", "connectivity-live"])
+for (const f of ["model", "parts", "board-shape", "net-ties", "undo-store", "engine-core", "connectivity", "diagnostics", "connectivity-live"])
   require(require("../support/app-source-paths.cjs").appFile(f + ".js"));
 const U = AtriumUndoStore, C = AtriumConnectivity, L = AtriumConnectivityLive, A = Atrium;
 const via = (id, x, y, net) => ({id,kind:"via",x,y,net,diameter:.8,drill:.3,layer:"Multi"});
@@ -96,10 +96,19 @@ edit("project replacement or expired cursor",()=>{project.documents.push(A.sheet
   assert.ok(started.work&&!started.result,"no budget: the pass waits");
   const jobs=[];let published=null;
   const stage=(phase,key,fn)=>{const job={current:()=>true,cancel(){},run:()=>fn(job.current,{timeRemaining:()=>50})};jobs.push(job);return job;};
+  const recording=AtriumDiagnostics.startPerformance();
+  const obsolete=L.deferAirwires(d,defs,U,stage,"other-canvas",()=>false,()=>assert.fail("stale connectivity was published"));
+  obsolete.cancel();
+  jobs.shift();
   L.deferAirwires(d,defs,U,stage,"canvas",()=>true,result=>{published=result;},started);
   while(jobs.length&&!published)jobs.shift().run();
   assert.ok(published,"the pipeline finishes the started pass");
   assert.deepEqual(fields(published),fields(C.inspectFull(A.clone(d),new Map(project.library.map(x=>[x.id,A.clone(x)])))),"continued pass equals full");
+  recording.stop();
+  const rows=AtriumDiagnostics.performanceSnapshot().rows;
+  assert.deepEqual(rows.find(row=>row.component==="connectivity"&&row.operation==="compute").counts,
+    {queued:2,started:1,ready:1,visible:0,durable:0,completed:1,cancelled:1,failed:0});
+  assert.equal(rows.find(row=>row.component==="connectivity"&&row.operation==="publish").counts.completed,1);
 }
 U.reset();
 console.log("PASS exact local airwires: reused nets, moves, short witnesses, masks, pours, history, supersession and the edit frame's pass");

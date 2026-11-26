@@ -8,11 +8,12 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "../bridge.js"), "utf8");
 const appSource = name => fs.readFileSync(path.join(__dirname,"../../app",name),"utf8");
 
-function load({top = true, mac = false, gtk = false, launch = false, workspace = false} = {}) {
+function load({top = true, mac = false, gtk = false, launch = false, workspace = false, input = false} = {}) {
   const calls = [], events = [], listeners = [];
   const webview = {postMessage(s) { calls.push(JSON.parse(s)); }, addEventListener(type, fn) { if (type === "message") listeners.push(fn); }};
   const windowEvents = new EventTarget(), document = new EventTarget();
   document.hasFocus = () => true;
+  if (input) document.documentElement = {dataset:{atriumNativeTitlebar:"macos"}};
   const native = mac || gtk ? {webkit:{messageHandlers:{atriumHost:webview}}} : {chrome:{webview}};
   const window = {...native, dispatchEvent(e) { events.push(e); },
     addEventListener: windowEvents.addEventListener.bind(windowEvents), removeEventListener: windowEvents.removeEventListener.bind(windowEvents)};
@@ -38,9 +39,58 @@ function load({top = true, mac = false, gtk = false, launch = false, workspace =
     context.setTimeout = (callback, delay) => timers.push({callback, delay});
   }
   vm.runInNewContext(source, context);
-  const host = message => mac ? window.__atriumReceive(message.id,message.result,message.error) : listeners.forEach(fn => fn({data:message}));
+  const host = message => mac || gtk ? window.__atriumReceive(message.id,message.result,message.error) : listeners.forEach(fn => fn({data:message}));
   return {window, windowEvents, calls, events, host, listeners, context, frames, timers,
     openDialog() { dialog = true; notify?.(); }};
+}
+
+async function performanceBoundaries() {
+  for (const options of [{mac:true, input:true}, {gtk:true}, {}]) {
+    const {window, context, calls, host} = load(options), rows = [];
+    context.AtriumDiagnostics = {performance:{begin(...tokens) {
+      return {end(...status) {rows.push([...tokens,...status]);}};
+    }}};
+    context.AtriumHost = window.AtriumHost;
+    vm.runInNewContext(appSource("formats/io-browser.js"), context);
+    const reply = (result, error) => host({id:calls.at(-1).id, result, error});
+    const support = context.AtriumHost.supportDiagnostics();
+    reply({platform:"macos"}); await support;
+    if (options.input) {
+      const input = context.AtriumHost.inputDiagnostics("read");
+      reply({rows:[]}); await input;
+    }
+    const status = context.AtriumHost.folderStatus({grant:"synthetic"});
+    reply({}); await status;
+    const saveReport = context.AtriumIO.exportFile("synthetic.json", "private report", {diagnostics:true});
+    reply(true); assert.equal(await saveReport,true);
+    assert.deepEqual(rows,[],"diagnostic and status requests cannot create more samples");
+    const pickerCancels = [
+      ["folderPickAsset", {grant:"synthetic", ownerId:"sheet", mediaTypes:["image/png"]}],
+      ["nativeMemberExportCopy", {grant:"synthetic", name:"Copy.wsch", data:"YQ=="}],
+      ["installProjectArchive", {manifest:"Copy.waffle", version:"2.0", files:[]}],
+      ["folderResolve", {grant:"synthetic"}],
+    ];
+    for (const [action,payload] of pickerCancels) {
+      const selection = context.AtriumHost[action](payload);
+      assert.equal(calls.at(-1).action,action);
+      reply(false);
+      assert.equal(await selection,false,action+" preserves the host reply");
+      assert.deepEqual(rows.pop(),["native","request","cancelled"],action+" records the user's cancellation");
+    }
+    for (const [result,error] of [[true,undefined],[false,undefined],[null,"private failure"]]) {
+      const publishing = context.AtriumIO.exportFile("synthetic.zip","private design",{manufacturing:true});
+      assert.deepEqual(Object.keys(calls.at(-1)).sort(),["action","id","name","text"]);
+      assert.equal(calls.at(-1).action,"export");
+      reply(result,error);
+      if (error) await assert.rejects(publishing,/private failure/);
+      else assert.equal(await publishing,result);
+    }
+    assert.deepEqual(rows,[
+      ["native","request","completed"],["manufacturing","publish","durable"],
+      ["native","request","cancelled"],["manufacturing","publish","cancelled"],
+      ["native","request","failed"],["manufacturing","publish","failed"]
+    ]);
+  }
 }
 
 async function launchSettle() {
@@ -346,6 +396,7 @@ async function main() {
   assert.equal(await window.__atriumSaveForClose(), false, "no editor, nothing saved");
   host("not an object"); host(null); host({id: 99999, result: 1});
   await notebookDrops();
+  await performanceBoundaries();
   console.log("Passed GTK/WebView2 launch and WebView2 bridge, including ownership of delayed native drops.");
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

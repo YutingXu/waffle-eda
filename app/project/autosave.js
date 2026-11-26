@@ -342,6 +342,7 @@ globalThis.AtriumAutosave = (() => {
         return urgentFollowup;
       }
       clearTimeout(timer); timer = 0; firstChange = 0;
+      let timing = G.AtriumDiagnostics?.performance?.begin("autosave","save"), outcome = "failed";
       const run = (async () => {
         const cost = {serialize: 0, write: 0, slice: 0, written: 0};
         let parts = null, p = null, s = null, generation, revision, dirty, name, imported;
@@ -349,10 +350,12 @@ globalThis.AtriumAutosave = (() => {
         for (let attempt = 0; !parts; attempt++) {
           // Loading the serializer or preparing an import can outlive File > Open or Save As.
           // A native folder projection contains only its visited owners.
-          if (automatic && !pref("general.autosave", true)) return null;
+          if (automatic && !pref("general.autosave", true)) { outcome = "cancelled"; return null; }
           const adopted = host.folderProject?.();
-          if (adopted) return adopted.flushDrafts();
-          if (host.importSession?.()) return G.AtriumForeignDrafts?.flush(host);
+          if (adopted || host.importSession?.()) {
+            timing?.end("cancelled"); timing = null;
+            return adopted ? adopted.flushDrafts() : G.AtriumForeignDrafts?.flush(host);
+          }
           p = host.project(); s = slotFor(p);
           generation = G.AtriumHost?.projectGeneration;
           revision = host.revision?.() ?? null; dirty = !!host.isDirty?.(); name = String(p.name || "Untitled");
@@ -377,6 +380,7 @@ globalThis.AtriumAutosave = (() => {
         const v = touch({slot: currentSlot}); v.last = {slot: currentSlot, ts, dirty: stillActive ? meta.dirty : !!host.isDirty?.()};
         if (wasDismissed(v, meta.id)) { v.dismissedSnapshots = dismissals(v).filter(id => id !== meta.id); delete v.dismissed; }
         writeIndex(v);
+        timing?.ready();
         try { await write(meta, parts, slotRec, urgent, cost); if (keyed) chunked = active() ? {slot: s, id: meta.id, value: parts.chunks} : null; }
         catch (e) {
           chunked = null;
@@ -385,6 +389,7 @@ globalThis.AtriumAutosave = (() => {
           try { await emergencyPrune(); await write(meta, parts, slotRec, true, cost); }
           catch { warn("quota", "Recovery storage is full, so autosave is paused. Save the project to a file, or delete old snapshots in File › Recover…"); return null; }
         }
+        timing?.end("completed"); timing = null;
         if (active()) head = reuse ? {...head, ts} : {id: meta.id, slot: s, reason, created: ts, ts};
         Object.assign(stats, {saves: stats.saves + 1, serializeMs: cost.serialize, writeMs: cost.write, mainThreadMs: cost.serialize + cost.write, longestSliceMs: cost.slice,
           parts: keyed ? parts.keys.length : parts.length, urgent, bytes: size, written: cost.written, fresh: keyed ? parts.fresh.length : parts.length, at: ts, error: ""});
@@ -396,7 +401,8 @@ globalThis.AtriumAutosave = (() => {
       })();
       saving = run;
       try { return await run; }
-      finally { saving = null; if (again) { again = false; schedule(); } }
+      catch (error) { if (error?.name === "AbortError") outcome = "cancelled"; throw error; }
+      finally { timing?.end(outcome); saving = null; if (again) { again = false; schedule(); } }
     }
     function schedule() {
       if (host?.importSession?.()) { G.AtriumForeignDrafts?.schedule(host); return; }
@@ -425,16 +431,28 @@ globalThis.AtriumAutosave = (() => {
     }
     function detach(p) { slot = "copy:" + SESSION + "-" + (++detachedCount); anchor = p.documents[0]?.id || null; head = null; }
     async function restore(id, {copy = false, force = false, atLaunch = false, current} = {}) {
-      const {meta, json} = await readData(id), p = await projectFrom(json);
-      if (copy) p.name = String(p.name || "Untitled") + " (recovered)";
-      if (!host?.replaceProject) throw Error("This editor build can't restore projects.");
-      if (atLaunch && (G.__atriumOpeningProject || host.isStarter?.() === false)) return false;
-      if (!await host.replaceProject(p, {copy, force, dirty: copy || meta.dirty, current})) return false;
-      if (copy) detach(p);
-      else { slot = meta.slot; anchor = p.documents.some(d => "doc:" + d.id === meta.slot) ? meta.slot.slice(4) : p.documents[0]?.id || null; }
-      const v = touch({slot}); v.last = {slot, ts: now(), dirty: copy || meta.dirty}; writeIndex(v);
-      host.info?.((copy ? "Opened a copy of " : "Restored ") + meta.name + " from " + fmtTime(meta.ts, now()) + " (" + fmtSize(meta.size) + ")");
-      return true;
+      const timing = G.AtriumDiagnostics?.performance?.begin("project","load");
+      let outcome = "failed";
+      try {
+        const {meta, json} = await readData(id), p = await projectFrom(json);
+        if (copy) p.name = String(p.name || "Untitled") + " (recovered)";
+        if (!host?.replaceProject) throw Error("This editor build can't restore projects.");
+        if (atLaunch && (G.__atriumOpeningProject || host.isStarter?.() === false) ||
+            !await host.replaceProject(p, {copy, force, dirty: copy || meta.dirty, current})) {
+          outcome = "cancelled";
+          return false;
+        }
+        timing?.ready();
+        if (copy) detach(p);
+        else { slot = meta.slot; anchor = p.documents.some(d => "doc:" + d.id === meta.slot) ? meta.slot.slice(4) : p.documents[0]?.id || null; }
+        const v = touch({slot}); v.last = {slot, ts: now(), dirty: copy || meta.dirty}; writeIndex(v);
+        host.info?.((copy ? "Opened a copy of " : "Restored ") + meta.name + " from " + fmtTime(meta.ts, now()) + " (" + fmtSize(meta.size) + ")");
+        outcome = "completed";
+        return true;
+      } catch (error) {
+        if (error?.name === "AbortError") outcome = "cancelled";
+        throw error;
+      } finally { timing?.end(outcome); }
     }
     async function openRecent(s) {
       const rec = recentCache.find(r => r.slot === s) || (await refreshRecent()).find(r => r.slot === s);
@@ -515,7 +533,7 @@ globalThis.AtriumAutosave = (() => {
     }
 
     // ---- user interface (recover.js, loaded on first use) -------------------------------------
-    const ui = () => G.AtriumRecover ? Promise.resolve(G.AtriumRecover) : G.AtriumLazy ? G.AtriumLazy.need("AtriumRecover") : Promise.reject(Error("The recovery dialogs are not loaded."));
+    const ui = options => G.AtriumRecover ? Promise.resolve(G.AtriumRecover) : G.AtriumLazy ? G.AtriumLazy.need("AtriumRecover",options) : Promise.reject(Error("The recovery dialogs are not loaded."));
     const shown = p => p.catch(e => { host?.info?.(e.message); return null; });
     const openRecovery = plan => G.document ? shown(ui().then(U => plan ? U.prompt(self, host, plan) : U.browser(self, host))) : Promise.resolve(null);
     function foreignHint() {
@@ -537,7 +555,7 @@ globalThis.AtriumAutosave = (() => {
       return manager.available(host,rows);
     }
     const openBrowser = () => G.document ? shown(ui().then(U => U.browser(self, host))) : Promise.resolve(null);
-    const openDiagnostics = () => G.document ? shown(ui().then(U => U.diagnostics(self, host))) : Promise.resolve(null);
+    const openDiagnostics = () => G.document ? shown(ui({measure:false}).then(U => U.diagnostics(self, host))) : Promise.resolve(null);
     const showWarning = text => { if (G.document?.body) ui().then(U => U.warning(self, host, text), () => {}); };
     const hideWarning = () => G.AtriumRecover?.hideWarning();
     function dismiss(id) {

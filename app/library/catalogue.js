@@ -207,6 +207,21 @@ globalThis.AtriumCatalogue = (() => {
   // state: {facet: Map(key -> label)}; counts: {facet: Map(key -> {label, n})}. Each facet's counts
   // apply every other facet's selection, so the choices in a facet stay visible once one is picked.
   function query(defs, q, o = {}) {
+    return searchCatalogue(queryRows, defs, q, o);
+  }
+  function searchCatalogue(run, ...args) {
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin("library", "search");
+    if (!timing) return run(...args);
+    try {
+      const result = run(...args);
+      timing.end("completed");
+      return result;
+    } catch (error) {
+      timing.end("failed");
+      throw error;
+    }
+  }
+  function queryRows(defs, q, o) {
     const ids = o.ids || new Set(defs.map(d => d?.id)), state = o.state || {}, p = parse(q);
     const base = []; let hiddenN = 0;
     for (const d of defs) {
@@ -381,10 +396,13 @@ globalThis.AtriumCatalogue = (() => {
     return extra.sort((a, b) => a - b);
   }
   function queryPrepared(defs, index, q, o = {}) {
+    return searchCatalogue(preparedRows, defs, index, q, o);
+  }
+  function preparedRows(defs, index, q, o) {
     const members = Object.hasOwn(o, "members") ? o.members : index.members;
     // Footprint collapsing and unsorted results use file order.
     if (o.footprints || o.sort === false) {
-      const res = query(o.accept ? defs.filter(o.accept) : defs, q, {...o, members});
+      const res = queryRows(o.accept ? defs.filter(o.accept) : defs, q, {...o, members});
       const matching = res.items.length;
       return {...res, items: res.items.slice(0, o.limit ?? Infinity), matching};
     }

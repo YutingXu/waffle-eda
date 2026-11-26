@@ -201,6 +201,11 @@ async function checkDemand(page) {
       const host = AtriumNavHost, p = AtriumParts.example(), sheet = p.documents.find(d => d.kind === "schematic");
       await host.replaceProject({...p,documents:[sheet]}, {force:true,dirty:false}); host.act("view-3d");
       AtriumPower.host({occluded:true});
+      const board = p.documents.find(d => d.kind === "pcb"), parts = board.items.filter(i => i.kind === "part");
+      const omitted = parts.find(i => i.link);
+      if (!omitted) throw Error("The opening-count test requires a linked PCB component.");
+      p.variants = [{id:"reduced-assembly", name:"Reduced assembly", parts:{[omitted.link]:{fitted:false}}}];
+      p.activeVariant = "reduced-assembly";
       await host.replaceProject(p, {force:true,dirty:false}); host.act("view-3d");
       AtriumPower.host({occluded:false});
     });
@@ -210,10 +215,55 @@ async function checkDemand(page) {
     await page.keyboard.press("2"); release();
     await page.waitForFunction(() => globalThis.AtriumLazy?.has(["Atrium3D","AtriumSTEP","AtriumFlexFold"]));
     assert.equal(await page.evaluate(() => Atrium3D.isOpen()), false, "a delayed 3 cannot override a newer 2");
-    await page.keyboard.press("3");
-    await page.waitForFunction(() => Atrium3D.isOpen());
+    await page.evaluate(() => {
+      const host = AtriumNavHost, board = host.doc();
+      const read = host.boardGeometry, prepare = host.prepareBoardGeometry;
+      let releaseGeometry;
+      const ready = new Promise(resolve => { releaseGeometry = resolve; });
+      globalThis.openingCountGeometryRequests = 0;
+      host.boardGeometry = doc => doc === board ? null : read.call(host, doc);
+      host.prepareBoardGeometry = doc => {
+        if (doc !== board) return prepare.call(host, doc);
+        openingCountGeometryRequests++;
+        return ready.then(() => prepare.call(host, doc));
+      };
+      globalThis.releaseOpeningGeometry = () => {
+        host.boardGeometry = read;
+        host.prepareBoardGeometry = prepare;
+        releaseGeometry();
+      };
+    });
+    try {
+      await page.keyboard.press("3");
+      await page.waitForFunction(() => Atrium3D.isOpen());
+      const opening = await page.evaluate(() => {
+        const view = [...Atrium3D.viewers.values()][0];
+        return {fallback:view.fallback, noScene:!view.scene?.(), requested:openingCountGeometryRequests,
+          fitted:AtriumNavHost.doc().items.filter(i => i.kind === "part").length - 1,
+          status:document.getElementById("status").textContent};
+      });
+      if (!opening.fallback) {
+        assert.ok(opening.requested && opening.noScene, "the geometry hold prevents an initial 3D scene");
+        assert.match(opening.status, new RegExp("^3D layout mode · " + opening.fitted + " components?(?: ·|$)"),
+          "opening counts fitted PCB components before resolved geometry is available");
+      }
+    } finally {
+      await page.evaluate(() => releaseOpeningGeometry());
+    }
+    await page.waitForFunction(() => {
+      const view = [...Atrium3D.viewers.values()][0];
+      return !!(view?.fallback || view?.stats?.().draws > 0);
+    });
+    await page.evaluate(() => { globalThis.demandViewer = [...Atrium3D.viewers.values()][0]; });
     await page.keyboard.press("2");
     await page.waitForFunction(() => !Atrium3D.isOpen());
+    const closed = await page.evaluate(() => {
+      const view = globalThis.demandViewer;
+      delete globalThis.demandViewer;
+      return {closed:view.closed, connected:view.root.isConnected, fallback:view.fallback, freed:view.freed};
+    });
+    assert.ok(closed.closed && !closed.connected, "returning to 2D removes the pane");
+    if (!closed.fallback) assert.ok(closed.freed?.buffers > 0 && closed.freed.live === 0, "returning to 2D releases the 3D buffers");
     assert.equal(requests.length, 1);
   } finally { release(); }
 }
@@ -252,6 +302,66 @@ async function checkNavigation(page) {
 
   assert.ok(await focus(), "the board viewer takes focus on open");
   assert.equal(await page.locator("#canvas").getAttribute("aria-hidden"), "true");
+  const box = await canvas.boundingBox(), x = Math.round(box.x + box.width*.4), y = Math.round(box.y + box.height*.42);
+  await page.mouse.move(x,y);
+  assert.equal(await page.evaluate(() => typeof AtriumCamera.wheelPacket), "function", "first 3D open already has the shared wheel owner");
+  const observedWheel = async (host, dy, count) => {
+    await page.mouse.wheel(0, dy);
+    await page.waitForFunction(({host, count}) => host.packets.length >= count, {host, count});
+  };
+  // WKWebView can deliver exactly the same DOM packet for a precise scroll and a notch.
+  const wheelHost = await page.evaluateHandle(() => {
+    const v=[...Atrium3D.viewers.values()][0], packets=[];
+    const state={marked:false, packets};
+    const native = e => e.isTrusted && state.marked && e.deltaMode===0 && e.deltaY===-40 ?
+      [{deltaY:e.deltaY,timeStamp:e.timeStamp}] : null;
+    const listener = e => packets.push([e.isTrusted,e.deltaMode,e.deltaX,e.deltaY,e.wheelDeltaY]);
+    v.canvas.addEventListener("wheel",listener);
+    globalThis.__waffleWheelNotches=native;
+    globalThis.__waffleIsWheelNotch=e=>!!native(e);
+    state.close=()=>{
+      v.canvas.removeEventListener("wheel",listener);
+      delete globalThis.__waffleWheelNotches;delete globalThis.__waffleIsWheelNotch;
+    };
+    return state;
+  });
+  try {
+    const before=await camera();
+    await observedWheel(wheelHost, -40, 1);
+    const precise=await camera();
+    assert.equal(precise.dist,before.dist,"a trusted precise 40-pixel wheel pans even with a notch-like DOM delta");
+    assert.notDeepEqual(precise.target,before.target);
+    const anchor=await page.evaluate(([x,y])=>{
+      const v=[...Atrium3D.viewers.values()][0],c=v.canvas,r=c.getBoundingClientRect();
+      const {o,d}=v.pickAt(x-r.left,y-r.top,false).ray;
+      return o.map((p,i)=>p+d[i]*v.camera().dist);
+    },[x,y]);
+    await wheelHost.evaluate(state=>{state.marked=true;});
+    await observedWheel(wheelHost, -40, 2);
+    const notch=await camera();
+    assert.ok(close(notch.dist/precise.dist,Math.exp(-40*.0015)),"the marked detent keeps 3D wheel sensitivity");
+    const spot=await page.evaluate(anchor=>{
+      const v=[...Atrium3D.viewers.values()][0],c=v.canvas,r=c.getBoundingClientRect(),M=Atrium3D.math;
+      const vp=M.matrices(v.camera(),c.clientWidth/c.clientHeight,v.scene().sphere).vp;
+      const at=M.project(vp,anchor,c.clientWidth,c.clientHeight);
+      return [at[0]+r.left,at[1]+r.top];
+    },anchor);
+    assert.ok(Math.hypot(spot[0]-x,spot[1]-y)<.1,"the marked detent preserves its perspective anchor");
+    assert.deepEqual(await wheelHost.evaluate(state=>state.packets),[[true,0,0,-40,120],[true,0,0,-40,120]],
+      "the two trusted Chromium packets have the same DOM values as the measured native ambiguity");
+  } finally {
+    await wheelHost.evaluate(state=>state.close());
+    await wheelHost.dispose();
+  }
+  const units=await page.evaluate(([x,y])=>{
+    const v=[...Atrium3D.viewers.values()][0];
+    return [WheelEvent.DOM_DELTA_LINE,WheelEvent.DOM_DELTA_PAGE].map(deltaMode=>{
+      const before=v.camera().dist;
+      v.canvas.dispatchEvent(new WheelEvent("wheel",{deltaMode,deltaY:-1,clientX:x,clientY:y,bubbles:true,cancelable:true}));
+      return v.camera().dist/before;
+    });
+  },[x,y]);
+  assert.ok(close(units[0],Math.exp(-16*.0015))&&close(units[1],Math.exp(-400*.0015)),"line and page wheel units keep their 3D zoom scale");
   await page.keyboard.press("Shift+Tab");
   assert.equal(await page.evaluate(() => document.activeElement.id === "canvas"), false);
   await canvas.focus();
@@ -272,7 +382,6 @@ async function checkNavigation(page) {
   assert.ok(close((await camera()).yaw-left.yaw,15),"an arrow orbits by 15°");
   await page.keyboard.press("Shift+ArrowRight");
   assert.ok(close((await camera()).yaw-left.yaw,-30),"Shift+arrow orbits by 45°");
-  const box = await canvas.boundingBox(), x = Math.round(box.x + box.width*.4), y = Math.round(box.y + box.height*.42);
   const mouseDrag = async (button, shift=false, delta=[24,17]) => {
     if (shift) await page.keyboard.down("Shift");
     await page.mouse.move(x,y); await page.mouse.down({button});
@@ -290,6 +399,51 @@ async function checkNavigation(page) {
   after=await camera(); assert.equal(after.dist,before.dist,"precision scroll pans without changing zoom");
   await page.mouse.wheel(0,-120);
   await page.waitForFunction(dist => [...Atrium3D.viewers.values()][0].camera().dist<dist, after.dist);
+  // Chromium drops empty wheel commands. Adapt one delivered trusted packet to the
+  // zero DOM delta that WKWebView can produce when it coalesces opposite marked steps.
+  const native = await page.evaluateHandle(() => {
+    const v=[...Atrium3D.viewers.values()][0], original=v.camera();
+    const state={grouped:false,deliverSteps:true,packets:[]};
+    const capture=e=>{
+      if (e.isTrusted && state.grouped) Object.defineProperty(e,"deltaY",{value:0});
+      state.packets.push([e.isTrusted,e.deltaMode,e.deltaX,e.deltaY]);
+    };
+    const steps=e=>!e.isTrusted||!state.deliverSteps?null:
+      (state.grouped?[-40,40]:[e.deltaY]).map(deltaY=>({deltaY,timeStamp:e.timeStamp}));
+    v.canvas.addEventListener("wheel",capture,true);
+    globalThis.__waffleWheelNotches=steps;
+    globalThis.__waffleIsWheelNotch=e=>!!steps(e);
+    v.camera({dist:v.scene().sphere.r*.01});
+    const minimum=v.camera();
+    state.reset=()=>v.camera(minimum);
+    state.close=()=>{
+      v.canvas.removeEventListener("wheel",capture,true);
+      delete globalThis.__waffleWheelNotches;delete globalThis.__waffleIsWheelNotch;
+      v.camera(original);
+    };
+    return state;
+  });
+  try {
+    const minimum=await camera();
+    await observedWheel(native, -40, 1);
+    assert.equal((await camera()).dist,minimum.dist,"inward detent at the near distance limit clamps");
+    await observedWheel(native, 40, 2);
+    const separate=await camera();
+    assert.ok(close(separate.dist/minimum.dist,Math.exp(40*.0015)),"separate outward detent leaves the limit");
+    await native.evaluate(state=>{state.reset();state.grouped=true;});
+    await observedWheel(native, 1, 3);
+    const grouped=await camera();
+    assert.deepEqual(grouped,separate,"opposing native notches in one zero-delta packet match separate deflections");
+    await native.evaluate(state=>{state.reset();state.deliverSteps=false;});
+    await observedWheel(native, 1, 4);
+    assert.deepEqual(await camera(),minimum,"a zero packet without native steps cannot move the camera");
+    assert.deepEqual(await native.evaluate(state=>state.packets),[
+      [true,0,0,-40],[true,0,0,40],[true,0,0,0],[true,0,0,0]
+    ]);
+  } finally {
+    await native.evaluate(state=>state.close());
+    await native.dispose();
+  }
   assert.equal(await page.locator(".nav-menu-portal .nav-menu").count(),0,"secondary drag stays in 3D");
   await buttons.fit.click();
   assert.ok((await camera()).dist>after.dist*.9,"the Fit button frames the board");

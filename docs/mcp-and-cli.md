@@ -140,6 +140,34 @@ python3 mcp/server.py --project $P --cli run_command --args '{"command": "align"
 
 `--args` accepts JSON text or `@file.json`. `--output-root DIR` changes the folder that outputs must stay inside.
 
+### Performance diagnostics
+
+Add `--performance` to a CLI tool invocation to print a shareable JSON
+performance snapshot on stderr. For local CI, use `--performance-exact` to
+receive numeric counts and timings. The tool result stays on stdout and its
+normal exit status applies. A failed tool can also write its usual error to
+stderr. If you share a capture from that run, copy only the final JSON line
+when one is present.
+
+The MCP server advertises `waffle/diagnostics/performance` under
+`capabilities.experimental`. Send that JSON-RPC method with
+`{"action":"start"}`, run the tools you want to measure, then request
+`{"action":"snapshot"}` or `{"action":"stop"}`. The stop reply includes the
+session's final snapshot. Add `"projection":"exact"` to a snapshot or stop
+request for numeric counts and timings. The shareable projection is the default.
+Starting again clears the previous session. Recording is off by default and tied
+to the bound MCP connection. Replacing the JavaScript engine ends the capture
+and discards its in-memory data.
+
+The version 1 snapshot uses the same recorder as the editor. Its automation request
+row covers monotonic elapsed tool time, including time in a child process. When
+the host cannot supply a monotonic clock, the snapshot still reports counts and
+uses `null` for exact durations or `not-measured` for shareable durations. The shareable
+projection groups counts and timings into ranges. Both projections use fixed
+categories. Snapshots contain no tool names,
+arguments, design details, file paths, or credentials. Performance recording
+does not write a file, send network data, or change tool permissions.
+
 ### Example: GitHub Actions
 
 ```yaml

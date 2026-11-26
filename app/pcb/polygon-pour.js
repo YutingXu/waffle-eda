@@ -4581,6 +4581,11 @@ globalThis.AtriumPolygonPour=(()=>{
     tileSettled(doc,rev);
     return true;
   }
+  function publishLiveCopper(host,doc,commit){
+    const span=globalThis.AtriumDiagnostics?.performance?.begin("pours","publish");
+    try{host.derive(commit,{source:"pours",touched:hintFor(doc)});span?.end("completed");}
+    catch(error){span?.end("failed");throw error;}
+  }
   async function run(doc=live.host?.doc?.()){
     const H=live.host;if(!H||!liveEnabled()||!stillHere(H,doc)||H.drag?.()?.before)return;
     if(live.running){live.again=true;return;}
@@ -4628,7 +4633,7 @@ globalThis.AtriumPolygonPour=(()=>{
         await new Promise(resolve=>slot(resolve));
         if(!still())return;
         const start=now();
-        H.derive(()=>{
+        publishLiveCopper(H,doc,()=>{
           const drawing=doc.pcbDrawing||={annotations:{}};
           for(const key of ["importedPourSignature","sourceHatchSignature","pourSignatures","pourSignatureVersion"]){
             if(own(r.drawing,key))drawing[key]=r.drawing[key];else delete drawing[key];
@@ -4639,7 +4644,7 @@ globalThis.AtriumPolygonPour=(()=>{
           noteFailures(doc,r);noteRefills(doc,r,new Set(r.ids));
           globalThis.AtriumPCBPours?.release?.(previous,regions);
           globalThis.AtriumCanvasFast?.releasePours?.(previous,regions);
-        },{source:"pours",touched:hintFor(doc)});
+        });
         client.accept(r,doc,H.defs(),project,journal);
         commit=now()-start;
       }
@@ -4664,13 +4669,13 @@ globalThis.AtriumPolygonPour=(()=>{
     }finally{
       if(live.running===request){
         live.running=null;wakeSettle();
-        if(fallback&&still())runLegacy(doc);
+        if(fallback&&still())runLegacy(doc,true);
         else if(again||live.again||(!still()&&!tileDragging())){live.again=false;schedule();}
       }
     }
   }
   const tileDragging=()=>!!live.host?.drag?.()?.before;
-  async function runLegacy(doc){
+  async function runLegacy(doc,fallback=false){
     const H=live.host;if(!H||!liveEnabled()||!stillHere(H,doc))return;
     if(live.running){live.again=true;return;}
     if(!doc||doc.kind!=="pcb"||!(doc.items||[]).some(i=>i.kind==="polygon"))return;
@@ -4695,9 +4700,11 @@ globalThis.AtriumPolygonPour=(()=>{
       }
     };
     live.running={doc,rev,ids:[],control};
+    const span=globalThis.AtriumDiagnostics?.performance?.begin("pours",fallback?"fallback":"build");
+    let outcome="cancelled";
     try{
       const ids=await drive(liveStaleSteps(doc,defs,SLICE_CHUNK),"stale");
-      if(!ids.length){tileSettled(doc,rev);return;}
+      if(!ids.length){tileSettled(doc,rev);outcome="completed";return;}
       live.running.ids=ids;live.again=false;
       let result;
       // With a worker pool: the two-stage scheduler of Repour All (repourParallel: every stale pour's
@@ -4736,7 +4743,8 @@ globalThis.AtriumPolygonPour=(()=>{
         const t=now(),b=budget;timed(()=>{do AtriumPCBPours.warm(result.regions[k++]);while(k<result.regions.length&&now()-t<b);},"paths");
       }
       await pause();if(moved())throw "moved";
-      const tc=now();timed(()=>{H.derive(()=>apply(doc,defs,{project:H.project(),only:ids,result,plan,derived:true}),{source:"pours",touched:hintFor(doc)});restamp(doc,result.stats.reuseSeq);},"commit");
+      span?.ready();
+      const tc=now();timed(()=>{publishLiveCopper(H,doc,()=>apply(doc,defs,{project:H.project(),only:ids,result,plan,derived:true}));restamp(doc,result.stats.reuseSeq);},"commit");
       // Earlier copper can change a previously current neighbour's signature. The commit plan
       // already hashed the new geometry; continue the dependency chain without waiting for paint.
       const staleAfter=staleFromSignatures(doc,result.signatures),eligible=new Set(eligibleStale(doc,staleAfter));
@@ -4746,13 +4754,16 @@ globalThis.AtriumPolygonPour=(()=>{
       live.cache={doc,rev:committedRev,defs,all:staleAfter,ids:next,runnable:true};
       if(next.length)live.again=true;else tileSettled(doc,committedRev);
       live.last={ids,ms:now()-t0,main,longest:steps,commit:now()-tc,polygons:result.stats.polygons,at:Date.now(),slices};
+      outcome="completed";
     }catch(e){
       if(e!=="moved"&&!moved()){
+        outcome="failed";
         const error=e?.message||String(e);
         if(await interruptedRefill(H,doc,defs,project,()=>!moved(),error))
           H.info?.("Live repour failed ("+error+"); the pours are marked stale. Repour All to retry.");
       }else live.again=true;
     }finally{
+      span?.end(outcome);
       live.running=null;wakeSettle();
       if(live.again){live.again=false;schedule();}
     }

@@ -1430,10 +1430,17 @@ extension Desktop {
             log(false, "a dirty private draft is durable before renderer termination"); return
         }
         let old = d.web!
+        if let recorder = (old as? EditorWebView)?.inputLog {
+            _ = await js("return await AtriumHost.inputDiagnostics('start')")
+            recorder.gesture("pinch")
+            log((recorder.inspect("read")?["rows"] as? [[String: Any]])?.count == 1, "the active editor records requested input categories")
+        }
         guard stopRenderer(old), let restartSheet = await sheet(),
               let restart = button("Restart Editor", in: restartSheet.contentView) else {
             log(false, "termination offers an editor restart"); return
         }
+        log(((old as? EditorWebView)?.inputLog.inspect("read")?["rows"] as? [[String: Any]])?.isEmpty == true,
+            "WebContent termination clears the previous editor's input diagnostics")
         restart.performClick(nil)
         let prompt = await waitForDraft("Demo", of: demo)
         let newGrant = await js("return AtriumHost.folderGitGrant") as? String
@@ -1443,11 +1450,44 @@ extension Desktop {
         let restored = await restoreDraft("Private fixture draft")
         log(restored && projectBytes(demo) == saved, "Restore installs only this folder’s unsaved changes")
         _ = await js("document.querySelector('button[data-action=crash-diagnostics]')?.click(); return true")
+        let expectedHost = ["architecture": SupportDiagnostics.architecture,
+                            "displays": SupportDiagnostics.displayCount(NSScreen.screens.count)]
         let diagnostic = await until(8) { await truthy("""
             const text = document.querySelector('dialog.diagnostics-dialog[open] textarea')?.value;
-            return text?.includes('macOS') && text.includes('terminated') && !text.includes('Private fixture draft');
-            """) }
+            if (!text) return false;
+            const report = JSON.parse(text);
+            return report.format === 'waffle-diagnostics' && report.host.platform === 'macos' &&
+              report.host.architecture === architecture && report.rendererTerminations.terminated === 'one' &&
+              report.host.availableDisplays === displays && !['Private fixture draft', 'Demo.waffle', 'file://'].some(value => text.includes(value));
+            """, expectedHost) }
         log(diagnostic, "Crash Diagnostics exposes the local renderer failure without project data")
+        if diagnostic, let preview = await js("return document.querySelector('dialog.diagnostics-dialog[open] textarea').value") as? String {
+            let copied = await truthy("""
+                const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+                let copied;
+                // Capture the text at the web clipboard boundary without using the app user's pasteboard.
+                Object.defineProperty(navigator, 'clipboard', {configurable:true, value:{async writeText(text) { copied = text; }}});
+                try {
+                  const dialog = document.querySelector('dialog.diagnostics-dialog[open]');
+                  [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Copy report').click();
+                  return copied === preview;
+                } finally {
+                  if (original) Object.defineProperty(navigator, 'clipboard', original);
+                  else delete navigator.clipboard;
+                }
+                """, ["preview": preview])
+            log(copied, "Copy report forwards the exact preview text")
+            _ = await js("""
+                const dialog = document.querySelector('dialog.diagnostics-dialog[open]');
+                [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Save report…').click();
+                return true;
+                """)
+            let confirmed: Bool
+            if let panel = await sheet() as? NSSavePanel { confirmed = await confirm(panel) } else { confirmed = false }
+            let reportURL = work.appendingPathComponent("out/waffle-diagnostics.json")
+            let exported = await until(5) { confirmed && (try? String(contentsOf: reportURL, encoding: .utf8)) == preview }
+            log(exported, "Save report writes the exact preview through the native save panel")
+        }
         _ = await js("document.querySelector('dialog.diagnostics-dialog[open]')?.close(); AtriumNavHost.act('save-all'); return true")
         let clean = await until(12) {
             let clean = await self.truthy("""

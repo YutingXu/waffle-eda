@@ -621,6 +621,10 @@ globalThis.AtriumBusRoute = (() => {
       return out;
     }
     function compute(p, pendingJoin = false) {
+      const span = globalThis.AtriumDiagnostics?.performance?.begin("routing", "compute");
+      return span ? span.run(computeHead, p, pendingJoin) : computeHead(p, pendingJoin);
+    }
+    function computeHead(p, pendingJoin = false) {
       const test = lines => firstHit(lines, pendingJoin);
       const t0 = now();
       restoreScene();

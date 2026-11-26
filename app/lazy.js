@@ -154,7 +154,7 @@ globalThis.AtriumLazy = (() => {
     AtriumBoardShapeAuthoring: {scripts:["pcb/board-shape.js"], deps:["AtriumGeometryCurves"]},
     AtriumBoardShapeSources: {scripts:["formats/board-shape-sources.js"], deps:["AtriumBoardShapeAuthoring"]},
     AtriumBoardShapeEditing: {scripts:["pcb/board-shape-editing.js"], deps:["AtriumBoardShapeAuthoring"]},
-    AtriumBoardShapeUI: {scripts:["pcb/board-shape-ui.js"], deps:["AtriumBoardShapeEditing"]},
+    AtriumBoardShapeUI: {scripts:["pcb/board-shape-ui.js"], css: ["pcb/board-shape.css"], deps:["AtriumBoardShapeEditing"]},
     // Timing Vision; the length engine uses its via delay model.
     AtriumTiming: {scripts: ["pcb/timing-vision.js"], css: ["pcb/timing-vision.css"], deps: ["AtriumRules"]},
     AtriumLength: {scripts: ["pcb/length-tuning.js"], css: ["pcb/length-tuning.css"], deps: ["AtriumRules", "AtriumTiming", "AtriumXSignals"]},
@@ -196,9 +196,9 @@ globalThis.AtriumLazy = (() => {
     // engines plus large dialogs. Eager code only reaches them through optional lookups, and they
     // are prefetched once a board layout is open (see BOARD below), so editing a board has them
     // a moment after first paint. Rules pulls the other three.
-    AtriumStackup: {scripts: ["pcb/stackup.js"], deps: ["AtriumImpedance"]},
-    AtriumViaStack: {scripts: ["pcb/viastack.js"], deps: ["AtriumStackup"]},
-    AtriumPolygonPour: {scripts: ["pcb/polygon-pour.js"], deps: ["AtriumGeometryCurves", "AtriumGeometry", "AtriumNetIntent", "AtriumViaStack", "AtriumPCBPours", "AtriumPourMarker"]},
+    AtriumStackup: {scripts: ["pcb/stackup.js"], css: ["pcb/stackup.css"], deps: ["AtriumImpedance"]},
+    AtriumViaStack: {scripts: ["pcb/viastack.js"], css: ["pcb/viastack.css"], deps: ["AtriumStackup"]},
+    AtriumPolygonPour: {scripts: ["pcb/polygon-pour.js"], css: ["pcb/polygon-pour.css"], deps: ["AtriumGeometryCurves", "AtriumGeometry", "AtriumNetIntent", "AtriumViaStack", "AtriumPCBPours", "AtriumPourMarker"]},
     // The shared worker pool (worker-pool.js) that Repour All solves on.
     AtriumWorkerPool: {scripts: ["workers/worker-pool.js"]},
     AtriumLivePourClient: {scripts: ["workers/live-pour-client.js"], deps: ["AtriumWorkerPool"]},
@@ -215,7 +215,7 @@ globalThis.AtriumLazy = (() => {
     AtriumMultichannel: {scripts: ["schematic/multichannel.js"]},
     // Assembly variants (variants.js): loaded before a project with variants is opened, and when
     // the editor is idle (the status-bar switcher). Its menu item is stubbed below.
-    AtriumVariants: {scripts: ["project/variants.js"]},
+    AtriumVariants: {scripts: ["project/variants.js"], css: ["project/variants.css"]},
     // PDF writer and printing (pdf.js, print.js). The Path2D recorder stays eager (path-record.js).
     AtriumPDF: {scripts: ["formats/pdf.js"], deps: ["AtriumPCBText"]},
     AtriumPrint: {scripts: ["formats/print.js"], css: ["formats/print.css"], deps: ["AtriumPDF", "AtriumPDFFonts", "AtriumFabOutputs"]},
@@ -243,7 +243,7 @@ globalThis.AtriumLazy = (() => {
     AtriumNaming: {scripts: ["schematic/naming.js"], css: ["schematic/naming.css"], deps: ["AtriumNetIntent"]},
     AtriumSignals: {scripts: ["core/signals.js"], deps: ["AtriumNetIntent"]},
     AtriumDocViews: {scripts: ["project/doc-views.js"], css: ["project/doc-views.css"], deps: ["AtriumSpatialMotion"]},
-    AtriumRules: {scripts: ["checks/rules.js", "checks/project-rules.js", "checks/drc-pours.js", "checks/creepage.js"], deps: ["AtriumLandContours", "AtriumGeometry", "AtriumGeometryCurves", "AtriumDocViews", "AtriumNetIntent", "AtriumSignals", "AtriumAltiumRules", "AtriumDesignQueryRecord", "AtriumStackup", "AtriumViaStack", "AtriumPolygonPour", "AtriumRooms", "AtriumComponentClasses"]},
+    AtriumRules: {scripts: ["checks/rules.js", "checks/project-rules.js", "checks/drc-pours.js", "checks/creepage.js"], css: ["checks/rules-editor.css"], deps: ["AtriumLandContours", "AtriumGeometry", "AtriumGeometryCurves", "AtriumDocViews", "AtriumNetIntent", "AtriumSignals", "AtriumAltiumRules", "AtriumDesignQueryRecord", "AtriumStackup", "AtriumViaStack", "AtriumPolygonPour", "AtriumRooms", "AtriumComponentClasses"]},
     AtriumComponentFamilies: {scripts: ["library/component-families.js"]},
     // Library panel, footprint wizard (+ package families) and editors (the panel opens them).
     AtriumLibraryPairing: {scripts: ["library/library-pairing.js"]},
@@ -297,7 +297,7 @@ globalThis.AtriumLazy = (() => {
     AtriumMaskOpenings: {scripts: ["pcb/mask-openings.js"], deps: ["AtriumRules", "AtriumViaStack"]},
     AtriumFabOutputs: {scripts: ["formats/fab-outputs.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumBoardShapeSources", "AtriumZip", "AtriumVariants", "AtriumBOM", "AtriumRigidFlex", "AtriumSTEP", "AtriumResolvedGeometry"]},
     AtriumLogo: {scripts: ["editor/logo-creator.js"], deps: ["AtriumVectorize"]},
-    AtriumMessages: {scripts: ["editor/messages.js"], deps: ["AtriumSpatialMotion"]},
+    AtriumMessages: {scripts: ["editor/messages.js"], css: ["checks/erc.css"], deps: ["AtriumSpatialMotion"]},
     AtriumChecks: {scripts: ["checks/problem-marks.js", "checks/checks.js", "schematic/sch-markers.js", "checks/checks-cross.js", "checks/problem-hover.js"], deps: ["AtriumCanvasHover"]},
     AtriumERC: {scripts: ["checks/erc.js"], deps: ["AtriumMessages", "AtriumMultichannel"]},
     AtriumNoteFields: {scripts: ["notebook/note-fields.js"]},
@@ -325,7 +325,8 @@ globalThis.AtriumLazy = (() => {
     AtriumTeardrops: {scripts: ["pcb/teardrops.js"], deps: ["AtriumRouter"]},
     AtriumAbout: {scripts: ["editor/about.js"], deps: ["AtriumCanvasGPUPref"]},
     AtriumInputDiagnostics: {scripts:["canvas/input-diagnostics.js"]},
-    AtriumFrameMonitor: {scripts:["canvas/frame-monitor.js"]},
+    AtriumPerformanceDiagnostics: {scripts:["checks/performance-diagnostics.js"]},
+    AtriumFrameMonitor: {scripts:["canvas/frame-monitor.js"], deps:["AtriumPerformanceDiagnostics"]},
     AtriumUpdate: {scripts: ["editor/update-check.js"], css: ["editor/compat.css"]},
     AtriumPCBDraw: {scripts: ["pcb/pcb-draw.js"], css: ["pcb/pcb-draw.css"], deps: ["AtriumRules", "AtriumDesignators", "AtriumPCBText"]},
     // Panelization (Tools › Panelize…): panel documents, panel outputs and order notes.
@@ -359,8 +360,9 @@ globalThis.AtriumLazy = (() => {
   Object.assign(ALIAS, {AtriumDrawingViews: "AtriumDrawing", AtriumFontDejaVuSans: "AtriumPDFFonts"});
 
   // Editor action -> modules it needs. {pcb:[...]} limits the need to one document kind.
-  const ACTIONS = {};
-  const on = (names, ...actions) => { for (const a of actions) ACTIONS[a] = names; };
+  const ACTIONS = {}, builtinEntries = new WeakSet();
+  let registeringBuiltins = true;
+  const on = (names, ...actions) => { builtinEntries.add(names); for (const a of actions) ACTIONS[a] = names; };
   on(["AtriumAbout"], "about", "licenses");
   on(["AtriumCrossProbe"], "cross-probe", "cross-select", "context-menu");
   on(["AtriumNetsPanel"], "net-colours", "nets-panel");
@@ -473,10 +475,10 @@ globalThis.AtriumLazy = (() => {
   register("AtriumGitPicker", {scripts: ["history/git-picker.js"], css: ["history/git.css"]}, ["compare-branches", "changes-since-opened", "git-merge-driver", "git-commit", "review-changes"]);
   register("AtriumProjectHistoryData", {scripts: ["history/project-history-summary.js", "history/project-history-data.js"], deps: ["AtriumWorkerPool"]});
   register("AtriumCommitGraph", {scripts: ["ui/commit-graph.js"]});
-  register("AtriumHistoryEntry", {scripts: ["history/history-entry.js"], css: ["history/history.css"], deps: ["AtriumCommitGraph"]},
+  register("AtriumHistoryEntry", {scripts: ["history/history-entry.js"], css: ["history/history.css"]},
     ["history", "history-working", "history-object", "project-history", "file-history", "object-history"]);
   register("AtriumSourceHistory", {scripts: ["history/source-history.js"], deps: ["AtriumGitPicker", "AtriumProjectHistoryData"]});
-  register("AtriumHistoryView", {scripts: ["history/history-view.js"], deps: ["AtriumHistoryEntry", "AtriumDocViews", "AtriumSourceHistory", "AtriumUndoStore", "AtriumUIKit"]});
+  register("AtriumHistoryView", {scripts: ["history/history-view.js"], deps: ["AtriumHistoryEntry", "AtriumCommitGraph", "AtriumDocViews", "AtriumSourceHistory", "AtriumUndoStore", "AtriumUIKit"]});
   register("AtriumFileHistory", {scripts: ["history/file-history.js"], deps: ["AtriumSourceHistory", "AtriumUIKit"]});
   register("AtriumBlame", {scripts: ["history/blame.js"], css: ["history/git.css"], deps: ["AtriumGitPicker"]});
   register("AtriumMerge3", {scripts: ["history/merge3.js"]});
@@ -491,7 +493,7 @@ globalThis.AtriumLazy = (() => {
   register("AtriumExtensionDev", {scripts: ["extension-template.js", "extension-host/extension-dev.js"], css: ["extension-host/extension-dev.css"]});
   on(["AtriumFabOutputs"], "fab", "fab-outputs");
   on(["AtriumSTEP"], "step");
-  register("Atrium3D", {scripts:["canvas/view3d.js"], deps:["AtriumGeometry"]});
+  register("Atrium3D", {scripts:["canvas/view3d.js"], deps:["AtriumGeometry","AtriumCamera"]});
   on({pcb: ["Atrium3D", "AtriumSTEP", "AtriumFlexFold"]}, "view-3d");
   on(["AtriumFabProfiles"], "fabProfiles");
   on(["AtriumViaFence"], "via-fence", "fence-selected", "fence-edge", "fence-area", "fence-return", "fence-regenerate", "fence-remove");
@@ -602,6 +604,29 @@ globalThis.AtriumLazy = (() => {
   register("AtriumRouteSuggest", {scripts: ["pcb/route-suggest-engine.js", "pcb/route-habits.js", "pcb/route-suggest.js"], css: ["pcb/route-suggest.css"], deps: ["AtriumRouter", "AtriumWorkerPool"]}, ["accept", "next", "prev", "word", "dismiss", "toggle"].map(a => "route-suggest-" + a).concat("route-habits")); // route suggestions
   on(["AtriumRigidFlex"], "view-planning", "split-region", "add-bend-line");
 
+  registeringBuiltins = false;
+  // Use existing command metadata and a few shared-menu exceptions. Never report the action ID.
+  const diagnosticModules = new Set(["AtriumPerformanceDiagnostics","AtriumInputDiagnostics","AtriumFrameMonitor","AtriumMotionDiagnostics"]);
+  const diagnosticActions = new Set(["frame-monitor","crash-diagnostics","input-diagnostics"]);
+  const isDiagnosticAction = action => diagnosticActions.has(action);
+  const commandCategories = {Project:"project",Routing:"routing",Reports:"manufacturing",Window:"ui",Help:"ui",Extensions:"extensions"};
+  const commandFamilies = {
+    "save":"save","save-all":"save","save-as":"save","save-project-zip":"save",
+    "open":"project","new":"project","drc":"drc","erc":"erc","connectivity":"connectivity","review-changes":"history",
+    "import-altium":"import","import-dxf":"import","export-dxf":"export","export":"export",
+    "repour":"pours","repour-selected":"pours","polygon-pour":"pours","undo":"history","redo":"history",
+    "view-3d":"3d","view-2d":"3d","panelize":"panel","mcp":"automation","preferences":"settings","preferences-page":"settings"
+  };
+  function diagnosticAction(action,kind) {
+    if (typeof action !== "string" || isDiagnosticAction(action)) return null;
+    if (Object.hasOwn(commandFamilies,action)) return commandFamilies[action];
+    const command = globalThis.AtriumKeymap?.command?.(action);
+    if (!command?.builtin && !builtinEntries.has(ACTIONS[action])) return null;
+    if (action === "route" && kind === "pcb") return "routing";
+    if (command?.builtin && Object.hasOwn(commandCategories,command.category)) return commandCategories[command.category];
+    return kind === "pcb" || kind === "schematic" || kind === "drawing" || kind === "panel" || kind === "3d" ? kind : "editor";
+  }
+
   const scripts = new Map(), sheets = new Map(), loads = new Map();
   const doc = () => globalThis.document;
   const canonical = name => ALIAS[name] || name;
@@ -640,7 +665,10 @@ globalThis.AtriumLazy = (() => {
     const p = there ? Promise.resolve() : new Promise(resolve => {
       const l = d.createElement("link");
       l.rel = "stylesheet"; l.href = href; l.onload = l.onerror = () => resolve();
-      (d.head || d.body).append(l);
+      // A deferred editor stylesheet keeps its original place in the cascade.
+      const slot = d.getElementById?.("lazy-style:" + href);
+      if (slot) slot.before(l);
+      else (d.head || d.body).append(l);
     });
     sheets.set(href, p);
     return p;
@@ -650,29 +678,47 @@ globalThis.AtriumLazy = (() => {
   // script has loaded.
   const done = new Set();
   const missing = m => m.scripts.filter(src => DEFINES[src] ? globalThis[DEFINES[src]] == null : !done.has(src));
-  function load(n) {
+  function beginLoad(n) {
+    const perf = globalThis.AtriumDiagnostics?.performance;
+    return perf && !diagnosticModules.has(n) ? perf.begin("ui","load") : null;
+  }
+  function load(n, measure = true) {
     const m = MODULES[n];
     if (!m) return globalThis[n] != null ? Promise.resolve(globalThis[n]) : Promise.reject(Error(n + " is not available in this build."));
-    if (loads.has(n)) return loads.get(n);
+    const pending = loads.get(n);
+    if (pending) {
+      // If ordinary demand joins a diagnostics request, measure only the ordinary demand's wait.
+      if (measure && pending.passive) {
+        pending.passive = false;
+        pending.span = beginLoad(n);
+      }
+      return pending.promise;
+    }
     const files = missing(m);
     if (!files.length) return Promise.resolve(globalThis[n]);
     if (!doc()?.createElement) return Promise.reject(Error(n + " is not loaded."));
-    const p = Promise.all([...files.map(script), ...(m.css || []).map(sheet)]).then(() => {
+    const flight = {passive:!measure, span:measure ? beginLoad(n) : null, promise:null};
+    flight.promise = Promise.all([...files.map(script), ...(m.css || []).map(sheet)]).then(() => {
       loads.delete(n);
-      if (missing(m).length) throw Error(n + " did not load.");
+      if (missing(m).length) {
+        flight.span?.end("failed");
+        throw Error(n + " did not load.");
+      }
       loaded(n);
+      flight.span?.ready();
+      flight.span?.end("completed");
       return globalThis[n];
-    }, e => { loads.delete(n); throw e; });
-    loads.set(n, p);
-    return p;
+    }, e => { loads.delete(n); flight.span?.end("failed"); throw e; });
+    loads.set(n, flight);
+    return flight.promise;
   }
   let engineMissing = false;
-  function need(names) {
-    const wanted = list(names);
+  function need(names, options) {
+    const wanted = list(names), measure = options?.measure !== false;
     // Dependencies are requested first; async=false keeps their execution order.
     return Promise.all(closure(wanted).map(n => {
-      if (n !== "AtriumEngine") return load(n);
-      return load(n).then(e => e.loadBrowser?.()).catch(error => {
+      if (n !== "AtriumEngine") return load(n,measure);
+      return load(n,measure).then(e => e.loadBrowser?.()).catch(error => {
         if (wanted.length === 1 || globalThis.ATRIUM_ENGINE === "wasm") throw error;
         engineMissing = true; // Board commands can still run their JS kernels if the bridge itself is missing.
       });
@@ -801,7 +847,8 @@ globalThis.AtriumLazy = (() => {
   function register(name, spec, actions = []) {
     MODULES[name] = {scripts: [...spec.scripts], css: spec.css ? [...spec.css] : undefined, deps: spec.deps ? [...spec.deps] : undefined};
     if (spec.scripts.length === 1) DEFINES[spec.scripts[0]] ??= name;
-    for (const a of actions) ACTIONS[a] = [name];
+    if (registeringBuiltins) on([name], ...actions);
+    else for (const a of actions) ACTIONS[a] = [name];
   }
   // Files in dependency order, for runners that load them without a DOM.
   function files(names = Object.keys(MODULES)) {
@@ -1069,6 +1116,6 @@ globalThis.AtriumLazy = (() => {
     };
     if (doc().readyState === "loading") doc().addEventListener("DOMContentLoaded", start, {once: true}); else setTimeout(start, 0);
   }
-  return Object.freeze({need, numericField, numericText, numericPresentation: () => sheet("editor/numeric-fields.css"), appendOnLoad, has, pending, prefetch, cancelPrefetch: cancelPreparations, forAction, needsRuleQuery:globalThis.AtriumRuleScopeDemand, validatorsFor, boardRenderers, register, files, stylesheets,
+  return Object.freeze({need, numericField, numericText, numericPresentation: () => sheet("editor/numeric-fields.css"), appendOnLoad, has, pending, prefetch, cancelPrefetch: cancelPreparations, forAction, isDiagnosticAction, diagnosticAction, needsRuleQuery:globalThis.AtriumRuleScopeDemand, validatorsFor, boardRenderers, register, files, stylesheets,
     modules: () => Object.keys(MODULES), actions: () => Object.keys(ACTIONS), board: () => [...BOARD]});
 })();

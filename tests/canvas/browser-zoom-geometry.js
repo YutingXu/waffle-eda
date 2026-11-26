@@ -97,7 +97,8 @@ async function checkSettle({page, errors}) {
     const wait = ms => new Promise(r => window.__rawTimeout(r, ms)), H = AtriumNavHost;
     await AtriumLazy.need(["AtriumCanvasFast", "AtriumCanvasGPU"]);
     const G = globalThis.AtriumCanvasGPU;
-    if (!AtriumCanvasGPUPref.decision().use) return false;
+    const hardware = AtriumCanvasGPUPref.decision(true);
+    if (!hardware.use || hardware.software) return {unavailable: hardware.reason || "no hardware WebGL2"};
     for (const d of document.querySelectorAll("dialog[open]")) d.close();
     const p = Atrium.project("Dense", AtriumParts.catalogue);
     const {d} = makeAtriumBenchmarkBoard(); p.documents = [d]; // no sheet: no cross-document badges (checks-cross.js)
@@ -105,7 +106,7 @@ async function checkSettle({page, errors}) {
     for (const i of d.items) { if (i.kind === "part") i.pinNets = {"1": "N" + (k % 64), "2": "N" + ((k + 1) % 64)}; else if (i.kind !== "track") i.net = "N" + (k % 64); k++; }
     await H.replaceProject(p, {force: true}); H.selectDocument(d.id);
     for (const x of document.querySelectorAll("dialog[open]")) x.close();
-    G.enable(true);
+    G.enable(null);
     window.dispatchEvent(new CustomEvent("atrium-command", {detail: "fit"})); H.redraw(true); await wait(1500);
     const v = H.view(), r = H.canvas().getBoundingClientRect();
     v.zoom(8, [r.width / 2, r.height / 2]); H.redraw(true); await wait(2500);
@@ -115,7 +116,7 @@ async function checkSettle({page, errors}) {
     globalThis.AtriumDRCMarkers?.setVisible?.(false, H); H.redraw(true); await wait(800);
     return G.status(v.internals());
   });
-  if (!ready) { console.log("SKIP browser-zoom-settle: no hardware-accelerated WebGL2"); return; }
+  if (ready.unavailable) { console.log("SKIP browser-zoom-settle: " + ready.unavailable); return; }
   assert.equal(ready.renderer, "gpu", `hardware WebGL2 rendered the dense board: ${JSON.stringify(ready)}`);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", {rate: 4});
@@ -152,17 +153,22 @@ async function checkSurfaces({browser, page, errors, renderer:which}) {
     const H = AtriumNavHost, wait = ms => new Promise(r => setTimeout(r, ms));
     await AtriumLazy.need(["AtriumCanvasGPU"]).catch(() => null);
     const G = globalThis.AtriumCanvasGPU;
-    if (which === "gpu" && !(G && AtriumCanvasGPUPref?.decision?.().use)) return false;
-    G?.enable?.(which === "gpu");
+    if (which === "gpu") {
+      if (!G) throw Error("The GPU renderer module did not load");
+      const hardware = AtriumCanvasGPUPref.decision(true);
+      if (!hardware.use || hardware.software) return {unavailable: hardware.reason || "no hardware WebGL2"};
+    }
+    G?.enable?.(which === "gpu" ? null : false);
     for (const d of document.querySelectorAll("dialog[open]")) d.close();
     // A via with a net, in the middle of the view, for its caption.
     const v = H.view(), cv = H.canvas(), r = cv.getBoundingClientRect(), [x, y] = v.screenToWorld([r.width / 2, r.height / 2]);
     H.edit(() => H.doc().items.push({id: "zoom-via", kind: "via", x, y, diameter: .8, drill: .4, net: "VIANET", fromLayer: "Top", toLayer: "Bottom"}));
     window.dispatchEvent(new CustomEvent("atrium-command", {detail: "fit"}));
     H.redraw(true); await wait(700); H.redraw(true); await wait(400);
-    return !G || G.status(v.internals()).renderer === which;
+    return G?.status(v.internals()) ?? {renderer:"2d"};
   }, which);
-  if (!ready) { console.log("SKIP browser-zoom-surfaces: " + which + " unavailable"); return; }
+  if (ready.unavailable) { console.log("SKIP browser-zoom-surfaces: " + ready.unavailable); return; }
+  assert.equal(ready.renderer, which, "the requested renderer drew before the crash test: " + JSON.stringify(ready));
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", {rate: 4});
   const result = await page.evaluate(async which => {

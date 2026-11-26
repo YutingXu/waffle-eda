@@ -126,6 +126,18 @@ globalThis.AtriumImport = (() => {
       return await worker.send(payload, transfers, options);
     } finally { jobsInFlight--; options.signal?.removeEventListener("abort", abort); }
   }
+  function translatedRequest(component, makePayload, options) {
+    const timing = globalThis.AtriumDiagnostics?.performance?.begin(component, "request");
+    if (!timing) return run(makePayload, options);
+    const epoch = cancelEpoch;
+    return run(makePayload, options).then(result => {
+      timing.end("completed");
+      return result;
+    }, error => {
+      timing.end(epoch !== cancelEpoch || options.signal?.aborted || error?.name === "AbortError" ? "cancelled" : "failed");
+      throw error;
+    });
+  }
   function filePayload(files, options) {
     const limits = globalThis.AtriumTranslatorRegistry?.limits || {files: 500, fileBytes: 256 * 1048576, totalBytes: 1024 * 1048576};
     if (!Array.isArray(files) || !files.length || files.length > limits.files) throw Error("Choose between one and " + limits.files + " files to translate.");
@@ -148,7 +160,7 @@ globalThis.AtriumImport = (() => {
     }, options);
   }
   function translateImport(files, options = {}) {
-    return run(() => {
+    return translatedRequest("import", () => {
       const {members, buffers} = filePayload(files, options);
       return [{operation: "translate-import", files: members, options: workerOptions(options)}, buffers];
     }, options);
@@ -245,7 +257,7 @@ globalThis.AtriumImport = (() => {
       }
     }
     const snapshot = options.panelId && exportSource(options.provenance) ? null : job;
-    return run(worker => [exportPayload(worker,snapshot,id,model,options),[]],options);
+    return translatedRequest("export", worker => [exportPayload(worker,snapshot,id,model,options),[]],options);
   }
 
   // Source verification and the Altium folder chooser need individual records before a

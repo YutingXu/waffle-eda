@@ -23,8 +23,8 @@
 // editor: board problems on a net as one badge at that net's labels on each sheet ("GND: 3
 // problems on Board"), board problems on a component at its symbol, schematic problems of a component
 // at its footprint. A badge is the severity glyph drawn hollow with an arrow out, and the count when
-// there are several (problem-marks.js). Computed only for a document being drawn; a click goes to the
-// first problem.
+// there are several (problem-marks.js). PCB overviews group nearby projected components. A click goes
+// to a problem of the component whose badge is drawn.
 globalThis.AtriumChecksCross = (() => {
   const G = globalThis, K = () => G.AtriumChecks;
   for (const [id, module, tiers] of [["cross.sync", "AtriumECO", ["warning"]], ["cross.pinMatrix", "AtriumERC", ["error", "warning"]],
@@ -314,11 +314,13 @@ globalThis.AtriumChecksCross = (() => {
       }
     } else if (d.kind === "pcb") {
       const byRef = new Map(partsOf(d).map(i => [up(i.ref), i]));
+      const sheets = new Map(p.documents.filter(x => x.kind === "schematic").map(x => [x.id, x]));
       for (const v of C.violations({domain: "schematic"})) {
-        if (v.source === "cross") continue;
-        const sheet = p.documents.find(x => x.id === v.doc);
+        // Uncompiled hints stay on their source document. ERC can also report board-owned findings.
+        if (v.source === "cross" || v.severity === "hint" || !sheets.has(v.doc)) continue;
         for (const o of v.objects) {
-          const it = sheet ? itemsById(sheet).get(o.id) : undefined;
+          const sheet = sheets.get(o.doc ?? v.doc);
+          const it = sheet && itemsById(sheet).get(o.id);
           if (it?.kind !== "part") continue;
           const bp = byRef.get(up(it.ref));
           if (bp) add("part:" + bp.id, () => corner(h, d, bp), v, it.ref);
@@ -333,20 +335,73 @@ globalThis.AtriumChecksCross = (() => {
     return list;
   }
   // Board badges (schematic problems of a component); sheets draw theirs in sch-markers.js.
+  let planFor;
+  const badgeScore = b => -(K().SEV_RANK[b.severity] ?? 9);
+  const badgeReaches = ({screen:[x,y], radius}, [left,top,right,bottom]) =>
+    x + radius >= left && x - radius <= right && y + radius >= top && y - radius <= bottom;
+  function boardBadgePlan(d, frame, list) {
+    const P = G.AtriumProblemMarks;
+    const cell = P.pcbCell(frame);
+    if (!cell || list.length < 2) return null;
+    return (planFor ||= P.register())(d, frame, [list], () => {
+      const {at: offset, radius: reach} = P.badgeDetail([0,0], frame.scale, "pcb");
+      const center = b => [b.at[0] + offset[0], b.at[1] + offset[1]];
+      const groups = P.cells(list, b => b.at, 1, cell, badgeScore), marks = [];
+      const view = frame.width && frame.height && [0,0,frame.width,frame.height];
+      const radius = reach + 5;
+      for (const group of groups) {
+        const rep = P.visibleWinner(group, frame, center, badgeScore);
+        const badge = group.members.length > 1 ? {at:rep.at, severity:rep.severity, count:1} : rep;
+        const at = center(rep), screen = frame.worldToScreen(at);
+        // The original count on an isolated badge may extend beyond its glyph.
+        const mark = {at, screen, reach, radius:badge.count > 1 ? radius + 20 : radius, live:true, group, rep, badge};
+        if (!view || badgeReaches(mark, view)) marks.push(mark);
+      }
+      return {marks, badges:marks.map(m => m.badge), groups, center, radius};
+    });
+  }
+  function groupBadge(mark) {
+    const {group, rep} = mark;
+    if (group.members.length === 1) return rep;
+    if (mark.detail) return mark.detail;
+    // Keep the winning component's own most severe problem first for the existing cross-probe.
+    const entries = new Map(), first = rep.problems.find(v => v.severity === rep.severity) || rep.problems[0];
+    const add = (raw, label) => {
+      if (!entries.has(raw)) entries.set(raw, {raw, labels:[]});
+      const labels = entries.get(raw).labels;
+      if (!labels.includes(label)) labels.push(label);
+    };
+    if (first) add(first, rep.label);
+    for (const b of group.members) for (const v of b.problems) add(v, b.label);
+    return mark.detail = {...rep, count:entries.size, problems:[...entries.keys()], entries:[...entries.values()]};
+  }
   function render(h, d) {
     if (d?.kind !== "pcb") return null;
     const list = projected(h, d);
     if (!list.length) return null;
-    return {overlay: (ctx, a) => {
+    const overlay = (ctx, a) => {
+      const plan = boardBadgePlan(d, a, list);
+      const areas = a.damageRects?.length ? a.damageRects : a.area ? [a.area] : null;
+      const badges = !plan ? list : !areas ? plan.badges : plan.marks.filter(m => areas.some(box => badgeReaches(m,box))).map(m => m.badge);
       const M = G.AtriumProblemMarks;
-      M.paintBadges(ctx, a, list, "pcb", M.BOARD);
-    }};
+      M.paintBadges(ctx, a, badges, "pcb", M.BOARD);
+    };
+    if (list.length > 1) overlay.panDamage = (a, dx, dy) => {
+      const plan = boardBadgePlan(d, a, list);
+      return plan ? G.AtriumProblemMarks.groupPanDamage(plan.groups, a, plan.center, badgeScore, plan.radius, dx, dy) : [];
+    };
+    return {overlay};
   }
   function badgeAt(h, pane, cx, cy) {
     const d = h.docById?.(pane.docId);
     if (!d) return null;
     const b = pane.canvas.getBoundingClientRect();
-    return G.AtriumProblemMarks.badgeUnder(pane, projected(h, d), d.kind === "pcb" ? "pcb" : "schematic", cx - b.left, cy - b.top);
+    const list = projected(h, d), x = cx - b.left, y = cy - b.top;
+    const P = G.AtriumProblemMarks;
+    const plan = d.kind === "pcb" && boardBadgePlan(d, P.paneFrame(pane, b), list);
+    if (!plan) return P.badgeUnder(pane, list, d.kind === "pcb" ? "pcb" : "schematic", x, y);
+    const hit = P.pick(plan, x, y);
+    return hit ? groupBadge(hit) : null;
   }
   let host = null;
   function attach(h) {
