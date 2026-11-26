@@ -224,6 +224,19 @@ async function historyActions(browser, server) {
     log.release();
     assert.equal(refreshing,1,"Refresh shows a spinner in the button while loading");
     await refresh.locator(".ui-spinner").waitFor({state:"detached"});
+
+    const stale = hold("stale Compare", (op,args)=>op==="folderRevisions" && args.known===undefined && args.revisions?.[0]===fx.head);
+    await compare.click();
+    await stale.waitUntilEntered();
+    try {
+      // Invalidate the native binding while the action still owns the old History view.
+      await page.evaluate(() => { AtriumHost.projectGeneration++; });
+    } finally { stale.release(); }
+    const cancelled = view.getByRole("alert").filter({hasText:"Project history request cancelled."});
+    await cancelled.waitFor();
+    assert.equal(await cancelled.getByRole("button",{name:"Try again",exact:true}).count(),0,
+      "a comparison for the previous project cannot be retried");
+    assert.equal(await page.locator(".dv-close").count(),0,"the stale comparison never opens");
   } finally {
     await page.close();
     await fs.rm(dir,{recursive:true,force:true});
