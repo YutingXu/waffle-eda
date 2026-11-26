@@ -34,6 +34,11 @@ namespace Waffle.Windows
         bool showingProcessFailure;
         bool launchFailed;
         bool fullScreen;
+        bool active = true;
+        // Waffle draws its own title bar (window-caption.js): the system caption is removed and the page's
+        // app bar takes its place. Without the script the window keeps the system title bar.
+        readonly string captionScript;
+        string lastCaptionState;
         FormBorderStyle savedBorder;
         FormWindowState savedState;
         Rectangle savedBounds;
@@ -94,6 +99,7 @@ namespace Waffle.Windows
             openingAtStartup = startup.Count > 0;
             host = new Host(fs, this, new GitRunner(root), support, translators, recent);
             host.ExternalUi = this;
+            try { captionScript = File.ReadAllText(Path.Combine(root, "window-caption.js"), Encoding.UTF8); } catch (Exception) { captionScript = null; }
             Text = "Waffle";
             Opacity = 0;
             launchFallback.Tick += (sender, e) => {
@@ -179,6 +185,10 @@ namespace Waffle.Windows
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)MenuOpenRecent, "Open Recent…");
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)MenuPause, "Pause All Extensions\tCtrl+Shift+Pause");
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)MenuFullScreen, "Full Screen");
+            // Recompute the frame so WM_NCCALCSIZE removes the system caption before the window is shown.
+            if (captionScript != null)
+                Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, Native.SWP_FRAMECHANGED | Native.SWP_NOMOVE | Native.SWP_NOSIZE |
+                                    Native.SWP_NOZORDER | Native.SWP_NOOWNERZORDER | Native.SWP_NOACTIVATE);
         }
 
         protected override async void OnShown(EventArgs e)
@@ -306,12 +316,19 @@ namespace Waffle.Windows
                     FailWorkspaceLaunch();
                     return;
                 }
+                if (captionScript != null && text.StartsWith("{\"action\":\"windowCaption\",", StringComparison.Ordinal))
+                {
+                    if (Policy.TrustedSource(a.Source)) CaptionCommand(text);
+                    return;
+                }
                 host.Receive(a.Source, text);
             };
             core.NavigationCompleted += (o, a) =>
             {
                 if (!Policy.AllowMainFrame(core.Source)) return;
                 if (!a.IsSuccess) { FailWorkspaceLaunch(); return; }
+                // The state injected at document creation is the one from the first navigation.
+                lastCaptionState = null; PublishCaption();
                 host.PageReady();
                 if (workspace != null && !workspace.IsWriter(this))
                     PostWorkspace(new Dictionary<string,object> { ["type"]="arrival", ["tab"]=WorkspaceTab });
@@ -331,6 +348,11 @@ namespace Waffle.Windows
                 bridge = "if(window.top===window)window.__waffleWorkspaceLaunch=true;\n" + bridge;
             if (openingAtStartup || OpeningDetached)
                 bridge = "if(window.top===window)window.__atriumOpeningProject=true;\n" + bridge;
+            if (captionScript != null)
+            {
+                lastCaptionState = CaptionState();
+                bridge += "\nif(window.top===window)window.__waffleWindowCaptionState=" + lastCaptionState + ";\n" + captionScript;
+            }
             await core.AddScriptToExecuteOnDocumentCreatedAsync(bridge);
             core.Navigate(Policy.PageUri);
             controller.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
@@ -498,10 +520,16 @@ namespace Waffle.Windows
                 Bounds = savedBounds;
                 WindowState = savedState;
             }
+            PublishCaption();
         }
 
         protected override void WndProc(ref Message m)
         {
+            if (m.Msg == Native.WM_NCCALCSIZE && m.WParam != IntPtr.Zero && OwnCaption)
+            {
+                CalcClientWithoutCaption(ref m);
+                return;
+            }
             if (m.Msg == Native.WM_SYSCOMMAND)
             {
                 int id = (int)((long)m.WParam & 0xFFF0);
@@ -522,19 +550,139 @@ namespace Waffle.Windows
             if (controller == null) return;
             controller.IsVisible = WindowState != FormWindowState.Minimized;
             controller.Bounds = ClientRectangle;
+            PublishCaption();
         }
 
         protected override void OnActivated(EventArgs e)
         {
             base.OnActivated(e);
+            active = true;
+            PublishCaption();
             host?.SetNotebookWindowActive(true);
             try { controller?.MoveFocus(CoreWebView2MoveFocusReason.Programmatic); } catch (Exception) { }
         }
 
         protected override void OnDeactivate(EventArgs e)
         {
+            active = false;
+            PublishCaption();
             host?.SetNotebookWindowActive(false);
             base.OnDeactivate(e);
+        }
+
+        // ------------------------------------------------------------------ Waffle's own title bar
+        // The page draws the title bar (native/windows/window-caption.js, app/style.css). The host keeps
+        // the resizing frame on the left, right and bottom and removes the caption, so the page starts at
+        // the top edge. WebView2 covers the whole client area and receives the mouse there, so the page
+        // hands a press on the blank caption or on the top edge back to Windows (drag, resize), and asks
+        // for minimise, maximise, close and the window menu by message.
+
+        bool OwnCaption => captionScript != null && !fullScreen && FormBorderStyle == FormBorderStyle.Sizable;
+
+        void CalcClientWithoutCaption(ref Message m)
+        {
+            var p = Marshal.PtrToStructure<Native.NCCALCSIZE_PARAMS>(m.LParam);
+            int top = p.Proposed.Top;
+            base.WndProc(ref m); // the default frame on every side, the caption included
+            p = Marshal.PtrToStructure<Native.NCCALCSIZE_PARAMS>(m.LParam);
+            p.Proposed.Top = top;
+            if (Native.IsZoomed(Handle))
+            {
+                // A maximised window overhangs the monitor by its resizing frame; keep the page on screen.
+                uint dpi = Native.GetDpiForWindow(Handle);
+                p.Proposed.Top += Native.GetSystemMetricsForDpi(Native.SM_CYFRAME, dpi) + Native.GetSystemMetricsForDpi(Native.SM_CXPADDEDBORDER, dpi);
+                LeaveRoomForHiddenTaskbar(ref p.Proposed);
+            }
+            Marshal.StructureToPtr(p, m.LParam, false);
+            m.Result = IntPtr.Zero;
+        }
+
+        // A window that covers a monitor entirely hides an auto-hiding taskbar there for good; keep a 2 px edge free.
+        void LeaveRoomForHiddenTaskbar(ref Native.RECT client)
+        {
+            var info = new Native.MONITORINFO { Size = Marshal.SizeOf<Native.MONITORINFO>() };
+            if (!Native.GetMonitorInfoW(Native.MonitorFromWindow(Handle, Native.MONITOR_DEFAULTTONEAREST), ref info)) return;
+            bool Hidden(uint edge)
+            {
+                var bar = new Native.APPBARDATA { Size = Marshal.SizeOf<Native.APPBARDATA>(), Edge = edge, Rect = info.Monitor };
+                return Native.SHAppBarMessage(Native.ABM_GETAUTOHIDEBAREX, ref bar) != IntPtr.Zero;
+            }
+            if (Hidden(Native.ABE_TOP)) client.Top += 2;
+            else if (Hidden(Native.ABE_BOTTOM)) client.Bottom -= 2;
+            else if (Hidden(Native.ABE_LEFT)) client.Left += 2;
+            else if (Hidden(Native.ABE_RIGHT)) client.Right -= 2;
+        }
+
+        string CaptionState() => Json.Write(new Dictionary<string, object> {
+            ["maximized"] = WindowState == FormWindowState.Maximized, ["active"] = active, ["fullScreen"] = fullScreen });
+
+        void PublishCaption()
+        {
+            if (captionScript == null || core == null) return;
+            var state = CaptionState();
+            if (state == lastCaptionState) return;
+            lastCaptionState = state;
+            if (!Policy.AllowMainFrame(core.Source)) return;
+            try { _ = core.ExecuteScriptAsync("window.__waffleWindowCaption?.(" + state + ")"); }
+            catch (Exception e) when (e is InvalidOperationException || e is COMException) { } // the controller is closing
+        }
+
+        void CaptionCommand(string text)
+        {
+            string command = null, edge = null;
+            try
+            {
+                if (Json.Parse(text) is Dictionary<string, object> message)
+                {
+                    command = message.TryGetValue("command", out var c) ? c as string : null;
+                    edge = message.TryGetValue("edge", out var e) ? e as string : null;
+                }
+            }
+            catch (JsonException) { return; }
+            // After WebView2's event returns: a move or size loop must not run inside its callback.
+            BeginInvoke((Action)(() =>
+            {
+                if (IsDisposed) return;
+                bool zoomed = WindowState == FormWindowState.Maximized;
+                switch (command)
+                {
+                    case "minimize": WindowState = FormWindowState.Minimized; break;
+                    case "maximize": if (!fullScreen) WindowState = zoomed ? FormWindowState.Normal : FormWindowState.Maximized; break;
+                    case "close": Close(); break;
+                    case "menu": ShowWindowMenu(Cursor.Position); break;
+                    // Windows moves the window, snaps it and restores a maximised one, as on its own caption.
+                    case "drag": if (OwnCaption) StartFrameLoop(Native.HTCAPTION); break;
+                    case "resize":
+                        int hit = edge == "top" ? Native.HTTOP : edge == "top-left" ? Native.HTTOPLEFT : edge == "top-right" ? Native.HTTOPRIGHT : 0;
+                        if (hit != 0 && OwnCaption && !zoomed) StartFrameLoop(hit);
+                        break;
+                }
+            }));
+        }
+
+        void StartFrameLoop(int hit)
+        {
+            // Only while the press that asked for it is still down; otherwise Windows starts a keyboard move.
+            if ((MouseButtons & MouseButtons.Left) == 0) return;
+            var at = Cursor.Position;
+            Native.ReleaseCapture(); // the WebView2 window holds the mouse for the press
+            Native.PostMessageW(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)hit, Native.PointParam(at.X, at.Y));
+        }
+
+        // The window menu (Alt+Space, or a right click on the blank caption), with the items that apply now.
+        void ShowWindowMenu(Point at)
+        {
+            var menu = Native.GetSystemMenu(Handle, false);
+            bool zoomed = WindowState == FormWindowState.Maximized, normal = WindowState == FormWindowState.Normal && !fullScreen;
+            void Enable(int id, bool on) => Native.EnableMenuItem(menu, (uint)id, Native.MF_BYCOMMAND | (on ? Native.MF_ENABLED : Native.MF_GRAYED));
+            Enable(Native.SC_RESTORE, zoomed || fullScreen);
+            Enable(Native.SC_MOVE, normal);
+            Enable(Native.SC_SIZE, normal);
+            Enable(Native.SC_MINIMIZE, true);
+            Enable(Native.SC_MAXIMIZE, !zoomed && !fullScreen);
+            Enable(Native.SC_CLOSE, true);
+            int chosen = Native.TrackPopupMenuEx(menu, Native.TPM_RETURNCMD | Native.TPM_NONOTIFY, at.X, at.Y, Handle, IntPtr.Zero);
+            if (chosen != 0) Native.PostMessageW(Handle, Native.WM_SYSCOMMAND, (IntPtr)chosen, IntPtr.Zero);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

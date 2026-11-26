@@ -65,7 +65,7 @@
       <WaffleLoader Include="$(OutDir)runtimes/win-x64/native/WebView2Loader.dll" Dir="win-x64" />
       <WaffleLoader Include="$(OutDir)runtimes/win-arm64/native/WebView2Loader.dll" Dir="win-arm64" />
       <WaffleApp Include="$(WaffleRoot)/app/**/*" Exclude="$(WaffleRoot)/app/**/.DS_Store" />
-      <WaffleDoc Include="$(WaffleRoot)/LICENSE;$(WaffleRoot)/THIRD_PARTY_NOTICES.md;$(WaffleRoot)/native/bridge.js" />
+      <WaffleDoc Include="$(WaffleRoot)/LICENSE;$(WaffleRoot)/THIRD_PARTY_NOTICES.md;$(WaffleRoot)/native/bridge.js;$(WaffleRoot)/native/windows/window-caption.js" />
     </ItemGroup>
     <RemoveDir Directories="$(WaffleStage)" />
     <Copy SourceFiles="@(WaffleHostFile);@(WaffleDoc)" DestinationFolder="$(WaffleStage)" />

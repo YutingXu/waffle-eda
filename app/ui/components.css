@@ -449,13 +449,17 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 :is(.ui-skeleton) {border-radius:var(--r-md);background:var(--button-face,var(--soft))}
 
 /* ---- Full-window surface: covers the whole window, app bar included (the component gallery) ------
-   Its bar is a title-bar row: under the macOS host's transparent title bar it takes the app bar's
-   caption insets and height, so the window controls never sit on its content. Every other surface
+   Its bar is a title-bar row: under the macOS host's transparent title bar, and beside the window
+   controls Waffle draws on Windows, it takes the app bar's caption insets and height, so the window
+   controls never sit on its content. Every other surface
    pinned to the top starts at --window-safe-top (docs/ui-library.md, Window safe area). */
 :is(.ui-fullwindow) {position:fixed;inset:0;z-index:var(--z-alert);overflow:auto;overscroll-behavior:contain;background:var(--app);color:var(--ink)}
 :root[data-atrium-native-titlebar=macos] :is(.ui-fullwindow-bar) {
   padding-inline-start:max(var(--ui-bar-inset,var(--s-8)),var(--macos-caption-inset,0px));
   padding-inline-end:max(var(--ui-bar-inset,var(--s-8)),var(--macos-caption-right-inset,0px));
+  min-block-size:max(var(--ui-bar-height,var(--chrome-tab-height)),var(--window-caption-height))}
+:root[data-atrium-native-titlebar=windows] :is(.ui-fullwindow-bar) {
+  padding-inline-end:max(var(--ui-bar-inset,var(--s-8)),var(--windows-caption-right-inset));
   min-block-size:max(var(--ui-bar-height,var(--chrome-tab-height)),var(--window-caption-height))}
 
 /* ---- Toast: brief feedback after an action (AtriumToast.show, nav-common.js) ---------------------

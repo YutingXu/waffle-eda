@@ -45,6 +45,7 @@ The Windows host follows the macOS host action by action (`native/macos/main.swi
 - **Recent projects, library reloads.** The page can only reopen paths that you chose in a Windows dialog, and the host checks each path before using it. It refuses relative paths, `..`, device paths (`\\?\`, `\\.\`), alternate data streams and names such as `CON`. A file that has become a symbolic link or junction must be chosen again. OneDrive placeholder files still open.
 - **Clipboard.** Copy writes a Waffle selection format plus plain text, as on macOS and Linux, so paste works between Waffle windows and on other platforms.
 - **Printing** uses the Windows print preview.
+- **Title bar.** Waffle draws its own title bar, as on macOS: the app bar is the title bar, with Minimize, Maximize and Close at the top right. Drag its blank space to move the window and snap it to a screen edge; double-click it to maximise or restore; right-click it, or press Alt+Space, for the window menu (Open Recent, Pause All Extensions and Full Screen are there too). The top edge resizes the window, as do the other edges and corners. The window and its controls work while a dialog is open. Snap layouts appear from Win+Z; hovering Maximize does not show them.
 - **Theme.** The title bar and the editor follow the Windows light or dark app mode, and update when you switch it.
 - **Window.** Size, position and maximised state are remembered per monitor layout. If the remembered position is on a monitor that is no longer connected, the window is centred on the main screen. The host is per-monitor DPI aware (v2), so it stays sharp when moved between screens with different scaling.
 - **Compare revisions** runs `native\git_head.py` with Python 3 (the `py` launcher or `python.exe` on `PATH`, never the Microsoft Store alias) and Git. Without them, revision review explains what to install. Nothing else needs Python.
@@ -111,6 +112,12 @@ The host compiles and its shared rules pass their tests. These need a person on 
 7. **Navigation policy.** With a debug build, check from DevTools that `location.href = "https://example.com"`, `window.open()`, an `<a target=_blank>` link and an iframe pointing at a web page are all blocked. The extension sandbox still runs an extension.
 8. **Printing.** Print a schematic: the preview shows the sheets, not the editor.
 9. **Theme and DPI.** Switching dark mode updates the title bar and the editor. Moving the window between monitors with different scaling keeps it sharp. Dialogs are scaled correctly.
-10. **Window state.** Position and size are remembered. Unplug the second monitor and the window comes back on screen.
-11. **MSIX.** It installs with `-AllowUnsigned`, double-clicking a `.waffle` file opens it, and it uninstalls cleanly.
-12. **Revision review.** Works with Python and Git installed. Without them, it shows a clear message.
+10. **Title bar.** There is one bar at the top, Waffle's app bar, and no system caption above it.
+    - Dragging the blank space moves the window; dragging to a screen edge snaps it; dragging a maximised window restores it. Double-clicking maximises and restores. Right-clicking and Alt+Space open the window menu, with Restore, Move, Size, Minimize and Maximize enabled to match the window's state.
+    - Minimize, Maximize (Restore while maximised) and Close work; Close asks to save unsaved changes. Close turns red on hover. An inactive window dims the controls.
+    - The top edge and both top corners resize the window; the other edges and corners resize as before. A maximised window shows the whole app bar and its bottom edge reaches the taskbar, including an auto-hiding taskbar on any screen edge.
+    - With the Start Page or another dialog open, the window still moves, minimises and closes from its caption, and the dialog stays open.
+    - F11 full screen hides the controls; leaving it brings them back. A detached project window has the same title bar.
+11. **Window state.** Position and size are remembered. Unplug the second monitor and the window comes back on screen.
+12. **MSIX.** It installs with `-AllowUnsigned`, double-clicking a `.waffle` file opens it, and it uninstalls cleanly.
+13. **Revision review.** Works with Python and Git installed. Without them, it shows a clear message.

@@ -127,5 +127,63 @@ namespace Waffle.Windows
         public const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12;
 
         public static bool Down(int key) => (GetKeyState(key) & 0x8000) != 0;
+
+        // ------------------------------------------------------------------ Waffle's own title bar
+
+        public const int WM_NCCALCSIZE = 0x0083, WM_NCLBUTTONDOWN = 0x00A1;
+        public const int HTCAPTION = 2, HTTOP = 12, HTTOPLEFT = 13, HTTOPRIGHT = 14;
+        public const int SC_SIZE = 0xF000, SC_MOVE = 0xF010, SC_MINIMIZE = 0xF020, SC_MAXIMIZE = 0xF030, SC_CLOSE = 0xF060, SC_RESTORE = 0xF120;
+        public const uint MF_BYCOMMAND = 0, MF_ENABLED = 0;
+        public const int SM_CYFRAME = 33, SM_CXPADDEDBORDER = 92;
+        public const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20, SWP_NOOWNERZORDER = 0x200;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT { public int Left, Top, Right, Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct NCCALCSIZE_PARAMS { public RECT Proposed, Before, Client; public IntPtr Position; }
+
+        [DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll")]
+        public static extern bool PostMessageW(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+
+        [DllImport("user32.dll")]
+        public static extern bool IsZoomed(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool EnableMenuItem(IntPtr menu, uint id, uint flags);
+
+        /// Windows 10 1607 and later; the host targets 1903+.
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetricsForDpi(int index, uint dpi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MONITORINFO { public int Size; public RECT Monitor, Work; public uint Flags; }
+
+        public const uint MONITOR_DEFAULTTONEAREST = 2;
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+        [DllImport("user32.dll")]
+        public static extern bool GetMonitorInfoW(IntPtr monitor, ref MONITORINFO info);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct APPBARDATA { public int Size; public IntPtr Window; public uint CallbackMessage; public uint Edge; public RECT Rect; public IntPtr Param; }
+
+        public const uint ABM_GETAUTOHIDEBAREX = 0x0B;
+        public const uint ABE_LEFT = 0, ABE_TOP = 1, ABE_RIGHT = 2, ABE_BOTTOM = 3;
+        [DllImport("shell32.dll")]
+        public static extern IntPtr SHAppBarMessage(uint message, ref APPBARDATA data);
+
+        /// A screen point packed as a mouse message's lParam (signed 16-bit coordinates).
+        public static IntPtr PointParam(int x, int y) => (IntPtr)(((y & 0xFFFF) << 16) | (x & 0xFFFF));
     }
 }

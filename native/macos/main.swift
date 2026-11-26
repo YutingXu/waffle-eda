@@ -944,7 +944,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
           window.__atriumSetCaptionInsets = setInsets;
           setInsets(\(insets.left), \(insets.right), \(insets.height));
           document.addEventListener('DOMContentLoaded', () => {
-            const drag = document.querySelector('.appbar-leading > [data-macos-drag]');
+            const drag = document.querySelector('.appbar-leading > [data-caption-drag]');
             if (!drag) return;
             let previous = '';
             // A full-window surface (.ui-fullwindow) covers the app bar and its blank caption too.

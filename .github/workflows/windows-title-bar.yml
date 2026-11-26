@@ -1,0 +1,100 @@
+# Waffle's own title bar in the real Windows app, on the waffle-windows runner's unlocked desktop
+# (scripts/ci/windows-title-bar.ps1). It runs on a push to a windows-test/ branch, or by hand; the
+# same security model as ci.yml: a read-only token, no secrets, pinned actions, a wiped workspace.
+name: Windows title bar
+
+on:
+  push:
+    branches: ['windows-test/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-title-bar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title-bar:
+    name: Windows title bar (native WebView2)
+    # Off until a Windows runner is registered: set the repository variable WINDOWS_RUNNER=true.
+    if: vars.WINDOWS_RUNNER == 'true'
+    runs-on: [self-hosted, Windows, X64, atrium]
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Clean workspace
+        run: Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: 8.0.x
+      # The runner has no Python or Rust of its own: an embedded Python and an isolated rustup go into
+      # the job's temp folder, checked against their SHA-256 (as scripts/ci/windows-camera-comparison.ps1).
+      - name: Install isolated Python and the pinned Rust toolchain for application assets
+        run: |
+          $tools = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'waffle-title-bar-tools')
+          function Get-Tool([string]$url, [string]$file, [string]$checksum) {
+            curl.exe --fail --location --silent --show-error --connect-timeout 20 --max-time 120 --output $file $url
+            if ($LASTEXITCODE -ne 0 -or (Get-FileHash -Algorithm SHA256 $file).Hash -ne $checksum) {
+              throw "Tool download did not match the reviewed SHA-256 for $(Split-Path -Leaf $file)."
+            }
+          }
+          $pythonZip = Join-Path $tools 'python.zip'
+          Get-Tool 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' $pythonZip '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3'
+          $pythonDir = Join-Path $tools 'python'
+          Expand-Archive -LiteralPath $pythonZip -DestinationPath $pythonDir -Force
+          Remove-Item -LiteralPath (Join-Path $pythonDir 'python312._pth') -ErrorAction SilentlyContinue
+          $rustup = Join-Path $tools 'rustup-init.exe'
+          $url = 'https://static.rust-lang.org/rustup/archive/1.28.2/x86_64-pc-windows-msvc/rustup-init.exe'
+          $rustSha = ((Invoke-RestMethod "$url.sha256" -TimeoutSec 20) -split '\s+')[0]
+          if ($rustSha -notmatch '^[a-f0-9]{64}$') { throw 'Official rustup hash is unavailable.' }
+          Get-Tool $url $rustup $rustSha
+          $env:RUSTUP_HOME = Join-Path $tools 'rustup'
+          $env:CARGO_HOME = Join-Path $tools 'cargo'
+          & $rustup -y --profile minimal --default-toolchain none --no-modify-path
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated Rust setup failed.' }
+          & (Join-Path $env:CARGO_HOME 'bin/rustup.exe') toolchain install 1.91.1 --profile minimal --target wasm32-unknown-unknown --no-self-update
+          if ($LASTEXITCODE -ne 0) { throw 'The pinned wasm build toolchain is unavailable.' }
+          "RUSTUP_HOME=$env:RUSTUP_HOME" >> $env:GITHUB_ENV
+          "CARGO_HOME=$env:CARGO_HOME" >> $env:GITHUB_ENV
+          "PYTHONNOUSERSITE=1" >> $env:GITHUB_ENV
+          "WAFFLE_PYTHON=$(Join-Path $pythonDir 'python.exe')" >> $env:GITHUB_ENV
+          $pythonDir >> $env:GITHUB_PATH
+          (Join-Path $env:CARGO_HOME 'bin') >> $env:GITHUB_PATH
+      - name: Windows host core tests
+        timeout-minutes: 10
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: dotnet run --project native/windows/tests -c Release
+      - name: Build and package the Windows host
+        timeout-minutes: 15
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_NOLOGO: '1'
+        run: dotnet build native/windows/Waffle.Windows.csproj -c Release -t:WafflePackage "-p:WaffleDist=$PWD/dist" "-p:WafflePython=$env:WAFFLE_PYTHON"
+      - name: Check the title bar in the packaged app
+        timeout-minutes: 10
+        run: |
+          $version = (Get-Content -Raw app/VERSION).Trim()
+          ./scripts/ci/windows-title-bar.ps1 -Package "dist/Waffle-$version-windows.zip" -Output "$PWD/windows-title-bar"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: windows-title-bar
+          path: |
+            windows-title-bar/
+            dist/Waffle-*-windows.zip
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Clean workspace and tools
+        if: always()
+        run: |
+          Get-ChildItem -Force $env:GITHUB_WORKSPACE | Remove-Item -Recurse -Force
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'waffle-title-bar-tools') -Recurse -Force -ErrorAction SilentlyContinue

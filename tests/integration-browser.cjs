@@ -520,7 +520,7 @@ async function main(){
     ]},
     {name:"audits", run:auditChecks},
     {name:"resolved-geometry", run:()=>require("./e2e/a1-resolved-geometry.cjs").checkResolvedGeometry(browser)},
-    {name:"titlebar", run:async()=>{await require("./editor/browser-titlebar-safe-area.cjs")(browser);await require("./editor/browser-appbar-contrast.js")(browser);await require("./editor/browser-search-keys.js")(browser);await require("./project/browser-split-controls.js")(browser);}},
+    {name:"titlebar", run:async()=>{await require("./editor/browser-titlebar-safe-area.cjs")(browser);await require("./editor/browser-titlebar-safe-area.cjs")(browser,{platform:"windows",viewports:[{width:770,height:500}]});await require("./editor/browser-windows-caption.cjs")(browser);await require("./editor/browser-appbar-contrast.js")(browser);await require("./editor/browser-search-keys.js")(browser);await require("./project/browser-split-controls.js")(browser);}},
   ];
   const expand=entries=>entries.flatMap(group=>group.parts||group);
   const ciGroups=expand(groups), listGroups=process.argv.includes("--list-groups");
