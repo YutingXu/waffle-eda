@@ -3,15 +3,18 @@
 // ordinary findings and no marker painter to pull in the worker's dependency.
 const assert = require("node:assert/strict");
 for (const m of ["model", "nav-common", "spatial", "connectivity", "pcb-appearance", "pcb-text", "vectorize",
-  "pcb-text-rich", "designator-place", "pcb/mask-openings", "rules", "drc", "checks", "drc-fixes", "drc-view", "undo-store"]) {
+  "pcb-text-rich", "designator-place", "pcb/mask-openings", "rules", "drc", "checks", "drc-fixes", "drc-view", "problem-marks", "drc-markers", "drc-inspector", "length-tuning", "undo-store"]) {
   require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 }
 const V = AtriumDRCView, K = AtriumChecks, U = AtriumUndoStore, fixes = AtriumDRCFixes;
+const inspector = AtriumDRCInspector, markers = AtriumDRCMarkers, length = AtriumLength;
 const deck = id => ({kind:"pcb", id, name:id, outline:[[-10, -10], [20, -10], [20, 20], [-10, 20]], items:[
   {kind:"track", id:"end", layer:"Top", net:"OPEN", width:.25, points:[[0, 0], [3, 0]]}
 ]});
 const sheet = {kind:"schematic", id:"sheet", items:[]};
-const defs = new Map(), jobs = new Map();
+const defs = new Map(), jobs = new Map(), events = new Map();
+const badge = {dataset:{}, textContent:"", setAttribute(name, value) {this[name] = value;}, addEventListener() {}};
+const emit = name => {for (const fn of events.get(name) || []) fn();};
 let document = deck("first"), panes = [document], project = {}, home = true, requested = 0, release, paint;
 function install(...docs) {
   project = {format:"atrium", name:"Native DRC demand", documents:[sheet, ...docs], library:[]};
@@ -19,7 +22,8 @@ function install(...docs) {
 }
 const host = {project:() => project, doc:() => panes[0], panes:() => panes.map(d => ({docId:d.id})),
   docById:id => project.documents.find(d => d.id === id), defs:() => defs, units:() => "mm", invalidate() {}, invalidateDocument() {},
-  registerAction() {}, addRenderer(fn) {paint = fn;}, info() {}, on() {},
+  registerAction() {}, addRenderer(fn) {paint = fn;}, info() {},
+  on(name, fn) {if (!events.has(name)) events.set(name, []); events.get(name).push(fn);},
   connections:() => AtriumConnectivity.inspect(panes[0], defs),
   stageEdit(phase, key, fn) {
     const job = {key, fn}; jobs.set(key, job);
@@ -40,7 +44,9 @@ const finish = () => {
 };
 async function test() {
   install(document); cold();
-  K.scheduler.attach(host); V.attach(host);
+  globalThis.document = {getElementById:id => id === "status-problems" ? badge : null, addEventListener() {}, removeEventListener() {}};
+  globalThis.AtriumPrefs = {registerPage() {}};
+  K.scheduler.attach(host); V.attach(host); inspector.attach(host);
   assert.equal(V.check(), null);
   assert.equal(requested, 0, "Home does not demand diagnostics");
   home = false;
@@ -147,6 +153,98 @@ async function manualOnlineSelection() {
   } finally {globalThis.AtriumUndoStore = U;}
   console.log("PASS manual batch selection restores online-only findings through the scheduler");
 }
+async function manualPublicationContinues() {
+  const board = deck("manual-publication");
+  board.items[0].width = .08;
+  board.items.push({kind:"via", id:"drill", net:"VIA", x:5, y:5, diameter:.6, drill:.1, layer:"Multi"});
+  const extras = ["netAntennae", "courtyard"];
+  board.ruleCheckSelection = {online:extras, batch:[...extras, "viaStyle"]};
+  panes = [board]; install(board);
+  const R = AtriumRules;
+  project.rules = R.create();
+  project.rules.list.find(r => r.type === "viaStyle").holeMin = .25;
+  project.rules.list.push({id:"length", type:"length", name:"Trace length", comment:"", enabled:true,
+    priority:1, scope:AtriumDesignQueryRecord.selector("all"), max:20});
+  U.record(project);
+  emit("document");
+
+  const savedLazy = globalThis.AtriumLazy;
+  globalThis.AtriumDRCMarkers = markers;
+  let releaseLength;
+  globalThis.AtriumLazy = {modules:() => ["AtriumLength"], need(name) {
+    assert.equal(name, "AtriumLength");
+    return new Promise(resolve => {releaseLength = () => {globalThis.AtriumLength = length; resolve(length);};});
+  }};
+  const publish = () => ({count:K.problemReport(project).total, busy:badge["aria-busy"], status:badge.textContent,
+    state:badge.dataset.state, pending:K.meta(board.id, "drc")?.pending, inspector:inspector.current()});
+  const held = [];
+  const stop = K.on(() => held.push(publish()));
+  const visible = () => V.violations(board.id);
+  async function start() {
+    delete globalThis.AtriumLength;
+    releaseLength = null;
+    jobs.clear();
+    await V.run();
+    const original = visible();
+    const width = original.find(v => v.type === "width");
+    assert.ok(width, "manual result includes the narrow track");
+    assert.ok(inspector.open(host, width), "the production Violation inspector is open");
+    const before = publish();
+    assert.equal(before.busy, "false");
+    assert.equal(before.pending, false);
+    held.length = 0;
+    return {before, original, width};
+  }
+  async function release() {
+    assert.equal(typeof releaseLength, "function", "the real length dependency is waiting");
+    releaseLength();
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+  try {
+    const {before, original, width} = await start();
+    finish();
+    await Promise.resolve();
+    assert.deepEqual(publish(), before, "Problems and the open inspector survive the same-stamp wait");
+    assert.equal(visible(), original, "the same-stamp manual marker rows survive a delayed follow-up");
+    emit("change"); finish();
+    await Promise.resolve();
+    assert.deepEqual(publish(), before, "repeated revision notifications preserve publication while waiting");
+    await release();
+    assert.equal(visible(), original, "an optional module becoming ready retains the manual marker rows until the next result");
+    assert.deepEqual(publish(), before);
+    finish();
+    await Promise.resolve();
+    assert.ok(visible().some(v => v.type === "viaStyle"), "the complete online publication adds its missing type");
+    assert.equal(publish().count, before.count + 1, "Problems counts the replacement publication");
+    assert.ok(held.length && held.every(p => p.busy === "false" && !p.pending && p.count >= before.count),
+      "each publication has resolved Problems with its findings");
+    assert.equal(inspector.current()?.id, width.id, "the inspector follows the same violation in the replacement");
+    assert.ok(visible().includes(inspector.current()), "the pin refers to a finding in the new publication");
+    assert.equal(jobs.size, 0);
+
+    await start();
+    finish();
+    assert.ok(inspector.isOpen());
+    board.items[0].width = .25;
+    U.record(project);
+    emit("change");
+    assert.deepEqual(visible(), [], "a committed board edit immediately clears stale findings");
+    assert.equal(K.meta(board.id, "drc")?.pending, true);
+    assert.equal(badge["aria-busy"], "true");
+    assert.equal(badge.textContent, "Checking…");
+    assert.equal(inspector.isOpen(), false, "an inspector on a genuinely stale finding closes");
+    await release();
+    finish();
+    assert.ok(visible().some(v => v.type === "viaStyle"));
+    assert.ok(!visible().some(v => v.type === "width"), "the interrupted follow-up cannot republish the obsolete width finding");
+  } finally {
+    stop(); inspector.close();
+    globalThis.AtriumLength = length; globalThis.AtriumLazy = savedLazy;
+    delete globalThis.document; delete globalThis.AtriumPrefs;
+  }
+  console.log("PASS manual DRC rows, Problems and the open inspector persist through a same-revision recheck");
+}
 function checkRuleScopes() {
   const app = require("../support/app-source-paths.cjs").appFile;
   const saved = globalThis.AtriumLazy;
@@ -177,4 +275,4 @@ function checkRuleScopes() {
   } finally { globalThis.AtriumLazy=saved; globalThis.AtriumDesignQueryRecord=reader; }
   console.log("PASS rule scopes: cold validators and detached pour retain version, disabled-set and severity policy");
 }
-test().then(manualOnlineSelection).then(checkRuleScopes).then(() => { console.log("SHIM-OK"); }, e => { console.error(e); if (typeof process !== "undefined") process.exitCode = 1; });
+test().then(manualOnlineSelection).then(manualPublicationContinues).then(checkRuleScopes).then(() => { console.log("SHIM-OK"); }, e => { console.error(e); if (typeof process !== "undefined") process.exitCode = 1; });

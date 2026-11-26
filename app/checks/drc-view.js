@@ -86,17 +86,22 @@ globalThis.AtriumDRCView = (() => {
     const L = globalThis.AtriumLazy;
     if (globalThis.AtriumLength || !L?.modules?.().includes("AtriumLength") ||
         !scopeReadsLength && !(rules?.list || []).some(r => r.type === "length" || r.type === "matchedLengths")) return false;
-    lengthLoad ??= L.need("AtriumLength").then(() => {checks = new WeakMap(); schedule();}, failed).finally(() => {lengthLoad = null;});
+    lengthLoad ??= L.need("AtriumLength").then(() => {resetCheckDependencies(); schedule();}, failed).finally(() => {lengthLoad = null;});
     return true;
   }
   const unwaived = (doc, list) => waivers(doc) ? AtriumDRCWaivers.split(doc, list).active : list;
   // Markers for a board: active violations, plus its waived ones (drawn as quiet dashed markers).
   function show(d, list, batch = false) {
-    const state = stateFor(d);
+    const state = stateFor(d), key = stamp(d), held = holdsBatch(state, key);
     state.published = list;
-    state.publishedAt = stamp(d);
-    if (!batch && needsPourCheck(d) && state.poursAt !== state.publishedAt) {pending(d); return;}
-    state.readyAt = state.publishedAt;
+    state.publishedAt = key;
+    if (!batch && needsPourCheck(d) && state.poursAt !== key) {
+      if (!held) pending(d);
+      return;
+    }
+    const replacesBatch = held && list !== state.heldBatch;
+    if (replacesBatch) state.heldBatch = null;
+    state.readyAt = key;
     state.pendingAt = state.errorAt = null;
     // Poured copper verified against the Clearance rules (drc-pours.js), kept until the next verification.
     if (state.pours?.length && R().checkSelected(d,"clearance",onlineMode)) list = list.concat(state.pours);
@@ -108,6 +113,15 @@ globalThis.AtriumDRCView = (() => {
       markerPublications.set(id, publication);
     else markerPublications.delete(id);
     publish(d);
+    if (replacesBatch && host.doc() === d) {
+      const inspector = globalThis.AtriumDRCInspector, inspected = inspector?.current();
+      if (inspected && inspected === focused) {
+        const pool = inspected.waived ? waivedShown.get(id) || EMPTY : shown.get(id);
+        const replacement = inspector.relocate(inspected, pool);
+        if (replacement) inspector.open(host, replacement);
+        else inspector.close();
+      }
+    }
   }
   // The check store (checks.js): this board's active and waived online results, and the net-wide
   // ones from the last batch run. Conversion to the shared violation shape is lazy there.
@@ -478,7 +492,7 @@ globalThis.AtriumDRCView = (() => {
       st.certs = store;
       return store;
     }
-    return {update, seed, readsLength:()=>state?.compiled?.dependencies.has("field:length"), reset() {state = null;}, violations:() => state?.violations || [], types, at:() => state?.at, pending:() => (state?.pending || []).reduce((n, p) => n + p.length, 0),
+    return {update, seed, seeded:()=>state !== null, readsLength:()=>state?.compiled?.dependencies.has("field:length"), reset() {state = null;}, violations:() => state?.violations || [], types, at:() => state?.at, pending:() => (state?.pending || []).reduce((n, p) => n + p.length, 0),
       wantsStore, buildStore, store:() => state?.certs || null};
   }
 
@@ -527,6 +541,20 @@ globalThis.AtriumDRCView = (() => {
     return v ? [v.floor, v.items, v.outer, v.project, v.parameters, v.library, v.pours].join("/") : host?.revision?.() ?? 0;
   }
   const current = d => !!d && checks.get(d)?.readyAt === stamp(d);
+  const holdsBatch = (state, key) => !!state?.heldBatch && state.readyAt === key;
+  // Dependency readiness invalidates check caches, but it does not change the authored board.
+  function resetCheckDependencies() {
+    const previous = checks;
+    checks = new WeakMap();
+    for (const d of host.project().documents) {
+      const state = previous.get(d);
+      if (!state?.heldBatch || !holdsBatch(state, stamp(d))) continue;
+      state.engine.reset();
+      state.version = state.extra = state.errorAt = null;
+      state.published = state.heldBatch;
+      checks.set(d, state);
+    }
+  }
   const findCurrent = id => current(host?.docById?.(id) || visibleBoards().find(d => d.id === id));
   const batchCurrent = d => last?.doc === d && last.stamp === stamp(d);
   const needsPourCheck = d => R()?.checkSelected(d,"clearance",onlineMode) &&
@@ -534,7 +562,7 @@ globalThis.AtriumDRCView = (() => {
   function pending(d) {
     const state = stateFor(d), key = stamp(d);
     if (state.pendingAt === key) return;
-    state.readyAt = state.errorAt = null;
+    state.readyAt = state.errorAt = state.heldBatch = null;
     state.pendingAt = key;
     const active = shown.get(d.id) || EMPTY, waived = waivedShown.get(d.id) || EMPTY;
     shown.delete(d.id); waivedShown.delete(d.id); markerPublications.delete(d.id);
@@ -635,7 +663,9 @@ globalThis.AtriumDRCView = (() => {
         boardOuter(v, entry && U.outer?.()), v?.library, v?.pours, project, options, geometry, v?.floor);
       state.version = v; state.waivers = globalThis.AtriumDRCWaivers;
       state.polygons = globalThis.AtriumPolygonPour; state.paths = globalThis.AtriumReturnPath;
-      show(d, extraChecks(d, local), true);
+      const list = extraChecks(d, local);
+      state.heldBatch = result.complete !== false && !state.engine.seeded() ? list : null;
+      show(d, list, true);
       if (result.complete === false) unavailable(d, Error("Design Rule Check is incomplete."));
       if (enabled && state.engine.at()==null) schedule();
       owner.invalidate();
@@ -798,7 +828,7 @@ globalThis.AtriumDRCView = (() => {
     const state = stateFor(d), engine = state.engine;
     if (manual?.doc === d && manual.stays()) return null;
     const key = stamp(d), reportFailure = error => {if (key === stamp(d) && visibleBoards().includes(d)) unavailable(d, error);};
-    if (!current(d) || needsCheck(d)) pending(d);
+    if (!holdsBatch(state, key) && (!current(d) || needsCheck(d))) pending(d);
     if (!R()) {
       if (!rulesLoad && globalThis.AtriumLazy?.need) {
         rulesLoad = AtriumLazy.need("AtriumRules").then(() => { rulesLoad = null; if (R()) schedule(); }, e => {rulesLoad = null; reportFailure(e);});
@@ -827,7 +857,7 @@ globalThis.AtriumDRCView = (() => {
     if (wantsLegend && L?.need) {
       const modules = ["AtriumMaskOpenings", "AtriumPCBTextRich", "AtriumDesignators"].filter(n => !globalThis[n]);
       if (modules.length) {
-        if (!rulesLoad) rulesLoad = L.need(modules).then(() => {rulesLoad = null; checks = new WeakMap(); schedule();},
+        if (!rulesLoad) rulesLoad = L.need(modules).then(() => {rulesLoad = null; resetCheckDependencies(); schedule();},
           e => {rulesLoad = null; reportFailure(e);});
         return null;
       }
@@ -869,7 +899,7 @@ globalThis.AtriumDRCView = (() => {
     state.extra = outer != null ? {list:r.violations, outer, F, out:list} : null;
     state.version = version; state.waivers = globalThis.AtriumDRCWaivers;
     state.polygons = globalThis.AtriumPolygonPour; state.paths = globalThis.AtriumReturnPath;
-    show(d, list);
+    if (r.complete !== false || !holdsBatch(state, key)) show(d, list);
     if (r.complete === false) unavailable(d, Error("Online Design Rule Check is incomplete."));
     if (r.mode !== "none" || !reuse) {redrawBoard(d); refreshMessages(d);}
     return r;
