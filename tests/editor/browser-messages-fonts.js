@@ -46,6 +46,9 @@ module.exports = async function messagesFonts(browser) {
     await page.waitForFunction(() => document.getElementById("status")?.textContent.startsWith("Check Design:"));
     const messages = page.getByRole("region", {name:"Messages", exact:true});
     await messages.getByRole("tab", {name:"Problems", selected:true}).waitFor();
+    const close = page.getByRole("button", {name:"Close Messages",exact:true});
+    assert.equal(await close.count(), 1, "docked Messages has one Close control");
+    assert.equal(await close.getAttribute("data-dock-close"), "messages");
     assert.equal(await page.evaluate(() => AtriumMessages.detail()), null, "Check Design opens the shared Problems list");
 
     const fontOf = n => { const s = getComputedStyle(n); return [s.fontFamily, s.fontSize, s.fontWeight, s.fontStyle].join(" / "); };
@@ -102,6 +105,8 @@ module.exports = async function messagesFonts(browser) {
     await logTab.click();
     checkLog((await sample()).rows);
     assert.equal(await report.count(), 0, "the general Log does not retain DRC report controls");
+    await close.click();
+    await messages.waitFor({state:"hidden"});
     assert.deepEqual(errors, [], "no page errors");
     console.log("messages fonts: ok");
   } finally {
