@@ -635,11 +635,42 @@ test("Ctrl+Click auto-complete routes to a distant pad; addVia keeps the layer",
   assert.ok(c.ok && c.done, "completed onto the pad");
   const plan = s.commit();
   assert.ok(audit([...board.items, ...plan.add]).worst >= -1e-6);
+
+  const hovered = R.begin(board, new Map(), {net:"SIG", layer:"Top", start:[6, 0]});
+  assert.ok(hovered.move([20, 0]).reached, "the preview already reaches the pad");
+  const finished = hovered.complete([20, 0]);
+  assert.ok(finished.ok && finished.done, "Ctrl+Click finishes a preview that reaches its target");
+  assert.equal(hovered.state.anchors, 1, "the target does not add a zero-length anchor");
+  assert.ok(hovered.complete([20, 0]).done, "the anchored endpoint already meets the target");
+  assert.equal(hovered.state.anchors, 1);
+  assert.ok(hovered.commit().length > 0);
+
+  const stationary = R.begin(board, new Map(), {net:"SIG", layer:"Top", start:[6, 0]});
+  assert.equal(stationary.complete([6, 0]).done, false, "the start pad alone does not make a route");
+  assert.deepEqual(stationary.commit().add, []);
+
   const s2 = R.begin(board, new Map(), {net:"SIG", layer:"Top", start:[6, 0]});
   s2.move([7, 0]);
   const v = s2.addVia();
   assert.ok(v.ok); assert.equal(s2.state.layer, "Top");
   assert.equal(s2.move([8, 1]).vias.length, 1);
+});
+
+test("via placement cannot rely on a shove from a stationary preview", () => {
+  const board = {kind:"pcb", items:[
+    {id:"crossing", kind:"track", points:[[-3, 0], [3, 0]], width:.15, layer:"Top", net:"OTHER"}
+  ]};
+  for (const place of [session => session.addVia(), session => session.switchLayer("Bottom")]) {
+    const session = R.begin(board, new Map(), {
+      net:"SIG", layer:"Top", start:[0, 0], mode:"push", width:1.2,
+      viaStyle:{diameter:.4, drill:.2}, rules:{clearance:.2}, moveBudgetMs:100, pushBudgetMs:100
+    });
+    assert.equal(session.move([0, 0]).pushed.length, 1, "the preview temporarily clears the crossing");
+    assert.equal(place(session).ok, false, "the original track still obstructs the via");
+    assert.equal(session.state.layer, "Top");
+    assert.equal(session.state.anchors, 0);
+    assert.deepEqual(session.commit(), {add:[], remove:[], modify:[], length:0});
+  }
 });
 
 test("a via that does not fit backs off along the route", () => {

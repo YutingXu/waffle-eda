@@ -1526,8 +1526,12 @@ globalThis.AtriumRouter = (() => {
     }
     const legEnd = () => { const l = st.legs[st.legs.length - 1]; return l.points[l.points.length - 1]; };
     // A layer change or via that does not fit leaves the session exactly as it was.
-    const saveState = () => ({legs:st.legs.map(l => ({...l, points:l.points.slice()})), vias:st.vias.length, undo:st.undo.length, base:st.base, last:st.last});
-    function restoreState(s) { st.legs = s.legs; st.vias.length = s.vias; st.undo.length = s.undo; st.base = s.base; st.last = s.last; ctx = null; }
+    const saveState = () => ({legs:st.legs.map(l => ({...l, points:l.points.slice()})), vias:st.vias.length, undo:st.undo.length, base:st.base});
+    function restoreState(s) {
+      st.legs = s.legs; st.vias.length = s.vias; st.undo.length = s.undo; st.base = s.base;
+      st.last = null; ctx = null;
+      restoreScene();
+    }
     function anchoredLines(layerI) {
       const lines = [];
       for (const l of st.legs) if (layerIndex(l.layer) === layerI && l.points.length > 1) lines.push({pts:l.points, hw:l.width / 2, net:netId, net2:-99, lo:layerI, hi:layerI});
@@ -1691,6 +1695,7 @@ globalThis.AtriumRouter = (() => {
         if (next === st.legs[st.legs.length - 1].layer) return {ok:false, message:"Already routing on " + next + "."};
         const saved = saveState();
         if (st.last && st.last.path.length > 1) api.click();
+        restoreScene(); // Via clearance only uses shoves retained by an accepted anchor.
         const leg = st.legs[st.legs.length - 1];
         const at = legEnd(), span = viaSpan(board, leg.layer, next);
         const requested = finite(style?.diameter) ? style : st.viaOverride ? st.via : undefined;
@@ -1748,6 +1753,7 @@ globalThis.AtriumRouter = (() => {
       addVia(style) {
         const saved = saveState();
         if (st.last && st.last.path.length > 1) api.click();
+        restoreScene(); // Via clearance only uses shoves retained by an accepted anchor.
         const leg = st.legs[st.legs.length - 1], at = legEnd(), v = style && finite(style.diameter) ? style : st.via;
         if (!viaClear(W, rules, netId, net, at, v.diameter / 2, 0, 32, st.mode === "ignore")) { restoreState(saved); return {ok:false, message:"No room for a via here."}; }
         if (st.vias.some(o => dist(at, [o.x, o.y]) < Math.max(o.diameter, v.diameter))) { restoreState(saved); return {ok:false, message:"There is already a via here."}; }
@@ -1759,8 +1765,17 @@ globalThis.AtriumRouter = (() => {
       // Ctrl+Click auto-complete: routes from the current end to `target` (walkaround
       // with a generous budget, then grid search) and anchors it. Single layer.
       complete(target, opt = {}) {
-        if (st.last && st.last.path.length > 1 && st.mode !== "ignore") api.click();
+        const anchored = st.last && st.last.path.length > 1 && st.mode !== "ignore" ? api.click().anchored : false;
         const leg = st.legs[st.legs.length - 1], from = legEnd(), saveMode = st.mode, saveMs = st.moveMs;
+        // A preview can already have anchored the endpoint. Finish without another anchor.
+        if (trackPoints([from, target]).length === 1 && (st.vias.length || trackPoints(leg.points).length > 1)) {
+          restoreScene();
+          const reached = sameNetAt(W, netId, layerIndex(leg.layer), target, null);
+          if (reached) {
+            st.last = null;
+            return {ok:true, anchored, done:true, reached, status:"ok"};
+          }
+        }
         st.mode = "walkaround"; st.moveMs = opt.budgetMs || 60;
         let r = compute(target);
         st.mode = saveMode; st.moveMs = saveMs;
