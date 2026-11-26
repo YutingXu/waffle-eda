@@ -395,14 +395,15 @@ async function functional(browser, server) {
     await page.getByRole("button", {name: "Don’t Save"}).click();
     await page.waitForFunction(short => AtriumNavHost.project().name.endsWith("(" + short + ")") && AtriumNavHost.isDirty(), regulator.revision.slice(0, 7));
 
-    // Status bar and shortcut open History again; the old commands route to it.
+    // The shortcut and compatibility commands reopen History for a detached copy.
     await page.evaluate(() => AtriumHistoryView.close());
     await page.locator(".hv-view").waitFor({state: "detached"});
     await page.locator("#canvas").click({position: {x: 400, y: 300}});
     await page.keyboard.press(process.platform === "darwin" ? "Meta+Alt+KeyZ" : "Control+Alt+KeyZ");
     await view.waitFor();
     await page.evaluate(() => AtriumHistoryView.close());
-    await status.click();
+    await status.waitFor({state:"hidden",timeout:5000}); // A restored copy has no Git branch indicator.
+    await page.evaluate(() => AtriumNavHost.act("history-working"));
     await view.waitFor();
     await page.waitForFunction(() => AtriumHistoryView.state()?.sel === "working");
     await view.locator(".hv-detail-title", {hasText: "Working design"}).waitFor();
@@ -416,6 +417,9 @@ async function functional(browser, server) {
     const reopened = openProject(page);
     await page.getByRole("button", {name:"Don’t Save"}).click();
     await reopened;
+    await status.click();
+    await view.waitFor();
+    await view.locator(".hv-detail-title",{hasText:"Working design"}).waitFor();
 
     // File History filters to first-parent revisions that changed the tracked project file.
     await page.evaluate(() => AtriumNavHost.act("file-history"));
@@ -471,8 +475,8 @@ async function noGit(browser, server) {
       document.querySelector("dialog.sp-dialog[open]")?.close();
     });
     await page.locator(".quick-access .hv-entry").waitFor();
-    assert.equal(await page.locator(".hv-status-label").textContent(), "History");
-    assert.equal(await page.locator(".hv-status .ui-dot:not([hidden])").count(), 1, "unsaved dot");
+    assert.equal(await page.locator(".statusbar .hv-status").isVisible(),false,
+      "the bottom bar has no fallback History shortcut when there is no Git branch");
     await page.locator(".quick-access .hv-entry").click();
     const view = page.locator(".hv-view"), details = view.locator(".hv-details");
     await view.locator(".hv-notice .ui-notice", {hasText: "No Git history"}).waitFor();
@@ -508,7 +512,7 @@ async function noGit(browser, server) {
     await details.getByRole("button", {name: "Restore as copy"}).click();
     await page.waitForFunction(() => AtriumNavHost.isDirty() && /Bench without Git/.test(AtriumNavHost.project().name));
     assert.deepEqual(errors, []);
-    console.log("History without Git: notice, status bar, checkpoint, snapshot Compare and Restore as copy passed.");
+    console.log("History without Git: notice, no bottom-bar shortcut, checkpoint, snapshot Compare and Restore as copy passed.");
   } finally { await page.close(); }
 }
 
