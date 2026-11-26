@@ -45,6 +45,37 @@ const gpuCode = fs.readFileSync(file, "utf8"), sceneExport = "{render, damage, s
 assert.ok(gpuCode.includes(sceneExport));
 vm.runInContext(gpuCode.replace(sceneExport, "{render, damage, stats, views, update, padDetails, coveredPadDetails, paintPadDetails,"), sandbox);
 const gpu = sandbox.AtriumCanvasGPU;
+{
+  let copiedPixels = 0, outlines = 0, partBoxes = 0;
+  const local = vm.createContext({Atrium, AtriumPCBAppearance, copyCanvas(c) {
+    copiedPixels += c.width*c.height;
+    return {width:c.width,height:c.height};
+  }});
+  vm.runInContext(gpuCode.replace("  return Object.freeze(" + sceneExport,
+    "  copyCanvas = globalThis.copyCanvas;\n  return Object.freeze({render, damage, stats, overlayWorld,"), local);
+  const items = [{id:"track",kind:"track",layer:"Top"}, {id:"via",kind:"via",layer:"Multi",x:2,y:1,diameter:.8,drill:.4},
+    {id:"part",kind:"part"}];
+  const canvas = {width:842,height:717}, ctx = {canvas, setTransform() {}, clearRect() {}, beginPath() {},
+    rect() {}, save() {}, restore() {}, stroke() {outlines++;}};
+  const I = {canvas,ctx,boardTransform() {},drawBoard(g,parts,doc,defs,scale,opts) {
+    assert.ok(opts.partBoxesOnly); partBoxes += parts.length;
+  }};
+  const st = {scene:{cache:{all:items}}}, area = canvas.width*canvas.height;
+  function select(id, selectedIds) {
+    local.AtriumCanvasGPU.overlayWorld(I,st,board,new Map(),{layer:"Top",selected:id,selectedIds},
+      [0,0,1],{active:"Top",viewport:[0,0,4,4]});
+  }
+  select("track");
+  assert.equal(copiedPixels,0,"a selected track already drawn with copper needs no extra canvas");
+  select("via");
+  assert.deepEqual([copiedPixels,outlines], [area,1], "a via keeps its selection outline");
+  const previous = st.overlayWorld;
+  select("track",new Set(["track","missing"]));
+  assert.deepEqual([copiedPixels,st.overlayWorld,previous.width,previous.height], [area,null,1,1],
+    "returning to a track releases the prior outline without copying transparent pixels");
+  select("part");
+  assert.deepEqual([copiedPixels,partBoxes], [2*area,1], "a component keeps its selection box");
+}
 function draw(queued = 1) {
   assert.equal(gpu.render(view, view.cache.doc, new Map(), {reuseBase: true}), false);
   assert.equal(jobs.size, queued);

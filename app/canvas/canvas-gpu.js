@@ -2459,7 +2459,6 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     // Selection boxes above the layered geometry. Text and track handles stay with their layers.
     if (sel != null || ids?.size) {
-      drew = true;
       const byId = S.byId || (S.byId = new Map(c.all.map(i => [i.id, i])));
       const chosen = new Set(ids || []); if (sel != null) chosen.add(sel);
       const parts = [];
@@ -2470,11 +2469,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         if (i.kind === "via" || i.kind === "pad") {
           const b = G.Atrium.bounds(G.Atrium.itemPoints(i, null, "pcb")), pad = 2 / scale;
           if (!b) continue;
+          drew = true;
           ctx.save(); ctx.globalAlpha *= .7; ctx.strokeStyle = PCB.system.selection; ctx.lineWidth = 1 / scale;
           ctx.beginPath(); ctx.rect(b[0] - pad, b[1] - pad, b[2] - b[0] + pad * 2, b[3] - b[1] + pad * 2); ctx.stroke(); ctx.restore();
         }
       }
-      if (parts.length) I.drawBoard(ctx, parts, doc, defs, scale, {...V.o2, partBoxesOnly: true}, null, viewport, null);
+      if (parts.length) {
+        drew = true;
+        I.drawBoard(ctx, parts, doc, defs, scale, {...V.o2, partBoxesOnly: true}, null, viewport, null);
+      }
     }
     // A zoom gesture scales this world-sized part; the screen-sized top layer is drawn again for each camera.
     if (strip) return;
