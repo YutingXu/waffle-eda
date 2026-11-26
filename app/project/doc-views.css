@@ -7,8 +7,5 @@
 .view-tab .view-tab-close:hover {opacity:1}
 .view-tab.is-shown {color:var(--text)}
 
-/* History keeps the dock and tab-strip geometry when switching to a design. */
+/* Keep dock and tab-strip geometry when switching between editor tabs. */
 .document-view-active .layer-bar {display:none}
-.document-view-active:not(.history-view-active) :is(.panel-properties, [data-tab-for="properties"], [data-dock-target="properties"]) {display:none}
-.document-view-active:not(.history-view-active) #workbench:not(:has(#properties [data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {--properties:0px}
-.document-view-active:not(.history-view-active) #properties:not(:has([data-dock-panel]:not(.panel-properties, .dock-inactive, [hidden]))) {display:none}
