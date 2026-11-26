@@ -457,4 +457,25 @@ for (const text of ["R12345", "pQgj", " A B ", "Ωµ", "éþ", "🔩", "   ", ""
     A.world=world; A.placement=placement; globalThis.AtriumUndoStore=journal;
   }
 }
+// Ordering and visibility need the painter's layer sequence, including source
+// fields revealed by the user, without resolving any of their text geometry.
+{
+  require(require("../support/app-source-paths.cjs").appFile("designator-place.js"));
+  const pcb=AtriumPCBAppearance, def={footprint:{pads:[],shapes:[]}};
+  const row=(field,layer)=>({field,layer,at:[.3,-.7],angle:45,size:1});
+  const ref=row("ref","Mechanical 2"), value=row("value","Bottom paste");
+  const sourceRecord="components6/data#17";
+  const doc={kind:"pcb",pcbDrawing:{annotations:{[sourceRecord]:[ref,value]}}};
+  for(const props of [{},{refAt:[.2,1]}, {layer:"Bottom"}, {showRef:false},
+      {designator:{x:1,y:3},side:"bottom"},{designator:{x:1}},{sourceRecord},
+      {sourceRecord,showValue:false},{boardLabels:[]},
+      {boardLabels:[value],hiddenBoardLabels:[ref],showRef:true}]){
+    const part={ref:"R7",value:"10k",x:4,y:-1,angle:45,...props};
+    const expected=Array.from(pcb.partText(doc,part,def),r=>r.text.layer);
+    const world=A.world, placement=A.placement;
+    A.world=A.placement=()=>{throw new Error("a layer query transformed text geometry");};
+    try{assert.deepEqual([...pcb.partTextLayers(doc,part,def)],expected);}
+    finally{A.world=world;A.placement=placement;}
+  }
+}
 console.log("pcb-text tests passed");

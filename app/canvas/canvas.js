@@ -655,9 +655,12 @@ globalThis.AtriumCanvas = (() => {
         if(!opts.gpu || group.shapes.some(s=>s.kind==="text"||s.cutout||s.keepout))bucket(group.layer)?.parts.push(i,group);
         if(selectedParts)shown=shown || group.shapes.length>0 || group.pads.some(p=>PCB.visible(group.layer,p,opts));
       }
-      for(const row of PCB.partText(doc,i,def)){
+      if(names){
+        for(const layer of PCB.partTextLayers(doc,i,def))
+          if(!names.has(layer) && PCB.visible(layer,i,opts))names.add(layer);
+      }else for(const row of PCB.partText(doc,i,def)){
         if(!PCB.visible(row.text.layer,i,opts))continue;
-        bucket(row.text.layer)?.labels.push(i,row);shown=true;
+        bucket(row.text.layer).labels.push(i,row);shown=true;
       }
       if(selectedParts && shown && !opts.skipPartBoxes && chosen(i,opts))selectedParts.push(i);
     }
@@ -1471,7 +1474,7 @@ globalThis.AtriumCanvas = (() => {
         return openings.length?[layer,...openings.map(o=>o.layer)]:[layer];
       }
       const def=getDef(defs,i,doc), fp=def?.footprint;if(!fp)return [];
-      return [...new Set([...PCB.footprintLayers(i,fp).map(g=>g.layer),...Array.from(PCB.partText(doc,i,def),r=>r.text.layer)])];
+      return [...new Set([...PCB.footprintLayers(i,fp).map(g=>g.layer),...PCB.partTextLayers(doc,i,def)])];
     }
     function canBatch(count,opts){return hasPath2D && !!globalThis.AtriumSpatial && count>=LOD_MIN && !opts.routePreview?.hidden?.length && !!boardBatches();}
     // Batched drawing for this frame, or null when the view shows few objects.
@@ -2228,7 +2231,7 @@ globalThis.AtriumCanvas = (() => {
       const def=getDef(defs,item,doc);
       if(PCB.footprintLayers(item,def?.footprint).some(g=>PCB.visible(g.layer,null,opts) &&
           (g.shapes.length || g.pads.some(p=>PCB.visible(g.layer,p,opts)))))return true;
-      for(const row of PCB.partText(doc,item,def))if(PCB.visible(row.text.layer,item,opts))return true;
+      for(const layer of PCB.partTextLayers(doc,item,def))if(PCB.visible(layer,item,opts))return true;
       return false;
     }
     function enclosed(doc,defs,b,opts){

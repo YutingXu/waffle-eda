@@ -1566,7 +1566,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const def = PCB.readDefinition(defs,i.def,doc);
       if (!def?.footprint) continue;
       for (const g of PCB.footprintLayers(i, def.footprint)) if (g.shapes.some(x => x.kind === "text")) out.add(g.layer);
-      for (const row of PCB.partText(doc,i,def)) out.add(row.text.layer);
+      for (const layer of PCB.partTextLayers(doc,i,def)) out.add(layer);
     }
     return out;
   }
