@@ -446,7 +446,7 @@ globalThis.AtriumStartPage = (() => {
     mark.src = "brand/waffle-mark-butter.svg"; mark.alt = ""; mark.width = mark.height = 48;
     const release = globalThis.AtriumAbout;
     head.append(mark, welcomeWordmark(), el("p", "sp-release", t("start.release_label", {
-      name:release?.CODENAME ?? "Butter", version:release?.VERSION ?? "0.8.0",
+      name:release?.CODENAME ?? "Butter", version:release?.VERSION ?? "0.8.1",
     })));
     const actions = el("nav", "sp-actions"); actions.setAttribute("aria-label", "Start");
     const fresh = startAction("new", "New Project…", "plus", () => pend(h => h?.act?.("new")));
