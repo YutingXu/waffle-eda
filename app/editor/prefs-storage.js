@@ -28,13 +28,16 @@ globalThis.AtriumPrefsStorage = (() => {
   add("setting", ["atrium.autorouter.engine", "atrium-bom-v1", "atrium-swap-v1", "atrium-constraints-v1", "atrium.diff.prefs.v1",
     "atrium.navigator.modes.v1", "atrium.query.modes.v1", "atrium.selectionFilter.v2", "atrium.snap.v1", "waffle.si.options", "atrium.stress.options",
     "atrium-sch-place", "atrium-3d-v1", "atrium-cross-select", "atrium-drc-markers", "atrium-online-drc", "atrium.eco.", "atrium-net-colours",
-    "atrium.print.v1", "atrium.rules.units", "atrium-timing-vision", "atrium-annotate-v1", "atrium.script.timeout"]);
+    "atrium.print.v1", "atrium.rules.units", "atrium-timing-vision", "atrium-annotate-v1", "atrium.script.timeout",
+    "atrium.print.report.v1", "atrium.footprintWizard.roundOff", "waffle.notes.brush"]);
   add("state", ["atrium.busRoute.hint", "atrium.routing.spaceHint", "atrium.hint.ecoClusters", "atrium-split-follow-hint-v1", "atrium.diff.recent.v1",
     "atrium-palette-recent", "atrium.query.history.v1", "atrium.query.favourites.v1", "atrium.vscode-themes", "atrium.git.seen.v2", "atrium.genericParts.v1",
     "atrium.comments.v1", "atrium.routing.habits", "atrium.tutorial.v1", "atrium.welcome.v1", "atrium.script.draft", "atrium.script.height", "atrium.script.history",
     "atrium-calculators", "atrium.update", "atrium.selectionFilter.v1", "atrium-eco-unticked:", "atrium.bom.dismissed:",
     // Exported with the panel layout by prefs.js; Reset all clears them here.
-    "atrium.collapsed-sections", "atrium.collapsed-panels", "atrium.pcbView.v1"]);
+    "atrium.collapsed-sections", "atrium.collapsed-panels", "atrium.pcbView.v1",
+    // Review notes: which note kinds each sheet shows or hides.
+    "waffle.notes.sheet."]);
 
   // Reset also removes the old Last Opened history, which used local project paths as keys.
   add("state", ["atrium.git.seen.v1"]);
