@@ -42,7 +42,7 @@ body:
     attributes:
       label: Waffle version
       description: Help → About Waffle
-      placeholder: "0.8.0"
+      placeholder: "0.8.1"
     validations:
       required: true
   - type: input
