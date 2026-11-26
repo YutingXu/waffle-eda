@@ -91,6 +91,42 @@ async function libraryDrag(browser) {
     await page.mouse.up();
     assert.equal(await library(), libraryBefore + 1);
     assert.equal(await parts(), before + 1, "a library-file component places on release");
+
+    // A stub entry loads while it is dragged: placement starts once it arrives, and a release before then
+    // cancels for good instead of arming placement late.
+    await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumLibrarySourcesUI");
+      const real = globalThis.__realSources = AtriumLibrarySources;
+      globalThis.AtriumLibrarySources = {...real, load(lib, id) {
+        if (id !== "drag-stub-part") return real.load(lib, id);
+        const def = AtriumLibrary.sourceStore.list().find(l => l.id === "drag-file").defs.find(d => d.id === id);
+        const full = {...def}; delete full.stub;
+        return new Promise(done => setTimeout(() => done(full), globalThis.__stubDelay));
+      }};
+      const lib = AtriumLibrary.sourceStore.list().find(l => l.id === "drag-file");
+      lib.defs.push({...lib.defs[0], id:"drag-stub-part", name:"Drag stub part", stub:{kind:"test"}});
+      AtriumLibrary.sourceStore.save([lib]);
+      AtriumLibrary.mountPanel().render();
+    });
+    const stubRow = panel.locator('.lib-row[data-def="drag-stub-part"]');
+    await stubRow.waitFor();
+    const stubLibrary = await library(), stubParts = await parts();
+    await page.evaluate(() => { globalThis.__stubDelay = 1200; });
+    await page.mouse.move(...await centre(stubRow));
+    await page.mouse.down();
+    await page.mouse.move(...target, {steps:6});
+    await page.mouse.up();
+    await page.waitForTimeout(1600);
+    assert.equal(await placing(), false, "a stub that loads after the release does not arm placement");
+    assert.equal(await library(), stubLibrary);
+    await page.evaluate(() => { globalThis.__stubDelay = 300; });
+    await page.mouse.move(...await centre(stubRow));
+    await page.mouse.down();
+    await page.mouse.move(...target, {steps:6});
+    await page.waitForFunction(() => AtriumNavHost.placing());
+    await page.mouse.up();
+    assert.equal(await parts(), stubParts + 1, "a stub placed once loaded lands on release");
+    await page.evaluate(() => { globalThis.AtriumLibrarySources = globalThis.__realSources; });
     await panel.getByLabel("Library source", {exact:true}).selectOption({index:0});
 
     // On a schematic sheet the dragged symbol is placed on release too (the placement script may load cold).
@@ -107,6 +143,38 @@ async function libraryDrag(browser) {
     await page.mouse.up();
     await page.waitForFunction(n => AtriumNavHost.doc().items.filter(i => i.kind === "part").length === n + 1, sheetParts);
     await page.waitForFunction(() => !AtriumNavHost.placing());
+
+    // Split view: crossing the inactive pane on the way leaves it alone; releasing over it activates it and
+    // places the part there.
+    await page.evaluate(() => AtriumNavHost.act("split-right"));
+    await page.waitForSelector("#canvas-2");
+    await page.waitForTimeout(400);
+    const activeId = () => page.evaluate(() => AtriumNavHost.canvas().id);
+    const first = await activeId(), other = first === "canvas" ? "#canvas-2" : "#canvas";
+    const mid = async sel => centre(page.locator(sel));
+    const otherPoint = await mid(other), activePoint = await mid("#" + first);
+    const activeParts = await parts();
+    await page.mouse.move(...await centre(symbolRow));
+    await page.mouse.down();
+    await page.mouse.move(...otherPoint, {steps:10});
+    await page.mouse.move(...activePoint, {steps:10});
+    await page.mouse.up();
+    await page.waitForFunction(() => !AtriumNavHost.placing());
+    assert.equal(await activeId(), first, "crossing the inactive pane does not activate it");
+    assert.equal(await parts(), activeParts + 1, "the part lands in the pane it was released over");
+    await page.evaluate(() => AtriumNavHost.act("undo"));
+    await page.mouse.move(...await centre(symbolRow));
+    await page.mouse.down();
+    const counts = () => page.evaluate(() => Object.fromEntries(AtriumNavHost.project().documents.map(d => [d.id, (d.items || []).filter(i => i.kind === "part").length])));
+    const countsBefore = await counts();
+    await page.mouse.move(...activePoint, {steps:10});
+    await page.mouse.move(...otherPoint, {steps:10});
+    await page.mouse.up();
+    await page.waitForFunction(() => !AtriumNavHost.placing());
+    assert.equal(await activeId(), other.slice(1), "releasing over the inactive pane activates it");
+    const countsAfter = await counts(), target2 = await page.evaluate(() => AtriumNavHost.doc().id);
+    assert.equal(countsAfter[target2], countsBefore[target2] + 1, "the part is placed in the pane it was released over");
+    await page.evaluate(() => AtriumNavHost.act("split-close"));
     assert.deepEqual(errors, []);
     console.log("PASS library drag places on release with live keys, cancels off the canvas, and double-click places");
   } finally { await page.close(); }

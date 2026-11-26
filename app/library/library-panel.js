@@ -1863,12 +1863,13 @@ globalThis.AtriumLibrary = (() => {
       const onCanvas = ev => !!host?.canvas?.() && document.elementFromPoint(ev.clientX, ev.clientY) === host.canvas();
       const listen = on => { for (const [type, fn] of [["pointermove", move], ["pointerup", up], ["pointercancel", cancel], ["keydown", key]]) (on ? addEventListener : removeEventListener)(type, fn, true); };
       const end = () => { listen(false); lifted && globalThis.AtriumSpatialMotion?.settle(r); lifted = false; };
-      function begin() {
-        if (placing || !full || !at || !host.canvasAt?.(at[0], at[1])) return;
+      function begin(activate = false) {
+        if (placing || !full || !at || !host.canvasAt?.(at[0], at[1], activate)) return false;
         placing = true;
         const before = host.revision();
         placeEntry(lib, full, currentKind());
         if (host.revision() !== before) added = host.revision();
+        return true;
       }
       function abandon() {
         if (placing && host.placing?.()) host.act("select");
@@ -1881,7 +1882,7 @@ globalThis.AtriumLibrary = (() => {
           lifted = true; select(def.id, r); globalThis.AtriumSpatialMotion?.lift(r);
           // A library-file entry may still be a stub: load it now so placement can start on arrival.
           const ready = lib && def.stub ? globalThis.AtriumLibrarySources.load(lib, def.id) : Promise.resolve(def);
-          ready.then(d => { if (lifted) { full = d; begin(); } }, error => { if (lifted) { end(); P.ctx.info?.(error.message); } });
+          ready.then(d => { if (lifted) { full = d; begin(); } }, error => { end(); P.ctx.info?.(error.message); });
         }
         at = [ev.clientX, ev.clientY];
         if (!placing) begin();
@@ -1889,7 +1890,11 @@ globalThis.AtriumLibrary = (() => {
       function up(ev) {
         if (ev.pointerId !== id) return;
         end();
-        if (placing && onCanvas(ev) && host.placing?.()) host.placeAt(ev.clientX, ev.clientY); else abandon();
+        if (placing && !host.placing?.()) return abandon(); // Escape during the drag cancelled it
+        if (placing && onCanvas(ev)) return void host.placeAt(ev.clientX, ev.clientY);
+        // Released over another split pane (or nowhere): that pane becomes active and the part lands there.
+        abandon(); placing = false; added = null; at = [ev.clientX, ev.clientY];
+        if (begin(true) && host.placing?.()) host.placeAt(ev.clientX, ev.clientY);
       }
       function cancel(ev) { if (ev.pointerId === id) { end(); abandon(); } }
       function key(ev) { if (ev.key === "Escape" && !placing) end(); }
