@@ -2,7 +2,7 @@
 // Online native diagnostics finish at the point of check demand, even with no
 // ordinary findings and no marker painter to pull in the worker's dependency.
 const assert = require("node:assert/strict");
-for (const m of ["model", "nav-common", "spatial", "connectivity", "pcb-appearance", "pcb-text", "vectorize",
+for (const m of ["model", "nav-common", "spatial", "connectivity", "connectivity-live", "pcb-appearance", "pcb-text", "vectorize",
   "pcb-text-rich", "designator-place", "pcb/mask-openings", "rules", "drc", "checks", "drc-fixes", "drc-view", "problem-marks", "drc-markers", "drc-inspector", "length-tuning", "undo-store"]) {
   require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 }
@@ -245,6 +245,98 @@ async function manualPublicationContinues() {
   }
   console.log("PASS manual DRC rows, Problems and the open inspector persist through a same-revision recheck");
 }
+async function stagedColdShorts() {
+  const board = deck("cold-shorts"), R = AtriumRules, live = AtriumConnectivityLive;
+  board.outline = [[-10,-10], [200,-10], [200,300], [-10,300]];
+  board.items[0].width = .07;
+  const cross = {kind:"track", id:"cross", layer:"Top", net:"SHORT", width:.25, points:[[1,-1],[1,1]]};
+  board.items.push(cross);
+  for (let k = 0; k < 6000; k++) {
+    const x = (k % 60) * 3, y = 6 + Math.floor(k / 60) * 2;
+    board.items.push({kind:"track", id:"track-" + k, layer:"Top", net:"OPEN", width:.25, points:[[x,y],[x+1,y]]});
+  }
+  board.ruleCheckSelection = {online:["netAntennae", "courtyard"]};
+  panes = [board]; install(board); emit("document");
+  let starts = 0, cancelled = 0;
+  const original = R.drc;
+  let rulesPasses = 0;
+  R.drc = (...args) => {rulesPasses++; return original(...args);};
+  globalThis.AtriumConnectivityLive = {...live, *stages(...args) {
+    starts++;
+    const work = live.stages(...args);
+    let completed = false;
+    try {
+      assert.equal(work.next().done, false, "the actual cold graph has more work");
+      yield Symbol("next task");
+      const result = yield* work;
+      completed = true;
+      return result;
+    } finally {
+      if (!completed) {work.return(); cancelled++;}
+    }
+  }};
+  try {
+    const key = "online-drc:" + board.id;
+    const pending = () => K.meta(board.id, "drc")?.pending;
+    const visible = () => V.violations(board.id);
+    const signature = list => list.map(v => JSON.stringify(v)).sort();
+    const oldShort = original(board,defs,R.defaults(),{project,types:["short"]}).violations[0];
+    assert.ok(oldShort, "the cold fixture contains a short before the edit");
+    K.scheduler.plan("drc", {now:true});
+    finish();
+    assert.equal(starts, 1, "the first scheduled check starts the actual connectivity iterator");
+    assert.equal(rulesPasses, 0, "cold connectivity yields before the rules pass");
+    assert.equal(pending(), true);
+    assert.equal(V.status(), "Checking…");
+    assert.deepEqual(visible(), []);
+
+    const obsolete = jobs.get(key);
+    cross.points = [[2,-1],[2,1]];
+    U.record(project); emit("change");
+    K.scheduler.plan("drc", {now:true});
+    assert.equal(cancelled, 1, "a committed edit closes the obsolete iterator");
+    obsolete.fn(() => true, {timeRemaining:() => 100});
+    assert.equal(rulesPasses, 0);
+    assert.equal(pending(), true, "no ready receipt comes from the obsolete task");
+    for (let i = 0; i < 180 && jobs.has(key); i++) finish();
+    assert.equal(jobs.has(key), false);
+    assert.equal(rulesPasses, 1);
+    assert.equal(pending(), false);
+    const expected = original(board,defs,R.defaults(),{project,types:V.online().types(board),limit:5000}).violations;
+    assert.deepEqual(signature(visible()), signature(expected), "the complete finding set matches a fresh rule pass");
+    const newShort = visible().find(v => v.type === "short");
+    assert.ok(newShort);
+    assert.notDeepEqual(newShort, oldShort, "the published short belongs to the new board revision");
+
+    board.ruleCheckSelection.batch = [...board.ruleCheckSelection.online, "width"];
+    U.record(project); emit("change");
+    globalThis.document = {getElementById:id => id === "status-problems" ? badge : null, addEventListener() {}, removeEventListener() {}};
+    const manual = await V.run();
+    assert.ok(manual.complete);
+    const held = visible(), manualShort = held.find(v => v.type === "short");
+    assert.ok(inspector.open(host, manualShort));
+    const status = badge.textContent;
+    assert.equal(held.some(v => v.type === "width"), false);
+    const before = rulesPasses;
+    finish();
+    assert.equal(rulesPasses, before, "the same-revision follow-up is still computing its graph");
+    assert.equal(visible(), held, "the manual publication stays visible through this yield");
+    assert.equal(inspector.current(), manualShort);
+    assert.equal(pending(), false);
+    assert.equal(badge.textContent, status);
+    assert.equal(badge["aria-busy"], "false");
+    for (let i = 0; i < 180 && jobs.has(key); i++) finish();
+    assert.equal(jobs.has(key), false);
+    assert.equal(rulesPasses, before + 1);
+    assert.deepEqual(signature(visible()), signature(expected));
+    assert.ok(visible().includes(inspector.current()), "the inspector follows the completed short");
+  } finally {
+    inspector.close();
+    delete globalThis.document;
+    globalThis.AtriumConnectivityLive = live; R.drc = original;
+  }
+  console.log("PASS cold Online DRC yields during connectivity, cancels stale work and publishes the complete findings");
+}
 function checkRuleScopes() {
   const app = require("../support/app-source-paths.cjs").appFile;
   const saved = globalThis.AtriumLazy;
@@ -275,4 +367,4 @@ function checkRuleScopes() {
   } finally { globalThis.AtriumLazy=saved; globalThis.AtriumDesignQueryRecord=reader; }
   console.log("PASS rule scopes: cold validators and detached pour retain version, disabled-set and severity policy");
 }
-test().then(manualOnlineSelection).then(manualPublicationContinues).then(checkRuleScopes).then(() => { console.log("SHIM-OK"); }, e => { console.error(e); if (typeof process !== "undefined") process.exitCode = 1; });
+test().then(manualOnlineSelection).then(manualPublicationContinues).then(stagedColdShorts).then(checkRuleScopes).then(() => { console.log("SHIM-OK"); }, e => { console.error(e); if (typeof process !== "undefined") process.exitCode = 1; });

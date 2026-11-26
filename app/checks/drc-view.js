@@ -266,8 +266,8 @@ globalThis.AtriumDRCView = (() => {
     // undo journal, the cache the ratsnest keeps, so a check after the airwires were drawn reuses it.
     const connections = (doc, defs, hint) => hint?.journal && globalThis.AtriumConnectivityLive && globalThis.AtriumConnectivity ? () => AtriumConnectivity.inspect(doc, defs, hint.journal) : undefined;
     function full(doc, defs, rules, rulesSig, t0, why, at, deps, hint, view) {
-      const compiled = R().compiled(doc,{rules,defs,project:hint?.project});
-      const c = connections(doc, defs, hint), r = R().drc(doc, defs, rules, {compiled,project:hint?.project,types:types(doc), limit:5000, ...(c ? {connections:c} : null)});
+      const compiled = hint?.compiled ?? R().compiled(doc,{rules,defs,project:hint?.project});
+      const c = hint?.connections ?? connections(doc, defs, hint), r = R().drc(doc, defs, rules, {compiled,project:hint?.project,types:types(doc), limit:5000, ...(c ? {connections:c} : null)});
       const geometry = hint?.geometry;
       state = {rulesSig, rulesObj:rules, lib:defs, ...deps, compiled, ...indexBoard(doc, view, !!geometry), revision:geometry?.revision, floor:hint?.floor,
         violations:r.violations, at, certs:null, print:hint ? outerPrint(doc, hint.project) : null,
@@ -732,11 +732,15 @@ globalThis.AtriumDRCView = (() => {
       onDocument:bindProject,
       start(d, slice) {
         return (function* () {
-          for (;;) {
-            const r = check(slice, d, true);
-            if (r?.mode !== "partial") return r;
-            yield;
-          }
+          const work = {};
+          try {
+            for (;;) {
+              const r = check(slice, d, true, work);
+              if (r?.mode === "connectivity") {yield r.wait ? S().WAIT : undefined; continue;}
+              if (r?.mode !== "partial") return r;
+              yield;
+            }
+          } finally {work.connections?.return();}
         })();
       }});
     // Poured copper against the Clearance rules (drc-pours.js), lazily in idle slices after a refill or
@@ -820,7 +824,7 @@ globalThis.AtriumDRCView = (() => {
   }
   // deadline (optional, an idle deadline): a large edit is re-checked in parts, one idle slice at a
   // time (engine.update: mode "partial"); the markers and counts change once every part is done.
-  function check(deadline, d, scheduled = false) {
+  function check(deadline, d, scheduled = false, work) {
     if (!enabled || homeOpen()) return null;
     const boards = visibleBoards();
     if (d === undefined) d = boards[0];
@@ -874,7 +878,36 @@ globalThis.AtriumDRCView = (() => {
       if (readsGeometry && host.boardGeometry && !geometry) {prepareGeometry(d); return null;}
       const shared={from,to:ch?.seq,ids:ch?.ids,items:ch?.items,outer,library:version?.library,pours:version?.pours,
         floor:version?.floor,project:host.project(),journal:version?U:null,geometry};
-      r = engine.update(d,host.defs(),rules,shared,deadline && {timeRemaining:() => deadline.timeRemaining()});
+      const defs = host.defs(), live = globalThis.AtriumConnectivityLive;
+      if (work?.key != null && work.key !== key) return null;
+      // A cold board may reach Online DRC before the ratsnest has a finished graph. Let the
+      // scheduler advance that graph independently, without drawing it or blocking the rules pass.
+      if (work && live?.stages && version && from == null && R().checkSelected(d, "short", onlineMode)) {
+        if (work.key == null) {
+          work.key = key;
+          work.compiled = R().compiled(d, {rules, defs, project:shared.project});
+          if (work.compiled.byType.short.length) work.connections = live.stages(d, defs, U);
+        }
+        if (work.connections) {
+          const step = work.connections.next();
+          if (!step.done) {
+            work.yielded ||= !!step.value || deadline.expired();
+            return {mode:"connectivity", wait:!!step.value};
+          }
+          if (!step.value) {
+            // A visible ratsnest may have taken over the shared graph during a yield.
+            work.connections = live.stages(d, defs, U, new WeakMap());
+            work.yielded = true;
+            return {mode:"connectivity", wait:true};
+          }
+          work.connections = null;
+          work.result = step.value;
+          if (work.yielded || deadline.expired()) return {mode:"connectivity", wait:true};
+        }
+        shared.compiled = work.compiled;
+        shared.connections = work.result;
+      }
+      r = engine.update(d,defs,rules,shared,deadline && {timeRemaining:() => deadline.timeRemaining()});
       geometry?.assertCurrent();
     } catch (e) {
       if(e.code!=="STALE_GEOMETRY")reportFailure(e);
