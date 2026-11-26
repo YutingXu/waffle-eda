@@ -15,6 +15,8 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     await page.goto(pathToFileURL(path.join(__dirname,"../../app/index.html")).href);
     await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
     const inspector = page.locator("#inspector");
+    const disclosure = inspector.getByRole("button", {name:"Selection Filter",exact:true});
+    if (await disclosure.getAttribute("aria-expanded") === "false") await disclosure.click();
     const select = inspector.getByRole("combobox",{name:"Component class filter"});
     const side = inspector.getByRole("combobox",{name:"Side",exact:true});
     await select.waitFor();
