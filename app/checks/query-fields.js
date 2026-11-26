@@ -119,7 +119,11 @@ globalThis.AtriumQueryFields=(()=>{
     }
     if(field.id==="pin.number")return item.number ?? item.pin;
     if(field.id==="comment")return item.value;
-    if(field.id==="pinCount")return Array.isArray(def?.symbol?.pins)?def.symbol.pins.length:undefined;
+    if(field.id==="pinCount") { // a part's pads on a board, pins on a sheet (as the design query and classic query count)
+      if((subject.kind || item.kind)!=="part")return;
+      const pins=subject.doc?.kind==="pcb" ? def?.footprint?.pads : def?.symbol?.pins || def?.pins;
+      return Array.isArray(pins)?pins.length:undefined;
+    }
     for(const source of [item.parameters,def?.parameters,subject.project?.parameters]) {
       for(const k of field.keys || [field.id]) {const p=parameter(source,k);if(p?.value!=null)return p.value;}
     }
