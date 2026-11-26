@@ -1066,6 +1066,52 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       if (Math.abs(contrast)<16 || !visible(a) || !visible(b) || c.some(ink=>ink<.9))
         failLifecycle("pourCoverageNarrowGap",JSON.stringify(result));
       else okLifecycle("pourCoverageNarrowGap","a subpixel clearance survives the exact GPU composite");
+
+      if (usesReadback) {
+        rows.offscreen = [];
+        board.outline = rect(-100,-100,200,200);
+        board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
+        for (const [w,h,flipped] of [[360,256,false],[842,717,true]]) {
+          stage.style.width = w+"px"; stage.style.height = h+"px";
+          GPU().release(I); view.invalidate();
+          const poses = offset => paint(offset,0,10,flipped);
+          board.pcbDrawing.pours = [];
+          const enteringCamera = 3.2;
+          const empty = poses(0), emptyEnter = poses(enteringCamera);
+          const edge = w/20, north = -h/20+.3, south = h/20-7-.3;
+          const right = region(edge+.4,north,"Top"), left = region(-edge-9.5,south,"Top");
+          board.pcbDrawing.pours = [right];
+          const single = poses(0);
+          board.pcbDrawing.pours = [right,left];
+          const disjoint = poses(0), enter = poses(enteringCamera), exit = poses(0);
+          Object.assign(right,region(edge+.45,north,"Top"));
+          view.invalidate();
+          const edited = poses(0);
+          GPU().release(I); view.invalidate();
+          const fresh = poses(0);
+          const imageDelta = (a,b) => differentBytes(a.image.data,b.image.data);
+          const track = [single,disjoint,enter,exit,edited,fresh];
+          const sample = (x,y) => {
+            const {width,height,data} = enter.image, density = 10*width/w;
+            const i = Math.floor(width/2+(x-enteringCamera)*density*(flipped?-1:1));
+            const j = Math.floor(height/2+y*density);
+            return rgbDifference(emptyEnter.image.data,data,(j*width+i)*4);
+          };
+          const report = {flipped,width:empty.image.width,height:empty.image.height,
+            upload:track.map(frame=>frame.uploaded), readback:track.map(frame=>frame.bytes),
+            noInk:[single,disjoint,exit,edited,fresh].map(frame=>imageDelta(empty,frame)),
+            entered:rasterResidual(emptyEnter.image.data,enter.image.data,enter.image.width,enter.image.height),
+            hole:sample(edge+2.4,north+2), ink:sample(edge+1.4,north+2)};
+          rows.offscreen.push(report);
+          const limit = empty.image.width * empty.image.height / 25;
+          if (report.noInk.some(Boolean) || report.hole>8 || report.ink<=16 ||
+              [single,disjoint,edited,fresh].some(frame=>frame.uploaded || frame.bytes) ||
+              [enter,exit].some(frame=>!frame.uploaded || frame.uploaded>=limit || !frame.bytes || frame.bytes>=limit*4))
+            failLifecycle("pourCoverageOffscreen",JSON.stringify({...report,entered:undefined}));
+        }
+        if (!out.failures.some(f=>f.includes("pourCoverageOffscreen")))
+          okLifecycle("pourCoverageOffscreen","empty padded pours skip readback and leaving ink is cleared locally");
+      }
     } finally {
       ctx.getImageData = getImage;
       view.dispose(); stage.remove();

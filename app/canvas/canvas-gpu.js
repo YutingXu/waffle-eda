@@ -984,15 +984,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     return entry.box;
   }
   function coveragePixels(I, group, dpr, w, h) {
-    let box = null;
+    let pixels = null;
     for (const {bounds} of group) {
       if (!bounds) return [0, 0, w, h];
-      box = mergeBounds(box, bounds);
+      // Clip each region before joining it. The padded artwork viewport can
+      // admit disjoint pours whose combined bounds cross an empty viewport.
+      const [x, y, sw, sh] = damagePixels(I, bounds, dpr, 2, w, h);
+      if (sw > 0 && sh > 0) pixels = mergeBounds(pixels, [x, y, x + sw, y + sh]);
     }
-    // The existing damage margin includes fill antialiasing and the texture's
-    // one-pixel sampling neighbourhood. Keep the original viewport transform.
-    const [x, y, sw, sh] = damagePixels(I, box, dpr, 2, w, h);
-    return sw > 0 && sh > 0 ? [x, y, x + sw, y + sh] : [0, 0, w, h];
+    return pixels;
   }
   // Stencil coverage can quantize narrow clearance curves. Exact camera paints, including moving
   // fallbacks, use the same coverage as the 2D path for subpixel hole edges. Retained frames and
@@ -1061,11 +1061,12 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
       if (READBACK) {
         const pixels = coveragePixels(I, next, dpr, w, h), both = mergeBounds(band.pixels, pixels);
+        band.pixels = sameView ? both : pixels;
+        if (!both) continue;
         if (!sameView) {
           // Clear the previous camera's ink in the retained texture as well.
           sx = both[0]; sy = both[1]; sw = both[2] - sx; sh = both[3] - sy;
         }
-        band.pixels = sameView ? both : pixels;
       }
       const paintStart = timing ? now() : 0, g = I.ctx;
       g.setTransform(1,0,0,1,0,0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
