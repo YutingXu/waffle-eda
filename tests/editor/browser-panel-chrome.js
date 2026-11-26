@@ -32,9 +32,22 @@ function headerGeometry() {
   const out = [];
   for (const p of document.querySelectorAll("[data-dock-panel]")) {
     if (!p.getClientRects().length || p.hidden || p.classList.contains("dock-inactive")) continue;
+    const shown = n => n?.getClientRects().length && n.getBoundingClientRect().height > 0;
+    const measure = (b, centre) => {
+      const r = b.getBoundingClientRect(), c = r.top + r.height / 2;
+      const ir = b.querySelector(":scope > svg")?.getBoundingClientRect();
+      out.push({panel:p.dataset.dockPanel, button:b.getAttribute("aria-label") || b.textContent.trim(),
+        off:+(c - centre).toFixed(2), iconOff:ir ? +(ir.top + ir.height / 2 - centre).toFixed(2) : 0});
+    };
+    const tab = p.closest(".dock-group")?.querySelector(".dock-tab-wrap.is-active");
+    const tabLabel = tab?.querySelector("[data-dock-tab]");
+    const tabClose = tab?.querySelector("[data-dock-close]");
+    if (shown(tabLabel) && shown(tabClose)) {
+      const label = tabLabel.getBoundingClientRect();
+      measure(tabClose, label.top + label.height / 2);
+    }
     const head = p.querySelector(":scope > header, :scope > .pane-heading, :scope > .msg-head, :scope > .script-bar");
     if (!head?.getClientRects().length) continue;
-    const shown = n => n.getClientRects().length && n.getBoundingClientRect().height > 0;
     const title = [...head.querySelectorAll("h2, [role=tab]")].find(shown);
     if (!title) continue;
     const tr = title.getBoundingClientRect(), centre = tr.top + tr.height / 2;
@@ -42,10 +55,7 @@ function headerGeometry() {
       if (!shown(b) || b.matches("[role=tab]") || title.contains(b)) continue;
       const r = b.getBoundingClientRect(), c = r.top + r.height / 2;
       if (Math.abs(c - centre) > tr.height) continue; // a wrapped second row (the compact Messages header)
-      const icon = b.querySelector(":scope > svg");
-      const ir = icon?.getBoundingClientRect();
-      out.push({panel:p.dataset.dockPanel, button:b.getAttribute("aria-label") || b.textContent.trim(),
-        off:+(c - centre).toFixed(2), iconOff:ir ? +(ir.top + ir.height / 2 - centre).toFixed(2) : 0});
+      measure(b, centre);
     }
   }
   return out;
@@ -65,6 +75,34 @@ async function headers(browser) {
     assert.ok(panels.size >= 8 && panels.has("messages"), "header buttons measured on " + [...panels].join(", "));
     const off = [...seen.entries()].filter(([, g]) => Math.abs(g.off) > .5 || Math.abs(g.iconOff) > .5).map(([k, g]) => k + " " + g.off + "/" + g.iconOff);
     assert.deepEqual(off, [], "every header button and its icon sit on the title row's centre (±0.5 px)");
+    assert.deepEqual(errors, [], "no page errors");
+  } finally { await page.close(); }
+}
+
+async function closeControls(browser) {
+  const {page, errors} = await boot(browser);
+  try {
+    await page.evaluate(async () => {
+      await AtriumNavHost.act("comments-panel");
+      AtriumDock.moveTo("comments", {area:"right", mode:"tab", group:0});
+    });
+    const comments = page.locator('[data-dock-panel="comments"]');
+    const close = page.getByRole("button", {name:"Close Comments", exact:true});
+    await comments.waitFor();
+    await page.locator('[data-dock-close="comments"]').waitFor();
+    assert.equal(await close.count(), 1, "tabbed Comments has one Close control");
+    assert.equal(await close.getAttribute("data-dock-close"), "comments");
+    assert.equal(await comments.getByRole("heading", {name:"Comments"}).isVisible(), true, "the count's header stays visible");
+    await close.click();
+    await comments.waitFor({state:"hidden"});
+
+    await page.evaluate(async () => {
+      await AtriumNavHost.act("comments-panel");
+      AtriumDock.moveTo("comments", {area:"right", mode:"end"});
+    });
+    await comments.waitFor();
+    await comments.getByRole("button", {name:"Close Comments", exact:true}).click();
+    await comments.waitFor({state:"hidden"});
     assert.deepEqual(errors, [], "no page errors");
   } finally { await page.close(); }
 }
@@ -142,10 +180,11 @@ async function importReport(browser) {
 }
 
 module.exports = async function panelChrome(browser) {
+  await closeControls(browser);
   await headers(browser);
   await scrollbars(browser);
   await importReport(browser);
-  console.log("panel chrome: header buttons centred, overlay scrollbars, import report out of Properties: ok");
+  console.log("panel chrome: one Close per panel, header buttons centred, overlay scrollbars, import report out of Properties: ok");
 };
 
 if (require.main === module) {

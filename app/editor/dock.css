@@ -24,6 +24,8 @@
 .dock-body > .ext-panel {overflow:auto}
 /* In a tab group, a heading that only repeats the tab's name (and its ×, which the tab has too) gives its row back. */
 .dock-tabbed > .pane-heading:not(:has(> :not(h2, [class$="-close"]))) {display:none}
+/* A closable active tab takes over its panel header's Close, even when the header has other controls. */
+.dock-group:has(> .dock-tabs > .dock-tab-wrap.is-active > .dock-tab-close) > .dock-body > .dock-tabbed:not(.dock-inactive) > :is(header,.pane-heading) button:is([aria-label^="Close "],[title^="Close "]) {display:none}
 
 /* ---- tab strips: inactive tabs shrink to an ellipsis before the strip scrolls. */
 .dock-tab-wrap {display:flex;align-items:center;flex:none;position:relative;border-right:1px solid var(--divider);color:var(--muted)}
