@@ -768,7 +768,7 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     if(capLabel)H().edit(()=>H().doc().items.splice(H().doc().items.indexOf(capLabel),1));
   }
 
-  function viewportResources() {
+  async function viewportResources() {
     const stage = document.createElement("div"), canvas = document.createElement("canvas");
     stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden";
     canvas.style.cssText = "display:block;width:100%;height:100%";
@@ -809,14 +809,78 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       PCB.setOpacity("track", 1); size(96,96);
       globalThis.__atriumGpuCapMB = .08;
       const original = sample();
-      const added = Array.from({length:2500}, (_,i) => ({...track,id:"resource-growth-"+i}));
-      board.items = [...board.items,...added]; const edited = sample(), retry = sample();
-      board.items = [track]; const shrunk = sample();
-      const growth = {original,edited,retry,shrunk};
-      if (original.renderer !== "gpu" || edited.renderer !== "2d" || !/GPU memory/.test(edited.reason) || edited.bytes !== 0 ||
-          JSON.stringify(edited) !== JSON.stringify(retry) || shrunk.renderer !== "gpu")
-        failLifecycle("geometryCap", JSON.stringify(growth));
-      else okLifecycle("geometryCap", JSON.stringify(growth));
+      const gl = canvas.previousElementSibling.getContext("webgl2");
+      const {bufferData,getError} = gl, clock = performance.now.bind(performance);
+      const previousClock = Object.getOwnPropertyDescriptor(performance,"now");
+      let time = clock(), offset = 0, uploads = 0, injectOOM = false;
+      Object.defineProperty(performance,"now",{configurable:true,value:() => time ?? clock() + offset});
+      gl.bufferData = function (...args) { uploads++; return bufferData.apply(this,args); };
+      gl.getError = function () {
+        if (!injectOOM) return getError.call(this);
+        injectOOM = false;
+        return this.OUT_OF_MEMORY;
+      };
+      const witness = () => ({...sample(), uploads});
+      const ordinaryEdits = () => Array.from({length:6}, (_,i) => {
+        track.width = .6+i/100;
+        v.invalidate(board,[track]);
+        return witness();
+      });
+      const stayed = (blocked, rows) => rows.every(row => row.renderer === "2d" && row.builds === blocked.builds &&
+        row.uploads === blocked.uploads && row.bytes === 0 && row.reason === blocked.reason);
+      try {
+        const added = Array.from({length:2500}, (_,i) => ({...track,id:"resource-growth-"+i}));
+        board.items = [...board.items,...added];
+        const edited = witness(), retry = witness();
+        board.items = [track]; const shrunk = witness();
+        const growth = {original,edited,retry,shrunk};
+        if (original.renderer !== "gpu" || edited.renderer !== "2d" || !/GPU memory/.test(edited.reason) ||
+            !stayed(edited,[retry]) || shrunk.renderer !== "gpu")
+          failLifecycle("geometryCap", JSON.stringify(growth));
+        else okLifecycle("geometryCap", JSON.stringify(growth));
+
+        // Replace one track's contour without changing its identity or the number of items.
+        const longPath = {id:"resource-contour",kind:"track",layer:"Top",width:.5,
+          points:Array.from({length:2500},(_,n) => [n / 420,1 + n%2 / 40])};
+        globalThis.__atriumGpuCapMB = .09;
+        board.items.push(longPath);
+        const contour = witness(), cappedEdits = ordinaryEdits();
+        longPath.points = longPath.points.slice(0,2);
+        v.invalidate(board,[longPath]);
+        const simplified = witness();
+        if (contour.renderer !== "2d" || !/GPU memory/.test(contour.reason) || !stayed(contour,cappedEdits) ||
+            simplified.renderer !== "gpu" || simplified.builds !== cappedEdits.at(-1).builds + 1 ||
+            simplified.uploads <= cappedEdits.at(-1).uploads)
+          failLifecycle("geometryRetry", JSON.stringify({contour,cappedEdits,simplified}));
+        else okLifecycle("geometryRetry", JSON.stringify({contour,lastEdit:cappedEdits.at(-1),simplified}));
+
+        // Inject the driver's response after the real WebGL allocation and fence.
+        time = null;
+        delete globalThis.__atriumGpuCapMB;
+        injectOOM = true;
+        size(128,112); witness();
+        const rejectedByDriver = await until(() => /GPU ran out of memory/.test(GPU().status(I).reason));
+        if (!rejectedByDriver) { failLifecycle("driverMemoryRetry", JSON.stringify(GPU().status(I))); return; }
+        time = clock();
+        const oom = witness(), oomEdits = ordinaryEdits();
+        const rev = I.cache.rev;
+        const beforeIdle = {builds:GPU().stats(I).builds, uploads, ...GPU().resourceCounters(I)};
+        time += 520;
+        await settle(0);
+        const afterIdle = {builds:GPU().stats(I).builds, uploads, ...GPU().resourceCounters(I)};
+        offset = time - clock(); time = null;
+        const resumed = witness();
+        const fenced = await until(() => GPU().resourceCounters(I).driverMemoryChecks > beforeIdle.driverMemoryChecks);
+        if (!stayed(oom,oomEdits) || beforeIdle.builds !== afterIdle.builds || beforeIdle.uploads !== afterIdle.uploads ||
+            beforeIdle.driverFenceSubmissions !== afterIdle.driverFenceSubmissions || resumed.renderer !== "gpu" ||
+            resumed.builds !== oom.builds+1 || resumed.uploads <= oom.uploads || I.cache.rev !== rev || !fenced ||
+            GPU().status(I).renderer !== "gpu")
+          failLifecycle("driverMemoryRetry", JSON.stringify({oom,oomEdits,beforeIdle,afterIdle,resumed,fenced}));
+        else okLifecycle("driverMemoryRetry", JSON.stringify({oom,lastEdit:oomEdits.at(-1),resumed,fenced}));
+      } finally {
+        Object.assign(gl,{bufferData,getError});
+        if (previousClock) Object.defineProperty(performance,"now",previousClock); else delete performance.now;
+      }
     } finally {
       delete globalThis.__atriumGpuCapMB;
       PCB.setOpacity("track", opacity);

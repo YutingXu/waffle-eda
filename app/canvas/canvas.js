@@ -1124,7 +1124,7 @@ globalThis.AtriumCanvas = (() => {
     // complete: the changed list is exact without the undo journal's ids (a full scan compared every item
     // with its print, or the editor named the items it changed in place); structural changes need known ids.
     function apply(changed,poursChanged=false,known=false,removed=[],complete=known,exact=false){
-      const c=cache,priorBounds=c.bounds;let box=null,shrinking=false;
+      const c=cache,priorBounds=c.bounds;let box=null,shrinking=false,sizeDelta=0;
       const added=changed.filter(i=>c.byId.get(i.id)!==i),structural=!!(added.length || removed.length);
       if(!exact && c.preparation && (changed.length || removed.length))c.incrementalGeometry=true;
       let appendOnly=true;
@@ -1142,6 +1142,7 @@ globalThis.AtriumCanvas = (() => {
         for(const {id,item} of removed){
           const old=c.boxes.get(item);if(old)box=box?union(box,old):old.slice();
           c.index?.remove(item);if(c.lod)batches.remove(c.lod,item);
+          sizeDelta-=c.prints.get(item)?.length||0;
           c.boxes.delete(item);c.prints.delete(item);c.byId.delete(id);c.parameterLabels.delete(item);c.viaMarks.delete(item);
         }
       }
@@ -1150,7 +1151,9 @@ globalThis.AtriumCanvas = (() => {
         c.airwireWitness=undefined;
       for(const i of changed){
         const old=c.boxes.get(i);
-        c.byId.set(i.id,i);c.prints.set(i,snapshot(i));
+        const print=snapshot(i),before=c.prints.get(i);
+        if(before || c.byId.get(i.id)!==i)sizeDelta+=print.length-(before?.length||0);
+        c.byId.set(i.id,i);c.prints.set(i,print);
         if(mayHaveViaMark(i))c.viaMarks.add(i);else c.viaMarks.delete(i);
         const b=objectBox(i,c.doc,c.defs);
         rememberProjectText(c.parameterLabels,c.doc,i,c.defs);
@@ -1189,7 +1192,7 @@ globalThis.AtriumCanvas = (() => {
       }
       // itemsKnown: changed and removed are every item that changed (box covers them), even when the
       // pours changed too; known also says the pours did not change.
-      c.delta={from:c.rev,to:++revs,changed,removed,appendOnly,box,poursChanged,known:known&&!poursChanged,itemsKnown:known||complete&&!structural};c.rev=c.delta.to;
+      c.delta={from:c.rev,to:++revs,changed,removed,appendOnly,box,poursChanged,known:known&&!poursChanged,itemsKnown:known||complete&&!structural,sizeDelta};c.rev=c.delta.to;
       globalThis.AtriumCanvasFast?.damage?.(I,c.doc,c.delta);
       globalThis.AtriumCanvasGPU?.damage?.(I,c,c.delta);
     }

@@ -571,6 +571,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   function damage(I, c, delta) {
     const st = views.get(I), S = st?.scene?.cache === c ? st.scene : st?.parked.get(c);
+    const over = st?.over;
+    if (over?.doc === c.doc && over.kind !== "viewport") {
+      over.shrink = (over.to === delta.from ? over.shrink : 0) - (delta.sizeDelta || 0);
+      over.to = delta.to;
+    }
     if (!S) return;
     let p = S.pending;
     if (!p || p.to !== delta.from) p = S.pending = {from: delta.from, changed: new Map(), removed: new Map(), appendOnly: true, poursChanged: false, known: true, itemsKnown: true, box: null};
@@ -1201,7 +1206,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     st.union = null; st.rects = null; st.text = {key: null}; st.wide = null; st.coverage = null; st.alphaTextures = null;
     st.tint = {key: "", byNet: null, tex: null, map: null};
     st.ui = {ring: buffer("blob"), line: buffer("seg"), hFill: buffer("blob"), hOn: buffer("blob"), hLine: buffer("blob"), selOut: buffer("blob"), selIn: buffer("blob")};
-    st.uiKey = null; st.backingValid = false; st.checkMemory = true; st.over = null;
+    st.uiKey = null; st.backingValid = false; st.checkMemory = true; st.over = st.memoryRetry = null;
     st.driverOutOfMemory = false; st.driverMemoryPending = false; st.driverMemoryProbe = null; st.driverMemoryEpoch = 0; st.commandEpoch = 0;
     st.stats.setupMs = now() - t; st.stats.pourBytes = 0; st.stats.pourCacheBytes = 0;
   }
@@ -1346,19 +1351,45 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     st.tint = {key: "", byNet: null, tex: null, map: null};
   }
   const memoryLimit = (n, cap) => "this board needs " + Math.ceil(n / 1048576) + " MB of GPU memory (limit " + Math.round(cap / 1048576) + " MB)";
-  function rejectMemory(I, st, doc, reason) {
+  const sameMemoryView = (over, doc, cap, w, h) => over?.doc === doc && over.cap === cap && over.w === w && over.h === h;
+  function rejectMemory(I, st, doc, reason, kind = "cap") {
     hide(I);
     st.driverOutOfMemory = false; st.driverMemoryPending = false;
-    st.over = {doc, cap: capBytes(), rev: I.cache?.rev, w: I.canvas.width, h: I.canvas.height, reason};
+    const cap = capBytes(), {width:w, height:h} = I.canvas, c = I.cache;
+    const prior = sameMemoryView(st.memoryRetry, doc, cap, w, h) ? st.memoryRetry : null;
+    const delay = Math.min(8000, (prior?.delay || 250) * 2);
+    st.over = {doc, cap, w, h, kind, reason, rev:c?.rev, to:c?.rev, items:c?.all?.length || 0,
+      shrink:0, delay, retryAt:now() + delay, triedShrink:prior?.triedShrink};
+    st.memoryRetry = null;
     freeViewport(st);
     freeBoard(st);
     G.AtriumCanvas.resizeBacking(st.canvas,1,1);
     st.backingValid = false;
     return false;
   }
+  function retryMemory(st, c, cap, w, h, time, transient) {
+    const over = st.over;
+    if (!over) return true;
+    const same = sameMemoryView(over, c.doc, cap, w, h);
+    if (same) {
+      if (transient || over.kind === "viewport") return false;
+      const shrank = over.items - c.all.length >= Math.max(1, over.items / 8) ||
+        c.rev === over.to && over.shrink >= 32;
+      // One prompt retry for a clear drop in geometry. Snapshot lengths are
+      // a cheap hint, so other changes can still retry after a failed estimate.
+      if (time < over.retryAt) {
+        if (!shrank || over.triedShrink) return false;
+        over.triedShrink = true;
+      } else if (over.kind === "cap" && over.rev === c.rev && !shrank) return false;
+    }
+    // A later render supplies demand for this retry. Never queue work while blocked.
+    st.memoryRetry = same ? over : null;
+    st.over = null; st.checkMemory = true;
+    return true;
+  }
   // Retained alternates and parked scenes give way before a live board falls back to 2D.
   function memory(I, st, doc) {
-    if (st.driverOutOfMemory) return rejectMemory(I, st, doc, "the GPU ran out of memory");
+    if (st.driverOutOfMemory) return rejectMemory(I, st, doc, "the GPU ran out of memory", "driver");
     if (!st.checkMemory) return true;
     const cap = capBytes(), backing = backingBytes(st);
     st.checkedCap = cap;
@@ -1408,7 +1439,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     function unavailable() {
       if (gl.isContextLost()) { cancelDriverMemoryProbe(st); return; }
-      rejectMemory(I, st, doc, "the GPU could not complete its memory check");
+      rejectMemory(I, st, doc, "the GPU could not complete its memory check", "driver");
       repaint(I);
     }
     function poll(deadline) {
@@ -1454,7 +1485,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       st.stats.driverMemoryCheckMs += now() - start;
       st.driverMemoryPending = false;
       cancelDriverMemoryProbe(st);
-      if (oom) { rejectMemory(I, st, doc, "the GPU ran out of memory"); repaint(I); }
+      if (oom) { rejectMemory(I, st, doc, "the GPU ran out of memory", "driver"); repaint(I); }
+      else st.memoryRetry = null;
     }
     queue();
   }
@@ -2815,14 +2847,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       st.commandEpoch++;
       st.stats.coverageUpload = 0;
       const c = I.sync(doc, defs), active = opts.layer || "Top";
-      const cap = capBytes(), w = I.canvas.width, h = I.canvas.height, over = st.over, backing = w * h * 4;
-      if (over?.doc === doc && over.rev === c.rev && over.cap === cap && over.w === w && over.h === h) return false;
-      if (over) { st.over = null; st.checkMemory = true; }
+      const cap = capBytes(), w = I.canvas.width, h = I.canvas.height, backing = w * h * 4, transient = !!opts.transientGeometry;
+      if (!retryMemory(st, c, cap, w, h, t0, transient)) return false;
       if (cap !== st.checkedCap) st.checkMemory = true;
-      if (w > st.maxW || h > st.maxH) return rejectMemory(I, st, doc, "the viewport exceeds the WebGL backing limit");
-      if (backing > cap) return rejectMemory(I, st, doc, memoryLimit(backing, cap));
-      if (!place(I, st, width, height)) return rejectMemory(I, st, doc, "the GPU could not allocate the viewport backing");
-      update(st, c, active, !!opts.transientGeometry);
+      if (w > st.maxW || h > st.maxH) return rejectMemory(I, st, doc, "the viewport exceeds the WebGL backing limit", "viewport");
+      if (backing > cap) return rejectMemory(I, st, doc, memoryLimit(backing, cap), "viewport");
+      if (!place(I, st, width, height)) return rejectMemory(I, st, doc, "the GPU could not allocate the viewport backing", "driver");
+      update(st, c, active, transient);
       if (!memory(I, st, doc)) return false;
       // A camera-only frame can move the retained text bands and world overlay
       // with the live GPU scene when their pixels cover the new camera.
