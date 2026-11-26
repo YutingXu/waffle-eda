@@ -872,7 +872,30 @@ globalThis.AtriumContextMenu = (() => {
     popup({host, doc:host?.doc?.()}, commands, label, box.left, above ? box.top : box.bottom, trigger, true, above);
     hang(trigger);
   }
+  function statusItems(statusMore) {
+    const bar = statusMore.closest(".statusbar"), items = [];
+    for (const control of bar.querySelectorAll(":is(.status-sync,.hv-status,.variant-switch,.revision-chip):not([hidden])")) {
+      if (control.matches(".variant-switch")) {
+        const select = control.querySelector("select");
+        items.push({sub:"Assembly variant", items:[...select.options].filter(option => !option.disabled).map(option => ({
+          label:option.textContent, enabled:!select.disabled, checked:option.value === "@manage" ? null : option.selected, radio:true,
+          run:() => {
+            if (option.parentElement !== select) return;
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", {bubbles:true}));
+          }
+        }))});
+      } else {
+        const label = control.textContent.trim();
+        if (!label) continue;
+        items.push({label, enabled:!control.disabled, run:() => {
+          if (control.isConnected && !control.hidden) control.click();
+        }});
+      }
+    }
+    return items;
+  }
   NC()?.ready?.(attach);
 
-  return Object.freeze({open, explorer, projectActions, editing, dropdown, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
+  return Object.freeze({open, explorer, projectActions, editing, dropdown, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
 })();

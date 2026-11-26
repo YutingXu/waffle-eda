@@ -53,8 +53,112 @@ async function historyDemand(browser) {
   });
 }
 
+async function editingCommandDemand(browser) {
+  const page = await browser.newPage({viewport:{width:1400,height:900}});
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  try {
+    await page.addInitScript(() => {
+      const pending = new Map(), append = Element.prototype.append;
+      const held = new Set(["pcb/smart-guides.js","schematic/sch-place.js","editor/context-menu.js"]);
+      globalThis.releaseCommandModule = name => {
+        const load = pending.get(name);
+        if (!load) return false;
+        pending.delete(name); held.delete(name); load(); return true;
+      };
+      Element.prototype.append = function (...nodes) {
+        const source = nodes.length === 1 && nodes[0]?.getAttribute?.("src");
+        if (this !== document.head || !held.has(source)) return append.apply(this,nodes);
+        pending.set(source,() => append.apply(this,nodes));
+      };
+    });
+    await page.goto(app);
+    await demo(page);
+    const fixture = await page.evaluate(() => {
+      const h = AtriumNavHost, sheet = h.project().documents.find(doc => doc.kind === "schematic");
+      const tracks = [
+        {id:Atrium.id(),kind:"track",layer:"Top",width:.25,net:"",points:[[10,5],[11,5]]},
+        {id:Atrium.id(),kind:"track",layer:"Top",width:.25,net:"",points:[[20,8],[21,8]]}
+      ];
+      h.edit(() => h.doc().items.push(...tracks));
+      const ids = tracks.map(track => track.id);
+      h.select(ids);
+      const item = sheet.items.find(item => item.kind === "part" && !item.mirror);
+      return {ids, sheet:sheet.id, symbol:item.id, def:item.def};
+    });
+    const xs = () => page.evaluate(ids => ids.map(id => AtriumNavHost.doc().items.find(item => item.id === id).points[0][0]),fixture.ids);
+    assert.deepEqual(await xs(),[10,20]);
+    const alignCold = await page.evaluate(() => {
+      const cold = !globalThis.AtriumGuides;
+      AtriumNavHost.act("align-left");
+      return cold;
+    });
+    assert.equal(alignCold,true,"the first alignment dispatch waits for the guide script");
+    assert.deepEqual(await xs(),[10,20]);
+    await page.waitForFunction(() => releaseCommandModule("pcb/smart-guides.js"));
+    await page.waitForFunction(ids => ids.every(id => AtriumNavHost.doc().items.find(item => item.id === id).points[0][0] === 10),fixture.ids);
+    await page.evaluate(ids => {
+      const h = AtriumNavHost;
+      h.act("undo"); h.select(ids); h.act("align-right");
+    },fixture.ids);
+    assert.deepEqual(await xs(),[20,20],"the loaded command uses the new alignment, with normal Undo");
+
+    await page.evaluate(async ({sheet,symbol}) => {
+      const h = AtriumNavHost;
+      await h.selectDocument(sheet); h.select([symbol]);
+    },fixture);
+    const mirrored = () => page.evaluate(id => !!AtriumNavHost.doc().items.find(item => item.id === id).mirror,fixture.symbol);
+    const mirrorCold = await page.evaluate(() => {
+      const cold = !globalThis.AtriumSchPlace;
+      AtriumNavHost.act("mirror-x");
+      return cold;
+    });
+    assert.equal(mirrorCold,true,"the first mirror dispatch waits for schematic placement");
+    assert.equal(await mirrored(),false);
+    await page.waitForFunction(() => releaseCommandModule("schematic/sch-place.js"));
+    await page.waitForFunction(id => AtriumNavHost.doc().items.find(item => item.id === id)?.mirror === true,fixture.symbol);
+    await page.evaluate(() => AtriumNavHost.act("mirror-x"));
+    assert.equal(await mirrored(),false,"the warm command mirrors a second time");
+    await page.evaluate(id => {
+      const h = AtriumNavHost;
+      if (!h.placeDef(h.defs().get(id),"schematic")) throw Error("Library placement did not start");
+      h.executeKey("mirror-y");
+    },fixture.def);
+    assert.match(await page.locator("#status").textContent(),/^Mirrored vertically/);
+    assert.equal(await page.evaluate(() => AtriumNavHost.tool()),"place","mirroring keeps the floating component armed");
+    await page.evaluate(() => AtriumNavHost.executeKey("escape"));
+
+    await page.setViewportSize({width:620,height:900});
+    await page.evaluate(() => {
+      const source = document.createElement("button");
+      source.type = "button"; source.className = "revision-chip"; source.textContent = "Review baseline";
+      source.onclick = () => {window.openedOverflow = (window.openedOverflow || 0) + 1;};
+      document.querySelector("footer.statusbar").append(source);
+    });
+    const more = page.getByRole("button",{name:"More status controls",exact:true});
+    assert.equal(await more.getAttribute("aria-haspopup"),"menu");
+    assert.equal(await more.getAttribute("aria-expanded"),"false");
+    await more.press("ArrowDown");
+    assert.equal(await page.evaluate(() => !!globalThis.AtriumContextMenu),false,"the first status use waits for Context Menu");
+    await page.waitForFunction(() => releaseCommandModule("editor/context-menu.js"));
+    const menu = page.getByRole("menu",{name:"More status controls",exact:true});
+    for (let presses = 1; presses <= 2; presses++) {
+      await menu.waitFor();
+      assert.equal(await more.getAttribute("aria-expanded"),"true");
+      await menu.getByRole("menuitem",{name:"Review baseline",exact:true}).press("Enter");
+      await menu.waitFor({state:"hidden"});
+      assert.equal(await more.getAttribute("aria-expanded"),"false");
+      assert.equal(await page.evaluate(() => window.openedOverflow),presses);
+      if (presses === 1) await more.click();
+    }
+    assert.deepEqual(errors,[]);
+    console.log("PASS cold and warm alignment, mirror placement and status overflow commands");
+  } finally {await page.close();}
+}
+
 module.exports = async browser => {
   await historyDemand(browser);
+  await editingCommandDemand(browser);
   for (const efficiency of ["off", "always"]) {
     await fresh(browser, async page => {
       await page.locator("dialog.sp-dialog[open]").waitFor();
@@ -203,3 +307,5 @@ module.exports = async browser => {
 };
 
 module.exports.historyDemand = historyDemand;
+
+module.exports.editingCommandDemand = editingCommandDemand;

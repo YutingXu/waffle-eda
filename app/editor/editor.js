@@ -1061,6 +1061,23 @@
     }
     tool="place";canvas.focus();pending=def;focusedPart=other;single(null);syncTools();inspect();info("Click to place "+(other?.ref||def.name)+". Space rotates.");draw();
   }
+  function placeDefinition(def,kind=doc().kind,close=false){
+    if(!def&&!close)return false;
+    if(!A.geometries(def,kind)){info("This component has no "+(kind==="pcb"?"footprint":"symbol")+".");return false;}
+    if(doc().kind!==kind){
+      const target=A.preferredDocument(project,kind,current);
+      if(!target){info("Add a "+(kind==="pcb"?"board layout":"schematic sheet")+" first.");return false;}
+      selectDocument(target.id);
+    }
+    if(close&&dialog.open)dialog.close();
+    beginPlace(defs.get(def.id)||def);
+    return true;
+  }
+  function locateDocumentItem(id){
+    const owner=project.documents.find(d=>d.items.some(i=>i.id===id));
+    if(owner&&owner.id!==current)selectDocument(owner.id);
+    choose(id,true);
+  }
   // New component: the symbol editor (schematic) or the IPC wizard (board); library-editor.js is the fallback.
   function newComponent(){const L=globalThis.AtriumLazy,ready=globalThis.AtriumSymbolEditor&&globalThis.AtriumLibrary?Promise.resolve():L?.modules?.().includes("AtriumLibrary")?L.need("AtriumLibrary"):null;if(!ready)return false;const board=libraryTarget==="pcb";dialog.close();ready.then(()=>workflow(board?"footprint-wizard":"component-new"),e=>info(e.message));return true;}
   function showLibrary(kind=null){
@@ -1139,25 +1156,10 @@
     return AtriumDesignators.apply(doc(),AtriumDesignators.relayout(doc(),defs,ids,{project}))||[];
   }
   function alignCommand(a){
-    const G=globalThis.AtriumGuides;
-    if(!G){info("This feature is unavailable in this build.");return;}
-    const ids=doc().items.filter(i=>selectedIds.has(i.id) && !notebookLocked(i)).map(i=>i.id),grid=a==="align-grid";
-    const run=plan=>{if(pcbEdit&&plan.locked?.length&&!pcbEdit.guardLocked(plan.locked,"Move",()=>run(plan)))return;
-      if(!plan.moves.length){info("Nothing to move.");return;}
-      const touched=new Set();
-      edit(()=>{G.applyPlan(doc(),defs,plan,part=>view.connectedWires(doc(),defs,part),touched);for(const obj of followDesignators(plan.moves.map(m=>m.id)))touched.add(obj);},undefined,touched);
-      info(plan.moves.length+(plan.moves.length===1?" object moved":" objects moved"));
-    };
-    if(ids.length<(grid?1:2)){info(grid?"Select the objects to align to the grid.":"Select two or more objects.");return;}
-    if(a==="make-row"||a==="make-column"){
-      promptValue(a==="make-row"?"Row pitch":"Column pitch",U.format(doc().grid*8,unit()),text=>{
-        const pitch=U.parse(text,unit());
-        if(!(pitch>0)){info("Enter a pitch greater than zero.");return;}
-        run(G.array(doc(),defs,ids,a==="make-row"?"x":"y",pitch));
-      },"Apply",{unit:unit(),storageUnit:"mm",nanometres:true,min:.000001});
-      return;
-    }
-    run(grid?G.alignToGrid(doc(),defs,ids):a.startsWith("distribute")?G.distribute(doc(),defs,ids,a==="distribute-h"?"x":"y"):G.align(doc(),defs,ids,a.slice(6)));
+    const guides=globalThis.AtriumGuides;
+    if(!guides){info("This feature is unavailable in this build.");return;}
+    guides.command(a,{doc,defs:()=>defs,selection:selectedIds,excluded:notebookLocked,unit,info,promptValue,edit,
+      guard:(ids,retry)=>!pcbEdit||pcbEdit.guardLocked(ids,"Move",retry),wires:part=>view.connectedWires(doc(),defs,part),followDesignators});
   }
   function deleteSelection(){
     if(!selectedIds.size)return;
@@ -1533,10 +1535,11 @@
     return {project,doc:doc(),defs,edit:apply,info,refresh,revision:()=>revision,folderProject:session,
       exportBinaryCopy:AtriumIO.exportBinaryCopy,connections:()=>view.boardConnectivity(doc(),defs),
       showUnrouted:()=>showUnrouted,toggleUnrouted:()=>{showUnrouted=!showUnrouted;inspect();draw();navEmit("unrouted");},
-      locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();},select:(id,other)=>{
-      const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);
-    },selection:()=>[...selectedIds],currentProject:()=>project,showCatalogue:k=>{swapFootprint=null;showLibrary(k);},exportFile:AtriumIO.exportFile,pickFile:AtriumIO.pickFile,
-      units:unit(),documentKind:()=>doc().kind,placeDef:(def,k=doc().kind)=>{if(!A.geometries(def,k)){info("This component has no "+(k==="pcb"?"footprint":"symbol")+".");return;}if(doc().kind!==k){const t=A.preferredDocument(project,k,current);if(!t){info("Add a "+(k==="pcb"?"board layout":"schematic sheet")+" first.");return;}selectDocument(t.id);}if(dialog.open)dialog.close();beginPlace(defs.get(def.id)||def);},place:items=>beginPaste({kind:"pcb",doc:current,cut:false,origin:[0,0],items,library:[]}),fit,pickPoint};
+      locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();},
+      select:locateDocumentItem,selection:()=>[...selectedIds],currentProject:()=>project,
+      showCatalogue:k=>{swapFootprint=null;showLibrary(k);},exportFile:AtriumIO.exportFile,pickFile:AtriumIO.pickFile,
+      units:unit(),documentKind:()=>doc().kind,placeDef:(def,k)=>{placeDefinition(def,k,true);},
+      place:items=>beginPaste({kind:"pcb",doc:current,cut:false,origin:[0,0],items,library:[]}),fit,pickPoint};
   }
   function boardCommand(action,name,run){
     const feature=globalThis[name];
@@ -1602,20 +1605,10 @@
   // Mirror X / Y, the Tab placement popover (sch-place.js) and checked toggle menu items.
   function placeCtx(){return {tool:()=>tool,pending:()=>pending,project:()=>project,doc,defs:()=>defs,draw,info,canvas};}
   function mirrorCommand(a){
-    const S=globalThis.AtriumSchPlace,axis=a==="mirror-x"?"x":"y",word=axis==="x"?"horizontally":"vertically";
+    const S=globalThis.AtriumSchPlace;
     if(!S){if(lazyRetry(a,"AtriumSchPlace",()=>mirrorCommand(a)))return;info("This feature is unavailable in this build.");return;}
-    if(pcb()){info("Mirror X/Y is for schematics. On boards, L flips a component to the other side.");return;}
-    if(tool==="place"&&pending){ghostAngle=S.mirrorGhost(axis,ghostAngle);info("Mirrored "+word+".");draw();return;}
-    if(tool==="sch-place"){info(S.mirrorFloating(axis)?"Mirrored "+word+".":"This object does not mirror.");draw();return;}
-    if(tool==="paste"&&paste){S.mirrorItems({kind:"schematic",grid:doc().grid,items:paste.items},paste.defs,new Set(paste.items.map(i=>i.id)),axis,[0,0]);paste.bounds=A.docBounds({...doc(),outline:[],items:paste.items},paste.defs);draw();return;}
-    if(drag?.kind==="move"&&drag.before&&!drag.segment){
-      const touched=drag.mirrorItems??=new Set();for(const item of drag.translation.affected)touched.add(item);
-      drag.translation.apply(0,0);drag.translation.finish();S.mirrorItems(doc(),defs,selectedIds,axis,drag.anchor,touched,{avoidPinShorts:true});invalidateViews(doc());
-      drag.lastDelta=null;drag.translation=makeTranslation(drag.frameOnly);if(pointer)drag.translation.apply(...drag.anchor.map((v,k)=>A.snap(v+pointer[k]-drag.origin[k],doc().grid)-v));
-      invalidateViews(doc());info("Mirrored "+word+".");draw();return;}
-    const ids=tool==="move-object"&&movingObject?new Set([movingObject.item.id]):selectedIds;
-    if(!ids.size){info("Select parts, wires or graphics to mirror. While placing or dragging, press X or Y.");return;}
-    const touched=new Set();let n=0;edit(()=>{n=S.mirrorItems(doc(),defs,ids,axis,undefined,touched,{avoidPinShorts:true});},undefined,touched);info(n?n+(n===1?" object":" objects")+" mirrored "+word+".":"Nothing in the selection mirrors.");
+    S.mirrorCommand(a,{doc,defs:()=>defs,pcb,tool,pending,paste,drag,movingObject,pointer,selection:selectedIds,ghostAngle,
+      setGhostAngle:angle=>{ghostAngle=angle;},edit,invalidateViews,makeTranslation,draw,info});
   }
   const prefOut=(k,v)=>{if(k)globalThis.AtriumPref?.set(k,v);}; // menu toggles -> Preferences
   function syncChecks(){try{
@@ -2549,7 +2542,7 @@
     // Draw tools (pcb-draw.js): tool state, snapping, active layer, cursor and amend for repours.
     setTool,snapAt,netAt,
     // search: place a library part from the palette's search box (palette.js).
-    placeDef(def,k=doc().kind){/* search placeDef */if(!def)return false;if(!A.geometries(def,k)){info("This component has no "+(k==="pcb"?"footprint":"symbol")+".");return false;}if(doc().kind!==k){const t=A.preferredDocument(project,k,current);if(!t){info("Add a "+(k==="pcb"?"board layout":"schematic sheet")+" first.");return false;}selectDocument(t.id);}beginPlace(defs.get(def.id)||def);return true;},
+    placeDef:(def,kind)=>placeDefinition(def,kind),
     // Paste Special / rubber stamp (paste-special.js): the clipboard and a ready paste plan on the cursor.
     clipboard:()=>clipboard,placePlan(plan){if(!plan)return;const at=pointer;resetTools();single(null);paste=plan;pointer=at;tool="paste";canvas.focus();syncTools();inspect();draw();},activeLayer:()=>layer,copperLayers:()=>currentLayers(),pointer:()=>pointer,amend
   };
@@ -2599,7 +2592,7 @@
     project:()=>project,documentId:()=>current,defs:()=>defs,revision:()=>revision,selection:()=>[...selectedIds],
     select:ids=>{const have=new Set(doc().items.map(i=>i.id));assignSelection(ids.filter(id=>have.has(id)));inspect();syncTools();draw();},
     edit,amend,editInProgress:()=>!!drag,info,units:unit,activate:id=>selectDocument(id),
-    locate:id=>{const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);},
+    locate:locateDocumentItem,
     runAction:a=>executeKey(a),exportFile:AtriumIO.exportFile,pickFile:AtriumIO.pickFile
   });attachExtensions();
   // Installed extensions can declare startup activation or a command available on Home.
