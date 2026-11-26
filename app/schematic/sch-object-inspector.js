@@ -64,14 +64,23 @@ globalThis.AtriumSchObjectInspector = (() => {
     // however the parameters are stored.
     return out.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).map(({order, ...link}) => link);
   }
+  // A real text link (a[href]): shell.js opens it in the system browser on click, Enter or tap.
   function linkRow(el, {title, url, name = ""}) {
-    const row = el("button", null, "ui-row"), text = el("span", null, "ui-row-text");
-    row.type = "button"; row.title = url;
-    const host = new URL(url).host;
+    const row = /** @type {HTMLAnchorElement} */ (el("a", null, "ui-row part-link")), text = el("span", null, "ui-row-text");
+    const host = new URL(url).host, titleRow = el("span", null, "ui-row-title");
+    row.href = url; row.title = url;
     row.setAttribute("aria-label", title + " (" + host + ")");
-    text.append(el("span", title, "ui-row-title"), el("span", host + (name && name !== title ? " · " + name : ""), "ui-row-detail"));
-    row.append(text); row.onclick = () => openURL(url);
+    titleRow.append(title, externalGlyph());
+    text.append(titleRow, el("span", host + (name && name !== title ? " · " + name : ""), "ui-row-detail"));
+    row.append(text);
     return row;
+  }
+  // An arrow leaving a box: the page opens outside Waffle.
+  function externalGlyph() {
+    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg"), path = document.createElementNS(ns, "path");
+    svg.setAttribute("class", "icon"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true");
+    path.setAttribute("d", "M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4");
+    svg.append(path); return svg;
   }
   // A part's links: its own and its library parameters, then on the other side of the design
   // the linked part's (a board footprint shows the links of its schematic symbol, as in Altium).

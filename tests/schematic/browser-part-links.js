@@ -36,6 +36,17 @@ module.exports = async function partLinks(browser) {
     assert.deepEqual(await links(), [["Vendor page", VENDOR], ["Datasheet URL", DATASHEET]]);
     await page.locator("#inspector .ui-list[aria-label=Links] .ui-row").first().click();
     assert.deepEqual(await page.evaluate(() => opened.splice(0)), [VENDOR], "a Links row opens through the host");
+    // It reads as a link: link ink and pointer on the title, a muted host line; Enter opens it too.
+    const look = await page.evaluate(() => {
+      const row = document.querySelector("#inspector a.part-link[href]"), title = row.querySelector(".ui-row-title"), detail = row.querySelector(".ui-row-detail");
+      const ink = n => getComputedStyle(n).color;
+      return {cursor: getComputedStyle(row).cursor, title: ink(title), detail: ink(detail), glyph: !!title.querySelector("svg.icon")};
+    });
+    assert.equal(look.cursor, "pointer");
+    assert.ok(look.glyph && look.title !== look.detail, "link ink differs from the muted host " + JSON.stringify(look));
+    await page.locator("#inspector a.part-link").nth(1).focus();
+    await page.keyboard.press("Enter");
+    assert.deepEqual(await page.evaluate(() => opened.splice(0)), [DATASHEET], "Enter opens the focused link");
 
     // The board part shows its schematic part's links.
     await page.evaluate(t => {
@@ -50,7 +61,7 @@ module.exports = async function partLinks(browser) {
     const field = page.locator('#inspector input[aria-label="URL"]');
     await field.waitFor();
     assert.equal(await field.inputValue(), TEXT_URL);
-    await page.getByRole("button", {name: /^Open link \(/}).click();
+    await page.getByRole("link", {name: /^Open link \(/}).click();
     assert.deepEqual(await page.evaluate(() => opened.splice(0)), [TEXT_URL]);
 
     // Cmd/Ctrl+click on the text opens it; a plain click only selects.
