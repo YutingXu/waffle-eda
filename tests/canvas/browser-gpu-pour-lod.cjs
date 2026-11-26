@@ -48,7 +48,7 @@ async function testPourLOD({requireHardware = false} = {}) {
 
 async function pourLOD() {
   await AtriumLazy.need(["AtriumCanvasGPU","AtriumPolygonPour"]);
-  const G = AtriumCanvasGPU, P = AtriumPCBPours, hardware = AtriumCanvasGPUPref.decision();
+  const G = AtriumCanvasGPU, P = AtriumPCBPours, hardware = AtriumCanvasGPUPref.decision(true);
   if (!hardware.use || hardware.software) return {skip:hardware.reason || "no hardware WebGL2"};
   const cv = document.createElement("canvas");
   cv.style.cssText = "position:fixed;left:20px;top:20px;width:360px;height:260px";
@@ -155,7 +155,7 @@ async function pourLOD() {
       const status = G.status(I);
       const fallback = status.renderer === "2d" && /interrupted pour pass/.test(status.reason) && G.composite(I) === null;
       globalThis.AtriumPourAnim = previousAnim;
-      G.enable(true);
+      G.enable(null);
       const pixels = equal(expected,draw(20,true,ordinary));
       retried = {injected,fallback,pixels,freshCanvas:glCanvas() !== before};
     } finally {
@@ -214,7 +214,7 @@ async function pourLOD() {
     } finally { Object.assign(gl,{fenceSync,clientWaitSync,getError}); }
   }
   try {
-    G.enable(true);
+    G.enable(null);
     await prepare();
     const levels = [6,10,20].map(pitch => P.lodRingsAt(region,pitch)?.level ?? -1);
     const initial = reversals(), warm = initial.metrics;
@@ -231,8 +231,9 @@ async function pourLOD() {
     const traversal = extended.concat(extended.slice(0,-1).reverse()).map(([pitch]) => [pitch,draw(pitch)]);
     const long = {levels:extended.map(([pitch]) => P.lodRingsAt(region,pitch)?.level ?? -1),
       fresh:traversal.every(([pitch,image]) => equal(image,fresh(pitch)))};
-    const fallbackPixels = fresh(6), lowBytes = G.stats(I).gpuBytes;
-    const highPixels = fresh(10), highBytes = G.stats(I).gpuBytes;
+    // Each cold total includes the viewport backing charged by the memory cap.
+    const fallbackPixels = fresh(6), lowBytes = G.diagnosticState(I).activeBytes;
+    const highPixels = fresh(10), highBytes = G.diagnosticState(I).activeBytes;
     const photos = equal(initial.a,fallbackPixels) && equal(initial.b,highPixels);
     globalThis.__atriumGpuFault = "pourLodReuse";
     G.release(I);
