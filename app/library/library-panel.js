@@ -1478,7 +1478,8 @@ globalThis.AtriumLibrary = (() => {
     }
     function row(def, used, issues, variant) {
       const r = ui.button(null, () => select(def.id, r), "lib-row");
-      r.dataset.def = def.id; r.draggable = true;
+      // The experimental file-drop receiver keeps the system drag; otherwise the part itself follows the pointer.
+      r.dataset.def = def.id; r.draggable = dropReceiver();
       markSelected(r);
       const pics = globalThis.AtriumCatalogue?.rowIcons(def) || el("span");
       const f = facts(def), text = el("span", null, "lib-text");
@@ -1496,17 +1497,14 @@ globalThis.AtriumLibrary = (() => {
       const st = P.lib ? null : statusOf(def);
       if (st) mark("ui-badge lib-badge lib-state-" + st.state, STATE_MARK[st.state], stateText(st), STATE_TONE[st.state]);
       r.append(pics, text, badges);
-      r.ondblclick = () => { if (!P.lib) editSelected(def.id); };
+      r.ondblclick = () => placeEntry(P.lib, def);
+      r.addEventListener("pointerdown", e => dragPlace(e, def, r));
       r.ondragstart = e => {
         const lib=P.lib, drop=globalThis.AtriumDropEditor;
-        const offered=drop?.offer(e,{kind:"library-part",id:def.id},lib ? async signal=>{
+        drop?.offer(e,{kind:"library-part",id:def.id},lib ? async signal=>{
           const full=def.stub ? await globalThis.AtriumLibrarySources.load(lib,def.id) : def;
           return signal.aborted ? null : {lib,def:full};
         } : null);
-        if (!offered) {
-          e.dataTransfer.setData("application/x-atrium-def", def.id);
-          if (lib) e.dataTransfer.setData("application/x-atrium-library-source", lib.id);
-        }
         e.dataTransfer.effectAllowed = "copy";
         select(def.id, r);
         globalThis.AtriumSpatialMotion?.lift(r);
@@ -1851,6 +1849,57 @@ globalThis.AtriumLibrary = (() => {
       } catch (e) { if (current()) P.ctx.info?.(e.message); }
     }
     function run(fn, message) { try { P.ctx.edit(fn); if (message) P.ctx.info?.(message); render(); } catch (e) { P.ctx.info?.(e.message); } }
+    const dropReceiver = () => globalThis.AtriumPrefs?.get("butter.drop") === true;
+    // Double-click, Enter and drag place; E edits. A library-file entry joins the project first.
+    const kindFor = def => currentKind() === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb";
+    function placeEntry(lib, def, kind = kindFor(def)) { if (lib) placeFromSource(lib, def, kind); else place(def, kind); }
+    // Drag a row onto the canvas: placement starts when the pointer reaches it, so the real part follows the
+    // pointer (Space rotates, X/Y mirror) and the release places it. Releasing elsewhere cancels, including the
+    // project entry a library-file component got for the placement.
+    function dragPlace(e, def, r) {
+      if (e.button !== 0 || e.pointerType === "touch" || r.draggable) return;
+      const host = globalThis.AtriumNavHost, lib = P.lib, id = e.pointerId, start = [e.clientX, e.clientY];
+      let lifted = false, placing = false, full = null, at = null, added = null;
+      const onCanvas = ev => !!host?.canvas?.() && document.elementFromPoint(ev.clientX, ev.clientY) === host.canvas();
+      const listen = on => { for (const [type, fn] of [["pointermove", move], ["pointerup", up], ["pointercancel", cancel], ["keydown", key]]) (on ? addEventListener : removeEventListener)(type, fn, true); };
+      const end = () => { listen(false); lifted && globalThis.AtriumSpatialMotion?.settle(r); lifted = false; };
+      function begin(activate = false) {
+        if (placing || !full || !at || !host.canvasAt?.(at[0], at[1], activate)) return false;
+        placing = true;
+        const before = host.revision();
+        placeEntry(lib, full, currentKind());
+        if (host.revision() !== before) added = host.revision();
+        return true;
+      }
+      function abandon() {
+        if (placing && host.placing?.()) host.act("select");
+        if (added != null && host.revision() === added) host.act("undo");
+      }
+      function move(ev) {
+        if (ev.pointerId !== id) return;
+        if (!lifted) {
+          if (Math.hypot(ev.clientX - start[0], ev.clientY - start[1]) < 4) return;
+          lifted = true; select(def.id, r); globalThis.AtriumSpatialMotion?.lift(r);
+          // A library-file entry may still be a stub: load it now so placement can start on arrival.
+          const ready = lib && def.stub ? globalThis.AtriumLibrarySources.load(lib, def.id) : Promise.resolve(def);
+          ready.then(d => { if (lifted) { full = d; begin(); } }, error => { end(); P.ctx.info?.(error.message); });
+        }
+        at = [ev.clientX, ev.clientY];
+        if (!placing) begin();
+      }
+      function up(ev) {
+        if (ev.pointerId !== id) return;
+        end();
+        if (placing && !host.placing?.()) return abandon(); // Escape during the drag cancelled it
+        if (placing && onCanvas(ev)) return void host.placeAt(ev.clientX, ev.clientY);
+        // Released over another split pane (or nowhere): that pane becomes active and the part lands there.
+        abandon(); placing = false; added = null; at = [ev.clientX, ev.clientY];
+        if (begin(true) && host.placing?.()) host.placeAt(ev.clientX, ev.clientY);
+      }
+      function cancel(ev) { if (ev.pointerId === id) { end(); abandon(); } }
+      function key(ev) { if (ev.key === "Escape" && !placing) end(); }
+      listen(true);
+    }
     function place(def, kind) { if (P.ctx.placeDef) P.ctx.placeDef(def, kind); else P.ctx.info?.("Placement is unavailable in this build."); }
     function editSelected(id, kind) {
       const def = project().library.find(d => d.id === id);
@@ -1932,36 +1981,6 @@ globalThis.AtriumLibrary = (() => {
       else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); try { run(() => remove(project(), def.id), def.name + " deleted"); } catch (err) { P.ctx.info?.(err.message); } }
     });
     search.addEventListener("keydown", e => { if (e.key === "ArrowDown") { e.preventDefault(); focusRow(visibleRows()[0] || list); } });
-    // Drag a row onto the design canvas: placement starts there and follows the pointer.
-    const panes = document.getElementById("editor-panes");
-    if (panes && !panes.dataset.libraryDrop) {
-      panes.dataset.libraryDrop = "1";
-      let lit = null;
-      const highlight = (pane, on) => globalThis.AtriumSpatialMotion?.target(pane, on, "ui-library-drop");
-      const clearDrop = () => { highlight(lit, false); lit = null; };
-      panes.addEventListener("dragover", e => {
-        if (![...(e.dataTransfer?.types || [])].includes("application/x-atrium-def")) return;
-        e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy";
-        const target = e.target.closest?.(".split-pane");
-        if (target === lit) return;
-        clearDrop(); lit = target; highlight(lit, true);
-      });
-      panes.addEventListener("dragleave", e => { if (!panes.contains(e.relatedTarget)) clearDrop(); });
-      document.addEventListener("dragend", clearDrop);
-      panes.addEventListener("drop", e => {
-        clearDrop();
-        const id = e.dataTransfer?.getData("application/x-atrium-def"); if (!id) return;
-        e.preventDefault(); e.stopPropagation();
-        const libraryId = e.dataTransfer.getData("application/x-atrium-library-source"), kind = currentKind();
-        if (libraryId) {
-          const lib = libs().find(l => l.id === libraryId), def = lib?.defs.find(d => d.id === id);
-          if (def) placeFromSource(lib, def, kind === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb");
-        } else {
-          const def = project().library.find(d => d.id === id);
-          if (def) place(def, kind === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb");
-        }
-      });
-    }
     // Follow project edits made elsewhere (undo, imports, other panels) cheaply.
     function check(forceHints = false) {
       checkTimer = 0;

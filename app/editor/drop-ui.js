@@ -9,7 +9,7 @@
 // Lazy: drop-editor.js loads it when butter.drop is on.
 globalThis.AtriumDropUI = (() => {
   const G = globalThis, L = G.AtriumLazy, MiB = 1024 * 1024;
-  const WAFFLE = "application/x-waffle-drop", CLIP = "application/x-atrium-clip", LIBRARY = "application/x-atrium-def";
+  const WAFFLE = "application/x-waffle-drop", CLIP = "application/x-atrium-clip";
   const CONSENT_BYTES = 16 * MiB, SHOW_AFTER = 300, LINGER = 4000;
   let installed = false, K = null, item = null, lit = null, dropped = null, transfer = null, mixed = null;
   const enabled = () => G.AtriumPrefs?.get("butter.drop") === true;
@@ -67,7 +67,6 @@ globalThis.AtriumDropUI = (() => {
     const types = [...(dt?.types ?? [])];
     if (types.includes(WAFFLE)) return {ref:true, count:1};
     if (types.includes(CLIP)) return {clip:true, count:1};
-    if (types.includes(LIBRARY)) return null; // the Library panel's own placement drop
     if (!types.includes("Files")) return null;
     const mimes = [...(dt.items ?? [])].filter(i => i.kind === "file").map(i => (i.type || "").toLowerCase());
     return {files:true, count:mimes.length || 1, mimes};

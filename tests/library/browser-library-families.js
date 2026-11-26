@@ -294,8 +294,14 @@ module.exports = async function libraryFamilies(browser) {
     await placed.click();
     assert.equal(await row("family-qfn").count(), 0, "the same ID in the project does not mark a file component placed");
     await panel.getByRole("button", {name: "Unused", exact: true}).click();
+    // Double-click places a file component (joining the project first); it never opens an editor.
     await row("family-qfn").dblclick();
     assert.equal(await page.locator("dialog.se-dialog[open], dialog.fe-dialog[open]").count(), 0);
+    await page.waitForFunction(() => AtriumNavHost.placing());
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => AtriumNavHost.act("undo"));
+    assert.equal(await page.evaluate(() => AtriumNavHost.project().library.some(d => d.libraryRef?.library === "family-file")), false,
+      "cancelling the placement and undoing leaves the file component out of the project");
     await row("family-qfn").press("Delete");
     await details.getByRole("button", {name: "Add to project", exact: true}).click();
     assert.equal(await page.evaluate(() => {
