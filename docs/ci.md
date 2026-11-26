@@ -21,9 +21,18 @@ repository scripts, so CI and a local run do exactly the same thing.
 
 On macOS with Xcode, Python 3.9 or later and the pinned Rust toolchain, run `scripts/release-preview.sh` from the tested commit. The command generates the runtime assets from a clean Git archive. The command stages the universal app, disk image, Windows portable ZIP, and Debian package in a temporary directory. It uses the pinned .NET SDK for the Windows cross-build, or the SDK selected by `DOTNET`.
 
-The command checks the packages before moving the complete set to `dist/preview-<version>`. Pass a path to use a different new or empty folder. `SHA256SUMS` covers the downloadable packages and the accompanying release notes. The macOS package uses ad hoc signing. This command runs locally.
+The command checks the packages before moving the complete set to `dist/preview-<version>`. Pass a path to use a different new or empty folder. `SHA256SUMS` covers the downloadable packages and the accompanying release notes. The macOS package uses ad hoc signing unless `WAFFLE_SIGN_IDENTITY` selects the stable identity (below). This command runs locally.
 
 The package version comes from `app/VERSION`. When updating it, update the browser and native metadata mirrors and run `python3 scripts/release-version.py --check`. About and the disk image’s Read Me First show the full release name. For Butter Official, `--name` returns `Butter`, `--flavour` selects Butter artwork and `--notes` selects the formal release notes.
+
+## Stable macOS signing identity
+
+Ad hoc signing makes the app's identity the hash of that exact build. macOS then treats every release as a new app: an earlier **Open Anyway** approval and granted permissions do not carry over. Release builds can instead sign with one self-signed certificate, so each release has the same designated requirement: `identifier "org.waffle.editor" and certificate leaf = H"<SHA-1>"`. The certificate's public SHA-1 is in `native/macos/signing-leaf.txt`, and the build fails if a signature carries another one.
+
+- Create the identity once on the build Mac with `scripts/create-signing-identity.sh`. It writes its own keychain, a password-protected backup `.p12` in `~/Documents`, and both passwords in `~/Library/Application Support/waffle-release-signing`. Move the backup and its password to safe storage. Nothing goes into the checkout.
+- Build with `WAFFLE_SIGN_IDENTITY="Waffle EDA" scripts/release-preview.sh`. Without the variable, builds stay ad hoc.
+- The certificate is not from Apple, so a browser download is still unnotarised and asks for **Open Anyway** on first launch. Developer ID signing and notarisation (`ATRIUM_SIGN_IDENTITY`, `ATRIUM_NOTARY_PROFILE`) remain the way to remove that prompt.
+- Replacing the certificate changes the app's identity once, like a move from ad hoc. Update `signing-leaf.txt` in the same commit.
 
 ## Release source privacy
 
