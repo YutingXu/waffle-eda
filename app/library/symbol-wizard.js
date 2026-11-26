@@ -541,6 +541,15 @@ globalThis.AtriumSymbolWizard = (() => {
       for (const r of rows) lines.push([r.number, r.name, r.type, ...(gates ? [r.unit] : []), r.hidden ? "yes" : ""].map(cell).join("\t"));
       out.push({name, text: rows.length ? lines.join("\n") : "", pins: rows.length, extends: extends_ ? String(extends_) : null});
     }
+    // A derived symbol (extends "Parent") has its parent's pins: KiCad lets it change fields, not pins.
+    // Same file only, at most 8 levels, as library-import-kicad.js; a missing or circular parent stays empty.
+    const byName = new Map(out.map(s => [s.name, s]));
+    for (const s of out) {
+      if (s.text || !s.extends) continue;
+      let parent = byName.get(s.extends);
+      for (let depth = 0; parent && !parent.text && parent.extends && depth < 8; depth++) parent = byName.get(parent.extends);
+      if (parent?.text) { s.text = parent.text; s.pins = parent.pins; }
+    }
     return out;
   }
   // A picked file -> {kind:"table", text} or {kind:"library", symbols:[{name, text, pins}]}.

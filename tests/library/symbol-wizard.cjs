@@ -148,6 +148,15 @@ const onGrid = v => Math.abs(v / G - Math.round(v / G)) < 1e-6;
   assert.equal(by(kp, "5").nc, true); assert.equal(by(kp, "5").hidden, true); assert.equal(by(kp, "5").low, true);
   const kdef = W.build(kp, {layout: "gates"}).def;
   assert.equal(kdef.symbol.parts, 3);
+  // Derived symbols (KiCad's standard libraries use them widely) list their parent's pins instead of being dropped.
+  const derived = kicad.replace(/\)$/, `
+    (symbol "TestAmp2" (extends "TestAmp") (property "Reference" "U" (at 0 0 0)))
+    (symbol "TestAmp3" (extends "TestAmp2") (property "Reference" "U" (at 0 0 0)))
+    (symbol "Orphan" (extends "Missing") (property "Reference" "U" (at 0 0 0))))`);
+  const ds = W.kicadSymbols(derived), named = n => ds.find(s => s.name === n);
+  assert.equal(named("TestAmp2").text, syms[0].text); assert.equal(named("TestAmp2").pins, 6);
+  assert.equal(named("TestAmp3").text, syms[0].text, "a chain of derived symbols resolves");
+  assert.equal(named("Orphan").text, "", "a missing parent leaves the symbol empty");
   assert.throws(() => W.kicadSymbols("(kicad_sch)"), /symbol library/);
   console.log("PASS existing symbols: def → table round trip, KiCad .kicad_sym units, hidden, no-connect, ~{} overbar");
 }
