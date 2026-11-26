@@ -7,6 +7,8 @@ const assert = require("node:assert/strict");
 for (const m of ["model", "nav-common", "spatial", "connectivity", "rules", "drc", "pcb-edit", "drc-view", "problem-marks", "drc-markers", "drc-fixes", "drc-pours", "diagnostics", "checks", "undo-store"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 require("../support/drc-geometry.cjs");
 const V = AtriumDRCView, U = AtriumUndoStore, F0 = AtriumDRCFixes, scheduler = AtriumChecks.scheduler;
+// Missing Courtyard is off by default; this board's user has turned it on (Preferences › Design Checks).
+globalThis.AtriumPref = {get: (key, fallback) => key === "checks.courtyard" ? true : fallback};
 let passed = 0;
 const test = (name, fn) => { fn(); passed++; console.log("ok - " + name); };
 

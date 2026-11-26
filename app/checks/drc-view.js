@@ -20,6 +20,7 @@
 //     An editor hint includes the current resolved board view. Standalone callers use the
 //     same physical bounds from a detached board snapshot.
 //   AtriumDRCView.signature(item)                     → change signature of an object
+//   AtriumDRCView.recheck()                           → check again after a check preference changes
 //
 // Waivers (drc-waivers.js, lazy): violations waived with the board (doc.drcWaivers) leave the
 // markers and counts; Messages lists them in a collapsible "Waived (N)" group, reports keep them.
@@ -1070,6 +1071,9 @@ globalThis.AtriumDRCView = (() => {
 
   return {toMessages, online, signature, reachOf, run, check, refresh, setEnabled, enabled:() => enabled, budget:() => budget,
     setBudget(ms) {budget = Math.max(5, Number(ms) || 30); checks = new WeakMap(); save(); if (host) schedule();},
+    // The checks selected changed outside the board (Preferences › Design Checks): check again, and
+    // the last batch result no longer answers for the board.
+    recheck() {if (!host) return; checks = new WeakMap(); if (last) last = {...last, stamp:null}; invalidateResults(); schedule();},
     violations:docId => findCurrent(docId) ? shown.get(docId) || EMPTY : EMPTY,
     waived:docId => findCurrent(docId) ? waivedShown.get(docId) || EMPTY : EMPTY, focused:() => focused,
     focus(v) {focused = v || null; host?.invalidate();}, markerAt, groupAt, status, NET_WIDE, attach};

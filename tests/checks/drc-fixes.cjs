@@ -128,6 +128,25 @@ test("missing courtyard: only footprints without one", () => {
   assert.deepEqual(v.map(x => x.id), ["u"]);
 });
 
+test("missing courtyard is off by default; asked for by type or turned on in Preferences", () => {
+  const b = board([{kind: "part", id: "u", def: "r2", ref: "R1", x: 0, y: 0, angle: 0, pinNets: {}}]);
+  const courtyards = (o = {}, d = b) => F.augment(R.drc(d, defs, rules, o), d, defs, o).violations.filter(v => v.type === "courtyard").map(v => v.id);
+  const previous = globalThis.AtriumPref;
+  try {
+    delete globalThis.AtriumPref;
+    assert.deepEqual(courtyards(), [], "batch DRC without the preference");
+    assert.deepEqual(courtyards({checkMode: "online"}), [], "online DRC without the preference");
+    assert.equal(R.checkSelected(b, "courtyard", {checkMode: "online"}), false);
+    assert.equal(R.checkSelected(b, "netAntennae", {checkMode: "online"}), true, "net antennae stays on");
+    assert.deepEqual(courtyards({types: ["courtyard"]}), ["u"], "asked for by type");
+    globalThis.AtriumPref = {get: (key, fallback) => key === "checks.courtyard" ? true : fallback};
+    assert.deepEqual(courtyards(), ["u"], "turned on in Preferences");
+    const excluded = {...b, ruleCheckSelection: {batch: ["courtyard"], online: []}};
+    assert.deepEqual(courtyards({}, excluded), [], "a board's own exclusion still applies");
+    assert.deepEqual(courtyards({checkMode: "online"}, excluded), ["u"]);
+  } finally { if (previous === undefined) delete globalThis.AtriumPref; else globalThis.AtriumPref = previous; }
+});
+
 test("augment adds the extra checks and their rule rows to a DRC result", () => {
   const b = board([track("lone", "B", [[5, 5], [8, 5]])]);
   const r = F.augment(R.drc(b, defs, rules), b, defs);

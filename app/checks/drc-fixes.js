@@ -20,7 +20,10 @@ if (!globalThis.AtriumLandContours && typeof require === "function") require("..
 //
 // Extra checks (not in rules.js): netAntennae (track ends that touch nothing of their net)
 // and courtyard (placed footprints without a courtyard), both warnings. drc-view.js merges
-// them into batch and online results (augment, online).
+// them into batch and online results (augment, online). Missing Courtyard is off by default
+// (Altium has no such check and many imported footprints have no courtyard): it runs when asked
+// for by type or with Preferences › Design Checks › Report footprints without a courtyard
+// (checks.courtyard; AtriumRules.checkSelected).
 //
 // Pure API (tests): checks(doc, defs), fixesFor(doc, defs, rules, v, {project}) → [{id, label,
 // detail, run(doc, lib)}], preview(doc, defs, rules, v, fix, {project}) → {doc, defs, clears,
@@ -355,7 +358,7 @@ globalThis.AtriumDRCFixes = (() => {
     const {limit = Infinity} = options;
     const selected = Object.keys(EXTRA).filter(type =>
       !result.rules.some(r => r.id === "atrium-" + type) &&
-      (globalThis.AtriumRules?.checkSelected(doc, type, options) ?? (!options.types || options.types.includes(type))));
+      (globalThis.AtriumRules?.checkSelected(doc, type, options) ?? (options.types ? options.types.includes(type) : type !== "courtyard")));
     if (!selected.length) return result;
     const extra = checks(doc, defs, selected);
     for (const [type, info] of Object.entries(EXTRA)) {
