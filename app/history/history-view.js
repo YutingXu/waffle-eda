@@ -308,7 +308,7 @@ globalThis.AtriumHistoryView = (() => {
       if (actionError) {
         const {title, message, retry} = actionError;
         nodes.push(K.notice({tone:"danger", title, text:message, live:true,
-          actions:[K.button("Try again", {size:"sm", run:retry})]}));
+          actions:current() ? [K.button("Try again", {size:"sm", run:retry})] : []}));
       }
       noticeSlot.replaceChildren(...nodes);
       noticeSlot.hidden = !nodes.length;
