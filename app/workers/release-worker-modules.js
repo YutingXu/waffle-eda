@@ -22,7 +22,7 @@ globalThis.AtriumReleaseWorkerModules = Object.freeze((/** @type {[string, strin
   ["AtriumFabProfiles", "../formats/fab-profiles.js"], ["AtriumMaskOpenings", "../pcb/mask-openings.js"],
   ["AtriumGeometryMaterial", "../pcb/geometry-material.js"], ["AtriumResolvedGeometry", "../pcb/resolved-geometry.js"],
   ["AtriumFabOutputs", "../formats/fab-outputs.js"], ["AtriumBOM", "../formats/bom.js"],
-  ["AtriumSTEPImport", "../formats/step-import.js"], ["Atrium3D", "../canvas/view3d.js"], ["AtriumSTEP", "../formats/step-export.js"],
+  ["AtriumWorkerPool", "../workers/worker-pool.js"], ["AtriumSTEPImport", "../formats/step-import.js"], ["Atrium3D", "../canvas/view3d.js"], ["AtriumSTEP", "../formats/step-export.js"],
   ["AtriumSchAppearance", "../schematic/sch-appearance.js"], ["AtriumSchematicOutput", "../formats/schematic-output.js"],
   ["AtriumKiCad", "../formats/kicad-export.js"], ["AtriumKiCadSchematic", "../formats/kicad-schematic.js"], ["AtriumXML", "../formats/mcad-xml.js"], ["AtriumIPC2581", "../formats/ipc2581.js"],
   ["AtriumPanel", "../pcb/panel.js"], ["AtriumSHA256", "../core/sha256.js"], ["AtriumOutputJobs", "../formats/output-jobs.js"]
