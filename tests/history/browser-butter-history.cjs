@@ -165,6 +165,39 @@ async function splitHistory(browser, server) {
   } finally { await page.close(); }
 }
 
+async function historyFailure(browser, server) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),"waffle-history-actions-"));
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  try {
+    const fx=await fixture(dir,40), message="Could not read the fixture revision.";
+    await host(page,fx.design).install();
+    await page.goto(server+"/app/index.html");
+    await openProject(page);
+    await page.locator(".quick-access .hv-entry").click();
+    const view=page.locator(".hv-view"), compare=view.getByRole("button",{name:"Compare with last commit",exact:true});
+    await compare.waitFor();
+    await page.waitForFunction(()=>!AtriumHistoryView.state().loading);
+    await page.evaluate(text=>{
+      const source=globalThis.AtriumSourceHistory;
+      globalThis.AtriumSourceHistory={...source,open(){
+        const reader=source.open();
+        return {...reader,async compare(){
+          globalThis.AtriumSourceHistory=source;
+          throw Error(text);
+        }};
+      }};
+    },message);
+    await compare.click();
+    await page.waitForFunction(text=>document.getElementById("status").textContent.includes(text),message,{timeout:5000});
+    assert.equal(await view.getByText(message).count(),0,"the status line already reports the failure");
+    await compare.click();
+    await page.locator(".dv-close").waitFor();
+  } finally {
+    await page.close();
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+}
+
 async function functional(browser, server) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "waffle-history-"));
   const page = await browser.newPage({viewport: {width: 1440, height: 900}});
@@ -593,7 +626,9 @@ async function run(browser) {
   try {
     if (process.argv.includes("--retry-only")) { await retry(browser, url); return; }
     if (process.argv.includes("--split-only")) { await splitHistory(browser, url); return; }
+    if (process.argv.includes("--actions-only")) { await historyFailure(browser, url); return; }
     await splitHistory(browser, url);
+    await historyFailure(browser, url);
     await functional(browser, url);
     await noGit(browser, url);
     await retry(browser, url);
