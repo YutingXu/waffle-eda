@@ -363,7 +363,7 @@ globalThis.AtriumSCH = (() => {
             if(c){c.symbol.shapes.push({kind:"text",...xy(local(position)),text:r.TEXT,size:1.8,style:"body",...(paint?{schPaint:paint}:{})});kept(c.symbol.shapes.at(-1));}
             else if(doc){
               if(paint&&t===17)Object.assign(paint,{type:"power",style:numeric(r.STYLE),direction:numeric(r.ORIENTATION),showName:isTrue(r.SHOWNETNAME)});
-              const item={id:A.id(),kind:t===4?"label":"netlabel",...xy(position),text:r.TEXT,...(paint?{schPaint:paint}:{})};
+              const item={id:A.id(),kind:t===4?"label":"netlabel",...xy(position),text:r.TEXT,...(t===4&&r.URL?{url:r.URL}:{}),...(paint?{schPaint:paint}:{})};
               const rich=t===4 && liveString(r.TEXT);
               if(rich) {item.kind="textframe";Object.assign(item,{w:Math.max(22,String(r.TEXT).length*2),h:5,border:false,richText:rich});}
               addItem(item,idx);

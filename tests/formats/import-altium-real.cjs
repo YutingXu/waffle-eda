@@ -116,7 +116,7 @@ const SNAPSHOT = {
     "nets": ["GP0.3:1", "VCC_3V3:1"],
     "links": [2, 3, 32, 1, 46]
   },
-  "warnings": 22,
+  "warnings": 21,
   "notes": [
     "19 free region(s) imported as filled shapes (Bottom 1, Silk 18).",
     "2 polygon pours imported as editable Waffle pours (outline, net, pour order, island removal). Clearance and connect style come from the design rules.",
@@ -134,7 +134,6 @@ const SNAPSHOT = {
     "Omitted fileversioninfo (1).",
     "Omitted layerkindmapping (1).",
     "Omitted pin swap options6 (1).",
-    "Omitted primitiveparameters (46).",
     "Omitted unionnames (1).",
     "Omitted uniqueidprimitiveinformation (100).",
     "Omitted waivedviolations (15).",

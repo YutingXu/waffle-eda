@@ -29,6 +29,73 @@ globalThis.AtriumSchObjectInspector = (() => {
     input.onchange = () => update(input.value);
     l.append(m && !opt.options ? AtriumNavCommon.measure(input, m[1]) : input); parent.append(l); return input;
   }
+  // Web links. Altium's component Links are parameter pairs ComponentLink<N>URL and
+  // ComponentLink<N>Description, and HelpURL is the part's help page; datasheet and supplier links
+  // are ordinary parameters with an http(s) value. The parameters stay the record and export as
+  // they are: Links lists them, labelled by their description or name, and opens each one in the
+  // system browser. A schematic text's url (Altium's hyperlinked text) opens on Cmd/Ctrl+click.
+  // Only http and https without credentials open, as for every external link (shell.js).
+  function webURL(raw) {
+    if (typeof raw !== "string" || raw.length > 2048 || !/^\s*https?:\/\//i.test(raw)) return "";
+    try {const u = new URL(raw.trim()); return /^https?:$/.test(u.protocol) && u.hostname && !u.username && !u.password ? u.href : "";} catch {return "";}
+  }
+  function openURL(url) {
+    const href = webURL(url), H = globalThis.AtriumHost;
+    if (!href) return false;
+    if (H?.openURL) Promise.resolve(H.openURL(href)).catch(() => {});
+    else if (!H) globalThis.open?.(href, "_blank", "noopener,noreferrer");
+    return true;
+  }
+  function linksOf(...bags) {
+    const rows = bags.flatMap(bag => !bag || typeof bag !== "object" ? [] : Array.isArray(bag) ? bag.map(r => [r?.name, r?.value]) :
+      Object.entries(bag).map(([k, v]) => [k, v && typeof v === "object" ? v.value : v])).filter(([k]) => typeof k === "string");
+    const key = k => k.replace(/[\s_]+/g, "").toUpperCase(), titles = new Map(), out = [], seen = new Set();
+    for (const [k, v] of rows) {
+      const n = /^COMPONENTLINK(\d+)DESCRIPTION$/.exec(key(k))?.[1];
+      if (n && typeof v === "string" && v.trim() && !titles.has(n)) titles.set(n, v.trim());
+    }
+    for (const [k, v] of rows) {
+      const url = webURL(v), n = /^COMPONENTLINK(\d+)URL$/.exec(key(k))?.[1];
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({name: k, url, title: n ? titles.get(n) || "Link " + n : key(k) === "HELPURL" ? "Help" : k, order: n ? +n : key(k) === "HELPURL" ? 1e6 : 2e6});
+    }
+    // Altium's Links first, by number, then Help, then the other parameters by name: the same order
+    // however the parameters are stored.
+    return out.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).map(({order, ...link}) => link);
+  }
+  function linkRow(el, {title, url, name = ""}) {
+    const row = el("button", null, "ui-row"), text = el("span", null, "ui-row-text");
+    row.type = "button"; row.title = url;
+    const host = new URL(url).host;
+    row.setAttribute("aria-label", title + " (" + host + ")");
+    text.append(el("span", title, "ui-row-title"), el("span", host + (name && name !== title ? " · " + name : ""), "ui-row-detail"));
+    row.append(text); row.onclick = () => openURL(url);
+    return row;
+  }
+  // A part's links: its own and its library parameters, then on the other side of the design
+  // the linked part's (a board footprint shows the links of its schematic symbol, as in Altium).
+  function partLinks(panel, part, def, c, {el}) {
+    const defs = c.defs?.(), other = [];
+    for (const d of c.project()?.documents || []) if (d !== c.doc() && part.link)
+      for (const i of d.items) if (i.kind === "part" && i.link === part.link) other.push(i.parameters, defs?.get(i.def)?.parameters);
+    const links = linksOf(part.parameters, def?.parameters, ...other);
+    if (!links.length) return;
+    const s = el("section", null, "inspect-section"), list = el("div", null, "ui-list");
+    list.setAttribute("role", "list"); list.setAttribute("aria-label", "Links");
+    for (const link of links) list.append(linkRow(el, link));
+    s.append(el("h3", "Links"), list); panel.append(s);
+  }
+  globalThis.document?.addEventListener?.("click", followText, true);
+  globalThis.document?.addEventListener?.("contextmenu", e => {if (e.ctrlKey || e.metaKey) followText(e);}, true);
+  function followText(e) {
+    const h = globalThis.AtriumNavHost;
+    if (!(e.ctrlKey || e.metaKey) || e.button !== 0 && e.type !== "contextmenu" || e.target !== h?.canvas?.() || h.doc?.()?.kind !== "schematic" ||
+      h.tool?.() && h.tool() !== "select") return;
+    const r = e.target.getBoundingClientRect(), item = h.hitAt?.(h.view().screenToWorld([e.clientX - r.left, e.clientY - r.top]));
+    if (item?.richText || !openURL(item?.url)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }
   // c: {edit, info, project(), doc(), units:{parse,value,unit}, selectDocument, choose}
   function inspector(s, item, c, {el, button, field = defaultField, descend, grid}) {
     const A = globalThis.Atrium;
@@ -123,9 +190,11 @@ globalThis.AtriumSchObjectInspector = (() => {
         break;
     }
   }
-  // Parameters grid for a part: name, value, visible-on-sheet. Writes part.parameters, which
-  // the BOM reads over the library parameters.
+  // A part's Links (sheet and board), then on the sheet its Parameters grid: name, value,
+  // visible-on-sheet. Writes part.parameters, which the BOM reads over the library parameters.
   function partParameters(panel, part, def, c, {el, button}) {
+    partLinks(panel, part, def, c, {el});
+    if (c.doc()?.kind !== "schematic") return;
     const s = el("section", null, "inspect-section sch-params"); s.append(el("h3", "Parameters")); panel.append(s);
     const own = part.parameters || {}, lib = def?.parameters || {};
     const entries=bag=>Array.isArray(bag)?bag.map(r=>/** @type {[string,any]} */([r.name,r])):Object.entries(bag);
@@ -191,6 +260,12 @@ globalThis.AtriumSchObjectInspector = (() => {
   // Signal directive fields (signals.js §7): the net this item names becomes (part of) a signal, with a
   // polarity for a differential leg, and tags that follow the signal across series parts. Live on the board.
   function directives(s, item, c, {el, field = defaultField}) {
+    if (item.url != null) {
+      s.append(el("h4", "Link", "sch-subhead"));
+      field(s, "URL", item.url, v => c.edit(() => {if (v.trim()) item.url = v.trim(); else delete item.url;}));
+      if (webURL(item.url)) s.append(linkRow(el, {title: "Open link", url: webURL(item.url)}));
+    }
+    if (item.kind === "label" || item.kind === "textframe") return;
     // The editor's Text field of a net label, above these fields (once a lazily built fragment is in place).
     if (item.kind === "netlabel") Promise.resolve().then(() => complete(s.querySelector?.('input[aria-label="Text"]') || s.ownerDocument?.getElementById?.("inspector")?.querySelector?.('input[aria-label="Text"]'), "netlabel", c));
     if (item.kind === "netlabel" && Atrium.isOffsheet(item)) ioField(s, item, c, field);
@@ -203,5 +278,5 @@ globalThis.AtriumSchObjectInspector = (() => {
     if (item.diffPair) field(s, "Differential pair", item.diffPair, v => set("diffPair", v.trim()));
   }
 
-  return {inspector, partParameters, directives};
+  return {inspector, partParameters, directives, linksOf, webURL};
 })();

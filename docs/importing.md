@@ -56,6 +56,8 @@ A PCB project with one applicable Gerber setup saved in its `.PrjPcb` can also p
 
 Waffle links a schematic part to its footprint when the designator, footprint and pin mapping agree; ambiguous links are listed in the report. **Properties → Import report → Restore source appearance** re-applies the original page and symbol styling.
 
+**Links.** Component parameters, hidden ones included, come in from the sheet and from the board (the PcbDoc's component parameters go on the footprint). Waffle keeps Altium's convention rather than a separate link record: a component link is the parameter pair `ComponentLink<N>URL` and `ComponentLink<N>Description`, and `HelpURL` is its help page. **Properties → Links** lists these, then every other parameter whose value is an http or https address (a datasheet or supplier page), and opens one in your browser. A board footprint also shows the links of its schematic part. Schematic text with an Altium hyperlink keeps it as its **URL**; Cmd+click (Ctrl+click on Windows and Linux) opens it. Only http and https addresses without a user name or password are opened. Altium export writes the text's URL and the link parameters in Altium's spelling.
+
 ### Exporting an edited copy back
 
 For a binary `.SchDoc` or `.PcbDoc`, **File → Export → Export Design…** with the format **Altium source copy** writes a native copy containing your supported edits:

@@ -968,7 +968,7 @@
         else if(matches.length)s.append(inspectorButton("Show on board",go));
         else if(!pcb()){s.append(inspectorButton("Place footprint on board",()=>{focusedPart=item;if(def.footprint)placeLinked(def);else {swapFootprint=item;showLibrary("pcb");}}));}
       }
-      if(!pcb()&&globalThis.AtriumSchObjects){if(item.kind==="part")AtriumSchObjects.partParameters(panel,item,def,schCtx(editItem));else if(AtriumSchObjects.KINDS.has(item.kind))AtriumSchObjects.inspector(s,item,schCtx(editItem));}
+      if(globalThis.AtriumSchObjects){if(item.kind==="part")AtriumSchObjects.partParameters(panel,item,def,schCtx(editItem));else if(!pcb()&&AtriumSchObjects.KINDS.has(item.kind))AtriumSchObjects.inspector(s,item,schCtx(editItem));}
       if(item.kind==="label"&&pcb()&&globalThis.AtriumPCBText)AtriumPCBText.inspector(s,item,fn=>editItem(()=>fn(item)),unit(),{info});
       else if(item.kind==="label"||item.kind==="netlabel")field(s,"Text",item.text,v=>editItem(()=>{item.text=v;if(item.autoName)delete item.autoName;}));
       if(!pcb())globalThis.AtriumSchObjects?.directives?.(s,item,schCtx(editItem));

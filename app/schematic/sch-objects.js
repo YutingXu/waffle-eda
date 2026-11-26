@@ -813,10 +813,10 @@ globalThis.AtriumSchObjects = (() => {
     if (item.kind === "bus" || item.kind === "busentry" || item.kind === "noerc") return;
     addControls(s, (ui, target) => ui.inspector(target, item, c, toolHost), c.info);
   }
-  // Signal and tag directive fields (Signal, Polarity, Tags) for net labels, ports, power ports, off-sheet
-  // connectors and wires: they act on the board live (signals.js).
+  // Signal, Polarity and Tags of net labels, ports, power ports, off-sheet connectors and wires
+  // (live on the board, signals.js), and a hyperlinked text's URL.
   function directives(s, item, c) {
-    if (!DIRECTIVE_KINDS.has(item.kind)) return;
+    if (!DIRECTIVE_KINDS.has(item.kind) && !item.url) return;
     addControls(s, (ui, target) => ui.directives?.(target, item, c, toolHost), c.info);
   }
   function partParameters(panel, part, def, c) {

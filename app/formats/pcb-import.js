@@ -1226,6 +1226,26 @@ globalThis.AtriumPCB = (() => {
       x,y,angle:-Number(params.ROTATION||0),layer:layer(params.LAYER||"TOP"),link:A.id(),pinNets:{}};
     return {def,item};
   }
+  // PrimitiveParameters/Data: a header row per component (ID=Component#<Components6 row>, COUNT=n)
+  // followed by its n NAME/VALUE rows; UNICODE__<key> carries the exact text as character codes.
+  // Rows without APPURTENANCE are the component's own parameters (datasheet and supplier links
+  // among them). System rows hold vault GUIDs and Footprint rows the library's; neither is kept.
+  // The values go on the placement's own footprint definition, as a schematic symbol keeps its
+  // parameters on its definition, so the ECO does not see them as per-placement edits.
+  function componentParameters(rows,placed) {
+    let target=null,left=0;
+    const field=(r,key)=>r["UNICODE__"+key]!=null&&/^\d+(,\d+)*$/.test(r["UNICODE__"+key])?String.fromCharCode(...r["UNICODE__"+key].split(",").map(Number)):r[key];
+    for(const r of rows){
+      if(r.PRIMITIVEID!=null){
+        const m=/^Component#(\d+)$/i.exec(r.ID||"");
+        target=m&&r.APPURTENANCE==null?placed[+m[1]]:null;left=Math.max(0,Number(r.COUNT)||0);continue;
+      }
+      if(!left)continue;left--;
+      const name=field(r,"NAME"),value=field(r,"VALUE");
+      if(!target||typeof name!=="string"||!name||value==null)continue;
+      (target.def.parameters??={})[name]=String(value);
+    }
+  }
   function local(point,item) {return A.rotate([point[0]-item.x,point[1]-item.y],-item.angle);}
   function addToFootprint(part,obj) {
     const {item,def}=part,fp=def.footprint;
@@ -1697,7 +1717,11 @@ globalThis.AtriumPCB = (() => {
       if(drillDrawing && board.DRILLSYMBOLASENUM==="0"){
         try{drillMap=drillManager(get("drillmanager"));}catch{ /* Unknown framing keeps the native drill drawing. */ }
       }
-      records(get("components")).forEach((p,i)=>component(p,i,dataPath("components")+"#"+i));
+      const placed=records(get("components")).map((p,i)=>component(p,i,dataPath("components")+"#"+i));
+      if(!isLib&&get("primitiveparameters")?.length){
+        try{componentParameters(records(get("primitiveparameters")),placed);}
+        catch(error){notes.push("Component parameters unavailable. "+error.message);}
+      }
       // Polygons6: each copper pour becomes a Waffle polygon pour (outline,
       // net, pour order, island removal, hatch). Its stored Regions6 islands
       // become that pour's current copper (tagged region.polygon), so the board
@@ -1781,6 +1805,7 @@ globalThis.AtriumPCB = (() => {
       }
       if(missingFontOutlines)notes.push(missingFontOutlines+" older TrueType string(s) have no usable embedded outlines; these use the available system font.");
       const mapped=new Set(["board","nets","components",...Object.keys(binaryTypes)]);
+      if(placed.some(part=>part.def.parameters))mapped.add("primitiveparameters");
       if(bodyGeometry && (streams.get("componentbodies6/data")?.length || streams.get("shapebasedcomponentbodies6/data")?.length)){
         componentBodies(doc,parts,streams,null,notes,null,evidence);
         for(const section of ["componentbodies","shapebasedcomponentbodies","models","modelsnoembed"])mapped.add(section);

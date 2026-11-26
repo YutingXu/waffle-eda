@@ -101,6 +101,10 @@ globalThis.AtriumAltiumExport = (() => {
     // push returns the record's OWNERINDEX: its position among the records after the header line.
     const lines = [], push = fields => { lines.push(record(fields, report)); return lines.length - 1; };
     const text = s => clean(s);
+    // Altium lists a part's Links from ComponentLink<N>URL / ComponentLink<N>Description and HelpURL in
+    // this spelling. An import may have changed their case; any other name is written as it is.
+    const linkName = k => String(k).replace(/^componentlink(\d+)(url|description)$/i, (_, n, f) => "ComponentLink" + n + (f.length === 3 ? "URL" : "Description"))
+      .replace(/^helpurl$/i, "HelpURL");
     // Header, then the sheet record (index 0). Child records name their owner by OWNERINDEX,
     // the owner's position among the records after the header.
     push([["RECORD", 31], ["FONTIDCOUNT", 1], ["SIZE1", 10], ["FONTNAME1", "Times New Roman"], ["USEMBCS", "T"], ["ISBOC", "T"], ["HOTSPOTGRIDON", "T"], ["HOTSPOTGRIDSIZE", 4],
@@ -195,7 +199,7 @@ globalThis.AtriumAltiumExport = (() => {
         const params = {...(def.parameters || {}), ...(i.parameters || {})};
         for (const [k, v] of Object.entries(params)) {
           if (/^(comment|value|designator)$/i.test(k) || v == null || v === "") continue;
-          owned(owner, -1, [["RECORD", 41], ...at("LOCATION", [i.x, i.y]), ["COLOR", 8388608], ["FONTID", 1], ["ISHIDDEN", i.paramShow?.[k] ? "F" : "T"], ["TEXT", text(v)], ["NAME", text(k)]]);
+          owned(owner, -1, [["RECORD", 41], ...at("LOCATION", [i.x, i.y]), ["COLOR", 8388608], ["FONTID", 1], ["ISHIDDEN", i.paramShow?.[k] ? "F" : "T"], ["TEXT", text(v)], ["NAME", text(linkName(k))]]);
         }
         if (fpName) {
           const list = owned(owner, -1, [["RECORD", 44]]);
@@ -233,7 +237,8 @@ globalThis.AtriumAltiumExport = (() => {
         }
         counts.labels++;
       } else if (i.kind === "label") {
-        push([["RECORD", 4], ...at("LOCATION", [i.x, i.y]), ["ORIENTATION", Math.round(mod(-(i.angle || 0), 360) / 90) % 4], ["COLOR", 8388608], ["FONTID", 1], ["TEXT", text(i.text || "")]]);
+        push([["RECORD", 4], ...at("LOCATION", [i.x, i.y]), ["ORIENTATION", Math.round(mod(-(i.angle || 0), 360) / 90) % 4], ["COLOR", 8388608], ["FONTID", 1], ["TEXT", text(i.text || "")],
+          ...(i.url ? [["URL", text(i.url)]] : [])]);
         counts.graphics++;
       } else if (i.kind === "graphic") {
         if (shapeRecords(-1, -1, {...i, kind: "path"}, p => p, 128) >= 0) counts.graphics++;

@@ -839,6 +839,7 @@ globalThis.AtriumLazy = (() => {
     if (project?.rules != null || documents.some(d => d?.kind === "pcb" || d?.rules != null)) out.push("AtriumRules");
     if (AtriumRuleScopeDemand(project?.rules) || documents.some(d=>AtriumRuleScopeDemand(d?.rules))) out.push("AtriumDesignQuery");
     if (project?.signals != null) out.push("AtriumSignals");
+    if (documents.some(d => d.items?.some(i => i.url))) out.push("AtriumSchObjectInspector");
     if (notebook) {
       if (documents.some(d => d?.kind === "schematic" && d.items?.some?.(i => i?.kind === "textframe" && i.math === true))) out.push("AtriumMath");
       if (documents.some(d => d.items?.some(i => i.richText))) out.push("AtriumNotebook");
