@@ -560,7 +560,8 @@ globalThis.AtriumDRCView = (() => {
   function needsCheck(d) {
     const s = stateFor(d), a = s.version, b = boardVersion(d);
     if (s.errorAt === stamp(d)) return false;
-    return !a || !b || a.seq < b.floor || a.seq > b.seq || a.items !== b.items || a.outer !== b.outer ||
+    // A batch that omitted an online check leaves the engine unseeded at the same document version.
+    return s.engine.at() == null || !a || !b || a.seq < b.floor || a.seq > b.seq || a.items !== b.items || a.outer !== b.outer ||
       a.project !== b.project || a.parameters !== b.parameters || a.library !== b.library || a.pours !== b.pours || s.engine.pending() ||
       s.extra?.F !== extrasFor(d) || s.waivers !== globalThis.AtriumDRCWaivers ||
       s.polygons !== globalThis.AtriumPolygonPour || s.paths !== globalThis.AtriumReturnPath;

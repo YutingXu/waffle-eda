@@ -18,8 +18,9 @@ function install(...docs) {
   U.reset(); U.record(project);
 }
 const host = {project:() => project, doc:() => panes[0], panes:() => panes.map(d => ({docId:d.id})),
-  docById:id => project.documents.find(d => d.id === id), defs:() => defs, invalidate() {}, invalidateDocument() {},
+  docById:id => project.documents.find(d => d.id === id), defs:() => defs, units:() => "mm", invalidate() {}, invalidateDocument() {},
   registerAction() {}, addRenderer(fn) {paint = fn;}, info() {}, on() {},
+  connections:() => AtriumConnectivity.inspect(panes[0], defs),
   stageEdit(phase, key, fn) {
     const job = {key, fn}; jobs.set(key, job);
     return {cancel() {if (jobs.get(key) === job) jobs.delete(key);}};
@@ -103,6 +104,49 @@ async function test() {
   Object.defineProperty(document, "items", {configurable:true, writable:true, value:items});
   console.log("PASS live DRC demand converges after optional diagnostics load and drops cancelled pane and project work");
 }
+async function manualOnlineSelection() {
+  const hasViaStyle = rows => rows.some(v => v.type === "viaStyle" && v.id === "narrow-drill");
+  const board = deck("manual-board");
+  board.items.push({kind:"via", id:"narrow-drill", net:"VIA", x:5, y:5, diameter:.6, drill:.1, layer:"Multi"});
+  const extras = ["netAntennae", "courtyard"];
+  board.ruleCheckSelection = {online:extras, batch:[...extras, "viaStyle"]};
+  panes = [board]; install(board);
+  project.rules = AtriumRules.create();
+  project.rules.list.find(r => r.type === "viaStyle").holeMin = .25;
+  U.record(project);
+  jobs.clear();
+
+  const manual = await V.run();
+  assert.equal(manual.complete, true);
+  assert.equal(hasViaStyle(manual.violations), false, "the manual report honors its batch settings");
+  assert.equal(hasViaStyle(V.violations(board.id)), false, "the immediate publication uses the batch result");
+  assert.ok(K.scheduler.pending("drc", board), "an unseeded online engine queues a same-revision check");
+  finish();
+  assert.ok(hasViaStyle(V.violations(board.id)), "online-only findings publish without another edit or toggle");
+  assert.equal(hasViaStyle(manual.violations), false, "online refresh leaves the manual report intact");
+  const complete = V.violations(board.id);
+  K.scheduler.plan("drc", {now:true});
+  assert.equal(jobs.size, 0, "a settled journal-backed result does not queue again");
+
+  board.ruleCheckSelection.batch = extras;
+  U.record(project);
+  const reusable = await V.run();
+  assert.ok(hasViaStyle(reusable.violations));
+  K.scheduler.plan("drc", {now:true});
+  assert.equal(jobs.size, 0, "a reusable manual seed needs no follow-up check");
+  assert.deepEqual(V.violations(board.id), complete, "the reusable seed holds the same findings");
+
+  board.ruleCheckSelection.batch = [...extras, "viaStyle"];
+  globalThis.AtriumUndoStore = undefined;
+  try {
+    const withoutJournal = await V.run();
+    assert.equal(hasViaStyle(withoutJournal.violations), false);
+    assert.ok(K.scheduler.pending("drc", board), "a host without a journal still queues its online check");
+    finish();
+    assert.ok(hasViaStyle(V.violations(board.id)));
+  } finally {globalThis.AtriumUndoStore = U;}
+  console.log("PASS manual batch selection restores online-only findings through the scheduler");
+}
 function checkRuleScopes() {
   const app = require("../support/app-source-paths.cjs").appFile;
   const saved = globalThis.AtriumLazy;
@@ -133,4 +177,4 @@ function checkRuleScopes() {
   } finally { globalThis.AtriumLazy=saved; globalThis.AtriumDesignQueryRecord=reader; }
   console.log("PASS rule scopes: cold validators and detached pour retain version, disabled-set and severity policy");
 }
-test().then(checkRuleScopes).then(() => { console.log("SHIM-OK"); }, e => { console.error(e); if (typeof process !== "undefined") process.exitCode = 1; });
+test().then(manualOnlineSelection).then(checkRuleScopes).then(() => { console.log("SHIM-OK"); }, e => { console.error(e); if (typeof process !== "undefined") process.exitCode = 1; });
