@@ -49,6 +49,11 @@ assert.ok(output.diagnostics.some(s=>/copper fills/.test(s)));assert.ok(output.d
 assert.equal(one(items(board,"footprint")[1],"pad")[2],"np_thru_hole");
 assert.throws(()=>K.exportBoard(synthetic,synthetic.documents[0]),/PCB layout/);
 const csv=K.exportBOM(synthetic,b).content;assert.ok(csv.includes('"R""1","10k","quoted ""part"""'));
+{ // A negative value is a number, not a formula; a formula still gets the guard.
+  const bom=value=>{const copy=JSON.parse(JSON.stringify(synthetic)),doc=copy.documents.find(d=>d.id===b.id);doc.items.find(i=>i.kind==="part").value=value;return K.exportBOM(copy,doc).content;};
+  const negative=bom("-5");assert.ok(negative.includes('"-5"')&&!negative.includes("'-5"),"negative numbers are written as they are");
+  assert.ok(bom("=1+1").includes(`"'=1+1"`),"formulas are still guarded");
+}
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"atrium-kicad-"));
 try{
   const demo=path.join(temp,"demo.kicad_pcb"),rotated=path.join(temp,"rotated.kicad_pcb");
