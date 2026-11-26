@@ -28,6 +28,27 @@ async function dockBeta(browser) {
     await page.locator("#doc-name", {hasText: "Sensor board"}).waitFor();
     await page.evaluate(() => AtriumLazy.need(["AtriumDock", "AtriumMessages", "AtriumContextMenu", "AtriumSplitTabs", "AtriumSpatialMotion"]));
 
+    const defaultLayout = await page.evaluate(() => AtriumDock.current());
+    for (const [id, title] of [["messages","Messages"], ["components","Components"]]) {
+      await page.evaluate(panel => {
+        const stacked = AtriumDock.current();
+        stacked.areas.right = [
+          {panels: ["properties"], active: "properties"},
+          {panels: [panel], active: panel},
+        ];
+        stacked.open = panel === "messages" ? ["messages"] : [];
+        AtriumDock.apply(stacked, {quiet: true});
+      }, id);
+      await page.locator("#properties .panel-properties").first().waitFor();
+      await page.locator(`#properties [data-dock-panel="${id}"]`).waitFor();
+      const divider = await page.locator("#properties .dock-sash-group + .dock-group").evaluate(group => {
+        const {borderTopWidth, borderTopStyle} = getComputedStyle(group);
+        return [borderTopWidth, borderTopStyle];
+      });
+      assert.deepEqual(divider, ["1px", "solid"], "a visible line separates stacked Properties and " + title);
+    }
+    await page.evaluate(layout => AtriumDock.apply(layout, {quiet: true}), defaultLayout);
+
     // ---- 1. Messages in the right side dock (its default place), with an imported-rules prompt's actions
     await page.evaluate(() => {
       const messages = [];
