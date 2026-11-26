@@ -277,6 +277,14 @@ async function keyboardThenPointer(browser) {
     const choices = menu.locator(".nav-menu-item:not(:disabled)");
     await choices.first().and(page.locator(":focus-visible")).waitFor();
     const next = choices.nth(1);
+    await next.evaluate(row => {
+      const focus = row.focus.bind(row);
+      let calls = 0;
+      row.focus = options => {
+        row.dataset.focusCalls = String(++calls);
+        focus(options);
+      };
+    });
     await next.hover();
     const states = await choices.evaluateAll(rows => rows.map(row => ({
       focused: row === document.activeElement,
@@ -285,6 +293,9 @@ async function keyboardThenPointer(browser) {
     assert.deepEqual(states.map(row => row.highlighted), states.map((_, index) => index === 1),
       "only the row under the pointer is highlighted after keyboard opening");
     assert.ok(states[1].focused, "keyboard navigation continues from the pointer row");
+    const box = await next.boundingBox();
+    await page.mouse.move(box.x + box.width / 2 + 8, box.y + box.height / 2, {steps:4});
+    assert.equal(await next.getAttribute("data-focus-calls"), "1", "moving within a focused row does not refocus it");
     await page.keyboard.press("Escape");
     await menu.waitFor({state:"hidden"});
     await trigger.and(page.locator(":focus")).waitFor();
