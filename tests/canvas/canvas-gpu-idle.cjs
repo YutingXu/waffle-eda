@@ -897,7 +897,8 @@ for (const hz of [60, 120]) {
   // Run production textSlices on a virtual display clock with deterministic raster costs.
   // Replace the raster leaves with a per-row witness so the scheduling test needs no WebGL driver.
   const period = 1000 / hz, tasks = new Map(), perFrame = new Map(), order = [];
-  let time = 0, next = 0, hidden = false, efficient = false, backingSizes = 0, onPower;
+  const scratch = [], drawn = [], shownOverlays = [];
+  let time = 0, next = 0, hidden = false, efficient = false, backingSizes = 0, fullBackings = 0, onPower;
   function task(run, at) {
     tasks.set(++next, {run, at});
     return next;
@@ -926,33 +927,52 @@ for (const hz of [60, 120]) {
     AtriumIdle:{sampleFrame:run => task(() => run(time), period * (1 + Math.floor(time / period + .00001))),
       cancelSample:id => tasks.delete(id)},
     AtriumPower:{visible:() => !hidden, efficient:() => efficient, onChange:run => { onPower = run; }},
-    AtriumCanvas:{resizeBacking(c,w,h) { backingSizes++; c.width = w; c.height = h; }},
-    document:{createElement:() => ({getContext:() => ({})})},
-    overlayWorld:() => {},
-    scope:I => { work(I, .75); I.onScope?.(); return {}; },
+    AtriumCanvas:{resizeBacking(c,w,h) {
+      backingSizes++;
+      if (c.width!==w || c.height!==h) fullBackings++;
+      if (c.height>h) c.height=h;
+      if (c.width!==w) c.width=w;
+      if (c.height!==h) c.height=h;
+    }},
+    document:{createElement() {
+      let width = 300;
+      const c = {height:150, get width() { return width; }, set width(value) { width = value; c.ink = null; }};
+      const ctx = {canvas:c, setTransform() {}, clearRect() { c.ink = null; }};
+      c.getContext = () => ctx;
+      scratch.push(c);
+      return c;
+    }},
+    draw(_I, _st, _doc, _defs, _opts, _cam, _scene, text) { drawn.push(text); },
+    scope:I => { work(I, .75); I.onScope?.(); return {viewport:[0,0,4,4],o2:{}}; },
     textLayer(I, st, doc, defs, opts, cam, V, pours, T, [, y, , h]) {
-      if (!h) { T.bands = [{tex:I.name}]; T.pixels = new Uint8Array(st.canvas.height); }
+      if (!h) {
+        T.key = "painted"; T.bands = [{tex:I.name}]; T.pixels = new Uint8Array(st.canvas.height);
+        T.exact = new Set(["Top"]); T.pours = pours;
+        T.canvas = I.ctx.canvas; T.ctx = I.ctx; T.strip = {paintBand: () => T.canvas};
+      }
       else if (I.fail) throw new Error("raster failed");
       T.pixels.fill(1, y, y + h);
       work(I, h ? h / 8 : .75);
       return T;
     },
     pourCoverage:I => work(I, .75),
-    copyCanvas:() => ({})
+    copyCanvas(c, prior) { return Object.assign(prior || {}, {width:c.width,height:c.height,ink:c.ink}); }
   };
   const sliceVM = vm.createContext(fixture);
   vm.runInContext(gpuCode.replace("  return Object.freeze(" + sceneExport,
-    "  ({scope, textLayer, pourCoverage, copyCanvas, overlayWorld} = globalThis);\n" +
-    "  memory = () => true; queueDriverMemoryProbe = () => {};\n" +
-    "  return Object.freeze({render, damage, stats, views, textSlices, scheduleWide, wideFits, covers,"), sliceVM);
+    "  ({scope, textLayer, pourCoverage, copyCanvas, draw} = globalThis);\n" +
+    "  place = memory = () => true; update = afterMove = queueDriverMemoryProbe = () => {};\n" +
+    "  return Object.freeze({render, damage, stats, views, textSlices, wideLayers, scheduleWide, wideFits, freeWide, releaseCanvas, covers,"), sliceVM);
   const slices = sliceVM.AtriumCanvasGPU;
   function viewForSlices(name, wide = false) {
     const cam = [0, 0, 1, false, 200, 80, 1], canvas = {width:200,height:80,isConnected:true}, deleted = [];
-    const ctx = {canvas, save() {}, restore() {}, setTransform() {}, drawImage() {}};
+    const ctx = {canvas, save() {}, restore() {}, setTransform() {}, drawImage(overlay) { shownOverlays.push(overlay); }};
     canvas.getContext = () => ctx;
     const I = {name, canvas, ctx, cam:() => cam, cache:{doc:board,rev:1}, withCamera(x,y,s,fn) { fn(); },
-      sync() {}, repaint() { this.repaints = (this.repaints || 0) + 1; }};
-    const st = {canvas, shown:true, scene:{rev:1}, commandEpoch:0, gl:{deleteTexture:tex => deleted.push(tex)},
+      sync() { return this.cache; }, repaint() { this.repaints = (this.repaints || 0) + 1; },
+      boardTransform() {}, paintTop() {}, drawBoard(ctx, parts) { ctx.canvas.ink = parts[0].id; this.onOverlay?.(); }};
+    const st = {canvas, shown:true, strict:true, powerPreference:"low-power",
+      scene:{rev:1,cache:{all:[{id:"selected",kind:"part"}]}}, commandEpoch:0, gl:{deleteTexture:tex => deleted.push(tex)},
       stats:{acc:{n:0,gesture:0}, textSliceRows:0, wideSliceRows:0, textSliceWorkMs:0, wideSliceWorkMs:0}};
     slices.views.set(I, st);
     const target = wide ? {getContext:() => ctx} : canvas;
@@ -1016,10 +1036,11 @@ for (const hz of [60, 120]) {
   assert.equal(tasks.size, 0, "cancelling the running job leaves no work on the next refresh");
   if (hz !== 60) continue;
   const widePane = viewForSlices("wide policy"), exactPane = viewForSlices("exact policy");
-  const {I, st} = widePane, defs = new Map(), opts = {}, list = [];
+  const {I, st, cam} = widePane, defs = new Map(), opts = {selected:"selected",reuseBase:true}, list = [];
   const schedule = () => slices.scheduleWide(I, st, board, defs, opts, list);
   const setEfficiency = value => { efficient = value; onPower({visible:true,efficient}); };
-  st.exact = {doc:board, rev:1, cx:0, cy:0, scale:1, flipped:false, width:200, height:80, dpr:1};
+  st.exact = {doc:board, rev:1, cx:0, cy:0, scale:1, flipped:false, width:200, height:80, dpr:1,pourList:list};
+  st.overlayWorld = {ink:"exact"};
   st.text = {bands:[{}], key:"visible exact"};
   const start = time;
   schedule();
@@ -1033,8 +1054,27 @@ for (const hz of [60, 120]) {
   assert.equal(slices.covers(ready, 0, 0, .6, false, 200, 80), true,
     "a completed wide texture can still support the first retreat");
 
+  assert.deepEqual([ready.overlay.ink,ready.overlay.width,ready.overlay.height], ["selected",200,80]);
+  assert.notEqual(ready.overlay, scratch[0], "the wide world overlay is a separate copy");
+  const [scratchBefore, backingsBefore] = [scratch.length, backingSizes];
+  cam[2] = .6;
+  for (let pass = 0; pass < 2; pass++) {
+    assert.equal(slices.render(I,board,defs,opts,true,{pours:list}),true);
+    const drawnText = drawn.at(-1);
+    assert.equal(drawnText.bands,ready.text.bands,"both retreats draw the prepared wide texture");
+    assert.equal(drawnText.exact,ready.text.exact,"the exact layer set remains current");
+    assert.equal(drawnText.pours,list,"the kept bands still use the same geometry");
+    assert.equal(shownOverlays.at(-1),ready.overlay,"both retreats display the published world overlay");
+  }
+  cam[2] = 1;
   schedule();
   assert.equal(tasks.size, 0, "an exact repaint at the same pose schedules no wide work or timer");
+  assert.deepEqual([scratch.length,backingSizes],[scratchBefore,backingsBefore],"retreat and same-pose reuse do not acquire scratch");
+  assert.deepEqual([scratch.length,fullBackings],[1,1],"first prepaint acquires one scratch backing");
+  assert.equal(st.wideCanvas,scratch[0],"the view retains one reusable canvas shell");
+  assert.equal(scratch[0].width,0,"publishing shrinks the private backing");
+  assert.deepEqual([ready.text.canvas,ready.text.ctx,ready.text.strip],[null,null,null],
+    "published wide text keeps no drawing context or strip painter");
   st.text.key = "changed artwork";
   // A policy change does not redraw the current camera or discard a finished wide copy.
   schedule();
@@ -1061,11 +1101,16 @@ for (const hz of [60, 120]) {
     runNext();
   }
   const rows = st.stats.wideSliceRows;
+  const cancelledScratch = st.wideText.T.canvas;
+  assert.equal(cancelledScratch,scratch[0],"dirty wide prep reuses the existing canvas");
   exactPane.start();
   setEfficiency(true); drain();
   assert.deepEqual(widePane.deleted, ["wide policy"], "cancel returns only unfinished texture resources");
   assert.equal(st.wideText, null);
+  assert.equal(st.wideCanvas,cancelledScratch,"cancellation leaves the view's single scratch available");
+  assert.equal(cancelledScratch.width,200,"cancelling wide work does not resize its canvas on input");
   assert.equal(st.wide, ready);
+  assert.equal(ready.overlay.ink,"selected");
   assert.equal(st.stats.wideSliceRows, rows);
   assert.deepEqual([exactPane.st.stats.textSliceRows, exactPane.st.stats.textSliceWorkMs], [80,12.25],
     "real exact-camera work completes in Efficiency");
@@ -1086,7 +1131,69 @@ for (const hz of [60, 120]) {
   assert.equal(st.stats.wideSliceRows, detachedRows, "a detached pane cannot rasterize more wide rows");
   assert.deepEqual(widePane.deleted, ["wide policy", "wide policy"]);
   assert.equal(st.stats.wideBuilds, 1, "neither cancelled job published");
-  console.log("GPU wide policy keeps 80 exact rows and skips 80 speculative rows (11.5 simulated ms) in Efficiency");
+  I.canvas.isConnected = true;
+  schedule(); drain();
+  assert.equal(st.stats.wideBuilds,2,"a later dirty build publishes");
+  assert.notEqual(st.wide,ready);
+  assert.equal(st.wide.overlay,ready.overlay,"rebuilding still reuses the independent overlay");
+  for (let i = 0; i < 2; i++) {
+    st.text.key = "finished edit " + i;
+    schedule(); drain();
+    assert.equal(st.wide.forKey,st.text.key);
+    assert.equal(st.wide.overlay,ready.overlay,"each rebuild uses the separate retained overlay");
+  }
+  assert.equal(st.stats.wideBuilds,4,"three successive dirty builds publish");
+  assert.equal(scratch[0].width,200,"after first open, keep the backing across rebuilds");
+  assert.deepEqual([scratch.length,fullBackings],[1,2],
+    "two abandoned starts and three successful rebuilds share one regrowth");
+  assert.equal(tasks.size,0);
+
+  // GPU pressure can remove the wide artifact without tearing down the Canvas scratch.
+  slices.freeWide(st);
+  schedule(); drain();
+  assert.equal(st.wideCanvas.width,200,"GPU eviction does not restart the first-publication policy");
+  assert.deepEqual([scratch.length,fullBackings],[1,2]);
+
+  // The normal teardown creates a new scratch lifetime on the next opening.
+  const teardown = () => { slices.freeWide(st); slices.releaseCanvas(st,"wideCanvas"); };
+  teardown();
+  schedule(); drain();
+  assert.deepEqual([scratch.length,scratch[0].width,st.wideCanvas.width],[2,1,0],
+    "a new canvas after teardown releases its own initial backing");
+
+  // An overlay callback can reenter before the first publisher reaches cleanup.
+  teardown();
+  st.text.key = "reentrant";
+  const restart = () => slices.wideLayers(I,st,board,defs,opts,list,0,0,.5);
+  let replacement;
+  I.onOverlay = () => { I.onOverlay = null; restart(); replacement = st.wideText; };
+  schedule();
+  for (let i = 0; !replacement; i++) {
+    assert.ok(i < 20,"the wide overlay published");
+    runNext();
+  }
+  assert.equal(st.wideText,replacement);
+  assert.equal(st.wideCanvas.width,200,"old cleanup must not shrink a replacement's active backing");
+  drain();
+  assert.equal(st.wideCanvas.width,200,"a first publish with an active replacement retains the shared backing");
+
+  const prior = st.wide;
+  st.text.key = "stale";
+  I.onScope = () => { I.onScope = null; st.exact = {...st.exact}; };
+  schedule(); drain();
+  assert.equal(st.wide,prior,"a stale publication leaves the previous artifact");
+  assert.equal(st.wideCanvas.width,200,"a stale rebuild keeps the reusable backing");
+
+  st.text.key = "overlay error";
+  const ctx = I.ctx, overlay = st.overlayWorld;
+  I.onOverlay = () => { I.onOverlay = null; throw new Error("overlay failed"); };
+  schedule();
+  assert.throws(drain,/overlay failed/);
+  assert.equal(I.ctx,ctx);
+  assert.equal(st.overlayWorld,overlay);
+  assert.equal(st.wideCanvas.width,200,"an overlay error keeps the reusable backing");
+  assert.equal(tasks.size,0);
+  console.log("Wide scratch shrinks once after first publication, then reuses one regrowth across cancellations and rebuilds");
 }
 
 function renderStageAttribution() {

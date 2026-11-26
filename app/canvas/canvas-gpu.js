@@ -2701,7 +2701,10 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   function wideLayers(I, st, doc, defs, opts, list, cx, cy, scale) {
     const E = st.exact, W = I.canvas.width, H = I.canvas.height, forKey = st.text.key, forOverlay = !!st.overlayWorld;
     let c = st.wideCanvas;
-    if (!c) c = st.wideCanvas = G.document.createElement("canvas");
+    if (!c) {
+      c = st.wideCanvas = G.document.createElement("canvas");
+      st.wideCanvasPublished = false;
+    }
     G.AtriumCanvas.resizeBacking(c,W,H);
     textSlices(I, st, doc, defs, opts, list, "wideText", [cx, cy, scale], c, (T, V) => {
       if (st.exact !== E || st.text.key !== forKey) { if (T) for (const b of T.bands || []) st.gl.deleteTexture(b.tex); return; }
@@ -2713,9 +2716,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         st.overlayWorld = old?.overlay || null;
         // The wide overlay belongs to the bands completed by this job.
         I.withCamera(cx, cy, scale, () => overlayWorld(I, st, doc, defs, opts, I.cam(), V, false, T));
+        // Retained zoom reads the bands and copied overlay; only exact text paints strips.
+        if (T) T.canvas = T.ctx = T.strip = null;
         st.wide = {...E, cx, cy, scale, text: T || {key: null}, overlay: st.overlayWorld, forKey, forOverlay};
       } finally {
         I.ctx = keep; st.overlayWorld = overlayKeep; st.overlayV = overlayView;
+      }
+      // Give back the initial idle backing once. A later build reuses the regrown canvas,
+      // even if GPU pressure has discarded the prior wide textures.
+      if (st.wideCanvas === c && !st.wideCanvasPublished) {
+        st.wideCanvasPublished = true;
+        if (!old && !st.wideText) c.width = 0;
       }
       st.checkMemory = true;
       st.stats.wideBuilds = (st.stats.wideBuilds || 0) + 1;
