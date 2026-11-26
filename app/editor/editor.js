@@ -2349,6 +2349,8 @@
   }
   const navHost={
     placing:()=>tool==="place"&&!!pending,
+    // The design canvas under a client point; a library drag into an inactive split pane activates it.
+    canvasAt(x,y){const el=document.elementFromPoint(x,y),p=panes.find(p=>p.view&&p.canvas===el);if(!p)return null;if(p!==activePane)activatePane(p);return canvas;},
     // A library drag ends with one part where the pointer was released, then returns to Select.
     placeAt(x,y){
       if(tool!=="place"||!pending)return false;

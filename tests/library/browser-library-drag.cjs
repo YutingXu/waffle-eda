@@ -60,6 +60,53 @@ async function libraryDrag(browser) {
     assert.equal(await placing(), true, "double-click starts placing the component");
     assert.equal(await page.locator("dialog[open]").count(), 0, "double-click does not open an editor");
     await page.keyboard.press("Escape");
+
+    // A library-file component dragged over the canvas and cancelled leaves the project unchanged.
+    const panel = page.locator(".panel-library");
+    const fileDef = await page.evaluate(id => {
+      const def = Atrium.clone(AtriumNavHost.defs().get(id)); def.id = "drag-file-part"; def.name = "Drag file part";
+      AtriumLibrary.sourceStore.save([{id:"drag-file", name:"Drag file", path:"drag.atrlib", defs:[def]}]);
+      AtriumLibrary.mountPanel().render();
+      return def.id;
+    }, id);
+    await panel.getByLabel("Library source", {exact:true}).selectOption("drag-file");
+    const fileRow = panel.locator('.lib-row[data-def="' + fileDef + '"]');
+    await fileRow.waitFor();
+    const library = () => page.evaluate(() => AtriumNavHost.project().library.length);
+    const libraryBefore = await library();
+    await page.mouse.move(...await centre(fileRow));
+    await page.mouse.down();
+    await page.mouse.move(...target, {steps:12});
+    await page.waitForFunction(() => AtriumNavHost.placing());
+    await page.mouse.move(...await centre(fileRow), {steps:12});
+    await page.mouse.up();
+    assert.equal(await library(), libraryBefore, "a cancelled drag does not leave the file component in the project");
+    assert.equal(await parts(), before);
+
+    // Dropping it on the board adds it to the project and places it.
+    await page.mouse.move(...await centre(fileRow));
+    await page.mouse.down();
+    await page.mouse.move(...target, {steps:12});
+    await page.waitForFunction(() => AtriumNavHost.placing());
+    await page.mouse.up();
+    assert.equal(await library(), libraryBefore + 1);
+    assert.equal(await parts(), before + 1, "a library-file component places on release");
+    await panel.getByLabel("Library source", {exact:true}).selectOption({index:0});
+
+    // On a schematic sheet the dragged symbol is placed on release too (the placement script may load cold).
+    await page.evaluate(() => AtriumNavHost.selectDocument(AtriumNavHost.project().documents.find(d => d.kind === "schematic").id));
+    await page.waitForFunction(() => AtriumNavHost.doc().kind === "schematic");
+    const symbolId = await page.evaluate(() => AtriumNavHost.project().library.find(d => d.symbol).id);
+    const symbolRow = panel.locator('.lib-row[data-def="' + symbolId + '"]');
+    await symbolRow.waitFor();
+    const sheetParts = await parts();
+    const sheet = await page.locator("#canvas").boundingBox(), drop = [sheet.x + sheet.width / 2, sheet.y + sheet.height / 2];
+    await page.mouse.move(...await centre(symbolRow));
+    await page.mouse.down();
+    await page.mouse.move(...drop, {steps:12});
+    await page.mouse.up();
+    await page.waitForFunction(n => AtriumNavHost.doc().items.filter(i => i.kind === "part").length === n + 1, sheetParts);
+    await page.waitForFunction(() => !AtriumNavHost.placing());
     assert.deepEqual(errors, []);
     console.log("PASS library drag places on release with live keys, cancels off the canvas, and double-click places");
   } finally { await page.close(); }

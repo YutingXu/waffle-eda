@@ -1854,22 +1854,37 @@ globalThis.AtriumLibrary = (() => {
     const kindFor = def => currentKind() === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb";
     function placeEntry(lib, def, kind = kindFor(def)) { if (lib) placeFromSource(lib, def, kind); else place(def, kind); }
     // Drag a row onto the canvas: placement starts when the pointer reaches it, so the real part follows the
-    // pointer (Space rotates, X/Y mirror) and the release places it. Releasing elsewhere cancels.
+    // pointer (Space rotates, X/Y mirror) and the release places it. Releasing elsewhere cancels, including the
+    // project entry a library-file component got for the placement.
     function dragPlace(e, def, r) {
       if (e.button !== 0 || e.pointerType === "touch" || r.draggable) return;
       const host = globalThis.AtriumNavHost, lib = P.lib, id = e.pointerId, start = [e.clientX, e.clientY];
-      let lifted = false, placing = false;
-      const onCanvas = ev => { const c = host?.canvas?.(); return !!c && document.elementFromPoint(ev.clientX, ev.clientY) === c; };
+      let lifted = false, placing = false, full = null, at = null, added = null;
+      const onCanvas = ev => !!host?.canvas?.() && document.elementFromPoint(ev.clientX, ev.clientY) === host.canvas();
       const listen = on => { for (const [type, fn] of [["pointermove", move], ["pointerup", up], ["pointercancel", cancel], ["keydown", key]]) (on ? addEventListener : removeEventListener)(type, fn, true); };
-      const end = () => { listen(false); if (lifted) globalThis.AtriumSpatialMotion?.settle(r); };
-      const abandon = () => { if (placing && host.placing?.()) host.act("select"); };
+      const end = () => { listen(false); lifted && globalThis.AtriumSpatialMotion?.settle(r); lifted = false; };
+      function begin() {
+        if (placing || !full || !at || !host.canvasAt?.(at[0], at[1])) return;
+        placing = true;
+        const before = host.revision();
+        placeEntry(lib, full, currentKind());
+        if (host.revision() !== before) added = host.revision();
+      }
+      function abandon() {
+        if (placing && host.placing?.()) host.act("select");
+        if (added != null && host.revision() === added) host.act("undo");
+      }
       function move(ev) {
         if (ev.pointerId !== id) return;
         if (!lifted) {
           if (Math.hypot(ev.clientX - start[0], ev.clientY - start[1]) < 4) return;
           lifted = true; select(def.id, r); globalThis.AtriumSpatialMotion?.lift(r);
+          // A library-file entry may still be a stub: load it now so placement can start on arrival.
+          const ready = lib && def.stub ? globalThis.AtriumLibrarySources.load(lib, def.id) : Promise.resolve(def);
+          ready.then(d => { if (lifted) { full = d; begin(); } }, error => { if (lifted) { end(); P.ctx.info?.(error.message); } });
         }
-        if (!placing && onCanvas(ev)) { placing = true; placeEntry(lib, def, currentKind()); }
+        at = [ev.clientX, ev.clientY];
+        if (!placing) begin();
       }
       function up(ev) {
         if (ev.pointerId !== id) return;

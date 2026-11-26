@@ -19,6 +19,6 @@
   opacity:0;transition:opacity var(--motion-drag-highlight) var(--ease-decelerate);
 }
 :is(#document-tabs,.pane-tabs).ui-tab-drop::after,
-.split-pane:is(.is-drop,.ui-library-drop)>.ui-drop-layer {opacity:1}
+.split-pane.is-drop>.ui-drop-layer {opacity:1}
 .split-drop {opacity:0;transition:opacity var(--motion-drag-highlight) var(--ease-decelerate)}
 .split-drop.is-drop {opacity:1}
