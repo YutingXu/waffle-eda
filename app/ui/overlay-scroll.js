@@ -23,8 +23,36 @@ globalThis.AtriumOverlayScroll = (() => {
     return o === "auto" || o === "scroll";
   }
   // The thumb lives where the scroller is drawn: in the open modal dialog or popover (the top layer),
-  // in the app bar (a title-bar row: its menus may draw in the caption band), else in the body.
-  function hostOf(el) {return el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;}
+  // in the app bar (a title-bar row: its menus may draw in the caption band), else in the body. Inside
+  // that, it joins the scroller's own layer, the nearest ancestor with a z-index (a floating dock, a
+  // popover card), so whatever draws over the scroller also covers its thumb.
+  const stacks = n => {const cs = getComputedStyle(n); return cs.position !== "static" && cs.zIndex !== "auto";};
+  function hostOf(el) {
+    const top = el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;
+    if (top === el) return el; // the scroller is the dialog or popover: its thumb stays in the top layer
+    for (let n = el.parentElement; n && n !== top; n = n.parentElement) if (stacks(n)) return n;
+    return top;
+  }
+  // The thumb only has to clear what its scroller draws at that edge: its sticky headers and pinned
+  // columns. It takes one more than the highest of their z-indexes (the app uses raw values up to about 8
+  // there), so anything else in its layer at a higher z-index (the app bar's menus, drawers, document
+  // views, floats) still covers it. A scroller that is itself a layer (a fixed card) shares its z-index,
+  // and the thumb, appended after it, paints over it. Sticky rows sit near the top: the scan is capped.
+  const SCAN = 600;
+  function stickyTop(el) {
+    let z = 0, n = 0;
+    const walk = doc.createTreeWalker(el, 1);
+    for (let e = walk.nextNode(); e && n < SCAN; e = walk.nextNode(), n++) {
+      const cs = getComputedStyle(e);
+      if (cs.position === "sticky") z = Math.max(z, parseInt(cs.zIndex, 10) || 0);
+    }
+    return z;
+  }
+  function layerOf(el, host) {
+    if (el !== host && el !== rootScroller() && stacks(el)) return getComputedStyle(el).zIndex;
+    return String(stickyTop(el) + 1);
+  }
+  const stale = b => [b.v, b.h].some(t => t && !t.isConnected);
   function thumb(el, axis) {
     const t = doc.createElement("div");
     t.className = "ui-scroll-thumb";
@@ -54,6 +82,7 @@ globalThis.AtriumOverlayScroll = (() => {
       if (!show) {t?.remove(); b[axis] = null; continue;}
       if (!t || t.parentElement !== host) {t?.remove(); t = b[axis] = thumb(el, axis); host.append(t);}
       t.style.position = fixed ? "fixed" : "absolute";
+      t.style.zIndex = b.z ??= layerOf(el, host);
       if (axis === "v") {
         const track = r.height - 2 * INSET, size = Math.max(MIN, track * el.clientHeight / el.scrollHeight);
         b.geo.v = {free:track - size, range:Math.max(1, el.scrollHeight - el.clientHeight)};
@@ -92,7 +121,8 @@ globalThis.AtriumOverlayScroll = (() => {
   const measure = new Set();
   function schedule(el, full = true) {
     pending.add(el);
-    if (full || !bars.get(el)?.geo) measure.add(el);
+    const b = bars.get(el);
+    if (full || !b?.geo || stale(b)) measure.add(el);
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
@@ -142,6 +172,6 @@ globalThis.AtriumOverlayScroll = (() => {
   doc.addEventListener("scroll", scrolled, {capture:true, passive:true});
   doc.addEventListener("pointermove", moved, {capture:true, passive:true});
   // A scroller that leaves (a closed panel or dialog) takes its thumbs with it.
-  globalThis.addEventListener("resize", () => {for (const el of bars.keys()) schedule(el);});
+  globalThis.addEventListener("resize", () => {for (const [el, b] of bars) {b.z = undefined; schedule(el);}});
   return Object.freeze({show:el => schedule(el), thumbs:() => [...bars.values()].flatMap(b => [b.v, b.h].filter(Boolean))});
 })();

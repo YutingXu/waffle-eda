@@ -151,6 +151,73 @@ async function scrollbars(browser) {
     await page.waitForFunction(() => [...document.querySelectorAll(".ui-scroll-thumb[data-shown]")].length > 0);
     await page.mouse.move(box.x + 20, box.y + 20);
     await page.waitForFunction(() => !document.querySelector(".ui-scroll-thumb[data-shown]"), null, {timeout:3000});
+    // At the edge the thumb widens with an animation, not in one step (with motion allowed).
+    await page.emulateMedia({reducedMotion:"no-preference"});
+    await page.evaluate(() => { globalThis.__thumbRuns = [];
+      document.addEventListener("transitionrun", e => e.target.matches(".ui-scroll-thumb") && __thumbRuns.push(e.propertyName), true); });
+    await page.mouse.move(box.x + box.width - 4, box.y + box.height / 2);
+    const thumb = '.ui-scroll-thumb[data-axis=v][data-hot]';
+    await page.waitForSelector(thumb);
+    await page.waitForFunction(() => __thumbRuns.includes("scale"), null, {timeout:1000}).catch(() => {});
+    assert.ok(await page.evaluate(() => __thumbRuns.includes("scale")), "the thumb animates its thickness (scale) as it widens at the edge");
+    const fadesOnly = () => page.evaluate(sel => getComputedStyle(document.querySelector(sel)).transitionProperty, thumb);
+    const motion = await page.evaluate(() => { const was = document.documentElement.dataset.motion ?? null; document.documentElement.dataset.motion = "reduce"; return was; });
+    assert.equal(await fadesOnly(), "opacity", "with Preferences › Motion › Reduce the thumb only fades");
+    await page.evaluate(was => { if (was == null) delete document.documentElement.dataset.motion; else document.documentElement.dataset.motion = was; }, motion);
+    await page.emulateMedia({reducedMotion:"reduce"});
+    assert.equal(await fadesOnly(), "opacity", "with the system's reduced motion the thumb only fades");
+    // A menu drawn over a panel also covers that panel's thumb.
+    assert.ok(await page.evaluate(sel => {
+      const t = document.querySelector(sel).getBoundingClientRect(), x = t.left + t.width / 2, y = t.top + t.height / 2;
+      const menu = Object.assign(document.createElement("div"), {className:"nav-menu"});
+      Object.assign(menu.style, {left:x - 40 + "px", top:y - 20 + "px", width:"80px", height:"40px"});
+      document.body.append(menu);
+      const hit = document.elementFromPoint(x, y) === menu; menu.remove(); return hit;
+    }, thumb), "a menu over the panel draws above its scroll thumb");
+    // So does an app bar menu (the app bar is a low layer of its own, z-index 5).
+    assert.ok(await page.evaluate(sel => {
+      const t = document.querySelector(sel).getBoundingClientRect(), x = t.left + t.width / 2, y = t.top + t.height / 2;
+      const menu = document.querySelector(".appbar .work-menu"), items = menu.querySelector(".menu-items");
+      menu.open = true;
+      Object.assign(items.style, {position:"fixed", left:x - 100 + "px", top:y - 10 + "px", right:"auto"});
+      const hit = items.contains(document.elementFromPoint(x, y));
+      items.removeAttribute("style"); menu.open = false; return hit;
+    }, thumb), "an app bar menu over the panel draws above its scroll thumb");
+    await page.mouse.move(box.x + 20, box.y + 20);
+    await page.waitForFunction(() => !document.querySelector(".ui-scroll-thumb[data-hot]"));
+    // A z-indexed sticky header in the scroller does not cover the thumb.
+    assert.ok(await page.evaluate(async () => {
+      const box = Object.assign(document.createElement("div"), {style:"position:absolute;left:40px;top:40px;width:200px;height:150px;overflow:auto"});
+      box.innerHTML = "<div style='position:sticky;top:0;z-index:4;height:60px;background:red'></div><div style='height:600px'></div>";
+      document.body.append(box); box.scrollTop = 30; await new Promise(r => setTimeout(r, 100));
+      const t = AtriumOverlayScroll.thumbs().find(t => t.style.position === "fixed" && Math.abs(parseFloat(t.style.top) - 42) < 2);
+      t.style.pointerEvents = "auto"; const r = t.getBoundingClientRect();
+      const ok = document.elementFromPoint(r.left + r.width / 2, r.top + 2) === t; t.style.pointerEvents = ""; box.remove(); return ok;
+    }), "a z-indexed sticky header does not cover the thumb");
+    // A scrolling popover inside a layered card (a select list in a modeless dialog) keeps its thumb on top.
+    assert.ok(await page.evaluate(async () => {
+      const card = Object.assign(document.createElement("div"), {style:"position:fixed;z-index:30;left:40px;top:40px;width:200px;height:200px"});
+      const list = Object.assign(document.createElement("div"), {popover:"manual", style:"overflow:auto;height:120px;width:160px;margin:0;inset:auto;left:60px;top:60px;position:fixed"});
+      list.innerHTML = "<div style='height:600px'></div>"; card.append(list); document.body.append(card); list.showPopover();
+      list.scrollTop = 40; await new Promise(r => setTimeout(r, 100));
+      const t = AtriumOverlayScroll.thumbs().find(t => t.parentElement === list || t.parentElement === card);
+      const ok = t?.parentElement === list; card.remove(); return ok;
+    }), "a scrolling popover's thumb stays in the popover");
+    // In a floating panel the thumb still draws over that panel's own content.
+    await page.evaluate(() => { for (const d of document.querySelectorAll("dialog[open]")) d.close(); });
+    await page.setViewportSize({width:1400, height:1000});
+    const id = await page.evaluate(() => document.getElementById("inspector").closest("[data-dock-panel]").dataset.dockPanel);
+    await page.evaluate(id => AtriumDock.moveTo(id, {area:"float", rect:{x:400, y:200, w:320, h:220}}), id);
+    await page.waitForFunction(() => document.getElementById("inspector").closest(".dock-float"));
+    await page.waitForFunction(() => { const i = document.getElementById("inspector"); return i.scrollHeight > i.clientHeight; });
+    const fbox = await page.locator("#inspector").boundingBox();
+    await page.mouse.move(fbox.x + fbox.width / 2, fbox.y + fbox.height / 2);
+    await page.mouse.wheel(0, 80);
+    await page.mouse.move(fbox.x + fbox.width - 4, fbox.y + fbox.height / 2);
+    await page.waitForSelector(thumb);
+    assert.ok(await page.evaluate(sel => { const t = document.querySelector(sel), r = t.getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === t; }, thumb),
+      "a floating panel's thumb draws above the panel");
     assert.deepEqual(errors, [], "no page errors");
     await page.close();
   } finally { await classic.close(); }
