@@ -236,7 +236,9 @@ async function dockBeta(browser) {
     // A slow full Canvas2D paint followed by a cached tab return used to lose its resize cost.
     const pinnedState = () => page.evaluate(() => {
       const c = AtriumNavHost.canvas(), dock = document.getElementById("navigator");
-      return {position:c.style.position,width:c.getBoundingClientRect().width,paneWidth:c.parentElement.getBoundingClientRect().width,
+      const canvas = c.getBoundingClientRect(), pane = c.parentElement.getBoundingClientRect();
+      return {position:c.style.position,width:canvas.width,paneWidth:pane.width,
+        leftGap:canvas.left-pane.left,rightGap:pane.right-canvas.right,
         dockWidth:dock.getBoundingClientRect().width,backingWidth:c.width,dpr:devicePixelRatio,paints:window.sashPaints.length};
     });
     const tabs = await page.evaluate(async () => {
@@ -278,8 +280,10 @@ async function dockBeta(browser) {
     const leftSash = page.locator(".dock-sash-left");
     const sash = await leftSash.boundingBox(), x = sash.x + sash.width / 2, y = sash.y + sash.height / 2;
     await page.mouse.move(x,y); await page.mouse.down();
+    await frames(2);
+    const held = await pinnedState();
     try {
-      for (const delta of [14,42,65]) {
+      for (const delta of [-55,14,42,65]) {
         await page.mouse.move(x + delta,y);
         await frames(2);
         const pinned = await pinnedState();
@@ -287,9 +291,10 @@ async function dockBeta(browser) {
         assert.equal(pinned.dockWidth,beforePin.dockWidth + delta,"the visible dock tracks every drag step");
         assert.equal(pinned.paneWidth,beforePin.paneWidth - delta,"the pane follows the dock");
         assert.equal(pinned.position,"absolute","a costly base stays pinned after a cached tab return");
-        assert.equal(pinned.width,beforePin.width);
-        assert.equal(pinned.backingWidth,beforePin.backingWidth);
-        assert.equal(pinned.paints,beforePin.paints,"dragging avoids repainting the pinned canvas");
+        assert.ok(pinned.leftGap <= 1 && pinned.rightGap <= 1, "the bitmap covers the pane when the side dock shrinks");
+        assert.equal(pinned.width,held.width);
+        assert.equal(pinned.backingWidth,held.backingWidth);
+        assert.equal(pinned.paints,held.paints,"dragging avoids repainting the pinned canvas");
       }
     } finally {
       await page.mouse.up();
@@ -300,7 +305,8 @@ async function dockBeta(browser) {
     assert.equal(thawed.dockWidth,beforePin.dockWidth + 65,"release keeps the dragged width");
     assert.equal(thawed.width,thawed.paneWidth,"the costly canvas fills its resized pane on release");
     assert.equal(thawed.backingWidth,Math.round(thawed.paneWidth * thawed.dpr));
-    assert.equal(thawed.paints,beforePin.paints + 1,"release paints the new viewport once");
+    assert.ok(held.paints <= beforePin.paints + 1,"preparing coverage costs at most one paint");
+    assert.equal(thawed.paints,held.paints + 1,"release paints the new viewport once");
     assert.ok(await page.evaluate(() => !sashPaints.at(-1).reused),"a resized canvas receives a full base paint");
     await savedWidth(thawed.dockWidth);
 
