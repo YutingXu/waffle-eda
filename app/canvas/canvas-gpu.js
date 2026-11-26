@@ -2243,7 +2243,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const near = i => { const v = S.cache.boxes.get(i); return !v || (v[2] >= b[0] - e && v[0] <= b[2] + e && v[3] >= b[1] - e && v[1] <= b[3] + e); };
       // Only what reaches the uploaded area is drawn: the layer's text, its ordered copper and pad captions.
       items = V.items.filter(near);
-      if (all) all = all.filter(near);
+      if (all && exact.size) all = all.filter(near);
       entries = list => list.filter(x => near(x.parent || x.p));
       // WebKit rasterizes the long copper that crosses the area only where it is uploaded. (A clip changes
       // Chromium's antialiasing, so there the layer stays byte for byte what a whole repaint gives.)

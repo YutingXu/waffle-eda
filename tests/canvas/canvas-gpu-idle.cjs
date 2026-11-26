@@ -461,18 +461,21 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
 // Cold text bands visit each part once and preserve the same glyphs and late fallback artwork.
 {
   const {appFile}=require("../support/app-source-paths.cjs");
-  let definitions=0;
+  let definitions=0, orderedCopper=false;
   const context=vm.createContext({Atrium,
     AtriumPCBAppearance:{...AtriumPCBAppearance,readDefinition(...args){
       definitions++;return AtriumPCBAppearance.readDefinition(...args);
-    }},
+    },layerAlpha(layer){return orderedCopper && layer==="Top" ? .5 : 1;}},
     AtriumPCBText:{draw(g,shape){g.fillText(shape.text);}}
   });
   vm.runInContext(fs.readFileSync(appFile("canvas.js"),"utf8"),context);
   vm.runInContext(gpuCode.replace(sceneExport,"{textLayer, render, damage, stats,"),context);
   const ink=[], uploaded=[], W=96, H=64;
   const ctx=new Proxy({clearRect(){ink.length=0;},fillText(text){ink.push(text);},
-    moveTo(x){if(x===9.5)ink.push("cutout");}},
+    moveTo(x,y){
+      if(x===9.5)ink.push("cutout");
+      if(x===1)ink.push(y===0?"near copper":"far copper");
+    }},
     {get(o,key){return o[key]??(()=>{});}});
   const canvas={width:W,height:H,getContext:()=>ctx};ctx.canvas=canvas;
   const I=context.AtriumCanvas.create(canvas).internals();
@@ -499,6 +502,32 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   const newStrip=layer("Silk","entering strip");
   text.strip.paintBand(ctx,4,[newStrip],null,null,list=>list,viewport);
   assert.deepEqual(ink,["entering strip"],"pan repair uses its current objects");
+
+  // The camera retains both candidate lists, but ordinary slices use the text candidates only.
+  const track=y=>({kind:"track",layer:"Top",width:.2,points:[[1,y],[2,y]]});
+  const near=track(0), far=track(9), area=[0,28,W,8];
+  let allScans=0;
+  V.all=new Proxy([...items,near,far],{get(rows,key){
+    if(key==="filter")allScans++;
+    return rows[key];
+  }});
+  scene.cache.boxes=new Map([[near,[1,0,2,0]],[far,[1,9,2,9]]]);
+  I.lodFor=()=>null;
+  const slice=()=>{
+    uploaded.length=0;
+    context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,V,null,text,area);
+    return uploaded.flat();
+  };
+  const ordinary=slice();
+  assert.ok(ordinary.includes("front") && ordinary.includes("back"),"ordinary slices paint their visible glyphs");
+  assert.equal(allScans,0,"ordinary slices do not filter the unused full viewport");
+  orderedCopper=true;
+  const copper=slice();
+  assert.equal(allScans,1,"an ordered copper layer still filters its full candidate list");
+  assert.ok(copper.includes("near copper") && !copper.includes("far copper"),"ordered copper uses the current row bounds");
+  near.points=far.points;
+  scene.cache.boxes.set(near,scene.cache.boxes.get(far));
+  assert.equal(slice().includes("near copper"),false,"the next slice reads edits from the current bounds");
 }
 
 // Only a complete, single-colour coverage mask takes the direct WebKitGTK transfer.
