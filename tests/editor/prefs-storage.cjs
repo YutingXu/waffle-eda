@@ -16,6 +16,8 @@ const P=AtriumPrefs,S=AtriumPrefsStorage;
 
 // Kinds, prefixes and registration.
 assert.equal(S.kind("waffle.si.options"),"setting");
+assert.equal(S.kind("waffle.notes.brush"),"setting","the review-notes brush is exported and reset");
+assert.equal(S.kind("waffle.notes.sheet.doc-1"),"state","per-sheet note visibility is reset");
 assert.equal(S.kind("atrium-online-drc"),"setting","drc-view.js keeps its own key; it is registered here");
 assert.equal(S.kind("atrium.eco.autoCluster"),"setting","atrium.eco. is a prefix");
 assert.equal(S.kind("atrium.eco."),"setting");
@@ -28,6 +30,7 @@ assert.equal(S.kind("atrium.suppliers"),undefined,"secrets are never registered"
 assert.equal(S.kind("atrium.fabProfiles.v1"),undefined,"user content is never registered");
 assert.throws(()=>S.register("other.key","setting"),/atrium/);
 assert.throws(()=>S.register("atrium.x","both"),/setting/);
+S.register("waffle.test.tool.v1","state");assert.equal(S.kind("waffle.test.tool.v1"),"state","Waffle-named keys register too");
 S.register("atrium.test.tool.v1","setting");assert.equal(S.kind("atrium.test.tool.v1"),"setting");
 
 // Every registered key gets a distinctive value (prefixes get two members).
@@ -100,25 +103,24 @@ const LEFT_OUT={
   "atrium.camera.views.v1":"per-document content","atrium.selmem.v1":"per-document content","atrium-update":"format name",
   "atrium.extensions.v1":"extensions","atrium.extensions.registry":"extensions","atrium.extensions.registry.installed":"extensions",
   "atrium.ext.settings.":"extensions","atrium.ext.storage.":"extensions","atrium.ext.trust.v1":"extensions","atrium.ext.code.":"extensions","atrium-routing-habits":"format name","atrium.dev":"developer switch",
-  "atrium-split-follow-v1":"sessionStorage","atrium.":"review.author fallback before AtriumPref (eager) existed"};
+  "atrium-split-follow-v1":"sessionStorage","waffle-editor-drafts-v1":"recovery","waffle-foreign-draft:":"recovery","waffle-editor-draft-session:":"a Web Locks name, not storage",
+  "atrium.ai.project.":"per-project AI permission policy, never exported","atrium.kicad-model-folders.v1":"this machine's folders",
+  "atrium-diagnostics-v1":"local diagnostic log, kept through a settings reset","atrium.":"review.author fallback before AtriumPref (eager) existed"};
 const app=path.join(__dirname,"../../app");
-const FILES=["annotate","autorouter","autosave","bom-optimiser","bom","bus-route","calculator-panel","camera","clip-history","component-swap","constraints",
-  "crossprobe","diff-view","drc-markers","drc-view","eco","extension-registry","extensions","fab-profiles","generic-parts-ui","git-picker",
-  "group-library-local","group-library-sync","group-library-ui","history-panel","i18n-core","keymap","library-panel","navigator-panel","nets-panel","palette","pcb-appearance","pcb-edit","print","query",
-  "review-comments","route-feel","route-habits","rules","sch-place","scripting","selection-memory","shell","si","split-follow","start-page","stress",
-  "sync-status","theme-library","theme","timing-vision","tutorial","update-check","view3d","vscode-theme"];
-const lit=/"(atrium[.\-][A-Za-z0-9._:\-]*)"/g;
-const cand=/localStorage|getItem|setItem|\b(?:const|let)\s+[A-Z_]*(?:KEY|STORE|PREFS?|VIEWS|SOURCES|RECENT|HINT|USER|CONFIG|PROVENANCE|DRAFT|HISTORY|SAVED|HEIGHT)\b|\b(?:key|KEY)\s*=\s*"atrium|ls\.(?:get|set)\(/;
+// Every app module that touches localStorage, found by scanning, so a new tool cannot be missed.
+const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?(e.name==="vendor"?[]:walk(path.join(dir,e.name))):e.name.endsWith(".js")?[path.join(dir,e.name)]:[]);
+const SOURCES=walk(app).map(file=>({file:path.relative(app,file),src:fs.readFileSync(file,"utf8")})).filter(m=>/localStorage/.test(m.src));
+assert.ok(SOURCES.length>=70,"modules using localStorage found: "+SOURCES.length);
+const lit=/"((?:atrium|waffle)[.\-][A-Za-z0-9._:\-]*)"/g;
+const cand=/localStorage|getItem|setItem|\b(?:const|let)\s+[A-Z_]*(?:KEY|STORE|PREFS?|VIEWS|SOURCES|RECENT|HINT|USER|CONFIG|PROVENANCE|DRAFT|HISTORY|SAVED|HEIGHT)\b|\b(?:key|KEY)\s*=\s*"atrium|ls\.(?:get|set)\(|=\s*(?:\([^)]*\)\s*=>\s*)?"(?:atrium|waffle)[.\-][A-Za-z0-9._\-]*[.:]"/;
 const missing=[];
-for(const f of FILES){
-  const src=fs.readFileSync(require("../support/app-source-paths.cjs").appFileFrom(app, f+".js"),"utf8");
-  assert.ok(/localStorage/.test(src),f+".js no longer uses localStorage: drop it from this list");
-  for(const line of src.split("\n"))if(cand.test(line))for(const m of line.matchAll(lit)){const k=m[1];if(!S.kind(k)&&!(k in LEFT_OUT))missing.push(f+".js: "+k);}
+for(const {file,src} of SOURCES){
+  for(const line of src.split("\n"))if(cand.test(line))for(const m of line.matchAll(lit)){const k=m[1];if(!S.kind(k)&&!(k in LEFT_OUT))missing.push(file+": "+k);}
 }
 if(missing.length)console.log("MISSING "+missing.join(" | "));
 assert.deepEqual(missing,[],"register these in app/editor/prefs-storage.js or list them in LEFT_OUT");
 // Every current key has a producer. Older path-indexed Git history remains eligible for reset.
-const all=FILES.map(f=>fs.readFileSync(require("../support/app-source-paths.cjs").appFileFrom(app, f+".js"),"utf8")).join("\n");
+const all=SOURCES.filter(m=>m.file!==path.join("editor","prefs-storage.js")).map(m=>m.src).join("\n");
 assert.ok(!all.includes('"'+gitSeenV1+'"'),"the old path-indexed history is retained only for reset");
 for(const k of registered)if(k!=="atrium.test.tool.v1"&&k!==gitSeenV1)assert.ok(all.includes('"'+k+'"'),k+" is registered but no module uses it");
 console.log("SHIM-OK prefs-storage");
