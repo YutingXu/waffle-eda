@@ -553,13 +553,25 @@ globalThis.AtriumPCBAppearance = (() => {
     if(cache)localBoxes.set(g,bounds);
     return bounds;
   }
-  function partBounds(part,geometry){
-    const [l,t,r,b]=localBounds(geometry);
-    return Atrium.bounds([[l,t],[r,t],[r,b],[l,b]].map(p=>Atrium.world(p,part)));
+  function placedBounds(part,[l,t,r,b]){
+    const {at}=Atrium.placement(part);
+    return Atrium.bounds([at([l,t]),at([r,t]),at([r,b]),at([l,b])]);
   }
+  function partBounds(part,geometry){
+    return placedBounds(part,localBounds(geometry));
+  }
+  // The order probe, band planner and painter all read the same implicit
+  // reference position as the camera moves. Its bounds and pose come from
+  // the board and library, so a new camera needs no new transform.
+  const referencePositions=new WeakMap();
   function referenceAnchor(part,geometry){
-    const [l,t,r]=partBounds(part,geometry);
-    return [(l+r)/2,t-.39];
+    const box=localBounds(geometry), {x,y}=part, angle=part.angle||0, mirror=!!part.mirror;
+    const prior=referencePositions.get(part);
+    if(prior?.box===box && Object.is(prior.x,x) && Object.is(prior.y,y) && prior.angle===angle && prior.mirror===mirror)
+      return prior.anchor;
+    const [l,t,r]=placedBounds(part,box), anchor=[(l+r)/2,t-.39];
+    referencePositions.set(part,{box,x,y,angle,mirror,anchor});
+    return anchor;
   }
   function* partText(doc,part,def,authoredPart=part){
     const native=sourceLabels(doc,authoredPart);
