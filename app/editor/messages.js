@@ -508,7 +508,11 @@ globalThis.AtriumMessages = (() => {
     if (m.problem && K()?.focus && host) {K().focus(host, m.problem); return;}
     if (m.objectId) locate(m, true);
   }
-  function choose(no) {
+  // choose(no, {center, focus}): select a row. center scrolls it to the middle of the list (Show in
+  // Messages) instead of just into view; the keyboard focus follows the selection when it is on a row
+  // already (arrow keys) or `focus` asks for it.
+  function choose(no, {center = false, focus = false} = {}) {
+    const active = document.activeElement, rowFocus = focus || !!(active?.matches?.("tr[data-no]") && ui.tbody.contains(active));
     state.selected = no;
     // Problems are rebuilt after every check pass: the selection follows the problem, not its row number.
     const row = state.view === "problems" ? ui.rows.find(m => m.no === no) : null;
@@ -518,12 +522,19 @@ globalThis.AtriumMessages = (() => {
     const at = ui.rows.findIndex(m => m.no === no);
     if (at >= 0 && ui.grid.clientHeight) {
       const h = rowHeight(), head = ui.grid.tHead?.offsetHeight || ui.grid.querySelector("thead")?.offsetHeight || 0, top = ui.grid.scrollTop, view = ui.grid.clientHeight - head;
-      if (at * h < top) ui.grid.scrollTop = at * h; else if ((at + 1) * h > top + view) ui.grid.scrollTop = (at + 1) * h - view;
+      if (center) ui.grid.scrollTop = Math.max(0, Math.round(at * h - (view - h) / 2));
+      else if (at * h < top) ui.grid.scrollTop = at * h; else if ((at + 1) * h > top + view) ui.grid.scrollTop = (at + 1) * h - view;
       paintRows(false);
     }
     for (const tr of ui.tbody.children) if (tr.dataset.no) tr.setAttribute("aria-selected", String(Number(tr.dataset.no) === no));
+    if (rowFocus) focusSelected();
     syncActions();
     if (state.view !== "problems") try {state.onChoose?.(selectedMessage());} catch (e) {globalThis.console?.error?.(e);}
+  }
+  // The keyboard focus on the selected row (rows are focusable, tabIndex -1), else on the list.
+  function focusSelected() {
+    const tr = ui.tbody.querySelector('tr[data-no][aria-selected="true"]');
+    (tr || ui.grid).focus({preventScroll:true});
   }
   function setView(v) {
     if (v !== "problems" && v !== "log") return;
@@ -607,7 +618,7 @@ globalThis.AtriumMessages = (() => {
   }
   function rowFor(m) {
     const tr = el("tr", null, "msg-" + m.class.toLowerCase()); tr.dataset.no = m.no;
-    tr.dataset.motionKey = motionKey(m); tr.setAttribute("aria-selected", String(m.no === state.selected));
+    tr.dataset.motionKey = motionKey(m); tr.setAttribute("aria-selected", String(m.no === state.selected)); tr.tabIndex = -1;
     if (m.objectId || m.activate) tr.classList.add("msg-locatable");
     const severity = m.netGroup ? "hint" : m.problem?.severity;
     const cls = el("td", null, "msg-col-class"); cls.append(iconFor(m.class), el("span", "[" + (severity === "hint" ? "Hint" : LABEL[m.class]) + "]"));
@@ -640,10 +651,11 @@ globalThis.AtriumMessages = (() => {
     if (!panel || !ui?.rows) return;
     const list = ui.rows, active = document.activeElement;
     const focusedPair = ui.tbody.contains(active) && active?.dataset.pair;
+    const focusedRow = !focusedPair && ui.tbody.contains(active) && active.matches?.("tr[data-no]");
     if (!list.length) {
       const none = displayedStatus() || (state.view === "problems" ? "No problems." : "No messages.");
       const tr = el("tr", null, "msg-empty"), td = el("td", displayedStatus() || (viewList().length ? "No messages match the filter." : none)); td.colSpan = shownColumns().length; tr.append(td);
-      ui.tbody.replaceChildren(tr); ui.win = null; if (focusedPair) focusPair(focusedPair); return;
+      ui.tbody.replaceChildren(tr); ui.win = null; if (focusedPair) focusPair(focusedPair); else if (focusedRow) ui.grid.focus({preventScroll:true}); return;
     }
     const h = rowHeight(), top = ui.grid.scrollTop, view = ui.grid.clientHeight || 600;
     const a = Math.floor(top / h), b = Math.min(list.length, Math.ceil((top + view) / h));
@@ -654,6 +666,8 @@ globalThis.AtriumMessages = (() => {
     if (last < list.length) frag.append(vpad((list.length - last) * h));
     ui.tbody.replaceChildren(frag); ui.win = [first, last];
     if (focusedPair) focusPair(focusedPair);
+    // A repaint replaces the rows: the focus stays on the selected row, or on the list once it scrolled away.
+    else if (focusedRow && !ui.tbody.contains(document.activeElement)) focusSelected();
     if (!ui.rowH && panel.offsetParent !== null) rowHeight();
   }
   function project() {const ctx = state.ctx; return ctx?.currentProject?.() || ctx?.project;}
@@ -730,22 +744,77 @@ globalThis.AtriumMessages = (() => {
     render(animate);
     return store;
   }
-  // Show and select the first message passing `test` without moving focus. False if none.
-  function focusWhere(test) {
-    const pick = list => list.find(x => {try {return test(x);} catch {return false;}});
-    let m = K() ? pick(problemRows()) : null;
-    if (m) state.view = "problems"; else m = pick(store);
-    if (!m) return false;
-    if (typeof document === "undefined") return true;
+  // ---- Show in Messages -------------------------------------------------------------
+  // reveal(test, {ctx, focus}): the first message passing `test`, shown as the chosen row: on its tab
+  // (Problems or Log), with any chip, class toggle or filter text that hid it cleared (and said so in
+  // the status bar), its net-pair group open, the Messages tab in front of its dock, scrolled to the
+  // middle of the list, selected and, with focus (the default), holding the keyboard focus. False if none.
+  function reveal(test, {ctx = null, focus = true} = {}) {
+    if (ctx) state.ctx = ctx;
+    const pass = x => {try {return !!test(x);} catch {return false;}};
+    const cleared = [];
+    let m = null, view = null;
+    if (K()) {
+      m = problemRows().find(pass);
+      if (!m && (state.domain || state.fab || !state.waived)) {
+        // Hidden by a chip: look again on every domain with the waived rows, then keep off only the chips that hid it.
+        const was = {domain:state.domain, fab:state.fab, waived:state.waived};
+        state.domain = null; state.fab = false; state.waived = true;
+        m = problemRows().find(pass);
+        if (!m) Object.assign(state, was);
+        else {
+          if (!m.waivedRow) state.waived = was.waived; else if (!was.waived) cleared.push("Waived");
+          if (was.domain) cleared.push(was.domain === "layout" ? "Layout" : "Schematic");
+          if (was.fab) cleared.push("Fab sign-off");
+          if (!m.waivedRow && !was.waived) m = problemRows().find(pass) || m;
+        }
+      }
+      if (m) view = "problems";
+    }
+    if (!m) {
+      m = store.find(pass);
+      if (!m) return false;
+      // A check group's row: its problems are in Problems (the group's own rows are for scripts).
+      if (!m.problem && isProblemGroup(m.group)) {view = "problems"; m = null;} else view = "log";
+    }
+    if (typeof document === "undefined") {state.view = view; return true;}
     if (!panel) build();
-    if (!m.problem && isProblemGroup(m.group)) {state.view = "problems"; m = null;}
+    if (view === "log" && state.detail && m.group !== state.detail) {
+      state.detail = state.status = state.rerun = state.options = state.onChoose = state.onActivate = null;
+      state.title = ""; state.labels = null; state.actions = [];
+    }
+    if (state.view !== view) {state.view = view; ui.seen = null;}
+    if (m) {
+      if (!state.classes.has(m.class)) {state.classes.add(m.class); cleared.push("hidden " + PLURAL[m.class]);}
+      if (state.query && !filter([m], state).length) {cleared.push("the filter “" + state.query.trim() + "”"); state.query = ""; ui.search.value = "";}
+      const pair = pairOf(m);
+      if (pair) state.expandedPairs.add(pair.key);
+    }
     panel.hidden = false;
-    if (!m) {render(); return true;}
-    const pair = pairOf(m);
-    if (pair) state.expandedPairs.add(pair.key);
-    state.classes.add(m.class); state.query = ""; ui.search.value = "";
-    render(); choose(m.no);
+    globalThis.AtriumDock?.reveal?.("messages");
+    render();
+    const settle = () => {
+      if (!m) {if (focus) ui.grid.focus({preventScroll:true}); return;}
+      // The shown row of that message (Problems rows are rebuilt by each check pass: match the finding).
+      const row = ui.rows.find(r => r === m || !r.netGroup && (m.problem ? r.problem === m.problem : m.staleWaiver ? r.staleWaiver === m.staleWaiver : r.no === m.no));
+      if (row) choose(row.no, {center:true, focus});
+    };
+    settle();
+    // A tab brought to the front of its dock is laid out by the dock's next render: place the row again then.
+    if (m && !ui.grid.clientHeight) queueMicrotask(() => requestAnimationFrame(settle));
+    if (cleared.length) (state.ctx?.info || globalThis.AtriumNavHost?.info)?.("Messages: cleared " + cleared.join(", ") + " to show this " + (view === "problems" ? "problem." : "message."));
     return true;
+  }
+  const focusWhere = (test, o) => reveal(test, o);
+  // A problem as the board, the sheet, a hover card or the violation inspector holds it: a check-store
+  // finding (key), a DRC violation (its own object, or the same rule and objects after a re-check), or an insight.
+  const unifiedProblem = v => !!v && typeof v.key === "string" && typeof v.check === "string";
+  const drcKey = v => v?.type ? v.type + "|" + (v.ruleName || "") + "|" + [v.id, v.otherId].filter(Boolean).sort().join("|") : "";
+  function revealProblem(v, ctx = null, o = {}) {
+    if (!v) return false;
+    if (unifiedProblem(v)) return reveal(m => m.problem === v || m.problem?.key === v.key, {...o, ctx});
+    const k = drcKey(v);
+    return reveal(m => m.drc === v || m.problem?.raw === v, {...o, ctx}) || !!k && reveal(m => !!m.drc && drcKey(m.drc) === k, {...o, ctx});
   }
   // open(ctx, {view, domain}): the panel, optionally on Problems filtered to a domain.
   function open(ctx, o = {}) {
@@ -765,7 +834,7 @@ globalThis.AtriumMessages = (() => {
     panel.hidden = true;
   }
   const isOpen = () => !!panel && !panel.hidden;
-  return {CLASSES, LABEL, show, open, close:hide, isOpen, clear, set, update, focusWhere, messages, summarize, filter, sort, toCSV, toHTML, toReport, locate,
+  return {CLASSES, LABEL, show, open, close:hide, isOpen, clear, set, update, focusWhere, reveal, revealProblem, messages, summarize, filter, sort, toCSV, toHTML, toReport, locate,
     problems:() => problemRows(), detail:() => state.detail,
     drcPending:() => state.detail === "DRC" && state.status === "Checking…", view:() => state.view, setView, groupNetPairs};
 })();

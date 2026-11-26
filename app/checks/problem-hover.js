@@ -231,8 +231,12 @@ globalThis.AtriumProblemHover = (() => {
     }));
     actions.append(action(t("problems.hover.messages"), () => {
       hide(true);
-      const ctx = host.messageContext?.();
-      G.AtriumLazy?.need?.("AtriumMessages").then(() => G.AtriumMessages?.open?.(ctx, {view: "problems", domain: null, fab: false, waived: false}), e => host.info?.(e.message));
+      // The problem itself, selected, in view and focused in Messages (the first of a stacked marker).
+      const ctx = host.messageContext?.(), raw = first.raw;
+      G.AtriumLazy?.need?.("AtriumMessages").then(() => {
+        const M = G.AtriumMessages;
+        if (!M?.revealProblem?.(raw, ctx)) M?.open?.(ctx, {view: "problems", domain: null, fab: false, waived: false});
+      }, e => host.info?.(e.message));
     }));
     parts.push(actions);
     card.replaceChildren(...parts);

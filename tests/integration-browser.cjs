@@ -553,6 +553,7 @@ async function main(){
     if(process.argv.includes("--touch-scheme-only")){await require("./editor/browser-touch-scheme.js")(browser);return;}
     if(process.argv.includes("--problem-hover-only")){await require("./checks/browser-problem-hover.js")(browser,{screenshotDir:snapshot});return;}
     if(process.argv.includes("--drc-messages-only")){await require("./checks/browser-drc-messages.js")(browser);return;}
+    if(process.argv.includes("--show-in-messages-only")){await require("./checks/browser-show-in-messages.js")(browser);return;}
     if(process.argv.includes("--canvas-hover-only")){await require("./editor/browser-canvas-hover.js")(browser);return;}
     if(process.argv.includes("--rotated-markers-only")){await require("./checks/browser-insights-polish.js").rotatedMarkers(browser);return;}
     if(process.argv.includes("--no-quirks-only")){await require("./editor/browser-no-quirks.js")(browser);return;}
@@ -866,6 +867,7 @@ async function main(){
     await require("./editor/browser-canvas-hover.js")(browser);
     await require("./checks/browser-annular-problems.js")(browser);
     await require("./checks/browser-drc-messages.js")(browser);
+    await require("./checks/browser-show-in-messages.js")(browser);
     await require("./canvas/browser-schematic-net-navigation.js")(browser);
     await require("./canvas/browser-view3d-open.js")(browser,["navigation","open","folder"]);
     await require("./editor/browser-editing-input.js")(browser);
