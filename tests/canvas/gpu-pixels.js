@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds, pourCoverageLod};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds, pourCoverageLod};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -1354,6 +1354,97 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           [k,{uploads:row.uploads,pixelsChanged:!!row.pixels&&row.pixels!==empty.pixels}]))}));
       else okLifecycle("emptyTextBands", "empty band skipped, edit and edge ink refilled it, removal cleared it");
     } finally {
+      gl.texSubImage2D = upload;
+      view.dispose(); stage.remove();
+    }
+  }
+
+  function padCaptionBounds() {
+    const name = "padCaptionBounds";
+    if (!/AppleWebKit/.test(navigator.userAgent) || /Chrome\/|Chromium\//.test(navigator.userAgent)) {
+      okLifecycle(name,"skipped: caption bounds apply to WebKit readback");
+      return;
+    }
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:300px;height:220px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const ctx = canvas.getContext("2d",{willReadFrequently:true}), view = AtriumCanvas.create(canvas), I = view.internals();
+    const board = Atrium.sheet("pcb","Pad caption bounds"), scale = 22;
+    board.outline = [[-15,-12],[15,-12],[15,12],[-15,12]];
+    const part = (id,x,y,angle,mirror,number,net) => ({
+      id,kind:"part",def:id,layer:mirror?"Bottom":"Top",x,y,angle,mirror,showRef:false,showValue:false,pinNets:{[number]:net}
+    });
+    board.items = [part("front",-3.6,-2.3,12,false,"Pq7","AgypΩ"), part("mirrored",1.65,2.15,97,true,"Rgj","ω_NPg"),
+      {id:"caption-via",kind:"via",layer:"Multi",x:6.79,y:-2.15,diameter:2.8,drill:.6,net:"Δgy"}];
+    const defs = new Map(board.items.slice(0,2).map(item => [item.def,{footprint:{shapes:[],pads:[
+      {number:Object.keys(item.pinNets)[0],layer:"Top",shape:"rect",x:0,y:0,w:4.6,h:3.1,angle:21}
+    ]}}]));
+    const rest = {editorPane:true,noReuse:true,grid:false,origin:false,showUnrouted:false,layer:"Top"};
+    const seed = {cx:0,cy:0,scale:2,referenceScale:scale};
+    const geometry = [
+      {id:"start",cx:0,cy:0,netNames:true},
+      {id:"shifted",cx:-1.4,cy:1.35,netNames:true},
+      {id:"numberOnly",cx:-1.4,cy:1.35,netNames:false}
+    ];
+    const poses = [false,true].flatMap(flipped=>geometry.map(pose=>({...pose,flipped})));
+    view.restoreCamera(seed); view.render(board,defs,rest);
+    const gl = canvas.previousElementSibling?.getContext("webgl2");
+    if (!gl) { view.dispose(); stage.remove(); failLifecycle(name,"no GPU drawing context"); return; }
+    const upload = gl.texSubImage2D, fillText = ctx.fillText;
+    let full = false, uploads, captions;
+    try {
+      ctx.fillText = function(text,x,y,...more) {
+        if (captions) {
+          const {a,b,c,d} = ctx.getTransform();
+          captions.push({text,upright:a>0 && d>0 && Math.abs(b)+Math.abs(c)<.001});
+        }
+        return fillText.call(this,text,x,y,...more);
+      };
+      gl.texSubImage2D = function(...args) {
+        const [target,level,x,bottom,w,h,format,type,source] = args;
+        // With no pours or other artwork in the bands, these are the caption transfers.
+        if (uploads && args.length===9 && target===gl.TEXTURE_2D && level===0 && format===gl.RGBA &&
+            type===gl.UNSIGNED_BYTE && source instanceof ImageData) {
+          const W=canvas.width, H=canvas.height, y=H-bottom-h;
+          uploads.push({rect:[x,y,w,h],cropped:w<W || h<H,edge:x===0 || x+w===W,
+            ink:source.data.some((value,index)=>index%4===3 && value!==0)});
+          // Sample the same freshly painted source before scratch reuse. Full-band upload is
+          // independent of the crop calculations and also clears all previous text pixels.
+          if (full) return upload.call(this,target,level,0,0,W,H,format,type,ctx.getImageData(0,0,W,H));
+        }
+        return upload.apply(this,args);
+      };
+      const paint = ({cx,cy,flipped,netNames}) => {
+        uploads = []; captions = [];
+        view.restoreCamera({cx,cy,scale,referenceScale:scale,flipped});
+        view.render(board,defs,{...rest,netNames});
+        const surface = GPU().composite(I);
+        if (!surface) throw Error("no GPU frame for pad captions");
+        const image = surface.getContext("2d").getImageData(0,0,surface.width,surface.height).data;
+        return {image,uploads,captions};
+      };
+      const cropped = poses.map(paint);
+      full = true;
+      const fallback = poses.map(paint);
+      const report = poses.map(({id,flipped},n) => {
+        const row=cropped[n];
+        return {id,flipped,delta:differentBytes(row.image,fallback[n].image),uploads:row.uploads,
+          referenceUploads:fallback[n].uploads.length,captions:row.captions};
+      });
+      out.padCaptionBounds = {dpr:I.cam()[6],rows:report};
+      const text = ["Pq7","Rgj","AgypΩ","ω_NPg","Δgy"];
+      const valid = report.every(({id,uploads,referenceUploads,captions,delta}) => !delta && referenceUploads>0 &&
+        uploads.some(row=>row.cropped && row.ink) && captions.every(row=>row.upright) &&
+        (id==="start" ? text.every(t=>captions.some(row=>row.text===t)) && uploads.some(row=>row.cropped && row.edge && row.ink) :
+          id==="shifted" ? text.slice(0,4).every(t=>captions.some(row=>row.text===t)) :
+            text.slice(0,2).every(t=>captions.some(row=>row.text===t)) && captions.every(row=>text.slice(0,2).includes(row.text))));
+      if (!valid || differentBytes(cropped[0].image,cropped[1].image)===0 ||
+          differentBytes(cropped[1].image,cropped[2].image)===0)
+        failLifecycle(name,JSON.stringify(out.padCaptionBounds));
+      else okLifecycle(name,"cropped captions match full source uploads through camera, edge and visibility changes");
+    } finally {
+      ctx.fillText = fillText;
       gl.texSubImage2D = upload;
       view.dispose(); stage.remove();
     }

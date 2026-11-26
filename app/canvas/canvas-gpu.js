@@ -942,9 +942,22 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         x + Math.max(0,xu) + Math.max(0,xv), y + Math.max(0,yu) + Math.max(0,yv)];
       box = next.every(Number.isFinite) ? mergeBounds(box, next) : undefined;
     };
-    const rect = (w,h) => box && [Math.max(0,Math.min(w,Math.floor(box[0])-2)), Math.max(0,Math.min(h,Math.floor(box[1])-2)),
-      Math.max(0,Math.min(w,Math.ceil(box[2])+2)), Math.max(0,Math.min(h,Math.ceil(box[3])+2))];
-    return {include, rect};
+    function rect(w,h) {
+      if (!box) return box;
+      const r = [Math.max(0,Math.floor(box[0])-2), Math.max(0,Math.floor(box[1])-2),
+        Math.min(w,Math.ceil(box[2])+2), Math.min(h,Math.ceil(box[3])+2)];
+      return r[0] < r[2] && r[1] < r[3] ? r : null;
+    }
+    // The caption painter supplies the real font, alignment, baseline and transform from fillText.
+    const glyph = (ctx, text, x, y) => {
+      if (box === undefined) return;
+      const m = ctx.measureText?.(text);
+      if (!(m && m.actualBoundingBoxLeft + m.actualBoundingBoxRight > 0 && m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > 0)) {
+        box = undefined; return;
+      }
+      include(ctx, x - m.actualBoundingBoxLeft, y - m.actualBoundingBoxAscent, x + m.actualBoundingBoxRight, y + m.actualBoundingBoxDescent);
+    };
+    return {include, rect, glyph};
   }
   function damagePixels(I, box, dpr, margin, w, h) {
     const p = I.worldToScreen([box[0],box[1]]), q = I.worldToScreen([box[2],box[3]]);
@@ -2241,14 +2254,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const g = T.ctx, o = I.worldToScreen([0, 0]);
     // One band's content for its pass (in g's current transform), from these objects: also how a pan draws
     // the strips it uncovers (scrollText), with the objects there.
-    function paintBand(g, next, items, all, details, entries, viewport, painted, bandBounds) {
+    function paintBand(g, next, items, all, details, entries, viewport, painted, bounds) {
+      const bandBounds = bounds?.include;
       const mine = next === last ? l => !own.has(nextOf(l)) : l => nextOf(l) === next;
       if (exact.size) I.drawBoard(g, all, doc, defs, scale, {...V.o2, skipPartBoxes: true, hidden: new Hide(opts.hidden || [], l => exact.has(l) && mine(l))}, bandPours, viewport, lod, painted, bandBounds);
       for (const [layer, list] of details || []) if (!exact.has(layer) && mine(layer)) {
         const captions = entries(list);
         if (painted) for (const {parent,p} of captions) painted(parent || p);
-        if (captions.length) bandBounds?.(null);
-        paintPadDetails(I, g, captions, layer, scale, V.o2);
+        paintPadDetails(I, g, captions, layer, scale, V.o2, bounds?.glyph);
       }
       // Each glyph is drawn once in its layer. Component selection rectangles go over all layers.
       I.drawBoard(g, items, doc, defs, scale, {...o3, skipPartBoxes: true, hidden: exact.size || need.length > 1 ? new Hide(o3.hidden || [], l => !exact.has(l) && mine(l)) : o3.hidden, gpu: i => !twoD(i)}, null, viewport, null, painted, bandBounds);
@@ -2268,11 +2281,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       // In a full WebKit paint, remember whether any of this band’s art can reach the canvas.
       // Keep the ordered band descriptor so a pan can paint into it if ink comes into view.
       let ink = !READBACK || !!area || local || T.planning || !!lod;
-      const painted = (item, bounds) => {
-        ink ||= inkTouches(S.cache.boxes, V.viewport, item, bounds);
-      };
+      const painted = (item, bounds) => ink ||= inkTouches(S.cache.boxes, V.viewport, item, bounds);
       const bounds = READBACK && !area && !local && !rolled && !T.planning && !lod ? bandRectangle() : null;
-      paintBand(g, next, items, all, details, entries, V.viewport, ink ? null : painted, bounds?.include);
+      paintBand(g, next, items, all, details, entries, V.viewport, ink ? null : painted, bounds);
       st.stats.acc.board += now() - t1;
       // Board Planning mode (key 1): regions as tinted areas, bend lines dashed with labels, under the connection lines.
       // The layer goes over every board layer then, so pad numbers and nets join it, under the tints as in canvas.js.
@@ -2290,9 +2301,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
             else w = h = 0;
           }
         }
-        const tex = bandTexture(st,band,W,H);
         if (w > 0 && h > 0) {
-          uploadCanvas(gl,tex,T.canvas,x,y,w,h);
+          uploadCanvas(gl,bandTexture(st,band,W,H),T.canvas,x,y,w,h);
           st.stats.textUpload += w * h * 4;
         }
       } else if (band.tex) {
@@ -2578,9 +2588,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, w, h);
           g.save(); g.beginPath(); g.rect(0, 0, w, h); g.clip();
           g.setTransform(f * k, 0, 0, k, o[0] * dpr - sx, o[1] * dpr - sy); g.lineJoin = "round"; g.lineCap = "round";
-          P.paintBand(g, next, items, found, details, all, box, ink ? null : (item, bounds) => {
-            ink ||= inkTouches(boxes, box, item, bounds);
-          });
+          P.paintBand(g, next, items, found, details, all, box,
+            ink ? null : (item, bounds) => ink ||= inkTouches(boxes, box, item, bounds));
           g.restore();
         }
         // A never-used band stays unallocated. An existing band can contain old wrapped ink,
@@ -2813,10 +2822,10 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return layers;
   }
-  function paintPadDetails(I, ctx, entries, layer, scale, opts) {
+  function paintPadDetails(I, ctx, entries, layer, scale, opts, glyphBounds) {
     for (const {p, parent, g} of entries) {
       ctx.save();
-      I.padText(ctx, p, g, scale, opts, parent, undefined, layer);
+      I.padText(ctx, p, g, scale, opts, parent, undefined, layer, glyphBounds);
       ctx.restore();
     }
   }

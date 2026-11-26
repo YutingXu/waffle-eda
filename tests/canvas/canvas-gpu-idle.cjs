@@ -519,7 +519,7 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
     doc.items=items;
     const layer="Top",opts={layer,layerMode:"all",flipped};
     const I={...view.internals(),ctx:rec.ctx,worldToScreen:()=>[W/(2*dpr)+(flipped?cx:-cx)*scale,H/(2*dpr)],query:()=>items};
-    const V={items:items.filter(i=>i.kind==="label"),all:items,active:layer,o2:opts,padDetails:items.includes(pad),viewport:[-20,-20,20,20]};
+    const V={items:items.filter(i=>i.kind==="label" || i.kind==="part"),all:items,active:layer,o2:opts,padDetails:items.includes(pad),viewport:[-20,-20,20,20]};
     return textLayer(I,st,doc,defs,opts,[cx,0,scale,flipped,W/dpr,H/dpr,dpr],V,null);
   }
   const state=()=>({gl,canvas:rec.canvas,text:{},stats:{acc:{board:0,text:0}},scene:{
@@ -540,12 +540,47 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
     const [left,,width]=reads.at(-1);
     assert.ok(first%W<left || first%W>=left+width,"drop the first ink extent once it has been cleared");
   }
-  paint(state(),[pad],0,false,1,19);
-  assert.equal(drawCaption,true,"the real native-font pad caption was painted");
-  assert.deepEqual(reads.at(-1),[0,0,W,H],"unknown caption bounds require a full band transfer");
+  const measure=rec.ctx.measureText;
+  try {
+    rec.ctx.measureText=undefined;
+    paint(state(),[pad],0,false,1,19);
+    assert.equal(drawCaption,true,"the real native-font pad caption was painted");
+    assert.deepEqual(reads.at(-1),[0,0,W,H],"unknown caption bounds require a full band transfer");
+    let measured=0;
+    rec.ctx.measureText=function(text){
+      assert.equal(text,pad.net);assert.equal(this.textAlign,"center");assert.equal(this.textBaseline,"alphabetic");
+      measured++;return {actualBoundingBoxLeft:11,actualBoundingBoxRight:13,actualBoundingBoxAscent:8,actualBoundingBoxDescent:3};
+    };
+    const retained=state();
+    paint(retained,[pad],0,false,1,19);
+    assert.equal(measured,1,"measure just the caption that was drawn, at its real font and alignment");
+    const [x,y,w,h]=reads.at(-1);
+    assert.ok(x<=W/2-11 && x+w>=W/2+13 && w<32 && h<20,"read only the native ink and its antialiasing margin");
+    paint(retained,[pad],8,false,1,19);
+    assert.deepEqual(reads.at(-1),[x,y,w,h],"a fully offscreen caption only clears the previous ink");
+    const offscreen=state();
+    paint(offscreen,[pad],8,false,1,19);
+    assert.equal(offscreen.text.bands[0].tex,null,"an initially offscreen caption needs no backing");
+    paint(offscreen,[pad],0,false,1,19);
+    assert.ok(offscreen.text.bands[0].tex,"the same band acquires its backing when the caption enters");
+    rec.ctx.measureText=()=>({actualBoundingBoxLeft:NaN});
+    paint(state(),[pad],0,false,1,19);
+    assert.deepEqual(reads.at(-1),[0,0,W,H],"incomplete native metrics retain the full transfer");
+  } finally {rec.ctx.measureText=measure;}
   paint(state(),[label,line],0,false,1,9);
   assert.equal(pathY,-4,"a label record with points took the path painter");
   assert.deepEqual(reads.at(-1),[0,0,W,H],"artwork from the path branch falls back despite the label kind");
+  const part={id:"P1",kind:"part",def:"legend",ref:"U1",refAt:[0,1],x:0,y:0,layer:"Top"};
+  const shapes=[40,0,3,6].map((x,i)=>({kind:"text",layer:"Silk",text:"L"+i,x,y:0,size:.25}));
+  defs.set(part.def,{id:part.def,footprint:{pads:[],shapes}});
+  const probed=[], drawn=[], {paintBox,draw}=AtriumPCBText;
+  try {
+    AtriumPCBText.paintBox=(item,...args)=>{probed.push(item.text);return paintBox(item,...args);};
+    AtriumPCBText.draw=(ctx,item,...args)=>{drawn.push(item.text);return draw(ctx,item,...args);};
+    paint(state(),[part],0,false,1,6);
+    assert.deepEqual(drawn,["L0","L1","L2","L3","U1"],"every glyph still reaches the band painter");
+    assert.deepEqual(probed,["L0","L1"],"an offscreen glyph is insufficient, but the first visible glyph proves occupancy for the whole band");
+  } finally { Object.assign(AtriumPCBText,{paintBox,draw}); }
   console.log("WebKit text crops preserve old/new glyph pixels and fall back for native captions and mixed label/path records");
 }
 

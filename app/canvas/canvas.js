@@ -109,12 +109,13 @@ globalThis.AtriumCanvas = (() => {
     ctx.beginPath();
     ctx.arc(x, y, Math.max(0, r), 0, Math.PI * 2);
   }
-  function textAt(ctx, text, x, y, size, ink, align = "left", weight = 500, mono = false) {
+  function textAt(ctx, text, x, y, size, ink, align = "left", weight = 500, mono = false, glyphBounds) {
     ctx.font = weight + " " + size + "px " + (mono ? monoFont : labelFont);
     ctx.textAlign = align;
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = ink;
     ctx.fillText(text, x, y);
+    glyphBounds?.(ctx,text,x,y);
   }
   const copper=PCB.color;
   function drawPad(ctx, p, scale, selected, boardView, parent = null, opts={}) {
@@ -176,7 +177,7 @@ globalThis.AtriumCanvas = (() => {
     return v;
   }
   // Screen px (WebKit rounds tiny fonts); net over number by cap height, no overlap.
-  function padText(ctx,p,g,scale,opts,parent,land,layer){
+  function padText(ctx,p,g,scale,opts,parent,land,layer,glyphBounds){
     const number=parent?String(p.number??""):"", net=opts.netNames===false?"":String(PCB.padNet(p,parent)||"");
     const {at,angle,mirror}=AtriumResolvedLand.place(g,parent);
     if(land===undefined){
@@ -199,12 +200,12 @@ globalThis.AtriumCanvas = (() => {
     const hole=p.drill>0, fit=(t,k)=>Math.min(sh*k,sw*.85/(.62*t.length+.3)), c=.74;
     const ns=fit(net,.24), us=fit(number,.22), half=((ns+us)*c+.22*Math.max(ns,us))/2;
     if(net && number && !hole && ns>=6 && us>=6){
-      textAt(ctx,net,0,ns*c-half,ns,ink,"center",500,true);
-      textAt(ctx,number,0,half,us,ink,"center",600,true);
+      textAt(ctx,net,0,ns*c-half,ns,ink,"center",500,true,glyphBounds);
+      textAt(ctx,number,0,half,us,ink,"center",600,true,glyphBounds);
       return;
     }
     const text=number||(hole&&(parent||p.kind!=="via")?"":net), size=fit(text,.45);
-    if(text && size>=5)textAt(ctx,text,0,size*c/2,size,ink,"center",600,true);
+    if(text && size>=5)textAt(ctx,text,0,size*c/2,size,ink,"center",600,true,glyphBounds);
   }
   function drawRegionPath(ctx,item) {
     const region=PCB.curvedRegion(item);
@@ -714,7 +715,8 @@ globalThis.AtriumCanvas = (() => {
           if(opts.hideRegionGuides&&s.cutout || opts.gpu && s.kind!=="text"&&!s.cutout&&!s.keepout)continue;
           const lit=opts.highlight && s.net===opts.highlight,ink=PCB.ink(pass.layer,s,opts,selected||lit);
           const shape=footprintText(s,i,doc);
-          if(painted)painted(i,s.kind==="text"&&T?T.paintBox(shape,{frame:i,layer:pass.layer}):null);
+          // One visible glyph proves this band contains ink. Keep drawing its remaining glyphs.
+          if(painted && painted(i,s.kind==="text"&&T?T.paintBox(shape,{frame:i,layer:pass.layer}):null))painted=null;
           if(bandBounds && (s.kind!=="text" || !T)) bandBounds(null);
           if(s.kind==="text" && (i.mirror || T && s.upright)){
             ctx.save();if(i.mirror)ctx.scale(-1,1);ctx.rotate(-A.rad(i.angle||0));ctx.translate(-i.x,-i.y);
@@ -737,7 +739,7 @@ globalThis.AtriumCanvas = (() => {
       for(let n=0;n<pass.labels.length;n+=2){
         const i=pass.labels[n],row=pass.labels[n+1],text=row.text;
         if(text.size*scale<=(row.kind==="designator"?2.4:3.3))continue;
-        if(painted)painted(i,partTextBounds(row,doc));
+        if(painted && painted(i,partTextBounds(row,doc)))painted=null;
         const ink=PCB.ink(pass.layer,i,opts,chosen(i,opts));
         if(T)T.draw(ctx,boardText(text,doc),scale,ink,{lod:0},bandBounds);
         else{
