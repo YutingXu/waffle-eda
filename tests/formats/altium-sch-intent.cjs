@@ -48,6 +48,13 @@ function sheetProject(res) {
     set("plain", 150, 400, {DifferentialPair:"True", DifferentialPairClassName:"X"});
     set("label", 100, 400, {ClassName:"Labelled"});
     set("float", 150, 600, {ClassName:"Nowhere"});
+    // Two resistors joined pin to pin at (310, 700); a directive there is on pin R1-1's net.
+    for (const [ref, x] of [["R1", 300], ["R2", 270]]) {
+      const c = r({RECORD:1, LIBREFERENCE:"Res", "LOCATION.X":x, "LOCATION.Y":700, CURRENTPARTID:1, DISPLAYMODE:0});
+      [0, 30].forEach((dx, k) => r({RECORD:2, OWNERINDEX:c, OWNERPARTID:1, DESIGNATOR:String(k + 1), NAME:"", "LOCATION.X":x + dx, "LOCATION.Y":700, PINLENGTH:10, ELECTRICAL:4, PINCONGLOMERATE:0}));
+      r({RECORD:34, OWNERINDEX:c, NAME:"Designator", TEXT:ref, "LOCATION.X":x, "LOCATION.Y":720});
+    }
+    set("pin", 310, 700, {ClassName:"PinOnly"});
     r({RECORD:26, LOCATIONCOUNT:2, X1:100, Y1:300, X2:200, Y2:300});
     set("bus", 150, 300, {ClassName:"Bus"});
   });
@@ -75,7 +82,9 @@ function sheetProject(res) {
   assert.equal(row(f, at.plain).status, "dropped");
   assert.match(row(f, at["plain.params"][0]).reason, /no _P\/_N or \+\/- suffix/);
   assert.equal(row(f, at.float).status, "dropped");
-  assert.match(row(f, at.float).reason, /No wire, net label or pin/);
+  assert.match(row(f, at.float).reason, /not attached to a wire, net label or pin in the source/);
+  assert.equal(row(f, at.pin).status, "dropped");
+  assert.match(row(f, at.pin).reason, /on pin R\d-\d, and its net Net\w+ has no wire or net label on this sheet/);
   assert.match(row(f, at.bus).reason, /buses/);
   assert.ok(!f.rows.some(x => x.kind === "Parameter" && /Sheet parameter/.test(x.reason || "")), "directive parameters are not sheet parameters");
 

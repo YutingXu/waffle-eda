@@ -221,16 +221,15 @@ globalThis.AtriumSCH = (() => {
       // DifferentialPair a leg of the pair named by the net without its P/N suffix, and
       // DifferentialPairClassName a tag on that pair. Run after ports have become net labels.
       function directives(sets){
-        let byWire=null;
-        const netOf=item=>{
-          if(item.kind==="netlabel")return item.text;
-          if(!byWire)try{byWire=A.connectivity(doc,footprints).byWire;}catch{byWire=new Map();}
-          return byWire.get(item.id)||"";
-        };
-        // Altium also attaches a directive at a bare pin. Such a net has no wire or label to carry it.
+        let graph=null;
+        const nets=()=>{if(!graph)try{graph=A.connectivity(doc,footprints);}catch{graph={byWire:new Map(),byPin:new Map()};}return graph;};
+        const netOf=item=>item.kind==="netlabel"?item.text:nets().byWire.get(item.id)||"";
+        // Altium applies a directive on a pin end to that pin's net. Waffle keeps it on a wire or net
+        // label of the net; the native writer has no record for a stand-alone directive item.
         const pinAt=p=>{
-          for(const i of doc.items)if(i.kind==="part")for(const pin of A.pins(i,footprints.get(i.def),"schematic"))if(A.same(pin.at,p))return i.ref+"-"+pin.number;
-          return "";
+          for(const i of doc.items)if(i.kind==="part")for(const pin of A.pins(i,footprints.get(i.def),"schematic"))
+            if(A.same(pin.at,p))return {name:i.ref+"-"+pin.number,net:nets().byPin.get(i.id+"/"+pin.number)||""};
+          return null;
         };
         const onWire=(p,i)=>i.points.some((q,k)=>k>0&&A.nearSegment(p,i.points[k-1],q)<.0001);
         const label=i=>i.kind==="netlabel"&&!globalThis.AtriumSchObjects?.isBus?.(i.text);
@@ -244,12 +243,17 @@ globalThis.AtriumSCH = (() => {
         const legs=[];
         for(const set of sets.values()){
           const p=at(set.record),out=set.out=new Map(),drop=(q,why)=>out.set(q.index,["dropped",why]);
-          const target=set.target=doc.items.find(i=>i.kind==="wire"&&onWire(p,i))||doc.items.find(i=>label(i)&&A.same([i.x,i.y],p));
+          let target=set.target=doc.items.find(i=>i.kind==="wire"&&onWire(p,i))||doc.items.find(i=>label(i)&&A.same([i.x,i.y],p));
+          const pin=!target&&pinAt(p);
+          if(pin?.net){
+            target=set.target=doc.items.find(i=>i.kind==="wire"&&netOf(i)===pin.net)||doc.items.find(i=>label(i)&&i.text===pin.net);
+            if(target)set.note="The directive is on pin "+pin.name+"; a wire or net label of its net "+pin.net+" carries it.";
+          }
           if(!target){
-            const pin=pinAt(p);
-            set.why=pin?"The directive touches pin "+pin+" only. Waffle keeps directives on a wire or net label, and this net has none there.":
+            set.why=pin?"The directive is on pin "+pin.name+", and its net"+(pin.net?" "+pin.net:"")+" has no wire or net label on this sheet to carry it. "+
+                "Waffle's native format has no stand-alone directive record that this or earlier releases could save.":
               doc.items.some(i=>i.kind==="bus"&&onWire(p,i))?"Directives on buses are not translated; place one on each member wire.":
-              "No wire, net label or pin is under the directive's location, so it applies to no net (as in Altium).";
+              "The directive is not attached to a wire, net label or pin in the source. Altium applies an unattached directive to no net.";
             for(const q of set.params)drop(q,set.why);
             continue;
           }
