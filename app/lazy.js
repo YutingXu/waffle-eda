@@ -292,7 +292,7 @@ globalThis.AtriumLazy = (() => {
     AtriumSTEP: {scripts: ["formats/sexpr.js", "formats/step-export.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumRigidFlex", "AtriumVariants", "AtriumBoardShapeAuthoring", "AtriumGeometryMaterial", "AtriumSTEPImport"]},
     // STEP component models for the 3D view (step-import.js: bounded reader and tessellator, run in a
     // worker) and 3D component clearance (collision-3d.js: the componentClearance rule, 3D view collisions).
-    AtriumSTEPImport: {scripts: ["formats/step-import.js"]},
+    AtriumSTEPImport: {scripts: ["formats/step-import.js"], deps: ["AtriumWorkerPool"]},
     AtriumCollision3D: {scripts: ["canvas/collision-3d.js"], deps: ["AtriumSTEP", "AtriumFlexFold", "AtriumSTEPImport"]},
     AtriumMaskOpenings: {scripts: ["pcb/mask-openings.js"], deps: ["AtriumRules", "AtriumViaStack"]},
     AtriumFabOutputs: {scripts: ["formats/fab-outputs.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumBoardShapeSources", "AtriumZip", "AtriumVariants", "AtriumBOM", "AtriumRigidFlex", "AtriumSTEP", "AtriumResolvedGeometry"]},

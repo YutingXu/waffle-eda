@@ -1543,17 +1543,16 @@ globalThis.AtriumSTEP = (function createSTEP(coreFactory, {point: xform, directi
     const serializable = values => Object.fromEntries(Object.entries(values).filter(([key, value]) => key !== "geometryView" && typeof value !== "function"));
     m.options = serializable(m.options);
     const options = serializable(opts);
-    let worker, url;
+    let worker;
     try {
       if (I && typeof Worker === "function" && typeof DecompressionStream === "function" && globalThis.URL?.createObjectURL) {
         const src = '"use strict";globalThis.AtriumGeometryCurves=' + AtriumGeometryCurves.source() +
           ';const F=(' + I.core.toString() + '),A=(' + AtriumGeometry.createAffine3D.toString() + ')(),S=(' + createSTEP.toString() + ')(F,A),decode=' + I.decodeAsset.toString() +
           (opts.format === "glb" ? ',C=F();' : ',C=null;') +
           'onmessage=async({data})=>{try{const r=await S.resolveBodyGeometry(data.m,data.options,decode,C);delete r.text;postMessage({r},r.data?.buffer?[r.data.buffer]:[])}catch(e){postMessage({error:e.message})}};';
-        url = URL.createObjectURL(new Blob([src], {type: "text/javascript"})); worker = new Worker(url);
+        worker = (globalThis.AtriumWorkerPool && AtriumWorkerPool.blobWorker(src)); // keeps the URL alive while the worker loads
       }
     } catch { /* no worker on this host */ }
-    finally { if (url) URL.revokeObjectURL(url); }
     if (!worker) {
       const decode = async (a, limit) => {
         await new Promise(done => setTimeout(done, 0));
