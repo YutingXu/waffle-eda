@@ -181,7 +181,7 @@ globalThis.AtriumSCH = (() => {
       // Records of another part of a placed multi-part component: [component, part] (import report only).
       const inactive = fidelity ? new Map() : null;
       recs=records;
-      const components=new Map(),ports=[],sheetSymbols=new Map(),harness=[],crossRefs=new Map(),connectorLabels=new Map();
+      const components=new Map(),ports=[],sheetSymbols=new Map(),harness=[],crossRefs=new Map(),connectorLabels=new Map(),parameterSets=new Map();
       const sheet=records.find(r=>Number(r.RECORD)===31)||{};
       const settings=appearance?sheetSettings(sheet):null;
       if(settings && textPlacement && streams && doc)settings.textPlacement=textPlacement;
@@ -198,6 +198,85 @@ globalThis.AtriumSCH = (() => {
         const {c,part,s,p,x}=tagging;
         for(const list of [[c.symbol.shapes,s],[c.symbol.pins,p],[c.pinText,x]])for(let k=list[1];k<list[0].length;k++)list[0][k].part=part;
       };
+      // Parameter sets (Altium directives) become signal directive fields on the wire, or the net
+      // label, at their location (signals.js §7): ClassName is a net class (an exact net tag),
+      // DifferentialPair a leg of the pair named by the net without its P/N suffix, and
+      // DifferentialPairClassName a tag on that pair. Run after ports have become net labels.
+      function directives(sets){
+        let byWire=null;
+        const netOf=item=>{
+          if(item.kind==="netlabel")return item.text;
+          if(!byWire)try{byWire=A.connectivity(doc,footprints).byWire;}catch{byWire=new Map();}
+          return byWire.get(item.id)||"";
+        };
+        // Altium also attaches a directive at a bare pin. Such a net has no wire or label to carry it.
+        const pinAt=p=>{
+          for(const i of doc.items)if(i.kind==="part")for(const pin of A.pins(i,footprints.get(i.def),"schematic"))if(A.same(pin.at,p))return i.ref+"-"+pin.number;
+          return "";
+        };
+        const onWire=(p,i)=>i.points.some((q,k)=>k>0&&A.nearSegment(p,i.points[k-1],q)<.0001);
+        const label=i=>i.kind==="netlabel"&&!globalThis.AtriumSchObjects?.isBus?.(i.text);
+        const NI=globalThis.AtriumNetIntent,key=q=>q.name.toUpperCase();
+        // The pair is the net name without its polarity suffix (CAN_P → CAN), as Altium names it.
+        const legOf=net=>{
+          if(NI?.polarity){const p=NI.polarity(net);return p&&{base:String(p.stem||"").replace(/^.*\//,"")||net,polarity:p.known===false?0:p.polarity};}
+          const m=/^(.+?)[_\-.]?([PN+-])$/i.exec(net);
+          return m&&{base:m[1],polarity:/[P+]/i.test(m[2])?1:-1};
+        };
+        const legs=[];
+        for(const set of sets.values()){
+          const p=at(set.record),out=set.out=new Map(),drop=(q,why)=>out.set(q.index,["dropped",why]);
+          const target=set.target=doc.items.find(i=>i.kind==="wire"&&onWire(p,i))||doc.items.find(i=>label(i)&&A.same([i.x,i.y],p));
+          if(!target){
+            const pin=pinAt(p);
+            set.why=pin?"The directive touches pin "+pin+" only. Waffle keeps directives on a wire or net label, and this net has none there.":
+              doc.items.some(i=>i.kind==="bus"&&onWire(p,i))?"Directives on buses are not translated; place one on each member wire.":
+              "No wire, net label or pin is under the directive's location, so it applies to no net (as in Altium).";
+            for(const q of set.params)drop(q,set.why);
+            continue;
+          }
+          const net=netOf(target),pair=set.params.find(q=>key(q)==="DIFFERENTIALPAIR"&&isTrue(q.text)),leg=pair&&net?legOf(net):null;
+          for(const q of set.params){
+            const k=key(q),text=q.text.trim();
+            if(k==="CLASSNAME"&&text){
+              target.netClass=[...new Set([...String(target.netClass||"").split(",").map(x=>x.trim()).filter(Boolean),text])].join(",");
+              out.set(q.index,["kept"]);
+            }else if(k==="DIFFERENTIALPAIR"){
+              if(q!==pair)drop(q,"DifferentialPair is not True.");
+              else if(!leg)drop(q,"The net"+(net?" "+net:"")+" has no _P/_N or +/- suffix to name its differential pair.");
+              else legs.push({set,target,net,...leg,param:q});
+            }else if(k==="DIFFERENTIALPAIRCLASSNAME"&&text){
+              if(leg){target.tags=[...new Set([...(target.tags||[]),text])];out.set(q.index,["kept"]);}
+              else drop(q,pair?"The differential pair could not be named.":"A differential pair class needs DifferentialPair=True in the same directive.");
+            }else drop(q,"Directive parameter "+q.name.slice(0,40)+" is not translated (only ClassName, DifferentialPair and DifferentialPairClassName are)."+(k==="RULE"?" Recreate the rule in Waffle's rules.":""));
+          }
+        }
+        // Legs pair by base name: an explicit polarity when the two names tell it, else Waffle's assumption.
+        const groups=new Map();
+        for(const leg of legs){const k=leg.base.toLowerCase();if(!groups.has(k))groups.set(k,[]);groups.get(k).push(leg);}
+        for(const group of groups.values()){
+          const nets=[...new Set(group.map(l=>l.net))];
+          let sign=null;
+          if(nets.length===2){
+            const o=NI?.orient?.(nets);
+            if(o)sign=o.known===false?null:new Map([[o.positive,1],[o.negative,-1]]);
+            else{const a=group.find(l=>l.net===nets[0]).polarity,b=group.find(l=>l.net===nets[1]).polarity;if(a&&a===-b)sign=new Map([[nets[0],a],[nets[1],b]]);}
+          }else if(nets.length===1&&group[0].polarity)sign=new Map([[nets[0],group[0].polarity]]);
+          for(const leg of group){
+            const polarity=sign?.get(leg.net),t=leg.target;
+            if(polarity){t.signal=leg.base;t.polarity=polarity;leg.set.out.set(leg.param.index,["kept"]);}
+            else{t.diffPair=leg.base;leg.set.out.set(leg.param.index,["approximated","Polarity of "+leg.net+" is not told by its name; Waffle assumes it."]);}
+            if(nets.length!==2)leg.set.note="Differential pair "+leg.base+" has "+(nets.length<2?"only one net with a directive (":"more than two nets (")+nets.join(", ")+").";
+          }
+        }
+        for(const set of sets.values()){
+          const rows=[...set.out.values()],dropped=rows.filter(r=>r[0]==="dropped").length;
+          for(const q of set.params){const [status,why]=set.out.get(q.index);mark(q.index,status,status==="dropped"?null:set.target,why);}
+          if(!set.target||dropped===rows.length){mark(set.index,"dropped",null,set.why||"None of its parameters is translated.");continue;}
+          const why=set.note||(dropped?dropped+" of its "+rows.length+" parameters "+(dropped>1?"are":"is")+" not translated.":rows.find(r=>r[1])?.[1]);
+          mark(set.index,why?"approximated":"kept",set.target,why);
+        }
+      }
       for(let idx=0;idx<records.length;idx++){
         tag();tagging=null;
         const r=records[idx],t=Number(r.RECORD);
@@ -258,6 +337,9 @@ globalThis.AtriumSCH = (() => {
           continue;
         }
         const position=at(r),local=p=>c?delta(p,c.origin):p;
+        // A parameter set is a directive: its parameters apply to the wire under its location.
+        if(t===43 && doc && !c){parameterSets.set(idx,{index:idx,record:r,params:[]});recognized++;continue;}
+        if(t===41 && parameterSets.has(owner)){parameterSets.get(owner).params.push({index:idx,name:String(r.NAME||""),text:String(r.TEXT??"")});continue;}
         if(t===34 || t===41){
           if(t===41 && doc && appearance && textPlacement===2 && r.NAME?.toUpperCase()==="CROSSREF" && [17,18].includes(Number(records[owner]?.RECORD))){
             if(!isTrue(r.ISHIDDEN) && r.TEXT){
@@ -490,6 +572,7 @@ globalThis.AtriumSCH = (() => {
         const item=connectorLabels.get(owner);
         if(item?.schPaint)item.schPaint.crossReferences=captions.map(caption=>({...caption,at:delta(caption.at,[item.x,item.y])}));
       }
+      if(doc && parameterSets.size)directives(parameterSets);
       if(doc&&settings){
         sheetParams.set("DOCUMENTNAME",name);
         sheetParams.set("DOCUMENTFULLPATHANDNAME",name);

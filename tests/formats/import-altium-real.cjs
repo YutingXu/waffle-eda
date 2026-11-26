@@ -126,7 +126,7 @@ const SNAPSHOT = {
     "Imported 3D bodies (0 extruded, 23 STEP references).",
     "Kept 1 net class (signals and tags).",
     "Kept 4 component classes. 4 of them follow component placement in Altium; Waffle keeps their members from the import.",
-    "Omitted 2 × template images, 1 × template text frames, 2 × embedded images, 1 × parameter sets.",
+    "Omitted 2 × template images, 1 × template text frames, 2 × embedded images.",
     "Omitted advanced placer options6 (1).",
     "Omitted boardregions (1).",
     "Omitted constraintmanager (1).",
