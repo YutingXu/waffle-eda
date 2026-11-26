@@ -83,8 +83,15 @@ module.exports = async function appbarContrast(browser) {
     };
     // The dialog behind Share uses the library primary button with white ink on the accent.
     const dialog = page.locator("dialog.collab-dialog[open]");
+    const share = page.locator("#collab-share");
+    const shareFace = () => share.evaluate(async button => {
+      getComputedStyle(button).backgroundColor;
+      await Promise.all(button.getAnimations().map(a => a.finished));
+      const style = getComputedStyle(button);
+      return {fill:style.backgroundColor, border:style.borderColor};
+    });
     const checkShare = async label => {
-      await page.locator("#collab-share").click();
+      await share.click();
       await dialog.waitFor();
       await check(label + " live-session dialog", "dialog.collab-dialog[open] button.ui-button");
       const primary = await page.evaluate(measure, "dialog.collab-dialog[open] .ui-button[data-variant=primary]");
@@ -102,6 +109,13 @@ module.exports = async function appbarContrast(browser) {
       });
       const n = await check(preset + " app bar", "header.appbar button, header.appbar summary");
       assert.ok(n >= 8, preset + ": the app bar's menus, search, quick access and Share are all measured");
+      await page.mouse.move(4, 4);
+      const rest = await shareFace();
+      await share.hover();
+      const hover = await shareFace();
+      assert.notEqual(hover.fill, rest.fill, preset + ": Share changes fill on hover");
+      assert.equal(hover.border, rest.border, preset + ": Share keeps its resting border on hover");
+      await check(preset + " hovered Share", "#collab-share");
       await page.evaluate(() => document.getElementById("collab-share").classList.add("is-sharing"));
       await check(preset + " sharing", "#collab-share");
       await page.evaluate(() => document.getElementById("collab-share").classList.remove("is-sharing"));

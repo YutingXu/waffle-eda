@@ -75,12 +75,16 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
   min-block-size:var(--chrome-pill-height);max-inline-size:100%;padding:0 var(--s-8);
   border:1px solid var(--line);border-radius:var(--chrome-control-radius);background:transparent;
   color:var(--muted);font:var(--fw-medium) var(--fs-11)/1 var(--font-ui);white-space:nowrap;
+  transition:background-color var(--motion-instant) linear;
 }
 :is(.ui-chip) > :is(.ui-chip-label) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis}
 @media (hover:hover) and (pointer:fine) {
-  :is(button.ui-chip,.ui-chip[role=checkbox],.ui-chip[role=option]):hover:not(:disabled,[aria-pressed=true],[aria-checked=true],[aria-selected=true]) {border-color:var(--line-strong)}
+  :where(:root:not([data-pointer=touch])) :is(button.ui-chip,.ui-chip[role=checkbox],.ui-chip[role=option]):hover:not(:disabled,[aria-disabled=true]) {
+    background:var(--ui-chip-hover,var(--button-face-hover,var(--hover)))
+  }
 }
-:is(.ui-chip):is([aria-pressed=true],[aria-checked=true],[aria-selected=true],.is-on) {border-color:transparent;background:var(--raised);color:var(--ink)}
+:is(.ui-chip):is([aria-pressed=true],[aria-checked=true],[aria-selected=true],.is-on) {border-color:transparent;background:var(--raised);color:var(--ink);
+  --ui-chip-hover:color-mix(in srgb,var(--raised),var(--ink) 12%)}
 :is(.ui-chip):disabled,:is(.ui-chip[aria-disabled=true]) {opacity:.45}
 :is(.ui-chip)[data-invalid=true] {border-color:var(--error);color:var(--error)}
 :is(.ui-chip):focus-visible {outline:var(--focus-w) solid var(--accent);outline-offset:1px}

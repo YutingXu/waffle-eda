@@ -100,7 +100,7 @@
 .dv-row[aria-selected="true"] small{opacity:.85}
 .dv-row-tools{display:flex;gap:var(--s-2);visibility:hidden}
 .dv-row:hover .dv-row-tools,.dv-row[aria-selected="true"] .dv-row-tools{visibility:visible}
-.dv-tool{width:var(--ctl-h-sm);padding:0;display:grid;place-items:center;color:inherit;--ui-button-hover:var(--button);--ui-button-hover-border:var(--button-line)}
+.dv-tool{width:var(--ctl-h-sm);padding:0;display:grid;place-items:center;color:inherit;--ui-button-hover:var(--button)}
 .dv-tool .icon{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .dv-row[aria-selected="true"] > .dv-glyph{color:inherit}
 .dv-st > .dv-glyph{width:14px;height:14px;line-height:12px}

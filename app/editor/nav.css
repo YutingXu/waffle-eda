@@ -142,6 +142,6 @@
 /* Each binding is a library .ui-chip token (data-invalid marks a conflict); the key button sits inside it. */
 .km-chip {padding-inline:0 var(--s-6)}
 .km-chip .km-keys {min-width:0!important;padding:1px 4px!important}
-.km-ctx {display:block;color:var(--muted);font-size:var(--fs-11);text-align:left;padding:1px 4px;border:1px solid transparent;border-radius:var(--r-sm);background:none}
-.km-ctx:hover {border-color:var(--line)}
+.km-ctx {display:block;color:var(--muted);font-size:var(--fs-11);text-align:left;padding:1px 4px;border:1px solid transparent;border-radius:var(--r-sm);
+  --ui-button-fill:transparent;--ui-button-hover:var(--hover)}
 .km-ctx + .km-ctx {margin-top:2px}
