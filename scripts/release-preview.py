@@ -251,11 +251,11 @@ def verify_debian(path, source, expected, mac_app):
                     f"Debian package: incorrect {theme_dir} icon")
 
 
-def write_preview_checksums(source, products, dmg, windows, deb):
+def write_preview_checksums(source, products, dmg, windows, deb, *extras):
     notes = products / "Release-Notes.md"
     notes_source = script(source, "scripts/release-version.py", "--notes", capture=True).decode().strip()
     shutil.copyfile(source / notes_source, notes)
-    sums = {p.name: digest(p) for p in (dmg, windows, deb, notes)}
+    sums = {p.name: digest(p) for p in (dmg, windows, deb, notes, *extras)}
     require((products / f"{dmg.name}.sha256").read_text().split() == [sums[dmg.name], dmg.name],
             "Disk image checksum does not match the verified image")
     (products / "SHA256SUMS").write_text("".join(f"{sha}  {name}\n" for name, sha in sums.items()), encoding="ascii")
@@ -298,6 +298,9 @@ def main():
         version = script(source, "scripts/release-version.py", "--check", capture=True).decode().strip()
         name = script(source, "scripts/release-version.py", "--name", capture=True).decode().strip()
         flavour = script(source, "scripts/release-version.py", "--flavour", capture=True).decode().strip()
+        stable_update = bool(os.environ.get("WAFFLE_SIGN_IDENTITY"))
+        if stable_update:
+            script(source, "scripts/release-manifest.py", "check-release-key")
         script(source, "scripts/prepare-assets.py")
         script(source, "scripts/prepare-assets.py", "--check")
         script(source, "scripts/gen-shortcuts.py", "--check")
@@ -320,7 +323,13 @@ def main():
         verify_windows(windows, source, version, expected)
         verify_debian(deb, source, expected, app)
         shutil.rmtree(products / "Waffle-windows")
-        write_preview_checksums(source, products, dmg, windows, deb)
+        extras = []
+        if stable_update:
+            notes = script(source, "scripts/release-version.py", "--notes", capture=True).decode().strip()
+            script(source, "scripts/release-manifest.py", "macos", app, "--version", version,
+                   "--out", products, "--notes-file", source / notes)
+            extras = [products / name for name in (f"Waffle-{version}-macOS.zip", "waffle-release.json", "waffle-release.json.sig")]
+        write_preview_checksums(source, products, dmg, windows, deb, *extras)
         deliver(products, destination)
     print(f"Verified Waffle EDA {version} ({name}) at {destination}")
 

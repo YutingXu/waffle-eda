@@ -102,38 +102,60 @@ module.exports = async function updateDemand(browser) {
     assert.equal(await page.locator("dialog.whats-new[open]").count(), 0);
   });
 
-  const recent = updateState({lastVersion: version, lastCheck: Date.now() - 3600000});
-  await scenario(browser, {state: recent, values: {...noHome, "general.updateCheck": true}}, async ({page, cold, stored}) => {
-    await page.goto(index);
-    await cold("an opted-in check within one day leaves the update module unloaded");
-    assert.deepEqual(await stored(), recent);
-  });
-
-  await scenario(browser, {values: {...noHome, "general.efficiency": "always", "general.updateCheck": false}}, async ({page, requests, remote, cold}) => {
-    await page.goto(index);
-    await cold("Efficiency with automatic updates disabled leaves the update module unloaded");
-    assert.equal(await page.evaluate(() => AtriumPower.efficient()), true);
-    const help = page.locator('.work-menu[data-menu="help"]');
-    await help.locator("summary").click();
-    await help.locator('[data-action="check-updates"]').click();
-    const dialog = page.getByRole("dialog", {name: "Check for Updates", exact: true});
-    await dialog.waitFor();
-    assert.equal(await dialog.locator("#update-check-auto").isChecked(), false);
-    assert.equal(await dialog.getByRole("button", {name: "Check Now", exact: true}).isDisabled(), true);
-    assert.match(await dialog.locator(".update-here").textContent(), /project format .* extension API/);
-    assert.equal(requests.length, 1);
-    assert.deepEqual(remote, [], "opening the Help dialog does not opt in to networking");
-  });
-
   const overdue = updateState({lastVersion: version, lastCheck: Date.now() - 2 * 86400000});
-  await scenario(browser, {state: overdue, covered: true, values: {...noHome, "general.updateCheck": true}}, async ({page, requests, cold, stored}) => {
+  await scenario(browser, {state: overdue, covered: true, values: {...noHome, "general.updateCheck": true}}, async ({page, cold, stored}) => {
     await page.goto(index);
     assert.equal(await page.evaluate(() => AtriumPower.visible()), false);
-    await cold("an opted-in due check waits while the window is covered");
-    assert.deepEqual(await stored(), overdue);
+    await cold("an old opt-in is ignored even when a check was due");
     await page.evaluate(() => AtriumPower.host({occluded: false}));
-    await page.waitForFunction(last => JSON.parse(localStorage.getItem("atrium.update"))?.lastCheck > last, overdue.lastCheck);
-    assert.equal(requests.length, 1, "showing the window admits the due check once");
+    await cold("showing the window makes no request");
+    assert.deepEqual(await stored(), overdue);
   });
-  console.log("PASS browser update demand, deferred upgrade notes, Efficiency Help command and covered daily check");
+
+  for (const canInstall of [true, false]) {
+    await scenario(browser, {values: {...noHome, "general.efficiency": "always"}}, async ({page, requests, remote, cold}) => {
+      await page.goto(index);
+      await cold("the update module stays unloaded until Help is used");
+      assert.equal(await page.evaluate(() => AtriumPower.efficient()), true);
+      await page.evaluate(canInstall => {
+        const sha256 = "a".repeat(64);
+        const manifest = {app: "99.0.0", notes: ["A signed release note"], formats: {writes: "2.0"}, apiVersions: [1],
+          assets: [{name:"Waffle-99.0.0-macOS.zip", platform:"macos", size: 2 * 1048576, sha256}]};
+        const calls = globalThis.updateHostCalls = [];
+        let installCount = 0;
+        globalThis.AtriumHost = {
+          checkForUpdate: async () => { calls.push("check"); return {status:"available", canInstall, manifest}; },
+          installUpdate: async (...args) => { calls.push(["install", ...args]); return ++installCount === 1 ? "cancelled" : "download"; },
+          downloadUpdate: async (...args) => { calls.push(["download", ...args]); return true; }
+        };
+      }, canInstall);
+      const calls = () => page.evaluate(() => globalThis.updateHostCalls);
+      const help = page.locator('.work-menu[data-menu="help"]');
+      await help.locator("summary").click();
+      await help.getByRole("menuitem", {name: "Check for Updates…"}).click();
+      const dialog = page.getByRole("dialog", {name: "Check for Updates", exact: true});
+      await dialog.getByText("Waffle 99.0.0 is available.", {exact:true}).waitFor();
+      await dialog.getByText("A signed release note", {exact:true}).waitFor();
+      assert.deepEqual(await calls(), ["check"], "Help makes the check and waits for a separate install click");
+      const install = dialog.getByRole("button", {name:"Install Update (2 MB)", exact:true});
+      const download = dialog.getByRole("button", {name:"Download Waffle-99.0.0-macOS.zip (2 MB)", exact:true});
+      if (canInstall) {
+        assert.equal(await download.count(), 0);
+        await install.click();
+        await dialog.getByRole("status").filter({hasText:"Installation cancelled"}).waitFor();
+        await install.click();
+      } else {
+        assert.equal(await install.count(), 0);
+      }
+      await download.click();
+      await dialog.getByRole("status").filter({hasText:"Checked and saved"}).waitFor();
+      const identity = ["99.0.0", "a".repeat(64)];
+      assert.deepEqual(await calls(), canInstall ?
+        ["check", ["install", ...identity], ["install", ...identity], ["download", ...identity]] :
+        ["check", ["download", ...identity]]);
+      assert.equal(requests.length, 1);
+      assert.deepEqual(remote, [], "the browser sends no requests for the macOS updater");
+    });
+  }
+  console.log("PASS browser update demand, deferred upgrade notes, Install and verified Download fallback");
 };

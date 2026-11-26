@@ -25,6 +25,7 @@ globalThis.AtriumPrefs = (() => {
   // Security-relevant switches (security review F8): an imported file never turns these on by itself.
   // They are held, listed with unticked boxes, and applied only when the user ticks them.
   const GUARDED = Object.freeze({"extensions.developerMode": "Developer mode: load unpacked extensions from a folder",
+    // Retained for settings exchanged with builds that still honour this preference.
     "general.updateCheck": "Check for updates (contacts github.com)"});
   const heldBack = (k, v, allow) => k in GUARDED && (v === true || v === "true" || v === 1) && get(k) !== true && !(allow || []).includes(k);
   const DEFAULTS = Object.freeze({

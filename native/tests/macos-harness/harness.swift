@@ -969,6 +969,7 @@ extension Desktop {
             return finish()
         }
         if suite == "close" { await closePrompts(); return }
+        if suite == "updater" { await updateReview(); return finish() }
         _ = await js("for (const d of document.querySelectorAll('dialog.recover-prompt[open]')) d.close(); return true")
         await shot("01-start-page")
         let boot = await js("return {bridge: typeof AtriumHost, frozen: Object.isFrozen(AtriumHost), title: document.title, folder: typeof AtriumHost.folderAdopt}")
@@ -1662,6 +1663,52 @@ extension Desktop {
         try? png.write(to: work.appendingPathComponent("shots/" + name + ".png"))
     }
 
+    func updateReview() async {
+        _ = await js("globalThis.AtriumStartPage?.close?.()")
+        let file = fixtureManifest("Update")
+        do { try await prepareProject(file) }
+        catch { log(false, "prepare the update project", error); return }
+        d.application(NSApp, open: [file])
+        guard await until(10, { await self.truthy("return !!AtriumNavHost.folderProject()") }) else {
+            log(false, "open the saved project for update review"); return
+        }
+        let original = try? Data(contentsOf: file)
+        let name = "Edit before installing the update"
+        let edited = await editName(name)
+        guard edited, await until(4, { self.d.window.isDocumentEdited }) else {
+            log(false, "make an unsaved edit before starting the update"); return
+        }
+        do {
+            try await d.lockSavedEditorsForUpdate()
+            Desktop.unlockUpdateEditors()
+            log(false, "an unsaved editor blocks bundle replacement")
+        } catch { log(true, "an unsaved editor blocks bundle replacement", error.localizedDescription) }
+
+        func review(_ decision: String) async -> Bool {
+            let review = Task { await d.confirmUpdateRestart() }
+            guard await until(5, { self.d.window.attachedSheet != nil }), let sheet = d.window.attachedSheet else {
+                log(false, "show the native restart review"); return false
+            }
+            log(findButton("Save All and Restart", in: sheet.contentView) != nil &&
+                findButton("Don’t Save", in: sheet.contentView) == nil, "update offers Save All or Cancel")
+            press(decision, sheet)
+            return await review.value
+        }
+        let cancelled = await review("Cancel")
+        let keptDirty = await truthy("return AtriumNavHost.isDirty() && !document.documentElement.inert")
+        log(!cancelled && keptDirty && (try? Data(contentsOf: file)) == original,
+            "Cancel leaves the unsaved change open and the saved document untouched")
+
+        let saved = await review("Save All and Restart")
+        log(saved && (try? Data(contentsOf: file)) != original, "Save All writes the changes before restart")
+        do {
+            try await d.lockSavedEditorsForUpdate()
+            let locked = await truthy("return !AtriumNavHost.isDirty() && document.documentElement.inert")
+            log(locked, "saved windows are ready to restart")
+            Desktop.unlockUpdateEditors()
+        } catch { log(false, "the saved project permits restart", error.localizedDescription) }
+    }
+
     func closePrompts() async {
         _ = await js("AtriumStartPage.close(); return true")
         let files = ["Saved", "Discarded", "QuitA", "QuitB"].map(fixtureManifest)
@@ -1852,7 +1899,7 @@ extension Desktop {
     func finish(close: Bool = false) {
         print("RESULT \(failures == 0 ? "ok" : "\(failures) failed")")
         fflush(stdout)
-        if suite == "folder-drafts" || suite == "import-quit2" || failures > 0 { exit(failures == 0 ? 0 : 1) }
+        if ["folder-drafts", "import-quit2", "updater"].contains(suite) || failures > 0 { exit(failures == 0 ? 0 : 1) }
         if close { d.window.performClose(nil) } else { NSApp.terminate(nil) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { exit(self.failures == 0 ? 0 : 1) }
     }

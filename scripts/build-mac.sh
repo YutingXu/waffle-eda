@@ -13,6 +13,7 @@ cp "$root/native/macos/Info.plist" "$contents/Info.plist"
 cp "$root/native/bridge.js" "$contents/Resources/bridge.js"
 cp "$root/LICENSE" "$root/THIRD_PARTY_NOTICES.md" "$contents/Resources/"
 cp -R "$root/app" "$contents/Resources/app"
+python3 -B "$root/scripts/release-manifest.py" write-trust "$contents/Resources/update-trust.json"
 python3 -B "$root/scripts/package_payload.py" stage "$contents/Resources"
 brand="$root/brand/macos"
 icon=Waffle.icns
@@ -26,7 +27,7 @@ test -f "$brand/$icon" || { echo "No app icon for release flavour: $flavour" >&2
 cp "$brand/$icon" "$contents/Resources/Waffle.icns"
 cp "$brand/WaffleTemplate.png" "$brand/WaffleTemplate@2x.png" "$contents/Resources/"
 for arch in arm64 x86_64; do
-  xcrun swiftc -O -swift-version 5 -target "${arch}-apple-macos12.0" -module-cache-path "$stage/cache" "$root/native/macos/main.swift" "$root/native/macos/FolderTransactions.swift" "$root/native/macos/FolderWatch.swift" "$root/native/macos/ProjectWrites.swift" "$root/native/macos/HostState.swift" "$root/native/macos/ExternalTools.swift" "$root/native/macos/LanRelay.swift" "$root/native/macos/NotebookMedia.swift" "$root/native/macos/NotebookFolderMedia.swift" -o "$stage/Waffle-$arch"
+  xcrun swiftc -O -swift-version 5 -target "${arch}-apple-macos12.0" -module-cache-path "$stage/cache" "$root/native/macos/main.swift" "$root/native/macos/FolderTransactions.swift" "$root/native/macos/FolderWatch.swift" "$root/native/macos/ProjectWrites.swift" "$root/native/macos/HostState.swift" "$root/native/macos/ExternalTools.swift" "$root/native/macos/LanRelay.swift" "$root/native/macos/NotebookMedia.swift" "$root/native/macos/NotebookFolderMedia.swift" "$root/native/macos/Updater.swift" -o "$stage/Waffle-$arch"
 done
 xcrun lipo -create "$stage/Waffle-arm64" "$stage/Waffle-x86_64" -output "$contents/MacOS/Waffle"
 "$root/scripts/mac-sign.sh" "$stage/Waffle.app" --identifier org.waffle.editor

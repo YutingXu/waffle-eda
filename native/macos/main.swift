@@ -788,6 +788,13 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
             "WebGrammarCheckingEnabled": false
         ])
         createEditorWindow()
+        let args = CommandLine.arguments
+        if args.count == 3, let window, args[1] == "--waffle-update-failed" || Self.updateManualOnly {
+            let alert = NSAlert()
+            alert.messageText = "Waffle couldn’t finish installing the update."
+            alert.informativeText = args[2] + (Self.updateManualOnly ? " Use Help › Check for Updates to download the update." : "")
+            alert.beginSheetModal(for: window)
+        }
     }
 
     private func createEditorWindow() {
@@ -824,7 +831,8 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         Self.watchInput()
         window.alphaValue = 0
         let detached = isWorkspacePeer
-        let reveal = Timer(timeInterval: detached ? 15 : 2, repeats: false) { [weak self] _ in
+        let timeout: TimeInterval = detached ? 15 : (Self.updateReadyFile == nil ? 2 : 60)
+        let reveal = Timer(timeInterval: timeout, repeats: false) { [weak self] _ in
             if detached { self?.workspaceLaunchFailed() }
             else { self?.revealWindow() }
         }
@@ -1210,6 +1218,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         pause.target = self
         NSApp.windowsMenu = section("Window")
         let help = section("Help")
+        command(help, "Check for Updates…", "", "check-updates")
         let troubleshooting = NSMenu(title: "Troubleshooting")
         help.addItem(withTitle: "Troubleshooting", action: nil, keyEquivalent: "").submenu = troubleshooting
         command(troubleshooting, "Crash Diagnostics…", "", "crash-diagnostics")
@@ -1356,7 +1365,7 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
     }
 
     private func issue(_ action: String) {
-        guard initialPageReady else { return }
+        guard !Self.updateInputLocked, initialPageReady else { return }
         let script = """
         if (openingFile) globalThis.__atriumOpeningProject = true;
         if (['undo','redo'].includes(action) && document.activeElement?.matches('input, textarea, [contenteditable=true]')) {
@@ -1789,6 +1798,16 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
     private var closeSave: ((Bool) -> Void)?
     private var closeWhenClean: ((Bool) -> Void)?
     private static var reviewingQuit = false
+    private static var updateOffer: UpdateManifest.Offer?
+    private static var checkingUpdate = false
+    private static weak var updateOwner: Desktop?
+    private static var installingUpdate: Task<Void, Never>?
+    private static var updateInputLocked = false
+    private static var updateHandoff = false
+    private static let updateLocation = UpdateLocation(app: Bundle.main.bundleURL)
+    private static let updateReadyFile = UpdateRestart.readinessFile(arguments: CommandLine.arguments, location: updateLocation)
+    private static var updateReadyReported = false
+    private static let updateManualOnly = CommandLine.arguments.dropFirst().first == "--waffle-update-manual"
 
     private var displayName: String {
         let name = projectName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1857,6 +1876,11 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if Self.updateInputLocked { return false }
+        if Self.updateOwner === self {
+            Self.installingUpdate?.cancel()
+            return false
+        }
         if let group = workspaceGroup, group.writer === self,
            Self.editors.contains(where: { peer in
                peer !== self && peer.workspaceGroup === group && peer.window.isVisible &&
@@ -1875,6 +1899,14 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
     // Discard Changes), then each window's sheet in turn, front to back. Termination waits
     // (.terminateLater) for the saves, and is cancelled when a sheet is cancelled or a save fails.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if Self.updateHandoff {
+            Self.editors.forEach { $0.finishWindowWrites() }
+            return .terminateNow
+        }
+        if let update = Self.installingUpdate {
+            update.cancel()
+            return .terminateCancel
+        }
         if Self.reviewingQuit { return .terminateCancel }
         guard Self.editors.contains(where: { $0.needsSaveReview }) else {
             Self.editors.forEach { $0.finishWindowWrites() }
@@ -1947,6 +1979,160 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         editor.askToSave(deferForeignDiscard:deferForeignDiscard) { ok in ok ? review(rest, deferForeignDiscard:deferForeignDiscard, done) : done(false) }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    // ---- user-initiated macOS updates -----------------------------------------------------------------
+    private func checkForUpdate(_ id: Int) {
+        guard !Self.checkingUpdate, Self.installingUpdate == nil else {
+            reply(id, error: "Waffle is already checking or installing an update."); return
+        }
+        Self.checkingUpdate = true
+        Self.updateOffer = nil
+        Task {
+            defer { Self.checkingUpdate = false }
+            do {
+                let trust = try UpdateTrust.read(.main)
+                guard let installed = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else {
+                    throw UpdateError.failure("Couldn’t read the installed version of Waffle.")
+                }
+                let offer = try await UpdateManifest.fetch(trust: trust, installed: installed)
+                Self.updateOffer = offer
+                let canInstall = !Self.updateManualOnly && Self.updateLocation.writable
+                reply(id, offer?.forEditor(canInstall: canInstall) ?? ["status": "up-to-date"])
+            } catch { reply(id, error: error.localizedDescription) }
+        }
+    }
+
+    private func updateAction(_ id: Int, action: String, request: [String: Any]) {
+        guard let offer = Self.updateOffer, offer.manifest.app == request["version"] as? String,
+              offer.asset.sha256 == request["sha256"] as? String else {
+            reply(id, error: "Check for updates again to verify the current download."); return
+        }
+        guard Self.installingUpdate == nil, !Self.reviewingQuit, window.attachedSheet == nil else {
+            reply(id, error: "Finish the open dialog or update before trying again."); return
+        }
+        if action == "downloadUpdate" { saveUpdateArchive(id, asset: offer.asset); return }
+        guard !Self.updateManualOnly, Self.updateLocation.writable else { reply(id, "download"); return }
+        Self.updateOwner = self
+        Self.installingUpdate = Task {
+            defer {
+                Self.installingUpdate = nil
+                Self.updateOwner = nil
+            }
+            do {
+                let location = Self.updateLocation
+                let staged = try await StagedUpdate.prepare(offer, at: location, trust: UpdateTrust.read(.main))
+                defer { if !Self.updateHandoff { staged.discard() } }
+                try Task.checkCancellation()
+                guard await confirmUpdateRestart() else { reply(id, "cancelled"); return }
+                try await lockSavedEditorsForUpdate()
+                defer { if !Self.updateHandoff { Self.unlockUpdateEditors() } }
+                try Task.checkCancellation()
+                guard location.writable else { reply(id, "download"); return }
+                guard !UpdateRestart.otherInstance(at: location), let executable = Bundle.main.executableURL else {
+                    throw UpdateError.failure("Close other copies of Waffle before installing the update.")
+                }
+                try staged.handoff(using: executable)
+                Self.updateHandoff = true
+                NSApp.terminate(nil)
+            } catch UpdateError.manualDownload { reply(id, "download") }
+            catch { if Task.isCancelled { reply(id, "cancelled") } else { reply(id, error: error.localizedDescription) } }
+        }
+    }
+
+    private func saveUpdateArchive(_ id: Int, asset: UpdateManifest.Asset) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.zip]
+        panel.nameFieldStringValue = asset.name
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let destination = panel.url else { self.reply(id, false); return }
+            Task {
+                do {
+                    let directory = try UpdateLocation.temp(in: FileManager.default.temporaryDirectory)
+                    defer { try? FileManager.default.removeItem(at: directory) }
+                    let archive = try await UpdateArchive.download(asset, to: directory)
+                    try await Task.detached(priority: .userInitiated) {
+                        try Data(contentsOf: archive, options: .alwaysMapped).write(to: destination, options: .atomic)
+                    }.value
+                    self.reply(id, true)
+                } catch { self.reply(id, error: UpdateError.storage(error).localizedDescription) }
+            }
+        }
+    }
+
+    private func confirmUpdateRestart() async -> Bool {
+        guard webProcessAvailable, window.attachedSheet == nil else { return false }
+        let hasChanges = Self.editors.contains { $0.window.isDocumentEdited }
+        let alert = NSAlert()
+        alert.messageText = "Restart Waffle to install the update?"
+        alert.informativeText = hasChanges ? "Save all open documents before Waffle restarts." : "Waffle will reopen once the update is installed."
+        alert.addButton(withTitle: hasChanges ? "Save All and Restart" : "Restart and Install")
+        alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+        let approved = await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { continuation.resume(returning: $0 == .alertFirstButtonReturn) }
+        }
+        guard approved, !Task.isCancelled else { return false }
+        // Save through the same project and document write paths as an ordinary Cmd+Q save.
+        for editor in Self.editors.filter({ $0.window.isDocumentEdited && !$0.isWorkspacePeer }) {
+            guard !Task.isCancelled, editor.closeSave == nil, editor.closeWhenClean == nil,
+                  editor.window.attachedSheet == nil else { return false }
+            editor.window.makeKeyAndOrderFront(nil)
+            let saved = await withCheckedContinuation { continuation in
+                editor.saveForClose { continuation.resume(returning: $0) }
+            }
+            if !saved { return false }
+        }
+        return true
+    }
+
+    private func lockSavedEditorsForUpdate() async throws {
+        let editors = Self.editors
+        Self.updateInputLocked = true
+        do {
+            for editor in editors {
+                try Task.checkCancellation()
+                guard editor.initialPageReady, editor.webProcessAvailable, let web = editor.web,
+                      editor.window.attachedSheet == nil else {
+                    throw UpdateError.failure("Finish opening or recovering all editor windows before installing the update.")
+                }
+                let result = try await web.callAsyncJavaScript("""
+                    const editor = window.AtriumNavHost;
+                    if (!editor || Array.from(document.querySelectorAll('dialog[open]')).some(d => !d.matches('.update-dialog'))) return false;
+                    document.activeElement?.blur();
+                    if (editor.isDirty() || editor.savedWritePending?.() || editor.folderProject?.()?.pendingSave) return false;
+                    document.documentElement.inert = true;
+                    return true;
+                    """, arguments: [:], in: nil, contentWorld: .page)
+                guard result as? Bool == true else {
+                    throw UpdateError.failure("Save your changes and close other dialogs before restarting Waffle.")
+                }
+            }
+            // Folder Save acknowledges a durable journal before applying the saved changes to the
+            // project. Give each writer time to finish applying that journal before the app quits.
+            let writes = DispatchGroup()
+            for editor in editors { editor.folderQueue.async(group: writes) {} }
+            let finished = await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    continuation.resume(returning: writes.wait(timeout: .now() + 10) == .success)
+                }
+            }
+            guard finished, editors.elementsEqual(Self.editors, by: { $0 === $1 }),
+                  editors.allSatisfy({ $0.webProcessAvailable && !$0.window.isDocumentEdited &&
+                      !$0.openingProject && $0.applyingFolders.isEmpty }) else {
+                throw UpdateError.failure("Waffle still has unsaved or pending project changes. Wait for the saves to finish and try again.")
+            }
+        } catch {
+            Self.unlockUpdateEditors()
+            throw error
+        }
+    }
+
+    private static func unlockUpdateEditors() {
+        updateInputLocked = false
+        for editor in editors {
+            editor.web?.evaluateJavaScript("document.documentElement.inert = false", completionHandler: nil)
+        }
+    }
 
     private func reply(_ id: Int, _ value: Any = NSNull(), error: String? = nil, verifiedRead: Bool = false) {
         guard currentRequest(id) else { return }
@@ -3075,7 +3261,21 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
               let data = text.data(using: .utf8),
               let request = (try? JSONSerialization.jsonObject(with: data)) as? [String:Any],
               let action = request["action"] as? String else { return }
-        if action == "launchReady" { revealAfterPresentation(); return }
+        if action == "launchReady" {
+            if !isWorkspacePeer, let file = Self.updateReadyFile, !Self.updateReadyReported {
+                web.evaluateJavaScript("typeof window.AtriumNavHost?.isDirty === 'function' && document.readyState !== 'loading'") { [weak self] result, _ in
+                    guard let self, self.webProcessAvailable, result as? Bool == true else { return }
+                    do {
+                        try Data(String(getpid()).utf8).write(to: file, options: .atomic)
+                        Self.updateReadyReported = true
+                        self.revealAfterPresentation()
+                    } catch { self.window.orderOut(nil) }
+                }
+            } else {
+                revealAfterPresentation()
+            }
+            return
+        }
         if action == "workspaceLaunchFailed" { workspaceLaunchFailed(); return }
         if action == "butterDropEnabled" {
             guard let view = web as? EditorWebView else { return }
@@ -3167,6 +3367,11 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
                 reply(id, error: "Invalid input diagnostics operation."); return
             }
             reply(id, report)
+        case "checkForUpdate": checkForUpdate(id)
+        case "installUpdate", "downloadUpdate": updateAction(id, action: action, request: request)
+        case "cancelUpdate":
+            if Self.updateOwner === self { Self.installingUpdate?.cancel() }
+            reply(id, true)
         case "macShortcutGlyphs":
             reply(id, MacShortcutGlyphs.render(request["labels"] as? [String] ?? []))
         case "reselectImportSave", "importSaveChoice", "writeImportExport", "rememberImportExport", "recalledImportExport", "forgetImportExport":
@@ -3643,6 +3848,10 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
 
 if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--folder-mcp" {
     exit(runFolderMCP(CommandLine.arguments[2]))
+}
+
+if CommandLine.arguments.dropFirst().first == "--waffle-update-worker" {
+    exit(MainActor.assumeIsolated { UpdateRestart.complete(CommandLine.arguments, bundle: .main) })
 }
 
 let application = NSApplication.shared

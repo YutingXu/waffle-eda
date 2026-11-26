@@ -1,6 +1,6 @@
 "use strict";
 // Updates (app/editor/update-check.js, docs/upgrading.md): hashing and Ed25519 verification, the signed
-// release manifest, no network unless enabled and keyed, never trusting an unsigned or tampered
+// release manifest, on-demand networking, never trusting an unsigned or tampered
 // manifest, downloads checked against the signed size and SHA-256, What's New after an update,
 // and the compatibility notes. Fixtures: tests/fixtures/compat/release/ (a test key the app does
 // not trust; its private key was discarded).
@@ -121,15 +121,13 @@ globalThis.__testDone = (async () => {
   assert.equal(U.verify(manifest, sig, "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"), false, "another key fails");
   assert.equal(U.verify(manifest, sig.slice(0, 63), TEST_KEY), false); assert.equal(U.verify(manifest, sig, ""), false);
 
-  // ---- the shipped build trusts nothing until the maintainer sets a key ------------------------------------------------
-  assert.equal(U.PUBLIC_KEY === "" || /^[0-9a-f]{64}$/.test(U.PUBLIC_KEY), true);
+  assert.match(U.PUBLIC_KEY, /^[0-9a-f]{64}$/);
   assert.notEqual(U.PUBLIC_KEY, TEST_KEY, "the test key is never the release key");
+  assert.equal(U.MANIFEST_URL, "https://github.com/YutingXu/waffle-eda/releases/latest/download/waffle-release.json");
   let calls = 0;
   const counting = async () => { calls++; return response(404, ""); };
-  if (!U.PUBLIC_KEY) {
-    const r = await U.check({fetch: counting});
-    assert.equal(r.status, "unavailable"); assert.equal(calls, 0, "no key: nothing is fetched");
-  }
+  assert.equal((await U.check({publicKey: "", fetch: counting})).status, "unavailable");
+  assert.equal(calls, 0, "no key: nothing is fetched");
 
   // ---- check(): signed, unsigned, tampered, newer, same --------------------------------------------------------------
   const server = (files) => async url => { calls++; const name = url.split("/").pop(); return files[name] ? response(200, files[name]) : response(404, ""); };
@@ -140,6 +138,7 @@ globalThis.__testDone = (async () => {
   assert.ok(r.notes.includes("Waffle 0.5.0 saves projects in format 1.1. This build uses format 2.0."));
   assert.ok(r.notes.includes("Extensions using apiVersion 1 still work."));
   assert.equal((await U.check({fetch: server(files), publicKey: TEST_KEY, url: FEED, current: "0.5.0"})).status, "up-to-date");
+  assert.equal((await U.check({fetch: server(files), publicKey: TEST_KEY, url: FEED, current: "0.10.0"})).status, "up-to-date", "a signed downgrade is ignored");
   await assert.rejects(U.check({fetch: server({"waffle-release.json": manifest}), publicKey: TEST_KEY, url: FEED}), /not signed/);
   await assert.rejects(U.check({fetch: server({...files, "waffle-release.json": tampered}), publicKey: TEST_KEY, url: FEED}), /signature is not valid/);
   await assert.rejects(U.check({fetch: server({...files, "waffle-release.json.sig": enc("not base64 !!")}), publicKey: TEST_KEY, url: FEED}), /signature is not valid/);
@@ -163,23 +162,20 @@ globalThis.__testDone = (async () => {
   await assert.rejects(U.download(asset, {fetch: async () => response(200, enc("short")), save: async () => assert.fail("must not save"), noSubtle: true}), /wrong size/);
   if (process.versions.node) await checkManifestBuilder();
 
-  // ---- startup: What's New after an update; no network unless enabled ---------------------------------------------------
+  // ---- startup: What's New after an update; no network even with an old opt-in ---------------------------------------------------
   const store = new Map(), storage = {getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v)};
   const shown = [];
   calls = 0;
-  let s = await U.startup({force: true, storage, enabled: false, fetch: counting, showWhatsNew: v => shown.push(v), now: 1e12});
+  let s = await U.startup({force: true, storage, fetch: counting, showWhatsNew: v => shown.push(v)});
   assert.equal(s.whatsNew, false, "a fresh install shows nothing"); assert.equal(JSON.parse(store.get(U.STORE)).lastVersion, U.APP_VERSION);
-  assert.equal(calls, 0, "disabled: no request");
+  assert.equal(calls, 0, "startup makes no request");
   store.set(U.STORE, JSON.stringify({format: "atrium-update", version: 1, lastVersion: "0.3.0"}));
-  s = await U.startup({force: true, storage, enabled: false, fetch: counting, showWhatsNew: v => shown.push(v), now: 1e12});
+  s = await U.startup({force: true, storage, fetch: counting, showWhatsNew: v => shown.push(v)});
   assert.equal(s.whatsNew, true); assert.deepEqual(shown, ["0.3.0"], "What's New after an update, with the previous version");
-  s = await U.startup({force: true, storage, enabled: false, fetch: counting, showWhatsNew: v => shown.push(v), now: 1e12});
+  s = await U.startup({force: true, storage, fetch: counting, showWhatsNew: v => shown.push(v)});
   assert.equal(shown.length, 1, "once");
-  s = await U.startup({force: true, storage, enabled: true, fetch: server(files), publicKey: TEST_KEY, url: FEED, current: "0.4.0", showWhatsNew: () => {}, now: 2e12});
-  assert.equal(s.checked, true); assert.equal(s.result.status, "available");
-  calls = 0;
-  s = await U.startup({force: true, storage, enabled: true, fetch: counting, publicKey: TEST_KEY, url: FEED, showWhatsNew: () => {}, now: 2e12 + 3600e3});
-  assert.equal(s.checked, false); assert.equal(calls, 0, "at most once a day");
+  await U.startup({force: true, storage, enabled: true, fetch: counting, publicKey: TEST_KEY, url: FEED});
+  assert.equal(calls, 0, "an earlier opt-in cannot cause a background request");
 
   // ---- versions and notes ----------------------------------------------------------------------------------------------
   assert.ok(U.compare("0.10.0", "0.9.9") > 0 && U.compare("1.0.0", "1.0.0") === 0 && U.compare("0.4.0", "0.4.1") < 0);

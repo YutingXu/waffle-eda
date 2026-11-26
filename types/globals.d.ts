@@ -35,6 +35,13 @@ interface AtriumHostAPI {
   finishTypedDrop?(token: string, handled: boolean): void;
   /** Help › Troubleshooting › Input Diagnostics. A read never starts collection. */
   inputDiagnostics?(operation?: "start" | "read" | "stop"): Promise<{rows: {event: string; source: string; route: string; count: number}[]}>;
+  checkForUpdate?(): Promise<{status: "up-to-date"} | {status: "available"; canInstall: boolean; manifest: {
+    app: string; published: string; notes: string[]; formats: {writes: string}; apiVersions: number[];
+    assets: {platform: string; name: string; url: string; sha256: string; size: number}[];
+  }}>;
+  installUpdate?(version: string, sha256: string): Promise<"download" | "cancelled">;
+  downloadUpdate?(version: string, sha256: string): Promise<boolean>;
+  cancelUpdate?(): Promise<boolean>;
   macShortcutGlyphs?(labels: string[]): Promise<Record<string, {png: string; width: number; height: number; descent: number}>>;
   macShortcutIntent?(): void;
   macShortcutBadge?(node: HTMLElement, visual: HTMLElement, spoken: string): void;

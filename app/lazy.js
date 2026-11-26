@@ -927,10 +927,8 @@ globalThis.AtriumLazy = (() => {
         state.lastVersion = version;
         store?.setItem("atrium.update", JSON.stringify(state));
       }
-      if (state.lastVersion !== version) return true;
-      const optedIn = (globalThis.AtriumPrefs || globalThis.AtriumPref)?.get("general.updateCheck") === true;
-      return optedIn && Date.now() - (state.lastCheck || 0) >= 86400000;
-    } catch {return (globalThis.AtriumPref?.get?.("general.updateCheck") === true);}
+      return state.lastVersion !== version;
+    } catch { return false; }
   }
   // Keep the evaluator and control implementation cold until a numeric entry is used.
   function numericField(input, options) {
