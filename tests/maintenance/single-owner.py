@@ -259,7 +259,8 @@ ADAPTERS.update({
 
 ADAPTERS.update({
     "BR02": adapter_sites("AtriumWorkerPool.blobWorker(", r'\bURL\.revokeObjectURL\s*\(',
-        "app/analysis/field-solver.js app/analysis/pdn.js app/analysis/thermal.js"),
+        "app/analysis/field-solver.js app/analysis/pdn.js app/analysis/thermal.js"
+        " app/formats/step-import.js app/formats/step-export.js"),
     "LA04": {
         **adapter_sites("V.projectedCell(", r'\bT\.merged\(\s*state\s*,\s*row\.id\s*,\s*col\.id',
             "app/notebook/table-editor.js"),

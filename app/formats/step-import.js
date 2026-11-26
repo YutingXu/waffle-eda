@@ -820,12 +820,12 @@ globalThis.AtriumSTEPImport = (() => {
   }
   function makeWorker() {
     if (unavailable || typeof Worker !== "function" || typeof Blob !== "function" || typeof globalThis.URL?.createObjectURL !== "function") return null;
-    let url;
     try {
       const src = '"use strict";const C=(' + STEPCore.toString() + ')();\n' +
         'onmessage=e=>{const {id,text,opts}=e.data;try{const r=C.tessellate(text,opts),tr=[];for(const p of r.parts)tr.push(p.positions.buffer,p.normals.buffer,p.indices.buffer);postMessage({id,result:r},tr);}catch(err){postMessage({id,error:String(err&&err.message||err)});}};';
-      url = URL.createObjectURL(new Blob([src], {type: "text/javascript"}));
-      const w = new Worker(url);
+      // The pool keeps the script URL alive while WebKit is still loading it.
+      const w = (globalThis.AtriumWorkerPool && AtriumWorkerPool.blobWorker(src));
+      if (!w) { unavailable = !workerStarted; return null; }
       workerStarted = true;
       w.onmessage = ({data}) => {
         if (worker !== w) return;
@@ -838,7 +838,6 @@ globalThis.AtriumSTEPImport = (() => {
       w.onmessageerror = () => stop(w, "Could not receive the decoded STEP model.");
       return w;
     } catch { unavailable = !workerStarted; return null; }
-    finally { if (url) URL.revokeObjectURL(url); }
   }
   // Foreground parsing is available on hosts that could never start a worker.
   function load(text, opts = {}) {
@@ -932,14 +931,11 @@ globalThis.AtriumSTEPImport = (() => {
     };
   }
   function assetWorker() {
-    let url;
     try {
       if (typeof Worker !== "function" || typeof DecompressionStream !== "function" || !globalThis.URL?.createObjectURL) return null;
       const src = '"use strict";onmessage=(' + assetReader.toString() + ')((' + STEPCore.toString() + ')(),' + decodeAsset.toString() + ');';
-      url = URL.createObjectURL(new Blob([src], {type:"text/javascript"}));
-      return new Worker(url);
+      return (globalThis.AtriumWorkerPool && AtriumWorkerPool.blobWorker(src)) || null;
     } catch { return null; }
-    finally { if (url) URL.revokeObjectURL(url); }
   }
   /** @param {any[]} assets @param {{signal?: AbortSignal, readModel?: (asset:any) => Promise<Uint8Array>}} options @param {(asset:any, result:any) => void} receive */
   async function readAssets(assets, {signal, readModel}, receive) {
