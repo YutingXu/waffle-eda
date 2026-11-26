@@ -74,7 +74,7 @@ globalThis.AtriumWorkerPool = (() => {
     let url = "";
     try { url = URL.createObjectURL(new Blob([src], {type: "text/javascript"})); return new Worker(url); }
     catch { /* Blob workers blocked here: the file itself */ }
-    finally { const u = url; if (u) setTimeout(() => URL.revokeObjectURL(u), 30000); }
+    finally { const u = url; if (u) setTimeout(() => URL.revokeObjectURL(u), 30000)?.unref?.(); } // never keeps a CLI process alive
   }
   // A worker for a script file beside the app (release-worker.js, diff-worker.js, ...). WKWebView and
   // WebKitGTK never start a worker from a file:// URL (the page's origin is opaque; the error event
