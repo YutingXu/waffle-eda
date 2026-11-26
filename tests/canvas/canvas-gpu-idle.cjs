@@ -1187,7 +1187,9 @@ function renderStageAttribution() {
   assert.deepEqual(cached.stages, {...full,"full-coverage":0,"full-coverage-paint":0,"full-coverage-upload":0,"full-coverage-readback":0});
   assert.equal(cached.reads, 10, "a cached coverage pass uses no additional timing");
   const direct = capture("full", "detailed", {direct:true});
-  assert.deepEqual(direct.stages, {...full,"full-coverage":30,"full-coverage-upload":12,"full-coverage-readback":0});
+  // Both paths test whether the layer reaches the viewport. Direct upload skips the two readbacks.
+  assert.deepEqual(direct.stages, {...full,"full-coverage":full["full-coverage"]-full["full-coverage-readback"],
+    "full-coverage-upload":12,"full-coverage-readback":0});
   assert.equal(direct.reads, 16, "direct texture submission adds no readback clock reads");
   const noWires = capture("full", "detailed", {wires:false});
   assert.deepEqual(noWires.stages, {...full,"full-airwires":0});

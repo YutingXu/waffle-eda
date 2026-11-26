@@ -989,8 +989,8 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     const getImage = ctx.getImageData;
     let bytes = 0, allocated = 0;
     const proto = globalThis.WebGL2RenderingContext.prototype;
-    const storage = usesReadback ? ["texImage2D","texStorage2D"].map(name =>
-      [name,proto[name],Object.getOwnPropertyDescriptor(proto,name)]) : [];
+    const storage = ["texImage2D","texStorage2D"].map(name =>
+      [name,proto[name],Object.getOwnPropertyDescriptor(proto,name)]);
     for (const [name,call] of storage) proto[name] = function (...args) {
       if (new Error().stack?.includes("pourCoverage")) allocated += args[3]*args[4]*(args[2]===this.ALPHA?1:4);
       return call.apply(this,args);
@@ -1089,7 +1089,8 @@ globalThis.atriumGpuPixels = async function (o = {}) {
         failLifecycle("pourCoverageNarrowGap",JSON.stringify(result));
       else okLifecycle("pourCoverageNarrowGap","a subpixel clearance retains contrast where drawn, including after a one-pixel move");
 
-      if (usesReadback) {
+      // Offscreen admission and exact re-entry apply to both texture upload paths.
+      {
         rows.offscreen = [];
         board.outline = rect(-100,-100,200,200);
         board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
@@ -1128,12 +1129,9 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           rows.offscreen.push(report);
           const limit = empty.image.width * empty.image.height / 25;
           if (report.noInk.some(Boolean) || report.hole>8 || report.ink<=16 ||
-              [single,disjoint,edited,fresh].some(frame=>frame.uploaded || frame.bytes) ||
-              [enter,exit].some(frame=>!frame.uploaded || frame.uploaded>=limit) ||
-              !enter.bytes || enter.bytes>=limit*4)
+              [single,disjoint,exit,edited,fresh].some(frame=>frame.uploaded || frame.bytes) ||
+              !enter.uploaded || (usesReadback ? enter.uploaded>=limit || !enter.bytes || enter.bytes>=limit*4 : enter.bytes!==0))
             failLifecycle("pourCoverageOffscreen",JSON.stringify({...report,entered:undefined}));
-          if (exit.bytes)
-            failLifecycle("pourCoverageEmptyClear", "clearing the old mask read "+exit.bytes+" Canvas bytes");
           if ([single,disjoint,exit,edited,fresh].some(frame=>frame.allocated) || !enter.allocated || report.fanUploads.some(Boolean))
             failLifecycle("pourCoverageOffscreenStorage",JSON.stringify({allocated:report.allocated,fanUploads:report.fanUploads}));
 
@@ -1148,16 +1146,31 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           const bounces = [];
           for (let n=0;n<3;n++) {
             const a = paint(0,0,10,flipped,"GND"), b = paint(enteringCamera,0,10,flipped,"GND");
-            bounces.push({read:a.bytes,upload:a.uploaded,allocated:a.allocated+b.allocated,
+            bounces.push({read:a.bytes+b.bytes,upload:a.uploaded+b.uploaded,allocated:a.allocated+b.allocated,
               emptyDelta:imageDelta(a,clear),returnDelta:imageDelta(b,visible),exitCoverageMs:a.coverageMs});
           }
           report.bounces = {visibleAllocated:visible.allocated,rows:bounces};
           if (visible.allocated!==empty.image.width*empty.image.height*4 ||
-              bounces.some(row=>!row.upload || row.read || row.allocated || row.emptyDelta || row.returnDelta))
-            failLifecycle("pourCoverageEmptyClearBounce",JSON.stringify(report.bounces));
+              bounces.some(row=>row.upload || row.read || row.allocated || row.emptyDelta || row.returnDelta))
+            failLifecycle("pourCoverageOffscreenBounce",JSON.stringify(report.bounces));
+
+          const mixedAt = offset => paint(offset,0,10,flipped,"GND");
+          mixedAt(0);
+          const otherCamera = mixedAt(enteringCamera+1);
+          GPU().release(I); view.invalidate();
+          const freshCamera = mixedAt(enteringCamera+1);
+          mixedAt(0);
+          Object.assign(right,region(edge+1.25,north,"Top")); view.invalidate();
+          mixedAt(0);
+          const changed = mixedAt(enteringCamera+1);
+          GPU().release(I); view.invalidate();
+          const freshEdit = mixedAt(enteringCamera+1);
+          if (!otherCamera.uploaded || !changed.uploaded || !imageDelta(visible,otherCamera) ||
+              !imageDelta(freshCamera,changed) || imageDelta(otherCamera,freshCamera) || imageDelta(changed,freshEdit))
+            failLifecycle("pourCoverageOffscreenReturn","a changed camera or edited contour did not restore fresh copper");
         }
         if (!out.failures.some(f=>f.includes("pourCoverageOffscreen")))
-          okLifecycle("pourCoverageOffscreen","empty padded pours skip readback and leaving ink is cleared locally");
+          okLifecycle("pourCoverageOffscreen","empty padded pours skip allocation and repeat camera visits reuse the mask");
       }
     } finally {
       ctx.getImageData = getImage;

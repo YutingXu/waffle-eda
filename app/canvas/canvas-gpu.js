@@ -927,18 +927,6 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   }
-  function clearCoverageTexture(st, band, x, y, w, h) {
-    const gl = st.gl, bytes = w*h*(band.ink ? 1 : 4);
-    let blank = st.emptyStrip;
-    if (!blank || blank.length < bytes) {
-      blank = new Uint8Array(bytes);
-      if (bytes <= 256*1024) st.emptyStrip = blank;
-    }
-    gl.bindTexture(gl.TEXTURE_2D,band.tex);
-    if (band.ink) gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
-    gl.texSubImage2D(gl.TEXTURE_2D,0,x,st.canvas.height-y-h,w,h,band.ink?gl.ALPHA:gl.RGBA,gl.UNSIGNED_BYTE,blank);
-    if (band.ink) gl.pixelStorei(gl.UNPACK_ALIGNMENT,4);
-  }
   // Collect the device-pixel bounds of the paths the PCB text painter actually draws.
   // Null means a fresh/empty texture, undefined means the previous contents are unknown.
   function bandRectangle() {
@@ -995,14 +983,19 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return entry.box;
   }
-  function coveragePixels(I, group, dpr, w, h) {
+  function coveragePixels(I, group, dpr, w, h, firstOnly) {
     let pixels = null;
     for (const {bounds} of group) {
       if (!bounds) return [0, 0, w, h];
       // Clip each region before joining it. The padded artwork viewport can
       // admit disjoint pours whose combined bounds cross an empty viewport.
       const [x, y, sw, sh] = damagePixels(I, bounds, dpr, 2, w, h);
-      if (sw > 0 && sh > 0) pixels = mergeBounds(pixels, [x, y, x + sw, y + sh]);
+      if (sw > 0 && sh > 0) {
+        const rect = [x, y, x + sw, y + sh];
+        // A full-canvas upload only needs to know whether any copper reaches the view.
+        if (firstOnly) return rect;
+        pixels = mergeBounds(pixels, rect);
+      }
     }
     return pixels;
   }
@@ -1048,17 +1041,21 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       let band = cover.layers.get(layer);
       if (band?.tex && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
       const needsTexture = !band?.tex;
+      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
+      const sameView = !needsTexture && band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
+      if (band?.ink) band.ink = ink;
+      if (sameView && dirty === null) { band.offscreen = false; continue; }
+      const pixels = coveragePixels(I,next,dpr,w,h,!READBACK);
+      if (!pixels) {
+        // Keep the last painted camera and geometry. Reversing this pan can
+        // show the same texture without clearing, painting or uploading it.
+        if (needsTexture) cover.layers.set(layer,emptyCoverageBand);
+        else band.offscreen = true;
+        continue;
+      }
       if (needsTexture) {
         if (band) cover.layers.delete(layer);
         if (bytesOf(st) + backingBytes(st) + w*h*(ink?1:4) > capBytes()) continue;
-      }
-      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
-      let pixels;
-      if (needsTexture) {
-        if (READBACK && !(pixels = coveragePixels(I,next,dpr,w,h))) {
-          cover.layers.set(layer,emptyCoverageBand);
-          continue;
-        }
         band = {tex: texture(gl,w,h,!!ink), ink};
         if (ink && st.alphaTextures == null) {
           const error = gl.getError();
@@ -1076,10 +1073,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         }
         cover.layers.set(layer,band); st.checkMemory = true;
       }
-      if (band.ink) band.ink = ink;
-      const sameView = band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
-      band.key = key; band.regions = next;
-      if (sameView && dirty === null) continue;
+      band.offscreen = false; band.key = key; band.regions = next;
       let sx=0, sy=0, sw=w, sh=h, visibleRegions=group;
       if (dirty) {
         [sx,sy,sw,sh] = damagePixels(I,dirty,dpr,2,w,h);
@@ -1091,27 +1085,21 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         });
       }
       if (READBACK) {
-        pixels ??= coveragePixels(I,next,dpr,w,h);
         const both = mergeBounds(band.pixels, pixels);
         band.pixels = sameView ? both : pixels;
-        if (!both) continue;
         if (!sameView) {
           // Clear the previous camera's ink in the retained texture as well.
           sx = both[0]; sy = both[1]; sw = both[2] - sx; sh = both[3] - sy;
         }
       }
       const paintStart = timing ? now() : 0, g = I.ctx;
-      const blank = pixels === null;
       g.setTransform(1,0,0,1,0,0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
       // The sliced settle path also snapshots this canvas between draws.
       if (READBACK && !st.textJob) g.clearRect(sx,sy,sw,sh); else g.clearRect(0,0,w,h);
-      if (!blank) {
-        I.boardTransform();
-        I.drawBoard(g, [], doc, defs, scale, V.o2, visibleRegions, view, null);
-      }
+      I.boardTransform();
+      I.drawBoard(g, [], doc, defs, scale, V.o2, visibleRegions, view, null);
       const uploadStart = timing ? now() : 0;
-      if (blank) clearCoverageTexture(st,band,sx,sy,sw,sh);
-      else uploadCanvas(gl,band.tex,I.canvas,sx,sy,sw,sh,band.ink?gl.ALPHA:gl.RGBA,timing);
+      uploadCanvas(gl,band.tex,I.canvas,sx,sy,sw,sh,band.ink?gl.ALPHA:gl.RGBA,timing);
       if (timing) {
         timing.paint += uploadStart - paintStart;
         timing.upload += now() - uploadStart;
@@ -1876,7 +1864,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     let bandAt = 0;
     const textUpTo = o => { while (bandAt < bands.length && bands[bandAt].next <= o) textPass(bands[bandAt++]); };
     const textPass = band => {
-      if (!band.tex) return;
+      if (!band.tex || band.offscreen) return;
       const u = use(P.copy);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, band.tex); gl.uniform1f(u.u_alpha, 1); gl.uniform1f(u.u_straight, 1);
       if (band.ink) { const v = rgb(band.ink); gl.uniform4f(u.u_maskInk,v[0],v[1],v[2],1); }
