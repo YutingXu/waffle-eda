@@ -55,9 +55,9 @@
 .eco-msg {color:var(--muted);overflow-wrap:anywhere;min-width:100px;}
 .eco-row-tools {width:1%;white-space:nowrap;text-align:right;}
 .eco-never {height:var(--ctl-h-sm);padding:0 var(--s-6);border:1px solid transparent;border-radius:var(--r-sm);background:transparent;color:var(--muted);font-size:var(--fs-11);opacity:0;
-  transition:opacity var(--motion-fast) var(--ease-standard);}
+  transition:opacity var(--motion-instant) var(--ease-standard);--ui-button-hover:var(--button-face-hover,var(--hover));}
 .eco-row:hover .eco-never,.eco-row.is-focus .eco-never,.eco-never:focus-visible,.eco-row:has(.eco-badge-ignored) .eco-never {opacity:1;}
-.eco-never:hover {border-color:var(--line);color:var(--text);}
+.eco-never:hover {background:var(--ui-button-hover);color:var(--text);}
 .eco-empty {padding:24px !important;text-align:center;color:var(--muted) !important;line-height:var(--lh-loose);}
 .eco-more td {text-align:center;padding:6px !important;}
 .eco-detail {margin:8px 18px 0;padding:var(--s-6) var(--s-8);border-left:2px solid var(--accent);background:var(--soft);font-size:var(--fs-12);border-radius:var(--r-sm);}

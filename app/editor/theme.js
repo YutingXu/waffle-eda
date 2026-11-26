@@ -232,6 +232,14 @@ globalThis.AtriumTheme = (() => {
     return {"accent-text":accentForSurfaces(palette.accent, palette, 4.5),
       "accent-strong":ensureContrast(palette.accent, "#ffffff", 3)};
   }
+  function buttonStateFill(fill, ink, amount) {
+    const shade = mix(fill, "#000000", amount);
+    const tint = mix(fill, "#ffffff", amount);
+    const legible = Math.min(4.5, contrast(fill, ink));
+    const visible = [shade, tint].find(candidate =>
+      contrast(fill, candidate) >= 1.12 && contrast(candidate, ink) >= legible);
+    return visible ?? (contrast(shade, ink) >= contrast(tint, ink) ? shade : tint);
+  }
 
   // Accent derivation: the accent itself (nudged to 4.5:1 on panels), a hover shade,
   // ink for text on the accent, and a selection fill tinted by the accent whose ink
@@ -470,6 +478,15 @@ globalThis.AtriumTheme = (() => {
       root.setAttribute("data-ui-font", String(settings.fontSize));
       applyMotion();
       const inline = inlineTokens();
+      if (Object.keys(inline).length) {
+        const palette = {...PRESETS[baseOf(id)].tokens, ...inline};
+        for (const [fill, ink, role] of [["primary", "on-primary", "primary"],
+          ["selection", "selection-ink", "selected"], ["danger-fill", "on-danger", "danger"]]) {
+          if (rgba(palette[fill])?.[3] !== 1 || rgba(palette[ink])?.[3] !== 1) continue;
+          inline["button-" + role + "-hover"] = buttonStateFill(palette[fill], palette[ink], .12);
+          inline["button-" + role + "-active"] = buttonStateFill(palette[fill], palette[ink], .24);
+        }
+      }
       for (const k of appliedInline) if (!(k in inline)) root.style?.removeProperty("--" + k);
       appliedInline.clear();
       for (const [k, v] of Object.entries(inline)) { root.style?.setProperty("--" + k, v); appliedInline.add(k); }

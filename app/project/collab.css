@@ -15,9 +15,6 @@
 #collab-faces {gap:var(--s-2)}
 #collab-share {gap:var(--s-4);font-weight:var(--fw-medium);white-space:nowrap}
 #collab-share .icon {width:15px;height:15px}
-@media (hover:hover) and (pointer:fine) {
-  #collab-share:hover {border-color:var(--focus)}
-}
 .collab-person {position:relative;display:flex}
 .collab-face,#collab-more {display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border:1px solid currentColor;border-radius:var(--r-pill);
   font-size:var(--fs-11);font-weight:var(--fw-semibold);line-height:1}

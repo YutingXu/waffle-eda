@@ -20,8 +20,8 @@
 .km-name small {color:var(--faint);font:var(--fs-10) var(--mono)}
 .km-table tr:hover td {background:var(--soft)}
 .km-table tr.km-active td {background:var(--selection)}
-.keymap-dialog .km-keys,.keymap-dialog .km-when-edit {background:none;border-color:transparent;padding:2px 4px;text-align:left;min-width:90px}
-.keymap-dialog .km-keys:hover,.keymap-dialog .km-when-edit:hover:not(:disabled) {border-color:var(--line)}
+.keymap-dialog .km-keys,.keymap-dialog .km-when-edit {--ui-button-fill:transparent;--ui-button-border:transparent;--ui-button-hover:var(--hover);
+  padding:2px 4px;text-align:left;min-width:90px}
 .keymap-dialog .km-when-edit {font:var(--fs-11) var(--mono);color:var(--muted)}
 .keymap-dialog .km-when-edit:disabled {opacity:1;color:var(--faint)}
 .km-when input {width:100%;font:var(--fs-11) var(--mono)}

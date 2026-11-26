@@ -13,16 +13,16 @@
 /* Presets: one click to a fab-ready panel. */
 .panel-presets {display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:var(--s-6)}
 .panel-dialog .panel-preset {display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-2);text-align:left;padding:var(--s-6) var(--s-8);min-height:var(--ctl-h-lg);
-  background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-md);
-  transition:transform calc(var(--motion-fast) * var(--motion-move)) var(--ease-decelerate)}
+  --ui-button-fill:var(--field);--ui-button-border:var(--line);--ui-button-hover:var(--ui-button-fill);
+  color:var(--ink);border-radius:var(--r-md);
+  transition:background-color var(--motion-instant) linear,transform calc(var(--motion-instant) * var(--motion-move)) var(--ease-decelerate)}
 .panel-preset strong {font-size:var(--fs-12);font-weight:var(--fw-semibold)}
 .panel-preset small {font-size:var(--fs-11);color:var(--muted);line-height:var(--lh-tight)}
 @media (hover:hover) and (pointer:fine) {
-  .panel-dialog .panel-preset {transition:border-color var(--motion-fast) ease,background-color var(--motion-fast) ease,transform calc(var(--motion-fast) * var(--motion-move)) var(--ease-decelerate)}
-  .panel-dialog .panel-preset:hover {border-color:var(--line-strong);background:var(--hover)}
+  .panel-dialog .panel-preset:hover {--ui-button-hover:color-mix(in srgb,var(--ui-button-fill),var(--ink) 12%)}
 }
 .panel-dialog .panel-preset:active {transform:scale(.98)}
-.panel-dialog .panel-preset[aria-pressed="true"] {border-color:var(--accent);background:var(--tint-accent)}
+.panel-dialog .panel-preset[aria-pressed="true"] {--ui-button-border:var(--accent);--ui-button-fill:var(--tint-accent)}
 
 /* Live preview (SVG, model millimetres). */
 .panel-preview-wrap {margin:var(--s-12) 0 0;padding:var(--s-8);background:var(--canvas-bg);border:1px solid var(--line);border-radius:var(--r-md)}

@@ -28,6 +28,8 @@ Fails when feature code adds an ad hoc control instead of using the library in a
             macOS window controls sit there (docs/ui-library.md, Window safe area). The few surfaces
             that are fine are listed in TITLEBAR_OK below with the reason; the list cannot go stale.
             tests/editor/browser-titlebar-safe-area.cjs checks the same at runtime.
+  hover     an app stylesheet changes a border on hover or gives hover feedback a duration other
+            than --motion-instant, including transitions on the corresponding resting rule.
 Each existing site is listed once in tests/ui-library-legacy.json. A listed entry that no longer
 matches fails too, so the list only shrinks: delete the entry when the site moves to the library.
 Its "settled" map labels the entries the user kept as settled exceptions (docs/ui-library.md › Settled
@@ -41,6 +43,7 @@ import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
+from css_style_lint import CSS_STRING, NUMBER, VAR_REF, declarations
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app"
@@ -169,6 +172,58 @@ def titlebar_findings():
                 if prop in props and pins_top(props[prop]):
                     found.append((rel, " ".join(sel.split()), prop + ":" + props[prop]))
     return found
+
+
+# The swatch shows an authored layer colour. Its edge provides hover feedback while the fill
+# continues to show the exact colour the user is about to edit.
+HOVER_OK = {("app/project/view-config.css", ".vc-swatch:hover", "border-color")}
+HOVER = re.compile(r":hover(?![\w-])", re.I)
+HOVER_BORDER = re.compile(r"border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-color)?$")
+HOVER_MOTION = re.compile(r"(?:-webkit-)?(?:transition|animation)(?:-(?:duration|delay))?$")
+TIME = re.compile(rf"(?<![\w.-])({NUMBER})(?:ms|s)(?![\w-])", re.I)
+SELECTOR_BOUNDARY = re.compile(rf"{CSS_STRING}|\\.|[(),\[\]>+~]|\s+")
+HOVER_STATE = re.compile(r":hover(?![\w-])|:not\(:disabled\)")
+
+
+def selector_targets(selector):
+    """Yield each selector and its last compound, keeping selector functions and attributes together."""
+    depth, start, target = 0, 0, 0
+    for m in SELECTOR_BOUNDARY.finditer(selector):
+        token = m[0]
+        if token in ("(", "["):
+            depth += 1
+        elif token in (")", "]"):
+            depth -= 1
+        elif depth == 0 and token == ",":
+            yield selector[start:m.start()], HOVER_STATE.sub("", selector[target:m.start()].strip())
+            start = target = m.end()
+        elif depth == 0 and (token in (">", "+", "~") or token.isspace()):
+            if selector[m.end():].lstrip()[:1] not in ("", ","):
+                target = m.end()
+    yield selector[start:], HOVER_STATE.sub("", selector[target:].strip())
+
+
+def instant_timing(value):
+    return all(float(time) == 0 for time in TIME.findall(value)) and all(
+        token in {"--motion-instant", "--motion-move", "--ease"} or token.startswith("--ease-")
+        for token in VAR_REF.findall(value)
+    )
+
+
+def hover_findings(stylesheets):
+    rules = [(path, d) for path, source in stylesheets for d in declarations(source)
+             if d.context and not d.context[-1].startswith("@")]
+    border_tokens = {token for _, d in rules if HOVER_BORDER.fullmatch(d.prop) for token in VAR_REF.findall(d.value)}
+    targets = {target for _, d in rules for branch, target in selector_targets(d.context[-1]) if HOVER.search(branch)}
+    for path, d in rules:
+        selector = d.context[-1]
+        hovered = HOVER.search(selector)
+        if hovered and (HOVER_BORDER.fullmatch(d.prop) or d.prop in border_tokens):
+            yield path, selector, d.prop, d.line, "keep the resting border colour"
+        if HOVER_MOTION.fullmatch(d.prop) and not instant_timing(d.value):
+            transition = d.prop.startswith(("transition", "-webkit-transition"))
+            if hovered or (transition and any(target in targets for _, target in selector_targets(selector))):
+                yield path, selector, d.prop, d.line, "use --motion-instant for hover"
 
 
 def feature_css():
@@ -315,6 +370,19 @@ def self_test():
                         ("44px", False), ("auto", False), ("50%", False), ("var(--import-save-y,50dvh)", False),
                         ("var(--dialog-safe-top) var(--dialog-margin)", False), ("max(var(--math-top,0px),var(--window-caption-height)) 0", False)]:
         assert pins_top(value) == want, f"ui-library-lint self-test: pins_top({value!r}) is {not want}"
+    hover_cases = [
+        (".a:hover {border-inline-end-color:var(--accent)}", {"border-inline-end-color"}),
+        (".a {border:1px solid var(--edge)} .a:hover {--edge:var(--line)}", {"--edge"}),
+        (".a {transition:opacity var(--motion-fast)} .row:is(:hover,:focus-within) .a {opacity:1}", {"transition"}),
+        (".a {transition-duration:140ms} .a:hover:not(:disabled) {background:var(--hover)}", {"transition-duration"}),
+        (".a:hover {transition:color var(--motion-instant),opacity 1s}", {"transition"}),
+        (".a:hover {animation:fade var(--motion-fast)}", {"animation"}),
+        (".a:hover {transition:color var(--motion-instant);transition-delay:0s}", set()),
+        (".a:focus-visible {border-color:var(--focus);transition:color var(--motion-fast)}", set()),
+    ]
+    for source, want in hover_cases:
+        got = {prop for _, _, prop, _, _ in hover_findings([("app/example.css", source)])}
+        assert got == want, f"ui-library-lint self-test: hover findings {got!r}, expected {want!r}, in: {source}"
 
 
 def key(f):
@@ -361,6 +429,16 @@ def main():
             problems.append(f"FAIL stale MENU_OK entry in tests/maintenance/ui-library-lint.py (the menu button moved or changed): {rel}")
     for rel, sel in sorted(set(TITLEBAR_OK) - {(r, s) for r, s, _ in pinned}):
         problems.append(f"FAIL stale TITLEBAR_OK entry in tests/maintenance/ui-library-lint.py (the rule moved or changed): {rel} {sel}")
+    authored_css = ((path.relative_to(ROOT).as_posix(), path.read_text(encoding="utf-8"))
+                    for path in sorted(APP.rglob("*.css")) if "vendor" not in path.relative_to(APP).parts)
+    hover = set()
+    for rel, sel, prop, line, why in hover_findings(authored_css):
+        entry = (rel, sel, prop)
+        hover.add(entry)
+        if entry not in HOVER_OK:
+            problems.append(f"FAIL {rel}:{line}: hover: {sel} {prop} — {why} (docs/ui-library.md)")
+    for rel, sel, prop in sorted(HOVER_OK - hover):
+        problems.append(f"FAIL stale HOVER_OK entry in tests/maintenance/ui-library-lint.py: {rel} {sel} {prop}")
     if problems:
         print("\n".join(problems))
         return 1

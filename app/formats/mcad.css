@@ -11,7 +11,7 @@
 .mcad-list {flex:1 1 auto;min-height:40px;overflow:auto;padding:var(--s-2) 0}
 .mcad-row {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h-lg);padding:var(--s-2) var(--s-8);cursor:default;user-select:none;-webkit-user-select:none}
 .mcad-row:hover {background:var(--hover)}
-.mcad-row .mcad-btn {opacity:0;transition:opacity var(--motion-fast) var(--ease-standard)}
+.mcad-row .mcad-btn {opacity:0;transition:opacity var(--motion-instant) var(--ease-standard)}
 .mcad-row:hover .mcad-btn,.mcad-row:focus-within .mcad-btn {opacity:1}
 .mcad-dot {flex:none;width:8px;height:8px;border-radius:var(--r-pill);border:1px solid var(--accent);background:var(--surface)}
 .mcad-row.is-accepted .mcad-dot {border-color:var(--success);background:var(--success)}

@@ -40,15 +40,131 @@ async function open(page, profile) {
   await page.evaluate(() => document.fonts.ready);
 }
 
+async function buttonFace(button) {
+  return button.evaluate(async node => {
+    await Promise.all(node.getAnimations().map(animation => animation.finished));
+    const style = getComputedStyle(node);
+    // Composite the translucent fills over the gallery surface before measuring contrast.
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d");
+    context.fillStyle = getComputedStyle(node.closest(".ui-gallery-body")).backgroundColor;
+    context.fillRect(0, 0, 1, 1);
+    context.fillStyle = style.backgroundColor;
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return {
+      fill: "rgb(" + [r, g, b].join(", ") + ")",
+      ink: style.color,
+      border: ["Top", "Right", "Bottom", "Left"].map(side => style["border" + side + "Color"]),
+      durations: style.transitionDuration.split(", "),
+    };
+  });
+}
+
+async function pressedFace(page, button) {
+  await page.mouse.down();
+  try {
+    return await buttonFace(button);
+  } finally {
+    await page.mouse.up();
+  }
+}
+
+async function checkButtonHover(page, theme, failures) {
+  const root = page.locator("html");
+  // Use a distinct duration to catch a hard-coded value as well as a different token.
+  await root.evaluate(node => node.style.setProperty("--motion-instant", "113ms"));
+  try {
+    for (const name of ["Primary", "Secondary", "Quiet", "Delete", "Pressed"]) {
+      await page.mouse.move(4, 4);
+      const button = page.locator("#ui-button").getByRole("button", {name, exact:true});
+      const rest = await buttonFace(button);
+      await button.hover();
+      const hover = await buttonFace(button);
+      const ratio = await page.evaluate(([a, b]) => AtriumTheme.color.contrast(a, b), [rest.fill, hover.fill]);
+      const label = theme + " " + name;
+      if ([...rest.durations, ...hover.durations].some(time => time !== "0.113s"))
+        failures.push(label + " hover and press must use --motion-instant (" + hover.durations.join(", ") + ")");
+      if (hover.border.some((color, side) => color !== rest.border[side]))
+        failures.push(label + " border changed on hover");
+      if (!(ratio >= 1.12))
+        failures.push(label + " hover fill contrast step " + ratio.toFixed(3) + " is below 1.12");
+      if (name === "Primary" || name === "Delete" || name === "Pressed") {
+        const pressed = await pressedFace(page, button);
+        if (pressed.fill === hover.fill || pressed.fill === rest.fill)
+          failures.push(label + " needs a distinct pressed fill");
+        if (pressed.border.some((color, side) => color !== rest.border[side]))
+          failures.push(label + " border changed on press");
+        if (pressed.durations.some(time => time !== "0.113s"))
+          failures.push(label + " press must use --motion-instant");
+        if (await page.evaluate(({fill, ink}) => AtriumTheme.color.contrast(fill, ink) < 4.5, pressed))
+          failures.push(label + " pressed label does not meet 4.5:1 contrast");
+        if (name === "Pressed" && await page.evaluate(([a, b]) => AtriumTheme.color.contrast(a, b), [rest.fill, pressed.fill]) <= ratio)
+          failures.push(label + " press must deepen the selected button's fill");
+      }
+    }
+    for (const name of ["Parts", "Wires", "Disabled"]) {
+      await page.mouse.move(4, 4);
+      const chip = page.locator("#ui-chip").getByRole("button", {name, exact:true});
+      const rest = await buttonFace(chip);
+      await chip.hover();
+      const hover = await buttonFace(chip);
+      const label = theme + " chip " + name;
+      if ((hover.fill !== rest.fill) !== (name !== "Disabled"))
+        failures.push(label + " hover fill does not match its enabled state");
+      if (hover.border.some((color, side) => color !== rest.border[side]))
+        failures.push(label + " border changed on hover");
+      if (hover.durations.some(time => time !== "0.113s"))
+        failures.push(label + " hover must use --motion-instant");
+    }
+  } finally {
+    await page.mouse.move(4, 4);
+    await root.evaluate(node => node.style.removeProperty("--motion-instant"));
+  }
+}
+
+async function checkCustomButtonHover(browser, failures) {
+  const profile = PROFILES[0];
+  const page = await browser.newPage({viewport:profile.viewport, reducedMotion:"reduce"});
+  try {
+    await open(page, profile);
+    for (const [preset, accent, name] of [["light", "#000000", "Primary"], ["dark", "#ffd900", "Primary"], ["dark", "#ffd900", "Pressed"]]) {
+      await page.mouse.move(4, 4);
+      await page.evaluate(([preset, accent]) => AtriumTheme.set({preset, accent}, {persist:false}), [preset, accent]);
+      const button = page.locator("#ui-button").getByRole("button", {name, exact:true});
+      const rest = await buttonFace(button);
+      await button.hover();
+      const hover = await buttonFace(button);
+      const [step, readability] = await page.evaluate(([rest, hover]) => [
+        AtriumTheme.color.contrast(rest.fill, hover.fill),
+        AtriumTheme.color.contrast(hover.ink, hover.fill)
+      ], [rest, hover]);
+      const label = preset + " " + accent + " " + name;
+      if (step < 1.12) failures.push(label + " hover fill changes by only " + step.toFixed(2) + ":1");
+      if (readability < 4.5) failures.push(label + " hover text contrast falls to " + readability.toFixed(2) + ":1");
+      const pressed = await pressedFace(page, button);
+      if (pressed.fill === hover.fill || pressed.fill === rest.fill)
+        failures.push(label + " needs a distinct pressed fill");
+      if (await page.evaluate(({fill, ink}) => AtriumTheme.color.contrast(fill, ink) < 4.5, pressed))
+        failures.push(label + " pressed label does not meet 4.5:1 contrast");
+    }
+  } finally {
+    await page.close();
+  }
+}
+
 module.exports = async function gallery(browser) {
   const failures = [], styles = {}, out = opt("--out"), docs = opt("--docs");
   const families = documented();
+  await checkCustomButtonHover(browser, failures);
   for (const profile of PROFILES) {
     const page = await browser.newPage({viewport:profile.viewport, hasTouch:profile.touch, reducedMotion:"reduce", deviceScaleFactor:1});
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
     try {
       await open(page, profile);
+      if (!profile.touch) await checkButtonHover(page, profile.name, failures);
       const shown = await page.evaluate(() => [...document.querySelectorAll(".ui-gallery-family")].map(s => s.dataset.family));
       if (profile.name === "light") {
         const missing = families.filter(f => !shown.includes(f)), extra = shown.filter(f => !families.includes(f));
@@ -126,7 +242,7 @@ module.exports = async function gallery(browser) {
       if (want[profile][key] !== styles[profile]?.[key]) failures.push(`${profile} ${key}: ${want[profile][key]} → ${styles[profile]?.[key]}`);
   } else failures.push("tests/maintenance/ui-gallery-styles.json is missing: run with --update after checking the gallery");
   assert.equal(failures.length, 0, failures.slice(0, 40).join("\n"));
-  console.log("PASS UI gallery: " + families.length + " families in light, dark and touch; policies, focus and component faces match");
+  console.log("PASS UI gallery: " + families.length + " families in light, dark and touch; policies, focus, button hover and component faces match");
 };
 
 if (require.main === module) {

@@ -4,7 +4,7 @@
 .gp-body-conn {grid-template-columns:minmax(340px,1fr) minmax(360px,1.3fr)}
 .gp-families {display:flex;flex-direction:column;gap:2px;padding:8px;border-right:1px solid var(--line);overflow:auto}
 .gp-families hr {width:100%;border:0;border-top:1px solid var(--line);margin:4px 0}
-.lib-dialog .gp-tile {text-align:left;justify-content:flex-start;border-color:transparent;background:transparent;transition:background-color var(--motion-fast) var(--ease-standard)}
+.lib-dialog .gp-tile {text-align:left;justify-content:flex-start;border-color:transparent;background:transparent;transition:background-color var(--motion-instant) var(--ease-standard)}
 .lib-dialog .gp-tile:hover {background:var(--button-hover)}
 .lib-dialog .gp-tile[aria-checked=true] {background:var(--selection);border-color:var(--accent);color:var(--selection-ink)}
 .lib-dialog .gp-tile-link {color:var(--accent-text)}

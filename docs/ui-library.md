@@ -80,7 +80,8 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 - **Use** for an action. A dialog has one primary action, its default. Use `quiet` for actions on a toolbar or heading row and `danger` for destructive actions.
 - **Markup** `<button class="ui-button" data-variant="secondary|primary|quiet|danger" data-size="sm|md|lg">`. `AtriumUI.button(node, variant, size)` adopts an existing button. `AtriumUI.nativeButton(label, onClick, className, title, options)` constructs one before the kit loads. The kit’s `K.button(label, {variant, size, run, pressed, disabled})` uses the same constructor.
 - **States** hover, active, `disabled` (45 % opacity), `aria-pressed=true` (selection fill and accent edge), keyboard focus (2 px inset ring; `--on-primary` on primary). On touch, height is `--ctl-h-touch`.
-- **Tokens** `--button-face*`, `--primary`, `--on-primary`, `--danger-fill`, `--on-danger`, `--chrome-control-radius`, `--ctl-h*`, `--ctl-px`, `--fw-medium`.
+- **Hover** changes the fill and keeps the resting border colour. The secondary hover fill uses 16% ink in standard themes. Primary, danger and selected secondary buttons deepen the effect while held. Custom theme fills can lighten to keep the change visible and the label readable. The gallery requires at least a 1.12:1 contrast step between the resting and hovered fills. Hover and press use `--motion-instant`.
+- **Tokens** `--button-face*`, `--button-secondary-hover`, `--primary`, `--on-primary`, `--danger-fill`, `--on-danger`, `--chrome-control-radius`, `--ctl-h*`, `--ctl-px`, `--fw-medium`.
 - **Primary ink** is white, as on a macOS default button: the theme darkens the accent fill until white reads at 4.5:1 (`AtriumTheme.derive`). Only a light hue (yellow, mint) that would turn muddy keeps dark ink. `tests/browser-appbar-contrast.js` checks every app-bar button and the Share dialog in every theme.
 - **Do** keep labels short and in sentence case, ending with "…" when more input follows. **Don't** draw grey outlined buttons, use a second primary or set button colours in feature CSS.
 
@@ -188,7 +189,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Use** for filter toggles, scope tokens and selected values in a query or picker.
 - **Markup** toggle: `<button class="ui-chip" aria-pressed="false">Wires</button>`. Token: `<span class="ui-chip"><span class="ui-chip-label">net:GND</span><button class="ui-chip-remove" aria-label="Remove net:GND">×</button></span>`. Group: `.ui-chips`. `K.chip(label, {pressed, onToggle, onRemove, invalid})`.
-- **States** off (hairline `--line`, `--muted` text), on (`--raised` fill, no border, ink), hover (mouse only: `--line-strong` hairline), `disabled`, `data-invalid` (`--error`), keyboard focus (2 px accent outline). On touch the hit area grows by 2 px on each side.
+- **States** off (hairline `--line`, `--muted` text), on (`--raised` fill, no border, ink), hover (mouse and pen, soft fill for either toggle state), `disabled`, `data-invalid` (`--error`), keyboard focus (2 px accent outline). On touch the hit area grows by 2 px on each side.
 - **Size** `--chrome-pill-height` (22 px), `--chrome-control-radius`, `--fs-11`, `--fw-medium`.
 - **Don't** use pill chips, accent fills or tinted chips. A status label is a badge, not a chip.
 
@@ -478,7 +479,9 @@ Build modern, sleek surfaces with the rules above. These are the house conventio
 
 **Density.** Desktop rows are 24 px (`--chrome-row-height`), controls are 24 px (`--ctl-h`), fields are 28 px and chips are 22 px. On touch, hit areas grow (`--ctl-h-touch` 44 px), but painted chrome stays on the same grid. Prefer compact rows, as in Altium's Output Job dialog, to cards. Tables use tabular figures.
 
-**Motion.** Use the tokens only ([Motion](design-system.md#motion)). Use `--motion-instant` for hover and press, `--motion-fast` for reveals, indicators and popovers, and `--motion-base` for panels and dialogs. Animate opacity and transform. Exits are faster than entrances, and an animation never holds input. Reduced keeps fades and removes movement. Off is instant.
+**Motion.** Use the tokens only ([Motion](design-system.md#motion)). Use `--motion-instant` for hover, press and hover-triggered reveals. Use `--motion-fast` for other reveals, indicators and popovers, and `--motion-base` for panels and dialogs. Animate opacity and transform. Exits are faster than entrances, and an animation never holds input. Reduced keeps fades and removes movement. Off is instant.
+
+Hover keeps the resting border colour across the app. The UI library lint checks authored stylesheets for hover border changes and timing. Its reviewed exception is the layer colour swatch, whose fill represents the exact authored colour.
 
 **Building a panel.** `K.panel({title, actions})`. Put a toolbar or search under the heading only when the list needs one. The body is a `.ui-list` of `.ui-row` or a set of `.ui-section`s. Put state in a `.ui-notice` at the top (stale, offline, read-only) and counts in a `.ui-status-line` or the footer.
 

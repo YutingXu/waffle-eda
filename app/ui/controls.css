@@ -9,6 +9,7 @@
 :root:not([data-theme=hc],[data-theme-id=hc-light]) {
   --button-face:color-mix(in srgb, var(--ink) 9%, transparent);
   --button-face-hover:color-mix(in srgb, var(--ink) 14%, transparent);
+  --button-secondary-hover:color-mix(in srgb, var(--ink) 16%, transparent);
   --button-face-pressed:color-mix(in srgb, var(--ink) 19%, transparent);
   --button-face-line:transparent;
 }
@@ -26,23 +27,21 @@
   color:var(--ui-button-ink,var(--ink));
   font-size:var(--fs-12);
   font-weight:var(--fw-medium);
-  transition:background-color var(--motion-instant) linear,color var(--motion-instant) linear,border-color var(--motion-fast) var(--ease-standard);
+  transition:background-color var(--motion-instant) linear,color var(--motion-instant) linear,border-color var(--motion-instant) linear;
 }
 :where(.ui-button,
   :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):hover:not(:disabled) {
-  background:var(--ui-button-hover,var(--button-face-hover,var(--button-hover)));
-  border-color:var(--ui-button-hover-border,var(--ui-button-border,var(--button-face-line,var(--button-line))));
+  background:var(--ui-button-hover,var(--button-secondary-hover,var(--button-hover)));
 }
-:where(.ui-button:not([data-variant]),.ui-button[data-variant=secondary]):active:not(:disabled) {
+:where(.ui-button:not([data-variant]),.ui-button:is([data-variant=secondary],[data-variant=primary],[data-variant=danger])):active:not(:disabled) {
   background:var(--ui-button-active,var(--button-face-pressed,var(--pressed)));
 }
 :where(.ui-button[data-variant=secondary][aria-pressed=true]) {
   --ui-button-fill:var(--selection);
   --ui-button-border:var(--accent);
   --ui-button-ink:var(--selection-ink);
-  --ui-button-hover:var(--selection);
-  --ui-button-hover-border:var(--focus);
-  --ui-button-active:var(--selection);
+  --ui-button-hover:var(--button-selected-hover,color-mix(in srgb, var(--selection), var(--focus-edge-dark) 12%));
+  --ui-button-active:var(--button-selected-active,color-mix(in srgb, var(--selection), var(--focus-edge-dark) 24%));
 }
 :where(.ui-button, :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button):is(button,a):disabled {opacity:.45;cursor:default}
 :where(.ui-button[data-variant=primary], .message-dialog button[type=submit]:not([data-variant]),
@@ -51,8 +50,8 @@
   --ui-button-fill:var(--primary);
   --ui-button-border:var(--primary-line);
   --ui-button-ink:var(--on-primary);
-  --ui-button-hover:var(--primary);
-  --ui-button-hover-border:var(--on-primary);
+  --ui-button-hover:var(--button-primary-hover,color-mix(in srgb, var(--primary), var(--focus-edge-dark) 12%));
+  --ui-button-active:var(--button-primary-active,color-mix(in srgb, var(--primary), var(--focus-edge-dark) 24%));
   --ui-control-focus:var(--on-primary);
 }
 :where(.ui-button[data-variant=quiet]) {
@@ -65,8 +64,8 @@
   --ui-button-fill:var(--danger-fill);
   --ui-button-border:var(--danger-fill);
   --ui-button-ink:var(--on-danger);
-  --ui-button-hover:var(--danger-fill);
-  --ui-button-hover-border:var(--on-danger);
+  --ui-button-hover:var(--button-danger-hover,color-mix(in srgb, var(--danger-fill), var(--focus-edge-dark) 12%));
+  --ui-button-active:var(--button-danger-active,color-mix(in srgb, var(--danger-fill), var(--focus-edge-dark) 24%));
   --ui-control-focus:var(--on-danger);
 }
 
