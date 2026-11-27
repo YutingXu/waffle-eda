@@ -941,4 +941,42 @@ test("dense problem hover reuses the current marker boxes without walking the bo
   }
 });
 
+test("listed findings draw only while focused, on the cell index and the immediate path alike", () => {
+  const U = AtriumUndoStore, b = board([]), defs = new Map();
+  U.reset(); U.record({library: [], documents: [b]});
+  try {
+    // 260 findings (over LOD_ROWS) at a coarse scale: a publication takes the cached cell index, none the immediate path.
+    const filler = Array.from({length: 260}, (_, i) => ({type: "width", at: [5 + 1.5 * i, 0]}));
+    const alone = {type: "courtyard", warning: true, at: [400, 1]}, beside = {type: "courtyard", warning: true, at: [5.2, .1]};
+    const list = [beside, ...filler, alone];
+    const size = {width: 5100, height: 50}, canvas = {getBoundingClientRect: () => ({left: 100, top: 150, ...size})};
+    let scale = 10;
+    const project = ([x, y]) => [scale * x, scale * y], viewport = () => [-1, -1, 505, 5];
+    const pane = {docId: b.id, canvas, view: {scale: () => scale, worldToScreen: project, worldViewport: viewport}};
+    const host = {doc: () => b, defs: () => defs, revision: () => 1};
+    const published = () => true;
+    const ink = (rows, focused, publication) => {
+      const rec = AtriumPDF.recorder(size.width, size.height);
+      M.renderFor(host, b, rows, {publication, focused}).overlay(rec.ctx, {canvas, scale, ...size, worldToScreen: project, worldViewport: viewport});
+      return JSON.stringify(rec.list);
+    };
+    const pick = (v, focused, publication) => M.groupAt(host, pane, list, 100 + v.at[0] * scale, 150 + v.at[1] * scale, null, publication, focused);
+    for (const s of [10, 3]) {
+      scale = s;
+      assert.ok(AtriumProblemMarks.pcbCell({scale, worldToScreen: project}), "a coarse scale");
+      for (const publication of [published, null]) {
+        const label = (publication ? "cell index" : "immediate") + " at scale " + s;
+        // Before, during and after each focus: the same published plan is reused across the focus changes.
+        for (const focused of [null, alone, null, beside, null]) {
+          assert.equal(ink(list, focused, publication), ink(list, focused, publication ? null : published), label + ": both paths paint the same");
+          assert.equal(pick(alone, focused, publication)?.v ?? null, focused === alone ? alone : null, label + ": the isolated finding is a target only while focused");
+          const near = pick(beside, focused, publication)?.members || [];
+          assert.equal(near.includes(beside), focused === beside, label + ": the finding joins its cell only while focused");
+        }
+        assert.equal(ink(list, null, publication), ink(filler, null, publication), label + ": unfocused listed findings leave no ink");
+      }
+    }
+  } finally { U.reset(); }
+});
+
 console.log(passed + " drc-markers tests passed");

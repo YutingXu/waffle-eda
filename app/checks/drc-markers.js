@@ -41,6 +41,7 @@ globalThis.AtriumDRCMarkers = (() => {
   // Courtyard): every placement of the footprint would carry the same marker, so they stay in Messages
   // and draw on the board only while one is chosen there (focused).
   const LISTED = new Set(["courtyard"]);
+  const listedOut = (v, focused) => LISTED.has(v.type) && v !== focused;
   let visible = true;
   try { const s = JSON.parse(globalThis.localStorage?.getItem("atrium-drc-markers") || "null"); if (s) visible = s.visible !== false; } catch { /* storage unavailable */ }
   const save = () => { try { globalThis.localStorage?.setItem("atrium-drc-markers", JSON.stringify({visible})); } catch { /* storage unavailable */ } };
@@ -124,7 +125,7 @@ globalThis.AtriumDRCMarkers = (() => {
     if (eligibility && !cached) eligibility.set(entry, cached = []);
     for (let i = 0; i < entry.rows.length; i++) {
       const r = entry.rows[i];
-      if (!r || LISTED.has(r.v.type) && r.v !== focused || !(members ? members(r, i) : reaches(r.box, view))) continue;
+      if (!r || listedOut(r.v, focused) || !(members ? members(r, i) : reaches(r.box, view))) continue;
       let row = cached?.[i];
       if (row === undefined) {
         row = rowView(r, hidden, selectable, !!publication);
@@ -476,12 +477,15 @@ globalThis.AtriumDRCMarkers = (() => {
     if (prior?.entry === entry && prior.exceptions === exceptions && prior.cell === cell) return prior;
     const count = entry?.rows.length || 0, total = count + (exceptions?.rows.length || 0);
     const next = new Int32Array(total).fill(-1), ids = new Int32Array(total).fill(-1);
-    const columns = new Map(), cells = [], anchorless = [];
+    const columns = new Map(), cells = [], anchorless = [], listed = [];
     const active = owner.rows.get(entry), waived = owner.rows.get(exceptions);
     const raw = i => i < count ? entry.rows[i] : exceptions.rows[i - count];
     for (let i = 0; i < total; i++) {
       const row = raw(i);
       if (!row) continue;
+      // Listed findings (LISTED) stay out of the cells and their cached groups: whether one draws
+      // depends on the focus, which changes without a new index. indexedRows adds the focused one.
+      if (LISTED.has(row.v.type)) { listed.push(i); continue; }
       const at = row.v.at || row.v.otherAt;
       if (!at) { anchorless.push(i); continue; }
       const x = Math.floor(at[0] / cell), y = Math.floor(at[1] / cell);
@@ -512,10 +516,10 @@ globalThis.AtriumDRCMarkers = (() => {
         }
       } else if (b) bin.bounds = [-Infinity, -Infinity, Infinity, Infinity];
     }
-    return owner.index = {entry, exceptions, cell, cells, count, raw, next, ids, anchorless};
+    return owner.index = {entry, exceptions, cell, cells, columns, count, raw, next, ids, anchorless, listed};
   }
   function indexedRows(index, o, eligibility) {
-    const {entry, exceptions, count, cells, raw, next, ids, anchorless} = index, view = o.view;
+    const {entry, exceptions, cell, count, cells, columns, raw, next, ids, anchorless, listed} = index, view = o.view;
     const resolved = e => {
       let rows = eligibility.rows.get(e);
       if (!rows && e) eligibility.rows.set(e, rows = []);
@@ -528,7 +532,7 @@ globalThis.AtriumDRCMarkers = (() => {
       if (row === undefined) list[k] = row = rowView(raw(i), o.hidden, o.selectable, true);
       return row;
     };
-    const groups = [], outlines = [], admitted = new Uint8Array(cells.length);
+    const groups = [], outlines = [], admitted = new Uint8Array(cells.length), relevant = new Uint8Array(cells.length);
     for (const bin of cells) {
       if (!reaches(bin.bounds, view)) continue;
       if (bin.witness < 0 || !reaches(raw(bin.witness).box, view)) {
@@ -536,6 +540,7 @@ globalThis.AtriumDRCMarkers = (() => {
         while (bin.witness >= 0 && !reaches(raw(bin.witness).box, view)) bin.witness = next[bin.witness];
         if (bin.witness < 0) continue;
       }
+      relevant[bin.id] = 1;
       let group = bin.group;
       if (group === undefined) {
         group = null;
@@ -545,10 +550,38 @@ globalThis.AtriumDRCMarkers = (() => {
       }
       if (group) { admitted[bin.id] = 1; groups.push(group); }
     }
+    // The focused listed finding, if any, joins its cell for this plan only (a new group object: the
+    // cached cell group stays without it), as the unindexed path's P.cells would place it.
+    const focus = o.focused && LISTED.has(o.focused.type) ? listed.find(i => raw(i).v === o.focused) ?? -1 : -1;
+    let focusAdmitted = false;
+    if (focus >= 0) {
+      const r = raw(focus), at = r.v.at || r.v.otherAt, own = reaches(r.box, view);
+      if (!at) {
+        const row = own ? resolve(focus) : null;
+        if (row) { focusAdmitted = true; if (focus < count) outlines.push(row); }
+      } else {
+        const bin = columns.get(Math.floor(at[0] / cell))?.get(Math.floor(at[1] / cell));
+        if (bin && (relevant[bin.id] || own)) {
+          let group = null, placed = false;
+          for (let i = bin.first; i >= 0; i = next[i]) {
+            if (!placed && focus < i) { group = addIndexedMember(group, resolve(focus), focus); placed = true; }
+            group = addIndexedMember(group, resolve(i), i);
+          }
+          if (!placed) group = addIndexedMember(group, resolve(focus), focus);
+          const slot = groups.indexOf(bin.group);
+          if (slot >= 0) groups.splice(slot, 1);
+          if (group) { admitted[bin.id] = 1; groups.push(group); }
+          focusAdmitted = !!group?.members.includes(resolve(focus));
+        } else if (!bin && own) {
+          const group = addIndexedMember(null, resolve(focus), focus);
+          if (group) { groups.push(group); focusAdmitted = true; }
+        }
+      }
+    }
     // A hidden early member must not reorder a cell ahead of an earlier
     // eligible member in another cell. Ties follow active rows then waivers.
     groups.sort((a, b) => a.first - b.first);
-    let hasRows = groups.length > 0;
+    let hasRows = groups.length > 0 || focusAdmitted;
     for (const i of anchorless) {
       if (!reaches(raw(i).box, view)) continue;
       const row = resolve(i);
@@ -558,7 +591,7 @@ globalThis.AtriumDRCMarkers = (() => {
     }
     // The full 2D raster cache still compares ordered rows. The direct GPU,
     // strip, and pointer routes only consume the smaller cell/outline plan.
-    const include = (row, i) => ids[i] >= 0 ? admitted[ids[i]] : reaches(row.box, view);
+    const include = (row, i) => i === focus ? focusAdmitted : ids[i] >= 0 ? admitted[ids[i]] : reaches(row.box, view);
     const rowLists = () => ({rows: rowViews(entry, o, eligibility.rows, include),
       waived: rowViews(exceptions, o, eligibility.rows, (row, i) => include(row, i + count))});
     return {groups, outlines, rowLists, hasRows};
@@ -572,7 +605,7 @@ globalThis.AtriumDRCMarkers = (() => {
     } else {
       const relevant = new Set(), view = o.view;
       if (view) for (const e of [entry, exceptions]) for (const r of e?.rows || []) {
-        if (!r || !reaches(r.box, view)) continue;
+        if (!r || listedOut(r.v, o.focused) || !reaches(r.box, view)) continue;
         const key = coarseKey(r.v, cell);
         if (key) relevant.add(key);
       }
