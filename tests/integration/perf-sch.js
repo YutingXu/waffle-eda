@@ -95,14 +95,31 @@ async function schProbe(options) {
   // Efficiency-mode heavy insights pass 8 s after an edit; at most 30 s) and the CPU meanwhile, a 10 s
   // window that should be quiet, then one small edit (a track vertex) and the same again.
   // options.efficiency sets Preferences › Energy (auto | always | off) for the run.
+  // options.board "nets" gives every pad, via and part pin one of 64 nets, "pours" also adds the ten
+  // polygons of tests/editor/perf-interact.js and pours them once (25,610 objects). Both then measure a
+  // series of small edits (editSeries below).
   if (options.board) {
     if (options.efficiency) globalThis.AtriumPower?.setMode?.(options.efficiency);
     const {d, defs} = makeAtriumBenchmarkBoard(), p = Atrium.project("Dense signal board");
     p.documents = [d]; p.library = [...defs.values()];
+    const nets = options.board === "nets" || options.board === "pours", pours = options.board === "pours";
+    if (nets) {
+      let k = 0;
+      for (const i of d.items) {if (i.kind === "part") i.pinNets = {"1": "N" + (k % 64), "2": "N" + ((k + 1) % 64)}; else if (i.kind !== "track") i.net = "N" + (k % 64); k++;}
+    }
+    if (pours) {
+      await AtriumLazy.need("AtriumRules");
+      const rect = (a, b, c, e) => [[a, b], [c, b], [c, e], [a, e]];
+      const polys = [["Top", "GND", rect(1, 1, 180, 270)], ["Top", "VCC", rect(180, 1, 367, 270)], ["Bottom", "GND", rect(1, 1, 367, 140)], ["Bottom", "VCC", rect(1, 140, 367, 270)]];
+      for (let j = 0; j < 6; j++) polys.push([j % 2 ? "Top" : "Bottom", "N" + j, rect(10 + j * 55, 10, 50 + j * 55, 40)]);
+      polys.forEach(([layer, net, o], j) => d.items.push(AtriumPolygonPour.make(o, {layer, net, pourIndex: j, removeDeadCopper: false})));
+    }
     const t0 = performance.now();
     await H().replaceProject(p, {force: true}); H().selectDocument(d.id);
+    if (pours) H().edit(() => AtriumPolygonPour.apply(H().doc(), H().defs(), {project: H().project()}));
     metrics.openMs = +(performance.now() - t0).toFixed(1);
-    checks.project = {sheets: 0, items: d.items.length, parts: d.items.filter(i => i.kind === "part").length, efficient: !!globalThis.AtriumPower?.efficient?.()};
+    checks.project = {sheets: 0, items: d.items.length, parts: d.items.filter(i => i.kind === "part").length, efficient: !!globalThis.AtriumPower?.efficient?.(),
+      board: options.board === true ? "plain" : options.board, regions: d.pcbDrawing?.pours?.length || 0};
     const quietWindow = async () => {
       wake.timeout = wake.interval = wake.raf = wake.idle = 0; wake.sources.clear();
       mark("idle-start"); counting = true; const i0 = performance.now(); await idleFor(10000); const ms = performance.now() - i0; counting = false; mark("idle-end");
@@ -117,6 +134,40 @@ async function schProbe(options) {
     const after = await untilQuiet({armed: true}); mark("edit-end");
     metrics.lastEditQuietAfterMs = after.ms; checks.lastEditSettleWakeups = {total: after.total, top: after.top};
     w = await quietWindow(); metrics.idleWakeupsAfterPerSec = w.perSec; checks.idleWakeupsAfter = w.wakes;
+    // The edit series (options.board "nets" or "pours"): small edits inside the pours, away from their
+    // outlines, each followed by the editor's own work until it is quiet again. Per edit: the edit's
+    // frame, the longest main-thread task until quiet (editTaskMax: online DRC, pour checks, Insights,
+    // the live repour's main-thread steps …) and its CPU (the driver's window "ed<n>": editSeriesCpuMs).
+    if (nets) {
+      const near = (kind, x, y, skip = new Set()) => d.items.filter(i => i.kind === kind && !skip.has(i)).reduce((a, i) => {
+        const q = i.points ? i.points[0] : [i.x, i.y], s = Math.hypot(q[0] - x, q[1] - y); return !a || s < a.s ? {i, s} : a;}, null)?.i;
+      const part = near("part", 90, 200), bend = near("track", 120, 210), gone = near("track", 130, 190), from = near("track", 100, 220);
+      const copy = d.items.filter(i => ["track", "via", "part"].includes(i.kind) && Math.abs((i.x ?? i.points[0][0]) - 60) < 3 && Math.abs((i.y ?? i.points[0][1]) - 230) < 2).slice(0, 4);
+      let n = 0;
+      const series = [
+        ["move part", () => H().edit(() => {part.x += .5; part.y += .3;}, "probe", [part])],
+        ["bend track", () => H().edit(() => {bend.points[1] = [bend.points[1][0], bend.points[1][1] - .2];}, "probe", [bend])],
+        ["add track", () => {const t = {id: "probe-t" + (++n), kind: "track", layer: from.layer, width: .22, net: from.net, points: [from.points[2].slice(), [from.points[2][0] + 1.2, from.points[2][1] + .4]]};
+          H().edit(() => {d.items.push(t);}, "probe", [t]);}],
+        ["delete track", () => H().edit(() => {d.items.splice(d.items.indexOf(gone), 1);}, "probe", [gone])],
+        ["paste 4", () => H().edit(() => {for (const s of copy) {const c = JSON.parse(JSON.stringify(s)); c.id = "probe-p" + (++n); if (c.points) c.points = c.points.map(q => [q[0] + .4, q[1] + 6]); else {c.x += .4; c.y += 6;} if (c.ref) c.ref += "_" + n; d.items.push(c);}})],
+        ["undo", () => act("undo")],
+        ["redo", () => act("redo")]];
+      const rows = [];
+      for (const [name, run] of series) {
+        const k = rows.length, t = performance.now();
+        mark("ed" + k + "-start");
+        const f = frame(run);
+        const q = await untilQuiet({armed: true});
+        mark("ed" + k + "-end");
+        const L = longIn(t, performance.now());
+        rows.push({name, frame: f, quietMs: q.ms, taskMax: L.max, longTasks: L.count, longMs: L.total});
+      }
+      checks.editSeries = rows;
+      metrics.editSeriesFrame = Math.max(...rows.map(r => r.frame));
+      metrics.editTaskMax = Math.max(...rows.map(r => r.taskMax));
+      metrics.editSeriesQuietMs = Math.max(...rows.map(r => r.quietMs));
+    }
     const pass = globalThis.AtriumInsightsUI?.lastPass?.();
     checks.insights = pass && {mode: pass.mode, why: pass.why, ms: Math.round(pass.ms)};
     checks.scheduler = globalThis.AtriumChecks?.scheduler?.stats?.();
