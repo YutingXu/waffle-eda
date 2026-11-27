@@ -71,11 +71,28 @@ function channels() {
   await until(() => states.g3.includes("error"), "a wrong key is refused by the hub", 3000);
   assert.notEqual(bad.state, "open", "a wrong key does not join");
   assert.equal(hub.size(), 3);
+  // The keepalive's answer, as the relay and the same-network listeners give it: {t:"p"} to the sender only.
+  const raw = () => {
+    const [mine, theirs] = channels(), s = P.channelSocket(mine), heard = [];
+    hub.attach(P.channelSocket(theirs));
+    s.onmessage = text => heard.push(JSON.parse(text));
+    s.send(JSON.stringify({t: "join", room: k.room, auth: k.auth, v: 2}));
+    return {s, heard};
+  };
+  const pinger = raw(), bystander = raw();
+  await until(() => pinger.heard.some(m => m.t === "joined") && bystander.heard.some(m => m.t === "joined"), "raw sockets joined the hub");
+  pinger.s.send('{"t":"p"}');
+  await until(() => pinger.heard.some(m => m.t === "p"), "the hub answers the keepalive");
+  await tick(20);
+  assert.deepEqual(pinger.heard.filter(m => m.t === "p"), [{t: "p"}]);
+  assert.ok(!bystander.heard.some(m => m.t === "p"), "the answer goes to the sender alone");
+  pinger.s.close(); bystander.s.close();
+  await until(() => hub.size() === 3, "the raw sockets left");
   // A guest whose channel closes leaves the session for the others.
   g2.channel.close();
   await until(() => host.paths().size === 1, "the guest who left is gone");
   hub.close();
   for (const t of [host, g1, g2, bad]) t.close?.();
-  console.log("collab-pair: ok (codes compressed and whitespace-tolerant, damaged codes refused, hub joins, host and guest messages, large bodies in pieces, wrong key refused, leaving)");
+  console.log("collab-pair: ok (codes compressed and whitespace-tolerant, damaged codes refused, hub joins, host and guest messages, large bodies in pieces, the keepalive answered to its sender, wrong key refused, leaving)");
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
