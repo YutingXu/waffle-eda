@@ -68,4 +68,21 @@ const DATE = "2026-11-19T12:00:00Z";
     }
   }
 }
+// A slot is not a round hole: IDF 3.0 holes are round, so it is a cutout loop on the slot's outline,
+// and reading that loop back matches the slot (no outline change, no removed hole).
+{
+  const p = mcadBoard(), doc = p.documents[0];
+  doc.items.push({id: "s1", kind: "pad", number: "", x: 10, y: 30, w: 4, h: .8, drill: .8, slotLength: 4, shape: "round", layer: "Multi", net: "", plated: false},
+    {id: "s2", kind: "pad", number: "", x: 50, y: 20, w: 4, h: .8, drill: .8, slotLength: 4, slotAngle: 30, shape: "round", layer: "Multi", net: "", plated: false});
+  const w = F.write(p, doc, {date: DATE}), des = F.read(w.emn.text, w.emp.text);
+  assert.doesNotMatch(w.emn.text, /\n0\.8 /, "no 0.8 mm round hole");
+  assert.equal(des.board.cutouts.length, 3, "the rectangular cutout and two slot loops");
+  const slot = des.board.cutouts.find(c => c.every(q => Math.abs(q[1] - 30) <= .4 + 1e-6));
+  const xs = slot.map(q => q[0]);
+  assert.ok(Math.abs(Math.min(...xs) - 8) < .01 && Math.abs(Math.max(...xs) - 12) < .01, "the slot loop is 4 mm long");
+  assert.deepEqual(MC.compare(p, doc, des).map(x => x.label), []);
+  // Without the loop the slot is gone in MCAD.
+  const loop = w.emn.text.split("\n").filter(l => /^3 \S+ \S+ \S+$/.test(l)).join("\n");
+  assert.deepEqual(MC.compare(p, doc, F.read(w.emn.text.replace(loop + "\n", ""))).map(x => x.kind), ["hole-remove"]);
+}
 console.log("SHIM-OK");

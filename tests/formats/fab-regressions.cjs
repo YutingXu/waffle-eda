@@ -241,8 +241,35 @@ for (const [name, units, profileWidth] of [["Rectangular profile", "mm", .254], 
   assert.deepEqual(names.filter(n => /\.TXT$/.test(n) && !/Readme/.test(n)), ["Flex-Plated.TXT", "Flex-Plated-Flex2L.TXT"]);
   assert.match(file(out, "-Plated-Flex2L.TXT"), /^;SUBSTACK=Flex 2L \(copper Top, Bottom\)$/m);
   assert.match(file(out, "-Plated-Flex2L.TXT"), /^X30\.0Y10\.0$/m); assert.doesNotMatch(file(out, "-Plated-Flex2L.TXT"), /^X10\.0/m);
+  // A through hole in a flex region is a through drill (PTH) of its substack, not a blind one.
+  assert.match(file(out, "-Plated-Flex2L.TXT"), /^;DRILL_PAIR=.* \(through\)$/m);
+  assert.equal(ff(file(out, "-Plated-Flex2L.TXT")), "Plated,1,4,PTH");
+  assert.match(file(out, "-DrillReport.txt"), /File: Flex-Plated-Flex2L\.TXT\r\n  X2 file function: Plated,1,4,PTH\r\n/);
+  // Its non-plated holes are a mechanical drill and sort after the plated files.
+  doc.items.push({id: "m1", kind: "pad", number: "", x: 32, y: 10, w: 1, h: 1, shape: "round", drill: 1, layer: "Multi", plated: false},
+    {id: "m2", kind: "pad", number: "", x: 12, y: 10, w: 1, h: 1, shape: "round", drill: 1, layer: "Multi", plated: false});
+  const mixed = F.build(p, doc, {date});
+  assert.deepEqual(mixed.files.map(f => f.name).filter(n => /\.TXT$/.test(n) && !/Readme/.test(n)),
+    ["Flex-Plated.TXT", "Flex-Plated-Flex2L.TXT", "Flex-NonPlated.TXT", "Flex-NonPlated-Flex2L.TXT"]);
+  assert.equal(ff(file(mixed, "-NonPlated-Flex2L.TXT")), "NonPlated,1,4,NPTH");
   assert.deepEqual(["GCT", "GCB", "GSTB", "GM15"].map(e => ff(file(out, "." + e))), ["Other,CoverlayTop", "Other,CoverlayBot", "Other,StiffenerBot", "OtherDrawing,BoardRegions"]);
   for (const f of out.files.filter(f => f.kind === "gerber")) assert.deepEqual(check(f.content).issues, [], f.name);
+}
+// ---- The drill report names the origin the NC drill files use (drillOrigin), not the Gerber one.
+{
+  const {p, pcb} = board("Origins");
+  pcb.outline = [[10, 10], [50, 10], [50, 40], [10, 40]];
+  pcb.items.push({id: "v", kind: "via", x: 5, y: 5, diameter: .6, drill: .3, layer: "Multi", net: "GND"});
+  const out = F.build(p, pcb, {date, origin: "outline", drillOrigin: "absolute"}), report = file(out, "-DrillReport.txt");
+  assert.match(file(out, "-Plated.TXT"), /^;ORIGIN=design origin$/m);
+  assert.match(file(out, "-Plated.TXT"), /^X5\.0Y-5\.0$/m);
+  assert.match(report, /Coordinates: design origin, viewed from the top/);
+  assert.doesNotMatch(report, /lower-left/);
+  assert.match(file(out, "-Fabrication-Readme.txt"), /NC drill coordinates: design origin/);
+  // A shared drill origin follows the Gerber origin in every file.
+  const shared = F.build(p, pcb, {date, origin: "outline"});
+  assert.match(file(shared, "-Plated.TXT"), /^X-5\.0Y35\.0$/m);
+  assert.match(file(shared, "-DrillReport.txt"), /Coordinates: lower-left corner of the board outline/);
 }
 // ---- A region that bridges its hole along one of its own edges (the PiDP-11 overlay logo):
 // the bridge passes an outer vertex and back-tracks over the step to it.

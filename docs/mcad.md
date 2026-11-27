@@ -13,7 +13,7 @@ Everything lives in **File › Import**, **File › Export** and the **MCAD pane
 1. **File › Export › IDX Baseline…** writes the board for MCAD, and Waffle records it as the baseline. The file contains:
    - the board outline (exact arcs), cutouts and thickness;
    - every component as a placed body: designator, value, package, height, side, a locked flag and its 3D model's file name;
-   - plated and non-plated holes: free holes, plus the non-plated holes of footprints (mounting pegs);
+   - plated and non-plated holes: free holes, plus the non-plated holes of footprints (mounting pegs); a slot is its outline;
    - keep-outs and keep-ins with their heights;
    - rigid-flex bend regions (angle, radius and the bend line);
    - mechanical constraints (maximum component height, top and bottom).
@@ -39,7 +39,7 @@ Accepting a change also records it as MCAD's state, so it is not sent back as a 
 
 - **File › Export › IDF 3.0 (.emn, .emp)…** writes:
   - the outline (arcs as included angles);
-  - drilled holes (PTH/NPTH, BOARD or the owning designator);
+  - drilled holes (PTH/NPTH, BOARD or the owning designator); IDF 3.0 holes are round, so a slot is a cutout loop on its outline;
   - place, route and via keep-outs and place regions, with heights;
   - placements (locked parts are ECAD-owned);
   - one `.ELECTRICAL` package per footprint and height.

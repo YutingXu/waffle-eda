@@ -24,6 +24,7 @@ globalThis.AtriumEagleExport = (() => {
   const pt = p => pos(...xy(p));
   const near = (a,b) => Math.hypot(a[0]-b[0],a[1]-b[1]) < 1e-6;
   const positive = (v,d) => Number.isFinite(v) && v > 0 ? v : d;
+  const SLOT = "EAGLE drills are round: the slot was written as a hole of its width.";
   const fileStem = name => (String(name || "Waffle").split(/[\\/]/).pop().replace(/\.(sch|brd)$/i,"")
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g,"-").replace(/[. ]+$/,"").trim() || "Waffle");
   const token = (name,fallback) => (String(name || "").trim().replace(/[\s\u0000-\u001f/\\]/g,"_").slice(0,120) || fallback);
@@ -131,7 +132,7 @@ globalThis.AtriumEagleExport = (() => {
       const quality = (status,reason) => {
         if (sink) say(sink,doc,{id:def.id+"/pad/"+(index+1)},status,reason,"Footprint pad");
       };
-      if (drill && pad.plated === false) { children.push(el("hole",{...attrs,drill:n(drill)})); quality("kept"); continue; }
+      if (drill && pad.plated === false) { children.push(el("hole",{...attrs,drill:n(drill)})); pad.slotLength > drill ? quality("approximated",SLOT) : quality("kept"); continue; }
       const padName = reservePad(rawName,"P"), w = positive(pad.w,0), h = positive(pad.h,0);
       if (!w || !h || drill && Math.min(w,h) <= drill) {
         quality("dropped","The pad diameter or dimensions do not admit the drill."); continue;
@@ -139,7 +140,7 @@ globalThis.AtriumEagleExport = (() => {
       if (!padNames.has(rawName)) padNames.set(rawName,[]);
       padNames.get(rawName).push(padName);
       const common = {name:padName,...attrs,rot:rotation(angleFactor*(pad.angle || 0))};
-      const offset = !!(pad.offset || pad.holeOffset || pad.slot || pad.drillLength > drill);
+      const offset = !!(pad.offset || pad.holeOffset || pad.slot || pad.drillLength > drill || pad.slotLength > drill);
       if (drill) {
         const ratio = w/h, long = pad.shape === "oval" && Math.abs(ratio-2) < 1e-5;
         const square = Math.abs(w-h) < 1e-6, shape = long ? "long" : pad.shape === "octagon" ? "octagon" :
@@ -277,6 +278,10 @@ globalThis.AtriumEagleExport = (() => {
       if (!signals.has(name)) signals.set(name,{contacts:[],wires:[],vias:[],polygons:[]});
       return signals.get(name);
     };
+    // EAGLE keeps every via in a signal: an unconnected via gets a signal of its own, as EAGLE names one.
+    const netNames = new Set(doc.items.flatMap(i=>[i.net,...Object.values(i.pinNets || {})]).filter(Boolean).map(v=>String(v).toUpperCase()));
+    let freeSignals = 0;
+    const freeSignal = () => { let name; do name = "N$"+(++freeSignals); while (netNames.has(name)); return name; };
     for (const {item,name,package:pkg} of catalogue.refs.values()) for (const [pad,net] of Object.entries(item.pinNets || {})) {
       if (!net) continue;
       const mapped = pkg.pads.get(pad);
@@ -295,15 +300,16 @@ globalThis.AtriumEagleExport = (() => {
           target.push(wire(xy(item.points[0]),xy(item.points.at(-1)),positive(item.width,.254),layer,sweep));
         else target.push(...wires(item.points,positive(item.width,.254),layer,xy,item.closed));
         if (!shape && item.points.length > 2 || item.closed) {status = "approximated"; reason = "The track was split into EAGLE wire segments.";}
-      } else if (item.kind === "via" && net) {
+      } else if (item.kind === "via") {
         const drill = positive(item.drill,.3), a = copper(item.fromLayer) || 1, b = copper(item.toLayer) || 16;
         const from = Math.min(a,b), to = Math.max(a,b);
         if (from === to) {say(sink,doc,item,"dropped","The via does not span two copper layers."); continue;}
         layers.add(from); layers.add(to);
-        signal(net).vias.push(el("via",{...pos(item.x,item.y),extent:from+"-"+to,drill:n(drill),diameter:n(Math.max(positive(item.diameter,2*drill),drill+.001)),shape:"round"}));
+        signal(net || freeSignal()).vias.push(el("via",{...pos(item.x,item.y),extent:from+"-"+to,drill:n(drill),diameter:n(Math.max(positive(item.diameter,2*drill),drill+.001)),shape:"round"}));
         if (item.stack || item.padstack || item.backdrill || item.holeType || item.fromLayer && !copper(item.fromLayer) || item.toLayer && !copper(item.toLayer)) {
           status = "approximated"; reason = "EAGLE retains the via span and drill without native via-stack details.";
         }
+        if (!net) {status = "approximated"; reason = (reason ? reason+" " : "")+"The unconnected via is written in a signal of its own.";}
       } else if (item.kind === "polygon" && layer) {
         const hatched = item.fillMode === "hatched", p = polygon(item.points,{width:n(positive(item.hatchWidth,.254)),layer,
           pour:hatched ? "hatch" : "solid",spacing:hatched ? n(positive(item.hatchPitch,1.27)) : undefined,
@@ -316,6 +322,7 @@ globalThis.AtriumEagleExport = (() => {
         status = "approximated"; reason = "The boundary is preserved. EAGLE recalculates the fill with its own thermal and hatch rules.";
       } else if (item.kind === "pad" && item.plated === false && item.drill > 0) {
         plain.push(el("hole",{...pos(item.x,item.y),drill:n(item.drill)}));
+        if (item.slotLength > item.drill) {status = "approximated"; reason = SLOT;}
       } else if (["graphic","label","circle","text"].includes(item.kind)) {
         const graphic = art(item,layer);
         if (!graphic.length) {say(sink,doc,item,"dropped","The geometry or its layer has no EAGLE counterpart.");continue;}
