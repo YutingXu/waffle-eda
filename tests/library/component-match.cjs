@@ -161,6 +161,19 @@ function recorded(project, fn) {
   assert.ok(b.items.every((i,k)=>i.link===s.items[0].link+"@"+ch[k].id),"all repeated copies inherit the same new base link");
 }
 
+// Imported parameter names keep their source spelling; the dielectric, rating and resistance
+// that make a passive's two terminals interchangeable are read in any case or spacing.
+{
+  const pins={pins:[{number:"1"},{number:"2"}]};
+  for(const params of [{DIELECTRIC:"X7R"},{Dielectric:"X7R"},{"Temperature_Characteristic":"C0G"},{"dielectric material":"X5R"}]){
+    const r=C.describe({...part("c","C1","",0),value:"",pinNets:{}},{id:"cap",prefix:"C",symbol:pins,parameters:{...params,Capacitance:"100nF"}});
+    assert.ok(r.reversible,JSON.stringify(params)+" marks the capacitor non-polar");
+    assert.equal(r.rating,(100e-9).toPrecision(12),"the Capacitance parameter rates it");
+  }
+  const polar=C.describe({...part("c","C2","",0),pinNets:{}},{id:"el",prefix:"C",symbol:pins,parameters:{Dielectric:"Aluminium electrolytic"}});
+  assert.ok(polar.polarized&&!polar.reversible);
+  assert.ok(C.describe({...part("r","R1","",0),pinNets:{}},{id:"res",prefix:"R",symbol:pins,parameters:{Resistance:"10k"}}).reversible);
+}
 // Optimal total weight: the locally best A-X would leave B without an alternative. The
 // Hungarian assignment instead selects A-Y + B-X; both uncertain pairs remain reviewable.
 {

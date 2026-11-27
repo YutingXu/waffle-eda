@@ -238,10 +238,13 @@ globalThis.AtriumDRCInspector = (() => {
     after();
   }
   function showInMessages(v) {
-    const Ms = globalThis.AtriumMessages;
-    if (unified(v)) { if (!Ms?.focusWhere?.(m => m.problem?.key === v.key)) Ms?.open?.(host.messageContext?.(), {view: "problems"}); return; }
-    if (Ms?.focusWhere?.(m => m.drc === v || key(m.drc) === key(v))) return;
-    host.act(Ms ? "drc" : "messages");
+    const ctx = host.messageContext?.(), L = globalThis.AtriumLazy;
+    const go = () => {
+      const Ms = globalThis.AtriumMessages;
+      if (Ms?.revealProblem?.(v, ctx)) return;
+      if (unified(v)) Ms?.open?.(ctx, {view: "problems"}); else host.act(Ms ? "drc" : "messages");
+    };
+    if (globalThis.AtriumMessages || !L?.need) go(); else L.need("AtriumMessages").then(go, e => host.info?.(e.message));
   }
 
   // ------------------------------------------------------------------ state

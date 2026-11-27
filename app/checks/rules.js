@@ -633,6 +633,7 @@ globalThis.AtriumRules = (() => {
       return entry;
     };
   }
+  const PART_RELATIONS = new Set(["relation:componentclass","relation:xsignal","relation:xsignalclass","relation:signal","relation:tag"]);
   const needsMeasurement = plan => plan?.dependencies?.some(k=>k.startsWith("geometry:")||k.startsWith("rule:")||k==="field:length");
   // Ordinary optional fields may be absent. Only a measurement the evaluated
   // condition actually needed makes a check incomplete.
@@ -785,20 +786,35 @@ globalThis.AtriumRules = (() => {
       return null;
     }
     const clearanceRule=(a,b)=>pair("clearance",a,b);
-    const anchors=new Set(),names=new Set();
-    const usesParts=[...dependencies].some(k=>["relation:componentclass","relation:xsignal","relation:xsignalclass","relation:signal","relation:tag"].includes(k));
-    let bound=false;
-    for(const rows of Object.values(byType))for(const r of rows)for(const [scope,plan] of [[r.scope,r.scopePlan],[r.scope2,r.scope2Plan]]){
-      for(const ref of plan?.references || []){
-        const id=ref.target?.itemId ?? ref.target?.id;
-        if(!id || ref.family!=="anchor"&&!scope?.bindings?.length)continue;
-        anchors.add(id);bound=true;
-        if(!scope.bindings?.some(b=>b.span[0]===ref.span[0]&&b.span[1]===ref.span[1]))names.add(ref.name);
+    // What an incremental re-check must know about the rules' scopes: the objects they name (anchors,
+    // names), whether part edits can change membership (usesParts) or a measured length (length), and
+    // their dependencies. recheckFor(types) reads only the rules of those types: online DRC checks
+    // local types and leaves net-wide ones (Matched Lengths …) to batch DRC, so their scopes must not
+    // turn a part move into a whole-board check. A rule(MinWidth) scope also reads the Width rules.
+    function recheckOf(rows,deps){
+      const anchors=new Set(),names=new Set(),own=deps||new Set();
+      let bound=false;
+      for(const r of rows)for(const [scope,plan] of [[r.scope,r.scopePlan],[r.scope2,r.scope2Plan]]){
+        if(!deps)for(const k of plan?.dependencies || [])own.add(k);
+        for(const ref of plan?.references || []){
+          const id=ref.target?.itemId ?? ref.target?.id;
+          if(!id || ref.family!=="anchor"&&!scope?.bindings?.length)continue;
+          anchors.add(id);bound=true;
+          if(!scope.bindings?.some(b=>b.span[0]===ref.span[0]&&b.span[1]===ref.span[1]))names.add(ref.name);
+        }
       }
+      return {anchors,names,usesParts:[...own].some(k=>PART_RELATIONS.has(k)),bound,length:own.has("field:length"),dependencies:own};
     }
-    const recheckBoardItems = {anchors,names,usesParts,bound,length:dependencies.has("field:length")};
+    const recheckBoardItems = recheckOf(Object.values(byType).flat(),dependencies);
+    function recheckFor(types){
+      const rows=[],seen=new Set();
+      const add=t=>{if(seen.has(t))return;seen.add(t);for(const r of byType[t]||[])rows.push(r);};
+      for(const t of types)add(t);
+      if(rows.some(r=>[r.scopePlan,r.scope2Plan].some(p=>p?.dependencies?.includes("rule:MinWidth"))))add("width");
+      return recheckOf(rows,null);
+    }
 
-    return {set,byType,first,viaStyle,either,pair,clearanceRule,clearanceReady,classes,pairs,pairOfNet,pairClasses,matcher,profiles,signals:env,dependencies,diagnostics,measurementIssues,recheckBoardItems};
+    return {set,byType,first,viaStyle,either,pair,clearanceRule,clearanceReady,classes,pairs,pairOfNet,pairClasses,matcher,profiles,signals:env,dependencies,diagnostics,measurementIssues,recheckBoardItems,recheckFor};
   }
 
   // ---------------------------------------------------------------- query API
@@ -1657,9 +1673,18 @@ globalThis.AtriumRules = (() => {
 
   // These settings select checks only. The same enabled rules still govern routing and pours.
   function checkMode(options={}){return options.checkMode ?? (options.types!=null ? "all" : "batch");}
+  // Checks that run only when asked for, by type (options.types: MCP, tests) or by the user's
+  // preference (Preferences › Design Checks). Altium has no missing-courtyard check and many imported
+  // footprints have no courtyard, so Missing Courtyard is off by default. A board's exclusions still apply.
+  const OPT_IN=Object.freeze({courtyard:"checks.courtyard"});
+  function optedIn(type,options){
+    const key=OPT_IN[type];
+    if(!key||options.types?.includes(type))return true;
+    try{return globalThis.AtriumPref?.get?.(key,false)===true;}catch{return false;}
+  }
   function checkSelected(doc,type,options={}){
     const mode=checkMode(options);
-    return (!options.types||options.types.includes(type))&&!doc?.ruleCheckSelection?.[mode]?.includes(type);
+    return (!options.types||options.types.includes(type))&&optedIn(type,options)&&!doc?.ruleCheckSelection?.[mode]?.includes(type);
   }
 
   // ---------------------------------------------------------------- design rule check
@@ -3430,12 +3455,12 @@ globalThis.AtriumRules = (() => {
 
   // The DRC feature kit (as AtriumConnectivity.kit): feature extraction, the broad phase, exact gaps and
   // rule resolution, for checks outside drc() (drc-pours.js, the certificate store) without source patches.
-  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
+  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceLimit,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
   return {kit,defaults,validate,setAside,check,open,rulesFor,scopeCopy,presetRuleKey,materializePresetRules,
     create,migrate,normalize,effective,drc,netLengths,staleTeardrops,fillPieces,
     query,resolver,sizeVia:A.preferredViaSize,netClasses,diffPairs,matchedGroups,detectDiffPairs,stored,store,neckLength,NECK_DEFAULT,
     compiled:compiledRules,reportInput,/* hs-xsignals */isXsScope:XS_SCOPE,topologyChecked:[...TOPO_CHECKED],
-    expansion,expansionResolver,maskRuleResolver,fromAltium,sourceReport,replaceWithSource,adoptSourcePours,sourceCheckSelection,checkSelected,checkMode,describe,constraintText,scopeQuery,layerLabel,scopeCoverage,
+    expansion,expansionResolver,maskRuleResolver,fromAltium,sourceReport,replaceWithSource,adoptSourcePours,sourceCheckSelection,checkSelected,checkMode,OPT_IN,describe,constraintText,scopeQuery,layerLabel,scopeCoverage,
     clearanceKinds:CLEAR_KINDS.map(([k,label])=>({key:k,label})),clearanceKey:clearKey,clearanceGap,clearanceMax,clearanceRoute,
     types:TYPES,categories:CATEGORIES,scopeKinds:SCOPE_KINDS,checkedTypes:[...CHECKED],DEFAULT_RULE_SET,ruleSetOf,ruleActive,
     units:{parse:parseLength,format:formatLength,value:lengthValue,initial:initialUnit,remember:rememberUnit}};

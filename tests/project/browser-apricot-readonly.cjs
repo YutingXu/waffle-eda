@@ -2,7 +2,7 @@
 // Open the frozen 2.0 project through the normal folder grant and persist an
 // unrelated net rename. The grant serves private copies of the fixture bytes.
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),crypto=require("node:crypto");
-const {pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const {pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 const root=path.resolve(process.argv[2] || path.join(__dirname,"../.."));
 const fixture=process.env.APRICOT_NOTEBOOK_FIXTURE || path.join(root,"tests/fixtures/format-2/notebook");
 const hash=b=>crypto.createHash("sha256").update(b).digest("hex");

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
+const efficiencyOff = require("../support/efficiency-off.cjs");
 
 const url = pathToFileURL(path.join(__dirname, "../../app/index.html")).href;
 const evidence = process.env.ATRIUM_RARE_MOTION_EVIDENCE;
@@ -29,6 +30,7 @@ async function status(page, text, input) {
 
 async function fresh(browser, run) {
   const page = await browser.newPage({viewport:{width:1440,height:920}, reducedMotion:"no-preference", acceptDownloads:true});
+  await efficiencyOff(page);
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.setDefaultTimeout(7000);

@@ -25,6 +25,7 @@ NODE_SUPPORT_SUITES = (
     "tests/support/browser-app-server-test.cjs",
     "tests/support/chrome_cdp_test.py",
     "tests/support/mcp_stdio.py",
+    "tests/support/playwright-test.cjs",
     "tests/support/standalone-chromium-test.cjs",
     "tests/support/stdio-frames.cjs",
 )

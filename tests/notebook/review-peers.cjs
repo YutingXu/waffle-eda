@@ -1,6 +1,6 @@
 "use strict";
 const assert=require("node:assert/strict");
-const {chromium}=require("playwright-core"),{relay,editor}=require("../project/collab-pair-browser.cjs");
+const {chromium}=require("../support/playwright.cjs"),{relay,editor}=require("../project/collab-pair-browser.cjs");
 async function wire(page,port) {
   const state={held:false,waiting:[]};
   await page.routeWebSocket("ws://127.0.0.1:"+port+"/**",socket=>{

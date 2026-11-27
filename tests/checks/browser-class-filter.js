@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const {fields, near, textBaselines, baselineResults, failures, assertBaselinePerturbations} = require("../support/dialog-geometry.cjs");
 
 const className = "Precision interface assembly components with long engineering provenance";

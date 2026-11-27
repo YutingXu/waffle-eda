@@ -512,7 +512,7 @@ module.exports = dockBeta;
 
 async function main() {
   let chromium;
-  try { ({chromium} = require("playwright-core")); }
+  try { ({chromium} = require("../support/playwright.cjs")); }
   catch { console.log("SKIP browser-dock-beta: Playwright Core is unavailable."); return; }
   const executablePath = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   if (!process.env.CHROME && !fs.existsSync(executablePath)) {

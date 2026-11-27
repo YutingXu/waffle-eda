@@ -123,4 +123,4 @@ module.exports=async function(browser){
   }
   console.log("browser-sheet-widgets: palette insertion, keyboard and touch editing, assignments, undo/redo, open Insights and live pin map in both themes passed");
 };
-if(require.main===module)(async()=>{const b=await require("playwright-core").chromium.launch({channel:"chrome"});try{await module.exports(b);}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+if(require.main===module)(async()=>{const b=await require("../support/playwright.cjs").chromium.launch({channel:"chrome"});try{await module.exports(b);}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

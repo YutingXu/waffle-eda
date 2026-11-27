@@ -4,7 +4,7 @@
 // online DRC view and Design Insights load it as a dependency; nothing here is eager.
 //
 // Registry (§2.1). Every check has a stable, namespaced id that is never renamed:
-//   layout.<rule type>       a DRC rule type (rules.js TYPES), plus layout.netAntennae, layout.courtyard
+//   layout.<rule type>       a DRC rule type (rules.js TYPES), plus layout.netAntennae, layout.courtyard (off by default)
 //   layout.fab.<id>          a DFM check against the board's fab limits (dfm.js; origin fab)
 //   schematic.<id>           an ERC check (erc.js CHECKS), schematic.pinMatrix the connection matrix
 //   layout.hint.<id>         a Design Insight on a board (insights-pcb.js), always the hint tier
@@ -59,7 +59,10 @@ globalThis.AtriumChecks = (() => {
     "checks.pref.live_hint": "Hints until Compile",
     "checks.pref.live_real": "Real severities while editing",
     "checks.pref.live_help": "Show hints until Compile confirms a finding.",
-    "checks.pref.live_erc": "Check the schematic while editing"
+    "checks.pref.live_erc": "Check the schematic while editing",
+    "checks.pref.layout": "Layout checks",
+    "checks.pref.courtyard": "Report footprints without a courtyard",
+    "checks.pref.courtyard_help": "Off by default: Altium does not check this, and many imported footprints have no courtyard."
   });
   const pref = (k, d) => { try { const v = G.AtriumPref?.get?.(k, d); return v ?? d; } catch { return d; } };
   const efficient = () => { try { return !!G.AtriumPower?.efficient?.(); } catch { return false; } };
@@ -937,7 +940,7 @@ globalThis.AtriumChecks = (() => {
 
   // ---------------------------------------------------------------- preferences
   function prefsPage(P) {
-    P.registerPage({id: "checks", title: t("checks.pref.title"), order: 2.65, keywords: "drc erc compile live checking hints severity problems waivers online",
+    P.registerPage({id: "checks", title: t("checks.pref.title"), order: 2.65, keywords: "drc erc compile live checking hints severity problems waivers online courtyard",
       render(c, api) {
         const g = api.group(c, t("checks.pref.live"));
         const row = api.el("div", "prf-row prf-check"); row.dataset.search = t("checks.pref.live_erc").toLowerCase();
@@ -951,10 +954,13 @@ globalThis.AtriumChecks = (() => {
         const ctl = api.el("span", "prf-control"), help = api.el("small", "prf-help", t("checks.pref.live_help"));
         help.id = s.id + "-help"; s.setAttribute("aria-describedby", help.id); ctl.append(s); r.append(label, ctl, help);
         g.append(row, r);
+        api.row(api.group(c, t("checks.pref.layout")), "checks.courtyard", t("checks.pref.courtyard"), t("checks.pref.courtyard_help"), {keywords: "missing courtyard footprint"});
       }});
     P.on?.("checks.", ({key}) => {
       if (key === "checks.liveSeverity" && live.result && live.project) publishERC(live.project, live.result);
       // Live checking off: the last Compile's findings stay (at their severity); live ones go.
+      // Missing Courtyard on or off: its findings join or leave the current DRC results; nothing else is checked again.
+      if (key === "checks.courtyard") G.AtriumDRCView?.retype?.("courtyard");
       if (key === "checks.liveErc") { if (liveOn()) scheduler.plan("erc", {now: true}); else if (live.compiledResult && live.project) publishERC(live.project, live.compiledResult); else clear("project", "erc"); }
     });
   }

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const {createStaticServer} = require("../support/browser-app-server.cjs");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 
 const root = path.resolve(__dirname, "../.."), app = path.join(root, "app");
 const timeoutMs = 12000;

@@ -8,15 +8,18 @@
   height:round(nearest,var(--dock-bottom-h,min(30vh,280px)),1px);max-height:round(down,70vh,1px)}
 #dock-bottom[hidden] {display:none}
 .dock-group {display:flex;flex-direction:column;min-height:0;min-width:0;flex:1 1 0;overflow:hidden}
-.dock-group.dock-auto {flex:0 1 auto;max-height:46%;max-height:round(down,46%,1px)}
+/* An auto group (Projects) sizes to its content, up to 46 %, to leave room for the groups below it. The last
+   visible group of an area always fills what is left (render() marks it dock-fill), so an auto group that is
+   last, or alone, takes the whole side bar and its list scrolls there: it is never capped. */
+.dock-group.dock-auto:not(.dock-fill) {flex:0 1 auto;max-height:46%;max-height:round(down,46%,1px)}
 .dock-group.dock-fill {flex:1 1 0}
 .dock-group.dock-empty {display:none}
 [data-dock-area=left] > .dock-sash-group + .dock-group,
 [data-dock-area=right] > .dock-sash-group + .dock-group {border-top:1px solid var(--divider)}
 .dock-body {display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0}
-.dock-auto > .dock-body {flex:0 1 auto}
+.dock-auto:not(.dock-fill) > .dock-body {flex:0 1 auto}
 .dock-body > [data-dock-panel] {flex:1 1 0;min-height:0;min-width:0;max-height:none}
-.dock-auto > .dock-body > [data-dock-panel] {flex:0 1 auto}
+.dock-auto:not(.dock-fill) > .dock-body > [data-dock-panel] {flex:0 1 auto}
 .dock-body > [data-dock-panel].dock-inactive {display:none}
 /* Panels styled as their own bottom docks (Messages, PCB List) fill their group instead. */
 .dock-body > :is(.msg-panel,.pl-panel,.script-console) {height:auto;min-height:0;max-height:none;order:0;border-top:0;position:relative;z-index:auto}

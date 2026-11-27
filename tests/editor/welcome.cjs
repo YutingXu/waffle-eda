@@ -110,6 +110,14 @@ let pm = "auto";
 globalThis.AtriumPower = {efficient: () => false, mode: () => pm, setMode: v => { pm = v; }};
 assert.deepEqual(W.efficiency().modes, ["auto", "always", "off"], "power.js: mode()/setMode() without a list");
 W.choose("performance", "always", "efficiency"); assert.equal(pm, "always");
+// Automatic's wording names the power-saving mode it follows (power.js saver()), never the battery.
+assert.equal(W.efficiency().saver(), null, "no saver(): the plain Automatic wording");
+for (const [s, want] of [["mac", "mac"], ["windows", "windows"], ["linux", "linux"], ["", ""]]) {
+  globalThis.AtriumPower = {efficient: () => false, mode: () => pm, setMode: v => { pm = v; }, saver: () => s};
+  assert.equal(W.efficiency().saver(), want);
+}
+globalThis.AtriumPower = {efficient: () => false, mode: () => pm, setMode: v => { pm = v; }, saver: () => { throw Error("no host"); }};
+assert.equal(W.efficiency().saver(), null, "a failing saver(): the plain wording");
 globalThis.AtriumPower = {efficient: () => false};
 assert.equal(W.efficiency(), null, "no modes: no card"); assert.ok(!W.steps().includes("performance"));
 delete globalThis.AtriumPower;

@@ -300,7 +300,7 @@ module.exports = async function placementIdentity(browser) {
 };
 
 if (require.main === module) (async () => {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   const executable = process.env.CHROME;
   const browser = await chromium.launch(executable ? {executablePath: executable} : {channel: "chrome"});
   try { await module.exports(browser); } finally { await browser.close(); }

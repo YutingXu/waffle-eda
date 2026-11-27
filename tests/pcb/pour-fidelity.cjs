@@ -116,7 +116,9 @@ function exact(p){
     stackMode:"full",padStack:{Top:{diameter:2,shape:"rect"},Bottom:{diameter:.4,shape:"octagon"}}};
   const {p,b,o,lib}=example([top,bottom,via]);P.apply(b,lib,o);
   const model=F.analyse(p,b),topCopper=b.pcbDrawing.pours.filter(r=>r.layer==="Top"),botCopper=b.pcbDrawing.pours.filter(r=>r.layer==="Bottom");
-  assert.ok(!ink(topCopper,10.95,10.95));assert.ok(!ink(topCopper,11.12,11.12));assert.ok(ink(topCopper,11.18,11.18));
+  assert.ok(!ink(topCopper,10.95,10.95));assert.ok(!ink(topCopper,11.12,11.12));
+  // The square land's clearance keeps square corners (Altium's cut): clear to 11.2 on the diagonal.
+  assert.ok(!ink(topCopper,11.18,11.18));assert.ok(ink(topCopper,11.22,11.22));
   assert.ok(ink(botCopper,10.43,10));assert.ok(!ink(botCopper,10.37,10));assert.deepEqual(model.pourClearance,[]);
   assert.equal(model.layers.get("Top").find(f=>f.use==="via").pad.shape,"rect");
   assert.equal(model.layers.get("Bottom").find(f=>f.use==="via").pad.shape,"octagon");
@@ -224,5 +226,69 @@ console.log("PASS fabrication copper freshness, scoped clearance and physical la
   assert.ok(q.items.includes(t));zone.hatchPitch=2;
   assert.deepEqual(P.stale(q,defs(reloaded)),[zone.id]);P.apply(q,defs(reloaded));
   assert.ok(!q.items.includes(t));assert.deepEqual(P.stale(q,defs(reloaded)),[]);
+}
+{
+  // An internal plane keeps its Plane Clearance from a foreign barrel; the Clearance rule's
+  // Via-Poly cell governs positive pours, not planes. Plane voids (tracks on a plane layer)
+  // are cut with the rounding margin, so no plane copper lies inside one.
+  const ring=[];for(let k=0;k<12;k++){const a=k*Math.PI/6,b=(k+1)*Math.PI/6;ring.push([10+.6*Math.cos(a),14+.6*Math.sin(a),10+.6*Math.cos(b),14+.6*Math.sin(b)]);}
+  const records=[
+    "RECORD=Board|LAYER1NAME=Top|LAYER1NEXT=39|LAYER39NAME=Internal plane|LAYER39NEXT=32|LAYER32NAME=Bottom|VX0=0mm|VY0=0mm|VX1=20mm|VY1=0mm|VX2=20mm|VY2=20mm|VX3=0mm|VY3=20mm",
+    "RECORD=Net|ID=0|NAME=GND","RECORD=Net|ID=1|NAME=SIG",
+    "RECORD=Polygon|POLYGONTYPE=Split Plane|LAYER=PLANE1|NET=0|VX0=1mm|VY0=1mm|VX1=19mm|VY1=1mm|VX2=19mm|VY2=19mm|VX3=1mm|VY3=19mm",
+    ...ring.map(([x1,y1,x2,y2])=>"RECORD=Track|LAYER=PLANE1|X1="+x1+"mm|Y1="+y1+"mm|X2="+x2+"mm|Y2="+y2+"mm|WIDTH=1.016mm"),
+    "RECORD=Via|X=6.123mm|Y=7.071mm|NET=1|DIAMETER=0.3mm|HOLESIZE=0.2mm|STARTLAYER=TOP|ENDLAYER=BOTTOM",
+    "RECORD=Rule|RULEKIND=PlaneClearance|PRIORITY=1|SCOPE1EXPRESSION=All|SCOPE2EXPRESSION=All|CLEARANCE=0.0889mm"
+  ];
+  const {p}=example([]),b=AtriumPCB.read("Plane rules.PcbDoc",null,records.join("\r\n")).documents[0];
+  p.documents[p.documents.indexOf(board(p))]=b;
+  AtriumProjectRules.edit(p,set=>{const c=set.list.find(r=>r.type==="clearance");c.gap=.0889;c.objects={"via-poly":.127,"poly-hole":.25};});
+  const lib=defs(p),o={project:p},zone=b.items.find(i=>i.kind==="polygon");
+  assert.equal(zone.clearance,.0889);
+  P.apply(b,lib,o);
+  const regions=b.pcbDrawing.pours,via=b.items.find(i=>i.kind==="via"),at=r=>[via.x+r,via.y];
+  assert.ok(!ink(regions,...at(.18))&&ink(regions,...at(.2)),"the antipad is the plane clearance from the 0.1 mm barrel");
+  assert.deepEqual(D.verify(b,lib,null,o).violations.map(v=>v.title+" "+v.actual),[],"the plane is not held to the Via-Poly or Poly-Hole cells");
+  const voids=b.items.filter(i=>i.planeVoid);
+  assert.equal(voids.length,12);
+  assert.deepEqual(AtriumPCBDraw.keepoutViolations(b,lib).filter(v=>v.id===zone.id),[],"no plane copper rounds into its voids");
+}
+{
+  // A positive pour keeps the Poly-Hole cell from a foreign plated barrel as well as the
+  // Via-Poly cell from its land, as Altium pours; DRC reports fill that does not.
+  const zone=plane("holes",box(2,2,28,18),{removeDeadCopper:false}),via={id:"v",kind:"via",net:"SIG",layer:"Multi",x:15.0123,y:10.0071,diameter:.3,drill:.2};
+  const {p,b,o,lib}=example([zone,via]);
+  const cells=objects=>AtriumProjectRules.edit(p,set=>{const c=set.list.find(r=>r.type==="clearance");c.gap=.0889;c.objects=objects;});
+  cells({"via-poly":.127});
+  P.apply(b,lib,o);
+  const at=r=>[via.x+r,via.y];
+  assert.ok(ink(b.pcbDrawing.pours,...at(.3)),"without a hole cell the land's 0.127 mm governs");
+  assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
+  cells({"via-poly":.127,"poly-hole":.25});
+  const stale=D.verify(b,lib,null,o).violations;
+  assert.equal(stale.length,1,JSON.stringify(stale));
+  assert.equal(stale[0].what,"Hole clearance");assert.equal(stale[0].required,.25);assert.ok(Math.abs(stale[0].actual-.177)<.002,String(stale[0].actual));
+  P.apply(b,lib,o);
+  assert.ok(!ink(b.pcbDrawing.pours,...at(.34))&&ink(b.pcbDrawing.pours,...at(.36)),"0.25 mm from the 0.1 mm barrel");
+  assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
+  // No Hole cell, no hole clearance (rules.js clearanceLimit): a general gap wider than the
+  // Via-Poly cell does not reach past the land from the barrel, in the pour or in DRC.
+  AtriumProjectRules.edit(p,set=>{const c=set.list.find(r=>r.type==="clearance");c.gap=.2;c.objects={"via-poly":.127};});
+  assert.deepEqual(D.verify(b,lib,null,o).violations.filter(v=>v.what==="Hole clearance"),[],"no hole clearance without a Hole cell");
+  P.apply(b,lib,o);
+  assert.ok(!ink(b.pcbDrawing.pours,...at(.27))&&ink(b.pcbDrawing.pours,...at(.29)),"the land's 0.127 mm governs without a Hole cell");
+  assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
+}
+{
+  // The hole cut follows the land's real outline: a custom land whose drill sits 0.2 mm from its
+  // edge (its box is 2 × 1 mm) still keeps the Poly-Hole cell there, and DRC agrees with the fill.
+  const zone=plane("custom",box(2,2,28,18),{removeDeadCopper:false});
+  const land={id:"c",kind:"pad",net:"SIG",layer:"Multi",x:15,y:10,w:2,h:1,drill:.3,shape:"custom",number:"1",
+    poly:[[-.2,-.5],[1.8,-.5],[1.8,.5],[-.2,.5]]};
+  const {p,b,o,lib}=example([zone,land]);
+  AtriumProjectRules.edit(p,set=>{const c=set.list.find(r=>r.type==="clearance");c.gap=.127;c.objects={"th-poly":.127,"poly-hole":.3};});
+  P.apply(b,lib,o);
+  assert.ok(!ink(b.pcbDrawing.pours,14.57,10)&&ink(b.pcbDrawing.pours,14.53,10),"0.3 mm from the 0.15 mm barrel, past the land's 0.127 mm");
+  assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
 }
 console.log("PASS authored hatch and negative split plane copper, slots and thermals");

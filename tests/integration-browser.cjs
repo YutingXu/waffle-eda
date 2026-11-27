@@ -9,7 +9,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs/promises");
 const path=require("node:path");
 const {pathToFileURL}=require("node:url");
-const {chromium,errors:{TimeoutError}}=require("playwright-core");
+const {chromium,errors:{TimeoutError}}=require("./support/playwright.cjs");
 const {windowPanel,showPanel}=require("./support/window-panels.cjs");
 const {readProjectZIP}=require("./support/browser-native-project.cjs");
 const {projectFromRecords}=require("./support/native-cad.cjs");
@@ -553,6 +553,7 @@ async function main(){
     if(process.argv.includes("--touch-scheme-only")){await require("./editor/browser-touch-scheme.js")(browser);return;}
     if(process.argv.includes("--problem-hover-only")){await require("./checks/browser-problem-hover.js")(browser,{screenshotDir:snapshot});return;}
     if(process.argv.includes("--drc-messages-only")){await require("./checks/browser-drc-messages.js")(browser);return;}
+    if(process.argv.includes("--show-in-messages-only")){await require("./checks/browser-show-in-messages.js")(browser);return;}
     if(process.argv.includes("--canvas-hover-only")){await require("./editor/browser-canvas-hover.js")(browser);return;}
     if(process.argv.includes("--rotated-markers-only")){await require("./checks/browser-insights-polish.js").rotatedMarkers(browser);return;}
     if(process.argv.includes("--no-quirks-only")){await require("./editor/browser-no-quirks.js")(browser);return;}
@@ -561,8 +562,10 @@ async function main(){
     if(safeAreaOnly){await require("./editor/browser-dialog-safe-area.cjs")(browser);return;}
     if(process.argv.includes("--titlebar-only")){await require("./editor/browser-titlebar-safe-area.cjs")(browser);return;}
     if(process.argv.includes("--panels-only")){await require("./editor/browser-panels-menu.js")(browser);return;}
+    if(process.argv.includes("--tab-overflow-only")){await require("./editor/browser-tab-overflow.js")(browser);return;}
     if(process.argv.includes("--menu-toggle-only")){await require("./editor/browser-menu-toggle.js")(browser);return;}
     if(process.argv.includes("--messages-fonts-only")){await require("./editor/browser-messages-fonts.js")(browser);return;}
+    if(process.argv.includes("--messages-filter-only")){await require("./editor/browser-messages-filter.js")(browser);return;}
     if(process.argv.includes("--inline-stack-only")){await require("./editor/browser-inline-stack.js")(browser);return;}
     if(process.argv.includes("--panel-chrome-only")){await require("./editor/browser-panel-chrome.js")(browser);return;}
     if(process.argv.includes("--review-composer-only")){await require("./history/browser-review-composer.js")(browser);return;}
@@ -579,6 +582,7 @@ async function main(){
     if(process.argv.includes("--gpu-pour-lod-only")){await require("./canvas/browser-gpu-pour-lod.cjs")({requireHardware:process.argv.includes("--require-hardware")});return;}
     if(process.argv.includes("--dense-edit-only")){await require("./canvas/browser-dense-edit-refresh.js")(browser);return;}
     if(process.argv.includes("--fields-only")){await require("./schematic/browser-sch-fields.js")(browser);return;}
+    if(process.argv.includes("--links-only")){await require("./schematic/browser-part-links.js")(browser);return;}
     if(process.argv.includes("--notebook-only")){await require("./notebook/browser-notebook-integration.js")(browser);return;}
     if(process.argv.includes("--bom-only")){await require("./formats/browser-bom-ui.js")(browser);return;}
     if(process.argv.includes("--print-only")){await require("./formats/browser-print-unify.js")(browser);return;}
@@ -866,6 +870,7 @@ async function main(){
     await require("./editor/browser-canvas-hover.js")(browser);
     await require("./checks/browser-annular-problems.js")(browser);
     await require("./checks/browser-drc-messages.js")(browser);
+    await require("./checks/browser-show-in-messages.js")(browser);
     await require("./canvas/browser-schematic-net-navigation.js")(browser);
     await require("./canvas/browser-view3d-open.js")(browser,["navigation","open","folder"]);
     await require("./editor/browser-editing-input.js")(browser);
@@ -881,6 +886,7 @@ async function main(){
 
   async function editorInterfaceChecks(){
     await require("./schematic/browser-sch-fields.js")(browser);
+    await require("./schematic/browser-part-links.js")(browser);
     await require("./notebook/browser-infinite-frames.js")(browser);
     await require("./pcb/browser-pcb-text.js")(browser);
     await require("./project/browser-welcome-open.js")(browser);
@@ -898,6 +904,7 @@ async function main(){
     await require("./editor/browser-chrome-pixels.js")(browser);
     await require("./editor/browser-menu-toggle.js")(browser);
     await require("./editor/browser-messages-fonts.js")(browser);
+    await require("./editor/browser-messages-filter.js")(browser);
     await require("./editor/browser-inline-stack.js")(browser);
     await require("./editor/browser-panel-chrome.js")(browser);
     await require("./ui/browser-owner-layers.cjs")(browser);
@@ -918,6 +925,7 @@ async function main(){
     await require("./editor/browser-interface-field-alignment.js")(browser);
     await require("./editor/browser-workbench-tree.js")(browser);
     await require("./editor/browser-panels-menu.js")(browser);
+    await require("./editor/browser-tab-overflow.js")(browser);
     await require("./canvas/browser-frame-monitor.js")(browser);
     await require("./project/browser-project-connections.js")(browser);
     await require("./editor/browser-shortcut-labels.js")(browser);

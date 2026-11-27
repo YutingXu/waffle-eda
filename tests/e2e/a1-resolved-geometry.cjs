@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const {resolve} = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const {exerciseResolvedView} = require("../support/a1-resolved-view.cjs");
 const {parseGerber,parseExcellon,rasterize} = require("../formats/gerber-compare.cjs");
 

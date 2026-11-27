@@ -542,7 +542,17 @@ async function checkReferenceColumns(browser) {
         controlled:row.previousElementSibling.querySelector("summary").getAttribute("aria-controls")===cell.id};
     }));
     assert.equal(rows.length,await toggles.count());
-    for (const row of rows) assert.deepEqual(row,{...row,span:5,full:true,inside:true,controlled:true}),assert.ok(row.items>0);
+    const span=await table.evaluate(t=>t.tHead.rows[0].cells.length);
+    for (const row of rows) assert.deepEqual(row,{...row,span,full:true,inside:true,controlled:true}),assert.ok(row.items>0);
+    // Altium bookkeeping (pin UniqueIDs, model containers) has its own quiet column, apart from the losses.
+    const quiet=await view(page).evaluate(v=>{
+      const head=[...v.querySelectorAll("thead th")].find(h=>h.textContent==="Not applicable"),note=v.querySelector("p.import-report-inapplicable");
+      const warning=v.querySelector("td.import-report-warning");
+      return {head:head?.className,note:!!note&&/not losses/.test(note.textContent),
+        muted:!!head&&!!warning&&getComputedStyle(head).color!==getComputedStyle(warning).color,
+        review:!/not applicable/i.test(v.querySelector(".import-report-warnings p").textContent)};
+    });
+    assert.deepEqual(quiet,{head:"import-report-inapplicable",note:true,muted:true,review:true});
     for (let i=0;i<await toggles.count();i++) await toggle(i,false);
     assert.deepEqual(await widths(),before,"columns keep their widths with references hidden again");
     assert.equal(await view(page).locator("tr.import-report-references:not([hidden])").count(),0);

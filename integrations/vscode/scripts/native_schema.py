@@ -183,6 +183,13 @@ def geometry_defs():
     arc = obj({"kind": const("arc"), "c": POINT, "r": PNM, "start": integer(0, 359999999999),
                "sweep": {"allOf": [integer(-360000000000, 360000000000), {"not": const(0)}]}},
               ["kind", "c", "r", "start", "sweep"])
+    # Exact schematic curves beside a path's points (app/schematic/sch-curves.js), relative to the first point.
+    ellipse = obj({"a": POINT, "b": POINT, "sweep": {"allOf": [integer(-360000000000, 360000000000), {"not": const(0)}]}},
+                  ["a", "b", "sweep"], description="Ellipse c + a·cos t + b·sin t, t from 0 to sweep; c is the first point minus a.")
+    bezier = obj({"controlPoints": seq(POINT, minItems=4)}, ["controlPoints"],
+                 description="Cubic Bézier segments p0 c1 c2 p1 …, offsets from the path's first point.")
+    symbol_arc = obj({"x": NM, "y": NM, "r": PNM, "start": NUMERIC, "end": NUMERIC}, ["x", "y", "r", "start", "end"],
+                     description="Symbol editor arc: centre, radius and degrees turning clockwise on screen from start to end.")
     segment = union(arc, obj({"kind": const("line"), "a": POINT, "b": POINT}, ["kind", "a", "b"]))
     contour = seq(segment, minItems=1, maxItems=1000000)
     return {
@@ -190,6 +197,9 @@ def geometry_defs():
         "position": position,
         "padFields": obj({**provision, "padStack": obj(additionalProperties=obj(provision))}, ["w", "h"]),
         "geometryArc": arc,
+        "schematicEllipse": ellipse,
+        "schematicBezier": bezier,
+        "symbolArc": symbol_arc,
         "contour": contour,
         "regionShape": obj({"version": const(1), "contour": r("contour"), "cutouts": seq(r("contour")), "sig": TEXT},
                            ["version", "contour", "cutouts"]),
@@ -200,7 +210,8 @@ def geometry_defs():
             "circle": with_fields(r("positionXY"), {"r": PNM}, ["r"]),
             "text": with_fields(r("positionXY"), {"text": TEXT, "size": PNM, "angle": ANGLE}, ["text"]),
         }, obj({"width": nullable(NNM), "layer": STRING, "net": TEXT, "closed": BOOL, "fill": union(BOOL, TEXT),
-                "arc": union(BOOL, r("geometryArc")), "regionShape": r("regionShape")})),
+                "arc": union(BOOL, r("geometryArc"), r("symbolArc")), "ellipse": r("schematicEllipse"),
+                "bezier": r("schematicBezier"), "regionShape": r("regionShape")})),
         "bodyValue": obj({"type": choices("extruded", "step", "unsupported"), "layer": TEXT,
                           "side": choices("Top", "Bottom"), "ownerSide": choices("Top", "Bottom"),
                           "sourceRecord": TEXT, "identifier": TEXT, "modelId": TEXT, "modelType": nullable(TEXT),
@@ -315,7 +326,9 @@ def item_shapes():
     }
     label = {**text, "size": PNM, "layer": STRING, "justify": STRING, "mirrored": BOOL,
              "autoName": obj({"part": ID, "pin": STRING, "style": STRING}, ["part", "pin", "style"])}
-    letter = {**text, "io": STRING, "width": PNM, "net": TEXT, "signal": TEXT, "polarity": INT, "tags": seq(STRING)}
+    # Signal and tag directive fields (app/core/signals.js directives), with the older netClass and diffPair.
+    directive = {"signal": TEXT, "polarity": INT, "tags": seq(STRING), "netClass": TEXT, "diffPair": TEXT}
+    letter = {**text, "io": STRING, "width": PNM, "net": TEXT, **directive}
     sheet_entry = obj({"id": ID, "name": TEXT, "io": STRING, "side": STRING, "offset": NM},
                       ["id", "name", "io", "side", "offset"])
     clip = obj({
@@ -330,7 +343,7 @@ def item_shapes():
     }
     return {
         "part": with_fields(position, part, ["def", "ref", "value"]),
-        "wire": obj({**path, "width": NNM, "net": TEXT}, ["points"]),
+        "wire": obj({**path, "width": NNM, "net": TEXT, **directive}, ["points"]),
         "track": obj({**path, "width": NNM, "layer": STRING, "net": TEXT, "teardrop": BOOL},
                      ["points"]),
         "graphic": obj({**path, **shape, "width": NNM, "layer": STRING, "text": TEXT}, ["points"]),
@@ -442,6 +455,7 @@ def metadata_defs():
     return {
         "itemCommon": obj({"angle": nullable(ANGLE), "locked": nullable(BOOL), "at": POINT,
                            "x": NM, "y": NM, "arc": nullable(union(BOOL, r("geometryArc"))),
+                           "ellipse": nullable(r("schematicEllipse")), "bezier": nullable(r("schematicBezier")),
                            "regionShape": nullable(r("regionShape")), "keepoutRestrictions": integer(0, 31)}),
         "sheetSettings": obj({"infinite": BOOL, "size": STRING, "orientation": STRING, "titleBlock": STRING,
                               "width": PNM, "height": PNM}),

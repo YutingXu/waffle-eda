@@ -18,7 +18,7 @@ function loadHelper(source) {
   const module = {exports: {}};
   vm.runInNewContext(source, {
     require(name) {
-      if (name !== "playwright-core") throw Error("unexpected require " + name);
+      if (name !== "./playwright.cjs") throw Error("unexpected require " + name);
       return {chromium};
     },
     module,

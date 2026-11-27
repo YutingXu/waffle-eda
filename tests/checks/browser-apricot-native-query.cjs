@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs"), os = require("node:os"), path = require("node:path"), crypto = require("node:crypto");
 const {pathToFileURL} = require("node:url");
 const {hostEnv, folderFiles} = require("../support/native-folder-fixture.cjs");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 
 const root = path.resolve(process.argv[2] || path.join(__dirname, "../.."));
 const fixture = path.join(__dirname, "../fixtures/design-query/query-proof");

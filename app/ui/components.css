@@ -370,6 +370,18 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 .ui-editor-tab-strip:where([data-tab-strip=documents],[data-tab-strip=pane]) {gap:1px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;background:var(--app);padding:0 1px}
 .ui-editor-tab-strip:where([data-tab-strip=documents],[data-tab-strip=pane])::-webkit-scrollbar {display:none}
 .ui-editor-tab-strip[data-tab-strip=pane] {background:linear-gradient(var(--line),var(--line)) bottom/100% 1px no-repeat var(--app)}
+/* Overflow (ui/tab-overflow.js): the side with more tabs fades (data-overflow), and a ⋯ after the tabs lists them all.
+   The start fade is a sticky first item that takes no room; the end fade hangs off the ⋯, which stays in view. */
+.ui-editor-tab-strip:where([data-tab-strip=documents],[data-tab-strip=pane]) {--ui-tab-fade:var(--s-24)}
+.ui-editor-tab-strip:where([data-tab-strip=documents],[data-tab-strip=pane])::before {content:"";position:sticky;inset-inline-start:0;z-index:1;flex:none;
+  inline-size:var(--ui-tab-fade);margin-inline-end:calc(-1px - var(--ui-tab-fade));background:linear-gradient(to right,var(--app),transparent);pointer-events:none;visibility:hidden}
+.ui-editor-tab-strip[data-overflow~=start]::before {visibility:visible}
+.ui-tab-strip-end {position:sticky;inset-inline-end:0;z-index:1;display:flex;align-items:center;flex:none;margin-inline-start:auto;background:inherit}
+.ui-tab-overflow {position:relative;display:flex;align-items:center;flex:none;padding-inline:var(--s-2)}
+.ui-tab-overflow[hidden] {display:none}
+.ui-tab-overflow::before {content:"";position:absolute;inset-block:0;inset-inline-end:100%;z-index:1;inline-size:var(--ui-tab-fade,var(--s-24));
+  background:linear-gradient(to left,var(--app),transparent);pointer-events:none;visibility:hidden}
+.ui-tab-overflow[data-fade]::before {visibility:visible}
 .ui-editor-tab-strip[data-tab-strip=dock] {position:relative;height:calc(30px + var(--d-bar));overflow:hidden;background:var(--tab-bg);box-shadow:var(--chrome-rule-bottom) var(--divider)}
 .ui-editor-tab-strip:where([data-tab-strip=dock]).editor-chrome-tabs {height:var(--chrome-tab-height);box-shadow:none;background:linear-gradient(var(--divider),var(--divider)) bottom/100% 1px no-repeat var(--surface)}
 .ui-document-tab[aria-selected=true] {background:var(--panel-head);color:var(--ink-bright)}

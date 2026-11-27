@@ -2,7 +2,7 @@
 // Real app controls and workers, with native folder grants backed by an in-memory fixture.
 // Run with installed Chrome and Playwright Core.
 const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url");
-const {chromium}=require("playwright-core"), app=path.resolve(__dirname,"../../app");
+const {chromium}=require("../support/playwright.cjs"), app=path.resolve(__dirname,"../../app");
 for(const name of ["model","source-file","format-2-codec","format-2-units","format-2-values","format-2-model"])
   require(require("../support/app-source-paths.cjs").appFileFrom(app, name+".js"));
 function input() {

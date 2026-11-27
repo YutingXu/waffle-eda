@@ -27,3 +27,13 @@
 #inspector .sch-param-add select {grid-column:1 / -1;height:var(--ctl-h)}
 #inspector .sch-param-add input {min-width:0;height:var(--ctl-h)}
 #inspector .sch-param-add button {grid-column:1 / -1}
+
+/* Properties › Web links (sch-object-inspector.js): list rows that are external text links. The title
+   takes the link ink with an outward arrow; the host line stays muted. */
+#inspector a.part-link {text-decoration:none}
+#inspector a.part-link .ui-row-title {display:flex;align-items:center;gap:var(--s-4);color:var(--accent-text)}
+#inspector a.part-link .ui-row-title > .icon {inline-size:12px;block-size:12px}
+#inspector a.part-link:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+@media (hover:hover) and (pointer:fine) {
+  #inspector a.part-link:hover .ui-row-title {text-decoration:underline}
+}
