@@ -66,13 +66,16 @@ globalThis.AtriumLandContours=(()=>{
   function placedCopper(p, part, copper) {
     const L = AtriumResolvedLand, PCB = AtriumPCBAppearance, layer = PCB.padLayer(part, p);
     const via = p.kind === "via", all = layer === "Multi";
-    if ((!all && PCB.index(layer) < 0) || (p.drill > 0 && p.plated === false)) return [];
+    if (!all && PCB.index(layer) < 0) return [];
     if (via && !PCB.copperSpan(p)) return [];
+    // An unplated hole's land is copper of its pad's net too (connectivity.js, the DRC), so tracks reach
+    // it and silk meets it like any land; none where the drill takes the whole land.
+    const unplated = !via && p.drill > 0 && p.plated === false;
     const keys = via ? (all && (p.fromLayer != null || p.toLayer != null || p.backdrill || p.stackMode && p.stackMode !== "simple")
       ? copper() : [layer]) : PCB.padPlanes(p, layer, copper), out = [];
     for (const key of keys) {
       const land = L.geometry(p, key === "Multi" ? undefined : key, all ? keys : undefined);
-      if (land && !land.holeOnly) out.push({...L.place(land, part), land, layer: key ?? layer, radius: L.radius(land)});
+      if (land && !land.holeOnly && !(unplated && p.drill >= Math.min(land.w, land.h) - 1e-9)) out.push({...L.place(land, part), land, layer: key ?? layer, radius: L.radius(land)});
     }
     return out;
   }

@@ -1792,7 +1792,9 @@ globalThis.AtriumPolygonPour=(()=>{
       if(hole||(pc.drill>0&&p.plated===false)){
         const drill=drilledShape(p,pc),c=clearance("","hole",p,parent,pc.center,drill.core,drill.radius);
         obstacle(drill.core,drill.radius,c);
-        if(!hole)obstacle(pc.core,pc.radius,clearance(""));
+        // An unplated land is never joined (contactRegions leaves it out, as connectivity's ratsnest makes it
+        // optional): the pour keeps clear of it. Another net's pour keeps the DRC's gap to the land's net.
+        if(!hole)obstacle(pc.core,pc.radius,itemNet&&!samePolygonNet(itemNet)?clearance(itemNet,"th",p,parent,pc.center,pc.core,pc.radius):clearance(""));
         return;
       }
       const isVia=p.kind==="via";

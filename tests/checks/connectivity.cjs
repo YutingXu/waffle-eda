@@ -7,6 +7,7 @@ const pad=(id,net,x,y,w=1,h=w,angle=0,shape="round",layer="Top",drill=0)=>({id,k
 const via=(id,net,x,y,fromLayer="Top",toLayer="Bottom",diameter=1,drill=.4)=>({id,kind:"via",net,x,y,fromLayer,toLayer,diameter,drill,layer:"Multi"});
 const board=items=>({...A.sheet("pcb","Test"),items});
 const inspect=items=>C.inspect(board(items),defs);
+const once=(r,name)=>r.nets.find(n=>n.name===name);
 {
   const slot={...pad("slot","A",0,0,6,2,0,"rect","Multi",.8),slotLength:4,plated:true};
   const probe=x=>pad("probe","B",x,0,.2,.2);
@@ -15,6 +16,57 @@ const inspect=items=>C.inspect(board(items),defs);
   assert.equal(inspect([slot,probe(1.96)]).shorts.length,1,"crossing the slot wall contacts the land");
   const oval=pad("oval","B",1.1,0,1.2,.2,0,"ellipse");
   assert.equal(inspect([slot,oval]).shorts.length,0,"an elliptical pad can fit along the slot");
+}
+{
+  // A back-drill removes the land and barrel beyond its stop layer (AtriumViaStack.padOn, as DRC clearance).
+  require("../../app/pcb/stackup.js");require("../../app/pcb/viastack.js");
+  const drilled=via("v","A",0,0,"Top","Bottom",.8,.3);drilled.backdrill={from:"bottom",toLayer:"Inner 1",stubMax:.2};
+  const top=track("t","A",[[0,0],[2,0]]),bottom=track("b","A",[[0,0],[-2,0]],"Bottom");
+  assert.equal(inspect([drilled,track("x","B",[[0,0],[2,0]],"Bottom")]).shorts.length,0,"no bottom land to short");
+  assert.equal(once(inspect([drilled,top,bottom]),"A").islands,2,"the barrel no longer joins the bottom");
+  assert.equal(once(inspect([{...drilled,backdrill:undefined},top,bottom]),"A").islands,1);
+  assert.equal(inspect([drilled,track("y","B",[[0,0],[2,0]])]).shorts.length,1,"the top land remains");
+}
+{
+  // An unplated land keeps its pad's net, one node per copper layer and no barrel (DRC treats it the same way).
+  // A GND mounting hole: 6 mm land, 3.2 mm drill; the ring runs from 1.6 to 3 mm.
+  const mh={...pad("mh","GND",0,0,6,6,0,"round","Multi",3.2),plated:false};
+  const across=(id,net,y,layer="Top")=>track(id,net,[[-5,y],[5,y]],layer);
+  let r=inspect([mh,across("g","GND",2.5)]);
+  assert.deepEqual([r.shorts.length,r.airwires.length,once(r,"GND").islands,once(r,"GND").pads],[0,0,1,1],"its own net touches it");
+  assert.deepEqual(inspect([mh,across("v","VCC",2.5)]).shorts.map(s=>s.nets),[["GND","VCC"]],"another net crossing the ring is a short");
+  assert.equal(inspect([mh,across("v","VCC",3.15)]).shorts.length,0,"near the ring is the DRC's clearance, not a short");
+  assert.deepEqual(inspect([mh,across("v","VCC",2.5,"Bottom")]).shorts.map(s=>s.nets),[["GND","VCC"]],"the bottom land");
+  // No barrel: top and bottom lands are separate islands, so a net on each side is two shorts with GND, not one.
+  assert.deepEqual(inspect([mh,across("b","B",2.5),across("c","C",2.5,"Bottom")]).shorts.map(s=>s.nets),[["B","GND"],["C","GND"]]);
+  // The ratsnest takes the pad's lands as one terminal: no airwire between them.
+  r=inspect([mh]);
+  assert.deepEqual([r.airwires.length,once(r,"GND").islands,once(r,"GND").pads,r.unassigned,r.stats.objects],[0,1,1,0,2]);
+  const left=pad("p1","GND",-10,0,1,1,0,"round","Multi",.5),right=pad("p2","GND",10,0,1,1,0,"round","Multi",.5);
+  r=inspect([mh,left,right,track("a","GND",[[-10,0],[-2.5,0]]),track("b","GND",[[2.5,0],[10,0]],"Bottom")]);
+  assert.deepEqual([r.airwires.length,once(r,"GND").islands,once(r,"GND").missing],[0,1,0],"reached on each side, no zero-length airwire");
+  // Pins that reach the land still need connecting to the rest of the net, never through a land-to-land airwire.
+  r=inspect([mh,left,right,track("a","GND",[[-10,0],[-2.5,0]])]);
+  assert.deepEqual(r.airwires.map(w=>[w.fromId,w.toId,w.distance]),[["mh","p2",10]]);
+  // A land nothing of its net touches is optional, as on a board whose pour keeps clear of it.
+  r=inspect([mh,left,right]);
+  assert.deepEqual([r.airwires.map(w=>[w.fromId,w.toId]),once(r,"GND").islands,once(r,"GND").pads],[[["p1","p2"]],2,3]);
+  // A footprint's mounting hole takes its pin's net.
+  const lib=new Map([["MH",{id:"MH",footprint:{pads:[{number:"1",x:0,y:0,w:6,h:6,shape:"round",layer:"Multi",drill:3.2,plated:false}],shapes:[]}}]]);
+  const part={id:"H",kind:"part",def:"MH",ref:"H1",x:0,y:0,pinNets:{"1":"GND"}};
+  assert.deepEqual(C.inspect(board([part,across("v","VCC",2.5)]),lib).shorts.map(s=>s.nets),[["GND","VCC"]]);
+  r=C.inspect(board([part,across("g","GND",2.5),track("g2","GND",[[20,0],[25,0]])]),lib);
+  assert.deepEqual([r.airwires.length,once(r,"GND").islands],[1,2]);
+  assert.ok(r.airwires[0].distance>0);
+  // With no net the land is netless copper: one net may touch it, a land bridging two nets is a short,
+  // and nothing joins its top and bottom lands.
+  const bare={...mh,net:""};
+  assert.equal(inspect([bare,across("b","B",2.5)]).shorts.length,0,"one net touching the land is no short");
+  assert.deepEqual(inspect([bare,across("b","B",2.5),track("c","C",[[0,-5],[0,-2.5]])]).shorts.map(s=>s.nets),[["B","C"]],"two nets bridged by the land");
+  assert.equal(inspect([bare,across("b","B",2.5),across("c","C",2.5,"Bottom")]).shorts.length,0,"no barrel joins the top and bottom lands");
+  assert.equal(once(inspect([bare,across("t","N",2.5),across("u","N",2.5,"Bottom")]),"N").islands,2);
+  assert.equal(inspect([bare]).unassigned,1);
+  assert.deepEqual(inspect([{...mh,layer:"Top"},across("v","VCC",2.5)]).shorts.map(s=>s.nets),[["GND","VCC"]],"a single-layer unplated land carries its net too");
 }
 require("../../app/checks/rules.js");
 {
@@ -29,7 +81,6 @@ require("../../app/checks/rules.js");
   part.pinNets={"1":"A","2":"A"};
   assert.equal(C.inspect(board([part]),lib).airwires.length,0);
 }
-const once=(r,name)=>r.nets.find(n=>n.name===name);
 
 function separatedLayers(){
   const items=[track("a","N",[[-5,0],[5,0]]),track("b","N",[[0,-5],[0,5]],"Bottom")];
@@ -63,7 +114,8 @@ function unassignedAndGeometry(){
   assert.equal(inspect([pad("npth","",0,0,2,2,0,"round","Mechanical",2)]).stats.objects,0);
   const mountingHole={...pad("mount","",0,0,2,2,0,"round","Multi",2),plated:false};
   assert.equal(inspect([mountingHole]).excluded,0,"a drill-only mounting hole has no copper to exclude");
-  assert.equal(inspect([{...mountingHole,w:3,h:3}]).excluded,1,"unsupported Multi-layer copper is still reported");
+  const ringed=inspect([{...mountingHole,w:3,h:3}]);
+  assert.deepEqual([ringed.excluded,ringed.unassigned,ringed.stats.objects],[0,1,2],"an unplated land is netless copper, one node per layer");
   const fp={id:"FP",footprint:{pads:[{x:1,y:0,w:2,h:.4,angle:10,shape:"rect",number:"1",net:"WRONG",layer:"Top"}],shapes:[]}};
   const component={id:"P",kind:"part",def:"FP",ref:"U1",x:3,y:4,angle:90,pinNets:{"1":"N"}};
   const point=A.world([1,0],component);
