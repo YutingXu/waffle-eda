@@ -441,11 +441,12 @@ async function stallPass(s, relayRef, seconds = 25) {
   const deliveredMs = await waitAll(checks, t0, Math.max(0, seconds * 1000 - (Date.now() - t0)));
   await sleep(Math.max(0, seconds * 1000 - (Date.now() - t0)));
   const during = {host: (await state(s.host)).connection, guest: (await state(s.guest)).connection};
+  const stalls = {host: (await state(s.host)).stalls, guest: (await state(s.guest)).stalls};
   relayRef.current.proc.kill("SIGCONT");
   const resumed = Date.now(), rejoinMs = await waitOpen(s, resumed, 40000);
   const afterResume = deliveredMs === null ? await waitAll(checks, resumed, 30000) : null;
   const final = await arrived(checks.map((c, i) => ({...c, name: i ? "guestEdit" : "hostEdit"})));
-  return {stallSeconds: seconds, detectMs, connectionAfterStall: during, deliveredDuringStallMs: deliveredMs, rejoinMsAfterResume: rejoinMs,
+  return {stallSeconds: seconds, detectMs, stallsFound: stalls, connectionAfterStall: during, deliveredDuringStallMs: deliveredMs, rejoinMsAfterResume: rejoinMs,
     deliveredAfterResumeMs: afterResume, lost: Object.values(final).filter(v => !v).length};
 }
 // A guest falls behind the CRDT's bounded log (LIMITS.log 4,000 operations; trim keeps 2,000):

@@ -734,8 +734,10 @@ globalThis.AtriumCollabPresence = (() => {
       sendCursor(undefined, false, false, false, true);
       refreshJoin();
       keepLog(session);
-      const here = presentPeers().map(p => p.id).join();
-      if (here !== session.here) { session.here = here; session.cursors?.request(); soon(); renderStrip(); }
+      // (Arrivals and departures repaint when they happen; the first heartbeat only takes note.)
+      const here = presentPeers().map(p => p.id).join(), seen = session.here;
+      session.here = here;
+      if (seen !== undefined && here !== seen) { session.cursors?.request(); soon(); renderStrip(); }
     }
     // What the host holds of this window's edits (its hello and heartbeat): the log keeps the rest.
     function noteAck(session, n) {
