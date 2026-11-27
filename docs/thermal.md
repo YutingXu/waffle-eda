@@ -110,7 +110,7 @@ The map is a **simple steady-state model**. It shows where heat collects and how
 
 ## Validation
 
-`tests/ipc2152.cjs` and `tests/thermal.cjs` (`scripts/test-jsc.sh ipc2152 thermal`) check the following.
+`tests/analysis/ipc2152.cjs` and `tests/analysis/thermal.cjs` (`scripts/test-jsc.sh ipc2152 thermal`) check the following.
 
 | Check | Result |
 |---|---|

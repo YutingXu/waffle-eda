@@ -1,6 +1,6 @@
 "use strict";
 // Routing and power-plane proposals (app/pcb/route-planner.js, app/pcb/plane-planner.js), and the
-// placement → routing chain with app/autoplace.js. Run with Node 18+ (node tests/pcb/route-planner.cjs)
+// placement → routing chain with app/pcb/autoplace.js. Run with Node 18+ (node tests/pcb/route-planner.cjs)
 // or JavaScriptCore (scripts/test-jsc.sh route-planner).
 const assert = require("node:assert/strict");
 const H = require("./autorouter.cjs");

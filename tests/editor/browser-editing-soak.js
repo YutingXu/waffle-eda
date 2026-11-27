@@ -29,7 +29,7 @@ async function openModel(browser, model, dir, pressure) {
     worker.on("close", () => workers.closed++);
   });
   await page.getByRole("button", {name: "Continue to editor", exact: true}).click();
-  const fixture = model === "board" ? "dense-board.js" : "sch-bench-project.js";
+  const fixture = model === "board" ? "../pcb/dense-board.js" : "../schematic/sch-bench-project.js";
   await page.addScriptTag({path: path.join(__dirname, fixture)});
   const info = await page.evaluate(async model => {
     const h = AtriumNavHost;

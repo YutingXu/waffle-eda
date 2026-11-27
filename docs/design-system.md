@@ -2,13 +2,13 @@
 
 Waffle's UI is styled with a small set of tokens, kept close to VS Code's. Colours change
 with the theme; the scales below stay the same in every theme. If you write new CSS, use
-these tokens. `tests/css-tokens.py` checks authored stylesheets and static inline styles in editor sources.
+these tokens. `tests/maintenance/css-tokens.py` checks authored stylesheets and static inline styles in editor sources.
 
-**Components.** The [UI library](ui-library.md) documents every control and pattern built from these tokens. It covers when to use each one, its markup or builder, its states and a composition guide. Its [living gallery](ui-library.md#using-the-library) renders each one. Build UI from the library, and do not add your own controls (`tests/ui-library-lint.py`).
+**Components.** The [UI library](ui-library.md) documents every control and pattern built from these tokens. It covers when to use each one, its markup or builder, its states and a composition guide. Its [living gallery](ui-library.md#using-the-library) renders each one. Build UI from the library, and do not add your own controls (`tests/maintenance/ui-library-lint.py`).
 
 - **Colour tokens.** `app/theme.js` (`AtriumTheme.PRESETS`) is the source of truth. Dark
   is the `:root` block in `app/style.css`; Light, High Contrast and Classic are the blocks
-  in `app/theme.css`. `tests/theme.cjs` checks that the three files agree.
+  in `app/theme.css`. `tests/editor/theme.cjs` checks that the three files agree.
   `app/vscode-theme.js` maps VS Code workbench colours onto the same tokens (its `MAP`,
   `derived()` and `TEXT` tables). The other built-in themes (Ember, Fjord, Obsidian,
   Clearview, Soldermask, Haze, Vellum, High Contrast Light), user themes and extension
@@ -27,7 +27,7 @@ these tokens. `tests/css-tokens.py` checks authored stylesheets and static inlin
 
 Each semantic colour has a Dark, Light, High Contrast and Classic value, and a derived or
 explicit value in every library theme. Text colours reach WCAG AA (4.5:1) on `--panel`,
-`--chrome`, `--field` and `--menu-bg`. `tests/css-tokens.py` checks every pair, in every
+`--chrome`, `--field` and `--menu-bg`. `tests/maintenance/css-tokens.py` checks every pair, in every
 built-in theme.
 
 | Role | Token | Notes |
@@ -136,7 +136,7 @@ The [UI library](ui-library.md) is the full component reference. The notes below
   and controls whose value is a swatch or toggle. Operating-system pickers use
   native layout. Register a new dock panel or dialog in the existing surface
   conventions so the live coverage gate can require an opened fixture.
-  Run `node tests/browser-dialog-geometry.cjs` for dialogs and Preferences, and
+  Run `node tests/editor/browser-dialog-geometry.cjs` for dialogs and Preferences, and
   `node tests/integration-browser.cjs` for dock and editor surfaces.
 - **Shortcuts.** Pass the binding from the keyboard map to
   `AtriumShortcut.render(binding, {variant:"inline"})` for a plain hint or use
@@ -254,12 +254,12 @@ The [easing rules](motion.md#5-easing-duration-and-springs) list the approved cu
 
 Loading indicators are the one looping exception to the 300 ms limit (approved 2026-11-23): the
 library spinner turns and the indeterminate bar sweeps until the wait ends. Reduced holds them still,
-Off stops them, and `tests/motion.cjs` rejects a loop anywhere else.
+Off stops them, and `tests/editor/motion.cjs` rejects a loop anywhere else.
 
 `AtriumMotion` in `app/motion.js` mirrors the core timing and easing tokens.
 `duration(name)` and `cssEase(name)` return the matching time and CSS curve. Canvas effects share
 one animation frame loop through `animate({duration, ease, step, done})`, which returns a cancellable
-handle. `tests/motion.cjs` checks the shared values, CSS rules, motion levels, and canvas effects.
+handle. `tests/editor/motion.cjs` checks the shared values, CSS rules, motion levels, and canvas effects.
 
 ### Levels
 
@@ -301,7 +301,7 @@ two- or three-finger tap, which must also stay within the slop. Remap a gesture 
 Touch never shows hover-only UI: no hover cards, no owner outline round a part's text, and no
 sticky `:hover` on canvas chrome. A touch press sets `html[data-pointer=touch]` until a mouse or
 pen moves again (`shell.js`); canvas chrome writes its hover fills under
-`:where(:root:not([data-pointer=touch]))`. `tests/browser-touch-scheme.js` checks every row on a
+`:where(:root:not([data-pointer=touch]))`. `tests/editor/browser-touch-scheme.js` checks every row on a
 dense board.
 
 ## Native behaviour
@@ -309,7 +309,7 @@ dense board.
 Waffle must behave like a native desktop app and never reveal that its interface is a web page.
 Each browser behaviour has one app-wide policy, set in the base CSS (`app/style.css`, plus the
 focus rule in `app/polish.css`), in `app/shell.js`, or in the native host. Do not patch a single
-component; extend the policy or add an exception here. `tests/browser-no-quirks.js` checks every row.
+component; extend the policy or add an exception here. `tests/editor/browser-no-quirks.js` checks every row.
 
 | Behaviour | Policy | Where |
 |---|---|---|
@@ -330,7 +330,7 @@ component; extend the policy or add an exception here. `tests/browser-no-quirks.
 
 1. Use `var(--token)` for every colour. If a role has no token, add it to every preset in
    `theme.js`, to `style.css :root` and `theme.css`, and to the mapping in
-   `vscode-theme.js`. Then run `python3 tests/css-tokens.py` and
+   `vscode-theme.js`. Then run `python3 tests/maintenance/css-tokens.py` and
    `scripts/test-jsc.sh theme vscode-theme`.
-2. Take sizes from the scales above, and durations and curves from the motion tokens. `tests/css-tokens.py` warns on raw `font-size:Npx`.
+2. Take sizes from the scales above, and durations and curves from the motion tokens. `tests/maintenance/css-tokens.py` warns on raw `font-size:Npx`.
 3. Before adding new CSS, use the [UI library](ui-library.md). Feature CSS only places components.

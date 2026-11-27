@@ -1,7 +1,7 @@
 {
   "format": "atrium-route-corpus",
   "version": 1,
-  "purpose": "Routed open-hardware boards for the Route Suggestions evaluation harness (tests/route-suggest-eval.cjs --corpus DIR). Not redistributed and not yet downloaded: scripts/fetch-route-corpus.py --pin fetches them into ~/.cache/atrium-corpus and records SHA-256 pins. Licences were checked through the GitHub API (SPDX Apache-2.0) at the pinned commits.",
+  "purpose": "Routed open-hardware boards for the Route Suggestions evaluation harness (tests/pcb/route-suggest-eval.cjs --corpus DIR). Not redistributed and not yet downloaded: scripts/fetch-route-corpus.py --pin fetches them into ~/.cache/atrium-corpus and records SHA-256 pins. Licences were checked through the GitHub API (SPDX Apache-2.0) at the pinned commits.",
   "boards": [
     {
       "name": "lpddr4-testbed",

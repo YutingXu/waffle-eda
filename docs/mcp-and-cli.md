@@ -54,7 +54,7 @@ Run `python3 mcp/server.py --project X.waffle --cli list` for the exact tool lis
 A failed call always returns `isError: true` with `structuredContent.error = {code, message, retryable}`
 (`unknown_tool`, `invalid_arguments`, `not_found`, `write_not_allowed`, `stale_source`, `read_only_revision`,
 `limit`, `engine_stopped`, `io_error`, `tool_failed`), so an assistant can tell a typo from a stale read
-from a refused edit. `tests/eco-e2e.py` runs the whole AI workflow end to end: create, place, wire,
+from a refused edit. `tests/integration/eco-e2e.py` runs the whole AI workflow end to end: create, place, wire,
 declare a signal, ECO, plan impedance, route one net, autoroute the rest, check, waive and generate outputs.
 
 ## Review and apply changes

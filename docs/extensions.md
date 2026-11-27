@@ -225,7 +225,7 @@ HTML view type: extension text is always shown as text.
 ## 7. Test
 
 - Every scaffold and example has a `test.cjs` that runs in the sandbox harness, `extensions/examples/harness.cjs`: your code runs in a separate JS realm joined to the host only by JSON messages, with the real permission checks, proposals and limits, against an in-memory example project. `h.answers` answers the permission and review prompts. Run one with `jsc tests/jsc-shim.js -- "$PWD/<folder>/test.cjs"` on macOS (no Node needed) or `node <folder>/test.cjs`; `scripts/test-jsc.sh extension-examples` runs all the examples.
-- `tests/extensions.cjs` and `tests/atrium-api.cjs` cover the host itself: sandbox escapes, permissions, limits.
+- `tests/extensions/extensions.cjs` and `tests/core/atrium-api.cjs` cover the host itself: sandbox escapes, permissions, limits.
 - Headless: `AtriumScripting.runHeadless(project, code, {timeoutMs})`, or the MCP `run_script` tool, runs the same API without the editor.
 
 ## Checklist before publishing

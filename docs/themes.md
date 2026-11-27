@@ -18,7 +18,7 @@ operating system's light/dark setting, and install themes that extensions contri
 
 All built-in themes are original. Each meets WCAG AA (4.5:1) for every text pair the library
 checks (3:1 for focus rings and markers), and its copper layers are told apart by colour.
-`tests/css-tokens.py` checks both.
+`tests/maintenance/css-tokens.py` checks both.
 
 | Theme | Type | Character | Lowest text contrast | Closest copper pair (ΔE) |
 |---|---|---|---|---|
@@ -166,7 +166,7 @@ then your View Configuration (L) overrides.
 
 ## Tests
 
-- `python3 tests/css-tokens.py -v`: text contrast for every built-in theme, resolved by the app's
+- `python3 tests/maintenance/css-tokens.py -v`: text contrast for every built-in theme, resolved by the app's
   own code in JavaScriptCore or Node. It also checks copper ΔE, deuteranopia ΔE and contrast on
   the board, computed independently in Python.
 - `scripts/test-jsc.sh theme theme-library vscode-theme`: schema, validation (including injection
