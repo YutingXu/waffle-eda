@@ -485,18 +485,31 @@ globalThis.AtriumAPI = (() => {
     return use(need(name));
   }
 
-  // Maps, Sets and typed arrays become JSON-friendly values for scripts and MCP.
-  function toPlain(v, depth = 0) {
-    if (v == null || typeof v !== "object") return typeof v === "function" ? undefined : v;
-    if (depth > 40) return null;
-    if (v instanceof Map) return Array.from(v, ([k, x]) => (plain(x) ? {key: k, ...toPlain(x, depth + 1)} : [k, toPlain(x, depth + 1)]));
-    if (v instanceof Set) return Array.from(v, x => toPlain(x, depth + 1));
-    if (ArrayBuffer.isView(v)) return v;
-    if (v instanceof Date) return v.toISOString();
-    if (Array.isArray(v)) return v.map(x => toPlain(x, depth + 1));
-    const out = {};
-    for (const k of Object.keys(v)) { const x = toPlain(v[k], depth + 1); if (x !== undefined) out[k] = x; }
-    return out;
+  // Maps, Sets and typed arrays become JSON-friendly values for scripts and MCP. A Map entry is
+  // {key, ...value} when its value is a plain record without its own `key` field, otherwise
+  // [key, value], so every key survives. BigInts become decimal text and a cycle becomes null.
+  // `json` also turns typed arrays into arrays, for results sent as JSON text.
+  function toPlain(v, json = false, depth = 0, path = new Set()) {
+    if (typeof v === "bigint") return String(v);
+    if (v == null || typeof v !== "object") return typeof v === "function" || typeof v === "symbol" ? undefined : v;
+    if (depth > 40 || path.has(v)) return null;
+    path.add(v);
+    try {
+      const next = x => toPlain(x, json, depth + 1, path);
+      const record = x => plain(x) && [Object.prototype, null].includes(Object.getPrototypeOf(x)) && !Object.prototype.hasOwnProperty.call(x, "key");
+      if (v instanceof Map) return Array.from(v, ([k, x]) => (record(x) ? {key: next(k), ...next(x)} : [next(k), next(x)]));
+      if (v instanceof Set) return Array.from(v, next);
+      if (ArrayBuffer.isView(v)) {
+        const wide = typeof BigInt64Array === "function" && (v instanceof BigInt64Array || v instanceof BigUint64Array);
+        if (!json && !wide) return v;
+        return Array.from(v instanceof DataView ? new Uint8Array(v.buffer, v.byteOffset, v.byteLength) : v, next);
+      }
+      if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
+      if (Array.isArray(v)) return v.map(next);
+      const out = {};
+      for (const k of Object.keys(v)) { const x = next(v[k]); if (x !== undefined) out[k] = x; }
+      return out;
+    } finally { path.delete(v); }
   }
   const clone = v => (v === undefined ? undefined : typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
   // si-sim: field-solver results by geometry, shared by every caller (the key is the whole input).

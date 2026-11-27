@@ -30,9 +30,9 @@ globalThis.AtriumScripting = (() => {
   }
   function format(args) {
     return args.map(a => {
-      if (typeof a === "string") return a;
+      if (typeof a === "string" || typeof a === "bigint") return String(a);
       if (a instanceof Error) return a.message;
-      try { const s = JSON.stringify(a); return s === undefined ? String(a) : s; } catch { return String(a); }
+      try { const s = JSON.stringify(globalThis.AtriumAPI?.toPlain ? AtriumAPI.toPlain(a, true) : a); return s === undefined ? String(a) : s; } catch { return String(a); }
     }).join(" ").slice(0, 4000);
   }
   /**
@@ -66,7 +66,7 @@ globalThis.AtriumScripting = (() => {
     } catch (e) { running = Promise.reject(e); }
     return Promise.resolve(running).then(value => {
       if (Date.now() - started > timeoutMs) throw Error("The script exceeded its " + timeoutMs + " ms time limit.");
-      return out({ok: true, project: h.project, result: AtriumAPI.toPlain(value) ?? null, error: null, transactions: h.steps.length, steps: h.steps});
+      return out({ok: true, project: h.project, result: AtriumAPI.toPlain(value, true) ?? null, error: null, transactions: h.steps.length, steps: h.steps});
     }, e => out({ok: false, project: h.project, result: null, error: {message: String(e?.message || e), line: lineOf(e)}, transactions: h.steps.length, steps: h.steps}));
   }
   // Script line of an error, when the engine reports one (the wrapper adds 2 lines).
@@ -334,7 +334,7 @@ return parts.length + " rows";`}
         let text;
         if (r.value === undefined || r.value === null) text = "Done";
         else if (typeof r.value === "string") text = r.value;
-        else { try { text = JSON.stringify(r.value, null, 2); } catch { text = String(r.value); } }
+        else { try { text = JSON.stringify(globalThis.AtriumAPI?.toPlain ? AtriumAPI.toPlain(r.value, true) : r.value, null, 2); } catch { text = String(r.value); } }
         if (text.length > 20000) text = text.slice(0, 20000) + "\n… (truncated)";
         write("result", text).append(el("small", meta));
       } else write("error", (r.error?.message || "Script failed") + meta);

@@ -159,4 +159,40 @@ assert.throws(() => P.applyChecked(A.clone(base), v2([{op: "set", target: "proje
   assert.deepEqual(pcb.items.map(i => i.id), ["a", "c", "d"]);
 }
 
+// Version 2 designator edits follow the version 1 rules: never blank, never another part's designator.
+{
+  const sheetParts = sheet.items.filter(i => i.kind === "part"), [a, b] = sheetParts;
+  const setRef = (i, after) => ({op: "set", target: "item", document: sheet.id, id: i.id, path: ["ref"], before: i.ref, after});
+  for (const [ops, re] of [[[setRef(a, b.ref)], /already used/], [[setRef(a, "")], /Invalid proposed text/], [[setRef(a, "  ")], /Invalid proposed text/],
+    [[{op: "set", target: "item", document: sheet.id, id: a.id, path: ["ref"], before: a.ref}], /Invalid proposed text/],
+    [[{op: "set", target: "item", document: sheet.id, id: a.id, path: ["x"], before: a.x, after: 1e9}], /geometry/],
+    [[{op: "add", target: "item", document: sheet.id, after_id: null, value: {...a, id: "copy"}}], /already used/]]) {
+    const proposal = P.guarded(base, "test.ref", ops);
+    assert.throws(() => P.inspect(proposal, A.clone(base)), re, JSON.stringify(ops[0]));
+    const c = ctx(A.clone(base)), before = JSON.stringify(c.project);
+    assert.throws(() => AtriumAI.apply(c, proposal), re);
+    assert.equal(JSON.stringify(c.project), before);
+    const h = AtriumAPI.headless(A.clone(base));
+    assert.throws(() => h.api.proposals.submit(proposal), re);
+    assert.equal(h.steps.length, 0);
+  }
+  // The final designators decide: a swap, or reusing the designator of a removed part, is fine.
+  const swap = ctx(A.clone(base));
+  AtriumAI.apply(swap, P.guarded(base, "test.swap", [setRef(a, b.ref), setRef(b, a.ref)]));
+  assert.deepEqual(swap.project.documents.find(d => d.id === sheet.id).items.filter(i => i.kind === "part").slice(0, 2).map(i => i.ref), [b.ref, a.ref]);
+  const reuse = P.guarded(base, "test.reuse", [{op: "remove", target: "item", document: sheet.id, id: b.id, before: b}, setRef(a, b.ref)]);
+  assert.equal(P.apply(A.clone(base), reuse), 2);
+  // An unselected duplicate is not applied, so it does not block the others.
+  const mixed = P.guarded(base, "test.mixed", [setRef(a, b.ref), {op: "set", target: "item", document: sheet.id, id: b.id, path: ["value"], before: b.value, after: "47k"}]);
+  assert.equal(P.apply(A.clone(base), mixed, {select: [1]}), 1);
+  assert.throws(() => P.apply(A.clone(base), mixed), /already used/);
+  // Another gate of the same multi-gate symbol shares its designator.
+  const gated = A.clone(base), def = gated.library.find(d => d.id === a.def);
+  def.symbol = {...def.symbol, parts: 2};
+  const gate = P.guarded(gated, "test.gate", [{op: "add", target: "item", document: sheet.id, after_id: a.id, value: {...a, id: "gate-b", unit: 2}}]);
+  assert.equal(P.apply(A.clone(gated), gate), 1);
+  const clash = P.guarded(gated, "test.gate", [{op: "add", target: "item", document: sheet.id, after_id: a.id, value: {...a, id: "gate-a"}}]);
+  assert.throws(() => P.apply(A.clone(gated), clash), /already used/, "the same gate twice is a duplicate");
+}
+
 console.log("PASS proposals: code fields refused, validated on a copy, stale guards re-checked on the live project, one v1 field list");

@@ -240,6 +240,16 @@ const done=(async()=>{
   assert.equal(out.ok,false);assert.equal(out.project,null);
   out=await S.runHeadless(base,"return new Map([[1, 2]])");
   assert.deepEqual(out.result,[[1,2]],"results become JSON data");
+  // Every result is JSON text without losing Map keys: a record value with its own key field stays a pair.
+  for(const [code,want] of [["return 1n","1"],["return new Map([['id', {key: 'real', n: 1}]])",[["id",{key:"real",n:1}]]],
+    ["return new Map([['id', {n: 1}]])",[{key:"id",n:1}]],["return new Map([[2n, {a: 1}], ['m', new Map([['a', 1]])], ['d', new Date(0)]])",[{key:"2",a:1},["m",[["a",1]]],["d","1970-01-01T00:00:00.000Z"]]],
+    ["return [new Set([1n]), new BigInt64Array([5n]), new Uint8Array([1, 2]), new Date(NaN), NaN, undefined]",[["1"],["5"],[1,2],null,null,null]],
+    ["const a = {n: 1}; a.self = a; a.again = a; return a",{n:1,self:null,again:null}]]){
+    const job=S.headlessStart(JSON.stringify({code,timeoutMs:1000}),JSON.stringify(base));
+    await new Promise(res=>setTimeout(res,0));
+    const r=JSON.parse(S.headlessTake(job,{includeProject:false}));
+    assert.equal(r.ok,true,code);assert.deepEqual(r.result,want,code);
+  }
 
   // Two-phase entry used through the JavaScriptCore C API.
   const job=S.headlessStart(JSON.stringify({code:"return (await api.items.count({kind: 'via'}))",timeoutMs:1000}),JSON.stringify(base));

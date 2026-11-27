@@ -2237,9 +2237,16 @@ globalThis.AtriumExtensions = (() => {
     const hash = manifest.contributes?.mathFunctions?.length ? bundleDigest(manifest, kept) : null;
     if (hash) await checkNotebook(manifest,kept,{id:manifest.id,manifest,hash});
     // Show the permissions at install. An update that asks for different ones asks again.
+    // Cancelling it leaves the installed version's answers as they were.
     const same = prior && JSON.stringify([...(prior.manifest.permissions || [])].sort()) === JSON.stringify([...(manifest.permissions || [])].sort());
+    const previous = prior && !same ? {grant: grantOf(manifest.id), writes: openWrites.get(manifest.id)} : null;
     if (!same) saveGrant(manifest.id, null);
-    if (!await acknowledge({id: manifest.id, manifest, perms: {}}, "install")) throw Error("Installation cancelled.");
+    let accepted = false;
+    try { accepted = await acknowledge({id: manifest.id, manifest, perms: {}}, "install"); }
+    finally {
+      if (!accepted && previous?.grant && !grantOf(manifest.id)) { saveGrant(manifest.id, previous.grant); if (previous.writes) openWrites.set(manifest.id, previous.writes); }
+    }
+    if (!accepted) throw Error("Installation cancelled.");
     if (prior) { await deactivate(prior.id); removeContributions(prior); }
     await code.put(manifest.id, kept);
     const e = recordOf(manifest, origin, enable ?? (manifest.enabledByDefault !== false || prior?.enabled === true));

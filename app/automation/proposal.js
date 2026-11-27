@@ -180,6 +180,33 @@ globalThis.AtriumProposal = (() => {
     const k = path[path.length - 1];
     if (own(op, "after")) o[k] = clone(op.after); else delete o[k];
   }
+  // Component field rules shared by both versions: text is at most 512 characters, a designator
+  // is never blank and geometry is finite.
+  function checkPartField(field, after) {
+    if (V1_TEXT.has(field)) {
+      if (typeof after !== "string" || after.length > 512 || (field === "ref" && !after.trim())) fail("Invalid proposed text.");
+    } else if (!Number.isFinite(after) || Math.abs(after) > 1e7) fail("Invalid proposed geometry.");
+  }
+  // A changed or added designator is not kept by another part on its document, except by
+  // another gate of the same multi-gate symbol. `changes` maps each document to Map(part, ref),
+  // `added` lists the document's new parts and `gone` holds removed item ids.
+  function checkDesignators(p, changes, added = new Map(), gone = new Set()) {
+    const unit = i => (Number.isInteger(i.unit) && i.unit > 0 ? i.unit : 0) || (Number.isInteger(i.part) && i.part > 0 ? i.part : 0) || 1;
+    let defs;
+    const gates = (d, a, b) => d.kind === "schematic" && a.def === b.def && unit(a) !== unit(b) &&
+      (defs ||= new Map((p.library || []).map(def => [def.id, def]))).get(a.def)?.symbol?.parts > 1;
+    for (const [d, refs] of changes) {
+      const byRef = new Map();
+      for (const j of [...d.items, ...(added.get(d) || [])]) {
+        if (j?.kind !== "part" || gone.has(j.id)) continue;
+        const r = refs.has(j) ? refs.get(j) : j.ref;
+        if (!byRef.has(r)) byRef.set(r, []);
+        byRef.get(r).push(j);
+      }
+      for (const [i, ref] of refs) if (byRef.get(ref)?.some(j => j !== i && !gates(d, i, j)))
+        fail("Designator " + ref + " is already used on " + d.name + ".");
+    }
+  }
   const clone = v => v == null || typeof v !== "object" ? v : JSON.parse(JSON.stringify(v));
   const short = v => { const s = v === undefined ? "(none)" : JSON.stringify(v); return s.length > 80 ? s.slice(0, 77) + "…" : s; };
   const nameOf = i => i.ref || i.name || i.text || i.net || i.id;
@@ -193,6 +220,9 @@ globalThis.AtriumProposal = (() => {
     if (proposal.document_ids && (!Array.isArray(proposal.document_ids) || proposal.document_ids.some(id => !lookup.docs.has(id))))
       fail("This proposal belongs to another document set.");
     const {docs, items, lib} = lookup, added = new Set(), seen = new Set(), removed = new Set(), parents = new Set(), rows = [];
+    // Chosen designator changes, added parts and removed items, checked together at the end.
+    const refChanges = new Map(), addedParts = new Map(), gone = new Set();
+    const inDoc = (m, d, make) => m.get(d) || (m.set(d, make()), m.get(d));
     for (const o of proposal.ops) if (o?.op === "remove") {
       const key = o.target + "\0" + o.id;
       if (removed.has(key)) fail("The proposal removes the same object twice.");
@@ -245,6 +275,11 @@ globalThis.AtriumProposal = (() => {
         if (checkCurrent) {
           const now = read(owner, o.path);
           if (now.has !== own(o, "before") || now.has && !equal(now.value, o.before)) stale(label + " · " + o.path.join("."));
+          if (o.target === "item" && owner.kind === "part" && o.path.length === 1 && V1_FIELDS.includes(o.path[0])) {
+            // The project validator judges other deleted fields (a missing angle is 0). A designator is never deleted.
+            if (own(o, "after") || o.path[0] === "ref") checkPartField(o.path[0], o.after);
+            if (o.path[0] === "ref") inDoc(refChanges, items.get(o.id).d, () => new Map()).set(owner, o.after);
+          }
         }
         if (show) rows.push({index: n, op: o, label: label + " · " + o.path.join("."), detail: short(o.before) + " → " + short(o.after)});
         return;
@@ -258,11 +293,17 @@ globalThis.AtriumProposal = (() => {
         if (o.op === "add") {
           if (items.has(v.id) || added.has(v.id)) fail("Item " + v.id + " already exists.");
           added.add(v.id);
+          if (v.kind === "part" && (!chosen || chosen.has(n))) {
+            checkPartField("ref", v.ref);
+            inDoc(addedParts, d, () => []).push(v);
+            inDoc(refChanges, d, () => new Map()).set(v, v.ref);
+          }
           if (show) rows.push({index: n, op: o, label: "Add " + v.kind + " " + nameOf(v), detail: d.name});
           return;
         }
         const hit = items.get(o.id);
         if (!hit || hit.d !== d || !equal(hit.i, v)) stale(d.name + " · " + nameOf(v));
+        if (!chosen || chosen.has(n)) gone.add(o.id);
         if (show) rows.push({index: n, op: o, label: "Remove " + v.kind + " " + nameOf(v), detail: d.name});
         return;
       }
@@ -279,6 +320,7 @@ globalThis.AtriumProposal = (() => {
       if (!map.has(o.id) || !equal(map.get(o.id), v)) stale("The " + what + " " + (v.name || v.id));
       if (show) rows.push({index: n, op: o, label: "Remove " + what + " " + (v.name || v.id), detail: ""});
     });
+    checkDesignators(p, refChanges, addedParts, gone);
     return rows;
   }
   // Every operation is checked. Only the requested preview rows are formatted.
@@ -487,20 +529,16 @@ globalThis.AtriumProposal = (() => {
       const [d, i] = parts.get(row.id) || [], {field, after} = row, key = row.id + "/" + field;
       if (!i || d.id !== row.document || !V1_FIELDS.includes(field) || seen.has(key)) fail("The proposal refers to an unknown or repeated field.");
       seen.add(key);
-      if (V1_TEXT.has(field)) {
-        if (typeof after !== "string" || after.length > 512 || (field === "ref" && !after.trim())) fail("Invalid proposed text.");
-      } else if (!Number.isFinite(after) || Math.abs(after) > 1e7) fail("Invalid proposed geometry.");
+      checkPartField(field, after);
       if ((i[field] ?? 0) !== row.before) fail(i.ref + " has changed since this proposal was drafted. Generate a fresh proposal.");
       return {d, i, row};
     });
   }
   function applyV1(p, proposal, transform, touch) {
     const checked = inspectV1(proposal, p);
-    const refs = new Map(checked.filter(x => x.row.field === "ref").map(x => [x.i.id, x.row.after]));
-    for (const [id, ref] of refs) {
-      const {d} = checked.find(x => x.i.id === id);
-      if (d.items.some(i => i.kind === "part" && i.id !== id && (refs.get(i.id) || i.ref) === ref)) fail("Designator " + ref + " is already used on " + d.name + ".");
-    }
+    const refs = new Map();
+    for (const {d, i, row} of checked) if (row.field === "ref") (refs.get(d) || refs.set(d, new Map()).get(d)).set(i, row.after);
+    checkDesignators(p, refs);
     // Group geometry updates so a single proposed transform moves wire endpoints once.
     const updates = new Map();
     for (const {d, i, row} of checked) { if (!updates.has(i)) updates.set(i, {d, props: {}}); updates.get(i).props[row.field] = row.after; }

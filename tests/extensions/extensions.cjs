@@ -86,6 +86,18 @@ const done=(async()=>{
   await assert.rejects(X.install(pkg({id:"test.declined",permissions:["read:project"]},"")),/cancelled/,"declining the install prompt installs nothing");
   assert.ok(!X.list().some(e=>e.id==="test.declined"));
   answers.install=r=>Object.fromEntries(r.permissions.map(p=>[p,!p.startsWith("network:")]));
+  // Cancelling an update that asks for a new permission keeps the installed version's grant.
+  await X.install(pkg({id:"test.upgrade",permissions:["read:project"]},""));
+  answers.install=null;
+  await assert.rejects(X.install(pkg({id:"test.upgrade",version:"1.1.0",permissions:["read:project","ui:command"]},"")),/cancelled/);
+  answers.install=r=>Object.fromEntries(r.permissions.map(p=>[p,!p.startsWith("network:")]));
+  {
+    const asked=prompts.length;
+    await X.install(pkg({id:"test.upgrade",permissions:["read:project"]},""));
+    assert.equal(prompts.length,asked,"reinstalling the installed version does not ask again after a cancelled update");
+    assert.deepEqual(X.permissions("test.upgrade").live,{"read:project":true});
+  }
+  await X.uninstall("test.upgrade");
 
   // ----------------------------------------- onCommand activation and one undo step
   const C1=refOf(board(),"C1").id,C2=refOf(board(),"C2").id;
