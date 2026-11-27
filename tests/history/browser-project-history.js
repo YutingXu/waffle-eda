@@ -205,7 +205,7 @@ async function run(browser) {
       (await AtriumLazy.need("AtriumPrefs")).set("butter.visualHistory",true);
       AtriumNavHost.act("history-panel");
     });
-    const panel=page.locator(".panel-history"),scrubber=panel.getByRole("slider",{name:"Session and Git history"});
+    const panel=page.locator('.ui-dock-panel[data-dock="history"]'),scrubber=panel.getByRole("slider",{name:"Session and Git history"});
     await page.waitForFunction(()=>+(document.querySelector(".hist-scrub input")?.max||0)>=499);
     const position=log.commits.length-1-log.commits.findIndex(c=>c.revision===merge.revision);
     await scrubber.evaluate((slider,i)=>{slider.value=String(i);slider.dispatchEvent(new Event("input",{bubbles:true}));},position);

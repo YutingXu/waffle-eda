@@ -48,7 +48,7 @@ async function reportDialog(page) {
 async function bom(page) {
   await page.evaluate(() => AtriumNavHost.act("bom"));
   const b = page.locator("dialog.bom-dialog[open]");
-  await b.locator(".bom-grid tbody tr.bom-line").first().waitFor();
+  await b.locator(".ui-sheet-grid tbody tr.bom-line").first().waitFor();
   const opener = b.locator(".bom-actions").getByRole("button", {name: "Print…", exact: true});
   await opener.click();
   let d = await reportDialog(page);
@@ -64,7 +64,7 @@ async function bom(page) {
     requestAnimationFrame(() => resolve(node === document.activeElement)))), "Escape returns focus to the BOM Print button");
 
   // Mod+P over the BOM opens the BOM's print dialog; Mod+P in it prints.
-  await b.locator(".bom-grid").click({position: {x: 40, y: 40}});
+  await b.locator(".ui-sheet-grid").click({position: {x: 40, y: 40}});
   await page.keyboard.press("ControlOrMeta+Alt+KeyP");
   d = await reportDialog(page);
   assert.equal(await page.locator("dialog.print-dialog:not(.print-report-dialog)[open]").count(), 0, "not the document Print dialog");

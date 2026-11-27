@@ -775,11 +775,11 @@ globalThis.AtriumConstraints = (() => {
     const csvBtn = button("Export CSV", () => exportCsv(), null, "Export this sheet as CSV");
     const runBtn = button("Check clearance", () => runClearance(), null, "Run the clearance check and count violations per class pair");
     tools.append(AtriumUI.searchField(search, {cls: "cm-find", type: true}), failing, colsBtn, tplBtn, runBtn, csvBtn);
-    const body = el("div", null, "cm-body ui-dialog-body"), wrap = el("div", null, "cm-grid-wrap"); wrap.tabIndex = 0;
-    const table = el("table", null, "cm-grid"), colgroup = el("colgroup"), thead = el("thead"), tbody = el("tbody");
+    const body = el("div", null, "ui-sheet-body ui-dialog-body"), wrap = el("div", null, "ui-sheet-wrap"); wrap.tabIndex = 0;
+    const table = el("table", null, "ui-sheet-grid"), colgroup = el("colgroup"), thead = el("thead"), tbody = el("tbody");
     table.append(colgroup, thead, tbody); wrap.append(table);
     const side = el("div", null, "cm-side"); side.hidden = true;
-    const matrix = el("div", null, "cm-matrix"); matrix.hidden = true;
+    const matrix = el("div", null, "ui-sheet-wrap cm-matrix"); matrix.hidden = true;
     body.append(wrap, matrix, side);
     const status = el("p", null, "cm-status"); status.setAttribute("aria-live", "polite");
     d.append(grip, head, tools, body, status);
@@ -816,31 +816,31 @@ globalThis.AtriumConstraints = (() => {
       colgroup.replaceChildren(); let total = 0;
       for (const c of cols) { const g = el("col"); g.style.width = widthOf(c) + "px"; total += widthOf(c); colgroup.append(g); }
       table.style.width = total + "px";
-      const p = per(state.tab), tr = el("tr"), fr = el("tr", null, "cm-filter-row");
+      const p = per(state.tab), tr = el("tr"), fr = el("tr", null, "ui-sheet-filter-row");
       for (const c of cols) {
         const th = el("th"); th.scope = "col"; th.dataset.key = c.key; th.draggable = true;
         if (c.kind !== "text" && c.kind !== "status") th.classList.add("num");
         if (c.edit) th.classList.add("editable"); if (c.actual) th.classList.add("actual");
         th.setAttribute("aria-sort", p.sort.key === c.key ? (p.sort.dir < 0 ? "descending" : "ascending") : "none");
-        const b = el("button", c.label + unitLabel(c), "cm-sort"); b.type = "button"; b.dataset.key = c.key; b.tabIndex = -1;
+        const b = el("button", c.label + unitLabel(c), "ui-sheet-sort"); b.type = "button"; b.dataset.key = c.key; b.tabIndex = -1;
         b.title = (c.edit ? "Constraint (" + R().types[c.edit[0]].title + "). Double-click a cell to edit. " : c.actual ? "Actual value from the board. " : "") + "Click to sort · drag to move";
         if (p.sort.key === c.key) b.dataset.dir = p.sort.dir < 0 ? "▼" : "▲";
-        const rs = el("span", null, "cm-resize"); rs.dataset.key = c.key;
+        const rs = el("span", null, "ui-sheet-resize"); rs.dataset.key = c.key;
         th.append(b, rs); tr.append(th);
-        const fth = el("th"), input = el("input", null, "cm-filter ui-field"); input.dataset.key = c.key; input.value = p.filters[c.key] || ""; input.placeholder = c.key === "status" ? "fail / pass" : "Filter";
+        const fth = el("th"), input = el("input", null, "ui-sheet-filter ui-field"); input.dataset.key = c.key; input.value = p.filters[c.key] || ""; input.placeholder = c.key === "status" ? "fail / pass" : "Filter";
         input.setAttribute("aria-label", "Filter " + c.label); fth.append(input); fr.append(fth);
       }
       thead.replaceChildren(tr, fr);
     }
     thead.onclick = e => {
-      const b = e.target.closest(".cm-sort"); if (!b) return;
+      const b = e.target.closest(".ui-sheet-sort"); if (!b) return;
       const p = per(state.tab), k = b.dataset.key;
       p.sort = {key: k, dir: p.sort.key === k ? -p.sort.dir : 1}; remember(); repaint();
     };
     let ft = 0;
-    thead.oninput = e => { const i = e.target.closest(".cm-filter"); if (!i) return; const p = per(state.tab); if (i.value.trim()) p.filters[i.dataset.key] = i.value; else delete p.filters[i.dataset.key]; clearTimeout(ft); ft = setTimeout(repaint, 120); };
+    thead.oninput = e => { const i = e.target.closest(".ui-sheet-filter"); if (!i) return; const p = per(state.tab); if (i.value.trim()) p.filters[i.dataset.key] = i.value; else delete p.filters[i.dataset.key]; clearTimeout(ft); ft = setTimeout(repaint, 120); };
     thead.onpointerdown = e => {
-      const g = e.target.closest(".cm-resize"); if (!g) return;
+      const g = e.target.closest(".ui-sheet-resize"); if (!g) return;
       e.preventDefault(); e.stopPropagation();
       const c = cols.find(x => x.key === g.dataset.key), x0 = e.clientX, w0 = widthOf(c), colEl = colgroup.children[cols.indexOf(c)];
       g.setPointerCapture?.(e.pointerId);
@@ -850,7 +850,7 @@ globalThis.AtriumConstraints = (() => {
     };
     let dragKey = null;
     const dropOf = e => e.target.closest?.("th[data-key], .cm-colitem[data-key]");
-    function onDragStart(e) { if (e.target.closest?.(".cm-resize")) { e.preventDefault(); return; } const t = dropOf(e); if (!t) return; dragKey = t.dataset.key; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", dragKey); } catch { /* old engines */ } }
+    function onDragStart(e) { if (e.target.closest?.(".ui-sheet-resize")) { e.preventDefault(); return; } const t = dropOf(e); if (!t) return; dragKey = t.dataset.key; e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", dragKey); } catch { /* old engines */ } }
     function onDragOver(e) {
       const t = dropOf(e); if (!dragKey || !t) return; e.preventDefault();
       const r = t.getBoundingClientRect(), vertical = t.classList.contains("cm-colitem"), before = vertical ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;

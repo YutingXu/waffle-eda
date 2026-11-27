@@ -870,7 +870,7 @@ globalThis.AtriumBOM = (() => {
     dnpToggle.title = DNP_HELP;
     const dnpHelp = el("span", DNP_HELP, "bom-sr"); dnpHelp.id = "bom-dnp-help";
     const field_ = (label, control) => { const l = el("label", null, "bom-field"); l.append(el("span", label), control); return l; };
-    const tools = el("div", null, "bom-toolbar");
+    const tools = el("div", null, "ui-sheet-toolbar");
     const variantField = field_("Variant", variantSelect);
     // The optimiser's entry point; the Optimise tab stays reachable from the tab list too.
     const optButton = button("", () => showTab("optimise"), "bom-opt-button");
@@ -878,9 +878,9 @@ globalThis.AtriumBOM = (() => {
     optButton.append(optLabel, optCount); optButton.hidden = !O;
     tools.append(field_("Source", sourceSelect), variantField, field_("View", viewSelect), AtriumUI.searchField(search), dnpToggle, dnpHelp, optButton);
 
-    const table = el("table", null, "bom-grid"), colgroup = el("colgroup"), thead = el("thead"), tbody = el("tbody");
+    const table = el("table", null, "ui-sheet-grid"), colgroup = el("colgroup"), thead = el("thead"), tbody = el("tbody");
     table.append(colgroup, thead, tbody); table.setAttribute("role", "grid"); table.setAttribute("aria-label", "Bill of materials lines");
-    const gridWrap = el("div", null, "bom-grid-wrap"); gridWrap.tabIndex = 0; gridWrap.append(table);
+    const gridWrap = el("div", null, "ui-sheet-wrap"); gridWrap.tabIndex = 0; gridWrap.append(table);
     // Columns: a collapsible side panel (like ActiveBOM's Properties › Columns). Its open state and
     // width are remembered; the edge drags to resize and the chevron (or the slim rail) hides it.
     const panel = el("aside", null, "ui-drawer bom-columns"); panel.id = "bom-columns"; panel.setAttribute("aria-label", "Columns");
@@ -920,7 +920,7 @@ globalThis.AtriumBOM = (() => {
     };
     // The collapsed rail is the handle: a press anywhere on it opens the panel.
     panel.addEventListener("click", e => { if (!state.panelOpen && !e.target.closest(".bom-panel-fold")) setPanel(true); });
-    const body = el("div", null, "bom-body"); body.id = "bom-lines";
+    const body = el("div", null, "ui-sheet-body"); body.id = "bom-lines";
     body.setAttribute("role", "tabpanel"); body.setAttribute("aria-labelledby", tabLines.id); body.append(gridWrap, panel);
     const detail = el("div", null, "bom-detail");
     const notes = el("div", null, "bom-notes");
@@ -1145,7 +1145,7 @@ globalThis.AtriumBOM = (() => {
       let total = leadW();
       for (const c of cols) { const col = el("col"); col.style.width = widthOf(c) + "px"; total += widthOf(c); colgroup.append(col); }
       table.style.width = total + "px";
-      const tr = el("tr"), fr = el("tr", null, "bom-filter-row");
+      const tr = el("tr"), fr = el("tr", null, "ui-sheet-filter-row");
       const corner = el("th", null, "bom-lead pin"); corner.style.left = "0px"; corner.setAttribute("aria-label", "Status");
       const fcorner = el("th", null, "bom-lead pin"); fcorner.style.left = "0px";
       tr.append(corner); fr.append(fcorner);
@@ -1155,15 +1155,15 @@ globalThis.AtriumBOM = (() => {
         if (i < state.pinned) { th.classList.add("pin"); th.style.left = pinLeft(i) + "px"; }
         const si = state.sort.findIndex(s => s.key === c.key);
         th.setAttribute("aria-sort", si === 0 ? (state.sort[0].dir < 0 ? "descending" : "ascending") : "none");
-        const b = el("button", c.label, "bom-sort"); b.type = "button"; b.dataset.key = c.key; b.tabIndex = -1;
+        const b = el("button", c.label, "ui-sheet-sort"); b.type = "button"; b.dataset.key = c.key; b.tabIndex = -1;
         b.title = (c.key === "dnp" ? "DNP: do not populate (not fitted on the assembled board) · Enter or double-click toggles · " : "") +
           "Sort by " + c.label + " · Shift-click adds a secondary sort · drag to move";
         if (si >= 0) { b.dataset.dir = state.sort[si].dir < 0 ? "▼" : "▲"; if (state.sort.length > 1) b.dataset.rank = String(si + 1); }
         if (state.groupBy.includes(c.key)) { b.classList.add("grouped"); b.title += " · grouped"; }
-        const grip = el("span", null, "bom-resize"); grip.dataset.key = c.key; grip.setAttribute("aria-hidden", "true");
+        const grip = el("span", null, "ui-sheet-resize"); grip.dataset.key = c.key; grip.setAttribute("aria-hidden", "true");
         th.append(b, grip); tr.append(th);
         const fth = el("th"); if (i < state.pinned) { fth.classList.add("pin"); fth.style.left = pinLeft(i) + "px"; }
-        const input = el("input", null, "bom-filter ui-field"); input.dataset.key = c.key; input.value = state.filters[c.key] || "";
+        const input = el("input", null, "ui-sheet-filter ui-field"); input.dataset.key = c.key; input.value = state.filters[c.key] || "";
         input.placeholder = "Filter"; input.setAttribute("aria-label", "Filter " + c.label); input.spellcheck = false;
         fth.append(input); fr.append(fth);
       });
@@ -1177,7 +1177,7 @@ globalThis.AtriumBOM = (() => {
       gridWrap.classList.toggle("bom-hscroll", wide);
     }
     thead.onclick = e => {
-      const b = e.target.closest(".bom-sort"); if (!b) return;
+      const b = e.target.closest(".ui-sheet-sort"); if (!b) return;
       const key = b.dataset.key, i = state.sort.findIndex(s => s.key === key);
       if (e.shiftKey) {
         if (i < 0) state.sort = [...state.sort, {key, dir: 1}].slice(0, 4);
@@ -1189,15 +1189,15 @@ globalThis.AtriumBOM = (() => {
     };
     let filterTimer = 0;
     thead.oninput = e => {
-      const input = e.target.closest(".bom-filter"); if (!input) return;
+      const input = e.target.closest(".ui-sheet-filter"); if (!input) return;
       if (input.value.trim()) state.filters[input.dataset.key] = input.value; else delete state.filters[input.dataset.key];
       clearTimeout(filterTimer);
       filterTimer = setTimeout(() => { refilter(); paintSummary(); }, 90);
     };
-    thead.onkeydown = e => { if (e.target.closest(".bom-filter") && (e.key === "ArrowDown" || e.key === "Enter")) { e.preventDefault(); gridWrap.focus(); } };
+    thead.onkeydown = e => { if (e.target.closest(".ui-sheet-filter") && (e.key === "ArrowDown" || e.key === "Enter")) { e.preventDefault(); gridWrap.focus(); } };
     // Resizing: drag the grip on a header's right edge.
     thead.onpointerdown = e => {
-      const grip = e.target.closest(".bom-resize"); if (!grip) return;
+      const grip = e.target.closest(".ui-sheet-resize"); if (!grip) return;
       e.preventDefault(); e.stopPropagation();
       const key = grip.dataset.key, c = cols.find(x => x.key === key), x0 = e.clientX, w0 = widthOf(c);
       const col = colgroup.children[cols.indexOf(c) + 1];
@@ -1211,7 +1211,7 @@ globalThis.AtriumBOM = (() => {
     let dragKey = null;
     const dropTarget = e => e.target.closest?.("th[data-key], .bom-column[data-key]");
     function onDragStart(e) {
-      if (e.target.closest?.(".bom-resize")) { e.preventDefault(); return; }
+      if (e.target.closest?.(".ui-sheet-resize")) { e.preventDefault(); return; }
       const t = dropTarget(e); if (!t) return;
       dragKey = t.dataset.key; e.dataTransfer.effectAllowed = "move";
       try { e.dataTransfer.setData("text/plain", dragKey); } catch {}
@@ -1258,7 +1258,7 @@ globalThis.AtriumBOM = (() => {
       const last = flat.length <= RENDER_ALL ? flat.length : Math.min(flat.length, rowAt(top + view) + 1 + slack);
       rendered = {first, last};
       const frag = document.createDocumentFragment(), sel = range(), lefts = cols.map((c, i) => i < state.pinned ? pinLeft(i) : null);
-      const spacer = h => { const tr = el("tr", null, "bom-spacer"); const td = el("td"); td.colSpan = span; td.style.height = h + "px"; tr.append(td); return tr; };
+      const spacer = h => { const tr = el("tr", null, "ui-sheet-spacer"); const td = el("td"); td.colSpan = span; td.style.height = h + "px"; tr.append(td); return tr; };
       if (first) frag.append(spacer(yOf(first)));
       const partners = stripPartners();
       for (let r = first; r < last; r++) {

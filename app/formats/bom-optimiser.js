@@ -1373,13 +1373,13 @@ globalThis.AtriumBOMOptimiser = (() => {
     const catalogue = {value: null, name: ""};
     let analysis = null, chosen = new Set(), pricing = null, costing = null, busy = null;
     const root = el("div", null, "bomopt");
-    const bar = el("div", null, "bomopt-bar");
+    const bar = el("div", null, "ui-sheet-toolbar");
     const metrics = el("div", null, "bomopt-metrics"); metrics.setAttribute("role", "status");
     const all = button("Select safe", () => { chosen = new Set(analysis.proposals.filter(p => p.applicable && p.confidence === "safe").map(p => p.id)); paint(); });
     const none = button("Clear", () => { chosen.clear(); paint(); });
     const applyBtn = button("Apply selected", applySelected, "bomopt-primary");
     bar.append(metrics, all, none, applyBtn);
-    const main = el("div", null, "bomopt-main");
+    const main = el("div", null, "ui-sheet-body bomopt-main");
     const left = el("div", null, "bomopt-left"), right = el("aside", null, "bomopt-cost");
     right.setAttribute("aria-label", "Suppliers and cost");
     main.append(left, right);

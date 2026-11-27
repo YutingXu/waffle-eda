@@ -16,7 +16,7 @@ module.exports = async function visualHistoryUI(browser) {
       (await AtriumLazy.need("AtriumPrefs")).set("butter.visualHistory", false);
       AtriumNavHost.act("history-panel");
     });
-    const panel = page.locator(".panel-history");
+    const panel = page.locator('.ui-dock-panel[data-dock="history"]');
     const pager = panel.locator(".hist-scrub .ui-pager");
     await pager.waitFor();
     await panel.locator(".hist-rail .hist-row.ui-row").first().waitFor();
@@ -37,7 +37,7 @@ module.exports = async function visualHistoryUI(browser) {
     assert.equal(await pager.locator(".ui-pager-position").textContent(), "4 of 6");
 
     // Keyboard: Home previews the start; Escape closes the preview.
-    await panel.locator(".hist-list").first().focus();
+    await panel.locator(".ui-dock-list").first().focus();
     await page.keyboard.press("Home");
     await panel.locator(".hist-preview:not([hidden])").waitFor();
     await page.keyboard.press("Escape");

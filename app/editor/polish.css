@@ -18,7 +18,7 @@
 .polygon-pour-dialog input::placeholder {color:var(--muted)}
 
 /* ---- Focus is always visible (#20) -------------------------------------------------- */
-.msg-grid:focus-visible,.bom-grid-wrap:focus-visible,.lib-list:focus-visible,.fe-canvas:focus-visible,
+.msg-grid:focus-visible,.bom-dialog .ui-sheet-wrap:focus-visible,.lib-list:focus-visible,.fe-canvas:focus-visible,
 .v3d-canvas:focus-visible,.print-form:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-2px}
 .script-editor textarea:focus-visible {box-shadow:inset 0 0 0 var(--focus-w) var(--focus)}
 .nav-menu-item:focus-visible {outline:var(--focus-w) solid var(--selection-ink);outline-offset:-2px}

@@ -122,8 +122,8 @@ globalThis.AtriumUIKit = (() => {
     input.onchange = () => onValue(input.value === "" ? null : +input.value);
     return input;
   }
-  /** Analysis label and visible unit. prefix is "pdn" or "thm". A preset numericUnit is left in place. */
-  function analysisField(label, input, unit, cls, prefix) {
+  /** Tool-panel label and visible unit. Defaults to the shared "ui-tool" prefix. A preset numericUnit is left in place. */
+  function analysisField(label, input, unit, cls, prefix = "ui-tool") {
     const row = el("label", prefix + "-field" + (cls ? " " + cls : ""));
     row.append(el("span", prefix + "-label", label), input);
     if (input.type === "number" && unit && input.dataset.numericUnit == null)
