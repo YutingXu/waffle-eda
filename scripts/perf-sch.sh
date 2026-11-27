@@ -192,6 +192,9 @@ else:
     print("  idle wake-ups:", results[-1]["checks"].get("idleWakeups"))
     for r in results[-1]["checks"].get("editSeries") or []:
         print("  edit %-14s frame %6.1f  longest task %6.1f  long tasks %2d (%6.1f ms)  CPU %7.1f ms  quiet after %5d ms" % (r["name"], r["frame"], r["taskMax"], r["longTasks"], r["longMs"], r.get("cpuMs", -1), r["quietMs"]))
+        if "canvasMs" in r:
+            kb = lambda v: "-" if v is None else "%.1f" % (v / 1024)
+            print("       canvas %6.1f ms (longest %5.1f)  pour worker %s KB %s  autosave %s KB (%d)  undo %s KB" % (r["canvasMs"], r["canvasMax"], kb(r.get("pourBytes")), r.get("pourRegions") or "", kb(r.get("autosaveBytes")), r.get("autosaves", 0), kb(r.get("undoBytes"))))
     if errors: print("  page errors:", errors[:10])
     print("FAIL: " + "; ".join(fail) if fail else "PASS schematic budgets")
 sys.exit(1 if fail else 0)

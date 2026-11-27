@@ -40,7 +40,9 @@ async function schProbe(options) {
   }
   const RQ = [];
   window.requestAnimationFrame = cb => {RQ.push({cb, s: counting ? site() : ""}); return RQ.length;}; window.cancelAnimationFrame = () => {};
-  const flushRAF = () => {for (let k = 0; k < 5 && RQ.length; k++) for (const {cb, s} of RQ.splice(0)) {count("raf", s); cb(performance.now());}};
+  // Frame callbacks (the canvas's renders): their time in all and the longest, since the last reset.
+  const rafTime = {ms: 0, max: 0};
+  const flushRAF = () => {for (let k = 0; k < 5 && RQ.length; k++) for (const {cb, s} of RQ.splice(0)) {count("raf", s); const t = performance.now(); cb(t); const d = performance.now() - t; rafTime.ms += d; rafTime.max = Math.max(rafTime.max, d);}};
   const H = () => AtriumNavHost, cv = () => H().canvas(), g2 = () => cv().getContext("2d");
   // Which edit-pipeline jobs are staged while counting (an idle window should stage none).
   {const st = H().stageEdit; if (st) H().stageEdit = (phase, key, cb, o) => {if (counting) wake.sources.set("stage " + phase + " " + (typeof key === "string" ? key : key?.constructor?.name || typeof key) + " " + site(), (wake.sources.get("stage " + phase + " " + key) || 0) + 1); return st(phase, key, cb, o);};}
@@ -154,19 +156,32 @@ async function schProbe(options) {
         ["undo", () => act("undo")],
         ["redo", () => act("redo")]];
       const rows = [];
+      // Per edit, the bytes it cost: the live pour worker's new copper received (live.last), autosave's
+      // fresh chunks written (AtriumAutosave stats), the Undo store's growth (stats().bytes), and the
+      // canvas: frame callbacks' time and longest (the edit's frame, the repour's and any later).
+      const autosaved = () => {const s = globalThis.AtriumAutosave?.stats?.() || {}; return {saves: s.saves || 0, written: s.written || 0, at: s.at || 0};};
+      const undoBytes = () => globalThis.AtriumUndoStore?.stats?.()?.bytes ?? null;
       for (const [name, run] of series) {
-        const k = rows.length, t = performance.now();
+        const k = rows.length, t = performance.now(), a0 = autosaved(), u0 = undoBytes(), l0 = AtriumPolygonPour?.live?.last;
+        rafTime.ms = rafTime.max = 0;
         mark("ed" + k + "-start");
         const f = frame(run);
         const q = await untilQuiet({armed: true});
+        // Autosave waits for its debounce: let it write before the next edit (not counted as quiet time).
+        if (globalThis.AtriumAutosave?.stats?.().pending) {const until = performance.now() + 8000; while (globalThis.AtriumAutosave.stats().pending && performance.now() < until) await wait(100); await idleFor(1500);}
         mark("ed" + k + "-end");
-        const L = longIn(t, performance.now());
-        rows.push({name, frame: f, quietMs: q.ms, taskMax: L.max, longTasks: L.count, longMs: L.total});
+        const L = longIn(t, performance.now()), a1 = autosaved(), u1 = undoBytes(), l1 = AtriumPolygonPour?.live?.last;
+        rows.push({name, frame: f, quietMs: q.ms, taskMax: L.max, longTasks: L.count, longMs: L.total,
+          canvasMs: +rafTime.ms.toFixed(1), canvasMax: +rafTime.max.toFixed(1),
+          pourBytes: l1 && l1 !== l0 ? l1.received ?? null : 0, pourRegions: l1 && l1 !== l0 ? [l1.regions, l1.kept] : null,
+          autosaves: a1.saves - a0.saves, autosaveBytes: a1.saves > a0.saves ? a1.written : 0, undoBytes: u0 != null && u1 != null ? u1 - u0 : null});
       }
       checks.editSeries = rows;
+      checks.undo = globalThis.AtriumUndoStore?.stats?.();
       metrics.editSeriesFrame = Math.max(...rows.map(r => r.frame));
       metrics.editTaskMax = Math.max(...rows.map(r => r.taskMax));
       metrics.editSeriesQuietMs = Math.max(...rows.map(r => r.quietMs));
+      metrics.editCanvasMax = Math.max(...rows.map(r => r.canvasMax));
     }
     const pass = globalThis.AtriumInsightsUI?.lastPass?.();
     checks.insights = pass && {mode: pass.mode, why: pass.why, ms: Math.round(pass.ms)};
