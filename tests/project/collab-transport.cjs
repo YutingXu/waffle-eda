@@ -422,6 +422,16 @@ async function testStallAndRetry() {
     visible = true; for (const f of power) f({visible: true});
     await until(() => a.state === "open", "back at once on screen", 2000);
     assert.ok(Date.now() - t2 < 150, "visible redials at once");
+    // A socket that stalls just after a large send is given the time those bytes need on a slow
+    // uplink (SLOW_LINK) before it is declared dead: a big transfer on a slow link is not a stall.
+    await until(() => a.joined() && b.paths().has(a.peer), "A settled");
+    await tick(beat * 2);
+    relay.stalled.add(relay.sockets.get(a.connectionId()));
+    const t3 = Date.now(), stalls = a.stats.stalls;
+    a.send("ops", {pad: "x".repeat(40 * 1024)});
+    await until(() => a.stats.stalls === stalls + 1, "found after the grace", 8000);
+    assert.ok(Date.now() - t3 >= 1000, "waited for the large send (" + (Date.now() - t3) + " ms)");
+    await until(() => a.state === "open" && a.joined(), "A back");
     a.close(); b.close();
 
     // An older relay never answers: its quiet sockets are not declared dead, and they fall back to

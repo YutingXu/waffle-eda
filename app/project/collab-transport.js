@@ -68,6 +68,9 @@ globalThis.AtriumCollabTransport = (() => {
   // that has not joined within DIAL_WAIT is abandoned. While disconnected, messages for everyone wait
   // in the relay queue up to OFFLINE_QUEUE bytes (the session's catch-up covers anything beyond).
   const RETRY_FAST = 20, RETRY_MAX = 30000, DIAL_WAIT = 8000, OFFLINE_QUEUE = 8 * 1024 * 1024;
+  // A ping's answer may wait behind what was sent before it: a socket that sent a lot is given the
+  // time those bytes need at this rate (256 kbit/s), so a slow uplink in a large transfer is not dead.
+  const SLOW_LINK = 32 * 1024;
   const RETRY = [20000, 60000, 180000];
   const enc = new TextEncoder(), dec = new TextDecoder();
   const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
@@ -413,7 +416,9 @@ globalThis.AtriumCollabTransport = (() => {
     // all: a message for everyone, which stays queued across a reconnect}.
     let ws = null, joined = false, attempts = 0, retryTimer = 0, keepTimer = 0, pumpTimer = 0, refused = "";
     let relayQueue = [], queued = 0, sentBytes = 0;
-    let dialAt = 0, lastIn = 0, pingAt = 0, buffered = 0, echo = null, silent = 0;
+    // Liveness: lastIn (anything heard), pingAt (an unanswered ping), owed (bytes sent since we last
+    // heard anything, when the ping went: its answer may wait behind them, at SLOW_LINK at least).
+    let dialAt = 0, lastIn = 0, pingAt = 0, buffered = 0, echo = null, silent = 0, outBytes = 0, outAtIn = 0, owed = 0;
     const sent = [], windowMs = 10250, maxBytes = 20 * 1024 * 1024, maxFrames = 320;
     const kept = () => { for (const L of links.values()) if (L.ready) return true; return false; };
     function enqueue(f, all, first = false) {
@@ -440,7 +445,7 @@ globalThis.AtriumCollabTransport = (() => {
         if (ws.bufferedAmount >= 4 * CHUNK) delay = Math.max(delay, 25);
         if (delay > 0) { pumpTimer = setTimeout(() => { pumpTimer = 0; pump(); }, delay); return; }
         relayQueue.shift(); queued -= frame.length;
-        ws.send(frame); sent.push({at, bytes: frame.length}); sentBytes += frame.length;
+        ws.send(frame); sent.push({at, bytes: frame.length}); sentBytes += frame.length; outBytes += frame.length;
       }
     }
     // The session's one steady timer. The keepalive's beat (BEAT above) also runs the session's own
@@ -468,14 +473,17 @@ globalThis.AtriumCollabTransport = (() => {
         return;
       }
       if (pingAt && lastIn < pingAt) {   // nothing heard since the last ping
-        const draining = sock.bufferedAmount < buffered;
-        if (echo === true && !draining) { stats.stalls++; detach(sock); lost(); return; }
+        // Still sending what went before the ping (the browser's buffer shrinks, or the bytes sent
+        // since we last heard anything could take that long on a slow uplink): wait another beat.
+        const busy = sock.bufferedAmount < buffered || at - pingAt < owed / SLOW_LINK * 1000;
+        if (echo === true && !busy) { stats.stalls++; detach(sock); lost(); return; }
+        if (echo === true) { buffered = sock.bufferedAmount; keepTimer = setTimeout(beat, beatMs); return; }
         if (echo === null && ++silent >= 3) echo = false;   // a relay that does not answer pings
       }
       pingAt = 0; buffered = sock.bufferedAmount;
       // An older relay that never answers gets the old keepalive; the beat still keeps the heartbeat.
       const ping = echo === false ? at - pingedAt >= keepMs && !relayQueue.length : at - lastIn >= beatMs / 2;
-      if (sock.readyState === 1 && ping) { sock.send('{"t":"p"}'); pingAt = pingedAt = at; }
+      if (sock.readyState === 1 && ping) { sock.send('{"t":"p"}'); pingAt = pingedAt = at; owed = outBytes - outAtIn; }
       keepTimer = setTimeout(beat, echo === false ? Math.min(keepMs, heartbeatMs) : beatMs);
     }
     function detach(sock) {
@@ -516,7 +524,7 @@ globalThis.AtriumCollabTransport = (() => {
       sock.onopen = () => { if (closed) { sock.close(); return; } sock.send(JSON.stringify({t: "join", room: k.room, auth: k.auth, v: 2, own: o.owner || undefined, host: o.hostToken || undefined})); };
       sock.onmessage = ev => {
         if (closed || ws !== sock) return;
-        lastIn = now();
+        lastIn = now(); outAtIn = outBytes;
         let m; try { m = JSON.parse(typeof ev.data === "string" ? ev.data : ""); } catch { return; }
         if (!m || typeof m !== "object") return;
         if (m.t === "p") { echo = true; return; }   // the keepalive's answer
@@ -576,7 +584,7 @@ globalThis.AtriumCollabTransport = (() => {
       const at = now();
       if (joined) {
         if (echo === true && ws?.readyState === 1 && !pingAt) {
-          ws.send('{"t":"p"}'); pingAt = at; buffered = ws.bufferedAmount;
+          ws.send('{"t":"p"}'); pingAt = at; buffered = ws.bufferedAmount; owed = outBytes - outAtIn;
           clearTimeout(keepTimer); keepTimer = setTimeout(beat, probeMs);
         }
         return;

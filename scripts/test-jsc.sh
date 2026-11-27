@@ -48,6 +48,7 @@ for test_path in $test_paths; do
     native-palette-extension-detail) reason="requires Node to build and drive the macOS AppKit/WKWebView harness" ;;
     collab-transport) reason="requires Web Crypto for authenticated encryption and signatures (the Node job runs it)" ;;
     collab-pair) reason="requires Web Crypto and compression streams (the Node job runs it)" ;;
+    collab-resilience) reason="runs each editor in its own Node vm context (the Node job runs it)" ;;
     notebook-foreign) reason="uses Node zlib to independently verify retained PNG bytes" ;;
     odb-output|odb-profile-conformance) reason="uses Node zlib to independently verify ODB++ gzip and tar bytes (runs in the Node suites)" ;;
     notebook-font-assets) reason="uses the Node crypto digest to verify the asset provider" ;;
