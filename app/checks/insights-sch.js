@@ -312,7 +312,7 @@ globalThis.AtriumInsightsSch = (() => {
         }
         return results;
       }});
-    R({id: "netTypo", kind: "schematic", severity: "advice", title: t("insights.typo.title"), why: t("insights.typo.why"), prefHelp: () => t("insights.typo.pref_help"), learnMore: t("insights.typo.learn"), scope: "doc", dirtyKinds: ["netlabel", "power", "port", "offsheet", "wire"], run: typoCheck});
+    R({id: "netTypo", kind: "schematic", severity: "advice", title: t("insights.typo.title"), why: t("insights.typo.why"), prefHelp: () => t("insights.typo.pref_help"), learnMore: t("insights.typo.learn"), scope: "doc", run: typoCheck}); // its message counts pins: any edit can change them
     R({id: "decoupling", kind: "schematic", severity: "advice", title: t("insights.decoupling.title"), why: t("insights.decoupling.why"), prefHelp: () => t("insights.decoupling.pref_help"), learnMore: t("insights.decoupling.learn"), scope: "doc", run: decouplingCheck});
     R({id: "i2cPullup", kind: "schematic", severity: "advice", title: t("insights.i2c.title"), why: t("insights.i2c.why"), prefHelp: () => t("insights.i2c.pref_help"), learnMore: t("insights.i2c.learn"), scope: "doc", run: i2cCheck});
     R({id: "wireNearPin", kind: "schematic", severity: "advice", title: t("insights.near.title"), why: t("insights.near.why"), prefHelp: () => t("insights.near.pref_help"), learnMore: t("insights.near.learn"), scope: "doc",

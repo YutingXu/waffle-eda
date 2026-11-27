@@ -351,8 +351,18 @@ globalThis.AtriumInsights = (() => {
       }
     }
     // Views of the indexes for one pass, with the pass's pending changes laid over them.
-    function views(st, pending, live) {
+    function views(st, pending, live, doc) {
       const item = id => pending.has(id) ? (pending.get(id) ? live.get(id) : null) : st.live.get(id);
+      // Items in document order, as a full pass visits them: a check that keeps the first of several
+      // hits (silk over pads) then picks the same one from the index as from the whole board.
+      // The positions are kept between passes while the list is the same and every changed item is
+      // still where they say (an insertion, removal or reorder moves one of them).
+      let order = null;
+      const valid = o => o && o.items === doc.items && o.length === doc.items.length && [...pending].every(([id, n]) => !n || doc.items[o.at.get(live.get(id))] === live.get(id));
+      const rank = i => {
+        if (!order) { order = valid(st.order) ? st.order.at : (st.order = {items: doc.items, length: doc.items.length, at: new Map(doc.items.map((x, k) => [x, k]))}).at; }
+        return order.get(i) ?? Infinity;
+      };
       return {
         boxOf: id => pending.has(id) ? pending.get(id)?.box : st.items.get(id)?.box,
         itemsIn(boxes) {
@@ -361,7 +371,7 @@ globalThis.AtriumInsights = (() => {
           for (const [id, n] of pending) if (n) ids.add(id);
           const out = [];
           for (const id of ids) { const i = item(id), b = i && (pending.has(id) ? pending.get(id).box : st.items.get(id)?.box); if (i && b && boxes.some(q => overlaps(b, q))) out.push(i); }
-          return out;
+          return out.length > 1 ? out.sort((a, b) => rank(a) - rank(b)) : out;
         },
         netItems(net) {
           const out = [];
@@ -429,7 +439,7 @@ globalThis.AtriumInsights = (() => {
       // A stopped iterator must not publish partial check results.
       if (!full) st = {...st, cache:new Map(st.cache), owed:new Set(st.owed || [])};
       else st.owed = new Set();
-      const v = views(st, full ? new Map() : new Map(updates), hint?.items || new Map());
+      const v = views(st, full ? new Map() : new Map(updates), hint?.items || new Map(), doc);
       const ctx = context(project, doc, defs, {...opts, memo: st.memo, sheetMemo, ...v});
       if (boxes && boxes.length > 24) boxes = [boxes.reduce((u, b) => union(u, b), null)];
       const ran = [];

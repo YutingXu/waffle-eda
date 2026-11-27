@@ -658,12 +658,20 @@ globalThis.AtriumInsightsPCB = (() => {
 
   // ---------------------------------------------------------------- silkscreen, rings, board edge
   function silkCheck(ctx, scope) {
-    const out = [];
-    const pg = ctx.padGridIn(scope?.boxes ? scope.boxes.map(b => ctx.grow(b, 3)) : null);
-    for (const i of ctx.itemsIn(scope?.boxes || null)) {
+    const out = [], silk = [];
+    // Scoped: a label's marker is the pad's centre, up to the reach (3 mm) outside the label, so labels
+    // that near reach the edited region are checked; and every pad that any of them can touch is in
+    // the grid, in document order, so each finds the same first pad as a whole-board pass.
+    const near = scope?.boxes ? scope.boxes.map(b => ctx.grow(b, 3)) : null;
+    for (const i of ctx.itemsIn(near)) {
       if (!(i.kind === "graphic" || i.kind === "label") || !SILK.test(i.layer || "")) continue;
       const box = ctx.boxOf(i);
-      if (!box || (scope?.boxes && !scope.boxes.some(b => ctx.overlaps(box, b)))) continue;
+      if (!box || (near && !near.some(b => ctx.overlaps(box, b)))) continue;
+      silk.push([i, box]);
+    }
+    if (!silk.length) return out;
+    const pg = ctx.padGridIn(near ? silk.map(([i, box]) => ctx.grow(box, (+i.width || .15) / 2)) : null);
+    for (const [i, box] of silk) {
       const face = /bottom/i.test(i.layer) ? "Bottom" : "Top", w = (+i.width || .15) / 2;
       const points = i.kind === "graphic" && Array.isArray(i.points) ? i.points : null;
       let hit = null;
