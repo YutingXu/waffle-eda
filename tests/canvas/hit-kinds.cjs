@@ -313,6 +313,12 @@ require("../../app/schematic/sch-objects.js");
     assert.ok(stack().indexOf("far") > stack().indexOf(track.id), "the other-side part comes after the current-layer track, " + track.id + ": " + stack());
     s.items.pop();
   }
+  // A shorter stack is the start of a longer one, wherever the cut falls among the current-layer hits.
+  s.items.push({id: "via9", kind: "via", x: 9, y: 0, diameter: .6}, {id: "ttrack", kind: "track", net: "D", layer: "Top", width: .2, points: [[9, -3], [9, 3]]});
+  view.render(s, sideDefs, {grid: false});
+  const full = view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}, 8).map(i => i.id);
+  for (let n = 1; n < full.length; n++) assert.deepEqual(view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}, n).map(i => i.id), full.slice(0, n), "a stack of " + n);
+  s.items.splice(-2);
   view.fit(doc, defs);
   view.render(doc, defs, {grid: false});
 }

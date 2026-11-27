@@ -2207,7 +2207,7 @@ globalThis.AtriumCanvas = (() => {
             const other=ranked[k];
             if(priority>other.priority||priority===other.priority&&distance<other.distance){place=k;break;}
           }
-          if(place<limit){ranked.splice(place,0,{item:i,priority,distance,strong});if(ranked.length>limit)ranked.pop();}
+          ranked.splice(place,0,{item:i,priority,distance,strong}); // cut at the end, after the asides go in
         }
       }
       // Asides go after every strong hit, which can rank below silk or mask in the all-layers mode.
