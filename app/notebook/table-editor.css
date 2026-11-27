@@ -27,7 +27,6 @@
 .table-cell[data-state=error]{color:var(--error);box-shadow:inset var(--s-2) 0 var(--error)}
 .table-col{z-index:2}
 .table-resize{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;touch-action:none}
-.table-resize:hover{background:color-mix(in srgb,var(--focus) 45%,transparent)}
 .table-status{margin-block:var(--s-4) 0;min-block-size:var(--ctl-h-sm)}
 .table-options{margin-block-start:var(--s-8)}
 .table-options>summary{min-block-size:var(--ctl-h);line-height:var(--ctl-h);color:var(--ink);font-size:var(--fs-12);font-weight:var(--fw-semibold);cursor:default}

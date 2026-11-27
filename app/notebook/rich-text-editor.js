@@ -181,24 +181,28 @@ globalThis.AtriumRichTextEditor = (() => {
     const canvas=s.host.canvas(),r=canvas.getBoundingClientRect(),view=s.host.view(),scale=view.camera().scale;
     const i=s.item,[x,y]=view.worldToScreen([Math.min(i.x,i.x+i.w),Math.min(i.y,i.y+i.h)]),vv=globalThis.visualViewport;
     const left=vv?.offsetLeft||0,top=vv?.offsetTop||0,right=left+(vv?.width||innerWidth),bottom=top+(vv?.height||innerHeight);
+    // The editor stays over the canvas it belongs to: in its layer, above the canvas it would be under the app bar.
+    const ctop=Math.max(top,r.top);
     let sx=r.left+x,sy=r.top+y;
-    if(keep && (sy<top+55 || sy>bottom-105 || sx>right-90 || sx<left)) {
-      const dx=sx>right-90?right-120-sx:sx<left?left+18-sx:0,dy=sy<top+55?top+58-sy:sy>bottom-105?bottom-150-sy:0;
+    if(keep && (sy<ctop+55 || sy>bottom-105 || sx>right-90 || sx<left)) {
+      const dx=sx>right-90?right-120-sx:sx<left?left+18-sx:0,dy=sy<ctop+55?ctop+58-sy:sy>bottom-105?bottom-150-sy:0;
       view.pan(dx,dy);s.host.redraw();sx+=dx;sy+=dy;
     }
     const c=globalThis.AtriumRichText.colours();s.root.style.color=c.ink;s.root.style.setProperty("--swatch", i.fill || c.paper);
     s.root.style.setProperty("--rn-field",c.field);s.root.style.setProperty("--rn-broken",c.broken);
     const w=Math.max(55,Math.abs(i.w)*scale),h=Math.max(40,Math.abs(i.h)*scale);
-    Object.assign(s.root.style,{left:sx+"px",top:sy+"px",width:w+"px",height:h+"px",maxHeight:Math.max(44,bottom-sy-7)+"px",padding:1.25*scale+"px",
+    // Viewport points, less the origin of the canvas layer the editor joined (ui/owner-layer.js).
+    const o=globalThis.AtriumLayer.origin(s.root.parentElement);
+    Object.assign(s.root.style,{left:sx-o.x+"px",top:sy-o.y+"px",width:w+"px",height:h+"px",maxHeight:Math.max(44,bottom-sy-7)+"px",padding:1.25*scale+"px",
       fontSize:(i.size||2.7)*scale+"px",fontFamily:'"'+F.familyName(s.font===i.richText.font?F.fontFor(i):s.font)+'"'});
     s.root.style.height=Math.max(h,s.root.scrollHeight)+"px";
     const strip=s.tools.offsetHeight || 44,panels=s.bar.hidden?0:s.bar.offsetHeight;
-    const roomAbove=sy-top, roomBelow=bottom-s.root.getBoundingClientRect().bottom,above=roomAbove>=strip+panels+12 || roomAbove>=roomBelow;
-    const toolTop=above?Math.max(top+6+panels,sy-strip-5):Math.min(bottom-6-strip-panels,s.root.getBoundingClientRect().bottom+5);
+    const roomAbove=sy-ctop, roomBelow=bottom-s.root.getBoundingClientRect().bottom,above=roomAbove>=strip+panels+12 || roomAbove>=roomBelow;
+    const toolTop=above?Math.max(ctop+6+panels,sy-strip-5):Math.min(bottom-6-strip-panels,s.root.getBoundingClientRect().bottom+5);
     Object.assign(s.bar.style,{top:above?"auto":"100%",bottom:above?"100%":"auto"});
-    Object.assign(s.tools.style,{left:Math.max(left+6,Math.min(sx,right-Math.min(530,right-left-12)))+"px",top:Math.max(top+6,toolTop)+"px",maxWidth:Math.max(200,right-left-12)+"px"});
+    Object.assign(s.tools.style,{left:Math.max(left+6,Math.min(sx,right-Math.min(530,right-left-12)))-o.x+"px",top:Math.max(ctop+6,toolTop)-o.y+"px",maxWidth:Math.max(200,right-left-12)+"px"});
     const rect=selection(s)?.getBoundingClientRect();
-    Object.assign(s.list.style,{left:Math.max(left+5,Math.min(rect?.left||sx,right-248))+"px",top:Math.max(top+5,Math.min((rect?.bottom||sy)+4,bottom-216))+"px"});
+    Object.assign(s.list.style,{left:Math.max(left+5,Math.min(rect?.left||sx,right-248))-o.x+"px",top:Math.max(ctop+5,Math.min((rect?.bottom||sy)+4,bottom-216))-o.y+"px"});
   }
   function action(s,cmd,value=null){resume(s);document.execCommand(cmd,false,value);selectFormat(s);}
   function mark(s,k) {
@@ -256,7 +260,9 @@ globalThis.AtriumRichTextEditor = (() => {
     s.root.contentEditable="true";s.root.setAttribute("role","textbox");s.root.setAttribute("aria-multiline","true");s.root.setAttribute("aria-label","Engineering note");
     s.root.spellcheck=true;s.root.setAttribute("aria-autocomplete","list");s.root.setAttribute("aria-controls",s.list.id);
     s.url.dataset.fieldFace="paper";s.url.hidden=s.bar.hidden=true;s.tools.classList.add("rn-tools");toolset(s,kit);
-    document.body.append(s.root,s.tools,s.list);for(const b of item.richText.blocks)s.root.append(blockNode(b));s.initial=JSON.stringify(readBody(s));
+    // The editor, its tools and field list belong to the canvas: they join its layer, so menus, floating
+    // panels and dialogs over the canvas cover them (ui/owner-layer.js).
+    for(const n of [s.root,s.tools,s.list])globalThis.AtriumLayer.attach(n,s.host.canvas());for(const b of item.richText.blocks)s.root.append(blockNode(b));s.initial=JSON.stringify(readBody(s));
     function input(e){if(e.isComposing)return;shortcuts(s);suggestions(s);position(s,false);}
     s.root.addEventListener("beforeinput",e=>{
       if(e.inputType!=="insertParagraph" || e.isComposing)return;

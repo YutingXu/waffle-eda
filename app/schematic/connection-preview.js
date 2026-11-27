@@ -112,12 +112,16 @@ globalThis.AtriumConnectionPreview = (() => {
     const pane=host.panes().find(p=>p.docId===flash.target.doc.id);
     if (!pane) {clearFlash(); return;}
     const [x,y,right,bottom]=screenBox(flash.target,pane);
-    Object.assign(flash.node.style,{left:(x-4)+"px",top:(y-4)+"px",width:(right-x+8)+"px",height:(bottom-y+8)+"px"});
+    // The flash belongs to its pane's canvas: it joins that canvas's layer and is cut to the canvas, so it
+    // never draws over panels beside it or menus over it (ui/owner-layer.js).
+    const layer=G.AtriumLayer;layer.attach(flash.node,pane.canvas);
+    Object.assign(flash.node.style,{width:(right-x+8)+"px",height:(bottom-y+8)+"px"});
+    layer.at(flash.node,x-4,y-4);layer.clip(flash.node,pane.canvas);
   }
   function flashTarget(t) {
     clearFlash();
     const node=C.el("div",null,"sheet-connection-flash"); node.setAttribute("aria-hidden","true");
-    document.body.append(node); flash={target:t,node,timer:setTimeout(clearFlash,740)}; placeFlash();
+    flash={target:t,node,timer:setTimeout(clearFlash,740)}; placeFlash();
   }
   function jump(t) {
     if (!host || host.docById(t.doc.id)!==t.doc || !t.doc.items.includes(t.item)) return false;

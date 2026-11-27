@@ -300,6 +300,25 @@ function motionProblems(styles) {
       }
     }
   }
+  // A transition that moves (transform, translate, scale, rotate) keeps only its fade under Reduced:
+  // both Preferences › Motion › Reduce and the system setting must narrow it, or its duration must scale
+  // with --motion-move. Off already stops every transition.
+  const reducedBase = selector => selector.replace(/^:root:is\([^)]*\)\s*/i, "").replace(reducedRoot, "").replace(/^:root\s+/i, "").trim();
+  const narrows = rule => (rule.property === "transition" || rule.property === "transition-property") &&
+    !expand(rule.value, variables).some(value => split(value, ",").some(item => split(item, " ").some(word => movement.has(word.toLowerCase()))));
+  for (const rule of rules) {
+    if (rule.property !== "transition" && rule.property !== "transition-property") continue;
+    if (inManualReduce(rule) || mediaRequires(rule.stack, reducedMedia) || rule.stack.some(part => /^@keyframes/i.test(part))) continue;
+    if (selectors(rule).some(part => /data-motion|data-efficient/.test(part))) continue;
+    const values = expand(rule.value, variables);
+    if (!values.some(value => split(value, ",").some(item => split(item, " ").some(word => movement.has(word.toLowerCase()))))) continue;
+    if (/--motion-move/.test(rule.value)) continue;
+    for (const selector of selectors(rule)) {
+      const overrides = rules.filter(candidate => narrows(candidate) && selectors(candidate).some(part => reducedBase(part) === selector));
+      const manual = overrides.some(inManualReduce), system = overrides.some(candidate => mediaRequires(candidate.stack, reducedMedia));
+      if (!manual || !system) report(rule, `${selector} moves in a transition without ${!manual ? "a [data-motion=reduce]" : "a prefers-reduced-motion"} path that keeps only its fade`);
+    }
+  }
   return [...problems];
 }
 

@@ -510,8 +510,12 @@ globalThis.AtriumTiming = (() => {
     if (!hud) {
       hud = document.createElement("div"); hud.className = "timing-hud"; hud.setAttribute("role", "status"); hud.setAttribute("aria-live", "off");
       hud.innerHTML = '<strong></strong><span class="timing-hud-line"></span><span class="timing-hud-line timing-hud-sub"></span><span class="timing-hud-bar"><i class="timing-hud-band"></i><b class="timing-hud-mark"></b></span>';
-      document.body.append(hud);
     }
+    // The readout belongs to the canvas under the pointer: it joins that canvas's layer
+    // (ui/owner-layer.js), so a context menu or floating panel opened over the canvas covers it.
+    const layer = globalThis.AtriumLayer, canvas = host?.canvas?.();
+    if (!canvas) { hud.hidden = true; return; }
+    layer.attach(hud, canvas);
     hud.dataset.state = m.state;
     hud.children[0].textContent = m.title;
     hud.children[1].textContent = m.lines[0] || "";
@@ -521,8 +525,8 @@ globalThis.AtriumTiming = (() => {
     if (m.bar) { bar.children[0].style.left = (m.bar.from * 100).toFixed(1) + "%"; bar.children[0].style.width = (Math.max(.01, m.bar.to - m.bar.from) * 100).toFixed(1) + "%"; bar.children[1].style.left = (m.bar.value * 100).toFixed(1) + "%"; }
     hud.hidden = false;
     const r = hud.getBoundingClientRect(), W = globalThis.innerWidth || 1200, H = globalThis.innerHeight || 800;
-    hud.style.left = Math.max(4, Math.min(x + 18, W - r.width - 6)) + "px";
-    hud.style.top = Math.max(4 + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-caption-height")) || 0), Math.min(y - r.height - 14, H - r.height - 6)) + "px"; // below the title bar
+    layer.at(hud, Math.max(4, Math.min(x + 18, W - r.width - 6)),
+      Math.max(4 + (canvas ? canvas.getBoundingClientRect().top : parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-caption-height")) || 0), Math.min(y - r.height - 14, H - r.height - 6))); // over its canvas, below the app bar
   }
   function refreshHud() {
     raf = 0;

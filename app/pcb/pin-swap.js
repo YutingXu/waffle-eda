@@ -600,14 +600,18 @@ globalThis.AtriumPinSwap = (() => {
       const action = el("button", "Swap pins", "ui-button");
       action.type = "button"; action.dataset.variant = "primary"; action.dataset.size = "sm";
       chip.append(el("span"), action);
-      document.body.append(chip);
     }
     chip.children[1].textContent = "The pair arrives crossed at " + (c.ref || "the part") + " pins " + c.pins[0] + " and " + c.pins[1] + ", which are swappable.";
     const btn = chip.lastChild; btn.textContent = "Swap pins " + c.pins[0] + " ↔ " + c.pins[1]; btn.title = "Finish the routed section and swap the two pins (one undo step for the swap)";
     btn.onclick = () => { chip.hidden = true; chipKey = ""; host.executeKey?.("escape"); swapNow(c.partId, c.pins[0], c.pins[1])?.then?.(() => host.info("Pins " + c.pins[0] + " ↔ " + c.pins[1] + " of " + (c.ref || "the part") + " swapped. Route the last section of the pair again: it now arrives uncrossed.")); };
-    const pane = host.panes().find(p => p.active), r = pane?.canvas.getBoundingClientRect();
+    // The chip belongs to the active canvas: it joins that canvas's layer (ui/owner-layer.js), so menus,
+    // floating panels and dialogs over the canvas cover it too.
+    const pane = host.panes().find(p => p.active), layer = globalThis.AtriumLayer;
+    if (!pane) { chip.hidden = true; return; }
+    layer.attach(chip, pane.canvas);
+    const r = pane?.canvas.getBoundingClientRect();
     chip.hidden = false;
-    if (r) { const w = chip.getBoundingClientRect().width; chip.style.left = Math.max(8, r.left + r.width / 2 - w / 2) + "px"; chip.style.top = Math.max(8, r.top + 52) + "px"; }
+    if (r) { const w = chip.getBoundingClientRect().width; layer.at(chip, Math.max(r.left + 8, r.left + r.width / 2 - w / 2), r.top + 52); }
   }
   function attach(h) {
     host = h;

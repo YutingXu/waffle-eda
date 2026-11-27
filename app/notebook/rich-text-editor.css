@@ -1,5 +1,6 @@
-.rn-editor,.rn-tools,.rn-field-list{position:fixed;box-sizing:border-box;z-index:78}
-.rn-editor{z-index:76;background:var(--sheet);color:var(--ink);outline:1px solid var(--focus);border-radius:2px;overflow:auto;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;font-kerning:none;text-align:left;touch-action:manipulation;caret-color:var(--primary)}
+/* In the canvas's layer (ui/owner-layer.js): the editor floats over the canvas, its tools over it. */
+.rn-editor,.rn-tools,.rn-field-list{position:fixed;box-sizing:border-box;z-index:var(--z-popover)}
+.rn-editor{z-index:var(--z-float);background:var(--sheet);color:var(--ink);outline:1px solid var(--focus);border-radius:2px;overflow:auto;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;font-kerning:none;text-align:left;touch-action:manipulation;caret-color:var(--primary)}
 .rn-editor [data-block]{position:relative;min-height:1.45em;margin:0;padding:0}
 .rn-editor [data-style=h1],.rn-editor [data-style=h2],.rn-editor [data-style=h3]{line-height:1.45;padding-bottom:.1em;font-weight:700}
 .rn-editor [data-style=h1]{font-size:1.85em}.rn-editor [data-style=h2]{font-size:1.5em}.rn-editor [data-style=h3]{font-size:1.24em}

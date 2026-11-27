@@ -131,7 +131,7 @@ td .rules-query { display: inline; }
 }
 
 /* Non-modal Rules and Constraints Editor (rules.js open): a window over the editor, opened from either editor. */
-.rules-window:not(:modal) {position:fixed;inset:48px 40px auto;max-height:calc(100vh - 96px);margin:0;z-index:40;resize:both;overflow:auto;box-shadow:var(--elev-3)}
+.rules-window:not(:modal) {position:fixed;inset:48px 40px auto;max-height:calc(100vh - 96px);margin:0;z-index:var(--z-float);resize:both;overflow:auto;box-shadow:var(--elev-3)}
 .rules-views {display:flex;flex-wrap:wrap;gap:4px;margin-left:auto}
 .rules-view-link {font-size:var(--fs-12)}
 .rules-close {margin-left:4px}

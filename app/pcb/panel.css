@@ -21,7 +21,6 @@
 @media (hover:hover) and (pointer:fine) {
   .panel-dialog .panel-preset:hover {--ui-button-hover:color-mix(in srgb,var(--ui-button-fill),var(--ink) 12%)}
 }
-.panel-dialog .panel-preset:active {transform:scale(.98)}
 .panel-dialog .panel-preset[aria-pressed="true"] {--ui-button-border:var(--accent);--ui-button-fill:var(--tint-accent)}
 
 /* Live preview (SVG, model millimetres). */

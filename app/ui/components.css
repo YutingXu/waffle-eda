@@ -348,6 +348,8 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
   color:var(--ink);background:var(--ui-float-fill,var(--overlay));border:1px solid var(--ui-float-line,var(--line-strong));
   border-radius:var(--ui-float-radius,var(--r-lg));box-shadow:var(--ui-float-shadow,var(--elev-2))}
 :is(.ui-toolbar)[data-floating]:where(:not([data-floating=editing])) {transition:opacity var(--motion-base) var(--ease-decelerate),translate var(--motion-base) var(--ease-decelerate)}
+:root:is([data-motion=reduce],[data-efficient]) :is(.ui-toolbar)[data-floating]:where(:not([data-floating=editing])) {transition-property:opacity}
+@media (prefers-reduced-motion:reduce) {:root :is(.ui-toolbar)[data-floating]:where(:not([data-floating=editing])) {transition-property:opacity}}
 .ui-toolbar[data-floating=editing] {--ui-float-gap:3px;--ui-float-height:44px;--ui-float-padding:4px;--ui-float-fill:var(--menu-bg);--ui-float-line:var(--line);--ui-float-radius:var(--r-note-palette);--ui-float-shadow:var(--elev-note-formatting);padding-block:2px;font:13px var(--font-ui,system-ui)}
 :where(.ui-toolbar)[data-floating=editing] :is(button,select,label) {min-width:40px;min-height:36px;padding:5px 9px;color:inherit;background:transparent;border:0;border-radius:var(--r-note-tool);cursor:default;font:inherit}
 :where(.ui-toolbar)[data-floating=editing] :is(button[aria-pressed=true],button:hover,select:hover) {background:var(--soft)}
@@ -374,7 +376,13 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 :is(.ui-splitter)[aria-orientation=horizontal] {inline-size:auto;block-size:1px;cursor:ns-resize}
 :is(.ui-splitter)::after {content:"";position:absolute;inset:0 calc(-1 * var(--s-2))}
 :is(.ui-splitter)[aria-orientation=horizontal]::after {inset:calc(-1 * var(--s-2)) 0}
-:is(.ui-splitter):is(:hover,.is-dragging,:focus-visible) {background:var(--focus);outline:none}
+/* Every resize handle in the app lights like the splitter: --focus on hover, drag and keyboard focus,
+   with the same short fade. Feature sashes and column grips are listed here, not styled locally
+   (tests/maintenance/css-tokens.py checks that every resize cursor belongs to this list). */
+:is(.ui-splitter,.dock-sash,.split-sash,.dv-side-sash,.bom-resize,.cm-resize,.table-resize,.msg-col-grip,.msg-grip,.script-sash,.bom-panel-edge) {
+  transition:background-color var(--motion-instant) var(--ease-standard)}
+:is(.ui-splitter,.dock-sash,.split-sash,.dv-side-sash,.bom-resize,.cm-resize,.table-resize,.msg-col-grip,.msg-grip,.script-sash,.bom-panel-edge):is(:hover,.is-dragging,:focus-visible) {
+  background-color:var(--focus);outline:none}
 @media (any-pointer:coarse) {:is(.ui-splitter)::after {inset:0 calc(-1 * var(--s-8))} :is(.ui-splitter)[aria-orientation=horizontal]::after {inset:calc(-1 * var(--s-8)) 0}}
 
 /* ---- Drag handle and drop target --------------------------------------------------------------- */

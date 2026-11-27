@@ -27,7 +27,6 @@
 
 .split-sash {flex:none;position:relative;z-index:4;width:4px;margin:0 -1px;background:var(--app);cursor:col-resize;touch-action:none}
 .split-down>.split-sash {width:auto;height:4px;margin:-1px 0;cursor:row-resize}
-.split-sash:hover,.split-sash.is-dragging,.split-sash:focus-visible {background:var(--accent);outline:none}
 
 /* The tab drop preview: editor.js sets its box (in the window) to exactly the pane the document will fill. */
 .split-drop {position:fixed;z-index:5;left:0;top:0;width:0;height:0;opacity:0;background:color-mix(in srgb,var(--accent) 16%,transparent);border:1px solid var(--accent);pointer-events:none}

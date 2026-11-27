@@ -900,6 +900,7 @@ async function main(){
     await require("./editor/browser-messages-fonts.js")(browser);
     await require("./editor/browser-inline-stack.js")(browser);
     await require("./editor/browser-panel-chrome.js")(browser);
+    await require("./ui/browser-owner-layers.cjs")(browser);
     await require("./editor/browser-scripting-console.cjs")(browser);
   }
 

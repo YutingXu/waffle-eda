@@ -13,7 +13,6 @@
 }
 .msg-panel[hidden] {display:none}
 .msg-grip {height:4px;flex:none;cursor:ns-resize;margin-top:-2px}
-.msg-grip:hover {background:var(--focus)}
 .msg-context {color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:24ch}
 .msg-filters {display:flex;gap:1px;margin-left:6px}
 .msg-filter {display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:var(--r-sm);color:var(--muted);font:var(--fs-11) var(--font-ui);font-variant-numeric:tabular-nums}
@@ -68,8 +67,6 @@
 .msg-grid thead th {position:sticky}
 .msg-col-grip {position:absolute;z-index:1;top:0;bottom:0;right:0;width:6px;cursor:col-resize;touch-action:none}
 .msg-col-grip[hidden] {display:none}
-.msg-col-grip::after {content:"";position:absolute;top:0;bottom:0;right:0;width:2px;background:var(--focus);opacity:0}
-.msg-col-grip:hover::after,.msg-col-grip.is-dragging::after {opacity:1}
 
 /* Project Options dialog. */
 .work-dialog.erc-options {width:min(720px,calc(100vw - 40px));max-height:min(86vh,780px);flex-direction:column}

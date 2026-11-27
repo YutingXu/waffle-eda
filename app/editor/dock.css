@@ -38,7 +38,7 @@
 .editor-chrome-tabs .dock-tab[aria-selected=true] {color:var(--ink)}
 /* A closable tab's × supplies the gap after its label (VS Code), so four default panels fit a 1480 px window. */
 .dock-tab-wrap:has(> .dock-tab-close) > .dock-tab {padding-inline-end:var(--s-4)}
-.dock-tab:focus-visible,.dock-tab-close:focus-visible,.dock-float-bar:focus-visible,.dock-sash:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+.dock-tab:focus-visible,.dock-tab-close:focus-visible,.dock-float-bar:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
 .dock-tab-close {display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-right:var(--s-4);font-size:0;color:var(--muted);opacity:0}
 .dock-tab-wrap:hover .dock-tab-close,.dock-tab-wrap.is-active .dock-tab-close,.dock-tab-close:focus-visible {opacity:1}
 .dock-tabs .dock-tab-wrap::after {animation:none}
@@ -59,7 +59,6 @@
   #navigator,#properties {position:relative}
 }
 .dock-sash {flex:none;position:relative;z-index:5;background:transparent;touch-action:none}
-.dock-sash:hover,.dock-sash.is-dragging,.dock-sash:focus-visible {background:var(--focus)}
 .dock-sash-left,.dock-sash-right {position:absolute;top:0;bottom:0;width:4px;cursor:ew-resize}
 .dock-sash-left {right:-1px}
 .dock-sash-right {left:-1px}

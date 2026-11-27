@@ -99,6 +99,8 @@ h1,h2,h3,h4,p {margin:0}
   --app-icon-width:var(--chrome-icon-width);--app-share-width:72px;
   min-block-size:var(--appbar-height);flex:none;display:grid;grid-template-columns:minmax(0,1fr) max-content;
   gap:var(--s-8);padding:0 var(--s-6);background:var(--chrome);box-shadow:var(--chrome-rule-bottom) var(--divider);position:relative;z-index:5}
+/* An open menu lifts the menu row above floating panels, context menus and toasts while it is open. */
+.appbar:has(.work-menu[open]) {z-index:var(--z-popover)}
 .appbar-leading {display:flex;min-inline-size:0;align-items:center;gap:var(--s-4)}
 .appbar-leading .menubar {min-inline-size:0;flex:none}
 .brand {display:flex;flex:none;align-items:center;gap:var(--s-6);block-size:var(--app-control-height);padding:0 var(--s-8) 0 var(--s-4);
@@ -414,7 +416,7 @@ body > .statusbar {order:2}
 .layer-row[aria-pressed="false"] .layer-dot {opacity:.35}
 .inspect-actions {display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:6px}
 #inspector section > .ui-button {margin-block:var(--s-4)}
-.import-cancel {position:fixed;right:16px;bottom:40px;z-index:1000}
+.import-cancel {position:fixed;right:16px;bottom:40px;z-index:var(--z-toast)}
 .vertex-row {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 #inspector .vertex-row .field-row {display:flex;gap:4px;margin-block:1px}
 #inspector .vertex-row input {flex:1;width:100%;padding-inline:4px}
