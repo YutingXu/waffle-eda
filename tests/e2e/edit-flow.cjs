@@ -11,9 +11,10 @@
 //              edited native project.
 // The comparisons are pipeline.cjs's: the same neutral rows, matcher and tolerances.
 //
-// stdin: {root, out, fixture:{id}, stage, original:{name, path}, native:{dir, manifest},
-//         saved:[{target, files:[{name, path}], error?}], touched:{refs:[], nets:[]},
-//         refuse:{target: pattern}, mutation?}
+// stdin: {root, out, survey:true, original} for the survey, else
+//        {root, out, fixture:{id}, stage, original:{name, path}, native:{dir, manifest},
+//         saved:[{target, files:[{name, path}], error?, written:[names found in the output folder]}],
+//         touched:{refs:[], nets:[], moved:[{from:[x, y], to:[x, y]}]}, refuse:{target: pattern}, mutation?}
 const fs = require("node:fs"), path = require("node:path"), zlib = require("node:zlib");
 const request = JSON.parse(fs.readFileSync(0, "utf8"));
 require(path.join(request.root, "tests/e2e/modules.cjs")).load(request.root);
@@ -46,9 +47,18 @@ function nativeModel({dir, manifest}) {
 // ------------------------------------------------------------------ untouched objects
 // Free copper carries one of these in place of a component designator.
 const FREE = new Set(["track", "segment", "arc"]);
-function attributable(row, touched) {
-  if (row.ref && !FREE.has(row.ref)) return touched.refs.has(row.ref.toUpperCase()) || touched.refs.has(row.ref.slice(0, row.ref.lastIndexOf(".")).toUpperCase());
-  return touched.nets.has(row.net || "");
+const near = (row, at) => Math.hypot(row.v[0] - at[0], row.v[1] - at[1]) <= 0.01;
+// May this row differ between the original and the saved file? `lost` is a row of the original.
+//   a footprint's pads and graphics   when an edit moved, turned, flipped or added that footprint
+//   free copper that moved            only at the place an edit took it from, or put it
+//   new free copper                   on a net an edit routed
+function attributable(row, touched, lost) {
+  if (row.ref && !FREE.has(row.ref)) {
+    const ref = row.ref.toUpperCase(), dot = ref.lastIndexOf(".");
+    return touched.refs.has(ref) || dot > 0 && touched.refs.has(ref.slice(0, dot));
+  }
+  if (touched.moved.some(m => near(row, lost ? m.from : m.to))) return true;
+  return !lost && touched.nets.has(row.net || "");
 }
 function untouchedChecks(prefix, before, after, touched) {
   const out = [];
@@ -56,8 +66,8 @@ function untouchedChecks(prefix, before, after, touched) {
     if (!after.copper.rows[kind]) continue;
     const m = P.match(before.copper.rows[kind], after.copper.rows[kind]), loose = [];
     // Copper may change only on a footprint or a net an edit touched.
-    for (const r of m.missing) if (!attributable(r, touched)) loose.push("lost " + P.describe(r));
-    for (const r of m.extra) if (!attributable(r, touched)) loose.push("new " + P.describe(r));
+    for (const r of m.missing) if (!attributable(r, touched, true)) loose.push("lost " + P.describe(r));
+    for (const r of m.extra) if (!attributable(r, touched, false)) loose.push("new " + P.describe(r));
     out.push(check(prefix + "." + kind, !loose.length, {original:before.copper.rows[kind].length, saved:after.copper.rows[kind].length,
       changed:m.missing.length + m.extra.length, unattributed:loose.length}, loose));
   }
@@ -71,7 +81,7 @@ function untouchedChecks(prefix, before, after, touched) {
   }
   out.push(check(prefix + ".placement", !strays.length, {original:was.size, saved:now.size, changed:moved, unattributed:strays.length}, strays));
   const nets = P.compareNets(before.nets, after.nets);
-  const pins = signature => signature.split(" ").some(pin => touched.refs.has(pin.slice(0, pin.lastIndexOf("."))));
+  const pins = signature => signature.split(" ").some(pin => pin.includes(".") && touched.refs.has(pin.slice(0, pin.lastIndexOf("."))));
   const groups = [...nets.missing, ...nets.extra].filter(g => !pins(g)).map(g => "membership changed: " + g.slice(0, 120));
   out.push(check(prefix + ".netlist", !groups.length && !nets.renamed.length, {groups:nets.groups, changed:nets.missing.length + nets.extra.length,
     unattributed:groups.length, renamed:nets.renamed.length}, [...groups, ...nets.renamed.map(n => "renamed " + n)]));
@@ -79,6 +89,25 @@ function untouchedChecks(prefix, before, after, touched) {
   const outline = Math.abs(ringArea(before.outline) - ringArea(after.outline));
   out.push(check(prefix + ".board", outline <= 0.05 && before.pours === after.pours, {outlineAreaChangeMm2:Math.round(outline * 1000) / 1000, pours:before.pours, savedPours:after.pours}));
   return out;
+}
+
+// ------------------------------------------------------------------ identities
+// The row matcher compares geometry. These compare what a matched object is: the net of every
+// free track, arc and via (an empty net included), and the pad each matched face belongs to.
+function identityChecks(prefix, after, model) {
+  const waffle = P.waffleCopper(model), nets = [], pads = [];
+  let copper = 0;
+  for (const kind of ["tracks", "arcs", "vias"]) {
+    for (const [s, w] of P.match(after.copper.rows[kind] || [], waffle.rows[kind]).pairs) {
+      if (w.ref && w.ref !== "track") continue;  // footprint copper takes its net from the pad it touches
+      copper++;
+      if ((s.net || "") !== (w.net || "")) nets.push(kind + " " + P.describe(w) + ": " + (w.net || "no net") + " -> " + (s.net || "no net"));
+    }
+  }
+  const faces = P.match(after.copper.rows.pads, waffle.rows.pads).pairs.filter(([, w]) => !/^free pad /.test(w.ref));
+  for (const [s, w] of faces) if (s.ref.toUpperCase() !== w.ref.toUpperCase()) pads.push(w.ref + " is saved as " + s.ref);
+  return [check(prefix + ".copper-nets", !nets.length, {compared:copper, wrong:nets.length}, nets),
+    check(prefix + ".pad-numbers", !pads.length, {compared:faces.length, wrong:pads.length}, pads)];
 }
 
 // ------------------------------------------------------------------ outputs
@@ -99,6 +128,8 @@ function outputChecks(prefix, model, saved, sameFormat) {
     const gate = copper ? TOL.xorCopperMm2 : mask && sameFormat ? TOL.xorMaskMm2 : null;
     if (gate != null && !(xor <= gate)) bad.push(key + " differs by " + (xor == null ? "an unreadable film" : xor.toFixed(3) + " mm2"));
   }
+  const plotted = new Set(a.files.filter(f => f.kind === "gerber").map(f => ext(f.name)));
+  for (const key of films.keys()) if (/^G(TL|BL|\d+|P\d+)$/.test(key) && !plotted.has(key)) bad.push(key + " exists only in the saved file's outputs");
   out.push(check(prefix + ".films", !bad.length, {xorMm2:layers, differing:bad.length}, bad));
   const drills = fab => fab.files.filter(f => f.kind === "drill").reduce((all, f) => { const p = C.parseExcellon(f.content); for (const k of ["hits", "slots", "warnings"]) all[k].push(...p[k]); return all; }, {hits:[], slots:[], warnings:[]});
   const d = C.compareDrills(drills(a), drills(b), TOL.drillMm);
@@ -134,6 +165,7 @@ function list(text, name, from = 0) {
   }
   return null;
 }
+const lastList = (text, name) => { const at = text.lastIndexOf("(" + name + " "); return at < 0 ? null : list(text, name, at); };
 const within = (text, span, name, change) => {
   const inner = span && list(text.slice(span[0], span[1]), name, 1);
   if (!inner) return null;
@@ -143,8 +175,17 @@ const within = (text, span, name, change) => {
 const bump = (body, index, by) => { let n = -1; return body.replace(/-?\d+(?:\.\d+)?/g, x => ++n === index ? String(Math.round((+x + by) * 1e6) / 1e6) : x); };
 const MUTATIONS = {
   "saved-footprint-shift":text => within(text, list(text, "footprint"), "at", body => bump(body, 0, 0.5)),
-  "saved-segment-width":text => within(text, list(text, "segment"), "width", body => bump(body, 0, 0.05)),
-  "saved-drop-segment":text => { const s = list(text, "segment"); return s && text.slice(0, s[0]) + text.slice(s[1]); },
+  "saved-segment-width":text => within(text, lastList(text, "segment"), "width", body => bump(body, 0, 0.05)),
+  "saved-drop-segment":text => { const s = lastList(text, "segment"); return s && text.slice(0, s[0]) + text.slice(s[1]); },
+  "saved-track-net":text => within(text, lastList(text, "segment"), "net", () => "(net 0)"),
+  // Exchange the numbers of the first two pads of one footprint.
+  "saved-pad-swap":text => {
+    const pads = [...text.matchAll(/\(pad "([^"]+)" /g)];
+    const i = pads.findIndex((m, k) => pads[k + 1] && pads[k + 1][1] !== m[1] && !text.slice(m.index, pads[k + 1].index).includes("(footprint "));
+    if (i < 0) return null;
+    const a = pads[i], b = pads[i + 1], rename = (m, to) => '(pad "' + to + '" ';
+    return text.slice(0, a.index) + rename(a, b[1]) + text.slice(a.index + a[0].length, b.index) + rename(b, a[1]) + text.slice(b.index + b[0].length);
+  },
   // Take one pad off a net that joins several pads.
   "saved-pad-net":text => {
     const pads = [...text.matchAll(/\(pad [^\n]*?\(net \d+ "([^"]+)"\)/g)], count = {};
@@ -159,7 +200,7 @@ const MUTATIONS = {
 // ------------------------------------------------------------------ checkpoint
 function run() {
   const results = [], stage = request.stage;
-  const touched = {refs:new Set((request.touched?.refs || []).map(r => r.toUpperCase())), nets:new Set(request.touched?.nets || [])};
+  const touched = {refs:new Set((request.touched?.refs || []).map(r => r.toUpperCase())), nets:new Set(request.touched?.nets || []), moved:request.touched?.moved || []};
   const original = {name:request.original.name, bytes:bytesOf(request.original.path)};
   const before = stageOf(stage + ".original-read", () => P.oracleBoard(original), results);
   const model = stageOf(stage + ".native-open", () => nativeModel(request.native), results);
@@ -167,9 +208,12 @@ function run() {
   for (const entry of request.saved) {
     const prefix = stage + "." + entry.target, refusal = request.refuse?.[entry.target];
     if (entry.error != null || refusal) {
-      // "Lossless or ask": an edit the format cannot hold is refused by name, and nothing is written.
-      if (refusal) results.push(check(prefix + ".refused", entry.error != null && new RegExp(refusal, "i").test(entry.error) && !entry.files?.length,
-        {expected:refusal, files:entry.files?.length || 0, reason:String(entry.error ?? "the save succeeded").slice(0, 200)}));
+      // "Lossless or ask": an edit the format cannot hold is refused in the writer's own words, and nothing is written.
+      // Any other error (a crash, a lost process, a refusal for a reason not expected here) is a failed save.
+      const written = entry.written || [], named = refusal && entry.error != null && new RegExp(refusal, "i").test(entry.error);
+      if (named) results.push(check(prefix + ".refused", !written.length && !entry.files?.length,
+        {reason:String(entry.error).slice(0, 200), written:written.length}, written.map(name => "wrote " + name)));
+      else if (refusal) results.push(check(prefix + ".refused", false, {expected:refusal, reason:String(entry.error ?? "the save succeeded").slice(0, 200)}));
       else results.push(check(prefix + ".saved", false, {error:String(entry.error).slice(0, 300)}));
       continue;
     }
@@ -186,7 +230,7 @@ function run() {
     if (!after) continue;
     const sameFormat = before && before.kicad === after.kicad;
     if (sameFormat) stageOf(prefix + ".untouched", () => results.push(...untouchedChecks(prefix + ".untouched", before, after, touched)), results);
-    if (entry.target === "altium-source-copy" && !touched.refs.size && !touched.nets.size) {
+    if (entry.target === "altium-source-copy" && !touched.refs.size && !touched.nets.size && !touched.moved.length) {
       const same = saved.bytes.length === original.bytes.length && saved.bytes.every((b, i) => b === original.bytes[i]);
       results.push(check(prefix + ".bytes", same, {original:original.bytes.length, saved:saved.bytes.length}));
     }
@@ -196,12 +240,20 @@ function run() {
       const wrappers = after.copper.parts.filter(p => !refs.has(p.ref.toUpperCase()));
       if (!sameFormat && wrappers.length && wrappers.length === P.boardOf(model).items.filter(i => i.kind === "pad").length) {
         after.copper.parts = after.copper.parts.filter(p => refs.has(p.ref.toUpperCase()));
+        const wrapped = new Set(wrappers.map(p => p.ref.toUpperCase()));
+        for (const pins of after.nets.values()) for (const pin of [...pins]) if (wrapped.has(pin.slice(0, pin.lastIndexOf(".")).toUpperCase())) pins.delete(pin);
         results.push(check(prefix + ".free-pads-wrapped", true, {footprints:wrappers.length}, [], false));
       }
-      for (const r of P.sourceChecks(after, model, request.fixture.id)) results.push({...r, id:prefix + r.id.slice("model".length)});
+      const rows = [];
+      try { P.sourceChecks(after, model, request.fixture.id, rows); }
+      // A format with no pour for a netted copper region writes it as a zone: the count is its own, not a loss.
+      finally { for (const r of rows) results.push({...r, id:prefix + r.id.slice("model".length), gating:r.gating && (sameFormat || r.id !== "model.pours")}); }
     }, results);
+    if (model) stageOf(prefix + ".identities", () => results.push(...identityChecks(prefix, after, model)), results);
     if (model && request.outputs !== false) stageOf(prefix + ".outputs", () => results.push(...outputChecks(prefix, model, saved, sameFormat)), results);
   }
   return {id:request.fixture.id, stage, results, mutation:request.mutation || null, mutationApplied};
 }
-fs.writeFileSync(request.out, JSON.stringify(run()));
+// A survey reads only the original: what its source fixes in place, which the importer does not carry.
+fs.writeFileSync(request.out, JSON.stringify(request.survey
+  ? {fixed:P.oracleBoard({name:request.original.name, bytes:bytesOf(request.original.path)}).fixed} : run()));

@@ -311,22 +311,31 @@ function polygonChecks(sourceCount, model) {
 }
 
 // A board file read by its independent oracle, as neutral rows: {kicad, copper:{rows, parts}, nets, outline, pours}.
+// Each part is read when first asked for, so a reader that throws on one loses only that check.
 function oracleBoard(file) {
   const kicad = /\.kicad_pcb$/i.test(file.name);
   const src = kicad ? KicadOracle.readBoard(new TextDecoder().decode(file.bytes)) : AltiumOracle.readBoard(file.bytes);
-  return {kicad, copper:kicad ? KicadOracle.copper(src) : altiumCopper(src),
-    nets:kicad ? KicadOracle.padNetGroups(src) : AltiumOracle.padNetGroups(src),
-    outline:kicad ? KicadOracle.outline(src) : altiumOutline(src),
-    // Every copper pour record, split planes included (Waffle keeps a split plane as a plane-layer pour).
-    pours:kicad ? src.zones.length : src.polygons.filter(p => /^(TOP|BOTTOM|MID\d+|PLANE\d+)$/i.test(p.layer.replace(/LAYER$/i, ""))).length};
+  const once = fn => { let value, done = false; return () => done ? value : (done = true, value = fn()); };
+  const copper = once(() => kicad ? KicadOracle.copper(src) : altiumCopper(src));
+  const nets = once(() => kicad ? KicadOracle.padNetGroups(src) : AltiumOracle.padNetGroups(src));
+  const outline = once(() => kicad ? KicadOracle.outline(src) : altiumOutline(src));
+  // Every copper pour record, split planes included (Waffle keeps a split plane as a plane-layer pour).
+  const pours = once(() => kicad ? src.zones.length : src.polygons.filter(p => /^(TOP|BOTTOM|MID\d+|PLANE\d+)$/i.test(p.layer.replace(/LAYER$/i, ""))).length);
+  return {kicad, get copper() { return copper(); }, get nets() { return nets(); }, get outline() { return outline(); }, get pours() { return pours(); },
+    // What the source does not let move on its own (Waffle frame); null when the reader does not know.
+    fixed:kicad ? null : {refs:src.components.filter(c => c.fixed).map(c => c.designator), vias:src.vias.filter(v => v.fixed).map(v => [v.x, -v.y]),
+      free:src.vias.filter(v => !v.fixed && v.net).map(v => [v.x, -v.y])}};
 }
 // The Waffle model against a board read by its oracle: primitives, placement, netlist, outline, pours.
-function sourceChecks(source, model, label) {
+// Rows are pushed to `out` as they are made, so the ones before a throw are kept.
+function sourceChecks(source, model, label, out = []) {
+  out.push(...primitiveChecks(source.copper, waffleCopper(model), label));
   const nets = compareNets(source.nets, waffleBoardNets(model));
-  return [...primitiveChecks(source.copper, waffleCopper(model), label),
-    check("model.netlist", !nets.missing.length && !nets.extra.length && !nets.renamed.length,
-      {groups:nets.groups, missing:nets.missing.length, extra:nets.extra.length, renamed:nets.renamed.length}, [...nets.diff, ...nets.renamed]),
-    outlineChecks(source.outline, model), polygonChecks(source.pours, model)];
+  out.push(check("model.netlist", !nets.missing.length && !nets.extra.length && !nets.renamed.length,
+    {groups:nets.groups, missing:nets.missing.length, extra:nets.extra.length, renamed:nets.renamed.length}, [...nets.diff, ...nets.renamed]));
+  out.push(outlineChecks(source.outline, model));
+  out.push(polygonChecks(source.pours, model));
+  return out;
 }
 
 // ------------------------------------------------------------------ outputs
@@ -671,7 +680,7 @@ function run(spec) {
   // 2. Model against the source read independently.
   stage("model", () => {
     const source = oracleBoard(spec.sources.find(f => /\.(pcbdoc|kicad_pcb)$/i.test(f.name)));
-    results.push(...sourceChecks(source, model, fixture.id));
+    sourceChecks(source, model, fixture.id, results);
     if (source.copper.owned) results.push(check("model.pour-strokes", true, source.copper.owned, [], false));
   });
 
@@ -809,5 +818,5 @@ function applySourceMutation(name, readText) {
 // Model checks only, for a board read from streams (synthetic variants of real boards).
 function altiumModelChecks(src, model) { return primitiveChecks(altiumCopper(src), waffleCopper(model)); }
 
-module.exports = {oracleBoard, sourceChecks, generate, check, match, describe, mod, boardOf,
+module.exports = {oracleBoard, sourceChecks, waffleCopper, generate, check, match, describe, mod, boardOf,
   newlyRed, altiumModelChecks, SOURCE_MUTATIONS, applySourceMutation, _native:{save:nativeSave, open:nativeOpen}, run, verdict, MUTATIONS, TOL, face, placementTable, protelGroups, expandRefs, compareNets};
