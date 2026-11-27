@@ -30,7 +30,13 @@ module.exports = async function messagesFonts(browser) {
     await demo.waitFor(); await demo.click();
     await page.locator("#doc-name", {hasText:"Sensor board"}).waitFor();
     await page.waitForFunction(() => !!globalThis.AtriumNavHost);
-    await page.evaluate(() => AtriumLazy.need(["AtriumMessages", "AtriumChecks"]));
+    await page.evaluate(() => AtriumLazy.need(["AtriumMessages", "AtriumChecks", "AtriumInsightsUI"]));
+    // The demo board's Problems rows are its Insights hints. Check Design does not run Insights: an idle
+    // pass publishes them after the board opens, so wait for that pass before reading Problems.
+    await page.waitForFunction(() => {
+      const d = AtriumNavHost.doc(), insights = AtriumInsightsUI;
+      return insights.enabled() && insights.lastPass()?.docId === d.id && !insights.running() && !AtriumChecks.scheduler.pending("insights", d);
+    });
     // Rows from every source: the checks (Problems), and one log group per tool, as each tool reports them.
     await page.evaluate(logs => {
       const host = AtriumNavHost, ctx = host.messageContext?.() || {host};

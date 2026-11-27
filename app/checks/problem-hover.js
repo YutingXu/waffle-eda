@@ -169,8 +169,11 @@ globalThis.AtriumProblemHover = (() => {
     });
     return {...out, at:group.at, radius:group.reach, entries, get boxes() { resolve(); return boxes; }};
   }
+  // A check pass that finishes during the hover pause replaces its finding objects: an insight or a
+  // check-store finding is the same one while its key is.
+  const sameEntry = (a, b) => a.raw === b.raw || a.kind === b.kind && a.raw?.key != null && a.raw.key === b.raw?.key;
   const same = (a, b) => !!a && !!b && a.pane.canvas === b.pane.canvas && a.d === b.d &&
-    a.entries.length === b.entries.length && a.entries.every((e, i) => e.raw === b.entries[i].raw);
+    a.entries.length === b.entries.length && a.entries.every((e, i) => sameEntry(e, b.entries[i]));
 
   // ---------------------------------------------------------------- the card
   const el = (tag, cls, text) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
