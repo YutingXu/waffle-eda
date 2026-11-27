@@ -23,6 +23,8 @@ globalThis.AtriumCanvas = (() => {
     const flat=AtriumPanel.view(doc,defs)||doc;
     return [flat,AtriumPanel.definitionsFor(flat,defs)];
   }
+  // The board side a layer belongs to; inner, multi and mechanical layers take the side in view.
+  const layerSide=(l,flip)=>/^bottom/i.test(l)?"Bottom":/^top/i.test(l)||l==="Silk"?"Top":flip?"Bottom":"Top";
   const boardVisible=(i,opts)=>i.kind==="part" || PCB.visible(boardLayer(i),i,opts);
   const mayHaveViaMark=i=>i.kind==="via" && (i.backdrill || i.ipc4761 && i.ipc4761!=="none");
   function routingLayers(doc,defs) {
@@ -2147,6 +2149,9 @@ globalThis.AtriumCanvas = (() => {
       const nearby=query(doc,defs,area);
       // Single and dim modes are about the active layer: its objects win over a footprint pad there.
       const partPriority=opts.layerMode==="single"||opts.layerMode==="dim"?1.5:2;
+      // As in Altium, the current layer also picks the board side: a part on the other side falls
+      // below primitives on the current layer, and its body below the current side's bodies.
+      const side=layerSide(opts.layer||"Top",flipped);
       let best=null,bestPriority=-1,bestDistance=Infinity;const ranked=scalar?null:[];
       for(let n=nearby.length-1;n>=0;n--){
         const i=nearby[n];
@@ -2157,7 +2162,10 @@ globalThis.AtriumCanvas = (() => {
           if(boardVisible(i,opts)){
             bodyHit=false;
             distance=hitDistance(i,p,defs,doc,tol,scale,opts);
-            if(distance<=tol)priority=i.kind==="part"?bodyHit?-.5:partPriority:layerRank(boardLayer(i),opts,flipped)/101;
+            if(distance<=tol){
+              const near=i.kind==="part"&&(i.layer==="Bottom"?"Bottom":"Top")===side;
+              priority=i.kind==="part"?bodyHit?(near?-.5:-.75):near?partPriority:.6:layerRank(boardLayer(i),opts,flipped)/101;
+            }
           }
           if(!opts.contactOnly)for(const opening of PCB.traceOpenings(i,boardLayer(i))){
             if(!boardVisible(opening,opts))continue;
