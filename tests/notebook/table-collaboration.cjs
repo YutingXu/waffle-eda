@@ -121,7 +121,8 @@ const cross=(left,right,leftBatch,rightBatch)=>{
   assert.ok(owner(editor));
   assert.deepEqual(T.get(table(editor),r1,c1).content.aux.values,values,"recovery retains the original detached values");
   const invalid=peer({v:{bold:"invalid"}});
-  assert.equal(comparePatch(invalid).scopes,undefined,"invalid table fields go through complete model filtering");
+  // The complete model filtering sets the owner aside; the plan removes it from its list as a delete would.
+  assert.deepEqual(comparePatch(invalid).scopes.map(scope=>scope.items.length),[0],"invalid table fields go through complete model filtering");
   assert.equal(right.hiddenCount(),1);
   assert.equal(owner(editor),undefined);
 }

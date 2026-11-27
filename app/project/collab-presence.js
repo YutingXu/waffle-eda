@@ -628,6 +628,10 @@ globalThis.AtriumCollabPresence = (() => {
           session.editProject = host.project();
           session.r = G.AtriumCollabCRDT.create({replica: t.peer, project: session.editProject, owner: t.peer, ownSeq: ownSeq(t.peer)});
           rememberCursor(session);
+          // Materialise and validate the shared project once, when idle: later edits, undo and
+          // incoming patches then bring it up to date for what they touch (a guest's join does this).
+          const replica = session.r, I = G.AtriumIdle;
+          (I ? f => I.idle(f, {timeout: 2000}) : f => setTimeout(f, 50))(() => { if (S === session && session.r === replica) replica.hiddenCount(); });
           session.base = "host";
           if (!session.hub) session.invite = T.invitation({relay: o.lan ? "ws://" + lanHostPort(lanAddresses(o.lan)[0] || "127.0.0.1", o.lan.port) : url, roomKey, host: t.peer, salt});
         }
@@ -646,6 +650,12 @@ globalThis.AtriumCollabPresence = (() => {
         session.cameraTimer = setTimeout(() => { session.cameraTimer = 0; sendCursor(); }, 240);
       }), host.on("document", () => {
         session.pointer = null; session.waypoints.reset(); sendCursor();
+      }));
+      // Saved: compare the whole project once (audit). A derived change marks a clean project
+      // unsaved and clean again in one task; that is not a save.
+      let blip = false;
+      S.offs.push(host.on("dirty", dirty => {
+        if (dirty) { blip = true; queueMicrotask(() => { blip = false; }); } else if (!blip && S === session) audit();
       }));
       const move = e => {
         const canvas = e.target, client = [e.clientX, e.clientY];
@@ -774,7 +784,7 @@ globalThis.AtriumCollabPresence = (() => {
       const session = S;
       if (!immediate && S.editProject === host.project() && (commitTimer || S.dragMessages) && host.drag?.()?.before) host.setTool("select");
       if (S !== session) return;
-      if (!immediate && commitTimer) commitNow();
+      if (!immediate) audit();
       // A copy that no longer fits the session (diverge) continues from what the host holds of it.
       if (session.r && session.me) ownSeqs.set(session.me, Math.max(ownSeq(session.me), (session.diverged ? session.acked : session.r.ownSeq?.()) || 0));
       session.restoreCheck?.reject(Error("The session ended before restoring."));
@@ -1249,13 +1259,25 @@ globalThis.AtriumCollabPresence = (() => {
         }
         return false;
       };
-      const b = session.r.commit(project, {updates: range?.updates, reconcile: locked.size ? reconcile : undefined});
+      const b = session.r.commit(project, {updates: range?.updates, structure: range?.structure, reconcile: locked.size ? reconcile : undefined});
       // A lock rollback may already have advanced the journal inside reconcile.
       rememberCursor(session);
       if (!b) return;
       if (b.related?.length) {
         patchHost(S, b.related);
       }
+      sendEdits(b); syncHistoryButtons();
+    }
+    // The whole-project comparison at save and before leaving (AtriumCollabCRDT audit): what the
+    // journal missed is published and counted in r.stats().repairs. Nothing runs while idle.
+    function audit() {
+      const session = S;
+      if (!session?.r || session.applying || session.editProject !== host.project() || host.drag?.()?.before) { if (commitTimer) commitNow(); return; }
+      if (commitTimer) commitNow();
+      const b = session.r.audit(session.editProject);
+      rememberCursor(session);
+      if (!b) return;
+      if (b.related?.length) patchHost(session, b.related);
       sendEdits(b); syncHistoryButtons();
     }
     function historyAvailability() {

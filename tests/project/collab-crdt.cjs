@@ -529,18 +529,49 @@ function item(p, id) { return p.documents.flatMap(d => d.items).find(i => i.id =
   const saved = clone(p), range = U.itemEdits(p, cursor); via.y += 99;
   assert.deepEqual(scoped.commit(p, {updates: range.updates}), full.commit(saved));
   via.y -= 99; cursor = range.cursor;
+  // A reordered item list is reported as structure ({doc, items, added, removed}) and stamps the
+  // same operations as the complete diff; non-item records still require the complete diff.
+  board.items.reverse(); U.record(p);
+  const reordered = U.itemEdits(p, cursor); cursor = reordered.cursor;
+  assert.deepEqual(reordered.updates, []);
+  assert.deepEqual(reordered.structure.map(s => [s.doc, s.removed.length, s.added.length]), [[board.id, 0, board.items.length]]);
+  assert.deepEqual(scoped.commit(p, {updates: reordered.updates, structure: reordered.structure}), full.commit(p));
   for (const mutate of [
-    () => board.items.reverse(), () => { p.componentFamilies = [{id: "family"}]; },
+    () => { p.componentFamilies = [{id: "family"}]; },
     () => { p.parameters = {test: "changed"}; }, () => { sheet.name += " renamed"; }
   ]) {
     mutate(); U.record(p); const range = U.itemEdits(p, cursor); cursor = range.cursor;
-    assert.equal(range.updates, null, "list or non-item records require a complete diff");
+    assert.equal(range.updates, null, "non-item records require a complete diff");
     assert.deepEqual(scoped.commit(p, {updates: range.updates}), full.commit(p));
   }
   const m = U.mark(p);
   via.x += 1; U.record(p, {doc: board, items: [via]}); const abandoned = U.itemEdits(p).cursor;
   U.rollback(m); via.y += 1; U.record(p, {doc: board, items: [via]});
   assert.equal(U.itemEdits(p, abandoned).updates, null, "forking at the same absolute position expires the cursor");
+  U.reset();
+}
+
+// An edit the Undo journal never heard of (changed without its hint) is not in the scoped
+// publication; the audit (a whole-project comparison at save or before leaving) publishes it and
+// counts it, and finds nothing when the replica already holds the editor's project.
+{
+  const U = globalThis.AtriumUndoStore, p = fixture(), board = p.documents[1];
+  const a = C.create({replica: "alice", project: p}), b = C.create({replica: "bob", project: p}), seen = clone(p);
+  U.reset(); U.mark(p);
+  const cursor = U.itemEdits(p).cursor, quiet = item(p, "v1"), hinted = item(p, "p1b");
+  quiet.x += 5;
+  hinted.x += 1; U.record(p, {doc: board, items: [hinted]});
+  const range = U.itemEdits(p, cursor, true), sent = a.commit(p, {updates: range.updates, structure: range.structure});
+  assert.deepEqual(sent.ops.map(o => o.o), ["p1b"], "the scoped publication carries the reported edit only");
+  b.patch(seen, b.receive(sent, {author: "alice"}).touched);
+  assert.notEqual(item(b.project(), "v1").x, quiet.x);
+  const repair = a.audit(p);
+  assert.deepEqual(repair.ops.map(o => [o.t, o.o, o.k]), [["set", "v1", "x"]], "the audit publishes the missed edit");
+  b.patch(seen, b.receive(repair, {author: "alice"}).touched);
+  assert.equal(C.canon(b.project()), C.canon(p)); assert.equal(C.canon(seen), C.canon(p));
+  assert.equal(a.audit(p), null, "an audit in agreement publishes nothing");
+  const {audits, repairs, repairedOps} = a.stats();
+  assert.deepEqual({audits, repairs, repairedOps}, {audits: 2, repairs: 1, repairedOps: 1});
   U.reset();
 }
 

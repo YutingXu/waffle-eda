@@ -5,8 +5,9 @@
 //   * each replica edits an editor project in place, which incoming edits patch (preparePatch), as
 //     collab-presence.js does;
 //   * in-place item edits commit with scoped `updates` ({doc, before, after}, the shape
-//     AtriumUndoStore.itemEdits returns), structural edits with the full diff, mixed at random, so the
-//     scoped path and its verifyNextDiff check are exercised;
+//     AtriumUndoStore.itemEdits returns), structural edits with the full diff, mixed at random; the
+//     first replica publishes everything from the real Undo journal (itemEdits {updates, structure}),
+//     so scoped structural commits, the incremental view and its verification are exercised;
 //   * block pastes and deletes, personal undo and redo, random delivery order and duplicates;
 //   * replicas drop off (their messages are lost) and catch up on return from a peer with since(vv),
 //     or snapshot + merge when the log was trimmed (trim() runs at random, as the heartbeat does).
@@ -26,8 +27,9 @@
 const assert = require("node:assert/strict");
 require("../../app/core/model.js");
 require("../../app/formats/format-2-codec.js");
+require("../../app/history/undo-store.js");
 require("../../app/project/collab-crdt.js");
-const A = globalThis.Atrium, C = globalThis.AtriumCollabCRDT;
+const A = globalThis.Atrium, C = globalThis.AtriumCollabCRDT, U = globalThis.AtriumUndoStore;
 
 const argv = process.argv.slice(2), arg = (name, d) => { const i = argv.indexOf("--" + name); return i >= 0 ? argv[i + 1] : d; };
 const seedSpec = arg("seeds", process.env.CONVERGENCE_SEEDS || "3,11,29,58,404,1009");
@@ -135,7 +137,22 @@ function run(seed, mode = "crdt") {
   const H = R[0];   // session mode: the host
   const counts = {}, trace = [], all = [];
   const note = (k) => { counts[k] = (counts[k] || 0) + 1; };
-  const patch = (x, touched) => { if (touched && (touched.size ?? touched.length)) x.r.patch(x.work, touched); };
+  // The first replica publishes as the session does: from the Undo journal (AtriumUndoStore.itemEdits),
+  // in-place and structural edits scoped ({updates, structure}), the rest with the full diff, and
+  // every patch it receives recorded in the journal before the next range (rememberCursor).
+  const J = R[0];
+  U.reset(); U.mark(J.work); J.cursor = U.itemEdits(J.work).cursor;
+  const remember = x => { if (x === J) { U.record(J.work); J.cursor = U.itemEdits(J.work, null, true).cursor; } };
+  const journalCommit = x => {
+    U.record(x.work);
+    const range = U.itemEdits(x.work, x.cursor, true);
+    const b = x.r.commit(x.work, {updates: range.updates, structure: range.structure});
+    note(range.structure?.length ? "journal-structural" : range.updates ? "journal-in-place" : "journal-full");
+    if (b?.related?.length) x.r.patch(x.work, b.related);
+    remember(x);
+    return b;
+  };
+  const patch = (x, touched) => { if (touched && (touched.size ?? touched.length)) { x.r.patch(x.work, touched); remember(x); } };
   const expectSame = (x, what) => {
     const a = C.canon(x.work), b = C.canon(x.r.project());
     if (a !== b) assert.fail(what + " leaves " + x.name + "'s editor project equal to its replica (seed " + seed + "): " + firstDifference(JSON.parse(a), JSON.parse(b)));
@@ -200,21 +217,27 @@ function run(seed, mode = "crdt") {
     }
     let b = null, kind;
     const u = rand();
-    if (u < .1 && x.r.canUndo()) { kind = "undo"; b = x.r.undo(); if (b) x.r.patch(x.work, x.r.touches(b)); }   // as Live.undo: patchHost(S, S.r.touches(b)), even when empty
-    else if (u < .15 && x.r.canRedo()) { kind = "redo"; b = x.r.redo(); if (b) x.r.patch(x.work, x.r.touches(b)); }   // as Live.undo: patchHost(S, S.r.touches(b)), even when empty
+    if (u < .1 && x.r.canUndo()) { kind = "undo"; b = x.r.undo(); if (b) { x.r.patch(x.work, x.r.touches(b)); remember(x); } }   // as Live.undo: patchHost(S, S.r.touches(b)), even when empty
+    else if (u < .15 && x.r.canRedo()) { kind = "redo"; b = x.r.redo(); if (b) { x.r.patch(x.work, x.r.touches(b)); remember(x); } }   // as Live.undo: patchHost(S, S.r.touches(b)), even when empty
     else if (u < .6) {
       const before = clone(x.work), e = itemEdit(x.work);
       if (!e) continue;
       kind = e.kind;
       A.validate(clone(x.work));
       const was = before.documents.find(d => d.id === e.d.id).items.find(i => i.id === e.it.id);
-      b = x.r.commit(x.work, {updates: [{doc: e.d.id, before: was, after: clone(e.it)}]});
-      if (b?.related?.length) patch(x, b.related);
+      if (x === J) b = journalCommit(x);
+      else {
+        b = x.r.commit(x.work, {updates: [{doc: e.d.id, before: was, after: clone(e.it)}]});
+        if (b?.related?.length) patch(x, b.related);
+      }
     } else {
       kind = structuralEdit(x.work);
       A.validate(clone(x.work));
-      b = x.r.commit(x.work);
-      if (b?.related?.length) patch(x, b.related);
+      if (x === J) b = journalCommit(x);
+      else {
+        b = x.r.commit(x.work);
+        if (b?.related?.length) patch(x, b.related);
+      }
     }
     note(kind);
     if (b) { expectSame(x, kind); send(x, b); trace.push(step + " " + x.name + " " + kind + " " + b.ops.length + " ops"); }
