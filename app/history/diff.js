@@ -53,7 +53,9 @@ globalThis.AtriumDiff = (() => {
   });
   // Part parameters are BOM data and electrical, except documentation-only ones.
   const COSMETIC_PARAMS = /^(description|desc|notes?|url|help ?url|datasheet( ?url)?|author|created|modified|date|revision|checked ?by|drawn ?by|approved ?by|keywords?|component ?link ?\d* ?(url|description)?|footprint ?path|library ?(path|ref(erence)?)|published|publisher)$/i;
-  const AUTO_NET = /^(?:Net-|N\$\d|Net[A-Z]+\d*_\d+$|unconnected-|\$\d|N_\d+$|Net\d+$)/;
+  // Generated net names (Net-R1-1, NetR1_1, KiCad Net-(R1-Pad1), …): the model's one anchored definition, Atrium.isAutoNetName.
+  // nl: the netlist the name is from, so a name spelled as one of its own pins' generated names counts too.
+  const autoNet = (name, nl) => A().isAutoNetName(name) || /^Net/.test(name) && A().isAutoNetName(name, [...(nl?.nets.get(name) || [])].map(k => [nl.pins.get(k)?.ref, nl.pins.get(k)?.number]));
   const PART_ELECTRICAL = new Set(["value", "mpn", "MPN", "manufacturer", "partNumber", "dnp", "unit", "part", "alt"]);
   const POUR_DOC = ["pcbDrawing", "sourcePourSignature"];
   const META_DOC = ["schRestored", "sourceSha256", "sourceName", "sourceEncoding", "sourceRules"];
@@ -1282,7 +1284,7 @@ globalThis.AtriumDiff = (() => {
       for (const [a, b] of renames) {
         const pa = NA.nets.get(a), pb = NB.nets.get(b);
         const equal = pa.size === pb.size && [...pa].every(k => pb.has(k));
-        if (equal && o.ignoreAutoNetNames && AUTO_NET.test(a) && AUTO_NET.test(b)) { suppressed.autoNetNames++; continue; }
+        if (equal && o.ignoreAutoNetNames && autoNet(a, NA) && autoNet(b, NB)) { suppressed.autoNetNames++; continue; }
         const c = push({...base("net.renamed", b, "electrical", {beforeNet: a}), before: a, after: b, idSuffix: domain,
           text: domainName + ": net " + a + " renamed to " + b, geometry: netGeom([...pb], NB)});
         touchedNets.add(a); touchedNets.add(b);
@@ -2520,7 +2522,7 @@ globalThis.AtriumDiff = (() => {
       "<p class=\"meta\">Waffle diff v" + VERSION + " · matched " + r.stats.matched.total + " objects · " + r.stats.ms + " ms</p></main></body></html>\n";
   }
 
-  return Object.freeze({VERSION, DEFAULTS, SEVERITIES, CATEGORIES, AUTO_NET, compare, compareAsync, warm, compareSteps: (a, b, o) => compareSteps(a, b, o, null), session, match, remap,
+  return Object.freeze({VERSION, DEFAULTS, SEVERITIES, CATEGORIES, get AUTO_NET() { return A()?.AUTO_NET_NAME; }, compare, compareAsync, warm, compareSteps: (a, b, o) => compareSteps(a, b, o, null), session, match, remap,
     toMarkdown, toJSON, toHTML, filter: filterChanges, shapeOf, isMove, fieldDiff, same: (a, b, o) => same(a, b, o?.ignore ? o : options(o)), escapeMarkdown: mdEsc, escapeHTML: htmlEsc});
 })();
 if (typeof module === "object" && module && module.exports) module.exports = globalThis.AtriumDiff;
