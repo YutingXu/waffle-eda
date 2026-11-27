@@ -1280,6 +1280,11 @@ globalThis.AtriumCollabCRDT = (() => {
     // Stamps and applies a group of local ops; inserts chained after other new inserts get the
     // ids the stamps produce. Undo needs just this author's previous contribution.
     function local(ops, record = true) {
+      // Objects set aside before this edit (only while some are: every commit then diffs the whole
+      // project anyway). Those it brings back by making the whole valid again are related, so the
+      // editor receives them in this edit's patch; otherwise it would lack them, and the next full
+      // diff (the audit at save) would publish their removal.
+      const aside = hidden.size ? (current(), new Set(hidden)) : null;
       const group = [], touched = new Set();
       const dependencies = dependenciesBefore(ops), projections = new Set();
       for (const op of ops) {
@@ -1299,6 +1304,10 @@ globalThis.AtriumCollabCRDT = (() => {
       for (const op of ops) if (op.t === "ins" && typeof op.after === "object" && op.after) op.after = op.after.e;
       const related = [...new Set([...changedDependencies(dependencies), ...projections])];
       dirty(touched); dirty(related);
+      if (aside?.size) {
+        current();
+        for (const id of aside) if (!hidden.has(id) && objs.has(id) && visible(objs.get(id)) && !related.includes(id)) related.push(id);
+      }
       if (record && group.length) { undoStack.push(group); if (undoStack.length > LIMITS.undo) undoStack.shift(); redoStack = []; }
       return related;
     }

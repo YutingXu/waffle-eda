@@ -148,7 +148,7 @@ function editor(net, name, project, o = {}) {
   return e;
 }
 
-function fixture(vias = 0) {
+function fixture(vias = 0, o = {}) {
   const A = globalThis.Atrium;
   const def = {id: "def-r", name: "Resistor", prefix: "R", symbol: {shapes: [], pins: [{x: -3, y: 0, number: "1"}, {x: 3, y: 0, number: "2"}]},
     footprint: {shapes: [], pads: [{x: -1, y: 0, w: .8, h: .9, number: "1"}, {x: 1, y: 0, w: .8, h: .9, number: "2"}]}};
@@ -156,6 +156,14 @@ function fixture(vias = 0) {
   p.documents[1].id = "doc-pcb";
   p.documents[1].items.push({id: "v1", kind: "via", x: 3, y: 3, diameter: .6});
   for (let i = 0; i < vias; i++) p.documents[1].items.push({id: "kv" + i, kind: "via", x: i % 100, y: 10 + Math.floor(i / 100), diameter: .5});
+  // o.hatch: a board whose imported hatch needs a hatched track, a rule over its items, so it is
+  // judged invalid on its own once the project no longer validates as a whole (as in
+  // tests/project/collab-scoped-equivalence.cjs).
+  if (o.hatch) p.documents.push({id: "doc-hatch", kind: "pcb", name: "Hatched", grid: .5, outline: [], notes: [],
+    pcbDrawing: {annotations: {}, sourceFill: true, sourceHatchSignature: "0123456789abcdef"},
+    items: [{id: "hp", kind: "polygon", points: [[0, 0], [4, 0], [4, 4]], layer: "Top", net: "GND"},
+      {id: "ht", kind: "track", points: [[0, 0], [1, 1]], width: .2, layer: "Top", sourcePour: "hp"},
+      {id: "hv", kind: "via", x: 1, y: 1, diameter: .5}]});
   return A.validate(p);
 }
 require("../../app/core/uuid-v7.js"); require("../../app/core/model.js");
@@ -164,7 +172,7 @@ const kvCount = e => e.project.documents.find(d => d.id === "doc-pcb").items.fil
 const deleteKv = (e, n) => e.edit(p => { const d = p.documents.find(x => x.id === "doc-pcb"); let k = 0; d.items = d.items.filter(i => !(/^kv/.test(i.id) && k++ < n)); });
 
 async function pair(vias, o = {}) {
-  const net = network(), H = editor(net, "Host", fixture(vias), o), G = editor(net, "Guest", globalThis.Atrium.project("Mine", []), o);
+  const net = network(), H = editor(net, "Host", fixture(vias, o), o), G = editor(net, "Guest", globalThis.Atrium.project("Mine", []), o);
   for (const [e, f] of [[H, o.hostMute], [G, o.guestMute]]) if (f) e.mute = f;
   await H.Live.start("wss://relay.test", "ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2-3456", o.start);
   await G.Live.join("wss://relay.test", "ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2-3456", {host: H.id, salt: "S".repeat(22)});
@@ -235,6 +243,33 @@ async function journalScenario(variant) {
   assert.equal(pcb(H).items.findIndex(i => i.id === "pasted0"), pcb(G).items.findIndex(i => i.id === "pasted0"), "the block sits where it was pasted");
   H.beat(); await tick(); await tick(); G.beat();
   assert.ok(G.session().r.stats().log <= G.ctx.AtriumCollabCRDT.LIMITS.log >> 1, "trimmed once confirmed");
+  H.Live.leave(); G.Live.leave();
+}
+
+// An invalid batch sets a document aside; the guest's next edit makes the whole valid again and
+// brings it back (collab-scoped-equivalence seed 276). The guest's editor gets it back with that
+// edit, so the whole-project audit at save that follows publishes no removal of it and nobody
+// loses the document.
+async function testReturnedSetAside() {
+  const {net, H, G} = await pair(0, {hatch: true, journal: true});
+  const hatch = e => e.project.documents.find(d => d.id === "doc-hatch");
+  H.edit(p => { p.name = 5; });   // the whole no longer validates (a hostile or older peer's edit, as the host relays it)
+  await until(() => G.project.name === 5, "the invalid edit arrives");
+  assert.ok(G.session().r.hiddenCount() > 0 && !hatch(G), "the hatched board is set aside, also in the guest's editor");
+  G.edit(p => { p.name = "Valid again"; });
+  assert.equal(G.session().r.hiddenCount(), 0, "the guest's edit makes the whole valid again");
+  assert.equal(hatch(G)?.items.length, 3, "and its editor gets the returned board in the same step");
+  const C = G.ctx.AtriumCollabCRDT;
+  assert.equal(C.canon(G.project), C.canon(G.session().r.project()), "the guest's editor matches its replica");
+  const sentBefore = net.log.length;
+  G.fire("dirty", false);   // saved: the whole-project audit
+  await paint();
+  assert.equal(G.session().r.stats().repairs, 0, "the audit finds nothing to repair");
+  const removals = net.log.slice(sentBefore).filter(m => m.from === "Guest" && m.kind === "ops" && m.body.ops.some(op => op.t === "rem"));
+  assert.deepEqual(removals, [], "the audit publishes no removal");
+  await until(() => H.project.name === "Valid again", "the guest's edit reaches the host");
+  assert.equal(hatch(H)?.items.length, 3, "the host still holds the board and its items");
+  assert.equal(hatch(G)?.items.length, 3, "so does the guest");
   H.Live.leave(); G.Live.leave();
 }
 
@@ -389,6 +424,7 @@ async function testEnergy() {
   await testHostile();
   await testEnergy();
   await testCap();
+  await testReturnedSetAside();
   clearTimeout(watchdog);
-  console.log("collab-resilience: ok (offline and in-flight edits past the bounded log reach the host, host confirmation, older host, cap notice with Save As and the host's copy, host-relayed session ends, hostile confirmations and endings, quiet heartbeat; with the Undo journal: offline and in-flight pastes, deletes and undo past the bounded log reach the host; no audit publication from a copy past the cap; a scoped view after Use the Host's Copy)");
+  console.log("collab-resilience: ok (offline and in-flight edits past the bounded log reach the host, host confirmation, older host, cap notice with Save As and the host's copy, host-relayed session ends, hostile confirmations and endings, quiet heartbeat; with the Undo journal: offline and in-flight pastes, deletes and undo past the bounded log reach the host; no audit publication from a copy past the cap; a scoped view after Use the Host's Copy; a board returned from set-aside reaches the editor with the edit that returned it, and the save audit removes nothing)");
 })().catch(e => { console.error(e); process.exit(1); });
