@@ -174,7 +174,7 @@ for step in $steps; do
     swift)   run "swift typecheck native/macos" swift_typecheck
              run "macOS folder transaction and conflict recovery" folder_transactions
              run "build-mac.sh (universal, ad hoc)" build_app
-             for t in git_head host_state project_journal source_copies project_archive import_save_exports external_tools lan_relay; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
+             for t in git_head host_state project_journal source_copies project_archive import_save_exports external_tools lan_relay power_saver; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
     windows) run "Windows host: core tests + cross-built package" windows_build ;;
     harness) run "macos-harness" harness
              run "macOS component move, Edit menu Undo/Redo and durable reopen" env HARNESS_BACKGROUND=1 native/tests/macos-harness/component-undo.sh "$scratch/component-undo"

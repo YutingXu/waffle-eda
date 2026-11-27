@@ -97,7 +97,7 @@ async function main() {
     if (await replace.count() || await replace.waitFor({timeout:3000}).then(()=>true,()=>false)) await replace.click();
     assert.equal(await page.evaluate(()=>window.opening),true,"the exported Altium project opens");
     await page.waitForFunction(()=>AtriumNavHost.project().documents.some(d=>d.kind==="schematic" && d.items.some(i=>AtriumHierarchy.sourceType(i)==="offsheet")));
-    // Efficiency mode (a laptop on battery) and an edit after import: nothing compiles until a hover asks.
+    // Efficiency mode (Always, or Automatic in Low Power Mode) and an edit after import: nothing compiles until a hover asks.
     await page.evaluate(async()=>{
       await AtriumLazy.need(["AtriumConnectionPreview","AtriumCanvasInput"]); AtriumPower.setMode("always");
       const h=AtriumNavHost, d=h.project().documents.find(d=>d.kind==="schematic" && d.items.some(i=>AtriumHierarchy.sourceType(i)==="offsheet" && i.text==="SPI_MISO"));

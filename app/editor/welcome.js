@@ -86,7 +86,9 @@ globalThis.AtriumWelcome = (() => {
       try { v = typeof X.mode === "function" ? X.mode() : key ? pget(key) : undefined; } catch {}
       return modes.includes(v) ? v : modes[0];
     };
-    return {key: key || "", modes, titles, get, set: setter};
+    // The power-saving mode Automatic follows here (power.js saver()): "mac", "windows", "linux", "" in a browser.
+    const saver = () => { try { return typeof X.saver === "function" ? String(X.saver() || "") : null; } catch { return null; } };
+    return {key: key || "", modes, titles, get, set: setter, saver};
   }
   // Locales other than the pseudo-locale (i18n-core.js; the eager shim knows only English).
   function languages() {
@@ -405,7 +407,14 @@ globalThis.AtriumWelcome = (() => {
     if (G.AtriumPower?.onChange) ui.offs.push(G.AtriumPower.onChange(update));
     b.append(preview("Opening the Properties panel", stage, caption, toggle), el("span", "wl-label", "What moves at this level"), list);
   }
-  const EFF_TEXT = {auto: "Automatic: on battery", battery: "Automatic: on battery", always: "Always", on: "Always", off: "Off", never: "Off"};
+  const EFF_TEXT = {auto: "Automatic", always: "Always", on: "Always", off: "Off", never: "Off"};
+  // Automatic turns Efficiency mode on only in the system's power-saving mode, never for the battery alone.
+  const EFF_AUTO = {mac: "Automatic: in Low Power Mode", windows: "Automatic: with energy saver", linux: "Automatic: in Power Saver mode", "": "Automatic: off in a browser"};
+  const EFF_NOTE = {mac: "Efficiency mode gives up a little speed to save energy and keep the computer cooler and quieter. Automatic turns it on while Low Power Mode is on.",
+    windows: "Efficiency mode gives up a little speed to save energy and keep the computer cooler and quieter. Automatic turns it on while energy saver or battery saver is on.",
+    linux: "Efficiency mode gives up a little speed to save energy and keep the computer cooler and quieter. Automatic turns it on in the Power Saver power mode.",
+    "": "Efficiency mode gives up a little speed to save energy and keep the computer cooler and quieter. A browser does not report power saving, so choose Always to use it here."};
+  const effTitle = (e, m) => e.titles[m] || (m === "auto" ? EFF_AUTO[e.saver()] : null) || EFF_TEXT[m] || m;
   const REN_TEXT = {auto: ["Automatic", "The GPU where it is hardware-accelerated, else 2D"], gpu: ["GPU (WebGL2)", "Wherever WebGL2 exists"], "2d": ["2D", "The 2D canvas renderer"]};
   function bodyPerformance(b) {
     const r = renderer(), e = efficiency();
@@ -418,8 +427,8 @@ globalThis.AtriumWelcome = (() => {
       ui.syncs.push(() => { show(); if (was !== null && was !== r.get()) setTimeout(show, 300); was = r.get(); });
       b.append(now);
     }
-    if (e) b.append(el("span", "wl-label", "Efficiency mode"), radios("performance", "efficiency", "Efficiency mode", e.modes.map(m => ({value: m, title: e.titles[m] || EFF_TEXT[m] || m})), "wl-row"),
-      el("p", "wl-note", "Efficiency mode gives up a little speed for battery life and a cooler, quieter computer."));
+    if (e) b.append(el("span", "wl-label", "Efficiency mode"), radios("performance", "efficiency", "Efficiency mode", e.modes.map(m => ({value: m, title: effTitle(e, m)})), "wl-row"),
+      el("p", "wl-note", EFF_NOTE[e.saver()] || "Efficiency mode gives up a little speed to save energy and keep the computer cooler and quieter."));
   }
   const val = x => (x && typeof x === "object" && "v" in x ? x.v : x);
   function bodyFab(b) {
@@ -485,7 +494,7 @@ globalThis.AtriumWelcome = (() => {
     units: ["Units and grid", "For new projects and sheets", bodyUnits, () => value("units") + " · " + gridText(+value("units", "pcbGrid"), value("units"))],
     mouse: ["Mouse and navigation", "Wheel, buttons and trackpad", bodyMouse, () => (value("mouse") === "altium" ? "Wheel scrolls" : "Wheel zooms")],
     motion: ["Animations", "How much moves on screen", bodyMotion, () => ({system: "System", full: "Full", reduce: "Reduced", off: "Off"})[value("motion")] || ""],
-    performance: ["Performance and battery", "Renderer and energy use", bodyPerformance, () => [renderer() && (REN_TEXT[value("performance")]?.[0] || value("performance")), efficiency() && (efficiency().titles[value("performance", "efficiency")] || EFF_TEXT[value("performance", "efficiency")] || value("performance", "efficiency"))].filter(Boolean).join(" · ")],
+    performance: ["Performance and battery", "Renderer and energy use", bodyPerformance, () => [renderer() && (REN_TEXT[value("performance")]?.[0] || value("performance")), efficiency() && effTitle(efficiency(), value("performance", "efficiency"))].filter(Boolean).join(" · ")],
     fab: ["Fab house", "Rules and outputs for new boards", bodyFab, () => (value("fab") ? G.AtriumFabPresets?.get?.(value("fab"))?.name || value("fab") : "Generic")],
     ai: ["AI assistants (optional)", "Connect an MCP client", bodyAI, () => ""],
     language: ["Language", "The language of the interface", bodyLanguage, () => value("language") === "system" ? "System" : value("language")]

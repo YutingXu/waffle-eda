@@ -152,8 +152,8 @@ def summarize(run, budget):
     interval = None if run["drawWork"] else 1000 / run["native"]["displayHz"]
     if not run["nativeEndOK"] or not run["documentUnchanged"]:
         failed.append("Focus, display or authored document changed")
-    if run["power"]["requestedBatterySimulation"] and not run["power"]["measured"]["battery"]:
-        failed.append("WKWebView did not retain the requested battery hint")
+    if run["power"]["requestedLowPowerSimulation"] and not run["power"]["measured"]["lowPower"]:
+        failed.append("WKWebView did not retain the requested Low Power Mode hint")
     for trial in run["operations"].values():
         for phase in trial["phases"]:
             checks = phase["verification"]
@@ -210,7 +210,7 @@ def main():
     parser.add_argument("--layer-mode", choices=("saved", "all", "dim", "single"), default="saved")
     parser.add_argument("--cross-view", action="store_true", help="Also pan to disjoint label origins and zoom out beyond Fit")
     parser.add_argument("--work-budget", type=float, default=8.0, help="p95 main-thread budget in ms (default 8)")
-    parser.add_argument("--battery", action="store_true", help="Simulate the app's battery hint in this ephemeral window")
+    parser.add_argument("--low-power", action="store_true", help="Simulate the app's Low Power Mode hint (Efficiency mode) in this ephemeral window")
     parser.add_argument("--characterize", action="store_true", help="Capture budgets without failing exit status for a budget miss")
     parser.add_argument("--json", action="store_true", help="Emit every callback, render, event and correctness witness as JSON")
     args = parser.parse_args()
@@ -245,7 +245,7 @@ def main():
                    HARNESS_EARLY_PROBE=str(HERE / "pan-early.js"), HARNESS_WORK=str(work / "run"),
                    HARNESS_PROBES=":".join(str(HERE / name) for name in probes),
                    HARNESS_OPEN_PROJECT=str(copied / manifest.name), NATIVE_FEEL_DISPLAY_ID=str(args.display))
-        config = json.dumps({"display": args.display, "hz": args.hz, "repetitions": args.repetitions, "battery": args.battery,
+        config = json.dumps({"display": args.display, "hz": args.hz, "repetitions": args.repetitions, "lowPower": args.low_power,
                              "layerMode": args.layer_mode, "crossView": args.cross_view, "settleMs": args.settle_ms,
                              "drawWork": args.draw_work})
         try:

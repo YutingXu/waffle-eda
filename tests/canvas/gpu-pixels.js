@@ -262,7 +262,7 @@ globalThis.atriumGpuPixels = async function (o = {}) {
   const startupPower = globalThis.AtriumPower;
   if (wholeSuite && H().isStarter() && H().doc()?.kind !== "pcb" && startupPower?.visible?.()) {
     const was = startupPower.state();
-    startupPower.host({battery: true});
+    startupPower.host({lowPower: true});
     await settle(650); // Idle while Home or the initial schematic is showing.
     const settings = globalThis.AtriumCanvasGPUPref;
     const idle = !GPU() && (!settings || settings.describe() === "No PCB view is using a renderer");
@@ -1992,7 +1992,7 @@ async function gpuPowerVisibility(host, gpu, wait, until) {
   };
   try {
     const warmFrames = frames(), warmRenders = renders;
-    setHost({occluded: true, battery: true});
+    setHost({occluded: true, lowPower: true});
     host.redraw();
     await wait(400);
     const warmPaused = covered() && frames() === warmFrames && renders === warmRenders &&
