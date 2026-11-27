@@ -1173,17 +1173,38 @@ globalThis.AtriumCollabCRDT = (() => {
     // ---- sync, log and snapshots ----------------------------------------------------------
     function vector() { return Object.fromEntries(vv); }
     // Ops another replica (at version vector `want`) lacks, or null when the log no longer
-    // reaches back that far (send a snapshot instead).
-    function since(want = {}) {
-      for (const [r, n] of floor) if ((want[r] || 0) < n) return null;
-      return log.filter(op => (want[op.ts.r] || 0) < op.n).map(clone);
+    // reaches back that far (send a snapshot instead). With `author`, only that replica's ops
+    // (a guest catching someone up sends its own edits alone).
+    function since(want = {}, author) {
+      for (const [r, n] of floor) if ((author === undefined || r === author) && (want[r] || 0) < n) return null;
+      return log.filter(op => (author === undefined || op.ts.r === author) && (want[op.ts.r] || 0) < op.n).map(clone);
     }
-    // Bounded log: past the limit, the oldest half is dropped; peers that far behind get a snapshot.
-    function trim() {
+    // Bounded log: past the limit, the oldest operations are dropped (the newest LIMITS.log / 2
+    // stay); peers that far behind get a snapshot. `keep`: this replica's own operations above that
+    // sequence number stay however old, because the host has not confirmed them yet (a guest never
+    // discards its own edits before the host has them). The caller bounds them (unsent()).
+    function trim(keep = Infinity) {
       if (log.length <= LIMITS.log) return false;
-      const drop = log.splice(0, log.length - (LIMITS.log >> 1));
-      for (const op of drop) floor.set(op.ts.r, Math.max(floor.get(op.ts.r) || 0, op.n));
+      const cut = log.length - (LIMITS.log >> 1), kept = [];
+      log.forEach((op, i) => {
+        if (i >= cut || op.ts.r === replica && op.n > keep) kept.push(op);
+        else floor.set(op.ts.r, Math.max(floor.get(op.ts.r) || 0, op.n));
+      });
+      if (kept.length === log.length) return false;
+      log = kept;
       return true;
+    }
+    // This replica's own operations above `keep` still in the log: how many, and their size as JSON
+    // (measured once per operation).
+    const sizes = new WeakMap();
+    function unsent(keep = 0) {
+      let ops = 0, bytes = 0;
+      for (const op of log) if (op.ts.r === replica && op.n > keep) {
+        let n = sizes.get(op);
+        if (n === undefined) sizes.set(op, n = JSON.stringify(op).length);
+        ops++; bytes += n;
+      }
+      return {ops, bytes};
     }
     function snapshot() {
       // Keep the v1 projection readable by earlier editors. Optional metadata
@@ -1516,7 +1537,7 @@ globalThis.AtriumCollabCRDT = (() => {
       },
       undo: () => step(undoStack, redoStack, false), redo: () => step(redoStack, undoStack, true),
       historyTouches, canUndo: () => undoStack.length > 0, canRedo: () => redoStack.length > 0,
-      vv: vector, since, trim, snapshot, load: snap => load(snap), merge, stats: () => ({...stats, log: log.length, objects: objs.size, clock}),
+      vv: vector, since, trim, unsent, snapshot, load: snap => load(snap), merge, stats: () => ({...stats, log: log.length, objects: objs.size, clock}),
       // Objects a batch touches (soft locks and activity read these).
       touches: b => new Set([...(b?.related || []), ...(b?.ops || []).map(operationTarget).filter(Boolean)]),
       // Re-stamps nothing: the state of one object (tests, soft locks).

@@ -15,8 +15,14 @@
 //   node tests/project/collab-convergence.cjs                       # the fixed seeds below
 //   node tests/project/collab-convergence.cjs --seeds 1-200 --steps 400 --replicas 4
 //   node tests/project/collab-convergence.cjs --seeds 17 --verbose  # one seed, with a trace
-// The catch-up here is the CRDT's own (any replica may send a snapshot). The session restricts who
-// may send others' edits and snapshots (collab-presence.js); scripts/perf-collab.cjs measures that.
+//   node tests/project/collab-convergence.cjs --mode crdt|session   # one of the two (default both)
+// Two catch-up modes. "crdt": the CRDT's own (any replica may send a snapshot). "session": the
+// session's rules (collab-presence.js): r0 is the host; only the host sends others' edits or a
+// snapshot; a guest sends only its own edits (since(vv, itself)) and trims its log with keep = what
+// the host last confirmed (its heartbeat, at random), so it never drops an edit the host lacks. The
+// host also drops off, and guests then catch up on each other's own edits. Session mode also checks
+// that no edit is ever lost: when a guest catches the host up, its own edits are always still in its
+// log, and at the end the host holds every edit every guest made.
 const assert = require("node:assert/strict");
 require("../../app/core/model.js");
 require("../../app/formats/format-2-codec.js");
@@ -27,6 +33,7 @@ const argv = process.argv.slice(2), arg = (name, d) => { const i = argv.indexOf(
 const seedSpec = arg("seeds", process.env.CONVERGENCE_SEEDS || "3,11,29,58,404,1009");
 const seeds = seedSpec.split(",").flatMap(s => { const [a, b] = s.split("-").map(Number); return b ? Array.from({length: b - a + 1}, (_, i) => a + i) : [a]; });
 const STEPS = +arg("steps", 420), REPLICAS = Math.min(8, Math.max(2, +arg("replicas", 4))), verbose = argv.includes("--verbose");
+const MODES = arg("mode", "crdt,session").split(",").filter(m => m === "crdt" || m === "session");
 
 function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
 let rand = Math.random;
@@ -120,10 +127,12 @@ function firstDifference(a, b, at = "") {
   }
   return at + ": editor " + JSON.stringify(a)?.slice(0, 120) + " / replica " + JSON.stringify(b)?.slice(0, 120);
 }
-function run(seed) {
+function run(seed, mode = "crdt") {
   rand = rng(seed); uid = 0;
+  const session = mode === "session";
   const base = fixture(), names = Array.from({length: REPLICAS}, (_, i) => "r" + i);
-  const R = names.map(name => ({name, r: C.create({replica: name, project: base}), work: clone(base), online: true, inbox: [], away: 0}));
+  const R = names.map(name => ({name, r: C.create({replica: name, project: base}), work: clone(base), online: true, inbox: [], away: 0, acked: 0}));
+  const H = R[0];   // session mode: the host
   const counts = {}, trace = [], all = [];
   const note = (k) => { counts[k] = (counts[k] || 0) + 1; };
   const patch = (x, touched) => { if (touched && (touched.size ?? touched.length)) x.r.patch(x.work, touched); };
@@ -140,25 +149,55 @@ function run(seed) {
   };
   // Catch-up between two replicas, both ways: ops from since(vv), else a snapshot merge.
   function sync(x, y) {
+    if (session) { sessionSync(x, y); return; }
     for (const [a, b] of [[x, y], [y, x]]) {
       const ops = b.r.since(a.r.vv());
       if (ops === null) { const res = a.r.merge(clone(b.r.snapshot())); patch(a, res.touched); note("snapshot-merge"); }
       else if (ops.length) { const res = a.r.receive({ops: clone(ops)}); patch(a, res.touched); note("since"); }
     }
   }
+  // The session's catch-up (collab-presence.js hello): the host sends what the other lacks (its log
+  // or a snapshot) and says what it holds; a guest sends only its own edits past what the other holds.
+  function sessionSync(x, y) {
+    for (const [a, b] of [[x, y], [y, x]]) {   // a catches up from b
+      if (b === H) {
+        const ops = H.r.since(a.r.vv());
+        if (ops === null) { patch(a, a.r.merge(clone(H.r.snapshot())).touched); note("snapshot-merge"); }
+        else if (ops.length) { patch(a, a.r.receive({ops: clone(ops)}).touched); note("since"); }
+        a.acked = Math.max(a.acked, H.r.vv()[a.name] || 0);   // the host's hello carries its vv
+        continue;
+      }
+      const ops = b.r.since({[b.name]: a.r.vv()[b.name] || 0}, b.name);
+      if (ops === null) {
+        // Only a guest may lack edits its peer already dropped (the host holds them, and sends them).
+        if (a === H) assert.fail(b.name + " no longer holds its own edits that the host lacks (seed " + seed + "): an edit was lost");
+        note("own-gap"); continue;
+      }
+      if (ops.length) { patch(a, a.r.receive({from: b.name, ops: clone(ops)}, {author: b.name}).touched); note("own-catch-up"); }
+    }
+  }
+  const trimOf = x => session && x !== H ? x.r.trim(x.acked) : x.r.trim();
   for (let step = 0; step < STEPS; step++) {
     const x = pick(R), roll = rand();
     // Connectivity: drop off for a while, return and catch up from a peer.
     if (roll < .04 && x.online && R.filter(y => y.online).length > 1) { x.online = false; x.away = int(5, 40); x.inbox.length = 0; note("drop"); trace.push(step + " " + x.name + " drops"); continue; }
     if (!x.online && --x.away <= 0) {
       x.online = true;
-      const peer = pick(R.filter(y => y !== x && y.online));
-      if (peer) sync(x, peer);
-      note("return"); trace.push(step + " " + x.name + " returns, syncs with " + (peer?.name || "nobody"));
+      // Session: a returning host hears from every guest; a guest catches up with the host when it
+      // is here, else with another guest (each sending its own edits).
+      const others = R.filter(y => y !== x && y.online);
+      const peers = !session ? [pick(others)].filter(Boolean) : x === H ? others : H.online ? [H] : [pick(others)].filter(Boolean);
+      for (const peer of peers) sync(x, peer);
+      note("return"); trace.push(step + " " + x.name + " returns, syncs with " + (peers.map(p => p.name).join(",") || "nobody"));
       expectSame(x, "catch-up");
       continue;
     }
-    if (roll < .07) { if (x.r.trim()) note("trim"); continue; }
+    if (roll < .07) {
+      // Session: the host's heartbeat tells the guests online with it what it holds of their edits.
+      if (session && H.online && rand() < .5) { for (const g of R) if (g !== H && g.online) g.acked = Math.max(g.acked, H.r.vv()[g.name] || 0); note("ack"); }
+      if (trimOf(x)) note("trim");
+      continue;
+    }
     let b = null, kind;
     const u = rand();
     if (u < .1 && x.r.canUndo()) { kind = "undo"; b = x.r.undo(); if (b) x.r.patch(x.work, x.r.touches(b)); }   // as Live.undo: patchHost(S, S.r.touches(b)), even when empty
@@ -191,10 +230,13 @@ function run(seed) {
   // Everyone returns; deliver what is queued, then catch up pairwise until the vectors agree.
   for (const x of R) x.online = true;
   for (const y of R) { for (const m of shuffle(y.inbox)) patch(y, y.r.receive(clone(m), {author: m.from}).touched); y.inbox.length = 0; }
-  for (let round = 0; round < 3; round++) for (const x of R) for (const y of R) if (x !== y) sync(x, y);
+  if (session) for (let round = 0; round < 3; round++) for (const g of R) { if (g !== H) sync(H, g); }
+  else for (let round = 0; round < 3; round++) for (const x of R) for (const y of R) if (x !== y) sync(x, y);
   const results = R.map(x => C.canon(x.r.project()));
   try {
-    for (let i = 1; i < R.length; i++) assert.equal(results[i], results[0], R[i].name + " and " + R[0].name + " converge (seed " + seed + ")");
+    // No edit lost: the host holds every edit every guest made.
+    if (session) for (const g of R) if (g !== H) assert.equal(H.r.vv()[g.name] || 0, g.r.ownSeq(), "the host holds all of " + g.name + "'s edits (seed " + seed + ")");
+    for (let i = 1; i < R.length; i++) assert.equal(results[i], results[0], R[i].name + " and " + R[0].name + " converge (" + mode + ", seed " + seed + ")");
     for (const x of R) expectSame(x, "the end");
     A.validate(JSON.parse(results[0]));
     // Every operation delivered once more, in a new order, to a fresh replica: the same project.
@@ -203,26 +245,30 @@ function run(seed) {
     assert.equal(C.canon(fresh.project()), results[0], "a fresh replica given every batch in another order converges (seed " + seed + ")");
   } catch (e) {
     if (verbose) console.error(trace.slice(-60).join("\n"));
-    e.message += "\n  reproduce: node tests/project/collab-convergence.cjs --seeds " + seed + " --steps " + STEPS + " --replicas " + REPLICAS + " --verbose";
+    e.message += "\n  reproduce: node tests/project/collab-convergence.cjs --mode " + mode + " --seeds " + seed + " --steps " + STEPS + " --replicas " + REPLICAS + " --verbose";
     throw e;
   }
   return {counts, ops: all.reduce((n, b) => n + b.ops.length, 0), items: JSON.parse(results[0]).documents.reduce((n, d) => n + d.items.length, 0)};
 }
 
-const totals = {}, failures = [];
-let ops = 0;
-for (const seed of seeds) {
-  try {
-    const r = run(seed);
-    ops += r.ops;
-    for (const [k, v] of Object.entries(r.counts)) totals[k] = (totals[k] || 0) + v;
-    if (verbose) console.log("seed", seed, JSON.stringify(r));
-  } catch (e) { failures.push({seed, message: e.message.split("\n").slice(0, 2).join(" ").slice(0, 400)}); if (seeds.length === 1) throw e; }
+const failures = [], summary = [];
+for (const mode of MODES) {
+  const totals = {};
+  let ops = 0;
+  for (const seed of seeds) {
+    try {
+      const r = run(seed, mode);
+      ops += r.ops;
+      for (const [k, v] of Object.entries(r.counts)) totals[k] = (totals[k] || 0) + v;
+      if (verbose) console.log(mode, "seed", seed, JSON.stringify(r));
+    } catch (e) { failures.push({mode, seed, message: e.message.split("\n").slice(0, 2).join(" ").slice(0, 400)}); if (seeds.length === 1 && MODES.length === 1) throw e; }
+  }
+  assert.ok(failures.length || totals.paste && totals["snapshot-merge"] !== undefined || seeds.length < 3, "the run covered pastes and catch-ups");
+  if (mode === "session") assert.ok(failures.length || totals["own-catch-up"] && totals.ack || seeds.length < 3, "the run covered guests catching the host up");
+  summary.push(mode + ": " + ops + " operations; " + Object.entries(totals).sort().map(([k, v]) => k + " " + v).join(", "));
 }
 if (failures.length) {
-  console.error("collab-convergence: " + failures.length + " of " + seeds.length + " seeds diverged:\n" + failures.map(f => "  seed " + f.seed + ": " + f.message).join("\n"));
+  console.error("collab-convergence: " + failures.length + " of " + seeds.length * MODES.length + " runs failed:\n" + failures.map(f => "  " + f.mode + " seed " + f.seed + ": " + f.message).join("\n"));
   process.exit(1);
 }
-assert.ok(totals.paste && totals["snapshot-merge"] !== undefined || seeds.length < 3, "the run covered pastes and catch-ups");
-console.log("collab-convergence: ok (" + seeds.length + " seeds, " + REPLICAS + " replicas, " + STEPS + " steps, " + ops + " operations; " +
-  Object.entries(totals).sort().map(([k, v]) => k + " " + v).join(", ") + ")");
+console.log("collab-convergence: ok (" + seeds.length + " seeds, " + REPLICAS + " replicas, " + STEPS + " steps; " + summary.join(" | ") + ")");
