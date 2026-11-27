@@ -514,9 +514,10 @@ globalThis.AtriumChecks = (() => {
       }
     }
     // Queue (or continue) one document's task in an edit-pipeline phase, or at idle without a pipeline.
+    // o.restart replaces a task in flight once: its later slices (and a deferred resume) continue it.
     function queue(c, d, phase, o = {}) {
-      const key = c.key(d), prev = c.tasks.get(key);
-      const task = prev && prev.it && !prev.done && !o.restart ? prev : {d, it: null, done: false, o};
+      const key = c.key(d), prev = c.tasks.get(key), more = o.restart ? {...o, restart: false} : o;
+      const task = prev && prev.it && !prev.done && !o.restart ? prev : {d, it: null, done: false, o: more};
       if (prev && prev !== task) cancelTask(c, key);
       prev?.cancel?.();
       const token = task.token = (task.token || 0) + 1;
@@ -533,8 +534,8 @@ globalThis.AtriumChecks = (() => {
         if (!task.it) {
           const store = U();
           if (store?.unrecorded?.()) {
-            if (c.unrecorded === "sync" && phase === "idle") { store.sync?.(); queue(c, d, "idle", o); return; }
-            if (phase !== "idle") { queue(c, d, "idle", o); return; }
+            if (c.unrecorded === "sync" && phase === "idle") { store.sync?.(); queue(c, d, "idle", more); return; }
+            if (phase !== "idle") { queue(c, d, "idle", more); return; }
           }
         }
         const s = task.slice = sliceOf(deadline, phase);
@@ -565,7 +566,7 @@ globalThis.AtriumChecks = (() => {
         } catch (e) {
           task.done = true; task.span?.end("failed"); removeTask(c, key, task); G.console?.warn?.("Checks", c.id, e); return;
         }
-        queue(c, d, "idle", o); // the rest in the next idle slice
+        queue(c, d, "idle", more); // the rest in the next idle slice (the same task)
       };
       if (host.stageEdit) {
         const ticket = host.stageEdit(phase, key, (current, dl) => { if (current()) run(dl); });
