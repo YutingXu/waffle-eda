@@ -180,19 +180,27 @@ globalThis.AtriumNaming = (() => {
     let list = [], pick = 0, typedText = null, taking = false;
     const project = () => typeof o.project === "function" ? o.project() : o.project;
     const matches = () => list.filter(c => upper(c.name).startsWith(upper(typedText || "")) && c.name.length > (typedText || "").length);
-    function hide() { ghost.remove(); line.hidden = true; list = []; typedText = null; }
+    function unghost() { ghost.remove(); doc.removeEventListener("scroll", onMove, {capture: true}); }
+    function hide() { unghost(); line.hidden = true; list = []; typedText = null; }
     function show() {
       const m = matches(), c = m[pick % Math.max(1, m.length)];
       const end = input.value.length, atEnd = (input.selectionStart ?? end) === end && (input.selectionEnd ?? end) === end;
-      if (!c || !atEnd) { ghost.remove(); line.hidden = !list.length; }
+      if (!c || !atEnd) { unghost(); line.hidden = !list.length; }
       else {
         const cs = G.getComputedStyle?.(input), box = input.getBoundingClientRect?.();
         if (cs && box) {
-          Object.assign(ghost.style, {left: box.left + "px", top: box.top + "px", width: box.width + "px", height: box.height + "px", font: cs.font, letterSpacing: cs.letterSpacing,
+          Object.assign(ghost.style, {width: box.width + "px", height: box.height + "px", font: cs.font, letterSpacing: cs.letterSpacing,
             paddingLeft: (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.borderLeftWidth) || 0) + "px", lineHeight: box.height + "px", textIndent: -(input.scrollLeft || 0) + "px"});
         }
         typed.textContent = input.value; rest.textContent = c.name.slice(input.value.length);
-        if (!ghost.isConnected) doc.body.append(ghost);
+        // The ghost joins the field's own layer (ui/owner-layer.js): a menu or dialog over the field covers
+        // it too, and it is cut to the part of the field that can be seen.
+        const layer = G.AtriumLayer;
+        if (layer?.attach) {
+          if (!ghost.isConnected) doc.addEventListener("scroll", onMove, {capture: true, passive: true});
+          layer.attach(ghost, input);
+          if (box) { layer.at(ghost, box.left, box.top); layer.clip(ghost, input); }
+        } else if (!ghost.isConnected) input.parentElement?.append(ghost); // a document without layout (the DOM tests)
       }
       // The line under the field: why the first name, the others to take with a click.
       line.replaceChildren();
@@ -229,14 +237,14 @@ globalThis.AtriumNaming = (() => {
       else if (e.key === "Enter") hide();
     };
     const onBlur = () => setTimeout(() => { if (doc.activeElement !== input) hide(); }, 120);
-    const onMove = () => { if (ghost.isConnected) show(); };
+    const onMove = () => { if (!input.isConnected) unghost(); else if (ghost.isConnected) show(); };
     input.addEventListener("input", onInput);
     input.addEventListener("keydown", onKey, true);
     input.addEventListener("blur", onBlur);
     input.addEventListener("scroll", onMove);
     input.addEventListener("click", onMove);
     G.addEventListener?.("resize", onMove);
-    return () => { hide(); line.remove(); delete input.dataset.nmComplete; input.removeEventListener("input", onInput); input.removeEventListener("keydown", onKey, true); input.removeEventListener("blur", onBlur); G.removeEventListener?.("resize", onMove); };
+    return () => { hide(); line.remove(); delete input.dataset.nmComplete; input.removeEventListener("input", onInput); input.removeEventListener("keydown", onKey, true); input.removeEventListener("blur", onBlur); input.removeEventListener("scroll", onMove); input.removeEventListener("click", onMove); G.removeEventListener?.("resize", onMove); };
   }
 
   // ------------------------------------------------------------------ the Naming view

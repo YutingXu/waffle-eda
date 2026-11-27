@@ -139,6 +139,31 @@ const nearP = (p, q, tol = 1e-3) => !!p && near(p[0], q[0], tol) && near(p[1], q
   assert.deepEqual(pads.map(pad => [pad.w, pad.h]), [[1.016,.508],[1.2,.8]]);
 }
 
+// Drills, holes, vias, radii and coordinates convert their unit suffix too: "32mil" is not 32 mm.
+{
+  const brd = `<?xml version="1.0"?><eagle version="9.6.2"><drawing><board>
+    <libraries><library name="L"><packages><package name="P">
+      <pad name="1" x="0" y="0" drill="32mil" diameter="60mil"/>
+      <hole x="100mil" y="0" drill="40mil"/>
+      <circle x="0" y="0" radius="50mil" width="10mil" layer="21"/>
+    </package></packages></library></libraries>
+    <elements><element name="U1" library="L" package="P" x="0" y="0"/></elements>
+    <plain><circle x="0" y="0" radius="1in" width="0" layer="20"/><hole x="10" y="10" drill="125mil"/>
+      <wire x1="0" y1="0" x2="200mil" y2="0" width="8mil" layer="21"/></plain>
+    <signals><signal name="N"><contactref element="U1" pad="1"/>
+      <via x="5" y="0" drill="12mil" diameter="24mil" extent="1-16"/></signal></signals>
+  </board></drawing></eagle>`;
+  const [result] = I.readSet([{name: "mil-drills.brd", bytes: enc.encode(brd)}]);
+  const board = result.documents[0], {pads, shapes} = result.library[0].footprint;
+  assert.deepEqual(pads.map(p => [p.x, p.drill, p.w].map(v => +v.toFixed(4))), [[0, .8128, 1.524], [2.54, 1.016, 1.016]]);
+  assert.deepEqual(shapes.map(s => [s.r, s.width].map(v => +v.toFixed(4))), [[1.27, .254]]);
+  assert.deepEqual(board.items.filter(i => i.kind === "via").map(v => [v.drill, v.diameter].map(n => +n.toFixed(4))), [[.3048, .6096]]);
+  assert.deepEqual(board.items.filter(i => i.kind === "pad").map(h => +h.drill.toFixed(4)), [3.175]);
+  assert.equal(board.boardShape.contour[0].r, 25.4);
+  const silk = board.items.find(i => i.kind === "graphic");
+  assert.ok(nearP(silk.points.at(-1), [5.08, 0]) && near(silk.width, .2032));
+}
+
 {
   const original = fixture("demo-eagle.sch");
   const bad = '<wire x1="oops" y1="10" x2="20" y2="10" width=".2" layer="94"/>';

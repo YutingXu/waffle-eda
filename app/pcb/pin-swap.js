@@ -262,7 +262,9 @@ globalThis.AtriumPinSwap = (() => {
   function applyPlans(project, board, defs, plans, o = {}) {
     let unrouted = 0, renetted = 0;
     const affected = new Set();
-    for (const p of plans) { const part = board.items.find(i => i.id === p.partId); for (const n of p.pairs.flat()) if (/^Net-/.test(part?.pinNets?.[n] || "")) affected.add(part.pinNets[n]); }
+    // A net's own pins on the board, for names spelled as one of them (Net-U1-1 2).
+    const pinsOn = name => board.items.flatMap(i => i?.kind === "part" && i.pinNets ? Object.keys(i.pinNets).filter(k => i.pinNets[k] === name).map(k => [i.ref, k]) : []);
+    for (const p of plans) { const part = board.items.find(i => i.id === p.partId); for (const n of p.pairs.flat()) { const net = part?.pinNets?.[n]; if (A().isAutoNetName(net) || typeof net === "string" && net.startsWith("Net") && A().isAutoNetName(net, pinsOn(net))) affected.add(net); } }
     for (const p of plans) {
       // Pin plans are transpositions; each is applied on the current nets.
       if (p.kind === "pin") for (const pair of p.pairs) { const r = applyBoard(board, defs, {...p, pairs: [pair]}); unrouted += r.unrouted; renetted += r.renetted; }
@@ -352,7 +354,7 @@ globalThis.AtriumPinSwap = (() => {
       if (!px || !py) fail("Pins " + x + " and " + y + " are not on the same gate of " + part.ref + ".");
       const kx = part.id + "/" + x, ky = part.id + "/" + y;
       // What each pin is connected to (other pins, and the net name unless it is automatic).
-      const peersOf = (g, k) => { const n = g.byPin.get(k); if (n == null) return ""; const o = [...g.byPin].filter(([q, m]) => m === n && q !== kx && q !== ky).map(([q]) => q).sort(); return (/^Net-/.test(n) ? "" : n) + "|" + o.join(","); };
+      const peersOf = (g, k) => { const n = g.byPin.get(k); if (n == null) return ""; const o = [...g.byPin].filter(([q, m]) => m === n && q !== kx && q !== ky).map(([q]) => q).sort(); return (A().isAutoNetName(n, g) ? "" : n) + "|" + o.join(","); };
       const before = A().connectivity(sheet, env.lib), bx = peersOf(before, kx), by = peersOf(before, ky);
       const saved = sheet.items;
       const moved = rewire(sheet, part, px, py);
@@ -600,14 +602,18 @@ globalThis.AtriumPinSwap = (() => {
       const action = el("button", "Swap pins", "ui-button");
       action.type = "button"; action.dataset.variant = "primary"; action.dataset.size = "sm";
       chip.append(el("span"), action);
-      document.body.append(chip);
     }
     chip.children[1].textContent = "The pair arrives crossed at " + (c.ref || "the part") + " pins " + c.pins[0] + " and " + c.pins[1] + ", which are swappable.";
     const btn = chip.lastChild; btn.textContent = "Swap pins " + c.pins[0] + " ↔ " + c.pins[1]; btn.title = "Finish the routed section and swap the two pins (one undo step for the swap)";
     btn.onclick = () => { chip.hidden = true; chipKey = ""; host.executeKey?.("escape"); swapNow(c.partId, c.pins[0], c.pins[1])?.then?.(() => host.info("Pins " + c.pins[0] + " ↔ " + c.pins[1] + " of " + (c.ref || "the part") + " swapped. Route the last section of the pair again: it now arrives uncrossed.")); };
-    const pane = host.panes().find(p => p.active), r = pane?.canvas.getBoundingClientRect();
+    // The chip belongs to the active canvas: it joins that canvas's layer (ui/owner-layer.js), so menus,
+    // floating panels and dialogs over the canvas cover it too.
+    const pane = host.panes().find(p => p.active), layer = globalThis.AtriumLayer;
+    if (!pane) { chip.hidden = true; return; }
+    layer.attach(chip, pane.canvas);
+    const r = pane?.canvas.getBoundingClientRect();
     chip.hidden = false;
-    if (r) { const w = chip.getBoundingClientRect().width; chip.style.left = Math.max(8, r.left + r.width / 2 - w / 2) + "px"; chip.style.top = Math.max(8, r.top + 52) + "px"; }
+    if (r) { const w = chip.getBoundingClientRect().width; layer.at(chip, Math.max(r.left + 8, r.left + r.width / 2 - w / 2), r.top + 52); }
   }
   function attach(h) {
     host = h;

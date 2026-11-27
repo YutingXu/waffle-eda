@@ -407,6 +407,36 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   const netOf = (S, n) => { if (!n) return 0; let v = S.nets.get(n); if (v == null) { v = S.nets.size; S.nets.set(n, v); S.netNames.push(n); } return v; };
   function* bufs(S) { for (const l of S.layers.values()) { for (const k of ITEMS) yield l[k]; for (const k of PARTS) yield l[k]; } yield S.edge; yield S.air; }
 
+  // The ring a filled shape triangulates. An exact region's cutouts stay open, as in the 2D
+  // even-odd fill: each hole joins the ring by a slit to the first edge to its right.
+  function fillRing(s) {
+    const region = PCB.curvedRegion(s), B = G.AtriumBoardShape;
+    if (!region?.cutouts?.length || !B) return s.points;
+    const area = r => { let a = 0; for (let k = 0; k < r.length; k++) { const p = r[k], q = r[(k + 1) % r.length]; a += p[0] * q[1] - q[0] * p[1]; } return a; };
+    const outer = B.flattenContour(region.contour);
+    let ring = area(outer) >= 0 ? outer : outer.slice().reverse();
+    const holes = region.cutouts.map(c => B.flattenContour(c)).filter(h => h.length >= 3).map(h => {
+      const q = area(h) <= 0 ? h : h.slice().reverse();
+      let m = 0;
+      for (let k = 1; k < q.length; k++) if (q[k][0] > q[m][0] || q[k][0] === q[m][0] && q[k][1] < q[m][1]) m = k;
+      return [...q.slice(m), ...q.slice(0, m)];
+    }).sort((a, b) => b[0][0] - a[0][0]);
+    for (const q of holes) {
+      const M = q[0];
+      let x = Infinity, edge = -1;
+      for (let k = 0; k < ring.length; k++) {
+        const a = ring[k], b = ring[(k + 1) % ring.length];
+        if ((a[1] <= M[1]) === (b[1] <= M[1])) continue;
+        const v = a[0] + (M[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]);
+        if (v >= M[0] && v < x) { x = v; edge = k; }
+      }
+      if (edge < 0) continue;
+      const H = [x, M[1]];
+      ring = [...ring.slice(0, edge + 1), H, ...q, M, H, ...ring.slice(edge + 1)];
+    }
+    return ring;
+  }
+
   // One object's instances; returns the slots it took ([buffer, first, count] triples).
   function emit(S, i, previous, geometry = S.geometry) {
     const out = [], active = S.active;
@@ -478,7 +508,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
             if (s.fill) put(l.pblob, [c[0], c[1], s.r, s.r, 0, 0, legacySilk ? 1 : 0, 0, 0, 0, 0, 0], net);
             if (w !== null) put(l.pblob, [c[0], c[1], s.r + w / 2, s.r + w / 2, 0, 4, s.r, 0, 0, 0, w === 0 && !legacySilk ? 1 : 0, 0], net);
           } else if (s.points?.length) {
-            if (s.fill) fill(l.ptri, s.points, s.style === "package", 0, net, tf);
+            if (s.fill) fill(l.ptri, fillRing(s), s.style === "package", 0, net, tf);
             if (w !== null) segs(l.pseg, s.points, s.closed, w, .9, 0, net, tf);
           }
         }
@@ -510,7 +540,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const points = track ? G.AtriumGeometryCurves.pathPoints(i, TRACK_CHORD_ERROR) : i.points;
       const stroke = (b, width, kind, n) =>
         segs(b, points, points === i.points && (i.kind === "polygon" || i.closed), width, 1, kind, n, id);
-      if (i.fill) fill(l.tri, i.points, false, 0, net, id);
+      if (i.fill) fill(l.tri, fillRing(i), false, 0, net, id);
       if (w !== null) stroke(l.seg, w * (fault("trackWidth") && track ? .9 : 1), +track, net);
       for (const opening of PCB.traceOpenings(i, layer)) stroke(L(S, opening.layer).seg, opening.width, 0, 0);
     } else if (i.kind === "via" || i.kind === "pad") {

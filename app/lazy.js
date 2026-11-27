@@ -25,7 +25,8 @@ globalThis.AtriumLazy = (() => {
     AtriumWholePixels: {scripts: ["ui/whole-pixels.js"]},
     // The UI library builders (docs/ui-library.md) and its living gallery (index.html#ui-gallery).
     AtriumUIKit: {scripts:["ui/kit.js"]},
-    AtriumOverlayScroll: {scripts:["ui/overlay-scroll.js"]},
+    AtriumLayer: {scripts:["ui/owner-layer.js"]},
+    AtriumOverlayScroll: {scripts:["ui/overlay-scroll.js"],deps:["AtriumLayer"]},
     AtriumUIGallery: {scripts:["ui/gallery.js"],css:["ui/gallery.css","ui/analysis-panels.css"],deps:["AtriumUIKit"]},
     AtriumPlacement: {scripts:["pcb/placement.js"]},
     AtriumPastePlan: {scripts:["editor/paste-plan.js"],deps:["AtriumPlacement"]},
@@ -34,7 +35,7 @@ globalThis.AtriumLazy = (() => {
     AtriumNotebookFonts: {scripts:["vendor/notebook-fonts/faces.js","notebook/notebook-fonts.js"]},
     AtriumRichTextView: {scripts:["notebook/rich-text-view.js"],deps:["AtriumNotebookFonts","AtriumNoteFields"]},
     AtriumRichText: {scripts:["notebook/rich-text.js"],deps:["AtriumNotebook","AtriumRichTextView"]},
-    AtriumRichTextEditor: {scripts:["notebook/rich-text-editor.js"],css:["notebook/rich-text-editor.css"],deps:["AtriumRichText"]},
+    AtriumRichTextEditor: {scripts:["notebook/rich-text-editor.js"],css:["notebook/rich-text-editor.css"],deps:["AtriumLayer","AtriumRichText"]},
     AtriumWireEdit: {scripts: ["schematic/wire-edit.js"]},
     AtriumCanvasInput: {scripts: ["canvas/canvas-input.js"], deps:["AtriumWireEdit"]},
     AtriumActiveBarMenu: {scripts: ["editor/active-bar-menu.js"]},
@@ -86,7 +87,7 @@ globalThis.AtriumLazy = (() => {
     AtriumTableData: {scripts:["notebook/table-data.js"],deps:["AtriumSourceFile"]},
     AtriumTableFormat: {scripts:["notebook/table-format.js"],deps:["AtriumTableData","AtriumFormat2Closure"]},
     AtriumTableExchange: {scripts:["notebook/table-exchange.js"],deps:["AtriumTableData"]},
-    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationDesign","AtriumTableData"]},
+    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationIntent","AtriumCalculationDesign","AtriumTableData"]},
     AtriumTableVisual: {scripts:["notebook/table-visual.js"],deps:["AtriumTableFormulas","AtriumTableExchange","AtriumSheetWidgets"]},
     AtriumTableQuery: {scripts:["notebook/table-query.js"],deps:["AtriumTableData","AtriumDesignQuery"]},
     AtriumTableEditor: {scripts:["notebook/table-editor.js"],css:["notebook/table-editor.css"],deps:["AtriumTableVisual","AtriumNotebook"]},
@@ -109,7 +110,7 @@ globalThis.AtriumLazy = (() => {
     AtriumSheetConnections: {scripts: ["schematic/sheet-connections.js"]},
     AtriumConnectionThumbnails: {scripts: ["schematic/connection-thumbnails.js"]},
     AtriumCanvasHover: {scripts: ["canvas/canvas-hover.js"]},
-    AtriumConnectionPreview: {scripts: ["schematic/connection-preview.js"], css:["schematic/connection-preview.css"], deps:["AtriumSheetConnections","AtriumConnectionThumbnails","AtriumCamera","AtriumCanvasHover"]},
+    AtriumConnectionPreview: {scripts: ["schematic/connection-preview.js"], css:["schematic/connection-preview.css"], deps:["AtriumLayer","AtriumSheetConnections","AtriumConnectionThumbnails","AtriumCamera","AtriumCanvasHover"]},
     AtriumSheetInspector: {scripts: ["schematic/sheet-inspector.js"]},
     AtriumStrokeFont: {scripts: ["canvas/stroke-font.js"]},
     AtriumPCBText: {scripts: ["pcb/pcb-text.js"], deps: ["AtriumStrokeFont"]},
@@ -156,7 +157,7 @@ globalThis.AtriumLazy = (() => {
     AtriumBoardShapeEditing: {scripts:["pcb/board-shape-editing.js"], deps:["AtriumBoardShapeAuthoring"]},
     AtriumBoardShapeUI: {scripts:["pcb/board-shape-ui.js"], css: ["pcb/board-shape.css"], deps:["AtriumBoardShapeEditing"]},
     // Timing Vision; the length engine uses its via delay model.
-    AtriumTiming: {scripts: ["pcb/timing-vision.js"], css: ["pcb/timing-vision.css"], deps: ["AtriumRules"]},
+    AtriumTiming: {scripts: ["pcb/timing-vision.js"], css: ["pcb/timing-vision.css"], deps: ["AtriumLayer","AtriumRules"]},
     AtriumLength: {scripts: ["pcb/length-tuning.js"], css: ["pcb/length-tuning.css"], deps: ["AtriumRules", "AtriumTiming", "AtriumXSignals"]},
     AtriumDRCMarkers: {scripts: ["checks/drc-markers.js"], css: ["checks/drc-markers.css"], deps: ["AtriumChecks", "AtriumLandContours"]},
     // Board canvas frame shortcuts (board-layer copy, selection frames, pour index); prefetched first on load.
@@ -191,7 +192,7 @@ globalThis.AtriumLazy = (() => {
     AtriumEngine: {scripts: ["engine-core.js"]}, // Rust/WebAssembly kernels; callers fall back to JS
     // Altium muscle memory (altium-keys.js): net highlight, pick tools, Un-Route, layer keys.
     AtriumAltiumKeys: {scripts: ["editor/altium-keys.js"], deps: ["AtriumCrossProbe"]},
-    AtriumPinSwap: {scripts: ["pcb/pin-swap.js"], css: ["pcb/pin-swap.css"], deps: ["AtriumECO"]},
+    AtriumPinSwap: {scripts: ["pcb/pin-swap.js"], css: ["pcb/pin-swap.css"], deps: ["AtriumLayer","AtriumECO"]},
     // Board core (lazy pass 2): the stack-up, via stacks, polygon pours and the rule engine are
     // engines plus large dialogs. Eager code only reaches them through optional lookups, and they
     // are prefetched once a board layout is open (see BOARD below), so editing a board has them
@@ -240,7 +241,7 @@ globalThis.AtriumLazy = (() => {
     AtriumPCBLayerBar: {scripts: ["pcb/pcb-layer-bar.js"]},
     AtriumLayerSets: {scripts: ["pcb/layer-sets.js"], css: ["checks/query.css"], deps: ["AtriumStackup"]},
     AtriumNetIntent: {scripts: ["checks/net-intent.js", "checks/net-intent-index.js"]},
-    AtriumNaming: {scripts: ["schematic/naming.js"], css: ["schematic/naming.css"], deps: ["AtriumNetIntent"]},
+    AtriumNaming: {scripts: ["schematic/naming.js"], css: ["schematic/naming.css"], deps: ["AtriumLayer","AtriumNetIntent"]},
     AtriumSignals: {scripts: ["core/signals.js"], deps: ["AtriumNetIntent"]},
     AtriumDocViews: {scripts: ["project/doc-views.js"], css: ["project/doc-views.css"], deps: ["AtriumSpatialMotion"]},
     AtriumRules: {scripts: ["checks/rules.js", "checks/project-rules.js", "checks/drc-pours.js", "checks/creepage.js"], css: ["checks/rules-editor.css"], deps: ["AtriumLandContours", "AtriumGeometry", "AtriumGeometryCurves", "AtriumDocViews", "AtriumNetIntent", "AtriumSignals", "AtriumAltiumRules", "AtriumDesignQueryRecord", "AtriumStackup", "AtriumViaStack", "AtriumPolygonPour", "AtriumRooms", "AtriumComponentClasses"]},
@@ -544,9 +545,9 @@ globalThis.AtriumLazy = (() => {
   register("AtriumCamera", {scripts: ["canvas/camera.js"], css: ["canvas/camera.css"], deps:["AtriumMotion"]}, ["view-back", "view-forward", "jump-alert",
     "camera-zoom-selection", "camera-turn-left", "camera-turn-right", "camera-turn-reset",
     ...["left", "right", "up", "down"].flatMap(d => ["camera-pan-" + d, "camera-pan-" + d + "-fast"]),
-    ...[1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap(n => ["camera-store-" + n, "camera-recall-" + n])]);
+    ...[..."123456789"].flatMap(n => ["camera-store-" + n, "camera-recall-" + n])]);
   register("AtriumSelectionMemory", {scripts: ["editor/selection-memory.js"], css: ["canvas/camera.css"], deps: ["AtriumCamera"]},
-    ["selection-memory", ...[1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap(n => ["selmem-store-" + n, "selmem-add-" + n, "selmem-recall-" + n])]);
+    ["selection-memory", ...[..."123456789"].flatMap(n => ["selmem-store-" + n, "selmem-add-" + n, "selmem-recall-" + n])]);
   register("AtriumMinimap", {scripts: ["canvas/minimap.js"], css: ["canvas/camera.css"], deps: ["AtriumCamera"]}, ["minimap"]);
   register("AtriumMotionUI", {scripts: ["ui/motion.js"]});
   register("AtriumSpatialMotion", {scripts: ["ui/spatial-motion.js"], css: ["ui/spatial-motion.css"], deps: ["AtriumMotionUI"]});

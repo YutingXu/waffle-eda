@@ -89,6 +89,11 @@ assert.ok(styles.has("style.css") && styles.has("ui/controls.css"), "scan includ
     @keyframes appear {from {transform:translateX(20%)}}
     :root[data-motion=reduce] .static {animation:none}
     @media (prefers-reduced-motion: reduce) {.static {animation-name:none}}
+    :root[data-motion=reduce] .progress {transition-property:opacity}
+    @media (prefers-reduced-motion: reduce) {:root .progress {transition:none}}
+    .thumb {scale:.6 1;transition:opacity 140ms,scale 140ms}
+    :root:is([data-motion=reduce],[data-efficient]) .thumb {transition-property:opacity}
+    @media (prefers-reduced-motion: reduce) {:root .thumb {transition-property:opacity}}
   `), "", "valid delay, genuine zero progress and reduced-motion paths");
   for (const [bad, diagnostic] of [
     [".bad {-webkit-transition: opacity 140ms, all 190ms ease 500ms}", /transition: all/],
@@ -96,6 +101,8 @@ assert.ok(styles.has("style.css") && styles.has("ui/controls.css"), "scan includ
     [".bad {transition: 140ms ease}", /defaulting to all/],
     [".ui-collapse {transition: width 140ms ease}", /transition property width/],
     [".bad {transition-property: grid-template-rows}", /transition property grid-template-rows/],
+    [".bad {transition:scale 140ms}\n@media (prefers-reduced-motion: reduce) {.bad {transition-property:opacity}}", /\.bad moves in a transition without a \[data-motion=reduce\] path/],
+    [".bad {transition:transform 140ms}\n:root[data-motion=reduce] .bad {transition:none}", /\.bad moves in a transition without a prefers-reduced-motion path/],
     ["@keyframes move {from {margin-left: 1rem}}", /keyframe move animates margin-left/],
     [".bad {-webkit-transform: translateX(5%) scale(calc(1 - 1))}", /scale\(0\)/],
     [".bad {scale:0%}", /scale\(0\)/],

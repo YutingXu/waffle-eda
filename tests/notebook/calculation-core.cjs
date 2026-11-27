@@ -216,3 +216,77 @@ for (const v of [.1,2,35]) {
 }
 assert.equal(core.compareNominal(core.quantity(1.0000000000005,"V"),core.quantity(1,"V")),0);
 assert.throws(()=>core.compareNominal(core.quantity(1,"ea"),core.quantity(1,"%")));
+
+// An absolute temperature is stored in kelvin. Every result that keeps the celsius scale
+// shows it in °C, whichever operand carries the scale, and an interval never compares with it.
+for (const [source,display] of [["max(0 °C, 100 °C)","100 °C"],["min(0 °C, 100 °C)","0 °C"],["max(20 °C)","20 °C"],
+  ["max(300 K, 0 °C)","26.85 °C"],["5 Δ°C + 20 °C","25 °C"],["5 K + 20 °C","25 °C"],["sum(5 Δ°C, 20 °C)","25 °C"],
+  ["average(20 °C, 30 °C)","25 °C"],["average(5 Δ°C, 10 Δ°C)","7.5 Δ°C"],["5 Δ°C + 5 Δ°C","10 Δ°C"],["abs(-5 Δ°C)","5 Δ°C"],
+  ["5 % + 10 %","15 %"],["max(5 %, 10 %)","10 %"],["average(5 %, 10 %)","7.5 %"],["abs(-5 %)","5 %"],["abs(-30 deg)","30 °"]])
+  assert.equal(valid(source).display,display,source);
+assert.equal(valid("5 Δ°C + 20 °C").tag,"celsius"); near(valid("5 Δ°C + 20 °C").value,298.15);
+near(valid("average(20 °C ± 1 Δ°C, 30 °C)").worst.max,298.65,1e-9);
+for (const source of ["(5 Δ°C + 20 °C) * 2","(20 °C + 5 Δ°C) * 2","20 °C + 30 °C","max(0 °C, 5 Δ°C)","min(5 Δ°C, 300 K, 0 °C)",
+  "average(20 °C, 5 Δ°C)","20 °C > 5 Δ°C","5 Δ°C <= 20 °C"]) fails(source,"unit");
+fails("sum(3 ea, 2)","dimension");
+
+// Copied text parses back to the displayed quantity: a dimensionless prefix touches its
+// number (1T is not 1 tesla) and unprefixed length spells metre (2 m would be milli).
+for (const [source,unit] of [["1e12"],["1e15"],["1.5e18"],["2.5e-15"],["1e-3"],["-4.7e3"],["0"],["3.3e24"],["1e40"],["1e-40"],["1/3"],
+  ["2 metre"],["-2 metre"],["2 mm"],["1.5 km"],["1 ft"],["50 mil"],["2 m²"],["1e6 metre²"],["3 metre/s"],["9.8 metre/s/s"],
+  ["1 kg"],["2 mg"],["1 T"],["1 mT"],["10 kΩ"],["3.3 V"],["1 nF"],["1 µH"],["5 GHz"],["24 Wb"],["1 V*1 A*1 s/1 K"],
+  ["25 °C"],["-40 °C"],["max(0 °C, 100 °C)"],["5 Δ°C"],["100 °C - 20 °C"],["300 K"],["5 %"],["179 ppm/K"],["30 deg"],["1 rad"],["12 ea"],
+  ["20*log10(2)"],["2 metre","m"],["2 metre","mm"],["2 mm","mil"],["2 inch","in"],["300 K","°C"],["1e12","%"],["1 T","T"]]) {
+  const shown=valid(source,{displayUnit:unit}), again=valid(shown.copyText,{displayUnit:unit}), label=source+" → "+shown.copyText;
+  assert.deepEqual(again.dimensions,shown.dimensions,label);
+  assert.equal(again.tag==="celsius",shown.tag==="celsius" || unit==="°C",label);
+  assert.ok(Math.abs(again.value-shown.value)<=5e-4*Math.abs(shown.value),label+" = "+again.value);
+  assert.equal(again.display,shown.display,label);
+}
+assert.equal(valid("1e12").display,"1 T"); assert.equal(valid("1e12").copyText,"1T");
+assert.equal(valid("2 metre").display,"2 m"); assert.equal(valid("2 metre").copyText,"2 metre");
+assert.equal(valid("2 metre",{displayUnit:"m"}).copyText,"2 metre");
+
+// An absolute temperature and an interval never convert into each other: the 273.15 offset
+// belongs to the absolute scale only. A display unit picks the temperature scale family, and
+// the value keeps its own kind, so an interval in a °C column shows in Δ°C and vice versa.
+// Plain kelvin is coherent and takes the role the operation allows: an interval beside an
+// absolute temperature, an absolute temperature when an absolute temperature is subtracted from it.
+for (const source of ["(30 °C - 20 °C) in °C","(30 °C - 20 °C) in degC","25 °C in Δ°C","25 °C in deltaC","(5 Δ°C + 20 °C) in Δ°C"]) fails(source,"unit");
+for (const [source,display,unit] of [["30 °C - 20 °C","10 Δ°C"],["30 °C - 20 °C","10 Δ°C","°C"],["30 °C - 20 °C","10 Δ°C","degC"],
+  ["25 °C","25 °C","Δ°C"],["25 °C","298.1 K","K"],["30 °C - 20 °C","10 K","K"],["(30 °C - 20 °C) in Δ°C","10 Δ°C"],
+  ["(30 °C - 20 °C) in K","10 K"],["25 °C in K","298.1 K"],["300 K in °C","26.85 °C"],["10 K in Δ°C","10 Δ°C"],
+  ["max(10 K, 5 Δ°C)","10 Δ°C"],["-(30 °C - 20 °C)","-10 Δ°C"],["300 K - 20 °C","6.85 Δ°C"],["20 °C - 300 K","-280 °C"],
+  ["300 K","26.85 °C","°C"],["300 K","300 Δ°C","Δ°C"]]) {
+  const shown=valid(source,{displayUnit:unit});
+  assert.equal(shown.display,display,source+" in "+unit); assert.equal(shown.copyText,display,source+" in "+unit);
+}
+assert.equal(valid("300 K - 20 °C").tag,"delta");
+fails("5 Δ°C - 20 °C","unit");
+assert.equal(valid("T - T",{bindings:{T:{raw:"25 °C"}}}).display,"0 Δ°C");
+for (const [source,display] of [["average(5 Δ°C, 10 K)","7.5 Δ°C"],["average(30 deg, 60 deg)","45 °"],["average(30 deg, 1 rad)","0.7618 rad"]])
+  assert.equal(valid(source).display,display,source);
+
+// Every temperature, through every display unit, copies to text that re-parses to a quantity
+// that behaves the same: same display, same scale and the same results in later formulas.
+{
+  const wrappers=["max(X, 0 °C)","min(X, 5 Δ°C)","max(X, 300 K)","average(X, 20 °C)","average(X, 5 Δ°C)","sum(X, 5 Δ°C)","abs(X)",
+    "X + 5 Δ°C","X - 20 °C","X - 5 Δ°C","X > 0 °C","X < 5 Δ°C","X >= 300 K","X in K","X in °C","X in Δ°C","X*2"];
+  const outcome=r=>r.ok ? r.display : r.diagnostic.code;
+  for (const source of ["25 °C","-40 °C","0 °C","max(0 °C, 100 °C)","min(20 °C, 300 K)","average(20 °C, 30 °C)","20 °C + 5 Δ°C",
+    "5 Δ°C","-5 Δ°C","30 °C - 20 °C","100 °C - 20 °C","abs(20 °C - 30 °C)","max(5 Δ°C, 10 Δ°C)","average(5 Δ°C, 10 Δ°C)","sum(5 Δ°C, 10 K)",
+    "(30 °C - 20 °C) in Δ°C","25 °C in °C","300 K","300 K - 20 °C","10 K in Δ°C","300 K in °C"]) {
+    for (const unit of [undefined,"°C","Δ°C","K","degC","deltaC"]) {
+      const shown=valid(source,{displayUnit:unit}), again=valid(shown.copyText,{displayUnit:unit}), label=source+" in "+unit+" → "+shown.copyText;
+      assert.equal(again.display,shown.display,label); assert.equal(again.copyText,shown.copyText,label);
+      assert.ok(Math.abs(again.value-shown.value)<=5e-4*Math.abs(shown.value),label+" = "+again.value);
+      // Only plain kelvin, which is coherent for both kinds, gives up the absolute/interval distinction.
+      if (unit!=="K" && shown.tag) assert.equal(again.tag,shown.tag,label);
+      if (again.tag!==shown.tag) continue;
+      for (const w of wrappers) {
+        const a=core.evaluate(w.replace("X","("+source+")")), b=core.evaluate(w.replace("X","("+shown.copyText+")"));
+        assert.equal(outcome(b),outcome(a),label+" in "+w);
+      }
+    }
+  }
+}

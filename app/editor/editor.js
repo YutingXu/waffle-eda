@@ -408,19 +408,23 @@
     const members=instance?occurrences?.get(instance):occurrences?.values().next().value;
     return members||emptyHighlightMembers;
   }
-  // One defs map per library content: item edits keep it, so caches keyed on it stay valid; a new map when the
-  // project, its library list or a definition (or its footprint or symbol object) changed, or the undo store
-  // applied records outside the documents' items (library or rules undo/redo; outer()). force: always a new map.
-  let defsKey=null,observedLibraryStore=null;
-  function libraryKey(){const L=project.library,k=[project,L,L.length,UNDO?.outer?.()];for(const d of L)k.push(d,d?.id,d?.footprint,d?.symbol);return k;}
+  // Keep the definition index stable across item edits. Library changes and outer journal records invalidate it.
+  let defsKey=null,defsOuter,observedLibraryStore=null;
+  function libraryKey(){const L=project.library,k=[project,L,L.length];for(const d of L)k.push(d,d?.id,d?.footprint,d?.symbol);return k;}
+  function syncDefinitionIndex(store,force){
+    const key=libraryKey(),outer=store?.outer?.();
+    if(force===true||!defs||!defsKey||defsOuter!==outer||key.length!==defsKey.length||key.some((value,i)=>value!==defsKey[i]))
+      defs=new Map(project.library.map(d=>[d.id,d]));
+    defsKey=key;defsOuter=outer;
+  }
   function refreshDefs(force,libraryPossible=true){
     const store=globalThis.AtriumUndoStore;
     if(store&&store!==observedLibraryStore){
       observedLibraryStore=store;
       store.onLibraryChange?.(()=>{refreshDefs(true);if(viewportVisible)redraw(true);});
     }
-    layerCache=null;globalThis.AtriumCanvas?.edited?.(libraryPossible);const k=libraryKey();
-    if(force===true||!defs||!defsKey||k.length!==defsKey.length||k.some((v,n)=>v!==defsKey[n]))defs=new Map(project.library.map(d=>[d.id,d]));defsKey=k;}
+    layerCache=null;globalThis.AtriumCanvas?.edited?.(libraryPossible);syncDefinitionIndex(store,force);
+  }
   // Related copies keep document IDs. A separate identity follows Undo across File › Open.
   let fileSession={}, folderDerived=false, folderPending=false, folderSaving=false, releaseSavedWork=null;
   const folder=()=>fileSession.folder,FUI=()=>globalThis.AtriumFolderProjectUI;
@@ -524,11 +528,15 @@
     if(clearNet)navEmit("highlight");
     trace?.commit(started,performance.now());
   }
-  // history: AtriumUndoStore (undo-store.js, lazy: idle prefetch or the first edit) keeps compact, shared snapshots;
-  // until it loads, whole-project JSON as before (the store lifts those entries). revive() turns one back into a project.
+  // Keep JSON snapshots until the lazy undo store can lift them into shared history.
   let UNDO=globalThis.AtriumUndoStore;const revive=(s,h)=>UNDO?UNDO.rollback(s,h):JSON.parse(s.project);
   const snapshot=()=>{const meta={current,selected,ids:[...selectedIds],fileSession,imports:globalThis.AtriumImportReports?.capture()};
-    return (UNDO||=globalThis.AtriumUndoStore)?UNDO.mark(project,meta):{project:JSON.stringify(project),...meta};};
+    if(!(UNDO||=globalThis.AtriumUndoStore))return {project:JSON.stringify(project),...meta};
+    const state=UNDO.mark(project,meta);
+    // Align the index to the journal before a command caches geometry.
+    if(defsOuter!==UNDO.outer?.())syncDefinitionIndex(UNDO);
+    return state;
+  };
   // revisions: a released revision is read-only. Direct edits (drags, placement) that checkpoint are
   // reverted at their change(); a project replaced meanwhile (Open) keeps its undo step.
   var lockRevert=null,scopeCheckpoint=false;function checkpoint(state=snapshot(),label,targets=[current]){const mirror=mirrorWorkspace();if(mirror||targets.some(id=>folder()?.canEdit(id)===false||globalThis.AtriumCollabLock?.guard(id))||globalThis.AtriumRevisions?.guard?.(project,true)){lockRevert={state,label,project,mirror};return;}return checkpoint0(state,label);}
@@ -1396,7 +1404,7 @@
   }
   function prewarmRouter(){if(useRouter()){
     globalThis.AtriumLazy?.need?.("AtriumRouteSuggest").catch(()=>{});
-    if(!globalThis.AtriumPower?.efficient?.())try{AtriumRouter.world(doc(),defs,{revision});}catch{}
+    if(!globalThis.AtriumPower?.efficient?.())try{AtriumRouter.world(doc(),defs,{revision,project});}catch{}
   }}
   // Arm the real tool immediately. Only its first anchor is retained if the JS is still loading.
   function armRouter(){
@@ -1810,7 +1818,7 @@
     const frameOnly=(e.ctrlKey||e.metaKey)&&globalThis.AtriumSchObjects?.isFrame(hit);
     if(frameOnly && selectedIds.size>1)choose(hit.id);
     // Schematic: a grip of the selected rectangle resizes it.
-    const resize=!pcb()&&selectedIds.size===1&&selectedIds.has(hit.id)&&globalThis.AtriumSchObjects?.resizeAt?.(hit,p,6/view.scale());
+    const resize=!pcb()&&selectedIds.size===1&&selectedIds.has(hit.id)&&globalThis.AtriumSchObjects?.resizeAt?.(hit,p,6/view.scale(),doc(),defs);
     const copy=e.pointerType==="touch"&&e.ctrlKey&&globalThis.AtriumLabs?.notebookEnabled()!==false&&globalThis.AtriumTouchPrecision;
     if(resize&&!e.shiftKey&&!copy&&!frameOnly){drag={kind:"resize",id:e.pointerId,item:hit,start:s,resize,before:null};info("Drag to size. Escape cancels.");return;}
     if(e.shiftKey){
@@ -1887,7 +1895,7 @@
     if(drag?.kind==="copy"&&(drag.copy.plan||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3))drag.copy.move(p);
     if(drag?.kind==="resize"&&(drag.before||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3)){
       if(!drag.before)drag.before=snapshot();
-      drag.resize.move(p,touchFree()?0:doc().grid);invalidateViews(doc(),[drag.item]);
+      drag.resize.move(p,touchFree()?0:doc().grid);invalidateViews(doc(),drag.resize.changed===undefined?[drag.item]:drag.resize.changed);
       info("Size "+len(drag.item.w)+" × "+len(drag.item.h));
     }
     if(drag?.kind==="text"&&(drag.before||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3)){
@@ -1944,7 +1952,7 @@
   // Include earlier mirror positions and their attached wires, even after the translation was restarted.
   function dragHint(plan,follow,r){
     if(pcbEdit&&!r||!drag.resize&&!drag.segment&&!drag.translation)return;
-    const items=drag.resize?[drag.item]:drag.segment?[drag.item,...(drag.segment.followers||[]).map(f=>f.wire)]:[...drag.translation.affected];
+    const items=drag.resize?drag.resize.affected||[drag.item]:drag.segment?[drag.item,...(drag.segment.followers||[]).map(f=>f.wire)]:[...drag.translation.affected];
     return {doc:doc(),items:[...items,...(drag.mirrorItems||[]),...planItems(plan),...follow],library:!!(drag.flipLibrary||r?.mirrors?.length)};
   }
   function planItems(plan){const ids=new Set((plan?.modify||[]).map(m=>m.id));return ids.size?doc().items.filter(i=>ids.has(i.id)):[];}
@@ -1973,6 +1981,7 @@
       }else{
         let routed=null,follow=[];
         if(drag.reroute){try{const plan=drag.reroute.commit();if(plan.modify.length||plan.add.length||plan.remove.length){AtriumRouter.apply(doc(),plan);routed=plan;}if(plan.message)info(plan.message);}catch(error){info(error.message);routed=false;}}
+        if(drag.resize?.finish?.())invalidateViews(doc());
         if(!drag.segment&&drag.translation){
           if(drag.translation.finish())invalidateViews(doc());
           follow=followDesignators(drag.translation.affected.filter(i=>i.kind==="part").map(i=>i.id));

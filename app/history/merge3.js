@@ -18,6 +18,12 @@
 // one Altium design move record indexes, so a field both changed keeps ours.
 // A conflict keeps our side in `project` until resolve() applies a choice.
 //
+// Documents: an item's id is unique in the project, so an item a side moved to another sheet or
+// board is one object, merged once with its document as one more field. Moved to different
+// documents on each side, moved on one side and deleted on the other, or moved onto a document the
+// other side deleted, is one conflict (fields include "document"); its `documents` {base, ours, theirs}
+// says where each side put it, and `restore` holds a deleted document resolve() brings back for it.
+//
 // Net renames: a net renamed on one side (every object on net A moved to net B, and B is new) is
 // carried into objects the other side added or edited, so a part added on a branch that still
 // names the old net lands on the renamed net.
@@ -58,6 +64,59 @@ globalThis.AtriumMerge3 = (() => {
     const kind = obj.kind ? String(obj.kind) : path.length && typeof path[path.length - 2] === "string" ? String(path[path.length - 2]).replace(/s$/, "") : "object";
     const name = obj.ref || obj.name || obj.text || obj.net || obj.id;
     return kind + " " + String(name).slice(0, 80);
+  }
+  // An item's document while it merges as one object (never a real field name: JSON keys from files are not NUL).
+  const DOC = "\u0000document";
+  // id -> {doc, item, index} for every document item of one side.
+  function locations(P) {
+    const m = new Map();
+    for (const d of Array.isArray(P.documents) ? P.documents : []) if (isObj(d) && Array.isArray(d.items))
+      d.items.forEach((item, index) => { if (isObj(item) && typeof item.id === "string" && !m.has(item.id)) m.set(item.id, {doc: d.id, item, index}); });
+    return m;
+  }
+  // Where an entry at source[index] goes in list: after its nearest predecessor in source, else
+  // before its nearest successor, else at the end.
+  function slot(list, source, index) {
+    const find = k => { const id = source[k]?.id; return typeof id === "string" ? list.findIndex(x => x?.id === id) : -1; };
+    for (let k = index - 1; k >= 0; k--) { const i = find(k); if (i >= 0) return i + 1; }
+    for (let k = index + 1; k < source.length; k++) { const i = find(k); if (i >= 0) return i; }
+    return list.length;
+  }
+  // Items placed into one merged document ({value, source, index}: where the side that put it there
+  // has it), as slot() places each, in one pass: an item may follow another placed with it.
+  function insertAll(items, list) {
+    const present = new Set(items.map(x => x?.id)), incoming = new Set(list.map(e => e.value.id));
+    const after = new Map(), before = new Map(), end = [];
+    const add = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
+    const known = id => typeof id === "string" && (present.has(id) || incoming.has(id));
+    for (const {value, source, index} of list) {
+      let k = index - 1;
+      while (k >= 0 && !(known(source[k]?.id) && source[k].id !== value.id)) k--;
+      if (k >= 0) { add(after, source[k].id, value); continue; }
+      k = index + 1;
+      while (k < source.length && !(known(source[k]?.id) && source[k].id !== value.id)) k++;
+      if (k < source.length) add(before, source[k].id, value); else end.push(value);
+    }
+    const out = [], done = new Set();
+    // Depth-first without recursion: a long chain of placed items would overflow the stack.
+    const emit = root => {
+      const stack = [{x: root, phase: 0}];
+      while (stack.length) {
+        const f = stack[stack.length - 1], id = f.x?.id;
+        if (f.phase === 0) {
+          if (typeof id === "string" && incoming.has(id)) { if (done.has(id)) { stack.pop(); continue; } done.add(id); }
+          f.phase = 1;
+          const b = before.get(id); if (b) for (let i = b.length - 1; i >= 0; i--) stack.push({x: b[i], phase: 0});
+        } else if (f.phase === 1) {
+          out.push(f.x); f.phase = 2;
+          const a = after.get(id); if (a) for (let i = a.length - 1; i >= 0; i--) stack.push({x: a[i], phase: 0});
+        } else stack.pop();
+      }
+    };
+    for (const x of items) emit(x);
+    for (const x of end) emit(x);
+    for (const {value} of list) if (!done.has(value.id)) emit(value);
+    return out;
   }
 
   // ------------------------------------------------------------------ net renames
@@ -165,6 +224,8 @@ globalThis.AtriumMerge3 = (() => {
       const B = new Map(b.map(x => [x.id, x])), O = new Map(o.map(x => [x.id, x])), T = new Map(t.map(x => [x.id, x]));
       const merged = new Map();
       const isItems = path[path.length - 1] === "items";
+      // A document merges field by field even when it holds no items (every one moved away, say).
+      const isDocs = path.length === 1 && path[0] === "documents";
       const decisions = atomic.size && isItems ? atomic.get(owner(path).docId) : null;
       for (const id of new Set([...O.keys(), ...T.keys(), ...B.keys()])) {
         const bv = B.get(id), ov = O.get(id), tv = T.get(id), here = path.concat({id});
@@ -187,7 +248,7 @@ globalThis.AtriumMerge3 = (() => {
           const left = keep("ours"), right = keep("theirs");
           if (record) conflict(here, bv, ov, tv, fields, left, right);
           v = prefer === "ours" ? left : right;
-        } else if (isObj(ov) && isObj(tv) && (container(ov) || container(tv))) v = object(bb, ov, tv, here, prefer, record);
+        } else if (isObj(ov) && isObj(tv) && (container(ov) || container(tv) || isDocs)) v = object(bb, ov, tv, here, prefer, record);
         else if (same(bv, ov)) { v = clone(tv); if (isItems && tv) v = applyRenames(v, R.ours); if (record) note(here, "theirs", bv, tv); }
         else if (same(bv, tv)) { v = clone(ov); if (isItems && ov) v = applyRenames(v, R.theirs); if (record) note(here, "ours", bv, ov); }
         else if (isObj(ov) && isObj(tv)) {
@@ -268,7 +329,74 @@ globalThis.AtriumMerge3 = (() => {
         both: isObj(o) && isObj(t) && isObj(path[path.length - 1])});
     }
     const B = isObj(base) ? base : {}, O = isObj(ours) ? ours : {}, T = isObj(theirs) ? theirs : {};
-    const project = object(B, O, T, [], "ours", true);
+    // Items in different documents on different sides (see the header) leave every document and
+    // merge once, with their document as a field; then they go where the merge put them.
+    const LB = locations(B), LO = locations(O), LT = locations(T), moved = new Map();
+    for (const id of new Set([...LO.keys(), ...LT.keys(), ...LB.keys()])) {
+      const at = {b: LB.get(id), o: LO.get(id), t: LT.get(id)};
+      if (new Set([at.b, at.o, at.t].filter(Boolean).map(e => e.doc)).size > 1) moved.set(id, at);
+    }
+    const strip = P => !moved.size || !Array.isArray(P.documents) ? P : {...P, documents: P.documents.map(d =>
+      isObj(d) && Array.isArray(d.items) && d.items.some(i => moved.has(i?.id)) ? {...d, items: d.items.filter(i => !moved.has(i?.id))} : d)};
+    const project = object(strip(B), strip(O), strip(T), [], "ours", true);
+    if (moved.size) placeMoved();
+    // Moved items: merged once each, then placed. A move onto a document the other side deleted is a
+    // conflict (deleted-ours/-theirs, field "document"): the deletion never silently sends the item
+    // back. The project holds what each conflict keeps (ours), bringing back a deleted document with
+    // only the items placed on it; `restore` carries each side's document for resolve().
+    function placeMoved() {
+      const docsOf = P => new Map((Array.isArray(P.documents) ? P.documents : []).filter(isObj).map(d => [d.id, d]));
+      const DB = docsOf(B), DO = docsOf(O), DT = docsOf(T), merged = docsOf(project);
+      // The side that deleted a document the other side still has (null: none did).
+      const deletedBy = d => !DB.has(d) ? null : DO.has(d) && !DT.has(d) ? "theirs" : DT.has(d) && !DO.has(d) ? "ours" : null;
+      const shell = (D, d) => D.has(d) ? clone({...D.get(d), items: []}) : undefined;
+      const tag = e => e && [{...e.item, [DOC]: e.doc}];
+      const placed = new Map(); // document id -> [{value, source, index}] for insertAll()
+      for (const [id, at] of moved) {
+        const home = (at.o || at.t || at.b).doc, firstConflict = conflicts.length, firstChange = changes.length;
+        const [v] = collection(tag(at.b) || [], tag(at.o) || [], tag(at.t) || [], ["documents", {id: home}, "items"], "ours", true);
+        let c = conflicts[firstConflict];
+        if (!c && v && deletedBy(v[DOC])) {
+          // Changed on one side only, onto a document the other side deleted.
+          changes.length = firstChange;
+          conflict(["documents", {id: home}, "items", {id}], tag(at.b)?.[0], at.o && tag(at.o)[0], at.t && tag(at.t)[0], [DOC],
+            {...v, [DOC]: at.o?.doc}, {...v, [DOC]: at.t?.doc});
+          c = conflicts[firstConflict];
+          c.status = "deleted-" + deletedBy(v[DOC]);
+        }
+        // A conflict keeps ours; otherwise the merged value goes where its side put it.
+        const keep = c ? c.ours : v, target = isObj(keep) ? keep[DOC] : null;
+        if (target != null) {
+          const value = c ? clone(keep) : keep, side = [[at.o, DO], [at.t, DT], [at.b, DB]].find(s => s[0]?.doc === target);
+          delete value[DOC];
+          if (!placed.has(target)) placed.set(target, []);
+          placed.get(target).push(side ? {value, source: side[1].get(target)?.items || [], index: side[0].index} : {value, source: [], index: 0});
+        }
+        const path = ["documents", {id: target ?? home}, "items", {id}];
+        for (const x of changes.slice(firstChange)) Object.assign(x, {path, ...owner(path)});
+        if (!c) continue;
+        const documents = {base: at.b?.doc, ours: c.ours?.[DOC], theirs: c.theirs?.[DOC]};
+        for (const k of ["base", "ours", "theirs"]) if (isObj(c[k])) delete c[k][DOC];
+        for (const k of ["ours", "theirs"]) if (isObj(c.sides[k])) delete c.sides[k][DOC];
+        if (c.fields) c.fields = c.fields.map(f => f === DOC ? "document" : f);
+        const restore = {};
+        for (const [k, D] of [["ours", DO], ["theirs", DT]]) if (documents[k] != null && deletedBy(documents[k])) restore[k] = shell(D, documents[k]);
+        Object.assign(c, {path, ...owner(path), documents}, Object.keys(restore).length ? {restore} : {});
+      }
+      for (const [d, list] of placed) {
+        let doc = merged.get(d);
+        if (!doc) {
+          // A document the other side deleted, back for the items a conflict keeps on it.
+          const D = DO.has(d) ? DO : DT;
+          doc = shell(D, d);
+          project.documents ||= [];
+          const source = [...D.values()];
+          project.documents.splice(slot(project.documents, source, source.indexOf(D.get(d))), 0, doc);
+          merged.set(d, doc);
+        }
+        doc.items = insertAll(Array.isArray(doc.items) ? doc.items : [], list);
+      }
+    }
     const renumbered = opts.renumber === false ? [] : renumber(project, B, O, T);
     for (const r of renumbered) changes.push({path: ["documents", {id: r.docs[0]?.id}, "items", {id: r.ids[0]}], side: "theirs", status: "renumbered",
       label: "part " + r.from + " → " + r.to, docId: r.docs[0]?.id || null, docName: r.docs[0]?.name || null, objectId: r.ids[0], from: r.from, to: r.to});
@@ -362,20 +490,52 @@ globalThis.AtriumMerge3 = (() => {
     const project = clone(result.project);
     for (const c of result.conflicts) {
       const choice = choices[c.id] || "ours";
-      if (choice === "ours") { put(project, c.path, clone(c.ours)); continue; }
-      if (choice === "theirs") { put(project, c.path, clone(c.theirs)); continue; }
+      if (c.documents) { resolveMoved(project, c, choice, copyIds); continue; }
+      const path = c.path;
+      if (choice === "ours") { put(project, path, clone(c.ours)); continue; }
+      if (choice === "theirs") { put(project, path, clone(c.theirs)); continue; }
       if (choice === "both" && c.both) {
-        const at = locate(project, c.path);
+        const at = locate(project, path);
         if (!at) continue;
         let id = copyIds.get(c.id);
         if (!id) {
           id = globalThis.Atrium.id();
           copyIds.set(c.id, id);
         }
-        put(project, c.path, clone(c.ours), copyOf(c.theirs, Array.isArray(at.parent) ? at.parent : [], id));
+        put(project, path, clone(c.ours), copyOf(c.theirs, Array.isArray(at.parent) ? at.parent : [], id));
       }
     }
+    // A document brought back only for moved items (see merge) goes again once none is left on it,
+    // unless the document is a conflict of its own.
+    const own = new Set(result.conflicts.filter(c => c.path.length === 2 && c.path[0] === "documents").map(c => c.path[1]?.id));
+    const brought = new Set(result.conflicts.flatMap(c => Object.values(c.restore || {}).map(d => d?.id)).filter(id => id != null && !own.has(id)));
+    if (brought.size && Array.isArray(project.documents)) project.documents = project.documents.filter(d => !(isObj(d) && brought.has(d.id) && !d.items?.length));
     return project;
+  }
+  // An item moved between documents leaves every other one, then sits where the chosen side put it
+  // (on that side's document, brought back from `restore` if the merge left it out).
+  function resolveMoved(project, c, choice, copyIds) {
+    const docs = Array.isArray(project.documents) ? project.documents : (project.documents = []);
+    const home = side => {
+      const id = c.documents[side];
+      if (id == null) return null;
+      let d = docs.find(x => isObj(x) && x.id === id);
+      if (!d && isObj(c.restore?.[side])) docs.push(d = clone(c.restore[side]));
+      if (d && !Array.isArray(d.items)) d.items = [];
+      return d || null;
+    };
+    const side = choice === "theirs" ? "theirs" : "ours", doc = home(side), value = c[side];
+    for (const d of docs) if (isObj(d) && Array.isArray(d.items) && (d !== doc || value === undefined) && d.items.some(i => i?.id === c.objectId)) d.items = d.items.filter(i => i?.id !== c.objectId);
+    if (!doc || value === undefined) return;
+    put(project, ["documents", {id: doc.id}, "items", {id: c.objectId}], clone(value));
+    if (choice !== "both" || !c.both) return;
+    let id = copyIds.get(c.id);
+    if (!id) { id = globalThis.Atrium.id(); copyIds.set(c.id, id); }
+    const other = home("theirs");
+    if (!other) return;
+    const copy = copyOf(c.theirs, other.items, id);
+    if (other === doc) put(project, ["documents", {id: doc.id}, "items", {id: c.objectId}], clone(value), copy);
+    else other.items.push(copy);
   }
 
   // ------------------------------------------------------------------ file text

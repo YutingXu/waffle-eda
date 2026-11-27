@@ -748,11 +748,12 @@ globalThis.AtriumDiffPair = (() => {
         W.scene.reset();
         const add = [];
         for (const l of t.legs) for (const [list, net] of [[l.piecesP, P], [l.piecesN, N]]) for (const q of list) {
-          if (q.points.length > 1) add.push({id:idOf(), kind:"track", points:q.points.map(p => [r6(p[0]), r6(p[1])]), width:q.width, layer:l.layer, net});
+          const points = C.trackPoints(q.points);
+          if (points.length > 1) add.push({id:idOf(), kind:"track", points, width:q.width, layer:l.layer, net});
         }
         for (const v of st.vias) { const via = {id:idOf(), kind:"via", x:r6(v.x), y:r6(v.y), diameter:v.diameter, drill:v.drill, layer:"Multi", net:v.net}; if (v.fromLayer) { via.fromLayer = v.fromLayer; via.toLayer = v.toLayer; } add.push(via); }
         const modify = [];
-        for (const [k, g] of st.base) { const rec = W.owners[k]; modify.push(g.kind === "track" ? {id:rec.id, points:g.points.map(p => [r6(p[0]), r6(p[1])])} : {id:rec.id, x:r6(g.x), y:r6(g.y)}); }
+        if (add.length) for (const [k, g] of st.base) { const rec = W.owners[k]; modify.push(g.kind === "track" ? {id:rec.id, points:g.points.map(p => [r6(p[0]), r6(p[1])])} : {id:rec.id, x:r6(g.x), y:r6(g.y)}); }
         return {add, remove:[], modify, lengthP:t.lenP, lengthN:t.lenN, skew:t.lenP - t.lenN, pairGap:t.pairGap, pairOk:!t.pairBad};
       },
       cancel() { W.scene.reset(); st.last = null; st.legs.length = 1; Object.assign(st.legs[0], {centre:null, dir:null, br:null, side:0, endBreak:null, zones:[], manualEnd:0}); st.vias.length = 0; st.base = new Map(); st.undo.length = 0; },

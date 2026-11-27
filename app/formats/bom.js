@@ -908,10 +908,10 @@ globalThis.AtriumBOM = (() => {
       if (e.button) return;
       e.preventDefault();
       const x0 = e.clientX, w0 = state.panelWidth;
-      panelEdge.setPointerCapture?.(e.pointerId); panelEdge.classList.add("dragging");
+      panelEdge.setPointerCapture?.(e.pointerId); panelEdge.classList.add("is-dragging");
       const move = ev => { state.panelWidth = Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(w0 - (ev.clientX - x0)))); panel.style.width = state.panelWidth + "px"; };
       const up = () => { panelEdge.removeEventListener("pointermove", move); panelEdge.removeEventListener("pointerup", up); panelEdge.removeEventListener("pointercancel", up);
-        panelEdge.classList.remove("dragging"); setPanel(true); };
+        panelEdge.classList.remove("is-dragging"); setPanel(true); };
       panelEdge.addEventListener("pointermove", move); panelEdge.addEventListener("pointerup", up); panelEdge.addEventListener("pointercancel", up);
     };
     panelEdge.onkeydown = e => {

@@ -59,8 +59,30 @@ built-in theme.
 | Line height | `--lh-tight` 1.2, `--lh` 1.35 (body), `--lh-loose` 1.5 (prose, empty states) |
 | Radius | `--r-sm` 2 px (controls, menus), `--r-md` 4 px (cards, chips), `--r-lg` 6 px (dialogs), `--r-pill` |
 | Elevation | `--elev-1` (tooltips), `--elev-2` (menus, popovers, floating panels), `--elev-3` (dialogs) |
-| Layers | `--z-sticky` 1 (table heads), `--z-float` 30, `--z-toast` 35, `--z-popover` 40, `--z-alert` 60, `--z-top` 1000. Small local values (1–7) stay literal inside a stacking context. |
+| Layers | `--z-sticky` 1 (table heads), `--z-float` 30, `--z-toast` 35, `--z-popover` 40, `--z-alert` 60, `--z-top` 1000. Small local values (1–9) stay literal inside a stacking context. See [Layers](#layers). |
 | Controls | `--ctl-h-sm` (20 px), `--ctl-h` (24 px), and `--ctl-h-lg` (28 px) each include `--d-row` for density and font scaling. `--ctl-px` is 8 px of horizontal padding. Touch input uses a 44 px minimum where these controls serve as individual targets. |
+
+### Layers
+
+The page is a stack of layers. The workbench is one layer (it isolates everything inside it). Above it,
+in this order, sit the app bar (5, lifted to `--z-popover` while one of its menus is open), floating
+panels, modeless windows and context menus (`--z-float`), toasts (`--z-toast`), popovers
+(`--z-popover`), alerts such as Preferences and the recovery warning (`--z-alert`), and app-wide
+feedback that must never be covered: tooltips, the panel drag preview, the keyboard-scheme switcher
+and the Windows caption controls (`--z-top`). Modal dialogs and open popovers use the browser's top
+layer.
+
+A decoration that belongs to one element (a scroll thumb, the net-name completion over a field, the
+pin-swap hint, the timing readout, the connection flash and the note editor over a canvas) joins its
+owner's layer through `ui/owner-layer.js` (`AtriumLayer.attach`, `at`, `clip`). It is never
+appended to the body at a high z-index: whatever is drawn over its owner then covers it too, and it is
+cut to the part of its owner that can be seen. Its own z-index only orders it among its owner's
+neighbours.
+
+Numbers above 9 are not layers. `tests/maintenance/layer_lint.py` (run by `css-tokens.py`) rejects
+them, keeps `--z-top` and `--z-alert` to the surfaces named above, and requires every resize handle to
+be one of the shared handles in `ui/components.css` (they all light in `--focus` on hover, drag and
+keyboard focus).
 
 ## Shared patterns
 

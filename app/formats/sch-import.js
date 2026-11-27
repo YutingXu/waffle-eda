@@ -45,7 +45,9 @@ globalThis.AtriumSCH = (() => {
       off=found.end;
       let record;
       if(found.flag!==0){
-        record=found.payload.length>=4 && found.payload[0]===2 ? binaryPin(found.payload) : {RECORD:"binary"};
+        // The frame is intact, so a damaged pin is omitted and the records after it are still read.
+        try{record=found.payload.length>=4 && found.payload[0]===2 ? binaryPin(found.payload) : {RECORD:"binary"};}
+        catch{record={RECORD:"damaged binary pin"};}
       }else record=AtriumAltiumRecords.propertyRecord(found.payload,true,false);
       if(record.HEADER && !records.length)continue;
       records.push(record);

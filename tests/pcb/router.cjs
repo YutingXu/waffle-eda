@@ -116,6 +116,53 @@ test("walkaround routes around vias and tracks, keeps clearance and reaches the 
   }
 });
 
+test("coincident route clicks produce no anchors or copper at board precision", () => {
+  const board = Atrium.sheet("pcb", "Stationary route"), defs = new Map(), start = [1, 1];
+  for (const mode of R.modes) {
+    const session = R.begin(board, defs, {net:"SIG", layer:"Top", start, mode});
+    for (const end of [start, [1.0000002, 1]]) {
+      session.move(end);
+      assert.equal(session.click().anchored, false, mode);
+      assert.equal(session.state.anchors, 0, mode);
+      assert.deepEqual(session.commit(), {add:[], remove:[], modify:[], length:0}, mode);
+    }
+    session.move([2, 1]);
+    assert.equal(session.click().anchored, true, mode);
+    session.move([2, 1]);
+    assert.equal(session.click().anchored, false, mode);
+    assert.deepEqual(session.commit().add.map(t => t.points), [[[1, 1], [2, 1]]], mode);
+  }
+  const retraced = R.begin(board, defs, {net:"SIG", layer:"Top", start, mode:"ignore"});
+  for (const end of [[2, 1], start]) {
+    retraced.move(end);
+    assert.equal(retraced.click().anchored, true);
+  }
+  assert.deepEqual(retraced.commit(), {add:[], remove:[], modify:[], length:0}, "an entirely retraced leg leaves no copper");
+  assert.equal(retraced.addVia().ok, true);
+  assert.deepEqual(retraced.commit().add.map(item => item.kind), ["via"], "an explicit via still commits without a track");
+
+  for (const method of ["walkaround", "grid"]) {
+    const result = R.route(board, defs, {net:"SIG", from:start, to:[1.0000002, 1], method});
+    assert.equal(result.ok, true, method);
+    assert.deepEqual(result.plan.add, [], method);
+    assert.deepEqual(result.points, [], method);
+  }
+});
+
+test("a differential pair does not commit lanes that collapse at board precision", () => {
+  const board = Atrium.sheet("pcb", "Stationary pair");
+  const session = AtriumDiffPair.begin(board, new Map(), {
+    pair:{name:"PAIR", positive:"P", negative:"N"}, startP:[1, .7], startN:[1, 1.3], width:.2, gap:.4
+  });
+  session.move([1.0000002, 1]);
+  const empty = session.commit({head:true});
+  assert.deepEqual([empty.add, empty.remove, empty.modify], [[], [], []]);
+  session.cancel();
+  session.move([2, 1]);
+  const routed = session.commit({head:true});
+  assert.deepEqual(routed.add.map(track => track.points), [[[1, .7], [2, .7]], [[1, 1.3], [2, 1.3]]]);
+});
+
 test("rounded corners keep the authored waypoint count at an exact tolerance boundary", () => {
   const radius=.002/(1-Math.SQRT1_2);
   const points=R.core.fillet([[0,0],[4,0],[4,6]],radius,null);
@@ -588,11 +635,42 @@ test("Ctrl+Click auto-complete routes to a distant pad; addVia keeps the layer",
   assert.ok(c.ok && c.done, "completed onto the pad");
   const plan = s.commit();
   assert.ok(audit([...board.items, ...plan.add]).worst >= -1e-6);
+
+  const hovered = R.begin(board, new Map(), {net:"SIG", layer:"Top", start:[6, 0]});
+  assert.ok(hovered.move([20, 0]).reached, "the preview already reaches the pad");
+  const finished = hovered.complete([20, 0]);
+  assert.ok(finished.ok && finished.done, "Ctrl+Click finishes a preview that reaches its target");
+  assert.equal(hovered.state.anchors, 1, "the target does not add a zero-length anchor");
+  assert.ok(hovered.complete([20, 0]).done, "the anchored endpoint already meets the target");
+  assert.equal(hovered.state.anchors, 1);
+  assert.ok(hovered.commit().length > 0);
+
+  const stationary = R.begin(board, new Map(), {net:"SIG", layer:"Top", start:[6, 0]});
+  assert.equal(stationary.complete([6, 0]).done, false, "the start pad alone does not make a route");
+  assert.deepEqual(stationary.commit().add, []);
+
   const s2 = R.begin(board, new Map(), {net:"SIG", layer:"Top", start:[6, 0]});
   s2.move([7, 0]);
   const v = s2.addVia();
   assert.ok(v.ok); assert.equal(s2.state.layer, "Top");
   assert.equal(s2.move([8, 1]).vias.length, 1);
+});
+
+test("via placement cannot rely on a shove from a stationary preview", () => {
+  const board = {kind:"pcb", items:[
+    {id:"crossing", kind:"track", points:[[-3, 0], [3, 0]], width:.15, layer:"Top", net:"OTHER"}
+  ]};
+  for (const place of [session => session.addVia(), session => session.switchLayer("Bottom")]) {
+    const session = R.begin(board, new Map(), {
+      net:"SIG", layer:"Top", start:[0, 0], mode:"push", width:1.2,
+      viaStyle:{diameter:.4, drill:.2}, rules:{clearance:.2}, moveBudgetMs:100, pushBudgetMs:100
+    });
+    assert.equal(session.move([0, 0]).pushed.length, 1, "the preview temporarily clears the crossing");
+    assert.equal(place(session).ok, false, "the original track still obstructs the via");
+    assert.equal(session.state.layer, "Top");
+    assert.equal(session.state.anchors, 0);
+    assert.deepEqual(session.commit(), {add:[], remove:[], modify:[], length:0});
+  }
 });
 
 test("a via that does not fit backs off along the route", () => {

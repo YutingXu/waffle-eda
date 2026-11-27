@@ -178,6 +178,9 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
   border-radius:var(--r-pill);background:var(--focus-edge-light);box-shadow:var(--elev-1);
   transition:transform var(--ui-switch-time) var(--ease-decelerate);
 }
+/* Reduced: the knob moves at once (it has no fade of its own). */
+:root:is([data-motion=reduce],[data-efficient]) .ui-switch-row:has(> .ui-switch)::after {transition:none}
+@media (prefers-reduced-motion:reduce) {:root .ui-switch-row:has(> .ui-switch)::after {transition:none}}
 .ui-switch-row:has(> .ui-switch:checked)::after {transform:translateX(calc(var(--ui-switch-w) - var(--ui-switch-knob) - 2 * var(--s-2)))}
 .ui-switch-row:dir(rtl):has(> .ui-switch:checked)::after {transform:translateX(calc(2 * var(--s-2) + var(--ui-switch-knob) - var(--ui-switch-w)))}
 @media (forced-colors:active) {

@@ -101,5 +101,6 @@
     if (second.value === "(" || second.kind === "operator" || first.value.includes(".")) return true;
     return (first.value === "π" || first.value === "pi") && second.kind === "end";
   }
-  globalThis.AtriumCalculationIntent = Object.freeze({lex, acceptsPaletteText, limits, error});
+  // Table formulas bind the same net-field spelling as design references.
+  globalThis.AtriumCalculationIntent = Object.freeze({lex, acceptsPaletteText, limits, error, netField: netField.source});
 })(globalThis);

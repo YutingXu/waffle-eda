@@ -1,6 +1,6 @@
 /* Placement popover (sch-place.js), Find and Replace (find-replace.js) and Paste Special
    (paste-special.js). Colours come from the theme tokens in style.css / theme.css. */
-.sp-pop {position:fixed;z-index:var(--z-top);width:min(270px,calc(100vw - 32px));padding:var(--s-8) var(--s-8) var(--s-6);
+.sp-pop {position:fixed;z-index:var(--z-popover);width:min(270px,calc(100vw - 32px));padding:var(--s-8) var(--s-8) var(--s-6);
   font-size:var(--fs-12)}
 /* Tab while placing: the same form, docked at the top of the Properties pane. */
 .sp-pop.sp-docked {position:static;z-index:auto;width:auto;border-width:0 0 1px;border-radius:0;background:transparent;box-shadow:none}
@@ -17,7 +17,7 @@
 .sp-note {margin:4px 0 0;color:var(--faint);font-size:var(--fs-10)}
 
 .fr-dialog {position:fixed;inset:64px 16px auto auto;margin:0;width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 96px);padding:0;
-  display:flex;flex-direction:column;z-index:var(--z-top)}
+  display:flex;flex-direction:column;z-index:var(--z-float)}
 .fr-dialog:not([open]) {display:none}
 .fr-head {display:flex;align-items:center;justify-content:space-between;padding:6px 8px;background:var(--panel-head);border-bottom:1px solid var(--line)}
 .fr-head h2 {margin:0;font-size:var(--fs-12);font-weight:600}

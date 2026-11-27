@@ -155,7 +155,6 @@
 
 /* Comparison filters and selection */
 .dv-side-sash{position:absolute;left:-3px;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:3;touch-action:none}
-.dv-side-sash:hover,.dv-side-sash:focus-visible{background:var(--accent);outline:none}
 .dv-filter-top{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s-6)}
 .dv-filter-more > summary{cursor:default;font-size:var(--fs-11);color:var(--muted);padding:var(--s-2) 0}
 .dv-filter-more[open]{display:grid;gap:var(--s-6)}

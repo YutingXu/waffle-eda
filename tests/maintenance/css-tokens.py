@@ -12,6 +12,8 @@ Fails when
   5. a library theme's own copper layers are too alike: every pair of Top, Bottom and Inner 1-6 must be at least
      MIN_DELTA_E apart (CIE76, computed here independently), at least 3:1 on the board, and the
      colour-vision theme (Clearview) keeps MIN_DELTA_E_CVD under simulated deuteranopia.
+  6. layers and resize handles break the rules in layer_lint.py (z-index scale, app-wide
+     layers, element-owned decorations, one shared resize handle).
 Warns (does not fail) on font sizes that bypass the type scale.
 Prints "css-tokens: ok" on success; exits 1 with a list of problems otherwise.
 """
@@ -22,6 +24,7 @@ import sys
 from pathlib import Path
 
 import css_style_lint
+import layer_lint
 import shortcut_lint
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -179,8 +182,10 @@ def check_library(problems, report):
 def main():
     css_style_lint.self_test()
     shortcut_lint.self_test()
+    layer_lint.self_test()
     problems = css_style_lint.check(ROOT, APP, ROOT / "tests/maintenance/css-style-legacy.json")
     problems += shortcut_lint.check(ROOT, APP)
+    problems += layer_lint.check(ROOT, APP)
     warnings = []
     for name in sorted(f for f in os.listdir(APP) if f.endswith(".css")):
         text = (APP / name).read_text(encoding="utf8")

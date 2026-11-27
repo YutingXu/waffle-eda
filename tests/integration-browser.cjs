@@ -870,6 +870,7 @@ async function main(){
     await require("./canvas/browser-view3d-open.js")(browser,["navigation","open","folder"]);
     await require("./editor/browser-editing-input.js")(browser);
     await require("./schematic/browser-sch-terminal-drag.js")(browser);
+    await require("./pcb/browser-route-no-op.cjs")(browser);
     await require("./canvas/browser-dense-edit-refresh.js")(browser);
   }
 
@@ -899,6 +900,7 @@ async function main(){
     await require("./editor/browser-messages-fonts.js")(browser);
     await require("./editor/browser-inline-stack.js")(browser);
     await require("./editor/browser-panel-chrome.js")(browser);
+    await require("./ui/browser-owner-layers.cjs")(browser);
     await require("./editor/browser-scripting-console.cjs")(browser);
   }
 

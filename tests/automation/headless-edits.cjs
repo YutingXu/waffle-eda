@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const {appFile} = require("../support/app-source-paths.cjs");
 for (const name of ["model", "parts", "sch-objects", "sch-object-tools", "hierarchy", "stackup", "viastack", "hdi",
-  "automation/legacy-command-contract", "commands-headless"])
+  "find-replace", "automation/legacy-command-contract", "commands-headless"])
   require(appFile(name + ".js"));
 const A = Atrium, H = AtriumCommandsHeadless;
 
@@ -37,6 +37,19 @@ const A = Atrium, H = AtriumCommandsHeadless;
   assert.equal(sch.grid, grid);
   assert.equal(H.run(project, "set_grid", {document_id: pcb.name, grid: .5}).document_id, pcb.id);
   assert.equal(pcb.grid, .5);
+}
+
+// Without document_id, a command acts on the document that holds the given ids.
+{
+  const project = AtriumParts.example(), pcb = project.documents.find(d => d.kind === "pcb"), sch = project.documents.find(d => d.kind === "schematic");
+  const j1 = pcb.items.find(i => i.kind === "part" && i.ref === "J1"), schematic = JSON.stringify(sch);
+  const r = H.run(project, "find_replace", {query: "J1", replacement: "ZZ9", scope: "selection", ids: [j1.id]});
+  assert.equal(r.replaced, 1);
+  assert.equal(j1.ref, "ZZ9");
+  assert.equal(JSON.stringify(sch), schematic, "the schematic is not searched");
+  assert.equal(H.run(project, "rotate", {ids: [j1.id]}).document_id, pcb.id);
+  // An id that is not on the searched document is an error, not zero matches.
+  assert.throws(() => H.run(project, "find_replace", {query: "J1", scope: "selection", ids: [j1.id], document_id: sch.id}), /has no object/);
 }
 
 // An HDI preset must fit before the command changes the board or its rules.

@@ -48,7 +48,7 @@
 .nm-declined-list li {display:flex;gap:6px;justify-content:space-between;align-items:center;padding:1px 0;font-family:var(--mono);font-size:var(--fs-11)}
 
 /* Inline completion: faint text after what was typed, drawn over the field (pointer events pass through). */
-.nm-ghost {position:fixed;z-index:var(--z-alert);pointer-events:none;overflow:hidden;white-space:pre;box-sizing:border-box;color:var(--faint);background:none}
+.nm-ghost {position:fixed;z-index:var(--z-sticky);pointer-events:none;overflow:hidden;white-space:pre;box-sizing:border-box;color:var(--faint);background:none}
 .nm-ghost-typed {visibility:hidden}
 .nm-ghost-key {margin-inline-start:var(--s-6)}
 .nm-complete-line {display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline;margin:0 0 4px;padding-left:2px;font-size:var(--fs-11);color:var(--muted)}
