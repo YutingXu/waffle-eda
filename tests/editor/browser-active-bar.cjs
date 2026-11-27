@@ -313,9 +313,12 @@ async function extensionsAndMacros(browser) {
     // Macros switched off: the button is not drawn, the stored id stays.
     await page.evaluate(() => AtriumPrefs.set("butter.macros", false));
     await page.waitForFunction(() => !AtriumKeymap.command("butter.macros.alias.thin"), null, {timeout:10000});
-    await page.evaluate(() => AtriumBars.render());
+    await settle(page);
     assert.equal(await page.evaluate(() => !!document.querySelector('#tools [data-bar-run="butter.macros.alias.thin"]')), false);
     assert.equal(await page.evaluate(() => AtriumPrefs.get("workbench.bars").active.schematic.includes("butter.macros.alias.thin")), true, "unknown ids are kept");
+    // Switched on again, the macros register and their buttons return without another edit.
+    await page.evaluate(() => AtriumPrefs.set("butter.macros", true));
+    await page.waitForFunction(() => document.querySelector('#tools [data-bar-run="butter.macros.alias.thin"]'), null, {timeout:15000});
     console.log("PASS extension buttons and macros are ordinary bar items; Run… opens for parameters");
   } finally { await page.close(); }
 }

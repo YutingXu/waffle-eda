@@ -126,7 +126,13 @@ globalThis.AtriumBars = (() => {
   }
   const defaultList = k => defaults(entries(), k, extNodes().map(n => ({id:idOf(n), when:n.dataset.when || ""})), allows);
   const effective = k => listFor(k) ?? defaultList(k);
-  K()?.onChange?.(() => { availableIds = null; });
+  // Commands come and go (macros, extensions, Experimental features): a stored bar draws what exists now.
+  let redraw = false;
+  K()?.onChange?.(() => {
+    availableIds = null;
+    if (redraw || !(listFor(kind()) || faces()[kind()])) return;
+    redraw = true; queueMicrotask(() => { redraw = false; render(); });
+  });
   function command(id) {
     const c = K()?.command(id);
     if (!c) return null;
