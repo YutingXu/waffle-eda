@@ -14,7 +14,8 @@ its limits. The suite checks, against each target:
   * capacity (16) with the owner allowed past it; the owner may rejoin and stays the owner;
   * limits: join timeout, idle timeout, joins per address and per room, connections per address and
     overall, the rate limit that slows a sender (never cuts it off), a stalled reader is cut off,
-    a quiet room is never closed (lan_room_idle is off); no HTTP pages; nothing listens after stop.
+    a quiet room is never closed (lan_room_idle is off); the keepalive {"t": "p"} is answered to its
+    sender only; no HTTP pages; nothing listens after stop.
 The relay-only checks (TURN, private mode, /healthz, read and queue budgets) are in
 tests/project/collab-relay.py, whose WebSocket client this suite reuses.
 
@@ -324,7 +325,7 @@ async def check_routing(t):
         await g2.send({"t": "sig", "to": j2["id"], "d": "self"})
         assert await host.nothing() is None and await g2.nothing() is None and await g1.nothing() is None, "oversized or self signalling is dropped"
         # Anything else is dropped.
-        for junk in ({"t": "m", "d": 5}, {"t": "x"}, {"t": "p"}, {"t": "join", "room": t.room, "auth": t.auth}, {"t": "attest", "id": j1["id"]},
+        for junk in ({"t": "m", "d": 5}, {"t": "x"}, {"t": "join", "room": t.room, "auth": t.auth}, {"t": "attest", "id": j1["id"]},
                      {"t": "ice"}, {"t": "sig", "to": j1["id"]}, [1]):
             await host.send(junk)
         assert await g1.nothing() is None and await g2.nothing() is None and await host.nothing() is None, "malformed messages are dropped"
@@ -478,17 +479,21 @@ async def check_idle(t):
         start = time.monotonic()
         left = None
         while time.monotonic() - start < 4 and left is None:
-            await talker.send({"t": "p"})
-            try:
-                m = await talker.recv(0.5)
+            await talker.send({"t": "p"})   # a keepalive every half second (each is answered)
+            until = time.monotonic() + 0.5
+            while left is None:
+                try:
+                    m = await talker.recv(max(0.01, until - time.monotonic()))
+                except asyncio.TimeoutError:
+                    break
                 if m.get("t") == "peer" and m.get("joined") is False:
                     left = m
-            except asyncio.TimeoutError:
-                pass
         assert left and left["id"] == jq["id"], ("a connection with nothing to say for `idle` is closed", left)
         assert closed_code(await quiet.expect("closed", 1)) in (1001, "eof")
+        while await talker.nothing(ignore=()) is not None:
+            pass
         await talker.send({"t": "p"})
-        assert await talker.nothing() is None, "a keepalive keeps a connection"
+        assert await talker.recv() == {"t": "p"} and await talker.nothing() is None, "a keepalive keeps a connection"
     finally:
         d.kill()
 
@@ -639,7 +644,7 @@ async def check_quiet_room(t):
             await a.send({"t": "p"})
             await b.send({"t": "p"})
             await asyncio.sleep(0.25)
-        assert await a.nothing() is None and await b.nothing() is None, "nobody is closed"
+        assert await a.nothing(ignore=("p", "peer", "peers")) is None and await b.nothing(ignore=("p", "peer", "peers")) is None, "nobody is closed"
         await a.send({"t": "m", "d": "still here"})
         assert await b.expect("m") == {"t": "m", "d": "still here", "from": ja["id"]}, "and the room still forwards"
     finally:
@@ -649,8 +654,72 @@ async def check_quiet_room(t):
         a, b = await Client.open(d.port), await Client.open(d.port)
         await a.join(t.room, t.auth, own="owner-token-0123456789")
         await b.join(t.room, t.auth)
-        codes = [closed_code(await c.expect("closed", 4)) for c in (a, b)]
-        assert all(c in (1001, "eof") for c in codes), ("with lan_room_idle set, a quiet room is closed", codes)
+        ends, start = {}, time.monotonic()
+        while len(ends) < 2 and time.monotonic() - start < 4:   # pings answered, but they are no room activity
+            for name, c in (("a", a), ("b", b)):
+                if name in ends:
+                    continue
+                try:
+                    await c.send({"t": "p"})
+                except ConnectionError:
+                    pass
+                try:
+                    m = await c.recv(0.25)
+                except asyncio.TimeoutError:
+                    continue
+                if "closed" in m:
+                    ends[name] = m["closed"]
+        assert sorted(ends) == ["a", "b"] and all(c in (1001, None, "eof") for c in ends.values()), ("with lan_room_idle set, a quiet room is closed", ends)
+    finally:
+        d.kill()
+
+
+async def check_ping(t):
+    """The keepalive is answered: {"t": "p"} gets exactly {"t": "p"}, to the sender only, never to the
+    room; only after the join (before it, a ping is not a join); within the rate limit like any message;
+    and it keeps its own connection from the idle timeout (it is that connection's traffic, as on the
+    relay), while it is no room activity (see quiet_room)."""
+    d = await t.launch()
+    try:
+        host, guest, third = await Client.open(d.port), await Client.open(d.port), await Client.open(d.port)
+        await host.join(t.room, t.auth, own="owner-token-0123456789")
+        await guest.join(t.room, t.auth)
+        await third.join(t.room, t.auth)
+        for c in (host, guest):
+            while await c.nothing(ignore=()) is not None:
+                pass
+        await guest.send({"t": "p"})
+        assert await guest.frames() == (0x1, b'{"t":"p"}'), "exactly {\"t\":\"p\"}"
+        assert await host.nothing(ignore=()) is None and await third.nothing(ignore=()) is None, "to the sender only"
+        early = await Client.open(d.port)
+        await early.send({"t": "p"})
+        m = await early.expect("p")
+        assert m.get("t") != "p", ("a ping before the join is no join", m)
+    finally:
+        d.kill()
+    d = await t.launch({"rate_messages": 20, "rate_window": 0.5, "idle": 2.5})
+    try:
+        f, g = await Client.open(d.port), await Client.open(d.port)
+        await f.join(t.room, t.auth, own="owner-token-0123456789")
+        await g.join(t.room, t.auth)
+        start = time.monotonic()
+        for _ in range(60):
+            f.frame(b'{"t":"p"}')
+        await f.writer.drain()
+        got = 0
+        while got < 60:
+            m = await f.recv(5)
+            assert "closed" not in m, ("a fast pinger is slowed, not cut off", m)
+            got += m.get("t") == "p"
+        assert time.monotonic() - start >= 2 * 0.5 * 0.9, "pings count against the rate limit"
+        assert await g.nothing() is None, "and none reached the room"
+        for _ in range(8):   # 4 s of pings every 0.5 s: past the 2.5 s idle timeout
+            for c in (f, g):
+                await c.send({"t": "p"})
+                assert await c.expect("p") == {"t": "p"}
+            await asyncio.sleep(0.5)
+        await f.send({"t": "m", "d": "still here"})
+        assert (await g.expect("m"))["d"] == "still here", "pings keep their own connection open"
     finally:
         d.kill()
 
@@ -671,7 +740,7 @@ async def check_stop(t):
 
 CHECKS = [check_replies, check_info, check_join_rules, check_routing, check_owner_pinned, check_http, check_frames,
           check_capacity, check_join_timeout, check_idle, check_room_joins, check_joins, check_per_address,
-          check_connections, check_rate, check_rate_bytes, check_stall, check_quiet_room, check_stop]
+          check_connections, check_rate, check_rate_bytes, check_stall, check_quiet_room, check_ping, check_stop]
 
 
 async def conformance(target, only=None):

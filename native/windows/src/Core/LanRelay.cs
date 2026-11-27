@@ -803,7 +803,8 @@ namespace Waffle.Windows
                         lock (gate) { if (members.TryGetValue(to, out other) && other != p) active = Now; else other = null; }
                         if (other != null) Send(other, new Dictionary<string, object> { { "t", "sig" }, { "from", id }, { "d", signal } });
                     }
-                    // Keepalives ("p"), attestations and TURN requests: nothing to do here.
+                    else if (kind == "p") Send(p, new Dictionary<string, object> { { "t", "p" } });   // the keepalive's answer, to the sender only: the client finds a stalled connection by it
+                    // Attestations and TURN requests: nothing to do here.
                 }
             }
 

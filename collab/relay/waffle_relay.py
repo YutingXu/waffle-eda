@@ -31,7 +31,7 @@ Protocol (JSON text frames):
   relay:  {t:"peer", id, joined:true|false}, {t:"peers", n} (v1 editors)
   client: {t:"m", d, to?:[ids]}          ->  others: {t:"m", d, from}
   client: {t:"sig", to:id, d}            ->  that peer: {t:"sig", from, d}
-  client: {t:"ice"} -> {t:"ice", ice, ttl};  {t:"p"}: keepalive, ignored
+  client: {t:"ice"} -> {t:"ice", ice, ttl};  {t:"p"} -> {t:"p"}: keepalive, answered (liveness check)
 
 Limits (class Limits): message size, peers per room, rooms, connections overall and per address
 (an IPv6 /64 counts as one address), joins per address per minute, per-connection rate (a fast
@@ -661,6 +661,8 @@ class Relay:
                         self.grant_turn(room, members, member)
             elif kind == "ice" and peer.has_turn and time.monotonic() - peer.ice_at >= Limits.ice_every:
                 self.grant_turn(room, members, peer, refresh=True)
+            elif kind == "p":
+                peer.send({"t": "p"})   # the keepalive's answer: the client finds a stalled connection by it
 
     async def room_for(self, sender, size):
         """Wait (bounded) until the queues have room for size more bytes: checked before queueing."""

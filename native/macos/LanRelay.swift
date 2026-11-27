@@ -353,7 +353,10 @@ final class LanRelay {
                 send(o, ["t": "sig", "from": id, "d": d])
             }
             next()
-        default: next()   // keepalives ("p"), attestations and TURN requests: nothing to do here
+        case "p":
+            send(p, ["t": "p"])   // the keepalive's answer, to the sender only: the client finds a stalled connection by it
+            next()
+        default: next()   // attestations and TURN requests: nothing to do here
         }
     }
 
