@@ -5,7 +5,7 @@
 // relay is collab/relay/waffle_relay.py on 127.0.0.1. Numbers only, no budgets yet.
 //
 //   node scripts/perf-collab.cjs [--transports local,relay,relay-only] [--reps 8] [--idle 30]
-//                                [--skip cost,latency,idle,drop,stall,trim] [--insights] [--json]
+//                                [--skip cost,latency,wire,idle,drop,stall,trim] [--insights] [--json] [--budgets]
 //   scripts/perf-collab.sh ...   (finds node and playwright-core; RUNS=n repeats and reports spread)
 //
 // Measured, per transport:
@@ -27,6 +27,16 @@
 //            notice, and does an edit still arrive (it can on a direct data channel)?
 //   trim     (relay-only) a guest that deletes 4,200 objects while disconnected, past the CRDT's
 //            bounded log (LIMITS.log): whether the host receives them after reconnecting.
+//   scope    (with cost) what each remote edit makes the guest's editor re-check: whether the patch
+//            recorded the Undo journal with a full comparison (undo-store stats().full), how many
+//            items the journal range names for the board (the change set online DRC, redraw,
+//            minimap, pours and Design Insights read), and how many items online DRC passed to
+//            AtriumRules.drc (25,600 = the whole board).
+//   wire     messages and bytes the host sends: per edit kind (cost pass), and per second while the
+//            pointer travels with no edit, while an object is dragged before the drop, and for a
+//            burst of 20 nudges; plus the operation keys and bytes each edit kind publishes.
+// --budgets fails the run (exit 3) when a per-edit budget is missed (scripts/perf-collab.sh applies
+// the same budgets to the median of several runs).
 // Design insights are switched off (--insights keeps them): on this board their idle pass alone keeps
 // a renderer busy for minutes, with or without a session, which would hide the session's own cost.
 // The local transport shares one renderer process between both pages: its CPU figures are combined.
@@ -91,10 +101,10 @@ function counters() {
   window.setInterval = function (f, ms, ...a) { const s = site(); return si.call(window, typeof f === "function" ? (...x) => { count("interval", s); return f(...x); } : f, ms, ...a); };
   window.requestAnimationFrame = function (f) { const s = wake.counting ? site() : ""; return raf.call(window, t => { count("raf", s); return f(t); }); };
   if (ric) window.requestIdleCallback = function (f, o) { const s = wake.counting ? site() : ""; return ric.call(window, d => { count("idle", s); return f(d); }, o); };
-  const bytes = window.pcBytes = {ws: 0, dc: 0, bc: 0};
+  const bytes = window.pcBytes = {ws: 0, dc: 0, bc: 0}, sent = window.pcMessages = {ws: 0, dc: 0, bc: 0};
   const size = d => typeof d === "string" ? d.length : d?.byteLength || 0;
   const wrap = (proto, key) => { if (!proto?.send && !proto?.postMessage) return; const name = proto.send ? "send" : "postMessage", f = proto[name];
-    proto[name] = function (d, ...a) { bytes[key] += size(typeof d === "object" && d && !d.byteLength ? JSON.stringify(d) : d); return f.call(this, d, ...a); }; };
+    proto[name] = function (d, ...a) { sent[key]++; bytes[key] += size(typeof d === "object" && d && !d.byteLength ? JSON.stringify(d) : d); return f.call(this, d, ...a); }; };
   wrap(window.WebSocket?.prototype, "ws"); wrap(window.RTCDataChannel?.prototype, "dc"); wrap(window.BroadcastChannel?.prototype, "bc");
   // Name the edit pipeline's jobs (app/editor/edit-pipeline.js) among the wake-up sources.
   let pipeline;
@@ -117,7 +127,10 @@ function instrument() {
   const commit = r.commit, receive = r.receive, preparePatch = r.preparePatch, snapshot = r.snapshot, diff = r.diff;
   r.commit = function (next, o = {}) {
     const t = performance.now(), b = commit.call(this, next, o), ms = performance.now() - t;
-    pc.commits.push({at: now(), ms, scoped: Array.isArray(o.updates), updates: o.updates?.length ?? null, ops: b?.ops.length || 0});
+    // What each operation key publishes (bytes of its JSON), to see derived data on the wire.
+    const keys = {};
+    for (const op of b?.ops || []) { const k = op.t + (op.k ? ":" + op.k : ""), n = JSON.stringify(op).length; keys[k] = (keys[k] || 0) + n; }
+    pc.commits.push({at: now(), ms, scoped: Array.isArray(o.updates), structure: o.structure?.length ?? 0, updates: o.updates?.length ?? null, ops: b?.ops.length || 0, keys});
     return b;
   };
   r.receive = function (b, o) {
@@ -135,7 +148,28 @@ function instrument() {
   r.snapshot = function () { const t = performance.now(), s = snapshot.call(this); pc.snapshots.push({ms: performance.now() - t}); return s; };
   r.pcDiff = diff;
   if (!pc.frameHook) { pc.frameHook = true; H.on("frame", () => pc.frames.push(now())); }
+  pc.drc ||= {calls: 0, items: 0};
   return Object.isFrozen(H);
+}
+// The guest's change-set reading after an edit: journal syncs (a full one compares every object),
+// the board's journal range (what online DRC, redraw, minimap, pours and Design Insights read), and
+// the items online DRC hands to AtriumRules.drc (wrapped once the rules module has loaded).
+function scopeMark() {
+  const R = globalThis.AtriumRules;
+  if (R && !R.pcWrapped && !Object.isFrozen(R)) {
+    const drc = R.drc;
+    R.drc = function (doc, ...a) { pc.drc.calls++; pc.drc.items += doc?.items?.length || 0; return drc.call(this, doc, ...a); };
+    R.pcWrapped = true;
+  }
+  const U = AtriumUndoStore, board = AtriumNavHost.project().documents.find(d => d.kind === "pcb" && d.items.length > 1000);
+  const seq = U.changed(board, null).seq, st = U.stats();
+  return {full: st.full, scoped: st.scoped, seq, drcCalls: pc.drc.calls, drcItems: pc.drc.items, drcWrapped: !!globalThis.AtriumRules?.pcWrapped};
+}
+function scopeSince(m) {
+  const U = AtriumUndoStore, board = AtriumNavHost.project().documents.find(d => d.kind === "pcb" && d.items.length > 1000);
+  const range = U.changed(board, m.seq), st = U.stats();
+  return {fullSyncs: st.full - m.full, scopedSyncs: st.scoped - m.scoped, journalIds: range.ids ? range.ids.size : "unknown",
+    drcCalls: pc.drc.calls - m.drcCalls, drcItems: pc.drc.items - m.drcItems, drcWrapped: m.drcWrapped};
 }
 function stat(xs) {
   xs = xs.filter(x => Number.isFinite(x)).sort((a, b) => a - b);
@@ -264,7 +298,7 @@ function runKind({kind, i, flush}) {
   const t2 = performance.now();
   if (kind === "paste") H.setTool("select");
   const c = pc.commits.at(-1) || null;
-  return {start, editMs: t1 - t0, publishMs: t2 - t1, commit: c && {ms: c.ms, scoped: c.scoped, updates: c.updates, ops: c.ops}, commits: pc.commits.length};
+  return {start, editMs: t1 - t0, publishMs: t2 - t1, commit: c && {ms: c.ms, scoped: c.scoped, structure: c.structure, updates: c.updates, ops: c.ops, keys: c.keys}, commits: pc.commits.length};
 }
 async function guestSaw(guest, since, timeout = 20000) {
   // The first frame after a patch that applied a received batch at or after `since`.
@@ -287,19 +321,23 @@ async function costPass(s) {
   for (let k = 0; k < 3; k++) fullDiff.push(await s.host.evaluate(() => { const S = AtriumCollabLive.session(), t = performance.now(); const ops = S.r.pcDiff(AtriumNavHost.project()); return {ms: performance.now() - t, ops: ops.length}; }));
   out.fullDiffMs = stat(fullDiff.map(x => x.ms)); out.fullDiffOps = fullDiff[0].ops;
   const rows = Object.fromEntries(KINDS.map(k => [k, []]));
+  // The guest looks at the board, so its online DRC and redraw follow the remote edits.
+  await s.guest.evaluate(() => { const H = AtriumNavHost, b = H.project().documents.find(d => d.kind === "pcb" && d.items.length > 1000); H.selectDocument(b.id); });
+  await sleep(2000);
   // Order: two warm-ups (a structural edit sets verifyNextDiff, so the following scoped edit runs
   // the full diff too: recorded as "afterStructural"), then reps per kind.
   for (let i = 0; i < reps; i++) {
     for (const kind of KINDS) {
       if (kind === "table" && !s.tableOk) continue;
       if (kind === "undo" && !rows.paste.length) continue;
-      const c0 = [await s.cpu(0), await s.cpu(1)];
+      const c0 = [await s.cpu(0), await s.cpu(1)], mark = await s.guest.evaluate(scopeMark), wire0 = await s.host.evaluate(wireNow);
       const r = await s.host.evaluate(runKind, {kind, i, flush: true});
       let g = null;
       try { g = await guestSaw(s.guest, r.start); } catch (e) { g = {error: e.message.split("\n")[0]}; }
-      await sleep(300);
-      const c1 = [await s.cpu(0), await s.cpu(1)];
-      rows[kind].push({...r, guest: g, hostCpuMs: c1[0] - c0[0], guestCpuMs: c1[1] - c0[1]});
+      // Online DRC on the guest runs right after the patch's frame (or when idle).
+      await sleep(700);
+      const c1 = [await s.cpu(0), await s.cpu(1)], scope = await s.guest.evaluate(scopeSince, mark), wire1 = await s.host.evaluate(wireNow);
+      rows[kind].push({...r, guest: g, scope, wire: {messages: wire1.messages - wire0.messages, bytes: wire1.bytes - wire0.bytes}, hostCpuMs: c1[0] - c0[0], guestCpuMs: c1[1] - c0[1]});
     }
   }
   for (const [kind, list] of Object.entries(rows)) {
@@ -312,6 +350,14 @@ async function costPass(s) {
       guestReceiveMs: stat(ok.map(x => x.guest.receiveMs)), guestPrepareMs: stat(ok.map(x => x.guest.prepareMs)), guestApplyMs: stat(ok.map(x => x.guest.applyMs)),
       guestRemoteTotalMs: stat(ok.map(x => x.guest.receiveMs + x.guest.prepareMs + x.guest.applyMs)),
       guestScopedPatch: ok.every(x => x.guest.scopedPatch),
+      // The change set a remote edit gives the guest's checks and redraw (see scope above).
+      guestFullSyncs: list.reduce((n, x) => n + (x.scope?.fullSyncs || 0), 0),
+      guestJournalIds: stat(list.map(x => typeof x.scope?.journalIds === "number" ? x.scope.journalIds : 1e9)),
+      guestDrcItems: stat(list.map(x => x.scope?.drcItems ?? 0)), guestDrcCalls: stat(list.map(x => x.scope?.drcCalls ?? 0)), guestDrcWatched: list.some(x => x.scope?.drcWrapped),
+      structure: list.map(x => x.commit?.structure ?? 0).join(","),
+      wireMessages: stat(list.map(x => x.wire.messages)), wireBytes: stat(list.map(x => x.wire.bytes)),
+      opKeys: Object.fromEntries(Object.entries(list.reduce((acc, x) => { for (const [k, n] of Object.entries(x.commit?.keys || {})) acc[k] = (acc[k] || 0) + n; return acc; }, {}))
+        .map(([k, n]) => [k, Math.round(n / list.length)])),
       hostCpuMs: stat(list.map(x => x.hostCpuMs)), guestCpuMs: stat(list.map(x => x.guestCpuMs)),
       errors: list.filter(x => x.guest?.error).map(x => x.guest.error).slice(0, 2)
     };
@@ -329,6 +375,60 @@ async function latencyPass(s) {
     }
     out[kind] = {toGuestFrameMs: stat(xs), toGuestArrivalMs: stat(arrive)};
   }
+  return out;
+}
+// Messages and bytes this page has sent on every carrier.
+function wireNow() { const m = pcMessages, b = pcBytes; return {messages: m.ws + m.dc + m.bc, bytes: b.ws + b.dc + b.bc}; }
+// The host's traffic while (a) the pointer travels over the board with no edit, (b) an object is
+// dragged before the drop (then the drop itself), (c) 20 nudges in a burst; per second, and what one
+// message carries at most.
+async function wirePass(s, seconds = 3) {
+  const out = {};
+  const box = await s.host.evaluate(() => {
+    const H = AtriumNavHost, T = window.pcTargets, board = H.project().documents.find(d => d.id === T.board);
+    if (H.currentId() !== T.board) H.selectDocument(T.board);
+    H.select([]); H.setTool("select");
+    const rect = H.canvas().getBoundingClientRect(), part = board.items.find(x => x.id === T.part);
+    const [x, y] = H.view().worldToScreen([part.x, part.y]);
+    return {left: rect.left, top: rect.top, width: rect.width, height: rect.height, part: [rect.left + x, rect.top + y]};
+  });
+  const measure = async (name, act) => {
+    const w0 = await s.host.evaluate(wireNow), t0 = Date.now();
+    await act();
+    const ms = Date.now() - t0, w1 = await s.host.evaluate(wireNow);
+    out[name] = {seconds: +(ms / 1000).toFixed(2), messages: w1.messages - w0.messages, bytes: w1.bytes - w0.bytes,
+      messagesPerSec: +((w1.messages - w0.messages) / (ms / 1000)).toFixed(2), bytesPerSec: Math.round((w1.bytes - w0.bytes) / (ms / 1000))};
+  };
+  const steps = seconds * 60;
+  await s.host.mouse.move(box.left + 40, box.top + 40);
+  await sleep(500);
+  await measure("pointerTravel", async () => {
+    for (let k = 0; k < steps; k++) {
+      const t = k / steps;
+      await s.host.mouse.move(box.left + 40 + t * (box.width - 80), box.top + box.height / 2 + Math.sin(t * 12) * box.height / 3);
+      await sleep(1000 / 60);
+    }
+  });
+  await sleep(800);
+  await s.host.mouse.move(box.part[0], box.part[1]);
+  await sleep(300);
+  await s.host.mouse.down();
+  await measure("dragBeforeDrop", async () => {
+    for (let k = 0; k < steps; k++) {
+      await s.host.mouse.move(box.part[0] + 120 * Math.sin(k / steps * Math.PI * 2), box.part[1] + 60 * Math.cos(k / steps * Math.PI * 2));
+      await sleep(1000 / 60);
+    }
+  });
+  await measure("drop", async () => { await s.host.mouse.up(); await sleep(1000); });
+  await sleep(500);
+  await measure("nudgeBurst20", async () => {
+    await s.host.evaluate(async () => {
+      const H = AtriumNavHost; H.select([window.pcTargets.part]);
+      for (let k = 0; k < 20; k++) { H.executeKey("nudge", [k % 2 ? -1 : 1, 0]); await new Promise(r => setTimeout(r, 25)); }
+    });
+    await sleep(1000);
+  });
+  await s.host.evaluate(() => AtriumNavHost.select([]));
   return out;
 }
 // Every wake-up on both pages: first until two seconds pass with none (at most 60 s, as
@@ -480,6 +580,7 @@ async function main() {
         s.tableOk = !!kinds.table?.ok; t.table = kinds.table;
         if (!skip.has("cost") && mode === (transports.includes("relay") ? "relay" : transports[0])) t.cost = await costPass(s);
         if (!skip.has("latency")) t.latency = await latencyPass(s);
+        if (!skip.has("wire") && mode === (transports.includes("relay") ? "relay" : transports[0])) t.wire = await wirePass(s);
         if (!skip.has("idle") && mode !== "local") t.idleAfterEdits = await idlePass(s);
         if (!skip.has("drop") && mode !== "local") t.drop = await dropPass(s, relayRef);
         if (!skip.has("stall") && mode !== "local") t.stall = await stallPass(s, relayRef);
@@ -494,5 +595,37 @@ async function main() {
     if (relayRef.current) { try { relayRef.current.proc.kill("SIGCONT"); } catch { /* gone */ } await killRelay(relayRef.current); }
   }
   console.log(JSON.stringify(result, null, asJSON ? 1 : 2));
+  if (args.includes("--budgets")) {
+    const failed = budgets(result);
+    for (const f of failed) console.error("perf-collab: over budget: " + f);
+    if (failed.length) process.exitCode = 3;
+  }
 }
-main().catch(err => { console.error(err); process.exitCode = 1; });
+// Per-edit budgets (docs/collaboration.md, the live-session targets on this board), on one run's p95.
+// scripts/perf-collab.sh applies the same table to the median of RUNS runs.
+const BUDGETS = {
+  remoteTotalMs: 4,                                                   // receive + view + patch, any kind
+  publishStructuralMs: 4, structural: ["add", "delete", "paste"],     // local add, delete, paste: flush
+  publishInPlaceMs: 1, inPlace: ["move", "vertex", "property", "table"],
+  undoEditMs: 16,                                                     // personal undo on the host
+  scoped: ["move", "property", "add", "delete"], drcItems: 2000       // a remote edit re-checks its neighbourhood
+};
+function budgets(result) {
+  const failed = [];
+  for (const [mode, t] of Object.entries(result.transports)) {
+    const c = t.cost;
+    if (!c) continue;
+    for (const [kind, row] of Object.entries(c)) {
+      if (!row?.guestRemoteTotalMs) continue;
+      if (row.guestRemoteTotalMs.p95 > BUDGETS.remoteTotalMs) failed.push(mode + " " + kind + " guest remote p95 " + row.guestRemoteTotalMs.p95 + " ms > " + BUDGETS.remoteTotalMs);
+      if (BUDGETS.structural.includes(kind) && row.publishMs.p95 > BUDGETS.publishStructuralMs) failed.push(mode + " " + kind + " publish p95 " + row.publishMs.p95 + " ms > " + BUDGETS.publishStructuralMs);
+      if (BUDGETS.inPlace.includes(kind) && row.publishMs.p95 > BUDGETS.publishInPlaceMs) failed.push(mode + " " + kind + " publish p95 " + row.publishMs.p95 + " ms > " + BUDGETS.publishInPlaceMs);
+      if (kind === "undo" && row.editMs.p95 > BUDGETS.undoEditMs) failed.push(mode + " undo p95 " + row.editMs.p95 + " ms > " + BUDGETS.undoEditMs);
+      if (BUDGETS.scoped.includes(kind) && (row.guestFullSyncs || row.guestDrcItems?.max > BUDGETS.drcItems || row.guestJournalIds?.max >= 1e9))
+        failed.push(mode + " " + kind + " re-checked more than the edit: " + JSON.stringify({fullSyncs: row.guestFullSyncs, drcItems: row.guestDrcItems, journalIds: row.guestJournalIds}));
+    }
+  }
+  return failed;
+}
+module.exports = {BUDGETS, budgets, design, serve, relay, killRelay, session, setupKinds, runKind, guestSaw, instrument, scopeMark, scopeSince};
+if (require.main === module) main().catch(err => { console.error(err); process.exitCode = 1; });
