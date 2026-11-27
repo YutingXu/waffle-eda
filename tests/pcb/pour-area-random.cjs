@@ -13,8 +13,8 @@
 // editor commits, then the follow-up jobs for the dependent pours it names in `next`); after those no
 // pour may be stale and the stored copper must equal a full repour.
 // Reports how each kind of edit reached the solver. SEEDS=n adds seeds; --quick runs fewer steps;
-// --large adds the 25,600-object benchmark board of scripts/perf-sch.sh --board pours; ONLY_SEED and
-// STEPS rerun one worker seed.
+// --large adds the 25,600-object benchmark board of scripts/perf-sch.sh --board pours; SEED_BASE
+// shifts the extra seeds; ONLY_SEED (worker test), VIA_SEED (via board) and STEPS rerun one seed.
 // Run: node tests/pcb/pour-area-random.cjs [--quick] [--large]
 const assert = require("node:assert/strict");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};
@@ -96,6 +96,14 @@ function ops(docOf) {
     return pick(r, sel.length ? sel : list);
   };
   const nudge = (r, s = 2) => (r() - .5) * s;
+  // A point on a pour outline: {x, y, layer, tx, ty (along the edge), nx, ny (across it)}.
+  const spot = (ed, r) => {
+    const list = polys(ed).filter(p => !p.cutout); if (!list.length) return null;
+    const p = pick(r, list), o = p.points, k = Math.floor(r() * o.length), a = o[k], b = o[(k + 1) % o.length], t = .05 + .9 * r(), len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const tx = (b[0] - a[0]) / len, ty = (b[1] - a[1]) / len;
+    return {x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, layer: p.layer, tx, ty, nx: -ty, ny: tx};
+  };
+  const addTrack = (ed, r, layer, points) => { const t = {id: fresh("t"), kind: "track", net: pick(r, ["GND", "VCC", "N3", "SIG", ""]), layer, width: pick(r, [.15, .2, .3]), points}; ed.edit(() => { docOf(ed).items.push(t); }); };
   return [
     ["move part (inside a pour)", (ed, r) => { const p = near(ed, r, "part", true); if (!p) return false; ed.edit(() => { p.x += nudge(r); p.y += nudge(r); }); return true; }],
     ["move part (near an outline)", (ed, r) => { const p = near(ed, r, "part", false); if (!p) return false; ed.edit(() => { p.x += nudge(r); p.y += nudge(r); }); return true; }],
@@ -115,6 +123,23 @@ function ops(docOf) {
     ["pour clearance", (ed, r) => { const p = pick(r, polys(ed)); if (!p) return false; ed.edit(() => { if (p.clearance) delete p.clearance; else p.clearance = .12; }); return true; }],
     ["connect style", (ed, r) => { const p = pick(r, polys(ed)); if (!p) return false; ed.edit(() => { if (r() < .5) p.connectStyle = pick(r, ["relief", "direct", "none", "auto"]); else { p.viaConnectStyle = pick(r, ["relief", "direct"]); p.reliefConductorWidth = pick(r, [.2, .254, .3]); } }); return true; }],
     ["neck width", (ed, r) => { const p = pick(r, polys(ed)); if (!p) return false; ed.edit(() => { if (p.neckWidth) delete p.neckWidth; else p.neckWidth = pick(r, [.2, .4]); }); return true; }],
+    // Along outlines and split lines (where two pours' outlines coincide): the long rings of the
+    // polygon outline, and in stage 2 of a later pour the large islands of an earlier one.
+    ["track across an outline", (ed, r) => { const s = spot(ed, r), d = 1 + 2 * r(); if (!s) return false; addTrack(ed, r, s.layer, [[s.x - s.nx * d, s.y - s.ny * d], [s.x + s.nx * d, s.y + s.ny * d]]); return true; }],
+    ["track ending on an outline", (ed, r) => { const s = spot(ed, r), d = (r() < .5 ? -1 : 1) * (1 + 2 * r()); if (!s) return false; addTrack(ed, r, s.layer, [[s.x + s.nx * d, s.y + s.ny * d], [s.x, s.y]]); return true; }],
+    ["track along an outline", (ed, r) => { const s = spot(ed, r), o = (r() < .5 ? -1 : 1) * pick(r, [0, .1, .2, .25, .3, .35, .5]), l = 1 + 3 * r(); if (!s) return false;
+      addTrack(ed, r, s.layer, [[s.x + s.nx * o - s.tx * l, s.y + s.ny * o - s.ty * l], [s.x + s.nx * o + s.tx * l, s.y + s.ny * o + s.ty * l]]); return true; }],
+    ["via on an outline", (ed, r) => { const s = spot(ed, r), o = pick(r, [0, .05, -.05, .3, -.3, .45]); if (!s) return false; const v = {id: fresh("v"), kind: "via", net: pick(r, ["GND", "VCC", "N2", "SIG"]), x: s.x + s.nx * o, y: s.y + s.ny * o, diameter: pick(r, [.6, 1.1]), drill: .3, layer: "Multi"};
+      ed.edit(() => { docOf(ed).items.push(v); }); return true; }],
+    ["via at an outline corner", (ed, r) => { const p = pick(r, polys(ed)); if (!p) return false; const q = pick(r, p.points), v = {id: fresh("v"), kind: "via", net: pick(r, ["GND", "N2", "SIG"]), x: q[0] + nudge(r, .6), y: q[1] + nudge(r, .6), diameter: .8, drill: .3, layer: "Multi"};
+      ed.edit(() => { docOf(ed).items.push(v); }); return true; }],
+    ["move part onto an outline", (ed, r) => { const s = spot(ed, r); if (!s) return false; const parts = kinds(ed, "part"); if (!parts.length) return false;
+      const p = parts.reduce((a, i) => Math.hypot(i.x - s.x, i.y - s.y) < Math.hypot(a.x - s.x, a.y - s.y) ? i : a); ed.edit(() => { p.x = s.x + nudge(r, .4); p.y = s.y + nudge(r, .4); }); return true; }],
+    ["cutout across an outline", (ed, r) => { const s = spot(ed, r), a = .5 + r(), b = .3 + r(); if (!s) return false;
+      const c = {id: fresh("cut"), kind: "polygon", cutout: true, layer: pick(r, [s.layer, "Multi"]), points: [[s.x - a, s.y - b], [s.x + a, s.y - b], [s.x + a, s.y + b], [s.x - a, s.y + b]]};
+      ed.edit(() => { docOf(ed).items.push(c); }); return true; }],
+    ["small pour over a large one's edge", (ed, r) => { const small = polys(ed).filter(p => !p.cutout && Math.abs(p.points[1][0] - p.points[0][0]) < 60); if (!small.length) return false;
+      const p = pick(r, small), dx = nudge(r, 8), dy = nudge(r, 8); ed.edit(() => { p.points = p.points.map(q => [q[0] + dx, q[1] + dy]); }); return true; }],
     ["undo", ed => ed.go(-1)], ["redo", ed => ed.go(1)], ["undo", ed => ed.go(-1)]
   ];
 }
@@ -193,8 +218,7 @@ function run(label, project, {seed, steps, worker = false}) {
     assert.equal(inc.failed.length, 0, label + " seed " + seed + " step " + step + ": failed " + JSON.stringify(inc.failed));
     const a = regions.map(regionKey), b = full.regions.map(regionKey);
     if (a.length !== b.length || a.some((x, k) => x !== b[k])) {
-      const k = a.findIndex((x, j) => x !== b[j]), id = (regions[k] || full.regions[k])?.polygon, st = inc.stats.polygons[id]?.area;
-      assert.fail(label + " seed " + seed + " step " + step + " (" + pendingKinds.join(", ") + "): pour " + id + " differs from a full repour (region " + k + " of " + a.length + "/" + b.length +
+      const k = a.findIndex((x, j) => x !== b[j]), id = (regions[k] || full.regions[k])?.polygon, st = inc.stats.polygons[id]?.area;      assert.fail(label + " seed " + seed + " step " + step + " (" + pendingKinds.join(", ") + "): pour " + id + " differs from a full repour (region " + k + " of " + a.length + "/" + b.length +
         "; stage 1 " + modeOf(st?.stage1) + ", stage 2 " + modeOf(st?.stage2) + ")");
     }
     assert.deepEqual(signatures, full.signatures, label + " seed " + seed + " step " + step + " signatures");
@@ -219,12 +243,13 @@ function run(label, project, {seed, steps, worker = false}) {
 
 let passed = 0;
 const test = (name, fn) => { fn(); passed++; console.log("ok - " + name); };
-const more = (from, n = +(process.env.SEEDS || 0)) => Array.from({length: n}, (_, i) => from + i);
+// SEEDS=n extra seeds per board, from 100, 200, ... plus SEED_BASE.
+const more = (from, n = +(process.env.SEEDS || 0)) => Array.from({length: n}, (_, i) => from + (+process.env.SEED_BASE || 0) + i);
 test("netted board with ten pours (1,600 objects): every refill equals a full repour", () => {
   for (const seed of [1, 2, 3, 4, ...(quick ? [] : [5, 6, 7, 8]), ...more(100)]) run("board 40", bench(40), {seed, steps: quick ? 10 : 25});
 });
 test("board of tests/pcb/pour-area.cjs (vias, relief, Remove Necks): every refill equals a full repour", () => {
-  for (const seed of [11, 12, 13, ...(quick ? [] : [14, 15, 16]), ...more(300)]) run("via grid", viaGrid(), {seed, steps: quick ? 12 : 30});
+  for (const seed of process.env.VIA_SEED ? [+process.env.VIA_SEED] : [11, 12, 13, ...(quick ? [] : [14, 15, 16]), ...more(300)]) run("via grid", viaGrid(), {seed, steps: +process.env.STEPS || (quick ? 12 : 30)});
 });
 test("the worker's own jobs (its choice of stale pours, then the dependent pours it names): stored copper equals a full repour", () => {
   for (const seed of process.env.ONLY_SEED ? [+process.env.ONLY_SEED] : [41, 42, ...(quick ? [] : [43, 44]), ...more(500)]) run("board 40, worker", bench(40), {seed, steps: +process.env.STEPS || (quick ? 10 : 20), worker: true});
