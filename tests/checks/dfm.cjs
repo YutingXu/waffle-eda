@@ -59,6 +59,14 @@ assert.equal(ring[0].level, "error");
 const tol = run([tht("p", 10, 10, 1.24, 1)], "ring", {}, {});
 assert.equal(D.run(board([tht("p", 10, 10, 1.24, 1)]), new Map(), {...L, pthRing: .1}, {checks: ["ring"]}).issues[0].level, "warning", "breakout at tolerance is a warning");
 assert.ok(tol.length);
+//    a slotted pad: the ring is what the slot leaves of the land (the DRC's annular ring), not (min(w, h) - drill) / 2.
+{
+  const slot = {...tht("s", 10, 10, 2, .8), shape: "rect", slotLength: 2.2};
+  const bad = run([slot], "ring");
+  assert.equal(bad[0]?.actual, 0, "the slot breaks out of the land");
+  assert.equal(AtriumRules.drc(board([slot]), new Map(), AtriumRules.create(), {types: ["annularRing"]}).violations[0].actual, 0, "as the DRC");
+  assert.equal(run([{...slot, slotLength: 1.4}], "ring").length, 0);
+}
 // 4. silkscreen over a pad, and silk far from it.
 const silk = (id, pts) => ({id, kind: "graphic", layer: "Silk", points: pts, width: .2});
 pair("silkPad", [smd("p", 10, 10), silk("s", [[9, 10], [11, 10]])], [smd("p", 10, 10), silk("s", [[9, 12], [11, 12]])]);
@@ -88,6 +96,22 @@ pair("drillCopper", [via("v", 10, 10, .6, .3), track("t", [[10.15 + .1 + .125, 5
   [via("v", 10, 10, .6, .3), track("t", [[11.2, 5], [11.2, 15]], "B")]);
 //    the via's own net touching it is fine
 assert.equal(run([via("v", 10, 10), track("t", [[10, 10], [20, 10]], "A")], "drillCopper").length, 0);
+//    copper wholly inside a hole is measured to the hole wall, as the DRC's bore: a track on a slot's centreline
+//    is 0.9 mm from the wall; one crossing the wall meets the drill.
+{
+  const slotted = {...tht("p", 10, 10, 3, 2), w: 7, shape: "rect", slotLength: 5};
+  assert.equal(run([slotted, track("t", [[9, 10], [11, 10]], "B", .2)], "drillCopper").length, 0, "0.9 mm to the slot wall");
+  assert.match(run([slotted, track("t", [[11, 9], [11, 11]], "B", .2)], "drillCopper")[0]?.text || "", /: 0 mm/);
+  assert.equal(run([via("v", 10, 10, 2, 1.4), smd("p", 10, 10, .2, .2, "B")], "drillCopper").length, 0, "inside a round hole");
+}
+//    a back-drilled via has no land beyond its stop layer (AtriumViaStack.padOn, as the DRC).
+{
+  const four = {stackup: {version: 1, layers: AtriumStackup.preset("4").layers}};
+  const drilled = {...via("v", 10, 10, .6, .3), fromLayer: "Top", toLayer: "Bottom", backdrill: {from: "bottom", toLayer: "Inner 1", stubMax: .1}};
+  const blind = {...via("b", 10.55, 10, .2, .2, "B"), fromLayer: "Inner 2", toLayer: "Bottom"};
+  assert.equal(run([drilled, blind], "drillCopper", four).length, 0, "no land left on Inner 2 or Bottom");
+  assert.equal(run([{...drilled, backdrill: undefined}, blind], "drillCopper", four).length, 1);
+}
 //    drill to edge: a hole 0.2 mm from the board edge.
 pair("drillEdge", [tht("p", 49.3, 20, 1.6, 1)], [tht("p", 45, 20, 1.6, 1)]);
 //    pad hole to hole: 0.3 mm apart (< 0.45).

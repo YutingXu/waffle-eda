@@ -63,6 +63,30 @@ close(of(out,"holeToHole")[0].actual,.2);
   close(of(check(.46),"clearance")[0]?.actual,0);
   assert.equal(of(check(.46),"short").length,1);
 }
+{
+  // A slotted pad's drill is void like a via's bore: copper inside the slot is measured to the wall.
+  const slot={...pad("slot","A",0,0,7,3,"rect","Multi",2),slotLength:5,plated:true}, probe=(x,y=0)=>pad("p","B",x,y,.2,.2,"round");
+  const check=(x,y)=>run([slot,probe(x,y)],withRules(c=>{c.list.find(r=>r.type==="clearance").gap=1;}),{types:["clearance","short"]});
+  close(of(check(1.2),"clearance")[0]?.actual,.9);
+  assert.equal(of(check(1.2),"short").length,0);
+  close(of(check(-2.2),"clearance")[0]?.actual,.2,"the end cap");
+  close(of(check(1.2,.5),"clearance")[0]?.actual,.4);
+  close(of(check(1.2,.95),"clearance")[0]?.actual,0);
+  assert.equal(of(check(1.2,.95),"short").length,1,"crossing the wall contacts the land");
+  const custom={...slot,shape:"custom",poly:[[-3.5,-1.5],[3.5,-1.5],[3.5,1.5],[0,1.2],[-3.5,1.5]]};
+  assert.ok(R.kit.extract(board([custom]),defs).copper[0].pieces,"a concave land is convex pieces");
+  close(of(run([custom,probe(1.2)],withRules(c=>{c.list.find(r=>r.type==="clearance").gap=1;}),{types:["clearance"]}),"clearance")[0]?.actual,.9,"custom land pieces");
+}
+{
+  // An unplated land is netless copper (connectivity.js): no clearance or short for one net touching it,
+  // a short when it bridges two nets.
+  const npth={...pad("np","A",0,0,2,2,"round","Multi",1),plated:false}, across=(id,net)=>track(id,net,[[-2,.7],[2,.7]]);
+  let out=run([npth,across("t","B")],base,{types:["clearance","short"]});
+  assert.deepEqual(out.violations.map(v=>v.type),[]);
+  assert.ok(out.notes.some(n=>/without a net/.test(n)),"the land is reported as unchecked netless copper");
+  assert.equal(of(run([npth,across("t","B"),track("u","C",[[0,-2],[0,-.7]])],base,{types:["short"]}),"short").length,1);
+  assert.equal(of(run([{...npth,plated:true},across("t","B")],base,{types:["clearance","short"]}),"short").length,1,"a plated land carries its net");
+}
 
 {
   require("../../app/pcb/board-shape-core.js");
@@ -185,4 +209,11 @@ for(let i=0;i<25000;i++){
 const started=Date.now();out=R.drc(board(dense),defs,base,{types:["clearance","width","viaStyle","holeSize","annularRing","holeToHole"]});
 const ms=Date.now()-started;
 assert.ok(ms<8000,"dense board took "+ms+" ms");assert.ok(out.total>0);
+{
+  // A back-drilled via has no land beyond its stop layer: DRC clearance and the short check agree.
+  require("../../app/pcb/stackup.js");require("../../app/pcb/viastack.js");
+  const drilled={...via("v","A",0,0,.8,.3),fromLayer:"Top",toLayer:"Bottom",backdrill:{from:"bottom",toLayer:"Inner 1",stubMax:.2}};
+  assert.deepEqual(run([drilled,track("b","B",[[0,0],[2,0]],.2,"Bottom")],base,{types:["clearance","short"]}).violations,[]);
+  assert.deepEqual(run([drilled,track("t","B",[[0,0],[2,0]])],base,{types:["clearance","short"]}).violations.map(v=>v.type).sort(),["clearance","short"]);
+}
 console.log("PASS DRC width, via style, holes, annular ring, routing layers, clearance shapes, shorts, un-routed nets, silk, differential pairs, lengths, matched lengths, limits and report ("+ms+" ms for 25k objects, "+out.stats.candidates+" candidate pairs)");

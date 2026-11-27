@@ -252,10 +252,20 @@ globalThis.AtriumConnectivity = (() => {
     function addEntity(i,parent,slot,cutouts=[]){
       const declared=padLayer(parent,i);
       if(index(declared)<0&&declared!=="Multi")return;
+      // The land of an unplated hole is copper with no net: nothing plates it to the pin, and pours and
+      // the router keep clear of it (polygon-pour.js, land-contours.js). It can still join two nets.
+      const unplated=i.kind==="pad"&&i.plated===false&&i.drill>0;
+      if(unplated&&declared==="Multi"){
+        // No barrel joins its lands: one node per copper layer, one object for the counts.
+        const excluded=b.excluded,unassigned=b.unassigned;
+        for(const key of copper())addEntity({...i,layer:key},parent,slot+"/"+key);
+        b.excluded=Math.min(b.excluded,excluded+1);b.unassigned=Math.min(b.unassigned,unassigned+1);
+        return;
+      }
       const layers=copperSpan(i,parent,declared);
-      if(!layers||i.kind==="pad"&&i.plated===false&&i.drill>0){if(!drillOnly(i))b.excluded++;return;}
+      if(!layers){if(!drillOnly(i))b.excluded++;return;}
       const id=parent?.id||i.id,key=JSON.stringify([id,slot]);
-      const net=parent&&i.kind==="pad"&&Object.hasOwn(parent.pinNets||{},i.number)?parent.pinNets[i.number]:i.net||"";
+      const net=unplated?"":parent&&i.kind==="pad"&&Object.hasOwn(parent.pinNets||{},i.number)?parent.pinNets[i.number]:i.net||"";
       const label=parent ? parent.ref+(i.kind==="pad"?"."+String(i.number||"?"):" copper") : i.kind==="pad"?"Pad "+(i.number||"?"):i.kind==="track"?"Track":i.kind==="region"?(i.teardrop?"Teardrop":"Copper region"):"Via";
       const entities=b.entities,features=b.features,node=entities.length,shapes=[],points=[];
       if(i.kind==="region"){
@@ -279,7 +289,8 @@ globalThis.AtriumConnectivity = (() => {
         if(i.closed&&!A.same(line[0],line.at(-1)))shapes.push({core:[line.at(-1),line[0]],radius:i.width/2});
         points.push(line[0]);if(!A.same(line[0],line.at(-1)))points.push(line.at(-1));
       }else{
-        for(const key of padPlanes(i,declared,copper)){
+        // A back-drill removes the land and barrel beyond its stop layer (AtriumViaStack.padOn, as DRC).
+        for(const key of i.kind==="via"&&i.backdrill?copper():padPlanes(i,declared,copper)){
           const plane=key==null?-1:index(key);
           if(plane>=0&&(plane<layers[0]||plane>layers[1]))continue;
           const geom=padGeometry(i,parent,key);
