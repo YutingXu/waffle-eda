@@ -249,7 +249,7 @@ globalThis.AtriumPrefs = (() => {
       if (key === "general.efficiency") return page.id === "display";
       return parts.some(p => p.resetKeys?.includes(key) ?? key.startsWith(p.id + "."));
     }));
-    for (const p of parts) p.reset?.(); // a page's own view state (Toolbars: remembered flyout faces)
+    for (const p of parts) p.reset?.(); // a page's own state (Toolbars: flyout faces)
     if (page.id === "appearance") globalThis.AtriumTheme?.reset?.();
     if (page.id === "keyboard") globalThis.AtriumKeymap?.setPreset?.("altium");
   }
@@ -811,10 +811,7 @@ globalThis.AtriumPrefs = (() => {
       add("import-vscode-keybindings", "Import VS Code keybindings…", () => vscode("keysDialog"));
       add("export-settings", "Export settings…", exportAll);
       add("import-settings", "Import settings…", () => { importAll(); });
-      // View › Customise Active Bar… (bars.js registers the Toolbars page when it loads).
-      const bars = () => AtriumLazy.need("AtriumActiveBarMenu").then(() => open("toolbars"), e => h?.info?.(e.message));
-      h?.registerAction?.("customise-active-bar", bars);
-      try { if (!K?.command?.("customise-active-bar")) K?.registerCommand?.({id: "customise-active-bar", title: "Customise Active Bar…", run: bars, category: "View"}); } catch {}
+      add("customise-active-bar", "Customise Active Bar…", () => AtriumLazy.need("AtriumActiveBarMenu").then(() => open("toolbars"))); // bars.js: the page
       globalThis.AtriumNavCommon?.menuItem("file", "new-from-template", "New from Template…", {after: "new"});
       globalThis.AtriumAutosave?.launchHome?.(() => openStartPage({launch:true}));
     };

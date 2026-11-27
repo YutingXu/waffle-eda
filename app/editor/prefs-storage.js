@@ -35,7 +35,7 @@ globalThis.AtriumPrefsStorage = (() => {
     "atrium.comments.v1", "atrium.routing.habits", "atrium.tutorial.v1", "atrium.welcome.v1", "atrium.script.draft", "atrium.script.height", "atrium.script.history",
     "atrium-calculators", "atrium.update", "atrium.selectionFilter.v1", "atrium-eco-unticked:", "atrium.bom.dismissed:",
     // Exported with the panel layout by prefs.js; Reset all clears them here.
-    "atrium.collapsed-sections", "atrium.collapsed-panels", "atrium.pcbView.v1",
+    "atrium.collapsed-sections", "atrium.collapsed-panels", "atrium.pcbView.v1", "atrium.bar-faces",
     // Review notes: which note kinds each sheet shows or hides.
     "waffle.notes.sheet."]);
 

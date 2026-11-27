@@ -1770,8 +1770,6 @@
    "reason": "per-user editor preference stored in the browser; no design change.",
    "sources": [
     "index.html",
-    "editor/prefs.js registerAction",
-    "editor/prefs.js registerCommand",
     "editor/prefs.js"
    ],
    "status": "interactive"
