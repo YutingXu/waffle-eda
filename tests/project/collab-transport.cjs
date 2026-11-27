@@ -26,9 +26,14 @@ async function until(test, what, ms = 4000) {
 // sockets whose traffic vanishes both ways while they look open; refuse makes new connections fail;
 // cut(id) closes one from the relay's side.
 function fakeRelay({ice = [], echo = true} = {}) {
-  const sockets = new Map(), relay = {sockets, log: [], drop: null, echo, stalled: new Set(), refuse: false};
+  // unheard: what stalled sockets sent ({from, t, size}), in order; onAnswer(ws): a keepalive answer reached ws.
+  const sockets = new Map(), relay = {sockets, log: [], drop: null, echo, stalled: new Set(), refuse: false, unheard: [], onAnswer: null};
   let n = 0;
-  const post = (ws, obj) => setImmediate(() => { if (ws.readyState === 1 && !relay.stalled.has(ws)) ws.onmessage?.({data: JSON.stringify(obj)}); });
+  const post = (ws, obj) => setImmediate(() => {
+    if (ws.readyState !== 1 || relay.stalled.has(ws)) return;
+    ws.onmessage?.({data: JSON.stringify(obj)});
+    if (obj.t === "p") relay.onAnswer?.(ws);
+  });
   relay.cut = id => sockets.get(id)?.close();
   relay.WebSocket = class {
     constructor(url) {
@@ -36,7 +41,7 @@ function fakeRelay({ice = [], echo = true} = {}) {
       setImmediate(() => { if (relay.refuse) { this.readyState = 3; this.onclose?.(); } else { this.readyState = 1; this.onopen?.(); } });
     }
     send(text) {
-      if (relay.stalled.has(this)) return;
+      if (relay.stalled.has(this)) { relay.unheard.push({from: this.id, t: JSON.parse(text).t, size: text.length}); return; }
       const m = JSON.parse(text);
       relay.log.push({from: this.id, m});
       if (m.t === "p") { if (relay.echo) post(this, {t: "p"}); }
@@ -424,13 +429,22 @@ async function testStallAndRetry() {
     assert.ok(Date.now() - t2 < 150, "visible redials at once");
     // A socket that stalls just after a large send is given the time those bytes need on a slow
     // uplink (SLOW_LINK) before it is declared dead: a big transfer on a slow link is not a stall.
+    // The socket stalls just after a keepalive answer reached A, so no ping is in flight: a ping whose
+    // answer the stall swallows finds the dead link within two beats, rightly, whatever follows it
+    // (under load the beat could land between the stall and the large send).
     await until(() => a.joined() && b.paths().has(a.peer), "A settled");
     await tick(beat * 2);
-    relay.stalled.add(relay.sockets.get(a.connectionId()));
+    const sock = relay.sockets.get(a.connectionId());
+    await new Promise((resolve, reject) => {
+      const limit = realTimeout(() => reject(Error("no keepalive answer reached A")), 4000);
+      relay.onAnswer = ws => { if (ws === sock) { relay.onAnswer = null; realClear(limit); relay.stalled.add(ws); resolve(); } };
+    });
     const t3 = Date.now(), stalls = a.stats.stalls;
     a.send("ops", {pad: "x".repeat(40 * 1024)});
     await until(() => a.stats.stalls === stalls + 1, "found after the grace", 8000);
-    assert.ok(Date.now() - t3 >= 1000, "waited for the large send (" + (Date.now() - t3) + " ms)");
+    const waited = Date.now() - t3, first = relay.unheard.find(u => u.from === sock.id);
+    if (first?.t === "m") assert.ok(waited >= 1000, "the large send went first: waited for it (" + waited + " ms)");
+    else assert.equal(first?.t, "p", "otherwise a keepalive went first, and found the dead link (" + waited + " ms)");
     await until(() => a.state === "open" && a.joined(), "A back");
     a.close(); b.close();
 
@@ -585,18 +599,21 @@ async function testGroupLibrary() {
   } finally { rooms.forEach(r => r.close()); connects.forEach(s => s.close()); }
 }
 
-const watchdog = realTimeout(() => { console.error("Collaboration transport tests timed out"); process.exit(1); }, 90000);
+// Each section has its own time limit, and the run ends with an explicit exit either way: a section
+// that fails leaves its transports open, and their beat and retry timers would keep the process
+// alive at no CPU with nothing printed (a failed timing assertion under load once sat 18 minutes).
+const SECTION_LIMIT = 60000;
+const sections = [["group library", testGroupLibrary], ["invitations", testInvitations], ["keys", testKeys], ["budgets", testBudgets],
+  ["identity and paths", testIdentityAndPaths], ["stalled peer and forced relay", testStalledPeerAndForcedRelay], ["stall and retry", testStallAndRetry],
+  ["channels outlive the relay", testChannelsOutliveRelay], ["pacing", testPacing]];
 globalThis.__testDone = (async () => {
-  await testGroupLibrary();
-  await testInvitations();
-  await testKeys();
-  await testBudgets();
-  await testIdentityAndPaths();
-  await testStalledPeerAndForcedRelay();
-  await testStallAndRetry();
-  await testChannelsOutliveRelay();
-  await testPacing();
+  for (const [name, test] of sections) {
+    let timer;
+    const limit = new Promise((_, reject) => { timer = realTimeout(() => reject(Error("did not finish within " + SECTION_LIMIT / 1000 + " s")), SECTION_LIMIT); });
+    try { await Promise.race([test(), limit]); }
+    catch (e) { e.message = "collab-transport section \"" + name + "\": " + e.message; throw e; }
+    finally { realClear(timer); }
+  }
 })().then(
-  () => console.log("collab-transport: ok (pacing, invitations, host invitations, per-session salt, sender keys, protocol, host tokens, attestations, budgets, verified identity, ordered path switch, fallback, stalled peer, forced relay, TURN, no WebRTC, stalled relay socket, queue across reconnect, online and on-screen retry, older relay, channels outlive the relay, channel moves, replayed proof)"),
-  e => { console.error(e); process.exitCode = 1; }
-).finally(() => realClear(watchdog));
+  () => { console.log("collab-transport: ok (pacing, invitations, host invitations, per-session salt, sender keys, protocol, host tokens, attestations, budgets, verified identity, ordered path switch, fallback, stalled peer, forced relay, TURN, no WebRTC, stalled relay socket, queue across reconnect, online and on-screen retry, older relay, channels outlive the relay, channel moves, replayed proof)"); process.exit(0); },
+  e => { console.error(e); process.exit(1); });
