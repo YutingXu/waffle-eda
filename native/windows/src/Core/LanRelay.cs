@@ -32,7 +32,9 @@ namespace Waffle.Windows
     {
         public static int Frame = 1 << 20, Signal = 64 * 1024, Peers = 16, PerAddress = 32, Joins = 60, RoomJoins = 20;
         public static int RateMessages = 400, RateBytes = 24 << 20, Queue = 6 << 20, QueueSoft = 3 << 20;
-        public static double JoinTimeout = 10, Idle = 600, RateWindow = 10, Stall = 5, RoomIdle = 2 * 3600, Sweep = 60;
+        public static double JoinTimeout = 10, Idle = 600, RateWindow = 10, Stall = 5, Sweep = 60;
+        /// A quiet room is never closed: the listener ends with the host's session (waffle_relay.py lan_room_idle; 0: off).
+        public static double LanRoomIdle = 0;
 
         /// One limit by its waffle_relay.py name (the conformance driver's WAFFLE_LAN_LIMITS); false if unknown.
         public static bool Set(string name, double value)
@@ -53,7 +55,8 @@ namespace Waffle.Windows
                 case "idle": Idle = value; break;
                 case "rate_window": RateWindow = value; break;
                 case "stall": Stall = value; break;
-                case "room_idle": RoomIdle = value; break;
+                case "lan_room_idle": LanRoomIdle = value; break;
+                case "room_idle": break;   // the public relay's rule for abandoned rooms; never on the local network
                 case "sweep": Sweep = value; break;
                 default: return false;
             }
@@ -428,7 +431,7 @@ namespace Waffle.Windows
                 if (failure != null) throw new HostError("Could not listen on the local network: " + failure.Message);
                 foreach (var l in listeners) _ = AcceptLoop(l);
                 var every = TimeSpan.FromSeconds(LanLimits.Sweep);
-                sweeper = new Timer(_ => Sweep(), null, every, every);
+                if (LanLimits.LanRoomIdle > 0) sweeper = new Timer(_ => Sweep(), null, every, every);
                 return ((IPEndPoint)listeners[0].LocalEndpoint).Port;
             }
 
@@ -569,7 +572,7 @@ namespace Waffle.Windows
             void Sweep()
             {
                 List<Peer> idle = null;
-                lock (gate) { if (members.Count > 0 && Now - active > LanLimits.RoomIdle) idle = members.Values.ToList(); }
+                lock (gate) { if (members.Count > 0 && Now - active > LanLimits.LanRoomIdle) idle = members.Values.ToList(); }
                 if (idle != null) foreach (var p in idle) Close(p, 1001, true);
             }
 

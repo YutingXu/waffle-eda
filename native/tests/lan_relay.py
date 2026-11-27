@@ -14,7 +14,7 @@ its limits. The suite checks, against each target:
   * capacity (16) with the owner allowed past it; the owner may rejoin and stays the owner;
   * limits: join timeout, idle timeout, joins per address and per room, connections per address and
     overall, the rate limit that slows a sender (never cuts it off), a stalled reader is cut off,
-    an idle room is closed; no HTTP pages; nothing listens after stop.
+    a quiet room is never closed (lan_room_idle is off); no HTTP pages; nothing listens after stop.
 The relay-only checks (TURN, private mode, /healthz, read and queue budgets) are in
 tests/project/collab-relay.py, whose WebSocket client this suite reuses.
 
@@ -626,18 +626,31 @@ async def check_stall(t):
         d.kill()
 
 
-async def check_room_idle(t):
+async def check_quiet_room(t):
+    """A room on the local network is never closed for being quiet (its people connected, nothing
+    forwarded): the public relay's room_idle protects it from abandoned rooms, but a LAN listener ends
+    with the host's session. lan_room_idle (off by default) is the one switch for it."""
     d = await t.launch({"room_idle": 1, "sweep": 0.25})
+    try:
+        a, b = await Client.open(d.port), await Client.open(d.port)
+        ja = await a.join(t.room, t.auth, own="owner-token-0123456789")
+        await b.join(t.room, t.auth)
+        for _ in range(10):   # 2.5 s: ten sweeps past room_idle, keepalives only
+            await a.send({"t": "p"})
+            await b.send({"t": "p"})
+            await asyncio.sleep(0.25)
+        assert await a.nothing() is None and await b.nothing() is None, "nobody is closed"
+        await a.send({"t": "m", "d": "still here"})
+        assert await b.expect("m") == {"t": "m", "d": "still here", "from": ja["id"]}, "and the room still forwards"
+    finally:
+        d.kill()
+    d = await t.launch({"lan_room_idle": 1, "sweep": 0.25})
     try:
         a, b = await Client.open(d.port), await Client.open(d.port)
         await a.join(t.room, t.auth, own="owner-token-0123456789")
         await b.join(t.room, t.auth)
-        for _ in range(3):
-            await a.send({"t": "p"})
-            await b.send({"t": "p"})
-            await asyncio.sleep(0.25)
         codes = [closed_code(await c.expect("closed", 4)) for c in (a, b)]
-        assert all(c in (1001, "eof") for c in codes), ("a room with nothing forwarded for room_idle is closed", codes)
+        assert all(c in (1001, "eof") for c in codes), ("with lan_room_idle set, a quiet room is closed", codes)
     finally:
         d.kill()
 
@@ -658,7 +671,7 @@ async def check_stop(t):
 
 CHECKS = [check_replies, check_info, check_join_rules, check_routing, check_owner_pinned, check_http, check_frames,
           check_capacity, check_join_timeout, check_idle, check_room_joins, check_joins, check_per_address,
-          check_connections, check_rate, check_rate_bytes, check_stall, check_room_idle, check_stop]
+          check_connections, check_rate, check_rate_bytes, check_stall, check_quiet_room, check_stop]
 
 
 async def conformance(target, only=None):

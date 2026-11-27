@@ -94,6 +94,7 @@ class Limits:
     turn_per_room = 40               # TURN credentials per room per hour
     turn_per_address = 60            # TURN credentials per address per hour
     room_idle = 2 * 3600.0           # seconds without a forwarded message before a room is closed
+    lan_room_idle = 0.0              # the same for a session shared on the local network: 0, never (it ends with the host's session)
     sweep = 60.0                     # seconds between checks for idle rooms
     room_joins = 20                  # joins into one room per address per 10 minutes (new identities)
     reading = 160 * 1024 * 1024      # bytes reserved by messages being read and forwarded, all connections
@@ -692,12 +693,17 @@ class Relay:
             await asyncio.sleep(0.05)
 
     async def sweep(self):
-        """Close rooms with no forwarded message for Limits.room_idle (keepalives alone don't count)."""
+        """Close rooms with no forwarded message for Limits.room_idle (keepalives alone don't count). This
+        protects a public relay from abandoned rooms; a session shared on the local network lives and ends
+        with the host's session, so lan mode uses Limits.lan_room_idle, off by default."""
         while True:
             await asyncio.sleep(Limits.sweep)
+            limit = Limits.lan_room_idle if self.lan else Limits.room_idle
+            if not limit:
+                continue
             now = time.monotonic()
             for room, members in list(self.rooms.items()):
-                if now - members["active"] > Limits.room_idle:
+                if now - members["active"] > limit:
                     for member in list(members["peers"].values()):
                         member.abort(1001)
 

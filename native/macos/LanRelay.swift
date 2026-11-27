@@ -18,7 +18,9 @@ final class LanRelay {
     /// The relay's limits (waffle_relay.py, class Limits), under its names. Tests may change them before start.
     enum Limits {
         static var frame = 1 << 20, signal = 64 * 1024, peers = 16, perAddress = 32, joins = 60, roomJoins = 20
-        static var joinTimeout = 10.0, idle = 600.0, rateWindow = 10.0, stall = 5.0, roomIdle = 2 * 3600.0, sweep = 60.0
+        static var joinTimeout = 10.0, idle = 600.0, rateWindow = 10.0, stall = 5.0, sweep = 60.0
+        /// A quiet room is never closed: the listener ends with the host's session (waffle_relay.py lan_room_idle; 0: off).
+        static var lanRoomIdle = 0.0
         static var rateMessages = 400, rateBytes = 24 << 20, queue = 6 << 20, queueSoft = 3 << 20
         /// One limit by its waffle_relay.py name (the conformance driver's WAFFLE_LAN_LIMITS); false if unknown.
         static func set(_ name: String, _ value: Double) -> Bool {
@@ -37,7 +39,8 @@ final class LanRelay {
             case "queue": queue = Int(value)
             case "queue_soft": queueSoft = Int(value)
             case "stall": stall = value
-            case "room_idle": roomIdle = value
+            case "lan_room_idle": lanRoomIdle = value
+            case "room_idle": break   // the public relay's rule for abandoned rooms; never on the local network
             case "sweep": sweep = value
             default: return false
             }
@@ -203,16 +206,17 @@ final class LanRelay {
         queue.asyncAfter(deadline: .now() + left, execute: item)
     }
 
-    /// Rooms with no forwarded message for Limits.roomIdle are closed (keepalives alone don't count).
+    /// With Limits.lanRoomIdle set, a room with no forwarded message for that long is closed (off by default).
     private func sweep() {
+        sweeper?.cancel(); sweeper = nil
+        guard Limits.lanRoomIdle > 0 else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + Limits.sweep, repeating: Limits.sweep)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let members = self.joined()
-            if !members.isEmpty, Date().timeIntervalSince(self.active) > Limits.roomIdle { for p in members { self.close(p, 1001) } }
+            if !members.isEmpty, Date().timeIntervalSince(self.active) > Limits.lanRoomIdle { for p in members { self.close(p, 1001) } }
         }
-        sweeper?.cancel()
         sweeper = timer
         timer.resume()
     }
