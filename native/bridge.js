@@ -308,6 +308,7 @@
     if (message.type === "folderChanged") return window.__waffleFolderChanged(message);
     if (message.type === "waffleLink") return window.__waffleOpenLink(message.url);
     if (message.type === "workspaceWindow") return window.__waffleWorkspaceEvent(message.event);
+    if (message.type === "lanSocket") return lanSocketEvent(message);
     if (message.type === "copyNativeDocuments") {
       if (typeof message.error === "string") return globalThis.AtriumNavHost?.info(message.error);
       if (Array.isArray(message.files)) return window.__waffleCopyNativeDocuments?.(message.files);
@@ -319,6 +320,39 @@
     else if (message.command === "save-for-close") window.__atriumSaveForClose(true);
     else if (typeof message.command === "string") window.dispatchEvent(new CustomEvent("atrium-command",{detail:message.command}));
   });
+  // Same-network WebSockets through the Windows host (LanSockets.cs): a secure page cannot open ws://
+  // to this computer or the local network itself (mixed content, local network access checks). The
+  // host connects only to ws:// on loopback or a private address. lanOpen(url) gives the socket shape
+  // AtriumCollabPair.socketClass wraps as a WebSocket, or null when nothing answered.
+  const lanSockets = new Map();
+  async function lanOpen(url) {
+    const opened = await request("lanConnect", {url: String(url)}).catch(() => null);
+    if (typeof opened?.socket !== "number") return null;
+    const id = opened.socket;
+    const s = {onmessage: null, onclose: null, bufferedAmount: 0, open: true,
+      send(text) {
+        if (!s.open) return;
+        text = String(text);
+        s.bufferedAmount += text.length;   // the host reports each send as it leaves (drain)
+        send(stringify({action: "lanSend", socket: id, data: text}));
+      },
+      close() {
+        if (!s.open) return;
+        s.open = false;
+        lanSockets.delete(id);
+        send(stringify({action: "lanClose", socket: id}));
+        Promise.resolve().then(() => s.onclose?.());
+      }};
+    lanSockets.set(id, s);
+    return s;
+  }
+  function lanSocketEvent(m) {
+    const s = lanSockets.get(m.socket);
+    if (!s) return;
+    if (m.event === "message" && typeof m.data === "string") s.onmessage?.(m.data);
+    else if (m.event === "drain" && typeof m.bytes === "number") s.bufferedAmount = Math.max(0, s.bufferedAmount - m.bytes);
+    else if (m.event === "close") { lanSockets.delete(m.socket); s.open = false; s.onclose?.(); }
+  }
   window.__waffleFolderChanged = detail => window.dispatchEvent(new CustomEvent("folderChanged", {detail}));
   const GIT_QUERIES = new Set(["createBranch","refs","status","log","fileLog","projectLog","projectBlobs","folderRevisions","read","mergeBase","blameLog","patches","installMergeDriver","mergeDriverPlan","lfsStatus","lfsLocks","lfsLock","lfsUnlock","commitPlan","commitStaged"]);
   const sourceOps = new Set(["projectLog", "projectBlobs", "sourceRevision", "sourceLog"]);
@@ -683,14 +717,17 @@
       if(!sourceToken)throw Error("Select the original Altium document again.");
       return request("exportBinaryCopy",{name,data:encodeBytes(bytes),sourceToken});
     },
-    // Same-network sessions (native/macos/LanRelay.swift, native/linux/lan_relay.py): a listener and an
-    // mDNS advertisement only while the host shares a session as "Visible on this network".
-    // Not in the Windows app yet (WebView2): the editor shows a note instead.
+    // Same-network sessions (native/macos/LanRelay.swift, native/linux/lan_relay.py,
+    // native/windows/src/Core/LanRelay.cs): a listener and an mDNS advertisement only while the host
+    // shares a session as "Visible on this network". The Windows host answers these calls, but stays
+    // off (the editor shows a note) until docs/windows.md#same-network-sessions passes on Windows.
     lanAvailable: !webview,
     lanStart(room,salt,name){return request("lanStart",{room:String(room),salt:String(salt),name:String(name||"")});},
     lanHost(host){return request("lanHost",{host:String(host)});},
     lanStop(){return request("lanStop");},
     lanBrowse(){return request("lanBrowse");},
+    // The WebSocket class for ws:// on this network (Windows): the editor's own look-alike over the host's socket.
+    ...(webview ? {async lanSocket(){return (globalThis.AtriumCollabPair || await globalThis.AtriumLazy.need("AtriumCollabPair")).socketClass(lanOpen);}} : {}),
     setDirty(dirty, projectName){const host=globalThis.AtriumNavHost;const id=globalThis.AtriumForeignDrafts?.needsReview(host) && host.importSession?.()?.id;channel.postMessage(JSON.stringify({action:"dirty",dirty:!!dirty,projectName:typeof projectName === "string" ? projectName : null,...(typeof id==="string" ? {importId:id} : {})}));},
     crashHistory(){return request("crashHistory");},
     async supportDiagnostics(){

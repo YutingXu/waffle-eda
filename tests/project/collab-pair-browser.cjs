@@ -8,6 +8,10 @@
 //      (native/linux/lan_relay.py, on loopback here, the app's bridge stood in for), shows the session
 //      code; Bob finds the session (the mDNS list stood in for), enters the code and joins; joining by
 //      typed address works the same; when Alice leaves, nothing listens any more.
+//   D. C again with every same-network WebSocket opened by the host, as the Windows app must (a secure
+//      page cannot open ws:// to loopback or the local network): the page side is native/bridge.js's
+//      own lanOpen and lanSocket code, the host is stood in for by real WebSockets in this script, and
+//      host start, find, join by address, a wrong code and "No Waffle session answered" all go through it.
 // Also checks the Join field's recognition, keyboard-only use (Enter joins), and writes the docs'
 // screenshots in both themes (--shots DIR). Needs playwright-core and Chrome (CHROME=/path).
 //   NODE_PATH=…/node_modules node tests/project/collab-pair-browser.cjs [--shots docs/images | --edit-locks]
@@ -255,13 +259,61 @@ async function lanBridge(ctx, state) {
 const installBridge = page => page.evaluate(() => {
   window.AtriumHost = {lanAvailable: true, lanStart: (r, s, n) => testLanStart(r, s, n), lanHost: h => testLanHost(h), lanStop: () => testLanStop(), lanBrowse: () => testLanBrowse()};
 });
+// D: the Windows bridge's socket code itself (native/bridge.js, from lanSockets to lanSocketEvent,
+// and its lanSocket), with request() and send() going to this script, which plays the host
+// (LanSockets.cs): lanConnect opens a real WebSocket, only to loopback; lanSend, lanClose; events back.
+const BRIDGE = fs.readFileSync(path.join(ROOT, "native/bridge.js"), "utf8");
+const LAN_SOCKET_CODE = BRIDGE.slice(BRIDGE.indexOf("  const lanSockets = new Map();"), BRIDGE.indexOf("  window.__waffleFolderChanged"));
+const LAN_SOCKET_CLASS = /async lanSocket\(\)\{return (.+?);\}\}/.exec(BRIDGE)?.[1];
+async function hostSockets(ctx, state) {
+  state.connects = [];
+  const sockets = new Map(), queues = new Map();
+  let next = 0;
+  const emit = (page, m) => queues.set(page, (queues.get(page) || Promise.resolve()).then(() => page.evaluate(m => window.__testLanEvent(m), m)).catch(() => {}));
+  await ctx.exposeBinding("testLanRequest", async ({page}, action, payload) => {
+    assert.equal(action, "lanConnect");
+    const url = new URL(payload.url);
+    state.connects.push(payload.url);
+    if (url.protocol !== "ws:" || url.hostname !== "127.0.0.1") throw Error("Waffle connects only to ws:// addresses on this computer or the local network.");
+    return await new Promise((resolve, reject) => {
+      const ws = new WebSocket(payload.url), id = ++next;
+      let opened = false;
+      ws.onopen = () => { opened = true; sockets.set(id, ws); resolve({socket: id}); };
+      ws.onerror = () => { if (!opened) reject(Error("No Waffle session answered at " + url.host + ".")); };
+      ws.onmessage = e => emit(page, {type: "lanSocket", socket: id, event: "message", data: String(e.data)});
+      ws.onclose = () => { if (sockets.delete(id)) emit(page, {type: "lanSocket", socket: id, event: "close"}); };
+    });
+  });
+  await ctx.exposeBinding("testLanPost", ({page}, text) => {
+    const m = JSON.parse(text), ws = sockets.get(m.socket);
+    if (!ws) return;
+    if (m.action === "lanSend") { ws.send(m.data); emit(page, {type: "lanSocket", socket: m.socket, event: "drain", bytes: m.data.length}); }
+    else if (m.action === "lanClose") { sockets.delete(m.socket); ws.close(); }
+  });
+}
+const installHostSockets = page => page.evaluate(`(() => {
+  const request = (action, payload) => testLanRequest(action, payload), send = text => testLanPost(text), stringify = JSON.stringify;
+  ${LAN_SOCKET_CODE}
+  window.__testLanEvent = lanSocketEvent;
+  window.AtriumHost.lanSocket = async () => ${LAN_SOCKET_CLASS};
+  // Any ws:// the page opened itself is recorded: on Windows it would be blocked.
+  const Plain = window.WebSocket;
+  window.__plainSockets = [];
+  window.WebSocket = new Proxy(Plain, {construct(target, args) { window.__plainSockets.push(String(args[0])); return new target(...args); }});
+})()`);
 function listening(port) {
   return new Promise(resolve => { const s = require("node:net").connect(port, "127.0.0.1"); s.on("connect", () => { s.destroy(); resolve(true); }); s.on("error", () => resolve(false)); });
 }
-async function sameNetwork(browser, port) {
+async function sameNetwork(browser, port, viaHost = false) {
   const state = {};
   const alice = await editor(browser, port, "Alice", ""), bob = await editor(browser, port, "Bob", ""), carol = await editor(browser, port, "Carol", "");
-  for (const e of [alice, bob, carol]) { await lanBridge(e.ctx, state); await installBridge(e.page); }
+  if (viaHost) assert.ok(LAN_SOCKET_CODE.includes("async function lanOpen") && LAN_SOCKET_CLASS, "native/bridge.js has the socket code");
+  for (const e of [alice, bob, carol]) {
+    await lanBridge(e.ctx, state);
+    if (viaHost) await hostSockets(e.ctx, state);
+    await installBridge(e.page);
+    if (viaHost) await installHostSockets(e.page);
+  }
   const A = alice.page, B = bob.page, C = carol.page;
   await A.evaluate(() => AtriumNavHost.replaceProject(AtriumParts.example(), {force: true, copy: true, dirty: false}));
   await A.click("#collab-share");
@@ -306,6 +358,19 @@ async function sameNetwork(browser, port) {
   await C.waitForFunction(() => /room key does not match|Relay:/i.test(AtriumCollabLive.session()?.status || document.querySelector("dialog.collab-dialog[open]")?.textContent || ""), null, {timeout: 20000});
   assert.ok(!await C.evaluate(() => !!AtriumCollabLive.session()?.r), "a wrong code does not join");
   await C.evaluate(() => AtriumCollabLive.leave());
+  if (viaHost) {
+    // Nothing answers at a closed port: the host's refusal reads as the usual message.
+    if (!await dialog(C).count()) await C.click("#collab-share");
+    await dialog(C).locator("textarea").first().fill("127.0.0.1:9");
+    await dialog(C).getByLabel("Session code").fill("AAAA-BBBB-CCCC-DDDD");
+    await dialog(C).getByRole("button", {name: "Join Session"}).click();
+    await C.waitForFunction(() => /No Waffle session answered at 127\.0\.0\.1:9/.test(document.querySelector("dialog.collab-dialog[open]")?.textContent || ""), null, {timeout: 10000});
+    const lan = "ws://127.0.0.1:" + state.started.port;
+    assert.ok(state.connects.filter(u => u === lan).length >= 5, "host start, find and join (info, then the session), and the wrong code all went through the host: " + state.connects.join(" "));
+    assert.ok(state.connects.includes("ws://127.0.0.1:9"), "so did the address where nothing answered");
+    for (const e of [alice, bob, carol])
+      assert.deepEqual((await e.page.evaluate(() => window.__plainSockets)).filter(u => !u.includes(":" + port)), [], "no same-network ws:// opened by the page itself");
+  }
   // Alice leaves: the listener stops.
   const stopped = new Promise(resolve => state.proc.once("close", resolve));
   await A.evaluate(() => AtriumCollabLive.leave());
@@ -335,7 +400,8 @@ if (require.main === module) (async () => {
     await probe.ctx.close();
     assert.ok(b.viaSeen, "relay: Alice's edit reaches Bob");
     await sameNetwork(browser, port);
-    console.log("collab-pair-browser: ok (pairing through the Share dialog without a server and with a relay, Join recognition, Enter joins and connects, edits travel, people chips explain paths, Test Connection, same network: visible session, code, find, join by address, wrong code, listener stops" + (shots ? ", screenshots" : "") + ")");
+    await sameNetwork(browser, port, true);
+    console.log("collab-pair-browser: ok (pairing through the Share dialog without a server and with a relay, Join recognition, Enter joins and connects, edits travel, people chips explain paths, Test Connection, same network: visible session, code, find, join by address, wrong code, listener stops; the same through the host's sockets (native/bridge.js lanSocket), and nothing answering" + (shots ? ", screenshots" : "") + ")");
   } finally {
     await browser.close();
     p.kill();

@@ -109,6 +109,33 @@ namespace Waffle.Windows
             _ => "unknown"
         };
 
+        // ------------------------------------------------------------------ network adapters
+
+        [DllImport("iphlpapi.dll", ExactSpelling = true)]
+        static extern int GetIfEntry2(IntPtr row);
+
+        /// Whether the adapter with this interface index is hardware (MIB_IF_ROW2's
+        /// InterfaceAndOperStatusFlags.HardwareInterface): Wi-Fi and Ethernet cards and USB adapters,
+        /// not Hyper-V, WSL, VPN or other virtual adapters. null when Windows cannot say (LanNetworks
+        /// then treats the adapter as virtual).
+        public static bool? HardwareInterface(int index)
+        {
+            // MIB_IF_ROW2 (netioapi.h) is 1352 bytes on 32- and 64-bit Windows: InterfaceLuid (8),
+            // InterfaceIndex at 8, ..., DirectionType at 1148, then the flags byte at 1152 (bit 0:
+            // HardwareInterface). A zero LUID makes GetIfEntry2 look the row up by index.
+            const int size = 2048, indexOffset = 8, flagsOffset = 1152;
+            var row = Marshal.AllocHGlobal(size);
+            try
+            {
+                for (int i = 0; i < size; i++) Marshal.WriteByte(row, i, 0);
+                Marshal.WriteInt32(row, indexOffset, index);
+                if (GetIfEntry2(row) != 0) return null;
+                return (Marshal.ReadByte(row, flagsOffset) & 1) != 0;
+            }
+            catch (Exception e) when (e is DllNotFoundException || e is EntryPointNotFoundException) { return null; }
+            finally { Marshal.FreeHGlobal(row); }
+        }
+
         // ------------------------------------------------------------------ shell and windows
 
         public const uint SHARD_PATHW = 3;

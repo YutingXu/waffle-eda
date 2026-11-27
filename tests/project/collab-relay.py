@@ -175,6 +175,9 @@ async def main():
     await b.send({"t": "m", "d": "only-c", "to": [jc["id"], "c0000000000000000", ja["id"] + "x"]})
     assert await c.next("m") == {"t": "m", "d": "only-c", "from": jb["id"]}
     assert await a.nothing() is None, "an addressed message reaches only its recipients"
+    await b.send({"t": "m", "d": "once", "to": [jc["id"], jc["id"], [1], jc["id"]]})
+    assert await c.next("m") == {"t": "m", "d": "once", "from": jb["id"]}
+    assert await c.nothing() is None, "each named recipient gets one copy"
     # Signalling goes to one peer, marked with its sender.
     await c.send({"t": "sig", "to": ja["id"], "d": "sealed-offer"})
     assert await a.next("sig") == {"t": "sig", "from": jc["id"], "d": "sealed-offer"}
