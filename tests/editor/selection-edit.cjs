@@ -46,7 +46,7 @@ async function run(){
   arcBoard.items.push(legacy);
   await folders.openModel(curves,"Curves.waffle");
   coord.fit(arcBoard,new Map());click([16,12]);
-  const property=name=>[...document.querySelectorAll(".field-row")].find(label=>label.textContent.startsWith(name))?.querySelector("input,select");
+  const property=name=>[...document.querySelectorAll(".ui-prop-row")].find(label=>label.textContent.startsWith(name))?.querySelector("input,select");
   await until(()=>property("Radius"),"arc properties");
   const change=(label,v)=>{const input=property(label);assert.ok(input,label);input.value=v;input.dispatchEvent(new window.Event("change",{bubbles:true}));};
   change("Radius","5mm");change("Direction","cw");change("Center X","14mm");

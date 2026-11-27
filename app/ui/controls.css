@@ -192,7 +192,8 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 }
 :where(.ui-checkbox-row) {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h)}
 :where(.ui-checkbox-row) > :where(.ui-checkbox) {margin:0}
-/* Switch: input.ui-switch[role=switch] at the inline end of its label.ui-switch-row, centred on the
+/* Switch: input.ui-switch[role=switch] at the inline end of its label.ui-switch-row (at the value column's
+   start in a property row, components.css), centred on the
    nearest positioned ancestor (the row by default). The row paints the knob because WebKit paints no
    pseudo-element on an input. A change crossfades the track and slides the knob over --motion-toggle;
    Reduced motion (--motion-move 0) and Off apply the new state at once. A switch never animates when it
@@ -310,6 +311,10 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 }
 
 #inspector input:not([type="checkbox"]):focus-visible,#inspector select:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+/* A unit inside the field (property rows): the box takes the field's focus, so the input inside draws none. */
+#inspector .ui-prop-row > .ui-field-measure > input:focus-visible {outline:0}
+#inspector .ui-prop-row > .ui-field-measure:has(> input:focus) {border-color:var(--focus)}
+#inspector .ui-prop-row > .ui-field-measure:has(> input:focus-visible) {outline-offset:-1px}
 
 :where(dialog:is(.ui-dialog,.work-dialog,.message-dialog),#library-dialog) {
   width:var(--ui-dialog-width,min(560px,calc(100vw - 40px)));

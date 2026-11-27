@@ -736,9 +736,8 @@ globalThis.AtriumLazy = (() => {
     const marker = d.createComment(name);
     parent.append(marker);
     // A control can request another control while the outer fragment is being assembled.
-    // Its marker moves into the live section when the outer fragment is inserted.
-    const current = () => parent.nodeType === 11 && marker.isConnected ||
-      marker.parentNode === parent && (!wasConnected || parent.isConnected);
+    // Its marker moves into the live section when the outer fragment is inserted (or into its body).
+    const current = () => parent.nodeType === 11 && marker.isConnected || parent.contains(marker) && (!wasConnected || parent.isConnected);
     need(name).then(ui => {
       if (!current()) return;
       const fields = d.createDocumentFragment();

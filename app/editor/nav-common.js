@@ -20,7 +20,13 @@ globalThis.AtriumNavCommon = (() => {
       if (!omitNull || value != null) node.setAttribute(name, value);
     return node;
   }
-  function appendPropertyRow(parent, label, value) { const row = el("div", null, "property-row"); row.append(el("span", label), el("strong", value)); parent.append(row); return row; }
+  // Property rows (ui-library.md): read-only text, a switch, a unit inside a field.
+  function appendPropertyRow(parent, label, value, control = el("span", value, "ui-prop-value ui-selectable")) { const row = el("div", null, "ui-prop-row"); if (value != null) row.title = value; row.append(elWithAttributes("span", label, null, {title: label}), control); parent.append(row); return row; }
+  function appendSwitchRow(parent, label, checked, update, name = label) {
+    const l = el("label", null, "ui-switch-row"), box = elWithAttributes("input", null, "ui-switch", {type: "checkbox", role: "switch", "aria-label": name});
+    box.checked = checked; box.onchange = () => update(box.checked, box); l.append(box); appendPropertyRow(parent, label, null, l); return box;
+  }
+  const measure = (input, unit) => { const m = el("span", null, "ui-field-measure"); m.append(input, el("span", unit, "ui-field-unit")); return m; };
   // The icon bank in index.html owns the geometry. The enclosing control owns the label.
   function icon(name) {
     const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg"), use = document.createElementNS(ns, "use");
@@ -288,7 +294,7 @@ globalThis.AtriumNavCommon = (() => {
     try { return globalThis.localStorage?.getItem("atrium-cross-select") === "1"; }
     catch { return false; }
   }
-  return {crossSelectEnabled, el, elementIn, classedElement, elWithAttributes, appendPropertyRow, icon, button, actionButton, actionMenu, shortcutTitle, shortcutBadge, shortcutParts, openPalette, openPaletteAction, paletteInstance, isMac, itemBox, union, grow, overlaps, inside, cameraFor,
+  return {crossSelectEnabled, el, elementIn, classedElement, elWithAttributes, appendPropertyRow, appendSwitchRow, measure, icon, button, actionButton, actionMenu, shortcutTitle, shortcutBadge, shortcutParts, openPalette, openPaletteAction, paletteInstance, isMac, itemBox, union, grow, overlaps, inside, cameraFor,
     toast, ready, hostReady, menuItem, menuLabel, setChecked};
 })();
 globalThis.AtriumToast = {show:(t, o) => AtriumNavCommon.toast(t, o)};
