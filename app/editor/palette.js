@@ -499,8 +499,22 @@ globalThis.AtriumPalette = (() => {
     const selection = Object.freeze([...(raw.selection || [])]);
     const context = {host, surface, enhanced:raw.enhanced, labsSignal:raw.enhanced ? globalThis.AtriumLabs.notebookSignal() : undefined, instanceId:raw.instanceId, docId:raw.docId || host.currentId(), kind:surface?.kind || d.kind,
       point:Object.freeze([...point]), pointerType:raw.pointerType, selection, selectedKind:selection.length ? d.items?.find(i => i.id === selection[0])?.kind : null,
-      tool:raw.tool, mode:dialog.dataset.mode === "command" && !commandScope() ? "search" : dialog.dataset.mode, source:raw.source || raw.entrance};
+      tool:raw.tool, mode:!dialog ? "insert" : dialog.dataset.mode === "command" && !commandScope() ? "search" : dialog.dataset.mode, source:raw.source || raw.entrance};
     return Object.freeze({...context,...A?.context?.(host, context)});
+  }
+  // The insert rows of these groups, for a flyout the notebook provides to the Active Bar
+  // (AtriumWidgetCatalogue.toolGroups): the "/" palette's own rows and runs, with the palette's
+  // request at the point Insert at pointer uses from the keyboard (the canvas centre).
+  function toolGroup(groups) {
+    if (!host?.doc?.() || !enhanced()) return [];
+    const context = snapshot({enhanced:true, pointerType:"keyboard", source:"active-bar"}), out = [];
+    for (const p of providers.values()) {
+      let list = [];
+      try {list = p.entries?.(context) || [];} catch (error) {host?.info?.(error.message);}
+      for (const e of list) if ((e?.kind || "insert") === "insert" && groups.includes(e.group) && typeof e.run === "function")
+        out.push({id:e.key, label:e.label, icon:e.icon, run:() => e.run({context, values:{}, argument:"", signal:context.labsSignal})});
+    }
+    return out;
   }
   function refreshSources() {
     if (!IX || !session) return;
@@ -1275,7 +1289,7 @@ globalThis.AtriumPalette = (() => {
   }
   C?.ready(attach);
   if (typeof window !== "undefined" && enhanced()) queueMicrotask(() => {if (enhanced()) globalThis.dispatchEvent(new CustomEvent("waffle-palette-ready"));});
-  return {parse, parseLocation, search, titleCase, objectEntries, open, resume, close, resetMode, isOpen:() => !!dialog?.open, registerProvider,invalidateProvider,
+  return {parse, parseLocation, search, titleCase, objectEntries, open, resume, close, resetMode, isOpen:() => !!dialog?.open, registerProvider,invalidateProvider,toolGroup,
     actions, scope:setScope, present:(model,callbacks) => dialog?.open && session?.enhanced && view?.present?.(model,callbacks),context:() => session,
     entries:mode => sources(mode || "", ""), recent:() => recent.slice(), remember, attach,
     searchAll(q,mode="") {

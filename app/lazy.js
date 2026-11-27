@@ -38,7 +38,7 @@ globalThis.AtriumLazy = (() => {
     AtriumRichTextEditor: {scripts:["notebook/rich-text-editor.js"],css:["notebook/rich-text-editor.css"],deps:["AtriumLayer","AtriumRichText"]},
     AtriumWireEdit: {scripts: ["schematic/wire-edit.js"]},
     AtriumCanvasInput: {scripts: ["canvas/canvas-input.js"], deps:["AtriumWireEdit"]},
-    AtriumActiveBarMenu: {scripts: ["editor/active-bar-menu.js"]},
+    AtriumActiveBarMenu: {scripts: ["editor/active-bar-menu.js", "editor/bars.js"]},
     AtriumNavigator: {scripts: ["editor/navigator.js"]},
     AtriumProjectTree: {scripts: ["project/project-tree.js"], deps:["AtriumSpatialMotion"]},
     AtriumProjectConnections: {scripts: ["project/project-connections.js"], css: ["project/project-connections.css"]},

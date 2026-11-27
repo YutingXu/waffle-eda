@@ -230,7 +230,7 @@ globalThis.AtriumPrefs = (() => {
   const childPages = id => pages.filter(p => parents[p.id] === id && (p.id !== "search" || globalThis.AtriumLabs?.notebookEnabled()));
   const catalog = () => pages.filter(p => !Object.hasOwn(parents, p.id));
   const sections = [
-    ["App", {general:"settings", appearance:"layers", display:"drawing", keyboard:"command", mouse:"pan"}],
+    ["App", {general:"settings", appearance:"layers", display:"drawing", keyboard:"command", mouse:"pan", toolbars:"select"}],
     ["Design", {schematic:"schematic", pcb:"board", routing:"route", checks:"select", insights:"chip", library:"book"}],
     ["Connect", {extensions:"chip", collaboration:"comment"}],
     ["Advanced", {labs:"grid"}]
@@ -249,6 +249,7 @@ globalThis.AtriumPrefs = (() => {
       if (key === "general.efficiency") return page.id === "display";
       return parts.some(p => p.resetKeys?.includes(key) ?? key.startsWith(p.id + "."));
     }));
+    for (const p of parts) p.reset?.(); // a page's own view state (Toolbars: remembered flyout faces)
     if (page.id === "appearance") globalThis.AtriumTheme?.reset?.();
     if (page.id === "keyboard") globalThis.AtriumKeymap?.setPreset?.("altium");
   }
@@ -457,7 +458,7 @@ globalThis.AtriumPrefs = (() => {
   // credential is written or read: keys named like one are dropped at every depth, and so are
   // string values shaped like common API keys.
   const BUNDLE = "atrium-settings";
-  const LAYOUT = {collapsedSections: "atrium.collapsed-sections", collapsedPanels: "atrium.collapsed-panels", pcbView: "atrium.pcbView.v1"};
+  const LAYOUT = {collapsedSections: "atrium.collapsed-sections", collapsedPanels: "atrium.collapsed-panels", pcbView: "atrium.pcbView.v1", barFaces: "atrium.bar-faces"};
   const extras = new Map();   // extend(): tools' own keys (prefs-storage.js)
   function extend(name, extra) {
     const fresh = !extras.has(name);
@@ -743,7 +744,7 @@ globalThis.AtriumPrefs = (() => {
     const waitingForSection = !focusedSection && Object.hasOwn(parents,page);
     const initialFocus = doc.activeElement;
     const modules = ["AtriumCanvasGPUPref", "AtriumExtensionDev", "AtriumCollabPresence", "AtriumCamera",
-      "AtriumChecks", "AtriumInsightsUI", "AtriumExternalTools", "AtriumClipHistory", "AtriumHistoryPanel", "AtriumRouteSuggest"];
+      "AtriumChecks", "AtriumInsightsUI", "AtriumExternalTools", "AtriumClipHistory", "AtriumHistoryPanel", "AtriumRouteSuggest", "AtriumActiveBarMenu"];
     if (page === "search" && globalThis.AtriumLabs?.notebookEnabled()) modules.push("AtriumPalettePersonal");
     const missing = modules.filter(name => !globalThis[name]);
     if (missing.length && globalThis.AtriumLazy) Promise.allSettled(missing.map(name => globalThis.AtriumLazy.need(name))).then(() => {
@@ -810,6 +811,10 @@ globalThis.AtriumPrefs = (() => {
       add("import-vscode-keybindings", "Import VS Code keybindings…", () => vscode("keysDialog"));
       add("export-settings", "Export settings…", exportAll);
       add("import-settings", "Import settings…", () => { importAll(); });
+      // View › Customise Active Bar… (bars.js registers the Toolbars page when it loads).
+      const bars = () => AtriumLazy.need("AtriumActiveBarMenu").then(() => open("toolbars"), e => h?.info?.(e.message));
+      h?.registerAction?.("customise-active-bar", bars);
+      try { if (!K?.command?.("customise-active-bar")) K?.registerCommand?.({id: "customise-active-bar", title: "Customise Active Bar…", run: bars, category: "View"}); } catch {}
       globalThis.AtriumNavCommon?.menuItem("file", "new-from-template", "New from Template…", {after: "new"});
       globalThis.AtriumAutosave?.launchHome?.(() => openStartPage({launch:true}));
     };

@@ -392,6 +392,16 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
   background:radial-gradient(circle,currentColor 1px,transparent 1.2px) 0 0/4px 4px;
 }
 :is(.ui-drag-handle):hover {color:var(--muted)}
+/* Reorderable lists (K.reorderable, proposed 2026-11-27): a handle column before a tree row's columns. */
+:is(.ui-list[data-reorder]) > :is(.ui-row) {grid-template-columns:auto var(--s-12) auto minmax(0,1fr) auto auto}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-drag-handle) {grid-column:1}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-disclosure) {grid-column:2}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-icon) {grid-column:3}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-text) {grid-column:4}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-meta) {grid-column:5}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-actions) {grid-column:6}
+/* A finger reaches a handle through a 44 px hit area; the dots stay compact. */
+@media (any-pointer:coarse) {:is(.ui-drag-handle) {position:relative} :is(.ui-drag-handle)::after {content:"";position:absolute;inset:calc(50% - var(--ctl-h-touch) / 2)}}
 :is(.ui-dragging) {opacity:.55}
 /* A drop target says what it will do. ready: it can take the drag; over: the drag is on it;
    denied: it cannot (its reason shows in the status line); busy: reading or preparing.

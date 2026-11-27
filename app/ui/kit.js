@@ -456,6 +456,69 @@ globalThis.AtriumUIKit = (() => {
     if (state) node.dataset.drop = state; else delete node.dataset.drop;
     return node;
   }
+  /** Make a list's rows reorderable (proposed, 2026-11-27): Alt+↑/↓ moves the focused row, ↑/↓ move
+   *  focus, and a row's .ui-drag-handle drags it with a mouse, pen or finger (lifted row, insertion
+   *  line, denied target). onMove(from, to) gets row indices and redraws the rows in this same list;
+   *  canMove(from, to) may refuse a target. Give touch users Move Up/Down actions as well. */
+  function reorderable(list, {onMove, canMove = () => true} = {}) {
+    list.dataset.reorder = "";
+    const rows = () => [...list.children].filter(n => n.matches(".ui-row"));
+    const roving = active => { for (const r of rows()) r.tabIndex = r === active ? 0 : -1; };
+    const focusAt = i => queueMicrotask(() => { const r = rows()[Math.min(i, rows().length - 1)]; if (r) { roving(r); r.focus(); } });
+    const prepare = () => {
+      const all = rows();
+      for (const r of all) {
+        r.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown");
+        if (!r.querySelector(":scope > .ui-drag-handle")) r.prepend(dragHandle());
+      }
+      if (all.length && !all.some(r => r.tabIndex === 0)) roving(all[0]);
+    };
+    prepare();
+    new MutationObserver(prepare).observe(list, {childList: true});
+    list.addEventListener("focusin", e => { const r = /** @type {Element} */ (e.target).closest?.(".ui-row"); if (r?.parentElement === list) roving(r); });
+    list.addEventListener("keydown", e => {
+      const row = /** @type {HTMLElement} */ (e.target);
+      if (!row.matches?.(".ui-row") || row.parentElement !== list) return;
+      const all = rows(), i = all.indexOf(row), step = ({ArrowUp: -1, ArrowDown: 1})[e.key];
+      const jump = e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : null;
+      if (step && e.altKey) {
+        e.preventDefault();
+        if (i + step >= 0 && i + step < all.length && canMove(i, i + step)) { onMove(i, i + step); focusAt(i + step); }
+      } else if (step || jump != null) {
+        e.preventDefault();
+        const r = all[jump ?? i + step];
+        if (r) { roving(r); r.focus(); }
+      }
+    });
+    list.addEventListener("pointerdown", e => {
+      const handle = /** @type {HTMLElement} */ (e.target).closest?.(".ui-drag-handle"), row = handle?.closest(".ui-row");
+      if (!row || row.parentElement !== list || e.button !== 0) return;
+      e.preventDefault();
+      handle.setPointerCapture?.(e.pointerId);
+      const all = rows(), from = all.indexOf(row), line = el("div", "ui-drop-line");
+      let to = from, ok = true, denied = null;
+      row.classList.add("ui-drag-lift");
+      const move = ev => {
+        let at = all.findIndex(r => { const b = r.getBoundingClientRect(); return ev.clientY < b.top + b.height / 2; });
+        if (at < 0) at = all.length;
+        to = at > from ? at - 1 : at;
+        ok = to === from || canMove(from, to);
+        if (denied) dropState(denied, null);
+        denied = ok ? null : dropState(all[Math.min(at, all.length - 1)], "denied");
+        if (!ok || to === from) line.remove(); else list.insertBefore(line, all[at] || null);
+      };
+      const end = ev => {
+        handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", end); handle.removeEventListener("pointercancel", end);
+        doc.removeEventListener("keydown", escape, true);
+        row.classList.remove("ui-drag-lift"); line.remove(); if (denied) dropState(denied, null);
+        if (ev?.type === "pointerup" && ok && to !== from) { onMove(from, to); focusAt(to); }
+      };
+      const escape = ev => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); end(null); } };
+      handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
+      doc.addEventListener("keydown", escape, true);
+    });
+    return list;
+  }
   /** A transcript turn. role: user, assistant or tool. body: text or nodes. */
   function turn(role, body, {label} = {}) {
     const t = el("article", "ui-turn"); t.dataset.role = role;
@@ -493,5 +556,5 @@ globalThis.AtriumUIKit = (() => {
   return {el, icon, button, iconButton, closeButton, chip, chips, badge, count, dot, field, nullableNumber, analysisField, select, switchRow, checkbox, radioGroup,
     segmented, tabs, search, adoptSearch, section, propRow, row, list, analysisTable, toolbar, notice, empty, progress, spinner, statusLine, thumb, pager, steps, diff,
     avatar, overlayLabel,
-    splitter, dragHandle, dropState, turn, cite, recording, panel};
+    splitter, dragHandle, dropState, reorderable, turn, cite, recording, panel};
 })();
