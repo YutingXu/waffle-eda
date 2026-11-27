@@ -125,7 +125,6 @@ const SNAPSHOT = {
     "5 stored polygon fill region(s) kept as the pours' current copper. They count for connectivity until a repour regenerates them.",
     "Imported 3D bodies (0 extruded, 23 STEP references).",
     "Kept 1 net class (signals and tags).",
-    "Kept 4 component classes. 4 of them follow component placement in Altium; Waffle keeps their members from the import.",
     "Omitted 2 × template images, 1 × template text frames, 2 × embedded images.",
     "Omitted advanced placer options6 (1).",
     "Omitted boardregions (1).",
@@ -138,7 +137,8 @@ const SNAPSHOT = {
     "Omitted uniqueidprimitiveinformation (100).",
     "Omitted waivedviolations (15).",
     "Omitted widestrings6 (65).",
-    "PCB import includes 3D bodies. Layer-specific pad stacks, pours and manufacturing settings require review in the source design."
+    "PCB import includes 3D bodies. Layer-specific pad stacks, pours and manufacturing settings require review in the source design.",
+    "Read 4 component classes. 4 of them follow component placement in Altium; Waffle keeps their members from the import."
   ]
 };
 assert.deepEqual(report, SNAPSHOT);

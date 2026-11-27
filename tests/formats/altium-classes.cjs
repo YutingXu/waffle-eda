@@ -10,7 +10,7 @@ const assert = require("node:assert/strict");
 globalThis.CFB = require("../../app/vendor/cfb.min.js");
 for (const name of ["obsolete-project","model","sch-objects","hierarchy","board-shape","board-shape-sources","net-intent","signals","altium-rules","pcb-draw","component-classes","query","rules","project-rules","pcb-pours","stackup",
   "pdf-fonts","altium-typefaces","altium-ids","source-file","sch-import","pcb-import","pcb-appearance","library-import-altium",
-  "sexpr","import-kicad","import-eagle","sch-appearance","import-link","io","import-rules","translator-table","translator-registry","translator-provenance","translator-adapters","translators"]) require(require("../support/app-source-paths.cjs").appFile(name+".js"));
+  "sexpr","import-kicad","import-eagle","sch-appearance","import-link","io","import-rules","translator-table","translator-registry","translator-provenance","translator-adapters","translators","parts","import-worker-client"]) require(require("../support/app-source-paths.cjs").appFile(name+".js"));
 const T = AtriumTranslators, R = AtriumTranslatorRegistry, CC = AtriumComponentClasses;
 const encoded = (name, text) => ({name, bytes: new TextEncoder().encode(text)});
 const rule = (kind, name, scope, more) => "|RECORD=Rule|RULEKIND=" + kind + "|NAME=" + name + "|ENABLED=TRUE|PRIORITY=1|SCOPE1EXPRESSION=" + scope + "|SCOPE2EXPRESSION=All|" + more;
@@ -69,7 +69,24 @@ assert.match(outcome(at("All Components"))[1], /read All Components the same way
 assert.deepEqual(outcome(at("All Pads")), ["notApplicable", "Altium's built-in class of every pad. It stores no members and no rule names it."]);
 assert.deepEqual(outcome(at("All Polygons"))[0], "dropped", "a rule names a built-in class Waffle does not know");
 assert.ok(!classRefs.some(r => /Unsupported class kind|Superclass membership/.test(r.reason || "")));
-assert.ok(model.importNotes.some(n => / — Kept 4 component classes\. 1 of them follows component placement in Altium; Waffle keeps their members from the import\.$/.test(n)), model.importNotes.join("\n"));
+const classNotes = notes => notes.filter(n => /component class/.test(n));
+const NOTES = ["Board.PcbDoc — Read 4 component classes. 1 of them follows component placement in Altium; Waffle keeps their members from the import.",
+  "Board.PcbDoc — 1 of the component classes equals the class Waffle generates from the schematic sheet of the same name, so Waffle keeps that generated class instead of a stored copy. 3 component classes are stored."];
+assert.deepEqual(classNotes(model.importNotes), NOTES, "the notes count the classes that remain");
+
+// File › Open assembles results that crossed the worker boundary (structured clones): the same classes remain.
+{
+  const results = files.map(f => structuredClone(AtriumIO.read(f.name, f.bytes)));
+  const opened = Atrium.validate(AtriumImport.assemble(results, files, Atrium.project("x", AtriumParts.catalogue), null).after);
+  assert.deepEqual(opened.documents.find(d => d.kind === "pcb").componentClasses, pcb.componentClasses, "File › Open stores the same component classes");
+  assert.deepEqual(classNotes(opened.importNotes), NOTES);
+  // Adding a board to a project never folds the classes of a board the project already had.
+  const before = structuredClone(opened), mine = before.documents.find(d => d.kind === "pcb");
+  mine.componentClasses.Power = ["R1"];
+  const extra = encoded("Extra.SchDoc", schDoc([["R9", "SCHR9XXX"]]));
+  const added = AtriumImport.assemble([structuredClone(AtriumIO.read(extra.name, extra.bytes))], [extra], before, null, true);
+  assert.deepEqual(added.after.documents.find(d => d.id === mine.id).componentClasses.Power, ["R1"]);
+}
 
 // The converted rules scope the imported classes: U1 and U2 are Drivers, R1 only on the top side, and the
 // built-in All Components reaches whatever is left.

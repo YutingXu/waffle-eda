@@ -110,5 +110,40 @@ globalThis.AtriumImportLink=(()=>{
     const notes=[...messages].map(([reason,refs])=>reason+" · "+[...refs].sort((a,b)=>a.localeCompare(b,"en",{numeric:true})).join(", ")+".");
     return {linked,removed,notes};
   }
-  return {placeholder,preferred:A.preferredDocument,reconcile,manifestScope};
+  // Altium's "Generate Component Classes" (project options) makes one component class per schematic sheet:
+  // the same class component-classes.js generates from the linked schematic (list(), source "sheet"). After
+  // linking, a stored copy with exactly those members is removed, so the generated class stays current.
+  // boards: the boards this import read (never a board the project already had). It reads only the documents,
+  // so it gives the same result whichever realm read them (translator-adapters.js, import-worker-client.js
+  // assemble). -> [{board, note}] for the boards that lost a stored copy.
+  // Altium's automatic classes follow placement, so none of them is a per-sheet class.
+  const AUTOMATIC_CLASSES=new Set(["Top Side Components","Bottom Side Components","Inside Board Components","Outside Board Components"]);
+  function settleComponentClasses(project,boards=project?.documents){
+    const out=[];
+    for(const board of boards||[]){
+      const store=board?.kind==="pcb"&&board.componentClasses;
+      if(!store||typeof store!=="object")continue;
+      const sheets=new Set(project.documents.filter(d=>d.kind==="schematic").map(d=>d.name));
+      const names=Object.keys(store).filter(n=>sheets.has(n)&&!AUTOMATIC_CLASSES.has(n));
+      if(!names.length)continue;
+      const sheetOf=new Map(),bySheet=new Map();
+      for(const d of project.documents)if(d.kind==="schematic")for(const p of d.items)
+        if(p.kind==="part"&&typeof p.link==="string"&&!sheetOf.has(p.link))sheetOf.set(p.link,d.name);
+      for(const p of board.items)if(p.kind==="part"&&typeof p.ref==="string"&&p.ref&&typeof p.link==="string"){
+        const sheet=sheetOf.get(p.link.split("@")[0]);
+        if(sheet){if(!bySheet.has(sheet))bySheet.set(sheet,new Set());bySheet.get(sheet).add(p.ref);}
+      }
+      let removed=0;
+      for(const name of names){
+        const members=store[name],generated=bySheet.get(name);
+        if(Array.isArray(members)&&generated&&generated.size===members.length&&members.every(r=>generated.has(r))){delete store[name];removed++;}
+      }
+      if(!Object.keys(store).length)delete board.componentClasses;
+      if(removed)out.push({board,note:removed+" of the component classes "+(removed===1?"equals":"equal")+" the class Waffle generates from the schematic sheet of the same name, "+
+        "so Waffle keeps "+(removed===1?"that generated class":"those generated classes")+" instead of a stored copy. "+
+        (Object.keys(board.componentClasses||{}).length)+" component class"+(Object.keys(board.componentClasses||{}).length===1?" is":"es are")+" stored."});
+    }
+    return out;
+  }
+  return {placeholder,preferred:A.preferredDocument,reconcile,manifestScope,settleComponentClasses};
 })();
