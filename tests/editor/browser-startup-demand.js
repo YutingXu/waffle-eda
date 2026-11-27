@@ -8,11 +8,12 @@ const app = pathToFileURL(path.join(__dirname, "../../app/index.html")).href;
 async function fresh(browser, run, settings) {
   const page = await browser.newPage({viewport: {width: 1400, height: 900}});
   const errors = [];
-  const legacyContractRequests = [], graphRequests = [];
+  const legacyContractRequests = [], graphRequests = [], pcbConnectivityRequests = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("request", request => {
     if (request.url().endsWith("/automation/legacy-command-contract.js")) legacyContractRequests.push(request.url());
     if (request.url().endsWith("/ui/commit-graph.js")) graphRequests.push(request.url());
+    if (request.url().endsWith("/checks/connectivity.js")) pcbConnectivityRequests.push(request.url());
   });
   page.setDefaultTimeout(8000);
   try {
@@ -21,7 +22,7 @@ async function fresh(browser, run, settings) {
     },settings);
     if (settings) await page.clock.install();
     await page.goto(app);
-    await run(page, graphRequests);
+    await run(page, graphRequests, pcbConnectivityRequests);
     assert.deepEqual(errors, []);
     assert.deepEqual(legacyContractRequests, [], "the legacy worker catalogue stays out of the editor and its workers");
   } finally {
@@ -156,9 +157,162 @@ async function editingCommandDemand(browser) {
   } finally {await page.close();}
 }
 
+async function physicalConnectivityDemand(browser) {
+  const cold = page => page.evaluate(() => typeof globalThis.AtriumConnectivity === "undefined");
+  await fresh(browser, async (page, _graphRequests, requests) => {
+    await page.locator("dialog.sp-dialog[open]").waitFor();
+    console.log("Welcome PCB connectivity requests:",requests.length);
+    assert.equal(await cold(page),true,"Welcome does not load the physical PCB solver");
+    assert.equal(requests.length,0);
+    assert.equal(await page.evaluate(async () => {
+      const h = AtriumNavHost, p = Atrium.project("Schematic only",[]);
+      const sheet = p.documents[0], id = Atrium.id();
+      p.documents = [sheet];
+      sheet.items.push({kind:"wire",id,points:[[0,0],[5,0]]},
+        {kind:"netlabel",id:Atrium.id(),x:0,y:0,text:"DEMAND"});
+      await h.replaceProject(p,{force:true,dirty:false});
+      return Atrium.connectivity(h.doc(),h.defs()).byWire.get(id);
+    }),"DEMAND","the schematic connectivity compiler is available without the PCB solver");
+    await page.waitForFunction(() => !!globalThis.AtriumEditorDemand);
+    await page.evaluate(() => new Promise(resolve => AtriumIdle.idle(resolve,{timeout:1000})));
+    assert.equal(await cold(page),true,"opening only a schematic keeps PCB connectivity cold");
+    assert.equal(requests.length,0);
+
+    // A project with a dormant board still supports synchronous activation.
+    assert.equal(await page.evaluate(async () => {
+      const h = AtriumNavHost, p = Atrium.project("Schematic and dormant board",[]);
+      await h.replaceProject(p,{force:true,starter:true,dirty:false});
+      return h.doc().kind;
+    }),"schematic");
+    assert.equal(requests.length,1);
+    const dormant = await page.evaluate(() => {
+      const h = AtriumNavHost, board = h.project().documents.find(doc => doc.kind === "pcb");
+      h.selectDocument(board.id);
+      const graph = h.connections();
+      return {kind:h.doc().kind, empty:graph.airwires.length};
+    });
+    assert.deepEqual(dormant,{kind:"pcb",empty:0});
+    console.log("PCB connectivity requests: Welcome 0, schematic-only 0, dormant PCB project 1");
+  });
+
+  for (const action of ["add-pcb","new"]) {
+    await fresh(browser, async (page, _graphRequests, requests) => {
+      await page.locator("dialog.sp-dialog[open]").waitFor();
+      await page.evaluate(async () => {
+        const p = Atrium.project("Schematic only",[]);
+        p.documents = [p.documents[0]];
+        await AtriumNavHost.replaceProject(p,{force:true,dirty:false});
+      });
+      await page.evaluate(action => AtriumNavHost.executeKey(action),action);
+      const title = action === "add-pcb" ? "Add PCB layout" : "New project";
+      await page.locator("dialog[open]").getByRole("textbox",{name:title,exact:true}).waitFor();
+      assert.equal(requests.length,0,"the dialog opens while physical connectivity is cold");
+      await page.locator("dialog[open]").getByRole("button",{name:action === "add-pcb" ? "Add" : "Apply",exact:true}).click();
+      await page.waitForFunction(action => {
+        const h = AtriumNavHost;
+        return action === "add-pcb" ? h.doc().kind === "pcb" : h.project().name === "Untitled";
+      },action);
+      assert.equal(requests.length,1);
+      assert.equal(await page.evaluate(() => {
+        const h = AtriumNavHost, board = h.project().documents.find(doc => doc.kind === "pcb");
+        h.selectDocument(board.id);
+        return h.connections()?.airwires.length;
+      }),0,"the new board can synchronously read its physical connectivity");
+    });
+  }
+  console.log("PASS Add PCB and New Project load the solver after confirmation from a schematic-only project");
+
+  const page = await browser.newPage({viewport:{width:1400,height:900}}), errors = [], requests = [];
+  page.on("pageerror",e => errors.push(e.message));
+  page.on("request",request => {if (request.url().endsWith("/checks/connectivity.js")) requests.push(request.url());});
+  try {
+    await page.addInitScript(() => {
+      const append = Element.prototype.append;
+      Element.prototype.append = function (...nodes) {
+        if (this !== document.head || nodes[0]?.getAttribute?.("src") !== "checks/connectivity.js")
+          return append.apply(this,nodes);
+        globalThis.releasePhysicalConnectivity = () => {
+          Element.prototype.append = append;
+          append.apply(this,nodes);
+        };
+      };
+    });
+    await page.goto(app);
+    await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
+    await page.waitForFunction(() => !!globalThis.releasePhysicalConnectivity);
+    assert.equal(await cold(page),true,"PCB publication awaits the solver");
+    assert.equal(await page.evaluate(() => AtriumNavHost.doc().kind),"schematic");
+    await page.evaluate(() => {
+      const L = AtriumLazy;
+      globalThis.concurrentConnectivity = Promise.all([
+        L.need("AtriumConnectivity"), L.need("AtriumConnectivityLive"), L.need("AtriumConnectivity")
+      ]);
+      releasePhysicalConnectivity();
+    });
+    await page.waitForFunction(() => AtriumNavHost.doc().name === "Sensor board");
+    const identity = await page.evaluate(async () => {
+      const [base,live,second] = await concurrentConnectivity;
+      const h = AtriumNavHost, graph = h.connections(), exact = base.inspectFull(h.doc(),h.defs());
+      return {oneBase:base === second && base === AtriumConnectivity, live:live === AtriumConnectivityLive,
+        synchronous:Array.isArray(graph.airwires), nets:graph.nets.length,
+        same:JSON.stringify([graph.nets,graph.shorts,graph.airwires]) === JSON.stringify([exact.nets,exact.shorts,exact.airwires])};
+    });
+    assert.equal(identity.oneBase,true);
+    assert.equal(identity.live,true);
+    assert.equal(identity.synchronous,true);
+    assert.ok(identity.nets > 0);
+    assert.equal(identity.same,true,"the first explicit graph matches the full physical inspection");
+    assert.equal(requests.length,1,"direct, live and workbench consumers share one actual load");
+    assert.deepEqual(errors,[]);
+    console.log("PASS first PCB waits for one shared physical solver and returns the exact synchronous graph");
+  } finally {await page.close();}
+}
+
+async function diffConnectivityRetry(browser) {
+  await fresh(browser, async (page, _graphRequests, requests) => {
+    await page.locator("dialog.sp-dialog[open]").waitFor();
+    await page.evaluate(async () => {
+      const host = AtriumNavHost, p = Atrium.project("Schematic only",[]);
+      p.documents = [p.documents[0]];
+      await host.replaceProject(p,{force:true,dirty:false});
+      const before = AtriumParts.example(), after = structuredClone(before);
+      const board = after.documents.find(doc => doc.kind === "pcb");
+      board.items.find(item => item.kind === "track").width += .05;
+      const view = await AtriumLazy.need("AtriumDiffView");
+      await view.start({project:before},{project:after},{doc:board.id});
+      const model = view.session().model, run = model.drcDelta;
+      globalThis.diffConnectivityRuns = 0;
+      model.drcDelta = (...args) => { globalThis.diffConnectivityRuns++; return run(...args); };
+      const head = document.head, append = head.append;
+      head.append = function (...nodes) {
+        if (nodes[0]?.getAttribute?.("src") !== "checks/connectivity.js") return append.apply(this,nodes);
+        head.append = append;
+        globalThis.rejectDiffConnectivity = () => nodes[0].dispatchEvent(new Event("error"));
+      };
+    });
+    assert.equal(requests.length,0,"reviewing revisions keeps physical connectivity cold until DRC");
+    const chip = page.locator(".dv-drc"), dialog = page.getByRole("dialog",{name:"DRC delta",exact:true});
+    await chip.click();
+    await page.waitForFunction(() => !!globalThis.rejectDiffConnectivity);
+    await dialog.getByText(/Running the design rule check/).waitFor();
+    await page.evaluate(() => rejectDiffConnectivity());
+    await page.waitForFunction(() => !AtriumLazy.pending("AtriumConnectivity"));
+    await dialog.waitFor({state:"hidden"});
+    assert.equal(await chip.textContent(),"DRC Δ","the DRC chip offers a retry after a failed script");
+    assert.equal(await page.evaluate(() => diffConnectivityRuns),0,"DRC does not run on a partial dependency set");
+    await chip.click();
+    await dialog.getByRole("heading",{name:/New violations/}).waitFor();
+    assert.equal(await page.evaluate(() => diffConnectivityRuns),1);
+    assert.equal(requests.length,1,"the retry loads the physical solver and runs the requested comparison");
+    console.log("PASS comparison DRC waits for physical connectivity and retries a failed load");
+  });
+}
+
 module.exports = async browser => {
   await historyDemand(browser);
   await editingCommandDemand(browser);
+  await physicalConnectivityDemand(browser);
+  await diffConnectivityRetry(browser);
   for (const efficiency of ["off", "always"]) {
     await fresh(browser, async page => {
       await page.locator("dialog.sp-dialog[open]").waitFor();
@@ -309,3 +463,7 @@ module.exports = async browser => {
 module.exports.historyDemand = historyDemand;
 
 module.exports.editingCommandDemand = editingCommandDemand;
+
+module.exports.physicalConnectivityDemand = physicalConnectivityDemand;
+
+module.exports.diffConnectivityRetry = diffConnectivityRetry;

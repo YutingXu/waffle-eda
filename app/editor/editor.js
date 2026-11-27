@@ -1142,7 +1142,7 @@
   function newProject(){return fileDialog("newProject",[{async before(){
     if(!await mayReplace())return false;
     const previous=project, stamp=authoredRevision;
-    await prepareWorkbench(previous,{starterView:false});
+    await Promise.all([prepareWorkbench(previous,{starterView:false}),AtriumLazy.need("AtriumConnectivity")]);
     if(previous!==project || stamp!==authoredRevision)return false;
     if(drag)endDrag(true);checkpoint();leaveFolder();setFileSession({});globalThis.AtriumHost?.clearProjectPath?.();importSessionChanged();return true;
   },units:()=>globalThis.AtriumPref?.get("general.units",project.units)||project.units,fab:newFab,show:showProject,info}]);}
@@ -2396,6 +2396,8 @@
   }
   function prepareWorkbench(p=project,{starterView=starter}={}){
     const modules=["AtriumPCBEdit","AtriumDock","AtriumWireEdit","AtriumTabDrop","AtriumTooltip","AtriumSurfaceMotion","AtriumExtensions"];
+    // A PCB can be activated synchronously from another document or a split pane.
+    if(p.documents.some(d=>d.kind==="pcb"))modules.push("AtriumConnectivity");
     if(!starterView)modules.push("AtriumProjectTree");
     if(p.documents.some(d=>d.items.some(i=>i.kind==="part")))modules.push("AtriumSchFields");
     const install=()=>{installPCBEdit();installTabDrop();attachExtensions();};
