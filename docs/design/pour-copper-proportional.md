@@ -1,8 +1,8 @@
 # Poured copper that costs what an edit touched
 
-Status: all three stages approved by the owner on 2026-11-27. Stages 1 and 2 are built and measured
-(results below); stage 3 is being built separately.
-Stages 1 and 2 are on `perf/pour-copper-proportional`, stage 3 on `perf/pour-solve-local`. The
+Status: all three stages approved by the owner on 2026-11-27, built and measured (results below).
+Stages 1 and 2 are on `perf/pour-copper-proportional`, stage 3 on `perf/pour-solve-local`; the three
+are merged on `integrate/pour`, where the stage 3 numbers below were measured. The
 owner asked for stage 2 to be built whatever stage 1 measures. It follows the measurements on the
 local branch `perf/pcb-edit-proportional` and a read-only map of the pour code made the same day.
 
@@ -145,12 +145,13 @@ Expected: bytes per edit follow the changed rings (hundreds of vertices, not 190
   (kept a while, bounded), and writing either makes an ordinary field again. Saving, export, format
   2, signatures, collaboration snapshots and every other reader of the text read it unchanged; the
   edit path reads the runs through the engine instead (`dataKey`, `sameData`, `dataLength`,
-  `heldField`, tables and contours from run bytes).
+  `heldFields`, tables and contours from run bytes).
 - Live worker: a new region travels as `fieldsOf` and run ids, with only the runs the editor does not
   hold (`runIds`, `runLookup`; regions still held as text name their runs alike, so the first edit
   after opening is not a full send).
-- Undo store: `copperOf`/`heldField` give the region's copper in place of its text and arcs
-  (`fieldOf`, `setField`, `withCopper`); a record that replaces a region counts `copperDelta`, the
+- Undo store: `heldFields` (asked once per object, null for any object without copper) names the
+  fields the region's copper holds, and `copperOf` gives that copper in place of its text and arcs
+  (`setField`, `withCopper`); neither the undo store nor the save cache names a pour field. A record that replaces a region counts `copperDelta`, the
   bytes of runs the old version has and the new one does not, so a run is counted by the one record
   that drops it from the board. Its other changes are only in how pour data is counted and shared.
 - Autosave (`save-cache.js` `records`/`texts`, `autosave.js` hooks): a region's copper, and its arcs,
@@ -206,6 +207,71 @@ marker layer is planned again when the copper changes.
 This stage is off the main thread, so it changes how soon fresh copper appears and how much CPU an
 edit burns, not the longest task.
 
+#### Result (branch `perf/pour-solve-local`, 2026-11-27; merged with stages 1 and 2 on `integrate/pour`)
+
+Cause of the fallback: the patch was one box grown in rounds, capped at 8 rounds. In a dense
+cluster of pad clearances a part move needed 12, so it gave up and solved the whole pour. A paste
+hit the same cap.
+
+Fix, all in `polygon-pour.js`: the patch region is a set of boxes, one per changed input plus
+every input its guard reaches, solved per connected group. Islands and island tests are recomputed
+only where they can change; unchanged islands keep object identity.
+
+With stages 1 and 2 merged, finish uses that identity too (`areaFinished`, the engine's
+`regionAgain`): an island the patch left as it was, in the same frame, keeps the true arcs found for
+it when the registered arcs its rings name are unchanged, and is the region made for it while the
+pour still holds that region with the same links and arcs. Only the changed islands are scanned for
+arcs and encoded, and encoding makes runs (stage 2) instead of base64 text.
+
+Worker time per edit on the benchmark board, JS core in Node, through the live worker's own steps
+with area sessions (stage 3's bench). Medians of 9 (3 runs of 3, alternating), total / exact solve /
+finish (`tFinish`: true arcs and encoding) in ms, MacBook on battery 71–79 %. Before: `cb612f8`, as
+the stage 3 reviewer measured it. Every refill of both builds was compared with a full repour and was
+identical (`VERIFY=1`).
+
+| Edit | Before | Stage 3 alone | Stages 1–3 (`integrate/pour`) |
+| --- | --- | --- | --- |
+| Move a part | 723 / 545 | 190 / 16 / 103 | 110 / 18 / 33 |
+| Bend a track | 197 / 74 | 193 / 37 / 79 | 99 / 14 / 36 |
+| Move a via | 315 / 163 | 180 / 19 / 98 | 179 / 21 / 105 |
+| Add a track | | 85 / 7 / 31 | 65 / 9 / 12 |
+| Delete a track | 173 / 66 | 130 / 11 / 68 | 87 / 13 / 29 |
+| Paste 4 | 730 / 570 | 193 / 27 / 102 | 111 / 20 / 43 |
+| Move a part on two pours | | 272 / 45 / 161 | 139 / 43 / 38 |
+| Track crossing a pour outline | | 1,806 / 1,526 / 205 | 1,509 / 1,325 / 122 |
+| Pour clearance edit | | 901 / 688 / 100 | 810 / 667 / 59 |
+| Repour All | 2,439 | 2,620 | 2,625 |
+
+Finish no longer dominates a local edit. The merge alone (stage 2's runs instead of base64 text, and
+kept regions) took a part move's finish from 103 to 43 ms; `areaFinished` took it to 33 ms, and a
+part move on two pours from 68 to 38 ms, while bends, deletes and pastes, whose cost is the one large
+island they change, stayed within noise. A via move's finish varies from 40 to 140 ms in every build.
+What is left of a local edit's total (60–75 ms of a part move's 110) is outside the solve and finish:
+the signatures, preparation and the commit plan.
+
+Still a full solve:
+
+- A track that crosses or touches a pour outline: 1.6–1.8 s on the benchmark board when it
+  crosses two large pours, the same as before. Making this local needs an edge-level splice of
+  long rings. Approved by the owner on 2026-11-27, being built on `perf/pour-outline-local`, no
+  results yet.
+- Remove Necks and Outlines Only pours, second stage.
+- Pours whose last solve needed snap rounding.
+- Pour outline, clearance and rule edits, by nature.
+
+How often the outline case happens: on the benchmark board 3.6% of items lie within 0.2 mm of a
+pour outline. A track ending 0.1 mm short of the outline stays local; one that crosses it does
+not. So it is rare inside a pour and usual along the split line between two pours.
+
+Correctness: `tests/pcb/pour-area-random.cjs` applies seeded random edits through the undo store
+and requires every region to match a full repour byte for byte. It also drives the live worker's
+own jobs, including the follow-up jobs for dependent pours, and requires that no pour is left
+stale.
+
+Constraint found on the way: reuse inside area sessions relies on the worker's mirror replacing a
+changed row with a new object. Calling `repourAll` with `area` on editor objects edited in place
+is not safe. Nothing in the editor does that today.
+
 ## Not in this design
 
 - Tile pieces in the saved file.
@@ -225,6 +291,9 @@ edit burns, not the longest task.
   Antialiasing noise of at most 3 levels is allowed: a part fill of a big region can round an edge
   pixel differently from the whole path (it always could; filling the whole path clipped instead is
   exact but costs about 7.5 ms per region and patch).
+- `tests/pcb/pour-area-random.cjs` (stage 3): seeded random edits through the undo store, every
+  refill (area sessions, and the live worker's own jobs with their follow-up jobs) equal to a full
+  repour byte for byte; `--large` adds the benchmark board.
 - `tests/project/autosave-copper.cjs`: drafts of copper held as runs write a run once, read back as the
   project's text, are swept with their drafts; drafts of text chunks, and a draft store written by the
   base branch, read back unchanged.
@@ -239,4 +308,5 @@ edit burns, not the longest task.
   uses one fan buffer per region: its caches do not keep the runs a new region shares.
 - WKWebView and the WebAssembly core; neither was available on the measuring machine.
 - A draft with run records cannot be read by a build before this one.
-- What triggers the full-solve fallback for a part move (stage 3).
+- Stage 3 on a real board, and with the WebAssembly core doing the full solves; its numbers are the
+  JS core in Node.
