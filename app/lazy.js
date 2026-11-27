@@ -288,7 +288,7 @@ globalThis.AtriumLazy = (() => {
     AtriumSchematicOutput: {scripts: ["formats/schematic-output.js"], deps: ["AtriumSchCurves"]},
     AtriumKiCad: {scripts: ["formats/kicad-export.js", "formats/kicad-schematic.js"], deps: ["AtriumSchematicOutput", "AtriumRules", "AtriumPCBDraw", "AtriumZip", "AtriumVariants", "AtriumPCBTextRich"]},
     AtriumRevisionReview: {scripts: ["history/revision-review.js", "history/revision-present.js", "history/revision-geometry.js", "history/revision-panel.js"], deps: ["AtriumDiff", "AtriumLandContours"]},
-    AtriumDesignReview: {scripts: ["history/design-review.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput"]},
+    AtriumDesignReview: {scripts: ["history/design-review.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput", "AtriumConnectivity"]},
     AtriumZip: {scripts: ["core/zip.js"]},
     AtriumFormat2Models: {scripts: ["formats/sexpr.js", "vendor/zipjs-deflate.js", "formats/format-2-models.js"], deps: ["AtriumZip", "AtriumSourceFile"]},
     AtriumBOM: {scripts: ["formats/bom.js", "formats/bom-optimiser.js"], css: ["ui/spreadsheet.css", "formats/bom.css", "formats/bom-optimiser.css"], deps: ["AtriumZip", "AtriumVariants", "AtriumMultichannel"]},

@@ -67,6 +67,8 @@ assert.deepEqual(L.forAction("route", "pcb"), ["AtriumRouter"], "interactive rou
 for (const a of ["repour", "repour-selected", "drc", "connectivity"])
   assert.ok(L.forAction(a, "pcb").includes("AtriumEngine"), a + " requests its board kernel");
 assert.equal(L.forAction("select", "pcb"), null);
+// Design Review's Board connectivity dialog reads the solver's result (ctx.connections), so it loads the solver.
+assert.ok(L.files("AtriumDesignReview").includes("checks/connectivity.js"), "Design Review loads the connectivity solver");
 
 // Eager modules must not capture a lazy global when they load (it would stay undefined).
 const lazyGlobals = new Set(L.modules().concat(["AtriumDiffPair", "AtriumFanout", "AtriumAPI", "AtriumScripting", "AtriumBOMOptimiser", "AtriumSCH", "AtriumPCB", "AtriumSourceFile", "CFB"]));

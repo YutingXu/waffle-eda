@@ -518,12 +518,13 @@ globalThis.AtriumUIKit = (() => {
     if (!from || !to || !from.isConnected || root.matches("[data-theme=hc],[data-theme-id=hc-light]") ||
       !globalThis.AtriumMotionUI?.moves?.(event)) return;
     const box = g.getBoundingClientRect(), a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
-    const place = r => { g.style.setProperty("--ui-thumb-x", (r.left - box.left - g.clientLeft) + "px"); g.style.setProperty("--ui-thumb-w", r.width + "px"); };
+    const place = r => { g.style.setProperty("--ui-thumb-x", (r.left - box.left - g.clientLeft) + "px"); g.style.setProperty("--ui-thumb-s", String(r.width / (a.width || 1))); };
+    g.style.setProperty("--ui-thumb-w", a.width + "px");
     clearTimeout(segmentTimers.get(g));
     place(a); g.dataset.sliding = "";
     void g.offsetWidth; // the thumb starts on the old choice
     place(b); g.dataset.sliding = "go";
-    const done = () => { delete g.dataset.sliding; g.style.removeProperty("--ui-thumb-x"); g.style.removeProperty("--ui-thumb-w"); };
+    const done = () => { delete g.dataset.sliding; g.style.removeProperty("--ui-thumb-x"); g.style.removeProperty("--ui-thumb-w"); g.style.removeProperty("--ui-thumb-s"); };
     const ms = parseFloat(globalThis.getComputedStyle(root).getPropertyValue("--motion-toggle")) || 0;
     segmentTimers.set(g, setTimeout(done, ms + 40));
   }

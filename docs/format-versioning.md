@@ -77,7 +77,7 @@ The immutable `schematic-curves` project carries the optional schematic fields t
 keeps as ordinary item and shape values: a symbol circle, a symbol editor arc, ellipses
 (`ellipse {a, b, sweep}`) and Bézier curves (`bezier {controlPoints}`) beside their points, a sheet
 arc in the board form, and the signal, polarity, tags, netClass and diffPair directive fields on wires
-and net labels. Releases 0.8.0 and 0.8.1 open, draw and re-save it with those fields intact.
+and net labels. Releases 0.8.0 to 0.8.2 open, draw and re-save it with those fields intact.
 [Physical project](../tests/fixtures/format-2/schematic-curves) · [Curves](../app/schematic/sch-curves.js)
 
 ## Butter optional project metadata
