@@ -1146,7 +1146,9 @@ globalThis.AtriumDock = (() => {
     D.addEventListener("keydown", partKey, true);
     D.addEventListener("click", tabClick, true);
     D.addEventListener("focusin", e => {const p = panelAt(e.target); if (p) lastFocused = p.id;});
-    globalThis.addEventListener("resize", revealActiveTabs);
+    // The window's own resize. The resize event the dock sends after each sash step changes only strips the
+    // strip observer already fits: measuring every strip again there cost 3 ms per keyboard step.
+    globalThis.addEventListener("resize", e => {if (e.isTrusted) revealActiveTabs();});
     kindObserver.observe(D.body, {attributes: true, attributeFilter: ["data-kind"]});
     bodyObserver.observe(D.body, {attributes: true, attributeFilter: ["class"]});
     globalThis.AtriumWorkbench?.onOpen?.(() => syncMenus());

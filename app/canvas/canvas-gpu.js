@@ -240,12 +240,13 @@ uniform vec4 u_rgba; out vec4 o; void main(){o=u_rgba;}`],
     // A texture over the whole target: the union texture composited with an alpha.
     // u_xf = (k, tx, ty): the texture as drawn for an earlier camera, moved to this one (device px, top-left).
     // u_wrap: a panned text band (scrollText): moved by whole pixels, its texels addressed modulo its size.
+    // u_size: the view, u_tsize: the texture (a resizing pane composites textures drawn for its old size).
     copy: [HEAD + `void main(){vec2 p=vec2(gl_VertexID==1?3.:-1.,gl_VertexID==2?3.:-1.);gl_Position=vec4(p,0.,1.);}`, HEAD + `
-uniform sampler2D u_tex; uniform float u_alpha, u_straight, u_wrap; uniform vec3 u_xf; uniform vec2 u_size; uniform vec4 u_maskInk; out vec4 o;
+uniform sampler2D u_tex; uniform float u_alpha, u_straight, u_wrap; uniform vec3 u_xf; uniform vec2 u_size, u_tsize; uniform vec4 u_maskInk; out vec4 o;
 void main(){
-  vec2 d=vec2(gl_FragCoord.x,u_size.y-gl_FragCoord.y), s=(d-u_xf.yz)/u_xf.x, t=vec2(s.x/u_size.x,1.-s.y/u_size.y);
+  vec2 d=vec2(gl_FragCoord.x,u_size.y-gl_FragCoord.y), s=(d-u_xf.yz)/u_xf.x, t=vec2(s.x/u_tsize.x,1.-s.y/u_tsize.y);
   vec4 c;
-  if(u_wrap>.5){ivec2 z=ivec2(u_size),q=ivec2(mod(floor(s),u_size));c=texelFetch(u_tex,ivec2(q.x,z.y-1-q.y),0);}
+  if(u_wrap>.5){ivec2 z=ivec2(u_tsize),q=ivec2(mod(floor(s),u_tsize));c=texelFetch(u_tex,ivec2(q.x,z.y-1-q.y),0);}
   else{if(t.x<0.||t.y<0.||t.x>1.||t.y>1.)discard;c=texture(u_tex,t);}if(u_maskInk.a>.5)c.rgb=u_maskInk.rgb;if(u_straight>.5)c.rgb*=c.a;o=c*u_alpha;
 }`],
     // One opaque, one-device-pixel quad per line, already rounded in Canvas coordinates.
@@ -1104,7 +1105,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       return null;
     }
     if (list !== doc.pcbDrawing?.pours || opts.transientGeometry || G.AtriumPourAnim?.active?.(doc)) return null;
-    const [,,scale,,,,dpr] = cam, gl = st.gl, w = st.canvas.width, h = st.canvas.height;
+    const [,,scale,,,,dpr] = cam, gl = st.gl, w = I.canvas.width, h = I.canvas.height;
     const paintKey = [appearanceVersion, ...cam, w, h, opts.highlight, opts.layer, opts.layerMode, pourLodKey(scale,dpr)].join("|");
     const key = JSON.stringify([paintKey,[...(opts.hidden || [])],[...(text?.exact || [])]]);
     // Visibility chooses the layer and its regions; surviving masks still use the same paint.
@@ -1406,27 +1407,31 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return st;
   }
-  function place(I, st, width, height) {
-    const c = I.canvas, g = st.canvas;
-    if (g.width !== c.width || g.height !== c.height) {
-      freeViewport(st);
-      G.AtriumCanvas.resizeBacking(g,c.width,c.height);
+  // The view (the 2D canvas's device size) is drawn in the bottom-left corner of the board layer's backing.
+  // A resizing pane (camera-only frames) keeps a backing that holds it and grows one with room to spare:
+  // reallocating a multisampled backing costs about a frame (14 ms for a Retina pane on Apple M5 Pro).
+  // A frame at rest trims it to the view. The retained layers stay: a resize is drawn from them like a pan.
+  function place(I, st, width, height, resizing) {
+    const c = I.canvas, g = st.canvas, W = c.width, H = c.height;
+    if (W > g.width || H > g.height || !resizing && (g.width !== W || g.height !== H)) {
+      const room = (n, max) => resizing ? Math.min(max, n + (n >> 2)) : n;
+      G.AtriumCanvas.resizeBacking(g, room(W, st.maxW), room(H, st.maxH));
       st.backingValid = false;
       st.checkMemory = true;
     }
     if (!st.backingValid) {
-      if (st.gl.drawingBufferWidth !== c.width || st.gl.drawingBufferHeight !== c.height) return false;
+      if (st.gl.drawingBufferWidth !== g.width || st.gl.drawingBufferHeight !== g.height) return false;
       st.backingValid = true;
     }
-    // The board layer sits exactly under the canvas that carries every overlay (DRC markers, DNP crosses,
-    // selection, net names). A canvas pinned by its own left/top (editor.js holds a costly pane centred in
-    // its pane during a sash drag) moves with the pane without a frame: the layer takes the same rule, so
-    // the board moves with it. A pixel offset taken from the canvas would leave the overlays sliding off it.
-    const pinned = c.style.position === "absolute", left = pinned && c.style.left || c.offsetLeft + "px", top = pinned && c.style.top || c.offsetTop + "px";
-    const key = c.width + "x" + c.height + "/" + width + "x" + height + "/" + left + "," + top;
+    const key = g.width + "x" + g.height + "/" + W + "x" + H + "/" + width + "x" + height + "/" + c.offsetLeft + "," + c.offsetTop;
     if (st.place !== key) {
+      // The top layer's pixels (moveOverlay, scrollOverlay) were for the old size.
+      if (st.place.split("/")[1] !== W + "x" + H) { releaseOverlayCopy(st); st.ovAt = null; }
       st.place = key;
-      g.style.left = left; g.style.top = top; g.style.width = width + "px"; g.style.height = height + "px";
+      // In the 2D canvas's own CSS pixels per device pixel: the view's part lies exactly under it, the rest is clipped.
+      const kx = width / W, ky = height / H, right = (g.width - W) * kx, above = (g.height - H) * ky;
+      g.style.left = c.offsetLeft + "px"; g.style.top = c.offsetTop - above + "px"; g.style.width = g.width * kx + "px"; g.style.height = g.height * ky + "px";
+      g.style.clipPath = right || above ? "inset(" + above + "px " + right + "px 0 0)" : "";
     }
     if (!st.shown) { g.style.display = "block"; I.canvas.style.position = "relative"; st.shown = true; }
     return true;
@@ -1696,7 +1701,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   function draw(I, st, doc, defs, opts, cam, c, text, list, coverage, settledWires) {
     const [cx, cy, scale, flipped, width, height, dpr] = cam, gl = st.gl, S = st.scene, P = st.prog, sys = PCB.system;
     const kinds = PCB.opacity, layerAlpha = PCB.layerAlpha || (() => 1);
-    const W = st.canvas.width, H = st.canvas.height, k = scale * dpr;
+    // The view's device size: the backing can be larger while a pane resizes (place).
+    const W = I.canvas.width, H = I.canvas.height, k = scale * dpr;
     const dx = (width / 2 + 8) / scale, dy = (height / 2 + 8) / scale;
     const x0 = cx - dx, x1 = cx + dx, y0 = cy - dy, y1 = cy + dy, B = c.bounds;
     const zoomed = B && (x0 > B[0] || y0 > B[1] || x1 < B[2] || y1 < B[3]);
@@ -1888,7 +1894,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const u = use(P.copy);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, U.tex); gl.uniform1f(u.u_alpha, alpha); gl.uniform1f(u.u_straight, 0);
       gl.uniform4f(u.u_maskInk,0,0,0,0);
-      gl.uniform3f(u.u_xf, 1, 0, 0); gl.uniform1f(u.u_wrap, 0);
+      gl.uniform3f(u.u_xf, 1, 0, 0); gl.uniform1f(u.u_wrap, 0); gl.uniform2f(u.u_tsize, W, H);
       gl.bindVertexArray(st.empty); gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     if (substrate) segs(S.edge, sys.edge, 1);
@@ -1969,6 +1975,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (band.ink) { const v = rgb(band.ink); gl.uniform4f(u.u_maskInk,v[0],v[1],v[2],1); }
       else gl.uniform4f(u.u_maskInk,0,0,0,0);
       const xf = text?.xf || [1, 0, 0]; gl.uniform3f(u.u_xf, xf[0], xf[1], xf[2]); gl.uniform1f(u.u_wrap, text?.wrap ? 1 : 0);
+      gl.uniform2f(u.u_tsize, text?.w || W, text?.h || H);
       gl.bindVertexArray(st.empty); gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     // Draw each selected track's edit handles after its segments. Later artwork on the
@@ -2181,7 +2188,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // area: [x, y, w, h] device pixels: paint and upload only that part of T's bands (an idle slice of the
   // text for a new camera, textSlices), never answering from T's key.
   function textLayer(I, st, doc, defs, opts, cam, V, pours, T = st.text, area = null, timing) {
-    const [cx, cy, scale, flipped, width, height, dpr] = cam, gl = st.gl, S = st.scene, W = st.canvas.width, H = st.canvas.height;
+    const [cx, cy, scale, flipped, width, height, dpr] = cam, gl = st.gl, S = st.scene, W = I.canvas.width, H = I.canvas.height;
     let sig = "";
     for (const k in PCB.system) sig += PCB.system[k];
     for (const l of ["Silk", "Bottom silk", "Top", "Bottom", "Mechanical", "Keepout", ...S.layers.keys()]) sig += PCB.color(l);
@@ -2549,14 +2556,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const copy = own && !prior?.painting ? prior?.copy : null;
     if (copy) prior.copy = null;
     cancelSlices(st, name);
-    const W = st.canvas.width, H = st.canvas.height, rev = st.scene?.rev, at = I.cam().join();
+    const W = I.canvas.width, H = I.canvas.height, rev = st.scene?.rev, at = I.cam().join();
     const job = st[name] = {at, T: {key: null}, y: 0, rows: 16, V: null, step, estimate: 1, cancel: null, copy};
     const queue = () => queueTextSlice(job, own);
     function step(dispatch) {
       job.cancel = null;
       if (st[name] !== job) return;
       const current = views.get(I) === st && !st.lost && st.shown && visible() && st.scene?.rev === rev &&
-        I.cache?.doc === doc && st.canvas.width === W && st.canvas.height === H && (own || canPrepaintWide(I));
+        I.cache?.doc === doc && I.canvas.width === W && I.canvas.height === H && (own || canPrepaintWide(I));
       if (!current || I.cam().join() !== at) {
         // Abandon old rows. If only the camera changed, a queued gesture frame may already own the repaint.
         cancelSlices(st, name); st.stats.sliceAbandoned = (st.stats.sliceAbandoned || 0) + 1;
@@ -2839,14 +2846,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   // Clip-free reuse of bands from the exact camera or the wider camera built
   // at rest. A band can own a whole ordered copper layer as well as text.
+  // E's view (E.width x E.height) at the camera (cx, cy, scale, width, height): a resized pane keeps the centre.
   function covers(E, cx, cy, scale, flipped, width, height, artworkBounds) {
     const k = scale / E.scale, f = flipped ? -1 : 1;
     if (k > 3) return false;
-    const tx = width / 2 * (1 - k) + f * (E.cx - cx) * scale, ty = height / 2 * (1 - k) + (E.cy - cy) * scale;
-    if (tx <= .5 && ty <= .5 && tx + width * k >= width - .5 && ty + height * k >= height - .5) return true;
+    const tx = (width - k * E.width) / 2 + f * (E.cx - cx) * scale, ty = (height - k * E.height) / 2 + (E.cy - cy) * scale;
+    if (tx <= .5 && ty <= .5 && tx + E.width * k >= width - .5 && ty + E.height * k >= height - .5) return true;
     // A raster that already contains the finished artwork may expose more
     // workspace without being replaced by a lower-resolution version.
-    const dx = (width / 2 - 8) / E.scale, dy = (height / 2 - 8) / E.scale;
+    const dx = (E.width / 2 - 8) / E.scale, dy = (E.height / 2 - 8) / E.scale;
     return artworkBounds && E.cx - dx <= artworkBounds[0] && E.cx + dx >= artworkBounds[2] &&
       E.cy - dy <= artworkBounds[1] && E.cy + dy >= artworkBounds[3];
   }
@@ -2883,7 +2891,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           restorePixels(I.ctx, keep);
           if (!foreground) keep.width = keep.height = 1;
         }
-        st.exact = {...st.exact, cx: cam[0], cy: cam[1], scale: cam[2]}; st.ovAt = null; releaseOverlayCopy(st);
+        st.exact = {...st.exact, cx: cam[0], cy: cam[1], scale: cam[2], width: cam[4], height: cam[5]}; st.ovAt = null; releaseOverlayCopy(st);
       }
       // The exact frame: its text layer is current now, so it only composites (and draws the top layer).
       repaint(I);
@@ -3206,7 +3214,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (cap !== st.checkedCap) st.checkMemory = true;
       if (w > st.maxW || h > st.maxH) return rejectMemory(I, st, doc, "the viewport exceeds the WebGL backing limit", "viewport");
       if (backing > cap) return rejectMemory(I, st, doc, memoryLimit(backing, cap), "viewport");
-      if (!place(I, st, width, height)) return rejectMemory(I, st, doc, "the GPU could not allocate the viewport backing", "driver");
+      if (!place(I, st, width, height, !!gesture)) return rejectMemory(I, st, doc, "the GPU could not allocate the viewport backing", "driver");
       update(st, c, active, transient);
       if (!memory(I, st, doc)) return false;
       // A camera-only frame can move the retained text bands and world overlay
@@ -3216,23 +3224,25 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       // A completed wheel glide knows its final camera. Other gestures settle after 140 ms of stillness.
       // Present the retained frame first, then sharpen its text in cancellable slices.
       let settling = (st.settling || gesture === "wheel-end") && !opts.noReuse; st.settling = false;
-      if (settling && E && E.cx === cx && E.cy === cy && E.scale === scale && !(T.valid && (T.valid[0] || T.valid[1]))) settling = false;
+      if (settling && E && E.cx === cx && E.cy === cy && E.scale === scale && E.width === width && E.height === height && !(T.valid && (T.valid[0] || T.valid[1]))) settling = false;
       // An overlay-only repaint can reuse the pending camera. Artwork or visibility changes need a fresh draw.
       const pending = !gesture && !settling && opts.reuseBase && st.textJob?.at === cam.join() && !opts.noReuse;
       // A moving or settling camera owns these refreshes. Its last completed wide copy is still usable.
       if ((gesture || settling || pending) && (st.wideJob || st.wideText)) cancelWide(st);
-      if ((gesture || settling || pending) && E && E.doc === doc && E.rev === c.rev && E.flipped === flipped && E.width === width && E.height === height && E.dpr === dpr && E.pourList === list &&
+      // A resized pane is such a frame too (the editor's camera-only frame): the view's size can differ from E's.
+      if ((gesture || settling || pending) && E && E.doc === doc && E.rev === c.rev && E.flipped === flipped && E.dpr === dpr && E.pourList === list &&
         (!T.pours || T.pours === list) && !opts.noReuse) {
         st.stats.gestureScale = 1;
+        const sized = E.width === width && E.height === height;
         // A pan at the exact frame's scale: its layers moved by whole device pixels, the uncovered strips drawn.
-        if (scale === E.scale) {
+        if (scale === E.scale && sized) {
           const f = flipped ? -1 : 1, X = Math.round(f * (E.cx - cx) * scale * dpr), Y = Math.round((E.cy - cy) * scale * dpr);
           const hasText = T.bands?.length && T.key && !T.empty, t1 = now();
           const textReady = !hasText || scrollText(I, st, doc, defs, opts, T, X, Y);
           const textEnd = stages && hasText && textReady ? now() : t1;
           if (textReady && scrollOverlay(I, st, doc, defs, opts, E, X, Y, frame)) {
             const overlayEnd = stages ? now() : 0;
-            draw(I, st, doc, defs, opts, cam, c, hasText ? {bands: T.bands, exact: T.exact, pours: T.pours, xf: [1, X, Y], wrap: true} : null, list);
+            draw(I, st, doc, defs, opts, cam, c, hasText ? {bands: T.bands, exact: T.exact, pours: T.pours, w: T.w, h: T.h, xf: [1, X, Y], wrap: true} : null, list);
             const drawEnd = stages ? now() : 0;
             if (!memory(I, st, doc)) return false;
             afterMove(I, st, doc, defs, opts, list, settling, gesture);
@@ -3264,13 +3274,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         if (L) {
           const k = scale / L.scale, f = flipped ? -1 : 1, LT = L.text;
           st.stats.gestureScale = k;
-          const tx = width / 2 * (1 - k) + f * (L.cx - cx) * scale, ty = height / 2 * (1 - k) + (L.cy - cy) * scale;
+          // L's view (its own size) scaled by k about the camera: a resize keeps the centre where it was.
+          const tx = (width - k * L.width) / 2 + f * (L.cx - cx) * scale, ty = (height - k * L.height) / 2 + (L.cy - cy) * scale;
           const t1 = now();
-          draw(I, st, doc, defs, opts, cam, c, LT.bands?.length && LT.key && !LT.empty ? {bands: LT.bands, exact: LT.exact, pours: LT.pours, xf: [k, tx * dpr, ty * dpr]} : null, list);
+          draw(I, st, doc, defs, opts, cam, c, LT.bands?.length && LT.key && !LT.empty ? {bands: LT.bands, exact: LT.exact, pours: LT.pours, w: LT.w, h: LT.h, xf: [k, tx * dpr, ty * dpr]} : null, list);
           const drawEnd = stages ? now() : 0;
           if (!memory(I, st, doc)) return false;
           const overlayStart = stages ? now() : 0;
-          if (k === 1 && L.text === T && !E.exactWires) moveOverlay(I, st, k, tx * dpr, ty * dpr);
+          // The canvas still holds the top layer to move unless the view was resized (its backing was cleared).
+          if (k === 1 && L.text === T && !E.exactWires && sized) moveOverlay(I, st, k, tx * dpr, ty * dpr);
           else {
             // Repaint the active layer's world overlay before minification
             // makes its screen-width strokes subpixel. Keep the bands intact.
@@ -3422,8 +3434,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   function composite(I) {
     const [V, st] = I ? [I, views.get(I)] : [...views].find(([, s]) => s.shown) || [...views][0] || [];
     if (!st || !st.shown) return null;
-    const c = G.document.createElement("canvas"); c.width = st.canvas.width; c.height = st.canvas.height;
-    const g = c.getContext("2d"); g.drawImage(st.canvas, 0, 0); g.drawImage(V.canvas, 0, 0);
+    const c = G.document.createElement("canvas"), W = c.width = V.canvas.width, H = c.height = V.canvas.height;
+    // The view is the bottom-left corner of the board layer's backing (place).
+    const g = c.getContext("2d"); g.drawImage(st.canvas, 0, st.canvas.height - H, W, H, 0, 0, W, H); g.drawImage(V.canvas, 0, 0);
     return c;
   }
   // Drops every view's GPU state (benchmarks: the next frame is a first draw).

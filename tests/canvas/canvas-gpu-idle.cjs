@@ -1916,7 +1916,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     let done = 0, repaints = 0;
     const gl = {deleteTexture(){}}, st = {canvas,shown:true,scene:{rev:1},gl,commandEpoch:0,
       stats:{textSliceRows:0,textSliceWorkMs:0}};
-    const I = {name:ua,ctx:canvas.getContext(),cache:{doc:board},cam:()=>camera,
+    const I = {name:ua,canvas,ctx:canvas.getContext(),cache:{doc:board},cam:()=>camera,
       withCamera(x,y,s,fn){fn();},repaint(){repaints++;},onRows(y,h){
         canvas.rows.fill(17,readback?y:0,readback?y+h:canvas.height);
       }};

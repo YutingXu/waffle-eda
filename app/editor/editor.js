@@ -74,52 +74,16 @@
     p.view.pausePaint?.();
   }
   const splitKey="atrium-split-v1";
-  // Sash drags (dock or split). A pane whose full repaint is cheap follows the sash live: paneObserver redraws
-  // it in the frame of each layout change. A pane whose repaint costs more than PIN_MS (a dense board)
-  // would drop frames doing that, so it is pinned instead: its canvas, and the GPU board layer over it,
-  // keep their size with their centre where it was in the pane (the camera keeps the centre too), the pane
-  // clips them, and the sash's release unpins them for one exact repaint.
-  const PIN_MS=12;let sashFrozen=null;
-  function recordPaintCost(p,d,cost,reused){
-    // A resize invalidates the retained base. Keep the cost of rebuilding it across cached paints
-    // and tab switches, while a cheap full paint of another document can still resize live.
-    const costs=p.resizeCosts??=new WeakMap();
-    costs.set(d,reused?Math.max(cost,costs.get(d)||0):cost);
-  }
-  function freezePanes(extraWidth=0,extraHeight=0){
-    if(sashFrozen)return;
-    sashFrozen=[];
-    for(const p of panes){
-      const c=p.canvas,stage=c?.parentElement;
-      const d=p===activePane?doc():docById(p.docId);
-      if(!c?.isConnected||p.covered||!stage||!(p.resizeCosts?.get(d)>PIN_MS))continue;
-      const s=stage.getBoundingClientRect();
-      for(const n of [c,stage.querySelector(":scope>.atrium-gpu-board")]){
-        if(!n||getComputedStyle(n).display==="none")continue;
-        const r=n.getBoundingClientRect();if(!r.width||!r.height)continue;
-        sashFrozen.push([n,n.style.cssText]);
-        const x=`calc(50% + ${r.left-s.left-(s.width+extraWidth)/2}px)`;
-        const y=`calc(50% + ${r.top-s.top-(s.height+extraHeight)/2}px)`;
-        n.style.cssText+=`;position:absolute;margin:0;width:${r.width+extraWidth}px;height:${r.height+extraHeight}px;left:${x};top:${y}`+
-          `;left:round(nearest,${x},1px);top:round(nearest,${y},1px)`;
-      }
-    }
-  }
-  // The GPU board layer keeps the canvas's pin: its old size would stretch the board under the overlays when
-  // the released canvas keeps the pinned size (no repaint follows); canvas-gpu.js places it again on the next frame.
-  function thawPanes(){if(!sashFrozen)return;for(const [n,css] of sashFrozen)if(!n.classList.contains("atrium-gpu-board"))n.style.cssText=css;sashFrozen=null;}
-  document.addEventListener("pointerdown",e=>{
-    const sash=e.button===0&&e.target.closest?.(".dock-sash,#canvas-sash");
-    if(!sash)return;
-    // Reserve the largest pane the dock can reveal, then hold that paint.
-    const kind=sash.dataset.sash, bounds=sash.parentElement.getBoundingClientRect();
-    const min=Number(sash.getAttribute("aria-valuemin"));
-    const extraWidth=kind==="left"||kind==="right" ? Math.max(0,bounds.width-min) : 0;
-    const extraHeight=kind==="bottom" ? Math.max(0,bounds.height-min) : 0;
-    freezePanes(extraWidth,extraHeight);
-  },true);
-  addEventListener("resize",thawPanes);
   let homeFit=null,openFit=null;
+  // A pane whose size changed with nothing else (a dock or split sash, the window, a panel shown or hidden)
+  // draws a retained frame: the view keeps its centre, so the renderers move the pixels they hold, paint
+  // what a larger pane uncovers, and draw the exact frame once the size has rested (as after a pan).
+  function paneResized(p,rect){
+    const quiet=p.size?.[0]&&p.size[1]&&(p===activePane?!activeDirty:p.sig===otherSig(p));
+    p.size=[rect.width,rect.height];p.view?.resized?.(rect);
+    if(quiet)p.view?.moving?.();
+    p.version++;if(p===activePane)activeDirty=true;
+  }
   // A pane that changes size (a dock or split sash, a panel opening, the window) is redrawn in this
   // same frame: the observer runs after layout and before paint, so the canvas never shows a stretched,
   // cleared or stale bitmap, or a void beside it, for one frame.
@@ -129,7 +93,7 @@
       const p=panes.find(q=>q.canvas===e.target);if(!p)continue;
       const w=e.contentRect.width,h=e.contentRect.height;
       if(p.size&&p.size[0]===w&&p.size[1]===h)continue; // this frame's paint already measured and drew it
-      p.size=[w,h];p.view?.resized?.(e.contentRect);p.version++;if(p===activePane)activeDirty=true;
+      paneResized(p,e.contentRect);
       if(homeFit&&p===panes[0]&&e.contentRect.width&&e.contentRect.height){
         const target=homeFit;homeFit=null;
         if(p===activePane&&doc()===target&&starter)fit(e.contentRect);
@@ -148,20 +112,20 @@
     const base=l=>l.split("@")[0],links=new Set();for(const i of source.items)if(i.link&&ids.has(i.id))links.add(base(i.link));
     return links.size?target.items.filter(i=>i.link&&links.has(base(i.link))).map(i=>i.id):[];
   }
+  const otherSig=p=>[revision,p.docId,highlight,showUnrouted,grid,selectionVersion,p.version,navVersion].join("|");
   function renderOther(trace){
     const p=otherPane(),d=p&&!p.covered&&docById(p.docId);if(!d)return;
-    const same=d===doc(),sig=[revision,d.id,highlight,showUnrouted,grid,selectionVersion,p.version,navVersion].join("|");
+    const same=d===doc(),sig=otherSig(p);
     if(!same&&sig===p.sig)return;
-    p.sig=sig;const t=performance.now();
+    p.sig=sig;
     const st=p.state,ids=same?selectedIds:new Set(linkedIds(d,doc(),selectedIds));
     const schematicHighlightIds=schematicHighlight(d)?.ids;
     const netByWire=d.kind!=="pcb"&&highlight&&!schematicHighlightIds?nets(d).byWire:undefined;
     const opts={hidden:st.hidden,layer:st.layer,layerMode:st.layerMode,grid,selected:same?selected:ids.values().next().value??null,selectedIds:ids,highlight,showUnrouted,
       transientGeometry:same&&!!drag?.before,routing:false,width:routeWidth,netByWire,schematicHighlightIds,...navRender(d,{active:false,same}),editorPane:true};
     const started=trace?performance.now():0;
-    const reused=p.view.render(d,defs,opts);
-    const end=performance.now();recordPaintCost(p,d,end-t,reused);
-    if(trace&&p.size?.[0]&&p.size[1])trace.draw(p.canvas,started,end);
+    p.view.render(d,defs,opts);
+    if(trace&&p.size?.[0]&&p.size[1])trace.draw(p.canvas,started,performance.now());
   }
   function activatePane(p){
     if(!p?.view||p===activePane)return;
@@ -217,7 +181,7 @@
       };
       // One layout per frame; the panes then redraw in that frame (paneObserver).
       const follow=ev=>{last={clientX:ev.clientX,clientY:ev.clientY};if(!raf)raf=requestAnimationFrame(apply);};
-      const done=()=>{if(raf)cancelAnimationFrame(raf);apply();thawPanes();sash.classList.remove("is-dragging");sash.removeEventListener("pointermove",follow);sash.removeEventListener("pointerup",done);sash.removeEventListener("pointercancel",done);saveSplit();};
+      const done=()=>{if(raf)cancelAnimationFrame(raf);apply();sash.classList.remove("is-dragging");sash.removeEventListener("pointermove",follow);sash.removeEventListener("pointerup",done);sash.removeEventListener("pointercancel",done);saveSplit();};
       sash.addEventListener("pointermove",follow);sash.addEventListener("pointerup",done);sash.addEventListener("pointercancel",done);
     });
     sash.addEventListener("dblclick",()=>{splitState.ratio=.5;applySplitLayout();saveSplit();});
@@ -636,7 +600,7 @@
       const c=p.canvas;if(!p.view||!c?.isConnected)continue;
       const r=c.getBoundingClientRect(),w=r.width,h=r.height;
       if(p.size&&p.size[0]===w&&p.size[1]===h)continue;
-      p.size=[w,h];p.view.resized?.(r);p.version++;if(p===activePane)activeDirty=true;
+      paneResized(p,r);
     }
   }
   function paintFrame(launch=false){
@@ -645,10 +609,7 @@
     measurePanes();fitRevealed();globalThis.Atrium3D?.refresh?.();
     if(activeDirty&&!activePane.covered){
       activeDirty=false;
-      if(!in3D(activePane)){
-        const p=activePane,d=doc(),t=performance.now(),reused=renderActive(trace);
-        recordPaintCost(p,d,performance.now()-t,reused);
-      }
+      if(!in3D(activePane))renderActive(trace);
     }
     if(!in3D(otherPane()))renderOther(trace);
     if(viewportVisible){requestBoardRenderer();navEmit("frame");}
