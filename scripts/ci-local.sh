@@ -67,7 +67,11 @@ e2e_full() {
     node=${ATRIUM_CI_CACHE:-$HOME/.cache/atrium-ci}/node-$ver/bin/node
     [[ -x $node ]] || PREFIX=${node:h:h} sh scripts/ci/install-node.sh >&2 || return 1
   fi
-  python3 tests/e2e/run.py --node $node --fetch --mutations
+  local rc=0
+  python3 tests/e2e/run.py --node $node --fetch --mutations || rc=$?
+  # Repour the fetched boards against the fill their tools stored (tests/formats/pour-oracle.cjs).
+  $node tests/formats/pour-oracle.cjs --require-corpus || rc=1
+  return $rc
 }
 rust_build() {
   local cargo=${CARGO:-}
