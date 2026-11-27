@@ -144,6 +144,48 @@ const pinAt = (doc, defs, ref, n, kind) => {
   assert.deepEqual(tracks[0].points, [[0, 5.08], [7.62, 10.16]]);
   assert.ok(result.notes.some(note => /malformed required values/.test(note)));
 }
+// Pro pad nets name their component by id, so a PADNET row may come before the COMPONENT row.
+{
+  const pro = (name, rows) => I.readSet([{name, bytes: enc.encode(rows.map(r => JSON.stringify(r)).join("\n"))}])[0];
+  for (const net of [["PADNET", "n1", 0, "c1", "1", "SIG"], ["PAD_NET", "c1", "1", "SIG", "p1"]]) {
+    const comp = ["COMPONENT", "c1", 0, 1, 0, 0, 0, {}];
+    for (const rows of [[net, comp], [comp, net]]) {
+      const r = pro("nets.epcb", [["DOCTYPE", "PCB", "1.1"], ...rows]);
+      assert.deepEqual(r.documents[0].items.find(i => i.kind === "part").pinNets, {1: "SIG"}, net[0] + " in either order");
+    }
+  }
+  // A value that is present but not a number rejects its record instead of reading as 0.
+  const malformed = r => assert.ok(r.notes.some(note => /malformed required values/.test(note)));
+  const wire = pro("wire.esch", [["DOCTYPE", "SCH", "1.1"], ["WIRE", "w1", [[0, 0, 10, 0, "X", 30, 40, 30]], "st"], ["WIRE", "w2", [[0, 0, 10, 0]], "st"]]);
+  assert.deepEqual(wire.documents[0].items.filter(i => i.kind === "wire").map(w => w.points), [[[0, 0], [2.54, 0]]]);
+  malformed(wire); valid(wire);
+  const line = pro("line.epcb", [["DOCTYPE", "PCB", "1.1"], ["LINE", "l1", 0, "N", 1, 10, 10, "bad", 20, 10], ["LINE", "l2", 0, "N", 1, 0, 0, 10, 0, 10]]);
+  assert.deepEqual(line.documents[0].items.filter(i => i.kind === "track").map(t => t.points), [[[0, 0], [.254, 0]]]);
+  malformed(line);
+  const path = pro("path.epcb", [["DOCTYPE", "PCB", "1.1"], ["POLY", "p1", 0, "", 3, 10, [0, 0, "L", 10, "X", 20, 0]], ["VIA", "v1", 0, "", "", "nope", 0, 12, 24]]);
+  assert.deepEqual(path.documents[0].items.filter(i => i.kind === "graphic" || i.kind === "via"), []);
+  malformed(path);
+  // A Pro schematic component with a malformed position is skipped without failing the sheet.
+  const comp = pro("comp.esch", [["DOCTYPE", "SCH", "1.1"], ["COMPONENT", "c1", "sym.1", "bad", 0, 0, 0], ["WIRE", "w1", [[0, 0, 10, 0]], "st"]]);
+  assert.equal(comp.documents[0].items.filter(i => i.kind === "wire").length, 1);
+  malformed(comp);
+  // Standard: a bad footprint child drops that child only, and a stray path token rejects the path.
+  const std = {head: {docType: "3"}, shape: [
+    "LIB~100~100~package`R0603`~0~~g1~~~#@$TRACK~1~3~~100 100 bad 110#@$TRACK~1~3~~90 100 110 100~t2~0#@$TEXT~P~100~95~0.8~0~0~3~~4~R1~~~t3",
+    "ARC~1~3~~M 0 0 A 5 5 0 0 1 X 10 10~a1~0",
+    "ARC~1~3~~M 0 0 A 5 5 0 0 1 10~a2~0"
+  ]};
+  const [board] = I.readSet([{name: "std.json", bytes: enc.encode(JSON.stringify(std))}]);
+  const R1 = board.documents[0].items.find(i => i.kind === "part");
+  assert.equal(R1.ref, "R1");
+  assert.deepEqual(board.library.find(d => d.id === R1.def).footprint.shapes.map(s => s.points.length), [2]);
+  assert.equal(board.documents[0].items.filter(i => i.kind === "graphic").length, 0, "malformed arc paths are skipped");
+  malformed(board);
+  assert.throws(() => AtriumEasyEDAImport.svgPath("M 0 0 L 10 X 20 30"), /Invalid EasyEDA path/);
+  const [sheet] = I.readSet([{name: "sheet.json", bytes: enc.encode(JSON.stringify({head: {docType: "1"}, shape: ["J~bad~0", "J~10~0"]}))}]);
+  assert.deepEqual(sheet.documents[0].items.filter(i => i.kind === "junction").map(j => [j.x, j.y]), [[2.54, 0]]);
+  console.log("PASS EasyEDA malformed numbers reject their record; pad nets read in any order");
+}
 
 assert.throws(() => I.read("x.json", enc.encode('{"head":{"docType":"2"}}')), /library/);
 assert.throws(() => I.read("x.json", enc.encode('{"a":1}')), /not an EasyEDA/);

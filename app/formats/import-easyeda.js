@@ -19,7 +19,16 @@ globalThis.AtriumEasyEDAImport = (() => {
   const r4 = v => Math.round(v * 1e4) / 1e4 + 0;
   const n360 = a => ((a % 360) + 360) % 360;
   const norm = a => { const v = n360(a); return v > 180 ? v - 360 : v; };
-  const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
+  // A missing field reads as its default. A field that is present but not a number rejects its
+  // record (F().guard skips it with a note) instead of reading as 0. soft() keeps the default for
+  // document settings and rules, which have no record to skip.
+  const soft = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
+  const num = (v, d = 0) => {
+    if (v == null || v === "") return d;
+    const x = parseFloat(v);
+    if (!Number.isFinite(x)) throw Error("Invalid EasyEDA number.");
+    return x;
+  };
   function pairs(s) {
     const n = String(s || "").trim().split(/[\s,]+/).filter(Boolean).map(Number);
     if (n.length % 2 || n.some(x => !Number.isFinite(x))) throw Error("Invalid EasyEDA point list.");
@@ -34,9 +43,11 @@ globalThis.AtriumEasyEDAImport = (() => {
 
   // SVG path subset (M L H V A C Q Z, absolute and relative) -> polylines.
   function svgPath(d, tol = .02) {
-    const tokens = String(d || "").match(/[MLHVACQZmlhvacqz]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g) || [], out = [];
+    const text = String(d || ""), re = /[MLHVACQZmlhvacqz]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/g, tokens = text.match(re) || [], out = [];
+    // Like a point list, a path with a stray token or a missing number is rejected rather than re-paired.
+    if (/[^\s,STst]/.test(text.replace(re, ""))) throw Error("Invalid EasyEDA path.");
     let i = 0, cmd = "", cur = [0, 0], start = [0, 0], line = null;
-    const next = () => +tokens[i++];
+    const next = () => { const v = +tokens[i++]; if (!Number.isFinite(v)) throw Error("Invalid EasyEDA path."); return v; };
     const more = () => i < tokens.length && !/^[a-z]$/i.test(tokens[i]);
     while (i < tokens.length) {
       if (/^[a-z]$/i.test(tokens[i])) cmd = tokens[i++];
@@ -189,8 +200,8 @@ globalThis.AtriumEasyEDAImport = (() => {
         const a = mm([num(f[2]), num(f[3])]), b = mm([num(f[4]), num(f[5])]), d = [b[0] - a[0], b[1] - a[1]], size = Math.hypot(...d) / Math.SQRT2;
         if (size > 0) doc.items.push({id: A.id(), kind: "busentry", x: a[0], y: a[1], size: r4(size), angle: r4(Math.atan2(d[1], d[0]) * 180 / Math.PI + 45)});
       } else if (t === "F") flag(raw, doc, mm, notes);
-      else if (t === "T") { const p = mm([num(f[2]), num(f[3])]); if (f[12] && f[13] !== "0") doc.items.push({id: A.id(), kind: "label", x: p[0], y: p[1], text: f[12], angle: r4(norm(num(f[4]))), size: Math.max(.8, num(String(f[7]).replace("pt", ""), 7) * .35)}); }
-      else if (t === "LIB") records.push(stdSymbol(f, subs, mm, name, evidence, record));
+      else if (t === "T") { const p = mm([num(f[2]), num(f[3])]); if (f[12] && f[13] !== "0") doc.items.push({id: A.id(), kind: "label", x: p[0], y: p[1], text: f[12], angle: r4(norm(num(f[4]))), size: Math.max(.8, soft(String(f[7]).replace("pt", ""), 7) * .35)}); }
+      else if (t === "LIB") records.push(stdSymbol(f, subs, mm, name, evidence, record, notes));
       else if (["PL", "PG", "R", "E", "A", "PT"].includes(t)) for (const p of stdGraphic(f)) doc.items.push({id: A.id(), kind: "graphic", points: p.points.map(mm), width: .254, ...(p.closed ? {closed: true} : {})});
       else if (t === "I") notes.add("Images omitted");
       else notes.add("Schematic " + t + " objects omitted");
@@ -225,12 +236,12 @@ globalThis.AtriumEasyEDAImport = (() => {
     const style = /gnd|ground/i.test(kind) ? (/protect|analog|earth/i.test(kind) ? "earth" : "gnd") : "bar", base = style === "bar" ? 1 : 3;
     doc.items.push({id: A.id(), kind: "power", x: at[0], y: at[1], text, style, direction: ((base - Math.round(num(f[4]) / 90)) % 4 + 4) % 4});
   }
-  function stdSymbol(f, subs, mm, source, evidence, record) {
+  function stdSymbol(f, subs, mm, source, evidence, record, notes) {
     const origin = [num(f[1]), num(f[2])], angle = r4(norm(num(f[4]))), p = para(f[3]);
     const local = q => A.rotate([(q[0] - origin[0]) * U, (q[1] - origin[1]) * U], -angle).map(r4);
     const shapes = [], pins = [];
     let ref = "", value = "", refAt = null, valueAt = null, showRef, showValue;
-    for (let i = 0; i < subs.length; i++) {
+    for (let i = 0; i < subs.length; i++) F().guard(notes, () => {
       const s = subs[i], g = s.split("~"), t = g[0], firstShape = shapes.length, firstPin = pins.length;
       const child = evidence?.row(t, record.object + "#@$" + (i + 1));
       if (t === "P") {
@@ -239,9 +250,10 @@ globalThis.AtriumEasyEDAImport = (() => {
         // equals it, but some files keep a stale header (both pins of a resistor at one point).
         const dot = (seg[1] || "").split("~"), useDot = Number.isFinite(parseFloat(dot[0])) && Number.isFinite(parseFloat(dot[1]));
         const at = local(useDot ? [num(dot[0]), num(dot[1])] : [num(h[4]), num(h[5])]);
+        const label = name[0] === "1" && name[4] ? local([num(name[1]), num(name[2])]) : null;
         pins.push({x: at[0], y: at[1], number: numb[4] || h[3] || "", name: name[4] || "", hidden: h[1] === "0", electrical: pick(ELECTRIC, h[2], 7)});
         for (const line of svgPath((seg[2] || "").split("~")[0])) shapes.push({kind: "path", style: "body", points: line.map(local), closed: false, fill: false, width: 0});
-        if (name[0] === "1" && name[4]) { const q = local([num(name[1]), num(name[2])]); shapes.push({kind: "text", x: q[0], y: q[1], text: name[4], size: 1.27, style: "body"}); }
+        if (label) shapes.push({kind: "text", x: label[0], y: label[1], text: name[4], size: 1.27, style: "body"});
       } else if (t === "T") {
         const q = local([num(g[2]), num(g[3])]);
         if (g[1] === "P") { ref = g[12] || ""; refAt = q; showRef=g[13]!=="0"; }
@@ -256,7 +268,7 @@ globalThis.AtriumEasyEDAImport = (() => {
         if (target) used(child, target, t === "E" && target.kind === "circle" ? undefined : sheetApprox(t));
         else if (t === "T" && (g[1] === "P" || g[1] === "N")) used(child);
       }
-    }
+    });
     if (!valueAt) value=p.value ?? p.Value ?? p.name ?? "";
     const params = {};
     for (const k of ["Manufacturer", "Manufacturer Part", "Supplier Part", "LCSC Part Name"]) if (p[k]) params[k] = p[k];
@@ -316,12 +328,12 @@ globalThis.AtriumEasyEDAImport = (() => {
   const PAD_SHAPE = {ELLIPSE: "round", RECT: "rect", OVAL: "oval", POLYGON: "rect"};
   function standardDimensions(rule) {
     // Keep the same rounding as the board objects so a via at the minimum passes DRC.
-    return {clearance:r4(num(rule.clearance,NaN)*U),trackWidth:r4(num(rule.trackWidth,NaN)*U),viaDrill:r4(num(rule.viaHoleD,NaN)*U)};
+    return {clearance:r4(soft(rule.clearance,NaN)*U),trackWidth:r4(soft(rule.trackWidth,NaN)*U),viaDrill:r4(soft(rule.viaHoleD,NaN)*U)};
   }
   function stdBoard(name, data, notes, defs, evidence, scope) {
     const doc = A.sheet("pcb", F().stem(name));
     doc.sourceName = name; doc.sourceEncoding = "easyeda-standard";
-    const ca = String(data.canvas || "").split("~"), ox = num(ca[16]), oy = num(ca[17]);
+    const ca = String(data.canvas || "").split("~"), ox = soft(ca[16]), oy = soft(ca[17]);
     const mm = p => [r4((p[0] - ox) * U), r4((p[1] - oy) * U)], edges = [];
     const outlineRecords = evidence && [];
     function pathEdges(d) { for (const line of svgPath(d)) edges.push({kind: "path", points: line.map(mm)}); }
@@ -430,7 +442,7 @@ globalThis.AtriumEasyEDAImport = (() => {
       const pads = [], shapes = [];
       const item = {id: A.id(), kind: "part", def: "", ref: "", value: "", x: origin[0], y: origin[1], angle, layer: "Top", link: "", pinNets: {}};
       let bottom = 0, top = 0;
-      for (let i = 0; i < subs.length; i++) {
+      for (let i = 0; i < subs.length; i++) F().guard(notes, () => {
         const fields = subs[i].split("~"), child = evidence?.row(fields[0], record.object + "#@$" + (i + 1));
         const padStart = pads.length, shapeStart = shapes.length, itemStart = doc.items.length, edgeStart = edges.length;
         const refAt = item.refAt, valueAt = item.valueAt;
@@ -465,7 +477,7 @@ globalThis.AtriumEasyEDAImport = (() => {
           if (doc.items[itemStart]) child.produced(doc, itemStart);
           if (edges.length > edgeStart) outlineSource(outlineRecords, edges, edgeStart, child, fields[0] === "ARC" ? "Curved outline sampled into segments." : undefined);
         }
-      }
+      });
       if (bottom > top) item.layer = "Bottom";
       item.ref ||= (p.pre || "U?").replace(/\?$/, "") + "?";
       if (!item.valueAt)item.value=p.value || "";
@@ -520,7 +532,11 @@ globalThis.AtriumEasyEDAImport = (() => {
     if (!Array.isArray(a) || depth > 8) return out;
     if (Array.isArray(a[0])) { for (const sub of a) out.push(...proPath(sub, map, depth + 1)); return out; }
     let i = 0, line = null, cur = null;
-    const n = () => +a[i++];
+    const n = () => {
+      const v = a[i++], x = typeof v === "number" ? v : typeof v === "string" && v.trim() ? +v : NaN;
+      if (!Number.isFinite(x)) throw Error("Invalid EasyEDA path.");
+      return x;
+    };
     while (i < a.length) {
       const t = a[i];
       if (t === "CIRCLE") { i++; const c = [n(), n()], r = n(); out.push(G().circlePoints(c, r).map(map)); line = null; continue; }
@@ -552,7 +568,7 @@ globalThis.AtriumEasyEDAImport = (() => {
       if (l) { names.set(id, l); used(r.fidelity, null, "Layer identity mapped to a native layer; source styling omitted."); }
     }
     const layerOf = id => proLayer(id, names);
-    const parts = new Map(), attrs = [];
+    const parts = new Map(), attrs = [], padNets = [];
     for (const r of rows) F().guard(notes, () => {
       const t = r[0], first = doc.items.length;
       if (t === "LINE" || t === "ARC") {
@@ -593,14 +609,8 @@ globalThis.AtriumEasyEDAImport = (() => {
         const item = {id: A.id(), kind: "part", def: "", ref: "", value: "", x: p[0], y: p[1], angle, layer: layerOf(r[3]) === "Bottom" ? "Bottom" : "Top", link: "", pinNets: {}};
         parts.set(String(r[1]), {item, source: r, attrs: Object.assign(Object.create(null), r[7] && typeof r[7] === "object" ? r[7] : {})});
       } else if (t === "ATTR") attrs.push(r);
-      else if (t === "PADNET") {
-        const part = parts.get(String(r[3]));
-        if (part && F().put(part.item.pinNets, String(r[4]), String(r[5] || ""))) used(r.fidelity, part.item);
-      } else if (t === "PAD_NET") {
-        // EasyEDA Pro 2.x: ["PAD_NET", componentId, padNumber, net, padId].
-        const part = parts.get(String(r[1]));
-        if (part && F().put(part.item.pinNets, String(r[2]), String(r[3] || ""))) used(r.fidelity, part.item);
-      }
+      // Like ATTR, pad nets name their component by id: read them once every component is known.
+      else if (t === "PADNET" || t === "PAD_NET") padNets.push(r);
       if (doc.items.length === first+1 && ["LINE","ARC","VIA","PAD","POLY","FILL","POUR","STRING"].includes(t)) doc.items[first].sourceRecord = "easyeda/line/" + r.line;
       if (r.fidelity && doc.items[first]) {
         const reason = t === "ARC" ? "Curved track sampled into segments." : t === "POUR" ? "First pour boundary imported; native fill is regenerated." :
@@ -610,6 +620,11 @@ globalThis.AtriumEasyEDAImport = (() => {
         r.fidelity.produced(doc, first);
       }
     });
+    for (const r of padNets) {
+      // PADNET: [.., componentId (3), padNumber, net]. EasyEDA Pro 2.x: ["PAD_NET", componentId, padNumber, net, padId].
+      const k = r[0] === "PADNET" ? 3 : 1, part = parts.get(String(r[k]));
+      if (part && F().put(part.item.pinNets, String(r[k + 1]), String(r[k + 2] || ""))) used(r.fidelity, part.item);
+    }
     for (const a of attrs) {
       const part = parts.get(String(a[3]));
       if (part && typeof a[7] === "string") {
@@ -625,18 +640,18 @@ globalThis.AtriumEasyEDAImport = (() => {
       const fpKey = String(at.Footprint || at.footprint || device?.attributes?.Footprint || ""), fp = library.footprints.get(fpKey);
       const fpName = fp?.title || String(at["Footprint Name"] || fpKey || "Footprint");
       const pads = [], shapes = [], toLocal = q => [r4(q[0] * MIL), r4(-q[1] * MIL)];
-      if (fp) for (const r of fp.rows) {
+      if (fp) for (const r of fp.rows) F().guard(notes, () => {
         const firstPad = pads.length, firstShape = shapes.length;
         if (r[0] === "PAD") { const p = proPad(r, toLocal, layerOf); if (p) pads.push(p.pad); }
         else if (r[0] === "LINE" || r[0] === "ARC") {
           const l = layerOf(r[4]), a = [num(r[5]), num(r[6])], b = [num(r[7]), num(r[8])];
-          if (!l || l === "Outline") continue;
+          if (!l || l === "Outline") return;
           shapes.push({kind: "path", points: r[0] === "ARC" ? G().arcByAngle(a, b, num(r[9])).map(toLocal) : [toLocal(a), toLocal(b)], style: l === "Silk" || l === "Bottom silk" ? "silk" : "body", layer: l,
             width: r4(num(r[0] === "ARC" ? r[10] : r[9]) * MIL), closed: false, fill: false});
         }
         else if (r[0] === "POLY" || r[0] === "FILL") {
           const layer = layerOf(r[4]), fill = r[0] === "FILL";
-          if (!layer) continue;
+          if (!layer) return;
           for (const points of proPath(r[fill?7:6],toLocal)) shapes.push({kind:"path",layer,points,style:/silk/i.test(layer)?"silk":"body",width:r4(num(r[5])*MIL),closed:fill || A.same(points[0],points.at(-1)),fill});
         } else if (r[0] === "STRING") {
           const layer = layerOf(r[3]), p = toLocal([num(r[4]),num(r[5])]);
@@ -646,7 +661,7 @@ globalThis.AtriumEasyEDAImport = (() => {
           const target = pads[firstPad] || shapes[firstShape];
           if (target) used(r.fidelity, target, r[0] === "ARC" ? "Footprint arc sampled into segments." : r[0] === "PAD" ? proPadApprox(r) : undefined);
         }
-      }
+      });
       if (!fp) notes.add("Components whose footprint is not in the project file have no pads");
       if (!pads.length && !shapes.length) shapes.push({kind: "circle", x: 0, y: 0, r: .5, width: .1, layer: "Silk", style: "silk"});
       if (item.layer === "Bottom") {
@@ -712,21 +727,21 @@ globalThis.AtriumEasyEDAImport = (() => {
         let item;
         if (r[0]==="TEXT") {
           const p=mm([num(r[2]),num(r[3])]);
-          item={kind:"label",x:p[0],y:p[1],angle:r4(norm(-num(r[4]))),text:String(r[5] ?? ""),size:r4(num(styles.get(r[6])?.[5],7)*U)};
+          item={kind:"label",x:p[0],y:p[1],angle:r4(norm(-num(r[4]))),text:String(r[5] ?? ""),size:r4(soft(styles.get(r[6])?.[5],7)*U)};
         } else {
           let points, closed=true;
           if (r[0]==="POLY") {
             points=[];for(let i=0;i+1<(r[2]?.length || 0);i+=2)points.push(mm([num(r[2][i]),num(r[2][i+1])]));
             closed=!!r[3];
-          } else if (r[0]==="RECT") points=[[r[2],r[3]],[r[4],r[3]],[r[4],r[5]],[r[2],r[5]]].map(mm);
+          } else if (r[0]==="RECT") { const [x1,y1,x2,y2]=[r[2],r[3],r[4],r[5]].map(v=>num(v)); points=[[x1,y1],[x2,y1],[x2,y2],[x1,y2]].map(mm); }
           else points=G().circlePoints([num(r[2]),num(r[3])],num(r[4])).map(mm);
-          if(points.length>=2) {const style=styles.get(r[r[0]==="POLY"?4:r[0]==="RECT"?9:5]);item={kind:"graphic",points,closed,fill:!!style?.[4],width:r4(num(style?.[5],1)*U)};}
+          if(points.length>=2) {const style=styles.get(r[r[0]==="POLY"?4:r[0]==="RECT"?9:5]);item={kind:"graphic",points,closed,fill:!!style?.[4],width:r4(soft(style?.[5],1)*U)};}
         }
         if(item){item.id=A.id();doc.items.push(item);used(r.fidelity,item,r[0]==="CIRCLE"?"Circle converted to editable vertices.":undefined);r.fidelity?.produced(doc,doc.items.length-1);}
-      } else if (r[0] === "COMPONENT") comps.set(String(r[1]), {r, attrs: Object.create(null)});
+      } else if (r[0] === "COMPONENT") comps.set(String(r[1]), {r, attrs: Object.create(null), pos: mm([num(r[3]), num(r[4])]), turn: num(r[5])});
       else if (r[0] === "ATTR") attrs.push(r);
     });
-    for (const a of attrs) {
+    for (const a of attrs) F().guard(notes, () => {
       const key = String(a[3] ?? ""), value = a[4], parent = String(a[2] ?? "");
       if (comps.has(parent)) {
         const comp = comps.get(parent);
@@ -742,9 +757,9 @@ globalThis.AtriumEasyEDAImport = (() => {
         }
         if (native.length) used(a.fidelity, native[0]);
       }
-    }
-    for (const {r, attrs: at, attrRows, display} of comps.values()) {
-      const p = mm([num(r[3]), num(r[4])]), mirror=!!r[6], angle=r4(norm((mirror?1:-1)*num(r[5])));
+    });
+    for (const {r, attrs: at, attrRows, display, pos: p, turn} of comps.values()) {
+      const mirror=!!r[6], angle=r4(norm((mirror?1:-1)*turn));
       // Pro 2.x names the symbol through the component's Device (project.json devices) or a Symbol
       // attribute; older files name it in the COMPONENT row ("<symbol>.<part>").
       const device = proDevice(library, at.Device);
@@ -765,7 +780,7 @@ globalThis.AtriumEasyEDAImport = (() => {
         continue;
       }
       if (!sym) { if (r.fidelity) r.fidelity.omission = "Referenced library symbol is missing."; notes.add("Components whose symbol is not in the project file omitted"); continue; }
-      const geo = proSymbol(sym);
+      const geo = proSymbol(sym, notes);
       const ref = String(at.Designator || "U?").replace(/\.\d+$/, ""), value = proText(at.Value ?? at.Name ?? device?.attributes?.Value ?? device?.attributes?.Name ?? device?.title ?? "", at, device);
       const fpName = String(at["Footprint Name"] || library.footprints.get(String(device?.attributes?.Footprint || ""))?.title || "");
       const def = defs.add({id: A.id(), name: sym.title || symKey, category: "EasyEDA symbols", prefix: ref.replace(/[?\d]+$/, "") || "U", value, symbol: geo,
@@ -801,7 +816,7 @@ globalThis.AtriumEasyEDAImport = (() => {
     return doc;
   }
   // A Pro symbol; ["PART", "<name>.<n>", ...] rows start gate n of a multi-part symbol.
-  function proSymbol(sym) {
+  function proSymbol(sym, notes) {
     const map = p => [r4(p[0] * U), r4(-p[1] * U)], shapes = [], pins = [], pinAttrs = new Map();
     const partOf = v => { const m = /\.(\d+)$/.exec(String(v || "")); return m ? Math.min(64, +m[1]) : 0; };
     const parts = Math.max(1, ...sym.rows.filter(r => r[0] === "PART").map(r => partOf(r[1])));
@@ -811,8 +826,8 @@ globalThis.AtriumEasyEDAImport = (() => {
       if (attrSources && r.fidelity) attrSources.set(String(r[2]) + "\u001f" + r[3], r.fidelity);
     }
     const tag = () => parts > 1 && part > 0 ? {part} : {};
-    for (const r of sym.rows) {
-      if (r[0] === "PART") { part = partOf(r[1]); if (part) used(r.fidelity); continue; }
+    for (const r of sym.rows) F().guard(notes, () => {
+      if (r[0] === "PART") { part = partOf(r[1]); if (part) used(r.fidelity); return; }
       const n0 = shapes.length, p0 = pins.length;
       if (r[0] === "PIN") {
         const c = [num(r[4]), num(r[5])], len = num(r[6]), a = num(r[7]) * Math.PI / 180, inner = [c[0] + len * Math.cos(a), c[1] + len * Math.sin(a)];
@@ -834,7 +849,7 @@ globalThis.AtriumEasyEDAImport = (() => {
       }
       for (let i = n0; i < shapes.length; i++) Object.assign(shapes[i], tag());
       for (let i = p0; i < pins.length; i++) Object.assign(pins[i], tag());
-    }
+    });
     return parts > 1 ? {shapes, pins, parts} : {shapes, pins};
   }
   function proLibrary(files, io, evidence) {
@@ -893,7 +908,7 @@ globalThis.AtriumEasyEDAImport = (() => {
           if (!rules || typeof rules !== "object") { evidence.row("design rule", groupAt); continue; }
           for (const [field, value] of Object.entries(rules)) {
             const record = evidence.row("design rule", groupAt + "[" + JSON.stringify(field) + "]");
-            const native = doc.rules?.defaults, mm = r4(num(value, NaN) * U);
+            const native = doc.rules?.defaults, mm = r4(soft(value, NaN) * U);
             if (group === "Default" && Object.hasOwn(mapping, field) && mm > 0 && native?.[mapping[field]] === mm) used(record);
           }
         }

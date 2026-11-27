@@ -43,6 +43,20 @@ const DATE = "2026-11-19T12:00:00Z";
   const removed = F.write(p, d, {date: DATE}).emn.text.replace(/\n3\.2 4 -36 NPTH BOARD MTG ECAD/, "");
   assert.deepEqual(MC.compare(p, d, F.read(removed)).map(x => x.kind), ["hole-remove"]);
 }
+// A stray line in .PLACEMENT is skipped alone: it must not pair with the next component's name record.
+{
+  const head = ".HEADER\nBOARD_FILE 3.0 \"X\" 2026/01/01.00:00:00 1\n\"B\" MM\n.END_HEADER\n.PLACEMENT\n";
+  const omitted = [], trace = {omitted: (...a) => omitted.push(a)};
+  for (const stray of ["STRAY", "1 2 3 4 5 6", "\"P\" \"Q\" \"R0\""]) {
+    const des = F.read(head + "\"P\" \"Q\" \"R1\"\n1 2 0 0 TOP PLACED\n" + stray + "\n\"P\" \"Q\" \"R2\"\n3 4 0 90 BOTTOM PLACED\n.END_PLACEMENT\n", null, trace);
+    assert.deepEqual(des.parts.map(q => [q.ref, q.x, q.y, q.side]), [["R1", 1, -2, "Top"], ["R2", 3, -4, "Bottom"]], stray);
+  }
+  assert.equal(omitted.length, 3);
+  assert.equal(omitted[0][0], "Component placement");
+  assert.deepEqual(F.read(head + "STRAY\n\"P\" \"Q\" \"R2\"\n3 4 0 0 TOP PLACED\n").notes, ["1 incomplete .PLACEMENT line(s) were skipped."]);
+  // A malformed number in a placement record still rejects the file: dropping the part would propose its removal.
+  assert.throws(() => F.read(head + "\"P\" \"Q\" \"R1\"\nabc 2 0 0 TOP PLACED\n"), /x is not a number/);
+}
 // Circles, THOU units and bad input.
 {
   const t = ".HEADER\nBOARD_FILE 3.0 \"X\" 2026/01/01.00:00:00 1\n\"B\" THOU\n.END_HEADER\n.BOARD_OUTLINE MCAD\n62\n0 0 0 0\n0 1000 0 0\n0 1000 1000 0\n0 0 1000 0\n0 0 0 0\n1 500 500 0\n1 600 500 360\n.END_BOARD_OUTLINE\n";

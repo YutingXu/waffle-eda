@@ -194,5 +194,33 @@ for(const mode of ["polyline","primitives"])for(const units of ["mm","in"]){
   assert.deepEqual(drawing.entities[0].segs[0].a, [0, -5]);
   assert.ok(drawing.warnings.some(warning => /malformed coordinates/.test(warning)));
 }
+// Every entity reads its geometry like LINE: a malformed value skips the entity (with a warning)
+// instead of becoming NaN or 0.
+{
+  const good = [[0,"LINE"],[8,"Good"],[10,0],[20,5],[11,10],[21,5]];
+  const cases = {
+    "polylines": [[0,"LWPOLYLINE"],[8,"Bad"],[90,2],[70,0],[10,0],[20,0],[10,"oops"],[20,5]],
+    "polylines bulge": [[0,"LWPOLYLINE"],[8,"Bad"],[90,2],[70,0],[10,0],[20,0],[42,"x"],[10,5],[20,5]],
+    "arcs": [[0,"ARC"],[8,"Bad"],[10,"nope"],[20,1],[40,2],[50,0],[51,90]],
+    "arcs angle": [[0,"ARC"],[8,"Bad"],[10,0],[20,1],[40,2],[50,"?"],[51,90]],
+    "circles": [[0,"CIRCLE"],[8,"Bad"],[10,0],[20,"y"],[40,2]],
+    "ellipses": [[0,"ELLIPSE"],[8,"Bad"],[10,0],[20,0],[11,"a"],[21,0],[40,.5]],
+    "splines": [[0,"SPLINE"],[8,"Bad"],[70,0],[71,1],[11,0],[21,0],[11,"b"],[21,1]],
+    "polylines vertex": [[0,"POLYLINE"],[8,"Bad"],[66,1],[70,0],[0,"VERTEX"],[8,"Bad"],[10,0],[20,0],[0,"VERTEX"],[8,"Bad"],[10,"c"],[20,4],[0,"SEQEND"]],
+    "block inserts": [[0,"INSERT"],[8,"Bad"],[2,"B"],[10,"d"],[20,0]],
+  };
+  const block = sec("BLOCKS",[[0,"BLOCK"],[8,"0"],[2,"B"],[10,0],[20,0],[0,"LINE"],[8,"0"],[10,0],[20,0],[11,1],[21,0],[0,"ENDBLK"]]);
+  for (const [name, entity] of Object.entries(cases)) {
+    const drawing = X.read(dxf(header(4), block, sec("ENTITIES", entity, good)));
+    assert.deepEqual(drawing.entities.map(e => e.layer), ["Good"], name);
+    assert.ok(drawing.entities.every(e => e.segs.every(g => JSON.stringify(g).indexOf("null") < 0)), name);
+    assert.ok(drawing.warnings.some(w => w.startsWith("DXF " + name.split(" ")[0]) && /malformed coordinates were skipped/.test(w)), name + ": " + drawing.warnings);
+  }
+  // A block whose base point is malformed is not defined, so its inserts are skipped.
+  const badBase = X.read(dxf(header(4), sec("BLOCKS",[[0,"BLOCK"],[8,"0"],[2,"B"],[10,"e"],[20,0],[0,"LINE"],[8,"0"],[10,0],[20,0],[11,1],[21,0],[0,"ENDBLK"]]),
+    sec("ENTITIES",[[0,"INSERT"],[8,"Ins"],[2,"B"],[10,0],[20,0]], good)));
+  assert.deepEqual(badBase.entities.map(e => e.layer), ["Good"]);
+  assert.ok(badBase.warnings.some(w => /malformed base point/.test(w)));
+}
 
 console.log("dxf tests passed");
