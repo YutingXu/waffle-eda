@@ -3,7 +3,7 @@
 // Help → About Waffle / Licenses and notices. The texts are embedded so the dialog
 // works from file:// pages and native webviews without reading files.
 globalThis.AtriumAbout = (() => {
-  const VERSION = "0.8.1";
+  const VERSION = "0.8.2";
   const CODENAME = "Butter";
   const MIT = `MIT License
 

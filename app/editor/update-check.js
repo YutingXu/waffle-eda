@@ -15,7 +15,7 @@
 // The loader requests startup() on a version change or when an opted-in daily check is due.
 globalThis.AtriumUpdate = (() => {
   const G = globalThis;
-  const APP_VERSION = "0.8.1";             // app/about.js VERSION (tests/update-check.cjs keeps them equal)
+  const APP_VERSION = "0.8.2";             // app/about.js VERSION (tests/update-check.cjs keeps them equal)
   // Ed25519 public key that signs release manifests: 64 hex digits from
   // `scripts/release-manifest.py keygen`. Empty: update checks are not available in this build.
   const PUBLIC_KEY = "";
