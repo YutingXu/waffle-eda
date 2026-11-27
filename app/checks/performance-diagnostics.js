@@ -10,7 +10,7 @@ globalThis.AtriumPerformanceDiagnostics = (() => {
     "retained-copy-draw retained-copy-overlay full-scope full-text full-band-paint " +
     "full-text-caption-occlusion full-text-upload full-text-readback full-coverage " +
     "full-coverage-paint full-coverage-upload full-coverage-readback full-overlay full-airwires full-draw " +
-    "stationary-text-rows wide-text-rows";
+    "stationary-text-rows wide-text-rows stationary-text-dispatch";
   const PERFORMANCE_VERSION = 1, SAMPLE_LIMIT = 128, MAX_DURATION = 2 ** 40;
   const catalog = text => new Map(text.split(" ").map((name, index) => [name, index]));
   const range = () => ({samples: [], next: 0, percentile: null});
@@ -189,6 +189,10 @@ globalThis.AtriumPerformanceDiagnostics = (() => {
       begin(component, operation = "compute") { return openSpan(id, component, operation, false); },
       queue(component, operation = "compute") { return openSpan(id, component, operation, true); },
       get rendererStages() { return !!activeSession(id)?.stageLeases; },
+      get rendererStageEpoch() {
+        const state = activeSession(id);
+        return state?.stageLeases ? state.stageEpoch : 0;
+      },
       renderStage(operation, elapsed) {
         const state = activeSession(id);
         if (!state?.stageLeases || !bounded(elapsed)) return false;
@@ -221,13 +225,16 @@ globalThis.AtriumPerformanceDiagnostics = (() => {
     const detailed = options?.rendererStages === true;
     if (!session?.leases) {
       const id = ++generation;
-      session = {id, leases: 0, stageLeases: 0, rows: new Map(), frame: null, wheelTail: null,
+      session = {id, leases: 0, stageLeases: 0, stageEpoch: 0, rows: new Map(), frame: null, wheelTail: null,
         components: components ??= catalog(COMPONENTS), operations: operations ??= catalog(OPERATIONS),
         recorder: createRecorder(id), listeners: null, notifying: false};
     }
     const {id} = session;
     session.leases++;
-    if (detailed) session.stageLeases++;
+    if (detailed) {
+      if (session.stageLeases === 0) session.stageEpoch++;
+      session.stageLeases++;
+    }
     let stopped = false;
     return Object.freeze({stop() {
       const state = activeSession(id);

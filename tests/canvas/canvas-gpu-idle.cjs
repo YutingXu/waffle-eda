@@ -1546,7 +1546,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   // Run production textSlices on a virtual display clock with deterministic raster costs.
   // Replace the raster leaves with a per-row witness so the scheduling test needs no WebGL driver.
   const period = 1000 / hz, tasks = new Map(), perFrame = new Map(), order = [], worked = [];
-  let running, displayDelay=0, channels=0, staleMessage;
+  let running, displayDelay=0, messageDelay=.25, channels=0, staleMessage, clockReads=0;
   const scratch = [], drawn = [], shownOverlays = [];
   let time = 0, next = 0, hidden = false, efficient = false, backingSizes = 0, fullBackings = 0, onPower;
   function task(run, at, kind, depth = 0) {
@@ -1579,7 +1579,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     order.push(I.name);
   }
   const fixture = {
-    AtriumPCBAppearance, performance:{now:() => time},
+    AtriumPCBAppearance, performance:{now() { clockReads++; return time; }},
     AtriumCanvasGPUPref:{decision:() => ({use:true})},
     setTimeout(run,delay) {
       const depth=running?.kind==="timer" ? running.depth+1 : 0;
@@ -1595,7 +1595,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
       this.port2={postMessage(data) {
         const receive=port1.onmessage;
         staleMessage=()=>receive({data});
-        const id=task(()=>{ids.delete(id);receive({data});},time+.25,"message");
+        const id=task(()=>{ids.delete(id);receive({data});},time+messageDelay,"message");
         ids.add(id);
       },close(){}};
     },
@@ -1662,7 +1662,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   }
 
   const stageRows = [];
-  sliceVM.AtriumDiagnostics = {performance:{rendererStages:true, renderStage(name, ms) { stageRows.push([name,ms]); }}};
+  sliceVM.AtriumDiagnostics = {performance:{rendererStages:true, rendererStageEpoch:1, renderStage(name, ms) { stageRows.push([name,ms]); }}};
   const wide = viewForSlices("wide", true), exact = viewForSlices("exact");
   wide.start(); exact.start();
   assert.equal(tasks.size, 1, "views subscribe to one display clock");
@@ -1674,10 +1674,13 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     assert.equal(samples.reduce((sum,[,ms]) => sum + ms, 0), 10);
   }
   sliceVM.AtriumDiagnostics.performance.rendererStages = false;
+  sliceVM.AtriumDiagnostics.performance.rendererStageEpoch = 0;
   sliceVM.AtriumDiagnostics.performance.renderStage = () => assert.fail("ordinary operation must skip detailed row recording");
   const peak = Math.max(...perFrame.values());
   const foreground=worked.filter(task=>task.exact);
   const maxTask=Math.max(...foreground.map(task=>task.ms));
+  const deliveries=stageRows.filter(([name])=>name==="stationary-text-dispatch").map(([,ms])=>ms);
+  assert.deepEqual(deliveries,posted?foreground.map(()=>.25):[],"record exactly one wait for each accepted posted step");
   if (!posted) {
     assert.ok(foreground.every(job=>job.fromDisplay),"when message tasks are unavailable, exact work starts on a display sample");
     assert.ok(peak <= (hz === 60 ? 8 : 5),"both queues then share the stock refresh budget");
@@ -1807,6 +1810,76 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   assert.equal(tasks.size,0,"completion and cancellation leave no idle callback");
   assert.equal(channels,0,"closed or completed jobs leave no message ports");
   if (hz !== 60) continue;
+  {
+    // A deterministic delivery delay stays separate from row work and stops at the recorder boundary.
+    const source=fs.readFileSync(path.join(__dirname,"../../app/checks/performance-diagnostics.js"),"utf8");
+    vm.runInContext(source,sliceVM);
+    const diagnostics=sliceVM.AtriumDiagnostics=sliceVM.AtriumPerformanceDiagnostics;
+    const stage=name=>diagnostics.performanceSnapshot().rows.find(row=>row.operation===name);
+    const waitStage=()=>stage("stationary-text-dispatch"), waits=()=>waitStage()?.counts.completed||0;
+    const ordinary=diagnostics.startPerformance();
+    const unmeasured=viewForSlices("without detail");
+    const reads=clockReads;
+    unmeasured.start();
+    assert.equal(clockReads,reads,"a disabled post does not read the clock");
+    runNext();
+    assert.equal(clockReads,reads+3,"a disabled handler uses only existing work clocks");
+    assert.equal(waitStage(),undefined);
+    slices.pause(unmeasured.I);
+
+    let detail=diagnostics.startPerformance({rendererStages:true});
+    messageDelay=11;
+    const partial=viewForSlices("delayed partial");
+    partial.start(); runNext();
+    assert.equal(waits(),1);
+    assert.equal(waitStage().runP95,11,"wait ends at handler entry, before scope work");
+    assert.equal(stage("stationary-text-rows"),undefined,"scope work has no row sample");
+    runNext(); runNext();
+    assert.equal(waits(),3,"both setup and paint deliveries are measured");
+    assert.equal(stage("stationary-text-rows").runP95,2,"row paint remains a separate sample");
+    partial.cam[0]++;
+    runNext();
+    assert.equal(waits(),3,"a changed camera invalidates the pending measurement");
+
+    const cancelled=viewForSlices("cancelled dispatch"), replacement=viewForSlices("new dispatch");
+    cancelled.start();
+    const late=staleMessage;
+    slices.pause(cancelled.I); replacement.start();
+    task(late,time,"message"); runNext();
+    assert.equal(waits(),3,"a stale channel cannot claim the successor's measurement");
+    runNext();
+    assert.equal(waits(),4);
+    slices.pause(replacement.I);
+
+    const head=viewForSlices("old queue head"), nextPane=viewForSlices("next queue head");
+    head.start(); nextPane.start(); slices.pause(head.I);
+    runNext();
+    assert.equal(waits(),4,"a changed queue head does not inherit the old post");
+    runNext();
+    assert.equal(waits(),5,"the successor's next post has its own timing");
+    slices.pause(nextPane.I);
+
+    const restart=viewForSlices("new detailed lease");
+    restart.start(); detail.stop();
+    detail=diagnostics.startPerformance({rendererStages:true});
+    runNext();
+    assert.equal(waits(),5,"detail restarting under the same ordinary lease discards the old post");
+    runNext();
+    assert.equal(waits(),6);
+    slices.pause(restart.I);
+
+    const crossing=viewForSlices("new recorder");
+    crossing.start(); detail.stop(); ordinary.stop();
+    detail=diagnostics.startPerformance({rendererStages:true});
+    runNext();
+    assert.equal(waits(),0,"a later recording cannot claim an older post");
+    runNext();
+    assert.equal(waits(),1);
+    slices.pause(crossing.I); detail.stop();
+    messageDelay=.25;
+    assert.equal(tasks.size,0);
+    assert.equal(channels,0);
+  }
   for (const [ua,readback] of [["Chrome/158",false],["AppleWebKit/621",true]]) {
     // Keep production copyCanvas/copyRows/restorePixels. Represent each opaque or
     // transparent row with one value and emulate the corresponding Canvas draws.

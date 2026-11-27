@@ -2456,8 +2456,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   const cameraSlices = new Set(), wideSlices = new Set();
   let cancelSliceFrame = null, runningSliceFrame = false, lastSliceFrame = null, cameraTask = false;
   const postExactSlices = typeof G.MessageChannel === "function";
-  let exactChannel = null;
+  let exactChannel = null, exactDispatch = null;
   function closeExactChannel() {
+    exactDispatch = null;
     const channel = exactChannel;
     exactChannel = null;
     channel?.port1.close();
@@ -2478,9 +2479,17 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (!exactChannel) {
         const channel = exactChannel = new G.MessageChannel();
         channel.port1.onmessage = () => {
-          if (exactChannel === channel) runSliceFrame(0,true);
+          if (exactChannel !== channel) return;
+          const posted = exactDispatch;
+          exactDispatch = null;
+          const accepted = posted && posted.recorder.rendererStageEpoch === posted.epoch &&
+            posted.job === cameraSlices.values().next().value;
+          if (accepted) posted.elapsed = now() - posted.at;
+          runSliceFrame(0,true,accepted ? posted : null);
         };
       }
+      const recorder = G.AtriumDiagnostics?.performance, epoch = recorder?.rendererStageEpoch;
+      if (epoch) exactDispatch = {recorder, epoch, job: cameraSlices.values().next().value, at: now()};
       exactChannel.port2.postMessage(null);
       cancelSliceFrame = closeExactChannel;
       return;
@@ -2497,7 +2506,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const id = idle ? idle.sampleFrame(afterRefresh) : G.requestAnimationFrame(afterRefresh);
     cancelSliceFrame = () => idle ? idle.cancelSample(id) : G.cancelAnimationFrame(id);
   }
-  function runSliceFrame(budget, exact = false) {
+  function runSliceFrame(budget, exact = false, dispatch = null) {
     cancelSliceFrame = null;
     runningSliceFrame = true;
     let remaining = budget;
@@ -2508,7 +2517,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         if (remaining < budget && job.estimate > remaining) break;
         jobs.delete(job);
         const start = now();
-        job.step();
+        job.step(dispatch);
         if (exact) break;
         remaining -= Math.max(.25, now() - start);
       }
@@ -2538,7 +2547,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const W = st.canvas.width, H = st.canvas.height, rev = st.scene?.rev, at = I.cam().join();
     const job = st[name] = {at, T: {key: null}, y: 0, rows: 16, V: null, step, estimate: 1, cancel: null, copy};
     const queue = () => queueTextSlice(job, own);
-    function step() {
+    function step(dispatch) {
       job.cancel = null;
       if (st[name] !== job) return;
       const current = views.get(I) === st && !st.lost && st.shown && visible() && st.scene?.rev === rev &&
@@ -2589,6 +2598,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (st[name] !== job) return;
       if (st.driverOutOfMemory) { cancelSlices(st, name); memory(I, st, doc); repaint(I); return; }
       const ms = now() - t0, done1 = job.y >= H;
+      if (dispatch && dispatch.recorder.rendererStageEpoch === dispatch.epoch)
+        dispatch.recorder.renderStage("stationary-text-dispatch", dispatch.elapsed);
       job.y += h;
       st.stats.slices = (st.stats.slices || 0) + 1; st.stats.sliceMs = Math.max(st.stats.sliceMs || 0, ms);
       (st.stats.slicePhases ||= {})[Math.min(phase, 3) + (done1 ? 1 : 0)] = Math.max(st.stats.slicePhases[Math.min(phase, 3) + (done1 ? 1 : 0)] || 0, +ms.toFixed(1));
