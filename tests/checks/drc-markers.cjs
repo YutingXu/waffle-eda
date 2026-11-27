@@ -362,7 +362,7 @@ test("dense published cameras reuse world cell keys but recalculate the visible 
     Math.floor = n => {floors++;return floor(n);};
     const retained = redraw(scales[1],true);
     Math.floor = floor;
-    assert.ok(floors < 3*list.length, "same world band skips rekeying published markers at the next zoom");
+    assert.ok(floors < list.length, "same world band does not re-bin every published marker at the next zoom");
     assert.deepEqual(retained,redraw(scales[1],false));
     assert.ok(retained.length,"a long outline admits its distant marker cell");
     start=-1.5; hover=warn; focused=err;
@@ -376,6 +376,35 @@ test("dense published cameras reuse world cell keys but recalculate the visible 
     U.record({library:[],documents:[b]},{doc:b,items:[line]});
     assert.deepEqual(redraw(6,true),redraw(6,false),"a journal geometry change invalidates the old bounds");
   } finally { Math.floor=floor; U.reset(); }
+});
+
+test("dense cells require an exact member bound even when their joint box reaches the view", () => {
+  const U = AtriumUndoStore, x = track("x","A",[[0,0],[110,1]]), y = track("y","A",[[0,0],[1,110]]);
+  const doc = board([x,y]), project = {library:[],documents:[doc]}, canvas = {}, publication = {};
+  const list = [{id:x.id,type:"width",at:[0,0]}, {id:y.id,type:"width",at:[1,1]},
+    ...Array.from({length:280}, () => ({type:"width",at:[7,1],warning:true}))];
+  const host = {doc:()=>doc,defs:()=>defs,revision:()=>1};
+  const paint = (left, top, cached, source=list, waived=null) => {
+    const scale=6, width=24, height=24, rec=AtriumPDF.recorder(width,height);
+    const worldToScreen = ([x,y]) => [scale*(x-left),scale*(y-top)];
+    const worldViewport = (_a, p=0) => [left-p/scale,top-p/scale,left+(width+p)/scale,top+(height+p)/scale];
+    rec.ctx.setTransform(scale,0,0,scale,-left*scale,-top*scale);
+    M.renderFor(host,doc,source,{publication:cached?publication:null,waived}).overlay(rec.ctx,
+      {canvas,width,height,scale,worldToScreen,worldViewport});
+    return rec.list;
+  };
+  U.reset(); U.record(project);
+  try {
+    assert.equal(paint(80,80,true).length,0,"union alone cannot admit the cell");
+    const crossing = paint(70,0,true);
+    assert.ok(crossing.length,"a member's distant track admits the whole cell");
+    assert.deepEqual(crossing,paint(70,0,false),"the offscreen center and long outline preserve their order");
+    assert.equal(paint(80,80,true).length,0,"the anchored witness does not leak into the reverse camera");
+    assert.deepEqual(paint(70,0,true),crossing);
+    const waived = Array.from({length:280}, (_,i)=>({type:"width",id:x.id,waived:{id:"W"+i}}));
+    assert.equal(paint(70,0,true,[],waived).length,0,"anchorless waived-only rows produce no marker ink");
+    assert.equal(paint(80,80,true,[],waived).length,0,"anchorless waivers outside the view produce no marker ink");
+  } finally { U.reset(); }
 });
 
 test("each pane paints and picks using its own hidden layers", () => {
