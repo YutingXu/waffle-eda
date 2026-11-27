@@ -2139,6 +2139,15 @@ globalThis.AtriumPolygonPour=(()=>{
   // The widest ordinary split moves an input edge by less than one grid unit.
   // Four units between the patch and an omitted edge also separate the split
   // edges in the second planarity check. Global snap rounding needs a full solve.
+  // Why a patch equals a full solve (byte for byte, after canonical()): the region (areaRegion) holds
+  // every changed input, old and new, and every input whose boundary comes within AREA_GUARD of it, so
+  // no input inside meets one outside and the arrangement splits in two. Outside the region the inputs
+  // and their winding are the old ones (a changed ring has no winding outside its own box, which the
+  // region holds), so the old rings made of outside inputs are still right; inside, the overlay of the
+  // inside inputs with the constant winding of the outside ones gives the new rings. Edge order within
+  // the inside inputs is the task's, so every crossing is rounded as the full solve rounds it. Islands,
+  // links and the island tests are then decided by the rules of CORE.islands and keep(), asked only
+  // where their answer can have changed (areaPatch, areaKeep). tests/pcb/pour-area-random.cjs checks it.
   const AREA_GUARD=4,AREA_LIMIT=.5,areaRingMemo=new WeakMap(),areaTagMemo=new WeakMap();
   const areaCanonical=new WeakMap(),areaCanonicalIslands=new WeakMap(),areaArcRotation=new WeakMap(),areaConverted=new WeakMap(),areaRegionContours=new WeakMap();
   function areaRingInfo(ring){
@@ -2566,7 +2575,7 @@ globalThis.AtriumPolygonPour=(()=>{
     overlayStats.tIslands=now()-t1;overlayStats.tSolve+=overlayStats.tIslands;
     Object.assign(stats,{mode:region?"local":"unchanged",bounds:region?areaBoundsMm(region.boxes,job):null,mm2:region?region.area/(job.S*job.S):0,
       shapes:region?region.shapes:0,primitives:region?region.components.reduce((n,c)=>n+c.shapes.reduce((m,s)=>m+s.ring.length/2,0),0):0,
-      boxes:region?region.boxes.length:0,removedRings:removed.size,addedRings:added.length,rehomedHoles:orphans.length,layout:prior.solved.layout&&!shifted?"kept":"built",tIslands:overlayStats.tIslands,tOverlay:overlayStats.tSolve-overlayStats.tIslands});
+      boxes:region?region.boxes.length:0,removedRings:removed.size,addedRings:added.length,rehomedHoles:orphans.length,layout:prior.solved.layout&&!shifted?"kept":"built",arcsMoved:shifted,tIslands:overlayStats.tIslands,tOverlay:overlayStats.tSolve-overlayStats.tIslands});
     return {islands:[...E.islands.values()],stats:overlayStats,layout:E};
   }
   // keep() of a patched solution: the anchors each island touches (links), dead copper, area and size,

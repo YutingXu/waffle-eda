@@ -117,7 +117,7 @@ const how = new Map();
 const note = (kind, mode) => { let h = how.get(kind); if (!h) how.set(kind, h = {}); h[mode] = (h[mode] || 0) + 1; };
 // A wide region names the widest input it took: its class (0 polygon, 1 board, 2 obstacle, 3-5
 // relief, 6.. earlier pour; * a changed one) and the share of the pour's box its box covers.
-const modeOf = s => s ? (s.mode === "full" ? "full:" + s.reason + (s.reason === "wide-neighbourhood" && s.widest && process.env.WIDEST ? " cls" + s.widest.cls + (s.widest.changed ? "*" : "") + " " + (s.widest.a / s.frameArea >= .2 ? "big" : "small") : "") : s.mode) : null;
+const modeOf = s => s ? (s.mode === "full" ? "full:" + s.reason + (s.reason === "wide-neighbourhood" && s.widest && process.env.WIDEST ? " cls" + s.widest.cls + (s.widest.changed ? "*" : "") + " " + (s.widest.a / s.frameArea >= .2 ? "big" : "small") : "") : s.mode + (s.arcsMoved ? " (arcs moved)" : "")) : null;
 const regionKey = r => JSON.stringify(r);
 function run(label, project, {seed, steps}) {
   const ed = editor(project), docOf = e => e.project.documents.find(d => d.kind === "pcb"), list = ops(docOf), r = rng(seed);
