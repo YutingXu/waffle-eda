@@ -21,7 +21,7 @@ globalThis.AtriumNavCommon = (() => {
     return node;
   }
   // Property rows (ui-library.md): read-only text, a switch, a unit inside a field.
-  function appendPropertyRow(parent, label, value, control = el("span", value, "ui-prop-value ui-selectable")) { const row = el("div", null, "ui-prop-row"); if (value != null) row.title = value; row.append(elWithAttributes("span", label, null, {title: label}), control); parent.append(row); return row; }
+  function appendPropertyRow(parent, label, value, control = el("span", value, "ui-prop-value ui-selectable")) { const row = el("div", null, "ui-prop-row"); if (value != null) { row.title = value; row.dataset.clip = ""; } row.append(elWithAttributes("span", label, null, {title: label}), control); parent.append(row); return row; }
   function appendSwitchRow(parent, label, checked, update, name = label) {
     const l = el("label", null, "ui-switch-row"), box = elWithAttributes("input", null, "ui-switch", {type: "checkbox", role: "switch", "aria-label": name});
     box.checked = checked; box.onchange = () => update(box.checked, box); l.append(box); appendPropertyRow(parent, label, null, l); return box;
