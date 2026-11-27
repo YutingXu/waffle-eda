@@ -5518,8 +5518,11 @@ globalThis.AtriumPolygonPour=(()=>{
     const variable=list.some(p=>variableConnections(settings(p),connectRules));
     const connect=list.length?connectContext(doc,defs,options):null;
     // Remove Necks and Outlines Only are not local (a tile cannot tell a neck): pours on a layer with
-    // such a pour are left to the exact repour, and so are the pours after them there.
-    const whole=new Set(list.filter(p=>{const s=settings(p);return s.fillMode==="outline"||s.fillMode==="solid"&&s.neckWidth>=NECK_MIN;}).map(p=>p.layer));
+    // such a pour are left to the exact repour, and so are the pours after them there. A neck width
+    // no wider than the pour's spokes (KiCad's zone minimum width, imported as one) cuts only
+    // slivers narrower than a spoke: the tiles show them until the exact repour lands, as they show
+    // the spokes before the island tests.
+    const whole=new Set(list.filter(p=>{const s=settings(p);return s.fillMode==="outline"||s.fillMode==="solid"&&s.neckWidth>=NECK_MIN&&s.neckWidth>s.reliefConductorWidth+1e-9;}).map(p=>p.layer));
     for(const p of list){
       if(whole.has(p.layer))continue;
       const job=yield* prepareSteps(doc,defs,p,{...options,connect,keyed:true,arcs:false,poured:[],earlier:earlier.slice(),slices:options.slices});
