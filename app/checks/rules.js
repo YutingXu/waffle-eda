@@ -1657,9 +1657,18 @@ globalThis.AtriumRules = (() => {
 
   // These settings select checks only. The same enabled rules still govern routing and pours.
   function checkMode(options={}){return options.checkMode ?? (options.types!=null ? "all" : "batch");}
+  // Checks that run only when asked for, by type (options.types: MCP, tests) or by the user's
+  // preference (Preferences › Design Checks). Altium has no missing-courtyard check and many imported
+  // footprints have no courtyard, so Missing Courtyard is off by default. A board's exclusions still apply.
+  const OPT_IN=Object.freeze({courtyard:"checks.courtyard"});
+  function optedIn(type,options){
+    const key=OPT_IN[type];
+    if(!key||options.types?.includes(type))return true;
+    try{return globalThis.AtriumPref?.get?.(key,false)===true;}catch{return false;}
+  }
   function checkSelected(doc,type,options={}){
     const mode=checkMode(options);
-    return (!options.types||options.types.includes(type))&&!doc?.ruleCheckSelection?.[mode]?.includes(type);
+    return (!options.types||options.types.includes(type))&&optedIn(type,options)&&!doc?.ruleCheckSelection?.[mode]?.includes(type);
   }
 
   // ---------------------------------------------------------------- design rule check
@@ -3435,7 +3444,7 @@ globalThis.AtriumRules = (() => {
     create,migrate,normalize,effective,drc,netLengths,staleTeardrops,fillPieces,
     query,resolver,sizeVia:A.preferredViaSize,netClasses,diffPairs,matchedGroups,detectDiffPairs,stored,store,neckLength,NECK_DEFAULT,
     compiled:compiledRules,reportInput,/* hs-xsignals */isXsScope:XS_SCOPE,topologyChecked:[...TOPO_CHECKED],
-    expansion,expansionResolver,maskRuleResolver,fromAltium,sourceReport,replaceWithSource,adoptSourcePours,sourceCheckSelection,checkSelected,checkMode,describe,constraintText,scopeQuery,layerLabel,scopeCoverage,
+    expansion,expansionResolver,maskRuleResolver,fromAltium,sourceReport,replaceWithSource,adoptSourcePours,sourceCheckSelection,checkSelected,checkMode,OPT_IN,describe,constraintText,scopeQuery,layerLabel,scopeCoverage,
     clearanceKinds:CLEAR_KINDS.map(([k,label])=>({key:k,label})),clearanceKey:clearKey,clearanceGap,clearanceMax,clearanceRoute,
     types:TYPES,categories:CATEGORIES,scopeKinds:SCOPE_KINDS,checkedTypes:[...CHECKED],DEFAULT_RULE_SET,ruleSetOf,ruleActive,
     units:{parse:parseLength,format:formatLength,value:lengthValue,initial:initialUnit,remember:rememberUnit}};

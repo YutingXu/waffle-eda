@@ -415,7 +415,7 @@ globalThis.AtriumVariants = (() => {
   const formatParams = p => Object.entries(p || {}).map(([k, v]) => v === null ? "-" + k : k + " = " + v).join("\n");
 
   // ------------------------------------------------------------ canvas overlay
-  // Not-fitted parts of one document as world boxes, drawn greyed with a red cross.
+  // Not-fitted parts of one document as world boxes, drawn faded with a hairline cross.
   function notFittedBoxes(project, doc, variant) {
     const r = resolve(project, variant), A = globalThis.Atrium, defs = new Map((project.library || []).map(d => [d.id, d])), out = [];
     if (!A) return out;
@@ -427,19 +427,29 @@ globalThis.AtriumVariants = (() => {
     }
     return out;
   }
+  // A not-fitted part is information, not a fault (Altium greys it): the part fades toward the
+  // canvas under a veil of the canvas's own colour, and a hairline cross in the canvas's neutral ink
+  // (black on a light canvas, white on a dark one, at low alpha) runs corner to corner. The colours
+  // come from the canvas palettes (the board colour of View Configuration, the schematic paper), so
+  // the face follows every theme. The cross stays one screen pixel wide at every zoom.
+  const NOT_FITTED = Object.freeze({veil: .3, cross: .45, width: 1.25});
+  function canvasInk(kind) {
+    const pcb = kind === "pcb", hex = String((pcb ? globalThis.AtriumPCBAppearance?.system?.board : globalThis.AtriumSchAppearance?.paper) || (pcb ? "#000000" : "#fffcf8"));
+    const m = /^#([0-9a-f]{6})$/i.exec(hex), n = m ? parseInt(m[1], 16) : 0;
+    const light = .2126 * (n >> 16 & 255) + .7152 * (n >> 8 & 255) + .0722 * (n & 255) > 140;
+    return {veil: hex, cross: light ? "#000000" : "#ffffff"};
+  }
   function paint(ctx, boxes, scale, kind) {
+    if (!boxes.length) return;
+    const ink = canvasInk(kind), px = 1 / (scale > 0 ? scale : 1);
     ctx.save();
-    const grow = 0.25;
+    ctx.setLineDash?.([]);
     for (const b of boxes) {
-      const x0 = b[0] - grow, y0 = b[1] - grow, x1 = b[2] + grow, y1 = b[3] + grow;
-      ctx.globalAlpha = kind === "pcb" ? 0.55 : 0.6;
-      ctx.fillStyle = kind === "pcb" ? "#1b1b1b" : "#e9e9e6";
-      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-      ctx.globalAlpha = 0.95;
-      ctx.strokeStyle = "#e0342c";
-      ctx.lineWidth = Math.max(1.6 / scale, 0.12);
-      ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.moveTo(x1, y0); ctx.lineTo(x0, y1); ctx.stroke();
+      ctx.globalAlpha = NOT_FITTED.veil; ctx.fillStyle = ink.veil;
+      ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
+      ctx.globalAlpha = NOT_FITTED.cross; ctx.strokeStyle = ink.cross;
+      ctx.lineWidth = NOT_FITTED.width * px; ctx.lineCap = "butt";
+      ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(b[2], b[3]); ctx.moveTo(b[2], b[1]); ctx.lineTo(b[0], b[3]); ctx.stroke();
     }
     ctx.restore();
   }

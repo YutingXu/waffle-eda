@@ -256,5 +256,63 @@ function run() {
   }
   console.log("PASS semantic blame: last change per part, track, net and document field, added objects, comma-only neighbours, re-ordered keys, minified and older layouts, 200 commits of the 25.6k board.");
 }
-globalThis.__testDone = Promise.resolve().then(run).then(liveKiCadHistory);
+// The Properties history control: a library button (small, quiet, history icon), shown only for a
+// project whose file Git tracks. Opening any Altium or KiCad file binds it for history, so the
+// inspector asks the repository once per binding and leaves the control out when there is no history.
+async function inspectorControl() {
+  const G = globalThis, saved = {host: G.AtriumHost, common: G.AtriumNavCommon, ui: G.AtriumUI};
+  const node = (tag, cls) => ({tag, className: cls || "", hidden: false, dataset: {}, attrs: {}, kids: [], textContent: "", isConnected: true,
+    append(...k) { this.kids.push(...k); }, setAttribute(k, v) { this.attrs[k] = v; }, remove() { this.isConnected = false; },
+    get text() { return this.textContent + this.kids.map(k => k.text ?? "").join(""); }});
+  G.AtriumNavCommon = {el: (tag, text, cls) => { const n = node(tag, cls); if (text != null) n.textContent = text; return n; }, icon: name => ({tag: "svg", icon: name, text: ""})};
+  G.AtriumUI = {nativeButton: (text, act, cls, title, o) => { const n = node("button", "ui-button " + cls); n.dataset.variant = o.variant; n.dataset.size = o.size; return n; }};
+  const panel = {kids: [], querySelector: () => null, append(n) { this.kids.push(n); }};
+  const host = {doc: () => ({id: "board"})}, item = {id: "r1", kind: "part", ref: "R1"};
+  let asked = 0;
+  try {
+    for (const [generation, commits, shown] of [[1, [{revision: "a"}], true], [2, [], false]]) {
+      G.AtriumHost = {historyPath: "Board.PrjPcb", projectGeneration: generation, historyQuery: async op => { asked++; assert.equal(op, "sourceLog"); return {commits}; }};
+      panel.kids = [];
+      G.AtriumBlame.inspector(panel, host, item);
+      const line = panel.kids[0];
+      assert.ok(line && line.hidden, "the line waits for the repository answer");
+      await new Promise(r => setTimeout(r, 0));
+      assert.equal(line.isConnected && !line.hidden, shown, "shown only in a Git repository with history");
+      const button = line.kids[0];
+      assert.equal(button.dataset.variant, "quiet"); assert.equal(button.dataset.size, "sm");
+      assert.ok(/\bui-button\b/.test(button.className) && button.kids.some(k => k.icon === "history"), "library button with the history icon");
+      assert.equal(button.text, "Show history");
+      // The answer is remembered for the binding: the next selection asks nothing and draws at once (or not at all).
+      const before = asked; panel.kids = [];
+      G.AtriumBlame.inspector(panel, host, item);
+      assert.equal(asked, before);
+      assert.equal(panel.kids.length, shown ? 1 : 0);
+      if (shown) assert.equal(panel.kids[0].hidden, false);
+    }
+    // A no is trusted for a while only: the file's first commit shows the control a selection later.
+    const now = Date.now;
+    let commits = [], fail = false, clock = now();
+    Date.now = () => clock;
+    G.AtriumHost = {historyPath: "Board.PrjPcb", projectGeneration: 3, historyQuery: async () => { asked++; if (fail) throw new Error("git busy"); return {commits}; }};
+    const select = async () => { panel.kids = []; G.AtriumBlame.inspector(panel, host, item); await new Promise(r => setTimeout(r, 0)); return !!panel.kids[0]?.isConnected && !panel.kids[0].hidden; };
+    try {
+      assert.equal(await select(), false, "no commit has the file yet");
+      commits = [{revision: "b"}];
+      let before = asked;
+      assert.equal(await select(), false, "a selection soon after asks nothing");
+      assert.equal(asked, before);
+      clock += 16000;
+      assert.equal(await select(), true, "after the first commit, a later selection shows the control");
+      // A failed read is not remembered: the next selection asks again.
+      G.AtriumHost = {...G.AtriumHost, projectGeneration: 4};
+      fail = true;
+      assert.equal(await select(), false, "a failed read shows nothing");
+      fail = false; before = asked;
+      assert.equal(await select(), true, "the next selection asks again");
+      assert.equal(asked, before + 1);
+    } finally { Date.now = now; }
+    console.log("PASS the Properties history control is a library button shown only for a project in Git.");
+  } finally { G.AtriumHost = saved.host; G.AtriumNavCommon = saved.common; G.AtriumUI = saved.ui; }
+}
+globalThis.__testDone = Promise.resolve().then(run).then(liveKiCadHistory).then(inspectorControl);
 globalThis.__testDone.catch(error => { console.error(error); process.exitCode = 1; });

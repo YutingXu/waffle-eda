@@ -158,7 +158,11 @@ globalThis.AtriumContextMenu = (() => {
       ["Ignore Until Next Check", "drc-ignore"],
       ["Waive…", "drc-waive", {enabled:ctx => waivable(ctx.marker)}],
       SEP,
-      ["Show in Messages", "messages", {run:ctx => {const M = globalThis.AtriumMessages; if (!M?.focusWhere?.(m => m.drc === ctx.marker)) ctx.host.act("messages");}}],
+      ["Show in Messages", "messages", {run:ctx => {
+        const show = () => {if (!globalThis.AtriumMessages?.revealProblem?.(ctx.marker, ctx.host.messageContext?.())) ctx.host.act("messages");};
+        const L = globalThis.AtriumLazy;
+        if (globalThis.AtriumMessages || !L?.need) show(); else L.need("AtriumMessages").then(show, e => ctx.host.info?.(e.message));
+      }}],
       ["Rules…", "rules"], ["Run Design Rule Check", "drc"], ["Clear DRC Markers", "drc-clear"],
       ["DRC Markers", "drc-markers", {check:checked}]
     ],

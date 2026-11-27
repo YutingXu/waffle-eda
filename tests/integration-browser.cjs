@@ -553,6 +553,7 @@ async function main(){
     if(process.argv.includes("--touch-scheme-only")){await require("./editor/browser-touch-scheme.js")(browser);return;}
     if(process.argv.includes("--problem-hover-only")){await require("./checks/browser-problem-hover.js")(browser,{screenshotDir:snapshot});return;}
     if(process.argv.includes("--drc-messages-only")){await require("./checks/browser-drc-messages.js")(browser);return;}
+    if(process.argv.includes("--show-in-messages-only")){await require("./checks/browser-show-in-messages.js")(browser);return;}
     if(process.argv.includes("--canvas-hover-only")){await require("./editor/browser-canvas-hover.js")(browser);return;}
     if(process.argv.includes("--rotated-markers-only")){await require("./checks/browser-insights-polish.js").rotatedMarkers(browser);return;}
     if(process.argv.includes("--no-quirks-only")){await require("./editor/browser-no-quirks.js")(browser);return;}
@@ -563,6 +564,7 @@ async function main(){
     if(process.argv.includes("--panels-only")){await require("./editor/browser-panels-menu.js")(browser);return;}
     if(process.argv.includes("--menu-toggle-only")){await require("./editor/browser-menu-toggle.js")(browser);return;}
     if(process.argv.includes("--messages-fonts-only")){await require("./editor/browser-messages-fonts.js")(browser);return;}
+    if(process.argv.includes("--messages-filter-only")){await require("./editor/browser-messages-filter.js")(browser);return;}
     if(process.argv.includes("--inline-stack-only")){await require("./editor/browser-inline-stack.js")(browser);return;}
     if(process.argv.includes("--panel-chrome-only")){await require("./editor/browser-panel-chrome.js")(browser);return;}
     if(process.argv.includes("--review-composer-only")){await require("./history/browser-review-composer.js")(browser);return;}
@@ -866,6 +868,7 @@ async function main(){
     await require("./editor/browser-canvas-hover.js")(browser);
     await require("./checks/browser-annular-problems.js")(browser);
     await require("./checks/browser-drc-messages.js")(browser);
+    await require("./checks/browser-show-in-messages.js")(browser);
     await require("./canvas/browser-schematic-net-navigation.js")(browser);
     await require("./canvas/browser-view3d-open.js")(browser,["navigation","open","folder"]);
     await require("./editor/browser-editing-input.js")(browser);
@@ -898,6 +901,7 @@ async function main(){
     await require("./editor/browser-chrome-pixels.js")(browser);
     await require("./editor/browser-menu-toggle.js")(browser);
     await require("./editor/browser-messages-fonts.js")(browser);
+    await require("./editor/browser-messages-filter.js")(browser);
     await require("./editor/browser-inline-stack.js")(browser);
     await require("./editor/browser-panel-chrome.js")(browser);
     await require("./ui/browser-owner-layers.cjs")(browser);

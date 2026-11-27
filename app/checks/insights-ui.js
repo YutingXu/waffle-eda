@@ -232,9 +232,11 @@ globalThis.AtriumInsightsUI = (() => {
           if (rep.severity === "advice") diamond(advice, at, radius);
           else { tips.moveTo(at[0] + dot, at[1]); tips.arc(at[0], at[1], dot, 0, Math.PI * 2); }
         }
-        ctx.globalAlpha = 1; ctx.lineWidth = 3 * px * w; ctx.strokeStyle = BOARD.halo; ctx.stroke(outlines);
-        ctx.fillStyle = ink; ctx.globalAlpha = .85; ctx.fill(advice);
-        ctx.globalAlpha = 1; ctx.lineWidth = 1.3 * px * w; ctx.strokeStyle = ink; ctx.stroke(outlines);
+        // Thinner than a problem marker and a little see-through: a note, not a fault.
+        const S = PM().STROKE;
+        ctx.globalAlpha = .8; ctx.lineWidth = S.halo * px * w; ctx.strokeStyle = BOARD.halo; ctx.stroke(outlines);
+        ctx.fillStyle = ink; ctx.globalAlpha = .55; ctx.fill(advice);
+        ctx.globalAlpha = .9; ctx.lineWidth = S.line * px * w; ctx.strokeStyle = ink; ctx.stroke(outlines);
         ctx.fill(tips);
       }
       for (const {rep, at} of rows) if (hot.includes(rep)) { ctx.lineWidth = 1.2 * px * w; ctx.strokeStyle = BOARD.ring; ctx.globalAlpha = .9; ctx.beginPath(); ctx.arc(at[0], at[1], r * 1.8, 0, Math.PI * 2); ctx.stroke(); }

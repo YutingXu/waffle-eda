@@ -56,6 +56,10 @@ globalThis.AtriumPCB = (() => {
     const n={0:0,6:0,10:0,pair:0,xs:0};for(const l of lines){const p=props(l),r=(p.RECORD||"").toLowerCase();if(r==="differentialpair")n.pair++;else if(r==="xsignal")n.xs++;else if(/^(0|6|10)$/.test(p.KIND||"")&&!/^(true|t)$/i.test(p.SUPERCLASS||""))n[p.KIND]++;}
     const kept=[[n[0],"net class","net classes"],[n[6],"differential pair class","differential pair classes"],[n[10],"xSignal class","xSignal classes"],[n.pair,"differential pair","differential pairs"],[n.xs,"xSignal","xSignals"]].filter(([k])=>k).map(([k,one,many])=>k+" "+(k===1?one:many));
     if(kept.length)notes.push("Kept "+kept.join(", ")+" (signals and tags).");
+    // Altium measures an xSignal as its routed copper, pad to pad; a series part's own body adds nothing.
+    // Waffle adds the part's pad-to-pad span by default (length-tuning.js seriesModel "pads"), so an
+    // imported board keeps Altium's measurement and its Matched Lengths results.
+    if(n.xs&&!doc.lengthTuning)doc.lengthTuning={version:1,groups:[],targets:{},seriesModel:"none"};
   }
   function props(s) { return AtriumAltiumRecords.properties(s, true, true); }
   // PCB ASCII contains a DXPRule and (in Designer's own Save As) a Protel

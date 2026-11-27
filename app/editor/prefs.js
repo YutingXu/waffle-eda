@@ -37,7 +37,7 @@ globalThis.AtriumPrefs = (() => {
     "routing.spaceCyclesCorner": false, "routing.padEntry": "centre", "routing.snapLabels": true, "routing.cornerGlyph": true,
     "routing.cornerStyle": "last", "routing.neckDown": true, "routing.jitterTolerance": 100,
     "routing.dragReroute": "on", "routing.dragRerouteCap": 32, "routing.dragRerouteDepth": 2,
-    "library.starterInNewProjects": true, "general.layoutByKind": false, "keyboard.peekCheatsheet": false, "labs.notebook": false
+    "checks.courtyard": false, "library.starterInNewProjects": true, "general.layoutByKind": false, "keyboard.peekCheatsheet": false, "labs.notebook": false
   });
   const CHOICES = {"general.units": ["mm", "mil"], "general.startPage": ["auto", "always", "never"], "schematic.orientation": ["landscape", "portrait"],
     "schematic.titleBlock": ["standard", "ansi", "none"], "schematic.afterUpdatePcb": ["show", "stay"],
@@ -197,7 +197,7 @@ globalThis.AtriumPrefs = (() => {
     "routing.spaceCyclesCorner": ["pcb/route-feel.js"], "routing.padEntry": ["pcb/route-feel.js"], "routing.snapLabels": ["pcb/route-feel.js"], "routing.cornerGlyph": ["pcb/route-feel.js"],
     "routing.cornerStyle": ["pcb/route-feel.js"], "routing.neckDown": ["pcb/route-feel.js"], "routing.jitterTolerance": ["pcb/route-feel.js"],
     "routing.dragReroute": ["pcb/drag-reroute.js"], "routing.dragRerouteCap": ["pcb/drag-reroute.js"], "routing.dragRerouteDepth": ["pcb/drag-reroute.js"],
-    "library.starterInNewProjects": ["editor/start-page.js"], "general.layoutByKind": ["editor/dock.js"], "keyboard.peekCheatsheet": ["editor/vscode-keys.js"], "labs.notebook": ["editor/labs.js"]
+    "checks.courtyard": ["checks/rules.js"], "library.starterInNewProjects": ["editor/start-page.js"], "general.layoutByKind": ["editor/dock.js"], "keyboard.peekCheatsheet": ["editor/vscode-keys.js"], "labs.notebook": ["editor/labs.js"]
   });
   // Auto-junctions: a junction where a new wire ends on the inside of another wire, or another
   // wire ends on the inside of the new one (a T), as Altium places them. Returns the junctions added.

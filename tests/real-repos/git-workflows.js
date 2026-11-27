@@ -91,9 +91,9 @@ globalThis.__uiProbes = {async run() {
       query(".dv-close").click();
       closeHistory();
       if (document.body.classList.contains("hide-right")) h.act("toggle-right");
-      const who = await until(() => button("#inspector .blame-link", "Who changed this?"), "Find the Properties history link");
+      const who = await until(() => button("#inspector .blame-show", "Show history"), "Find the Properties history link");
       at = performance.now(); who.click();
-      await until(() => !query("#inspector .blame-line")?.textContent.match(/Reading|Searching|Who changed/), "Read the last author");
+      await until(() => !query("#inspector .blame-line")?.textContent.match(/Reading|Searching|Show history/), "Read the last author");
       results.blameMs = Math.round(performance.now() - at);
       const blame = query("#inspector .blame-line").textContent;
       await check(blame.includes(expected.revisions[0]) && blame.includes("by Codex"), "Who changed this identifies the last design change on J1", blame);
@@ -167,10 +167,10 @@ globalThis.__uiProbes = {async run() {
       await check(part?.kicadSourceId === expected.sourceId, "The live Lily58 placement retains its Git source identifier");
       h.select([part.id], part.id);
       if (document.body.classList.contains("hide-right")) h.act("toggle-right");
-      const who = await until(() => button("#inspector .blame-link", "Who changed this?"), "Find KiCad attribution");
+      const who = await until(() => button("#inspector .blame-show", "Show history"), "Find KiCad attribution");
       const at = performance.now(); who.click();
       const credit = await until(() => {
-        const text = query("#inspector .blame-line")?.textContent; return text && !/Reading|Searching|Who changed/.test(text) && text;
+        const text = query("#inspector .blame-line")?.textContent; return text && !/Reading|Searching|Show history/.test(text) && text;
       }, "Read the original KiCad attribution");
       results.blameMs = Math.round(performance.now() - at);
       await check(credit.includes(expected.latest) && credit.includes("by " + expected.author), "The renamed KiCad board credits the actual upstream placement change", credit.replace(expected.author, "the Git author"));
@@ -187,13 +187,13 @@ globalThis.__uiProbes = {async run() {
       closeHistory();
       const field = await until(() => query('#inspector input[aria-label="Comment"]'), "Find the KiCad placement comment");
       field.value = "Edited J10"; field.dispatchEvent(new Event("change", {bubbles:true}));
-      (await until(() => button("#inspector .blame-link", "Who changed this?"), "Recheck the edited placement")).click();
+      (await until(() => button("#inspector .blame-show", "Show history"), "Recheck the edited placement")).click();
       await until(() => query("#inspector .blame-line")?.textContent.includes("Not committed: Value"), "Show the real uncommitted KiCad edit");
       await check(!AtriumHost.projectPath, "A genuine editor change stays uncommitted and keeps the KiCad source read-only");
       const unknown = pcb.items.find(i => !i.kicadSourceId);
       await check(!!unknown, "The public board contains an item without a retained source identifier");
       h.select([unknown.id], unknown.id);
-      (await until(() => button("#inspector .blame-link", "Who changed this?"), "Find ambiguous KiCad member")).click();
+      (await until(() => button("#inspector .blame-show", "Show history"), "Find ambiguous KiCad member")).click();
       await until(() => query("#inspector .blame-line")?.textContent.includes("Object history is ambiguous"), "Report the uncertain identity");
       await check(!query("#inspector .blame-who"), "An unidentifiable source item receives no invented author");
     } else if (expected.phase === "source") {
@@ -209,9 +209,9 @@ globalThis.__uiProbes = {async run() {
       await screenshot("upstream-file-history");
       closeHistory();
       if (document.body.classList.contains("hide-right")) h.act("toggle-right");
-      const who = await until(() => button("#inspector .blame-link", "Who changed this?"), "Find source object blame");
+      const who = await until(() => button("#inspector .blame-show", "Show history"), "Find source object blame");
       const blameAt = performance.now(); who.click();
-      await until(() => !query("#inspector .blame-line")?.textContent.match(/Reading|Searching|Who changed/), "Read the original source author");
+      await until(() => !query("#inspector .blame-line")?.textContent.match(/Reading|Searching|Show history/), "Read the original source author");
       results.blameMs = Math.round(performance.now() - blameAt);
       const credit = query("#inspector .blame-line").textContent;
       await check(credit.includes("by " + expected.author) && credit.includes(expected.revisions[0]), "Who changed this matches the public commit and its Git author", expected.revisions[0]);
@@ -228,7 +228,7 @@ globalThis.__uiProbes = {async run() {
       select("C1");
       const comment = await until(() => query('#inspector input[aria-label="Comment"]'), "Find a source component comment");
       comment.value = "18p"; comment.dispatchEvent(new Event("change", {bubbles:true}));
-      const pending = await until(() => button("#inspector .blame-link", "Who changed this?"), "Find source attribution after editing");
+      const pending = await until(() => button("#inspector .blame-show", "Show history"), "Find source attribution after editing");
       pending.click();
       await until(() => query("#inspector .blame-line")?.textContent.includes("Not committed: Value"), "Show the unsaved source value edit");
       await check(!AtriumHost.projectPath, "A source edit appears as uncommitted and keeps the source read-only");

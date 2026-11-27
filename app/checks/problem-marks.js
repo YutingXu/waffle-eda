@@ -6,18 +6,22 @@
 // size the overview cells are built for) and never over MAX px (it does not swamp the pins it points at).
 // Hit areas use hit(), so they track the drawn size.
 globalThis.AtriumProblemMarks = (() => {
-  const MIN = 7, MAX = 20;
+  const MIN = 7, MAX = 14;
   // World radius: about a pin number's height on a sheet (mm), a small pad on a board (mm).
   const WORLD = {schematic: .7, pcb: .35};
-  // A hint (live finding not yet compiled, a Design Insight) is quieter; a badge for a problem on the
-  // other document is smaller still.
-  const TIER = {hint: .8, badge: .8};
+  // A hint (live finding not yet compiled, a Design Insight) is quieter and smaller; a badge for a
+  // problem on the other document is smaller too.
+  const TIER = {hint: .7, badge: .8};
   // size(scale, kind, tier) -> {r: world radius, screen: radius in px, px: one screen px in world
   // units, w: stroke factor (1 at MIN, growing slower than the glyph)}.
   function size(scale, kind = "pcb", tier = null) {
     const s = scale > 0 ? scale : 1, screen = Math.min(MAX, Math.max(MIN, (WORLD[kind] ?? WORLD.pcb) * s)) * (TIER[tier] ?? 1);
     return {r: screen / s, screen, px: 1 / s, w: Math.sqrt(Math.max(1, screen / MIN))};
   }
+  // Stroke weights in screen px (times size().w): a thin severity outline on a slim dark halo that keeps it
+  // readable on copper, and a little heavier for the hovered or pinned marker. Quiet enough that a board
+  // with hundreds of findings reads as a board with notes on it, not as an alarm.
+  const STROKE = Object.freeze({line: 1.2, hot: 1.7, halo: 2.4});
   // Pointer reach in screen px for a marker of screen radius `screen`.
   const hit = screen => screen + 4;
   // A pane view's scale (a method on editor panes, a number on plain views).
@@ -196,13 +200,13 @@ globalThis.AtriumProblemMarks = (() => {
     };
     // The card behind, then the glyph: each with its halo, fill and rim.
     for (const [gx, gy, alpha] of [[x + o, y - o, .55], [x, y, 1]]) {
-      ctx.globalAlpha = 1; ctx.strokeStyle = c.halo; ctx.lineWidth = 3 * px * w; outline(gx, gy); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.strokeStyle = c.halo; ctx.lineWidth = STROKE.halo * px * w; outline(gx, gy); ctx.stroke();
       ctx.fillStyle = c.fill; ctx.fill();
-      ctx.globalAlpha = alpha; ctx.strokeStyle = c.ink; ctx.lineWidth = 1.4 * px * w; ctx.stroke();
+      ctx.globalAlpha = alpha; ctx.strokeStyle = c.ink; ctx.lineWidth = STROKE.line * px * w; ctx.stroke();
     }
     ctx.globalAlpha = 1;
     // Inside: the severity's own mark (a cross for an error, a bar and dot for a warning).
-    ctx.lineWidth = 1.3 * px * w; ctx.beginPath();
+    ctx.lineWidth = STROKE.line * px * w; ctx.beginPath();
     if (warn) { ctx.moveTo(x, y - r * .35); ctx.lineTo(x, y + r * .15); ctx.stroke(); ctx.fillStyle = c.ink; ctx.beginPath(); ctx.arc(x, y + r * .42, Math.max(r * .09, .8 * px), 0, Math.PI * 2); ctx.fill(); }
     else { const q = r * .42; ctx.moveTo(x - q, y - q); ctx.lineTo(x + q, y + q); ctx.moveTo(x + q, y - q); ctx.lineTo(x - q, y + q); ctx.stroke(); }
     ctx.restore();
@@ -246,6 +250,6 @@ globalThis.AtriumProblemMarks = (() => {
     const p = badgeAt(at, scale, kind);
     return {at: [p.x, p.y], radius: hit(p.z.screen)};
   }
-  return Object.freeze({size, hit, scaleOf, cluster, cells, pcbCell, visibleWinner, groupPanDamage, register, paneFrame, pick, count,
+  return Object.freeze({STROKE, size, hit, scaleOf, cluster, cells, pcbCell, visibleWinner, groupPanDamage, register, paneFrame, pick, count,
     mirrored, badge, paintBadges, badgeAt, badgeUnder, badgeDetail, hoverStatus, BOARD, MIN, MAX});
 })();
