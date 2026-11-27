@@ -159,16 +159,18 @@ globalThis.AtriumSchPlace = (() => {
         const attached = wires.filter(w => keys.has(A.pointKey(w.points[0])) || keys.has(A.pointKey(w.points.at(-1))));
         const saved = attached.map(w => w.points.map(q => q.slice()));
         const tags = avoidPinShorts ? A.pinTags(doc, defs, i, set) : [];
-        const before = attached.length > 1 || tags.length ? pinNets(doc, defs, i) : null;
+        const before = attached.length || tags.length ? A.pinGroups(doc.items, defs) : null;
         const moved = A.transformPart({kind:"schematic", items:doc.items, grid:doc.grid}, i, def, {x:at[0], y:at[1], angle:fx ? norm(360 - a) : norm(540 - a), mirror:!i.mirror}, [...wires, ...tags], {defs, avoidPinShorts});
         if (touched) for (const obj of moved) touched.add(obj);
         if (!i.mirror) delete i.mirror;
-        // Pins that swapped sides drag their wires across each other; when that would join
-        // nets that were apart, each wire leaves its pin outward and loops around instead.
-        if (before && shorted(before, pinNets(doc, defs, i))) {
+        // Pins that swapped sides drag their wires across each other; when that would join or
+        // split nets, each wire leaves its pin outward and loops around instead, if that keeps them.
+        if (before && !A.sameGroups(before, A.pinGroups(doc.items, defs))) {
+          const routed = attached.map(w => w.points);
           attached.forEach((w, n) => {w.points = saved[n];});
-          detour(doc, i, def, old, attached);
-          if (touched) for (const wire of attached) touched.add(wire);
+          detour(doc, defs, i, def, old, attached);
+          if (A.sameGroups(before, A.pinGroups(doc.items, defs))) {if (touched) for (const wire of attached) touched.add(wire);}
+          else attached.forEach((w, n) => {w.points = routed[n];});
         }
         continue;
       }
@@ -176,11 +178,11 @@ globalThis.AtriumSchPlace = (() => {
       switch (i.kind) {
         case "sheetsymbol": {
           // Wires that are not mirrored themselves keep their ends on the moved entries, unless
-          // their new routes would join nets that were apart; then they stay where they were.
+          // their new routes would join or split nets; then they stay where they were.
           const follow = globalThis.AtriumSchObjects?.entryWires(doc, defs, i, set);
           const held = (follow?.affected || []).map(o => [o, o.points, o.x, o.y]);
           const nets = () => {const c = A.connectivity({kind:"schematic", items:doc.items}, defs); return held.map(([o]) => c.byWire.get(o.id) || "");};
-          const before = held.length > 1 ? nets() : null;
+          const before = held.length ? {nets:nets(), pins:A.pinGroups(doc.items, defs)} : null;
           if (fx) i.x = m(i.x + i.w); else i.y = m(i.y + i.h);
           for (const e of i.entries || []) {
             if (fx) {if (e.side === "left" || e.side === "right") e.side = e.side === "left" ? "right" : "left"; else e.offset = +(i.w - e.offset).toFixed(6);}
@@ -188,7 +190,7 @@ globalThis.AtriumSchPlace = (() => {
           }
           if (!follow) break;
           follow.apply(); follow.finish();
-          if (before && shorted(before, nets())) {
+          if (before && (shorted(before.nets, nets()) || !A.sameGroups(before.pins, A.pinGroups(doc.items, defs)))) {
             const added = new Set(follow.affected.filter(o => !held.some(([h]) => h === o)));
             for (const [o, points, x, y] of held) if (points) o.points = points; else [o.x, o.y] = [x, y];
             let n = 0;
@@ -215,23 +217,20 @@ globalThis.AtriumSchPlace = (() => {
     }
     return items.length;
   }
-  function pinNets(doc, defs, part) {
-    const c = Atrium.connectivity({kind:"schematic", items:doc.items}, defs);
-    return Atrium.pins(part, defs.get(part.def), "schematic").map(q => c.byPin.get(part.id + "/" + q.number) || "");
-  }
-  // True when two pins on different nets (or unconnected) now share one.
+  // True when two wires on different nets (or unconnected) now share one.
   function shorted(before, after) {
     for (let x = 0; x < after.length; x++) for (let y = x + 1; y < after.length; y++)
       if (after[x] && after[x] === after[y] && before[x] !== before[y]) return true;
     return false;
   }
   // Re-route each wire end from its old pin position to the pin's new one. The wire is cut
-  // back one step from the old pin (which the other pin now occupies), keeping any T-joins
-  // further along it, and reconnected with a side step (alternating sides, widening).
-  function detour(doc, part, def, old, attached) {
+  // back one step from the old pin (which the other pin now occupies), or to the nearest
+  // T-join before that, keeping the T-joins along it, and reconnected with a side step
+  // (alternating sides, widening).
+  function detour(doc, defs, part, def, old, attached) {
     const A = Atrium, now = A.pins(part, def, "schematic").map(q => q.at), g = Math.max(doc.grid || 1.27, 1.27) * 2;
     const moved = new Map(old.map((q, n) => [A.pointKey(q), now[n]]));
-    const r6 = q => q.map(c => +c.toFixed(6));
+    const r6 = q => q.map(c => +c.toFixed(6)), moving = new Set([part.id]);
     let k = 0;
     for (const w of attached) for (const end of [0, 1]) {
       const pts = end ? w.points.slice().reverse() : w.points.slice(), O = pts[0], T = moved.get(A.pointKey(O));
@@ -239,7 +238,8 @@ globalThis.AtriumSchPlace = (() => {
       const v = [T[0] - part.x, T[1] - part.y], horizontal = Math.abs(v[0]) >= Math.abs(v[1]);
       const side = k % 2 ? -1 : 1, h = g * (1 + (k >> 1)); k++;
       const adj = pts[1], len = Math.hypot(adj[0] - O[0], adj[1] - O[1]);
-      const rest = len > g ? [r6([O[0] + (adj[0] - O[0]) / len * g, O[1] + (adj[1] - O[1]) / len * g]), ...pts.slice(1)] : pts.slice(1);
+      const tap = Math.min(g, ...A.wireTaps(doc.items, defs, {id:w.id, points:[O, adj]}, moving).map(p => Math.hypot(p[0] - O[0], p[1] - O[1])));
+      const rest = len > tap ? [r6([O[0] + (adj[0] - O[0]) / len * tap, O[1] + (adj[1] - O[1]) / len * tap]), ...pts.slice(1)] : pts.slice(1);
       const Q = horizontal ? [T[0], T[1] + side * h] : [T[0] + side * h, T[1]], R0 = rest[0];
       const route = [T, Q, horizontal ? [R0[0], Q[1]] : [Q[0], R0[1]], ...rest].map(r6);
       const clean = route.filter((q, n) => !n || !A.same(q, route[n - 1]));

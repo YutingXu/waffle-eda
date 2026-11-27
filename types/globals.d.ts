@@ -151,6 +151,8 @@ interface SchematicAttachmentOptions {
 }
 interface SchematicAttachmentSession {
   affected: Item[];
+  /** How many wires, dots and stationary branches the moving terminals meet. */
+  readonly linked: number;
   apply(targetFor: (point: Point) => Point | null | undefined): Item[] | null;
   finish(): boolean;
 }
@@ -283,6 +285,12 @@ interface AtriumModelAPI {
   transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: (WireItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
   /** Power ports, ports, off sheet connectors and net labels placed on one of a part's pins alone. */
   pinTags(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, item: PartItem, selected?: Set<string>, query?: (box: Box) => Item[]): (PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
+  /** Each schematic pin ("part id/number") mapped to the first pin of its net. */
+  pinGroups(items: Item[], defs: Map<string, Definition>): Map<string, string>;
+  /** True when two pinGroups results put the same pins together (a missing pin stands alone). */
+  sameGroups(a: Map<string, string>, b: Map<string, string>): boolean;
+  /** Points along a wire, other than its ends, where objects not in `moving` touch it. */
+  wireTaps(items: Item[], defs: Map<string, Definition>, wire: {id: string; points: Point[]}, moving: Set<string>): Point[];
   validOutline(pts: unknown): boolean;
   /** Throws Error("This file is not a supported Waffle project.") or a module's own message. */
   validate(p: unknown): Project;

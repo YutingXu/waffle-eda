@@ -192,6 +192,53 @@ for (const [side, axis] of [["top", "x"], ["bottom", "x"], ["left", "x"], ["righ
   assert.deepEqual(wires.map(w => w.points), authored); assert.equal(sch.items.length, count);
 }
 
+// 4e. A scripted mirror (no options) keeps every net of the bundled example: a wire whose far
+// span carries a tap (C1 on FILTER, U1 pin 4 on BUF) keeps it, so nets neither join nor split.
+{
+  const groups = (doc, defs) => {
+    const c = A.connectivity(doc, defs), nets = new Map(), out = new Map();
+    for (const i of doc.items) if (i.kind === "part") for (const q of A.pins(i, defs.get(i.def), "schematic")) {
+      const pin = (i.ref || i.id) + "/" + q.number, net = c.byPin.get(i.id + "/" + q.number) || "#" + pin;
+      if (!nets.has(net)) nets.set(net, []);
+      nets.get(net).push(pin); out.set(pin, net);
+    }
+    return new Map([...out].map(([pin, net]) => [pin, nets.get(net).sort().join(" ")]));
+  };
+  for (const [ref, axis] of [["R1", "x"], ["R2", "x"]]) {
+    const p = AtriumParts.example(), doc = p.documents.find(d => d.kind === "schematic"), defs = defsFor(p);
+    const part = doc.items.find(i => i.ref === ref), before = groups(doc, defs);
+    assert.equal(P.mirrorItems(doc, defs, new Set([part.id]), axis), 1);
+    assert.deepEqual(groups(doc, defs), before, ref + " mirrored " + axis + " keeps every net of the example");
+  }
+  // Every turn (90°, 180°, 270°) and mirror (X, Y) of every part in the bundled example and the
+  // schematic fixtures, as a script runs them, keeps the pin nets. The exceptions cannot be kept
+  // by any stretch of the wires: turning or flipping U1 swaps its inputs and output across the
+  // body, so FILTER's lead has to pass the corner of BUF's loop; and in the frame-channel
+  // fixtures a half turn or X mirror lands R1 pin 1 on the label and wire pin 2 left behind.
+  const fs = require("node:fs"), path = require("node:path"), dir = path.join(__dirname, "../fixtures/compat/projects");
+  const projects = [["example", AtriumParts.example()], ["ddr4", JSON.parse(fs.readFileSync(path.join(__dirname, "../fixtures/bus/ddr4-byte-lane.atrium"), "utf8"))],
+    ...fs.readdirSync(dir).filter(f => f.endsWith(".waffle")).sort().map(f => [f, JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"))])];
+  const expected = ["example U1 r180", "example U1 my",
+    ...["v1.4-frame-channel-net-hyphen", "v1.4-frame-channel-net-underscore", "v1.6-newer-frame-channel-net"].flatMap(f => [f + ".waffle R1 r180", f + ".waffle R1 mx"])];
+  const changed = [];
+  let runs = 0;
+  for (const [name, project] of projects) for (const [n, sheet] of project.documents.entries()) {
+    if (sheet.kind !== "schematic") continue;
+    for (const {id, ref} of sheet.items.filter(i => i.kind === "part")) for (const op of ["r90", "r180", "r270", "mx", "my"]) {
+      const p = A.clone(project), doc = p.documents[n], defs = defsFor(p), part = doc.items.find(i => i.id === id);
+      if (!defs.has(part.def)) continue;
+      const before = groups(doc, defs);
+      if (op[0] === "r") A.transformPart(doc, part, defs.get(part.def), {angle:((part.angle || 0) + +op.slice(1)) % 360}, undefined, {defs});
+      else P.mirrorItems(doc, defs, new Set([id]), op[1]);
+      const after = groups(doc, defs);
+      runs++;
+      if ([...before].some(([pin, net]) => after.get(pin) !== net)) changed.push(name + " " + ref + " " + op);
+    }
+  }
+  assert.ok(runs >= 70, "the sweep covers the example and the fixtures");
+  assert.deepEqual(changed, expected, "turns and mirrors keep pin nets");
+}
+
 // 5. Mirror Y on a rotated part flips on screen; X then Y equals a half turn.
 {
   const {p, sch} = blank(), defs = defsFor(p);

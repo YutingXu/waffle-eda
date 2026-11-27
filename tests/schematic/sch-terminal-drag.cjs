@@ -124,6 +124,26 @@ const expected = ["LEAF", "BRANCH"];
   assert.equal(A.connectivity(doc, defs).byPin.get(part.id + "/2"), "GND");
 }
 {
+  // Detached wire copies (Properties rotation, AI drafts) keep the taps along them through a
+  // turn, as attached wires do: no turn of R1 or R2 in the example joins or splits a net.
+  const groups = (items, defs) => {
+    const c = A.connectivity({kind: "schematic", items}, defs), nets = new Map();
+    for (const [pin, net] of c.byPin) {if (!nets.has(net)) nets.set(net, []); nets.get(net).push(pin);}
+    return [...nets.values()].map(pins => pins.sort().join(" ")).sort();
+  };
+  for (const ref of ["R1", "R2"]) for (const angle of [90, 180, 270]) {
+    const project = AtriumParts.example(), doc = project.documents.find(d => d.kind === "schematic");
+    const defs = new Map(project.library.map(d => [d.id, d])), part = doc.items.find(i => i.ref === ref), def = defs.get(part.def);
+    const pins = new Set(A.pins(part, def, doc.kind).map(p => A.pointKey(p.at)));
+    const copies = doc.items.filter(i => i.kind === "wire" && [i.points[0], i.points.at(-1)].some(p => pins.has(A.pointKey(p)))).map(i => ({...i}));
+    const authored = JSON.stringify(doc.items), before = groups(doc.items, defs);
+    const changed = A.transformPart(doc, {...part}, def, {angle}, copies, {defs});
+    assert.equal(JSON.stringify(doc.items), authored, "the transform writes only to the copies");
+    const byId = new Map(changed.map(i => [i.id, i]));
+    assert.deepEqual(groups(doc.items.map(i => byId.get(i.id) || i), defs), before, `${ref} turned to ${angle}° keeps every net`);
+  }
+}
+{
   // A group gesture on a dense sheet keeps its captured contacts through every pointer frame.
   const {library, part} = fixture(), doc = A.sheet("schematic", "Dense sheet"), selected = [];
   const defs = new Map(library.map(d => [d.id, d])), def = defs.get(part.def);

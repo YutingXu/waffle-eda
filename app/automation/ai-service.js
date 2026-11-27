@@ -258,9 +258,10 @@ globalThis.AtriumAIProviders = (() => {
         [item.points[0],item.points.at(-1)].some(point => pins.has(model.pointKey(point))))
         .map(item => [item.id,item]));
       // A turn carries a power port or label sitting alone on a pin (Atrium.pinTags).
-      if (field === "angle") for (const tag of model.pinTags(doc,new Map(project.library.map(d => [d.id,d])),part)) originals.set(tag.id,tag);
+      const defs = new Map(project.library.map(d => [d.id,d]));
+      if (field === "angle") for (const tag of model.pinTags(doc,defs,part)) originals.set(tag.id,tag);
       const moved = model.transformPart(doc,{...part},definition,{[field]:value},
-        [...originals.values()].map(item => ({...item})));
+        [...originals.values()].map(item => ({...item})),{defs});
       for (const item of moved.slice(1)) {
         const original = originals.get(item.id);
         if (item.kind === "wire") ops.push(set(original,"points",item.points));

@@ -94,6 +94,50 @@ api.transaction("Clear value",tx=>tx.update(r1.id,{value:""}));
 const sr1=ref(base,sheet,"R1");
 api.transaction("Move schematic part",tx=>tx.move(sr1.id,2.54,0));
 assert.equal(api.items.get(sr1.id).x,sr1.x+2.54);
+// A scripted turn carries a power port alone on a pin (Atrium.pinTags) on a copy: drafting or
+// declining leaves the live project alone, and applying lists the move in the proposal and the
+// undo step, whose snapshot still has the port where it was.
+{
+  const had=globalThis.AtriumSchObjects;require("../../app/schematic/sch-objects.js");
+  try{
+    const scene=approve=>{
+      const p=A.clone(base),d=p.documents.find(x=>x.id===sheet.id),defs=new Map(p.library.map(x=>[x.id,x]));
+      const part=d.items.find(i=>i.ref==="R1"),at=A.pins(part,defs.get(part.def),"schematic")[0].at;
+      d.items=d.items.filter(i=>!(i.kind==="wire"&&i.points.some(q=>A.same(q,at))));
+      const port=AtriumSchObjects.make("power",at,{text:"GNDX"});d.items.push(port);
+      const h=API.headless(p,{approve}),undo=[],edit=h.host.edit;
+      h.host.edit=(fn,...rest)=>{undo.push(JSON.stringify(h.project));return edit.call(h.host,fn,...rest);};
+      const live=()=>h.project.documents.find(x=>x.id===sheet.id).items.find(i=>i.id===port.id);
+      return {h,undo,live,part,port,at,defs,angle:((part.angle||0)+180)%360};
+    };
+    {
+      const {h,live,part,at,angle}=scene(()=>true),before=JSON.stringify(h.project);
+      const d=h.api.proposals.draft("transaction",{ops:[{op:"transform",id:part.id,set:{angle}}]});
+      assert.deepEqual([live().x,live().y],at,"a drafted turn leaves the live port in place");
+      assert.equal(JSON.stringify(h.project),before,"a draft changes nothing live");assert.equal(h.steps.length,0);
+      assert.ok(d.changes.some(c=>/^GNDX/.test(c.label)),"the draft lists the port it moves");
+    }
+    {
+      let seen;
+      const {h,live,part,at,angle}=scene(({proposal})=>{seen=proposal;return false;}),before=JSON.stringify(h.project);
+      assert.equal(h.api.transaction("Turn",tx=>tx.transform(part.id,{angle})).applied,0);
+      assert.ok(seen,"the turn was offered for review");
+      assert.deepEqual([live().x,live().y],at,"a declined turn leaves the live port in place");
+      assert.equal(JSON.stringify(h.project),before);assert.equal(h.steps.length,0);
+    }
+    {
+      let seen;
+      const {h,undo,live,part,port,at,defs,angle}=scene(({proposal})=>{seen=proposal;return true;});
+      assert.ok(h.api.transaction("Turn",tx=>tx.transform(part.id,{angle})).applied>=2);
+      const turned=h.project.documents.find(x=>x.id===sheet.id).items.find(i=>i.id===part.id);
+      assert.deepEqual([live().x,live().y],A.pins(turned,defs.get(turned.def),"schematic")[0].at,"the port follows pin 1");
+      assert.ok(seen.ops.some(o=>o.id===port.id&&o.path?.[0]==="x"&&o.before===at[0]),"the proposal moves the port");
+      assert.equal(h.steps.length,1);assert.equal(undo.length,1);
+      const restored=JSON.parse(undo[0]).documents.find(x=>x.id===sheet.id).items.find(i=>i.id===port.id);
+      assert.deepEqual([restored.x,restored.y],at,"undo puts the port back");
+    }
+  }finally{if(had)globalThis.AtriumSchObjects=had;else delete globalThis.AtriumSchObjects;}
+}
 
 // ------------------------------------------------- validation rejects bad edits
 const bad=[

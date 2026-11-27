@@ -355,11 +355,12 @@ globalThis.AtriumAPI = (() => {
       if (!hit || removed.get(hit.d)?.has(op.id)) throw Error("Operation " + (n + 1) + " (" + op.op + "): object " + op.id + " does not exist.");
       return [hit.d, op.op === "remove" ? hit.item : writable(hit)];
     };
-    // Draft on copies of the wires and junctions the shared transform can move.
-    const isolated = new Set();
+    // Draft on copies of the wires, junctions and pin tags (power ports, ports, off sheet
+    // connectors and net labels: Atrium.pinTags) the shared transform can move.
+    const isolated = new Set(), movable = new Set(["wire", "junction", "power", "port", "offsheet", "netlabel"]);
     function transform(d, item, change) {
       if (copyOnWrite && d.kind === "schematic" && !isolated.has(d)) {
-        for (const [at, item] of d.items.entries()) if (item.kind === "wire" || item.kind === "junction")
+        for (const [at, item] of d.items.entries()) if (movable.has(item.kind))
           writable(where.get(item.id) || {d, item, at});
         isolated.add(d);
       }
