@@ -285,12 +285,24 @@ async function icons(browser) {
       const out = {};
       for (const a of ["undo", "redo", "fit", "zoom-in", "zoom-out", "grid", "delete", "rotate", "paste", "move-object"]) out[a] = face(a);
       out.count = AtriumKeymap.commands().filter(c => c.builtin && c.icon).length;
+      // A text face: the 28 px tool, wider, one line, ellipsis past four tool widths; the full name stays in the tooltip.
+      const paste = document.querySelector('#tools [data-action="paste"]'), icon = document.querySelector('#tools [data-action="undo"]');
+      const box = paste.getBoundingClientRect(), text = paste.querySelector(".tool-text"), style = getComputedStyle(paste);
+      out.text = {height:box.height === icon.getBoundingClientRect().height, wider:box.width > icon.getBoundingClientRect().width,
+        radius:style.borderRadius === getComputedStyle(icon).borderRadius, oneLine:text.getBoundingClientRect().height < box.height,
+        tooltip:paste.dataset.tooltip || paste.title};
+      const iconWidth = icon.getBoundingClientRect().width;
+      AtriumBars.setList("schematic", ["select", "sch-sync-entries"]);
+      const long = document.querySelector('#tools [data-action="sch-sync-entries"]');
+      out.capped = long.getBoundingClientRect().width <= 4 * iconWidth + 1 &&long.querySelector(".tool-text").scrollWidth > long.querySelector(".tool-text").clientWidth;
       AtriumBars.reset();
       return out;
     });
-    const {count, ...faces} = r;
+    const {count, text, capped, ...faces} = r;
+    assert.deepEqual(text, {height:true, wider:true, radius:true, oneLine:true, tooltip:"Paste"}, "the text face keeps the tool's height, radius and tooltip");
+    assert.equal(capped, true, "a long title is cut with an ellipsis at four tool widths");
     assert.deepEqual(faces, {undo:"#i-undo", redo:"#i-redo", fit:"#i-fit", "zoom-in":"#i-plus", "zoom-out":"#i-minus", grid:"#i-grid", delete:"#i-delete", rotate:"#i-rotate",
-      paste:"PA", "move-object":"MO"}, "faces reuse the symbols the chrome and the palette draw; Paste does not borrow Zoom In's plus");
+      paste:"Paste", "move-object":"Move Object"}, "faces reuse the symbols the chrome and the palette draw; Paste does not borrow Zoom In's plus");
     console.log("PASS command icons: " + count + " built-in commands draw an existing symbol");
   } finally { await page.close(); }
 }
@@ -368,7 +380,7 @@ async function extensionsAndMacros(browser) {
       return {bare, face, label:thin.getAttribute("aria-label"), ranThin, dialogsAfterThin, run:!!run};
     });
     assert.equal(macros.bare, "Provide macro parameter w.", "a parameterised macro's command, run bare, only reports the missing parameter");
-    assert.equal(macros.label, "Thin tracks"); assert.equal(macros.face, "TH", "a macro has the text face");
+    assert.equal(macros.label, "Thin tracks"); assert.equal(macros.face, "Thin tracks", "a macro's text face is its name");
     assert.match(macros.ranThin, /PCB|track|changes/i, "a macro without parameters runs at once");
     assert.equal(macros.run, true, "a macro with parameters opens Run…");
     // Macros switched off: the button is not drawn, the stored id stays.

@@ -134,7 +134,8 @@ globalThis.AtriumUIGallery = (() => {
         specimen("States", b("Pressed", {pressed: true}), b("Disabled", {disabled: true}), b("Primary disabled", {variant: "primary", disabled: true}), focusDemo(b("Keyboard focus")))),
       family("icon-button", "Icon buttons", "A square button around one icon; its label is the tooltip and accessible name.",
         specimen("Sizes", k.iconButton("search", "Search", {size: "sm"}), k.iconButton("settings", "Settings"), k.iconButton("layers", "Layers", {size: "lg"})),
-        specimen("States", k.iconButton("grid", "Grid", {pressed: true}), k.iconButton("delete", "Delete", {disabled: true}), focusDemo(k.iconButton("plus", "Add")))),
+        specimen("States", k.iconButton("grid", "Grid", {pressed: true}), k.iconButton("delete", "Delete", {disabled: true}), focusDemo(k.iconButton("plus", "Add"))),
+        specimen("Active Bar", k.iconButton("widgets", "Widgets"), k.iconButton("power-gnd", "GND power port"), k.iconButton("power-bar", "VDD power port"), k.iconButton("dtable", "Table"))),
       family("close", "Close button", "Dialogs and panels close with the shared close icon.",
         specimen("Default", k.closeButton(null)), specimen("Tab dismiss", tabDismiss), specimen("Disabled", disabled(k.closeButton(null)))),
       family("field", "Text and number fields", "28 px, 8 px text inset; numbers use the 80 px width with the unit beside them.",
@@ -285,7 +286,7 @@ globalThis.AtriumUIGallery = (() => {
         specimen("Targets", ...["ready", "over", "denied", "busy"].map(state => k.dropState(k.el("div", "ui-gallery-drop", state), state))),
         specimen("Insertion line", k.el("div", "ui-drop-line")),
         specimen("Reorderable list", (() => {
-          // K.reorderable (proposed): Alt+↑/↓ or a handle (mouse, pen, touch) moves a row; the caller redraws.
+          // K.reorderable: Alt+↑/↓ or a handle (mouse, pen, touch) moves a row; the caller redraws.
           const names = [["Select", "select"], ["Route track", "route"], ["Separator"], ["Measure distance", "measure"]];
           const list = k.list([], {label: "Reorderable rows", role: "tree"});
           const draw = () => list.replaceChildren(...names.map(([title, icon]) => k.row({title, depth: 0, icon,

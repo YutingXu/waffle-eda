@@ -226,8 +226,9 @@ globalThis.AtriumBars = (() => {
     const c = K()?.command(id), i = c?.icon || known.get(id)?.icon;
     return /^[a-z0-9-]{1,40}$/.test(i || "") && D.getElementById("i-" + i) ? i : "";
   }
-  // The text face for a command without an icon: the extension buttons' two-letter label.
-  const letters = text => String(text).replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
+  // The text face for a command without an icon: its short title (a macro's name), one line in a
+  // wider tool; the full name stays in the tooltip and the accessible name.
+  const short = (id, k) => K()?.command(id)?.short || name(id, k);
   function svg(icon) {
     const s = C()?.icon(icon);
     if (s) return s;
@@ -249,7 +250,7 @@ globalThis.AtriumBars = (() => {
     else { b.dataset.action = command(id)?.action || id; b.dataset.barRun = id; }
     b.setAttribute("aria-label", label); b.title = label;
     if (icon) b.append(svg(icon));
-    else { const s = D.createElement("span"); s.className = "tool-text"; s.setAttribute("aria-hidden", "true"); s.textContent = letters(label); b.append(s); }
+    else { const s = D.createElement("span"); s.className = "tool-text"; s.setAttribute("aria-hidden", "true"); s.textContent = power ? id.slice(6) : short(id, k); b.append(s); }
     made.add(b); return b;
   }
   function flyoutOn(n, key, from) {

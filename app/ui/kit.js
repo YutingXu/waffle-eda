@@ -456,7 +456,7 @@ globalThis.AtriumUIKit = (() => {
     if (state) node.dataset.drop = state; else delete node.dataset.drop;
     return node;
   }
-  /** Make a list's rows reorderable (proposed, 2026-11-27): Alt+↑/↓ moves the focused row, ↑/↓ move
+  /** Make a list's rows reorderable (approved 2026-11-27): Alt+↑/↓ moves the focused row, ↑/↓ move
    *  focus, and a row's .ui-drag-handle drags it with a mouse, pen or finger (lifted row, insertion
    *  line, denied target). onMove(from, to) gets row indices and redraws the rows in this same list;
    *  canMove(from, to) may refuse a target. Give touch users Move Up/Down actions as well. */

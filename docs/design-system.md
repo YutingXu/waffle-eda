@@ -172,6 +172,13 @@ There is one style. Icons sit on a 24-unit grid and render at 16 px (14 px in de
 rows). They use a 1.6 stroke, round caps and joins, no fill and `currentColor` (the
 `.icon` class in `style.css`, with symbols in the `index.html` icon bank).
 
+Drawing a new symbol: outline only, with the stroke left to `.icon` (no `stroke`, `fill` or
+`stroke-width` in the symbol). Put straight edges on half units (`x="3.5"`), so a full-box shape
+spans 3.5 to 20.5 as `#i-board` and `#i-dtable` do; nothing but a pointed tip goes past that
+margin. Rounded rectangles use `rx` 1 at small sizes and up to 2.5 for a full box. Keep at least
+2 units between separate parts, so they stay apart at 14 px. `#i-widgets` (three squares and one
+turned 45°, the platform convention) is drawn this way.
+
 The icon inventory found these styles in use:
 
 | Source | Count | Style |

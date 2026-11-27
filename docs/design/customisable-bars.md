@@ -84,9 +84,11 @@ symbol this way.
 
 A command with no icon shows a text face. The first draft said `route` and `label` already show text
 (`.tool-label`); they do not: on the Active Bar `.tool-label` is visually hidden and only names the
-button for assistive technology. The text face as built is the one the bar already has for extension
-buttons without an icon: two letters of the name inside the 28 px tool, with the full name in the
-tooltip. A wider face with the whole name is the owner's decision.
+button for assistive technology. The owner chose (2026-11-27) the command's short title over two
+letters: the `short` title (a macro's name, Place › Power Port's net) in a wider tool, with the same
+28 px height, radius, hover, pressed and focus states, `--s-8` padding and `--fs-12` type, one line,
+at most four tool widths with an ellipsis, and the full name in the tooltip. Extension buttons
+without an icon use the same face.
 
 ## Extensions
 
@@ -134,7 +136,8 @@ button (its original command id) keeps its own face instead.
 Approved by the owner on 2026-11-27. These change the shipped default, so they go into the static
 markup like every other default button.
 
-- **Widgets**, on schematic sheets, with a flyout of everything the notebook can insert: text block,
+- **Widgets** (`#i-widgets`, three squares and one turned 45°, the platform convention for widgets,
+  chosen by the owner), on schematic sheets, with a flyout of everything the notebook can insert: text block,
   calculation, image, table, to-do list and the other sheet widgets, including widgets from
   extensions. The flyout is **provided**, not listed: the notebook supplies the group from the same
   catalogue the "/" insert palette shows (`palette-actions.js` insert rows and the `sheet-widgets`

@@ -392,8 +392,9 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
   background:radial-gradient(circle,currentColor 1px,transparent 1.2px) 0 0/4px 4px;
 }
 :is(.ui-drag-handle):hover {color:var(--muted)}
-/* Reorderable lists (K.reorderable, proposed 2026-11-27): a handle column before a tree row's columns. */
-:is(.ui-list[data-reorder]) > :is(.ui-row) {grid-template-columns:auto var(--s-12) auto minmax(0,1fr) auto auto}
+/* Reorderable lists (K.reorderable, approved 2026-11-27): a handle column before a tree row's columns.
+   The icon column keeps the icon's width, so titles line up whether or not a row has an icon. */
+:is(.ui-list[data-reorder]) > :is(.ui-row) {grid-template-columns:auto var(--s-12) var(--s-16) minmax(0,1fr) auto auto}
 :is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-drag-handle) {grid-column:1}
 :is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-disclosure) {grid-column:2}
 :is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-icon) {grid-column:3}

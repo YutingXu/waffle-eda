@@ -1861,7 +1861,7 @@ globalThis.AtriumExtensions = (() => {
         let b;
         if (menu === "activeBar") {
           b = button(null, () => run(item.command), "tool ext-tool");
-          if (item.icon && /^[a-z-]+$/.test(item.icon)) b.append(iconNode(item.icon)); else b.append(el("span", title.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase(), "ext-tool-label"));
+          if (item.icon && /^[a-z-]+$/.test(item.icon)) b.append(iconNode(item.icon)); else b.append(el("span", title, "tool-text")); // the Active Bar's text face (nav.css)
           b.title = title; b.setAttribute("aria-label", title); b.dataset.command = item.command; // an Active Bar item (bars.js)
         } else {
           b = button(title, () => { closeMenus(); run(item.command); }, "ext-menuitem");
