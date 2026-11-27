@@ -81,18 +81,19 @@ globalThis.AtriumLibrarySourcesUI = (() => {
     }
   }
   function sourceNotice(host, lib, focusStop = false) {
-    const U = ui(), el = U.el, scan = lib.scan;
-    if (scan) {
-      host.append(el("span", scan.phase === "list" ? "Reading library folder…" : scan.phase === "prepare" ? "Preparing component search…" :
-        "Indexing " + lib.name + "… " + scan.done.toLocaleString("en") + " of " + scan.total.toLocaleString("en") + " files"));
+    const k = globalThis.AtriumUIKit, scan = lib.scan;
+    if (scan && k) {
+      const label = scan.phase === "list" ? "Reading library folder…" : scan.phase === "prepare" ? "Preparing component search…" :
+        "Indexing " + lib.name + "… " + scan.done.toLocaleString("en") + " of " + scan.total.toLocaleString("en") + " files";
+      const stop = k.button("Stop indexing", {size: "sm", run: () => S().cancelScan(lib.folder)});
+      host.append(k.notice({tone: "info", live: true, text: label, actions: [stop]}));
       if (scan.total && scan.phase === "read") {
-        const bar = el("progress"); bar.max = scan.total; bar.value = scan.done;
-        bar.setAttribute("aria-label", "Library indexing progress"); host.append(bar);
+        host.append(k.progress({value: scan.done, max: scan.total, label: "Library indexing progress"}));
       }
-      const stop = U.button("Stop indexing", () => S().cancelScan(lib.folder), "lib-mini");
-      host.append(stop);
       if (focusStop) stop.focus();
-    } else if (lib.scanError) host.append(el("span", lib.scanError));
+    } else if (lib.scanError && k) {
+      host.append(k.notice({tone: "danger", live: true, text: lib.scanError}));
+    }
     if (lib.folder === KICAD.id) host.append(kiCadCredit());
     host.hidden = !host.children.length;
   }
@@ -125,38 +126,43 @@ globalThis.AtriumLibrarySourcesUI = (() => {
     return scanWithProgress(ctx, rec, null, o);
   }
   function folderDetail(ctx, host, lib, o = {}) {
-    const el = ui().el, rec = S().folders().find(f => f.id === lib.folder), r = lib.report || {};
+    const k = globalThis.AtriumUIKit, el = ui().el, rec = S().folders().find(f => f.id === lib.folder), r = lib.report || {};
     const box = el("div", null, "lib-folder");
-    const facts = el("dl", null, "lib-facts"), add = (k, v) => { if (v !== "" && v != null) facts.append(el("dt", k), el("dd", String(v))); };
+    const rows = [];
+    const add = (caption, v) => { if (v !== "" && v != null) rows.push(k ? k.propRow(caption, String(v)) : el("p", caption + ": " + v)); };
     add("Folder", rec?.root || lib.path || "—");
     add("Components", lib.defs.length.toLocaleString("en"));
     if (r.paired || r.symbolOnly || r.footprintOnly) add("Paired", n(r.paired || 0, "symbol") + " with footprints · " + (r.symbolOnly || 0) + " symbol only · " + n(r.footprintOnly || 0, "footprint") + " only");
     if (lib.stats) add("Last scan", summary(lib, lib.stats));
     if (lib.offline) add("Files", "Not read in this session. Rescan to read the folder again.");
-    box.append(facts);
+    box.append(k ? k.section("Folder", {quiet: true}, ...rows) : (() => { const d = el("div"); d.append(...rows); return d; })());
     if (lib.attribution && !lib.scan) {
-      const licences = el("details"); licences.append(el("summary", "Downloaded licence notices"));
+      const licences = el("details"); licences.append(el("summary", "Downloaded licence notices", "ui-disclosure-marker"));
       for (const [kind, a] of Object.entries(lib.attribution)) {
         licences.append(el("strong", "KiCad " + kind), el("pre", a.licenceText));
       }
       box.append(licences);
     }
     if (r.tableMissing?.length && !lib.scan) {
-      const d = el("details"); d.append(el("summary", "Library table entries outside this folder or missing"));
+      const d = el("details"); d.append(el("summary", "Library table entries outside this folder or missing", "ui-disclosure-marker"));
       const ul = el("ul"); for (const x of r.tableMissing) ul.append(el("li", x.table + " · " + x.nickname));
       d.append(ul); box.append(d);
     }
     if (r.errors?.length && !lib.scan) {
-      const d = el("details"); d.append(el("summary", n(r.errors.length, "file") + " could not be read"));
+      const d = el("details"); d.append(el("summary", n(r.errors.length, "file") + " could not be read", "ui-disclosure-marker"));
       const ul = el("ul"); for (const x of r.errors.slice(0, 50)) ul.append(el("li", x.file + " — " + x.message)); d.append(ul); box.append(d);
     }
     if (r.unmatched?.length && !lib.scan) {
-      const d = el("details"); d.append(el("summary", n(r.unmatched.length, "symbol") + (r.unmatched.length === 1 ? " names a footprint" : " name footprints") + " not in this folder"));
+      const d = el("details"); d.append(el("summary", n(r.unmatched.length, "symbol") + (r.unmatched.length === 1 ? " names a footprint" : " name footprints") + " not in this folder", "ui-disclosure-marker"));
       const ul = el("ul"); for (const x of r.unmatched.slice(0, 50)) ul.append(el("li", x.symbol + " → " + x.footprint)); d.append(ul); box.append(d);
     }
     const acts = el("div", null, "lib-detail-actions");
-    if (!lib.scan) acts.append(ui().button(rec?.kind === "zip" ? "Download again…" : "Rescan", () => (rec?.kind === "zip" ? getKiCad(ctx, o) : rescan(ctx, lib, o)), "lib-mini"),
-      ui().button("Remove folder", () => S().removeFolder(lib.folder).then(() => { status(ctx, lib.name + " removed from the Library panel. Its files were not touched."); o.done?.(null); }), "lib-mini"));
+    if (!lib.scan) acts.append(
+      k ? k.button(rec?.kind === "zip" ? "Download again…" : "Rescan", {size: "sm", run: () => (rec?.kind === "zip" ? getKiCad(ctx, o) : rescan(ctx, lib, o))})
+        : ui().button(rec?.kind === "zip" ? "Download again…" : "Rescan", () => (rec?.kind === "zip" ? getKiCad(ctx, o) : rescan(ctx, lib, o)), "lib-mini"),
+      k ? k.button("Remove folder", {size: "sm", run: () => S().removeFolder(lib.folder).then(() => { status(ctx, lib.name + " removed from the Library panel. Its files were not touched."); o.done?.(null); })})
+        : ui().button("Remove folder", () => S().removeFolder(lib.folder).then(() => { status(ctx, lib.name + " removed from the Library panel. Its files were not touched."); o.done?.(null); }), "lib-mini")
+    );
     box.append(acts);
     host.append(box);
   }

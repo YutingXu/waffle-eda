@@ -273,7 +273,11 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 :where(.ui-list[data-layout=stacked]) .ui-row {display:flex;flex-direction:column;gap:1px;padding:var(--ui-row-pad,var(--s-4)) var(--s-8);border-radius:var(--r-sm);cursor:default}
 :where(.ui-list[data-layout=stacked]) .ui-row[aria-selected=true] {box-shadow:var(--ui-row-marker,none)}
 :where(.ui-list[data-layout=stacked][data-row-focus]) .ui-row:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
-:is(.ui-row) > :is(.ui-row-icon) {grid-column:1;inline-size:var(--s-16);block-size:var(--s-16);color:var(--icon-ink)}
+:is(.ui-row) > :is(.ui-row-icon) {grid-column:1;color:var(--icon-ink)}
+:is(.ui-row) > :is(.ui-row-icon):not(.ui-row-icons) {inline-size:var(--s-16);block-size:var(--s-16)}
+:is(.ui-row-icons) {display:inline-flex;align-items:center;gap:var(--s-2);color:var(--icon-ink)}
+:is(.ui-row-icons) > .icon {inline-size:var(--chrome-glyph-dense);block-size:var(--chrome-glyph-dense)}
+:is(.ui-row-icons) > .icon[data-absent] {opacity:.22;color:var(--muted)}
 :is(.ui-row) > :is(.ui-row-text) {grid-column:2;display:grid;min-inline-size:0}
 :is(.ui-row-title,.ui-row-detail) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 :is(.ui-row-detail,.ui-row-subtitle) {color:var(--muted);font-size:var(--fs-11)}
@@ -426,6 +430,8 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 /* A list-detail split: a list column and a detail column, divided by a hairline, never a box. */
 :is(.ui-split) {display:grid;grid-template-columns:minmax(160px,var(--ui-split-list,32%)) 1px minmax(0,1fr);min-block-size:0}
 :is(.ui-split) > :is(.ui-splitter) {block-size:auto}
+:is(.ui-split)[data-orientation=vertical] {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(120px,1fr) 1px minmax(120px,var(--ui-split-detail,42%))}
+:is(.ui-split)[data-orientation=vertical] > :is(.ui-splitter) {inline-size:auto;block-size:1px}
 
 /* ---- Splitter: a 1 px divider with a 4 px hit area that lights on hover, drag and keyboard focus - */
 :is(.ui-splitter) {position:relative;flex:none;inline-size:1px;align-self:stretch;background:var(--divider);touch-action:none;cursor:ew-resize}

@@ -91,9 +91,11 @@ globalThis.AtriumLibraryEditor = (() => {
     const caption=el("h2","New component"),start=el("select"),meta=el("div"),controls=el("div"),region=el("div"),preview=el("canvas");
     const status=el("p"),footer=el("div"),tabs=el("div"),unit=el("span","mm");
     status.setAttribute("role","status");status.className="le-error";footer.className="work-actions";
-    meta.className="le-meta";controls.className="le-controls";region.className="le-region";tabs.className="le-tabs ui-tabs";preview.className="le-preview";
+    meta.className="le-meta";controls.className="le-controls";region.className="le-region";tabs.className="le-tabs ui-tabs";tabs.dataset.strip="";tabs.setAttribute("role","tablist");preview.className="le-preview";
     unit.title="Geometry is measured in millimetres";unit.className="le-unit";
     const symbolTab=button("Symbol",()=>activate("schematic")),boardTab=button("Footprint",()=>activate("pcb"));
+    symbolTab.classList.add("ui-tab");symbolTab.setAttribute("role","tab");
+    boardTab.classList.add("ui-tab");boardTab.setAttribute("role","tab");
     const place=button("Save and place",()=>save(true));
     function label(name,control){
       const node=el("label");node.append(el("span",name),control);control.setAttribute("aria-label",name);return node;
@@ -128,7 +130,7 @@ globalThis.AtriumLibraryEditor = (() => {
     }
     function activate(kind){tab=kind;renderBody();schedule();}
     function renderBody(){
-      region.replaceChildren();symbolTab.setAttribute("aria-pressed",String(tab==="schematic"));boardTab.setAttribute("aria-pressed",String(tab==="pcb"));
+      region.replaceChildren();symbolTab.setAttribute("aria-selected",String(tab==="schematic"));boardTab.setAttribute("aria-selected",String(tab==="pcb"));symbolTab.setAttribute("aria-pressed",String(tab==="schematic"));boardTab.setAttribute("aria-pressed",String(tab==="pcb"));
       preview.setAttribute("aria-label",tab==="pcb"?"Footprint preview":"Symbol preview");
       if(!d.custom){region.append(el("p","This copy keeps the existing pin, pad and drawing geometry."));return;}
       const sym=tab==="schematic",table=el("table"),head=el("thead"),headRow=el("tr"),body=el("tbody");

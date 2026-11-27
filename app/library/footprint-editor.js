@@ -139,7 +139,7 @@ globalThis.AtriumFootprintEditor = (() => {
     const isNew = !ctx.def;
     if (!draft.footprint) draft.footprint = {name: draft.name, pads: [], shapes: []};
     const fp = () => draft.footprint;
-    const dlg = ui.dialog("Footprint Editor", "fe-dialog");
+    const dlg = ui.editorSurface("Footprint Editor", "fe-dialog", {tabId: "footprint-editor:" + draft.id, icon: "chip", hostTab: !!ctx.asTab});
     const title = dlg.heading.querySelector("h2");
     const shortcutText = text => AtriumNavCommon.shortcutParts(text, {enter:"Enter", escape:"Escape", shift:"Shift"});
     const endRenumber = " Press {enter} or {escape} to finish.";
@@ -188,10 +188,10 @@ globalThis.AtriumFootprintEditor = (() => {
     for (const g of GRIDS) gridSel.add(new Option(g + " mm", g));
     gridSel.value = grid; gridSel.onchange = () => { grid = +gridSel.value; };
     bar.append(ui.label("Layer", layerSel, "fe-inline"), ui.label("Grid", gridSel, "fe-inline"));
-    const layersMenu = el("details", null, "fe-layers"); layersMenu.append(el("summary", "Show"));
+    const layersMenu = el("details", null, "fe-layers"); layersMenu.append(el("summary", "Show", "ui-disclosure-marker"));
     for (const [layer, label] of [["Top", "Top copper"], ["Bottom", "Bottom copper"], ["Silk", "Silk"], ["Mechanical 13", "Assembly"], ["Mechanical 15", "Courtyard"], ["Mechanical", "3D body"]]) {
-      const c = el("input"); c.type = "checkbox"; c.checked = true; c.onchange = () => { if (c.checked) hidden.delete(layer); else hidden.add(layer); stage.render(); };
-      const lab = el("label"); lab.append(c, el("span", label)); layersMenu.append(lab);
+      const c = el("input", null, "ui-checkbox"); c.type = "checkbox"; c.checked = true; c.onchange = () => { if (c.checked) hidden.delete(layer); else hidden.add(layer); stage.render(); };
+      const lab = el("label", null, "ui-checkbox-row"); lab.append(c, el("span", label)); layersMenu.append(lab);
     }
     bar.append(layersMenu);
     const canvas = el("canvas", null, "fe-canvas"); canvas.tabIndex = 0; canvas.setAttribute("aria-label", "Footprint canvas");
@@ -817,22 +817,36 @@ globalThis.AtriumFootprintEditor = (() => {
     // ---------------- checks
     function renderChecks() {
       checks.replaceChildren();
-      const head = el("header", null, "fe-checks-head");
+      const k = globalThis.AtriumUIKit;
       const errs = issues.filter(x => x.level === "error").length, warns = issues.filter(x => x.level === "warning").length;
-      head.append(el("h3", "Checks"), el("span", errs || warns ? errs + " error" + (errs === 1 ? "" : "s") + " · " + warns + " warning" + (warns === 1 ? "" : "s") : "All clear", errs ? "bad" : warns ? "warn" : "ok"));
-      const toggle = ui.button(showIssues ? "Hide markers" : "Show markers", () => { showIssues = !showIssues; renderChecks(); stage.render(); }, "lib-mini");
-      head.append(toggle); checks.append(head);
-      const ul = el("ul");
-      for (const x of issues) {
-        const li = el("li", null, "lvl-" + x.level), b = ui.button(x.message, () => {
-          if (x.pads?.length) { selection = {pads: new Set(x.pads), shapes: new Set()}; renderProps(); }
-          stage.render();
-        });
-        li.append(b); ul.append(li);
-      }
-      checks.append(ul);
+      const summary = errs || warns ? errs + " error" + (errs === 1 ? "" : "s") + " · " + warns + " warning" + (warns === 1 ? "" : "s") : "All clear";
+      const tone = errs ? "danger" : warns ? "warning" : "success";
       const pads = fp().pads.filter(p => !p.thermalVia).length;
-      checks.append(el("p", pads + " pads · " + fp().shapes.length + " shapes" + (fp().height ? " · " + fp().height + " mm tall" : ""), "fe-note"));
+      const statsText = pads + " pads · " + fp().shapes.length + " shapes" + (fp().height ? " · " + fp().height + " mm tall" : "");
+      if (k) {
+        const toggle = k.button(showIssues ? "Hide markers" : "Show markers", {variant: "quiet", size: "sm", run: () => { showIssues = !showIssues; renderChecks(); stage.render(); }});
+        const rows = issues.map(x => k.row({
+          title: x.message,
+          icon: k.dot(x.level === "error" ? "danger" : "warning"),
+          run: () => {
+            if (x.pads?.length) { selection = {pads: new Set(x.pads), shapes: new Set()}; renderProps(); }
+            stage.render();
+          }
+        }));
+        const listEl = rows.length ? k.list(rows, {role: "list", label: "Footprint checks"}) : null;
+        const stats = k.statusLine(statsText);
+        checks.append(k.section("Checks", {quiet: true, actions: [k.badge(summary, tone), toggle]}, ...(listEl ? [listEl, stats] : [stats])));
+      } else {
+        const ul = el("ul");
+        for (const x of issues) {
+          const li = el("li", null, "lvl-" + x.level), b = ui.button(x.message, () => {
+            if (x.pads?.length) { selection = {pads: new Set(x.pads), shapes: new Set()}; renderProps(); }
+            stage.render();
+          });
+          li.append(b); ul.append(li);
+        }
+        checks.append(ul);
+      }
     }
     // Checks run at once for ordinary footprints and are debounced (120 ms) for large ones.
     let checkTimer = 0;
@@ -882,7 +896,7 @@ globalThis.AtriumFootprintEditor = (() => {
         ...(redo.length ? [{key: "cmd:footprint:redo", kind: "command", label: "Redo", detail: "Footprint Editor", run: () => doUndo(false)}] : [])
       ]
     });
-    ui.show(dlg);
+    ui.showSurface(dlg);
     setTool("select");
     refresh();
     stage.observe();
