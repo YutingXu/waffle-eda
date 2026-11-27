@@ -437,8 +437,8 @@ async function stallPass(s, relayRef, seconds = 25) {
   const t0 = Date.now();
   const id = await mark(s.host, "via:2", "diameter", 0.62), gid = await mark(s.guest, "via:3", "diameter", 0.63);
   const checks = [{page: s.guest, id, field: "diameter", value: 0.62}, {page: s.host, id: gid, field: "diameter", value: 0.63}];
-  const detectMs = await noticed(s, t0, seconds * 1000);
-  const deliveredMs = await waitAll(checks, t0, Math.max(0, seconds * 1000 - (Date.now() - t0)));
+  // Both at once: delivery over a data channel does not wait for the stall to be noticed.
+  const [detectMs, deliveredMs] = await Promise.all([noticed(s, t0, seconds * 1000), waitAll(checks, t0, seconds * 1000)]);
   await sleep(Math.max(0, seconds * 1000 - (Date.now() - t0)));
   const during = {host: (await state(s.host)).connection, guest: (await state(s.guest)).connection};
   const stalls = {host: (await state(s.host)).stalls, guest: (await state(s.guest)).stalls};
