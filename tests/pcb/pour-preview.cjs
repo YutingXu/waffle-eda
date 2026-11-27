@@ -49,8 +49,10 @@ function tasks(d){
     let regions;try{regions=I.finish(job,s1);}finally{CORE.solve=solve;}
     poured.push(...regions);
     out.push({name:p.layer+" "+p.net,S:job.S,task:job.task,exact:s1});
-    if(seen.length){const t2=seen[0].task;
-      out.push({name:p.layer+" "+p.net+" +earlier",S:job.S,task:{...t2,shapes:[...job.task.shapes,...t2.shapes.filter(s=>s.cls>=6)],hasBoard:job.task.hasBoard},exact:seen[0].exact});}
+    // The second stage clears the earlier copper; the relief spokes' stage-3 tasks (spoke copper, class 4) come after it.
+    const second=seen.find(s=>s.task.shapes.some(x=>x.cls>=6)&&!s.task.shapes.some(x=>x.cls===4));
+    if(second){const t2=second.task;
+      out.push({name:p.layer+" "+p.net+" +earlier",S:job.S,task:{...t2,shapes:[...job.task.shapes,...t2.shapes.filter(s=>s.cls>=6)],hasBoard:job.task.hasBoard},exact:second.exact});}
   }
   return out;
 }

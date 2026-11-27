@@ -1,7 +1,11 @@
 "use strict";
 // Boards for tests/pour-v2-deviation.cjs: copper.json beside this file holds their copper as the
 // single-stage pour engine (before 2026-11-20: earlier pours cleared in the same overlay, unclipped,
-// ring start and order as traced) stored it. Needs model, parts, polygon-pour and tests/dense-board.js.
+// ring start and order as traced) stored it. The stacked board's pours were recorded again on 2026-11-27,
+// when reliefs took Altium's shape (spokes from the land's centre that stop at their own air gap, square
+// gaps round rectangular lands): every change lies inside a relief. Its pour 2 (Top, N2) lost two
+// 0.008 mm² spoke stubs on the board edge the same day: a spoke that reaches no copper is not drawn.
+// Needs model, parts, polygon-pour and tests/dense-board.js.
 globalThis.atriumPourV1Boards = function () {
   const A = Atrium, PP = AtriumPolygonPour;
   const board = (size, polys, label) => {

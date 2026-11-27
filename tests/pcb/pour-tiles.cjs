@@ -94,8 +94,11 @@ function raster(spec,a,b,box,pitch){
   }
   return bad;
 }
+// The tiles are a display patch until the exact repour lands. They keep the relief spokes in the one
+// overlay (earlySpokes); the exact repour adds them after the island tests (stage 3), which then
+// drops a spoke that meets no copper and a pocket only a spoke ties to the pour (polygon-pour.cjs 3b).
 function compare(doc,state,E,box,label){
-  const full=PP.repourAll(doc,defs,{});
+  const full=PP.repourAll(doc,defs,{earlySpokes:true});
   let worst=0,checked=0;
   for(const spec of state.specs){
     const a=fullRings(doc,spec,full),pieces=E.kept(spec.id),b=[];

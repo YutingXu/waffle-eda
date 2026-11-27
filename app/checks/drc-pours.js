@@ -11,6 +11,9 @@
 // required, limit: "min", at, title}), so markers, the inspector, Problems and reports show them:
 //   - copper of another net closer to a poured region than the Clearance rule asks (or inside it);
 //   - a polygon whose own clearance is below the rule (the fill is then wrong wherever it is tight).
+//   - a drilled object's barrel closer than the rule's hole cell (Poly-Hole), where one is authored.
+// An internal plane (powerPlane) holds a drilled object of another net to its own clearance (the
+// source's Plane Clearance) from the barrel, not to the Clearance rule.
 // It runs lazily in idle slices after a refill (drc-view.js, the check scheduler) and always before
 // outputs (fab-outputs.js), which report what it finds. Loaded with the rules engine (app/lazy.js).
 globalThis.AtriumDRCPours = (() => {
@@ -100,7 +103,8 @@ globalThis.AtriumDRCPours = (() => {
     const pourOf = region => K.copperSubject(polygons.get(region.polygon) || {...region, kind: "polygon"}, null, "polygon");
     // A polygon's own clearance below the rule: its fill keeps less than the rule asks everywhere it is tight.
     for (const p of polygons.values()) {
-      if (!(Number.isFinite(p.clearance) && p.clearance > 0) || !p.net || p.cutout || p.keepout || (o.polygons && !o.polygons.has(p.id))) continue;
+      // An internal plane's clearance is the source's Plane Clearance, not a Clearance rule value (below).
+      if (!(Number.isFinite(p.clearance) && p.clearance > 0) || !p.net || p.cutout || p.keepout || p.powerPlane || (o.polygons && !o.polygons.has(p.id))) continue;
       const idx = K.copperIndex(p.layer); if (idx == null) continue;
       const self = K.copperSubject(p, null, "polygon");
       const other = {net: "\u0000other", span: [idx, idx], kind: "track", ck: "track", layer: p.layer};
@@ -111,7 +115,7 @@ globalThis.AtriumDRCPours = (() => {
     }
     if (!regions.length) return {violations: out, checked: 0, ms: Date.now() - t0};
     const planeIds = new Set([...polygons.values()].filter(p => p.powerPlane).map(p => p.id));
-    const F = K.extract(doc, defs, {planeHoles: planeIds.size > 0, nettedCopperOnly: true}).copper;
+    const F = K.extract(doc, defs, {planeHoles: true, nettedCopperOnly: true}).copper;
     const reach = Math.max(...CR.map(K.clearanceMax));
     // Features by box in a coarse grid, so each region visits its neighbourhood only.
     const cell = Math.max(1, reach * 4), fgrid = new Map(), fk = (x, y) => x * 73856093 ^ y * 19349663;
@@ -136,13 +140,25 @@ globalThis.AtriumDRCPours = (() => {
           if (f.net === region.net || idx < f.span[0] || idx > f.span[1] || ties && ties.skip(pour, f)) continue;
           if (f.box[0] > b[2] + reach || f.box[2] < b[0] - reach || f.box[1] > b[3] + reach || f.box[3] < b[1] - reach) continue;
           const r = C.clearanceRule(pour, f); if (!r) continue;
-          const need = K.clearanceGap(r, "poly", f.ck);
-          const g = gapTo(planeIds.has(region.polygon) && f.planeHole ? f.planeHole : f, rings, grid, need);
+          // A drilled object passing through an internal plane has no land there: the plane keeps its own
+          // clearance (Altium's Plane Clearance, imported as the polygon's clearance) from the barrel, as the
+          // pour engine cuts it. The Clearance rule's polygon cells govern positive pours, not planes.
+          const plane = planeIds.has(region.polygon) && f.planeHole ? polygons.get(region.polygon) : null;
+          const need = plane && Number.isFinite(plane.clearance) && plane.clearance >= 0 ? plane.clearance : K.clearanceGap(r, "poly", f.ck);
           if (++work % 64 === 0) yield {region, part: true};   // a large region takes many slices
-          if (g.d + K.EPS >= need) continue;
-          const key = region.polygon + "|" + f.obj, prev = best.get(key);
-          if (!prev || g.d < prev.actual) best.set(key, {type: TYPE, typeTitle: TITLE, ruleId: r.id, ruleName: r.name, id: region.polygon ?? null, otherId: f.id,
-            title: "Poured copper " + (pour.polygon || region.net) + " (" + region.layer + ") ↔ " + f.label, what: "Pour clearance", actual: g.d, required: need, limit: "min", at: g.at, otherAt: f.at || g.at, net: region.net});
+          const report = (g, need, what, hole) => {
+            if (g.d + K.EPS >= need) return false;
+            const key = region.polygon + "|" + f.obj + (hole ? "|hole" : ""), prev = best.get(key);
+            if (!prev || g.d < prev.actual) best.set(key, {type: TYPE, typeTitle: TITLE, ruleId: r.id, ruleName: r.name, id: region.polygon ?? null, otherId: f.id,
+              title: "Poured copper " + (pour.polygon || region.net) + " (" + region.layer + ") ↔ " + f.label + (hole ? " hole" : ""), what, actual: g.d, required: need, limit: "min", at: g.at, otherAt: f.at || g.at, net: region.net});
+            return true;
+          };
+          if (report(gapTo(plane ? f.planeHole : f, rings, grid, need), need, plane ? "Plane clearance" : "Pour clearance")) continue;
+          // The barrel of a drilled object keeps the rule's hole cell (Poly-Hole) from the pour as well,
+          // wherever that reaches past its land (as the pour engine cuts it), where the rule authors
+          // one (rules.js clearanceLimit: no Hole cell, no hole clearance).
+          const holeNeed = !plane && f.planeHole ? K.clearanceLimit(r, "poly", "hole") ?? 0 : 0;
+          if (holeNeed > need + K.EPS) report(gapTo(f.planeHole, rings, grid, holeNeed), holeNeed, "Hole clearance", true);
         }
       }
       checked++;
