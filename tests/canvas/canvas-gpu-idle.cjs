@@ -738,17 +738,69 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   project.documents=[doc];
   project.library=[{...defs.get("fo"),id:"fo"}];
   defs.set("fo",project.library[0]);
-  const mark=U.mark(project);
-  assert.ok(U.documentVersions(doc),"the slice starts with an actual committed board");
   const target={key:null};
   st.textJob={T:target,V};
-  const render=(scope=V,T=target)=>{
-    context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,scope,null,T,area);
+  const render=(scope=V,T=target,board=doc)=>{
+    context.AtriumCanvasGPU.textLayer(I,st,board,defs,opts,cam,scope,null,T,area);
     return Array.from(T.bands,b=>b.next);
   };
-  const beforeScan=layerReads;
-  render(); render();
-  assert.equal(layerReads-beforeScan,1,"two committed rows on the same job resolve the part layers once");
+  const scans=(expected, reason, board=doc)=>{
+    const before=layerReads;
+    render(V,target,board); render(V,target,board);
+    assert.equal(layerReads-before,expected,reason);
+  };
+
+  U.reset(project);
+  assert.equal(U.documentVersions(doc),null);
+  assert.ok(U.verifiedDocumentVersion(doc)!=null);
+  scans(1,"two rows reuse a verified native snapshot before the first Undo mark");
+  assert.equal(U.root(),null);
+  assert.equal(U.stats().records,0);
+  st.textJob=null;
+  scans(2,"a collapsed or cancelled job leaves no verified plan for a direct render");
+  st.textJob={T:target,V};
+  scans(1,"replacement jobs resolve a fresh verified layer set");
+  U.duringEdit(()=>{
+    assert.equal(U.verifiedDocumentVersion(doc),null);
+    scans(2,"a live draft never uses a prior verified snapshot");
+  });
+  scans(1,"the first verified row after a draft rebuilds the cleared snapshot");
+
+  const page=context.Atrium.sheet("pcb","Page loaded later");
+  scans(2,"a foreign page cannot borrow the verified document snapshot",page);
+  scans(1,"the original verified page can cache again");
+  const beforePage=U.verifiedDocumentVersion(doc), beforePageLibrary=U.libraryVersion();
+  U.reconcile(project,()=>project.documents.push(page),{structureChanged:true});
+  assert.equal(U.documentVersions(doc),null);
+  assert.ok(U.verifiedDocumentVersion(doc)>beforePage);
+  assert.equal(U.libraryVersion(),beforePageLibrary);
+  scans(1,"lazy document adoption advances the verified floor without changing the library");
+  scans(1,"the newly adopted page uses its own verified snapshot",page);
+  scans(1,"returning to the original page builds its snapshot");
+
+  U.reconcile(project,()=>{
+    project.library[0].footprint.shapes=[...shapes,{kind:"text",layer:"Mechanical 3",text:"disk glyph",x:0,y:0,size:1}];
+  },{doc,library:true});
+  uploaded.length=0;
+  scans(1,"disk adoption refreshes the cached footprint text layers");
+  assert.ok(uploaded.flat().includes("disk glyph"));
+  U.touch(project,{doc,items:[part]});
+  assert.equal(U.verifiedDocumentVersion(doc),null);
+  scans(2,"an unrecorded item change invalidates cold layer reuse immediately");
+
+  U.reset(project);
+  scans(1,"a verified reset starts a fresh layer scan");
+  U.reset();
+  scans(2,"a reset without verification cannot inherit the previous scan");
+  U.reset(project);
+  context.AtriumUndoStore={...U,verifiedDocumentVersion:board=>board===doc?0:null};
+  scans(1,"a verified floor of zero qualifies");
+  context.AtriumUndoStore=U;
+  scans(1,"returning to the native store starts a new verified snapshot");
+  const beforeMark=U.verifiedDocumentVersion(doc), mark=U.mark(project);
+  assert.equal(U.verifiedDocumentVersion(doc),null);
+  assert.equal(U.documentVersions(doc).floor,beforeMark,"a first mark keeps the existing disk floor");
+  scans(1,"the first Undo mark starts a separate committed snapshot at the same floor");
   const beforeLibrary=layerReads;
   project.library[0].footprint.shapes=[...shapes,{kind:"text",layer:"Mechanical 3",text:"new footprint glyph",x:0,y:0,size:1}];
   U.checkpoint(history,future,mark,"Add footprint text");

@@ -2231,16 +2231,22 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const owner = job?.V === V ? job : null;
     // A slice job reuses its viewport, but a draft or a newly loaded designator module can change its layers.
     const store = G.AtriumUndoStore, version = owner && store?.documentVersions?.(doc), labelLayer = G.AtriumDesignators?.labelLayer;
-    const cached = version && owner.layerScan, prior = cached?.version;
+    // A verified native document also has a stable floor before Undo captures its first baseline.
+    const verifiedFloor = owner && !version ? store?.verifiedDocumentVersion?.(doc) : null;
+    const verifiedLibrary = verifiedFloor == null ? null : store.libraryVersion?.();
+    const cached = owner?.layerScan, prior = cached?.version;
+    const sameVersion = version ? prior && prior.floor === version.floor && prior.seq === version.seq && prior.items === version.items &&
+      prior.outer === version.outer && prior.library === version.library && prior.project === version.project :
+      !prior && verifiedFloor != null && verifiedFloor === cached?.verifiedFloor && verifiedLibrary === cached.verifiedLibrary;
     let textLayersInView;
-    if (prior && prior.floor === version.floor && prior.seq === version.seq && prior.items === version.items &&
-        prior.outer === version.outer && prior.library === version.library && prior.project === version.project &&
-        cached.store === store && cached.doc === doc && cached.defs === defs && cached.items === V.items && cached.labelLayer === labelLayer) {
+    if (sameVersion && cached.store === store && cached.doc === doc && cached.defs === defs &&
+        cached.items === V.items && cached.labelLayer === labelLayer) {
       textLayersInView = cached.layers;
     } else {
+      if (owner) owner.layerScan = null;
       textLayersInView = textLayers(doc, defs, V.items);
-      if (owner) owner.layerScan = version ? {version, store, doc, defs, items: V.items,
-        labelLayer, layers: textLayersInView} : null;
+      if (owner && (version || verifiedFloor != null)) owner.layerScan = {version, verifiedFloor, verifiedLibrary,
+        store, doc, defs, items: V.items, labelLayer, layers: textLayersInView};
     }
     const textOrders = [...textLayersInView].filter(l => !(V.top && l === V.active));
     const need = [...new Set([...textOrders, ...(details?.keys() || []), ...exact].map(nextOf))].sort((x, y) => x - y);
