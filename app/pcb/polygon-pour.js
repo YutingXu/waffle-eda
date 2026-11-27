@@ -1808,14 +1808,17 @@ globalThis.AtriumPolygonPour=(()=>{
     // As in Altium, whose spokes are tracks from the land's centre, a spoke runs from the centre
     // (a slot's end) across the land to 1 µm past its own air gap, and the land itself is not
     // cleared from it: the stored fill holds the spokes over the land. A spoke stops at its own
-    // gap's edge, so it never bridges the air gap of another same-net land nearby.
-    // The land's anchors are probes 1 µm beyond each spoke's end: copper connects to the land only
-    // through a spoke that reaches the copper past the gap. As in Altium, whose spokes are added to
-    // the pour after its island tests, an untiled pour sets those spokes aside (job.spokes) and adds
-    // back only the ones whose probe meets the copper that is left (stage 3, spokeTask): copper that
-    // the air gap cuts off goes with the island tests, and a spoke that would reach none is not drawn.
+    // gap's edge, so it never bridges the air gap of another same-net land nearby. A hatched pour's
+    // spoke is a track laid over the hatch openings, on past its gap to meet a hatch line.
+    // As in Altium, whose spokes are added to the pour after its island tests, an untiled pour sets
+    // its spokes aside (job.spokes). Its island tests see each spoke as a probe 1 µm beyond the
+    // spoke's end (the anchor records the land too): copper the air gap cuts off goes with the island
+    // tests. Stage 3 (spokeStage) then draws what of each probed spoke survives the obstacles and
+    // joins the land to that copper, and links copper to the land only through such a spoke: a
+    // spoke cut on its way, or one the polygon outline clips short of the land, connects nothing.
+    // Tiled pours (and options.earlySpokes) draw the spokes in the one overlay and link the land.
     function relief(pc,d,link){
-      const airGap=d.airGap,cw=d.spokeWidth/2,fallback=Math.hypot(pc.w,pc.h)/2+airGap+Math.max(d.spokeWidth,airGap)+.05;
+      const hatched=P.fillMode==="hatched",airGap=d.airGap,cw=d.spokeWidth/2,fallback=Math.hypot(pc.w,pc.h)/2+airGap+Math.max(d.spokeWidth,airGap)+.05;
       // A rectangular land's air gap keeps the land's square corners, as Altium cuts it.
       const gap=!P.powerPlane&&pc.core.length===4&&!(pc.radius>1e-9)&&mitred(pc.core,airGap)||rounded(pc.core,pc.radius+airGap,tol,"outer",arcSink);
       add(CLS.R,gap);
@@ -1825,20 +1828,23 @@ globalThis.AtriumPolygonPour=(()=>{
         const pad=rounded(pc.core,pc.radius,tol,"inner");
         if(pad)put({cls:CLS.R,flat:signedArea(pad)>0?reversed(pad):pad,oriented:true});
       }
-      const base=pc.angle+(d.angle===45?45:0),probes=[];
+      const base=pc.angle+(d.angle===45?45:0);
+      // landed: a spoke is in the one overlay, so the land itself is an anchor.
+      let landed=!deferSpokes,land=null;
       for(let k=0;k<4;k+=d.entries===2?2:1){
         const angle=base+k*90,dir=angle?Atrium.rotate([1,0],angle):[1,0],origin=spokeOrigin(pc,dir);
-        const frame={x:origin[0],y:origin[1],angle},far=P.powerPlane?null:spokeReach(gap,origin,dir,cw),reach=far==null?fallback:far+.001;
+        const frame={x:origin[0],y:origin[1],angle},far=P.powerPlane?null:spokeReach(gap,origin,dir,cw);
+        const reach=far==null?fallback:hatched?Math.max(far+.001,fallback):far+.001;
         const spoke=[[0,-cw],[reach,-cw],[reach,cw],[0,cw]].flatMap(q=>world(q[0],q[1],frame));
-        if(far!=null){const h=cw/2;probes.push({spoke,probe:[[far+.002,-h],[far+.003,-h],[far+.003,h],[far+.002,h]].flatMap(q=>world(q[0],q[1],frame))});}
-        else add(CLS.S,spoke);
+        if(far==null||!deferSpokes){add(CLS.S,spoke);landed=true;continue;}
+        const h=cw/2,at=anchors.length;
+        anchor(null,0,link,[[far+.002,-h],[Math.max(far+.003,reach),-h],[Math.max(far+.003,reach),h],[far+.002,h]].flatMap(q=>world(q[0],q[1],frame)));
+        // A probe outside the work box meets no copper: that spoke is not drawn.
+        if(anchors.length===at)continue;
+        anchors[at].land=land||=rounded(pc.core,pc.radius+.002,tol,"outer");
+        if(spoke.length>=6&&near(boxOf(spoke)))spokes.push({flat:spoke,anchor:at});
       }
-      for(const {spoke,probe} of probes){
-        const at=anchors.length;anchor(null,0,link,probe);
-        if(!deferSpokes||anchors.length===at)add(CLS.S,spoke);
-        else if(spoke.length>=6&&near(boxOf(spoke)))spokes.push({flat:spoke,anchor:at});
-      }
-      if(!probes.length)anchor(pc.core,pc.radius,link);
+      if(landed)anchor(pc.core,pc.radius,link);
     }
     // A land's clearance. Altium cuts a rectangular land's clearance with square corners (as its
     // relief air gap), seen in the stored fill of public boards; other lands grow with round corners.
@@ -2005,7 +2011,8 @@ globalThis.AtriumPolygonPour=(()=>{
       }else for(let k=0;k<cells.length;k+=2){
         const x=cells[k],y=cells[k+1],q=[];
         for(const [du,dv] of [[-h,-h],[h,-h],[h,h],[-h,h]])q.push(x+du*c-dv*sn,y+du*sn+dv*c);
-        add(CLS.O,q);
+        // An opening of the fill, not an object: stage 3 does not cut a spoke track with it.
+        if(q.length>=6)put({cls:CLS.O,flat:q,hatch:true});
       }
     }
     if(globals&&board&&P.boardClearance>0){
@@ -2040,7 +2047,7 @@ globalThis.AtriumPolygonPour=(()=>{
       if(options.slices&&++tick%SLICE_CHUNK===0)yield;
       const e="areaInteger" in s?s.areaInteger:intShape(s,S,ox,oy);
       if(sourceRecords)s.areaInteger=e;
-      if(!e)continue;if(keyed)e.key=s.key;input.push(e);
+      if(!e)continue;if(keyed)e.key=s.key;if(s.hatch)e.hatch=true;input.push(e);
     }
     // The spokes set aside (stage 3): integer rings, each with the index of its probe anchor.
     const spokeRings=[];
@@ -2051,14 +2058,22 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     const K=6+uClass.size,hasBoard=!!board;
     // Dead copper: islands must touch a same-net object on this layer.
+    const intRing=flat=>{const ring=new Int32Array(flat.length);for(let i=0;i<flat.length;i+=2){ring[i]=toInt(flat[i]-ox);ring[i+1]=toInt(flat[i+1]-oy);}return ring;};
     const final={removeDead:!!(P.removeDeadCopper&&net),minArea:P.islandAreaThreshold*S*S,minSize:P.minPrimLength*S,
       anchors:anchors.map(a=>{
         if(a.areaRing)return a.areaRing;
-        const ring=new Int32Array(a.flat.length);
-        for(let i=0;i<a.flat.length;i+=2){ring[i]=toInt(a.flat[i]-ox);ring[i+1]=toInt(a.flat[i+1]-oy);}
+        const ring=intRing(a.flat);
         if(sourceRecords)a.areaRing=ring;
         return ring;
       })};
+    // A spoke's probe anchor stands for its land (stage 3 links through drawn spokes only): the land, per anchor, or null.
+    let probed=false;
+    const lands=anchors.map(a=>{
+      if("areaLand" in a){probed||=!!a.areaLand;return a.areaLand;}
+      const ring=a.land&&a.land.length>=6?intRing(a.land):null;probed||=!!ring;
+      if(sourceRecords)a.areaLand=ring;
+      return ring;
+    });
     // Remove Necks / Outlines Only (PourCore shapeIslands) on the final copper of an untiled pour.
     if(!keyed){const m=morphOf(P,S,input);if(m)final.morph=m;}
     // Tiled pours solve in one stage; untiled ones in two: this task leaves the island tests to stage 2.
@@ -2069,7 +2084,7 @@ globalThis.AtriumPolygonPour=(()=>{
       for(const r of sourceRecords.values()){
         if(r.shapes)continue;
         r.shapes=shapes.slice(r.shapeStart,r.shapeEnd).map(s=>({areaBox:s.areaBox,areaInteger:s.areaInteger}));
-        r.anchors=anchors.slice(r.anchorStart,r.anchorEnd).map(a=>({link:a.link,areaRing:a.areaRing}));
+        r.anchors=anchors.slice(r.anchorStart,r.anchorEnd).map(a=>({link:a.link,areaRing:a.areaRing,areaLand:a.areaLand??null}));
         r.spokes=spokes.slice(r.spokeStart,r.spokeEnd).map(k=>({areaInteger:k.areaInteger,offset:k.anchor-r.anchorStart}));
       }
       job.areaPrepared={key:areaKey,S,ox,oy,safe,sources:sourceRecords,arcs:arcSink,initialArcLength:previous?.initialArcLength??arcSink?.length??0};
@@ -2078,11 +2093,12 @@ globalThis.AtriumPolygonPour=(()=>{
     if(keyed){job.anchorKeys=anchors.map(a=>a.key);job.earlier=earlier;job.work=work;job.extent=extent;job.tol=tol;}
     else{
       job.final=final;job.clear={clearance,tol,work};if(options.poured?.length)job.poured=options.poured;
-      if(spokeRings.length){
+      if(probed){
         // What can cut a spoke in stage 3: the polygon, the board and the obstacles over any spoke.
         const over=boxIndex(spokeRings.map(k=>boxOf(k.ring)),S),env=[];
-        for(const e of input)if(e.cls===CLS.A||e.cls===CLS.B||e.cls===CLS.O&&over(boxOf(e.ring)))env.push({cls:e.cls,ring:e.ring,sign:e.sign,tags:e.tags});
-        job.spokes={rings:spokeRings,env,hasBoard};
+        if(spokeRings.length)for(const e of input)if(e.cls===CLS.A||e.cls===CLS.B||e.cls===CLS.O&&!e.hatch&&over(boxOf(e.ring)))env.push({cls:e.cls,ring:e.ring,sign:e.sign,tags:e.tags});
+        // anchors: stage 2's, each probe replaced by its land.
+        job.spokes={rings:spokeRings,env,hasBoard,lands,anchors:final.anchors.map((r,k)=>lands[k]||r)};
       }
     }
     return job;
@@ -2433,51 +2449,96 @@ globalThis.AtriumPolygonPour=(()=>{
       return false;
     };
   }
-  // Stage 3 of an untiled pour: the relief spokes it set aside (job.spokes) whose probe the copper
-  // after the island tests reaches, added to that copper (Altium's spokes are tracks it adds to the
-  // poured copper). `solved` is stage 2's final solution; `earlier` stage 2's shapes (the earlier
-  // pours' copper, cls 6 and up). Returns {task} to solve, with the islands no spoke touches in
-  // `untouched`, or null when no spoke is drawn. In the task the touched islands and the spokes are
-  // spoke copper (cls 4) inside a relief area (cls 3: the polygon), so the copper is those islands
-  // plus each spoke less what stage 1 cut from it (polygon, board, obstacles) and the earlier pours.
+  // Stage 3 of an untiled pour: the relief spokes it set aside (job.spokes), added to the copper
+  // after the island tests (Altium's spokes are tracks it adds to the poured copper). `solved` is
+  // stage 2's final solution; `earlier` stage 2's shapes (the earlier pours' copper, cls 6 and up).
+  // A generator of the tasks to solve (each answered with its solution), returning the copper:
+  //   1. the spokes whose probe the copper reaches, less what stage 1 cut from them (polygon, board,
+  //      obstacles) and the earlier pours: their pieces (spokeTask);
+  //   2. the pieces that touch their land and copper, joined to that copper (spokeUnion), linked
+  //      with each probe replaced by its land.
+  // Copper no drawn piece joins keeps only its other links, and goes with Remove Dead Copper when
+  // the probes were all it touched (spokeStrip): a probe predicts a spoke, it connects nothing.
+  function* spokeStage(job,solved,earlier){
+    if(!job.spokes||!solved?.islands?.length)return solved;
+    const t=spokeTask(job,solved,earlier),u=t?spokeUnion(job,solved,t,yield t.task):null;
+    if(!u){const islands=spokeStrip(job,solved.islands);return islands===solved.islands?solved:{...solved,islands};}
+    return spokeMerge(job,solved,u,yield u.task);
+  }
+  const spokeIsland=isl=>({ring:isl.ring,box:boxOf(isl.ring),holes:isl.holes.map(h=>({ring:h.ring,box:boxOf(h.ring)}))});
   function spokeTask(job,solved,earlier){
-    const sp=job.spokes;if(!sp?.rings?.length||!solved?.islands?.length)return null;
-    const reached=new Map();
-    solved.islands.forEach((isl,i)=>{for(const k of isl.links)reached.set(k,i);});
+    const sp=job.spokes;if(!sp.rings.length)return null;
+    const reached=new Set();for(const isl of solved.islands)for(const k of isl.links)reached.add(k);
     const kept=sp.rings.filter(k=>reached.has(k.anchor));if(!kept.length)return null;
-    const touched=new Set(kept.map(k=>reached.get(k.anchor))),shapes=[],untouched=[];
-    solved.islands.forEach((isl,i)=>{
-      if(!touched.has(i)){untouched.push(isl);return;}
-      shapes.push({cls:CLS.S,ring:isl.ring,sign:1,tags:isl.tags});
-      for(const h of isl.holes)shapes.push({cls:CLS.S,ring:h.ring,sign:1,tags:h.tags});
-    });
-    for(const k of kept)shapes.push({cls:CLS.S,ring:k.ring,sign:k.sign,tags:null});
+    const shapes=kept.map(k=>({cls:CLS.S,ring:k.ring,sign:k.sign,tags:null}));
     for(const e of sp.env){shapes.push(e);if(e.cls===CLS.A)shapes.push({cls:CLS.R,ring:e.ring,sign:e.sign,tags:null});}
     let K=6;
     if(earlier?.length){
       const over=boxIndex(kept.map(k=>boxOf(k.ring)),job.S);
       for(const e of earlier)if(e.cls>=6&&over(boxOf(e.ring))){shapes.push(e);K=Math.max(K,e.cls+1);}
     }
-    // Every island here holds a touched island; one that touches no anchor is a spoke stub cut off by an obstacle.
-    return {task:{shapes,K,hasBoard:sp.hasBoard,anchors:job.final.anchors,removeDead:true,minArea:0,minSize:0},untouched,spokes:kept.length};
+    return {task:{shapes,K,hasBoard:sp.hasBoard,anchors:[],removeDead:false,minArea:0,minSize:0},kept};
+  }
+  // The pieces that touch a land of their spokes and the copper one of those spokes probed, with
+  // that copper, as one task; null when no piece joins any.
+  function spokeUnion(job,solved,t,pieces){
+    const sp=job.spokes,byLand=new Map();
+    for(const k of t.kept){const r=sp.lands[k.anchor];if(!r)continue;let e=byLand.get(r);if(!e)byLand.set(r,e={land:{ring:r,box:boxOf(r)},probes:new Set()});e.probes.add(k.anchor);}
+    const probedBy=new Map();
+    solved.islands.forEach((isl,i)=>{for(const k of isl.links)if(sp.lands[k]){let l=probedBy.get(k);if(!l)probedBy.set(k,l=[]);l.push(i);}});
+    const measured=new Map(),island=i=>{let m=measured.get(i);if(!m)measured.set(i,m=spokeIsland(solved.islands[i]));return m;};
+    const touched=new Set(),joins=[];
+    for(const piece of pieces.islands||[]){
+      const pi=spokeIsland(piece),edge={ring:piece.ring,box:pi.box};let joined=false;
+      for(const {land,probes} of byLand.values()){
+        if(!CORE.touches(land,pi))continue;
+        for(const k of probes)for(const i of probedBy.get(k)||[])if(CORE.touches(edge,island(i))){touched.add(i);joined=true;}
+      }
+      if(joined)joins.push(piece);
+    }
+    if(!joins.length)return null;
+    const shapes=[],untouched=[];
+    solved.islands.forEach((isl,i)=>{
+      if(!touched.has(i)){untouched.push(isl);return;}
+      shapes.push({cls:CLS.S,ring:isl.ring,sign:1,tags:isl.tags});
+      for(const h of isl.holes)shapes.push({cls:CLS.S,ring:h.ring,sign:1,tags:h.tags});
+    });
+    const islandEnd=shapes.length;
+    for(const p of joins){shapes.push({cls:CLS.S,ring:p.ring,sign:1,tags:p.tags});for(const h of p.holes)shapes.push({cls:CLS.S,ring:h.ring,sign:1,tags:h.tags});}
+    for(const e of sp.env)if(e.cls===CLS.A||e.cls===CLS.B){shapes.push(e);if(e.cls===CLS.A)shapes.push({cls:CLS.R,ring:e.ring,sign:e.sign,tags:null});}
+    return {task:{shapes,K:6,hasBoard:sp.hasBoard,anchors:sp.anchors,removeDead:false,minArea:0,minSize:0},islandEnd,untouched,spokes:joins.length};
+  }
+  // Islands without the links only a probe gave them; with Remove Dead Copper, those the probes
+  // alone kept are gone. The same array when no island has such a link.
+  function spokeStrip(job,islands){
+    const lands=job.spokes.lands,dead=job.final.removeDead;
+    if(!islands.some(isl=>isl.links.some(k=>lands[k])))return islands;
+    const out=[];
+    for(const isl of islands){
+      if(!isl.links.some(k=>lands[k])){out.push(isl);continue;}
+      const links=isl.links.filter(k=>!lands[k]);
+      if(!dead||links.length)out.push({...isl,links});
+    }
+    return out;
   }
   // Stage 3 solved: the untouched islands back with the new ones, stage 2's island counts kept. A
   // ring the spokes left as it was (the same vertices, from any start) stays the stage 2 object, so
   // what is keyed by ring identity (canonical rotations, later pours' offsets) is reused.
-  function spokeMerge(solved,t,s3){
+  function spokeMerge(job,solved,u,s3){
     const low=r=>{let m=0;for(let i=2;i<r.length;i+=2)if(r[i]<r[m]||(r[i]===r[m]&&r[i+1]<r[m+1]))m=i;return m;};
     const byKey=new Map(),key=r=>{const m=low(r);return r.length+":"+r[m]+":"+r[m+1];};
-    for(const e of t.task.shapes)if(e.cls===CLS.S&&e.tags!==null&&e.ring.length){const k=key(e.ring);let l=byKey.get(k);if(!l)byKey.set(k,l=[]);l.push(e);}
+    for(let i=0;i<u.islandEnd;i++){const e=u.task.shapes[i];if(!e.ring.length)continue;const k=key(e.ring);let l=byKey.get(k);if(!l)byKey.set(k,l=[]);l.push(e);}
     const same=(a,b)=>{const n=a.length,ma=low(a),mb=low(b);for(let i=0;i<n;i++)if(a[(ma+i)%n]!==b[(mb+i)%n])return false;return true;};
     const kept=r=>{const l=byKey.get(key(r.ring));const e=l?.find(e=>same(e.ring,r.ring));return e?{ring:e.ring,tags:e.tags}:r;};
     const islands=s3.islands.map(isl=>{const o=kept(isl);return {...isl,ring:o.ring,tags:o.tags,holes:isl.holes.map(kept)};});
-    const stats={...solved.stats,spokes:t.spokes,tSolve:(solved.stats?.tSolve||0)+(s3.stats?.tSolve||0)};
-    return {...solved,islands:[...t.untouched,...islands],stats};
+    const stats={...solved.stats,spokes:u.spokes,tSolve:(solved.stats?.tSolve||0)+(s3.stats?.tSolve||0)};
+    return {...solved,islands:[...spokeStrip(job,u.untouched),...islands],stats};
   }
   // Stage 3 on the caller's thread (pour(), finish() of a stage-1 solution).
   function withSpokes(job,solved,earlier){
-    const t=spokeTask(job,solved,earlier);
-    return t?spokeMerge(solved,t,CORE.solve(t.task)):solved;
+    const g=spokeStage(job,solved,earlier);let r=g.next();
+    while(!r.done)r=g.next(CORE.solve(r.value));
+    return r.value;
   }
   // The final solution, canonical (every path stores the same bytes). stage1: stage 1's stats.
   function finalize(solved,stage1,area=false){
@@ -3021,7 +3082,8 @@ globalThis.AtriumPolygonPour=(()=>{
     if(mo){m(mo.mode);ints(mo.t);if(mo.u)ints(mo.u);else m(-13);m(mo.keep.length);for(const r of mo.keep)ints(r);}else m(-12);
     // Stage 3: the spokes set aside (each with its probe) and what can cut them.
     const sp=job.spokes;
-    if(sp){m(sp.rings.length);for(const k of sp.rings){m(k.anchor);m(k.sign);ints(k.ring);}m(sp.env.length);for(const e of sp.env){m(e.cls);m(e.sign);ints(e.ring);}m(sp.hasBoard?1:0);}else m(-14);
+    if(sp){m(sp.rings.length);for(const k of sp.rings){m(k.anchor);m(k.sign);ints(k.ring);}m(sp.env.length);for(const e of sp.env){m(e.cls);m(e.sign);ints(e.ring);}m(sp.hasBoard?1:0);
+      sp.lands.forEach((r,k)=>{if(r){m(k);ints(r);}});m(-15);}else m(-14);
     return (a>>>0).toString(16)+"."+(b>>>0).toString(16)+"."+(c>>>0).toString(16);
   }
   function changesSince(rc,seq){
@@ -3176,15 +3238,19 @@ globalThis.AtriumPolygonPour=(()=>{
         solved=yield {task:s2.task,hash:rc?hash1+"/"+ek:null,stage:2,j};solvedHere=true;
       }
     }
-    const t3=spokeTask(s2.job,solved,s2.task?.shapes);let stage3=null;
-    if(t3){
-      // An incremental (area) repour keeps stage 3's islands while its inputs are the same objects,
-      // so later pours still reuse their offsets of this copper.
-      const refs=[...t3.task.shapes.map(e=>e.ring),...t3.task.anchors],prior=area?previousArea?.stage3:null;
-      const same=prior&&prior.refs.length===refs.length&&prior.refs.every((r,k)=>r===refs[k]);
-      const s3=same?prior.solved:yield {task:t3.task,hash:null,stage:3,j};
-      if(area)stage3={refs,solved:s3};
-      solved=spokeMerge(solved,t3,s3);
+    // Stage 3 (spokeStage). An incremental (area) repour keeps each of its solutions while that task's
+    // inputs are the same objects, so later pours still reuse their offsets of this copper.
+    let stage3=null;
+    {
+      const g=spokeStage(s2.job,solved,s2.task?.shapes),prior=area?previousArea?.stage3:null;let r=g.next(),n=0;
+      while(!r.done){
+        const task=r.value,refs=[...task.shapes.map(e=>e.ring),...task.anchors],p=prior?.[n];
+        const same=p&&p.refs.length===refs.length&&p.refs.every((x,k)=>x===refs[k]);
+        const s3=same?p.solved:yield {task,hash:null,stage:3,j};
+        if(area)(stage3||=[]).push({refs,solved:s3});
+        n++;r=g.next(s3);
+      }
+      solved=r.value;
     }
     finalize(solved,s2.stage1,!!area);
     const regions=slices?yield* pauses(finishSteps(s2.job,solved)):finish(s2.job,solved);

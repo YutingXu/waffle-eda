@@ -151,6 +151,38 @@ const track=(pts,net,width=.25,layer="Top")=>({id:id(),kind:"track",points:pts,w
     ok(!inRegions(10,10.4,regs)&&!inRegions(10,9.6,regs),"relief: no spoke into the other net's clearance"+tag);
     ok(regs.length===1&&regs[0].links.length===2,"relief: one island, linked to the via and the land"+tag);
   }
+  // Copper links to a land only through a drawn spoke that joins them, never through the probe
+  // that predicted the spoke: a spoke the outline clips short of the land, or one an obstacle cuts
+  // on its way across the gap, connects nothing (and the copper it alone kept is dead).
+  for(const removeDeadCopper of [true,false]){
+    const tag=" (dead copper "+(removeDeadCopper?"on":"off")+")";
+    {
+      // The land lies 0.1 mm outside the outline, within its air gap of it.
+      const p=PP.make(rect(0,0,20,20),{net:"GND",reliefAirGap:.3,reliefConductorWidth:.25,removeDeadCopper});
+      const land=smd(20.4,10,.6,.6),regs=PP.pour(board([land,p]),null,p,{});
+      ok(regs.every(r=>!r.links.some(l=>l[0]===land.id)),"relief: no link to a land the clipped spoke does not reach"+tag);
+      ok(removeDeadCopper?regs.length===0:regs.length===1,"relief: the unconnected pour goes with dead copper ("+regs.length+")"+tag);
+    }
+    {
+      // Foreign vias inside a 1 mm air gap cut both spokes; the probes past the gap still meet copper.
+      const p=PP.make(rect(0,0,20,20),{net:"GND",reliefAirGap:1,reliefConductorWidth:.25,reliefEntries:2,reliefAngle:90,removeDeadCopper});
+      const land=smd(10,10,.6,.6),cut=x=>({id:id(),kind:"via",x,y:10,diameter:.2,drill:.1,layer:"Multi",net:"SIG"});
+      const regs=PP.pour(board([land,cut(10.7),cut(9.3),p]),null,p,{});
+      ok(regs.every(r=>!r.links.length),"relief: no link through spokes cut on their way"+tag);
+      ok(removeDeadCopper?regs.length===0:regs.length===1&&inRegions(5,10,regs),"relief: the copper only cut spokes reached is dead ("+regs.length+")"+tag);
+      ok(!inRegions(10.35,10,regs)&&!inRegions(11.15,10,regs),"relief: no stub of a cut spoke is drawn"+tag);
+    }
+  }
+  // A hatched pour's spokes are tracks over the hatch openings that run on past the gap to meet a
+  // hatch line: nearly every land joins the hatch (a land whose spokes all end in openings does not).
+  {
+    const lands=[];for(let i=0;i<20;i++)for(let j=0;j<10;j++)lands.push(smd(5+i*1.737+j*.113,5+j*2.913,.6,.6));
+    const p=PP.make(rect(0,0,50,40),{net:"GND",fillMode:"hatched",hatchPitch:1,hatchWidth:.25,reliefAirGap:.254,reliefConductorWidth:.254});
+    const v=via(1,1,"GND"),regs=PP.pour(board([...lands,v,p]),null,p,{});
+    const main=regs.filter(r=>r.links.some(l=>l[0]===v.id)),linked=new Set(main.flatMap(r=>r.links.map(l=>l[0])));
+    const n=lands.filter(q=>linked.has(q.id)).length;
+    ok(regs.length===1&&n>=185,"relief: hatched spokes join "+n+" of 200 lands to the hatch in "+regs.length+" island(s)");
+  }
 }
 // 4. nested islands and dead copper
 {
