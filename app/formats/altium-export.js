@@ -821,9 +821,11 @@ globalThis.AtriumAltiumExport = (() => {
       const asset = catalogues.get(source).get(b.modelId);
       const flipped = (i?.layer === "Bottom" ? "Bottom" : "Top") !== b.ownerSide, sign = flipped ? -1 : 1;
       const side = flipped ? (b.side === "Bottom" ? "Top" : "Bottom") : b.side;
-      const world = q => i ? Atr.world([q[0], sign * q[1]], i) : q;
+      // world() reflects a mirrored part's local X (pcb-appearance.js); its arcs turn to 180 - angle with it.
+      const world = q => i ? Atr.world([q[0], sign * q[1]], i) : q, mirror = i?.mirror === true;
+      const turn = v => (mirror ? 180 - sign * v : sign * v) - (i?.angle || 0);
       const outer = b.contour?.length ? b.contour.map(g => g.kind === "line" ? {kind: "line", a: world(g.a)} :
-        {...g, c: world(g.c), start: sign * g.start - (i?.angle || 0), end: sign * g.end - (i?.angle || 0), ccw: flipped ? !g.ccw : g.ccw}) :
+        {...g, c: world(g.c), start: turn(g.start), end: turn(g.end), ccw: flipped !== mirror ? !g.ccw : g.ccw}) :
         (b.rings?.[0] || []).map(q => ({kind: "line", a: world(q)}));
       const holes = (b.rings || []).slice(1);
       const fields = [["RECORD", "ComponentBody"], ["COMPONENT", owner], ["LAYER", layerOf(b.layer) || b.layer],

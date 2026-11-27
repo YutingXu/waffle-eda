@@ -202,8 +202,8 @@ globalThis.AtriumIDX = (() => {
     }
     for (const p of snap.parts) {
       if (!want(p.key)) continue;
-      // One package body per footprint, height and model: shared by every instance.
-      const k = p.def + "|" + p.height + "|" + (p.model || "");
+      // One package body per footprint, height, model and mirror: shared by every instance.
+      const k = p.def + "|" + p.height + "|" + (p.model || "") + (p.mirror ? "|mirrored" : "");
       let s = shared.get(k);
       if (!s) {
         const fp = footprintOutline(snap, p);
@@ -253,7 +253,7 @@ globalThis.AtriumIDX = (() => {
     const S = G.AtriumSTEP, def = snap.defs?.get(p.def) || snap.def;
     if (S && def?.footprint) {
       try {
-        const m = S.model({name: "p", documents: [{id: "x", kind: "pcb", name: "x", grid: 1, outline: [[-1, -1], [1, -1], [1, 1], [-1, 1]], items: [{id: "q", kind: "part", def: p.def, ref: p.ref, value: "", x: 0, y: 0, angle: 0}], notes: []}], library: [def]}, "x", {holes: false, models: false});
+        const m = S.model({name: "p", documents: [{id: "x", kind: "pcb", name: "x", grid: 1, outline: [[-1, -1], [1, -1], [1, 1], [-1, 1]], items: [{id: "q", kind: "part", def: p.def, ref: p.ref, value: "", x: 0, y: 0, angle: 0, mirror: p.mirror === true}], notes: []}], library: [def]}, "x", {holes: false, models: false});
         const part = m.parts[0];
         if (part?.body?.loops?.[0]) { const f = S.flattenLoop(part.body.loops[0], 0.02), out = []; for (let i = 0; i < f.length; i += 2) out.push([Math.round(f[i] * 1e4) / 1e4, -Math.round(f[i + 1] * 1e4) / 1e4]); if (out.length >= 3) return out; }
       } catch { /* box below */ }

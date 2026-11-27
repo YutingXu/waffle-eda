@@ -431,22 +431,36 @@ globalThis.Atrium = (() => {
       for(const k of ["layer","fromLayer","toLayer"])if(p[k]!=null)out[k]=side(p[k],inner);
       return legacy?out:padArtwork(out,inner,side);
     }
-    function shape(s,inner=0,side=layer){
+    // The exact curved outline (regionShape) reflects with its polygon: arcs turn to 180 - angle and
+    // reverse sense. Its signature follows the reflected polygon only when it matched the original,
+    // so a stale outline stays stale. Without the board-shape module the extents check decides.
+    const contour=c=>c.map(g=>g.kind==="arc"?transformArc(g,reflect,0,true):{kind:"line",a:reflect(g.a),b:reflect(g.b)});
+    function region(r,before,after){
+      const S=globalThis.AtriumBoardShape,{sig,cutoutRegions,...rest}=r;
+      const out={...rest,contour:contour(r.contour||[]),cutouts:(r.cutouts||[]).map(contour)};
+      if(sig!=null && S)out.sig=sig===S.signature(before)?S.signature(after):sig;
+      return cutoutRegions&&S?S.mapCutoutRegions(r,out,contour):out;
+    }
+    // side===keep is a part's own mirror flag, which keeps lettering readable: the board moves only the
+    // anchor (pcb-appearance.js placeText). Flipping to the other side mirrors the lettering too.
+    // legacy reproduces the earlier derivation, which left the curved outline as it was.
+    function shape(s,inner=0,side=layer,legacy=false){
       const out={...s};
       if(s.layer!=null)out.layer=side(s.layer,inner);
       if(Array.isArray(s.points)){
         out.points=s.points.map(reflect);
         if(s.arc?.kind==="arc")out.arc=transformArc(s.arc,reflect,0,true);
+        if(!legacy&&s.regionShape&&typeof s.regionShape==="object")out.regionShape=region(s.regionShape,s.points,out.points);
       }
       if(s.x!=null)out.x=-s.x;
-      if(s.kind==="text"){
+      if(s.kind==="text"&&side!==keep){
         out.angle=angle(-(s.angle||0));
         if(typeof s.mirrored==="boolean")out.mirrored=!s.mirrored;
       }
       return out;
     }
     function footprint(fp,inner=0,legacy=false,side=layer){
-      return fp && {...clone(fp),pads:(fp.pads||[]).map(p=>pad(p,inner,legacy,side)),shapes:(fp.shapes||[]).map(s=>shape(s,inner,side))};
+      return fp && {...clone(fp),pads:(fp.pads||[]).map(p=>pad(p,inner,legacy,side)),shapes:(fp.shapes||[]).map(s=>shape(s,inner,side,legacy))};
     }
     // A PCB part's own `mirror` flag reflects its footprint about the local Y axis and keeps every
     // layer (pcb-appearance.js padTurn, drillCore). Writers that place footprint-local geometry
@@ -455,7 +469,7 @@ globalThis.Atrium = (() => {
     function placed(item,fp){
       return item?.mirror===true && fp ? {item:{...item,mirror:false},footprint:footprint(fp,0,false,keep)} : {item,footprint:fp};
     }
-    return {layer,pad,padArtwork,rotatedSlot,shape,footprint,placed};
+    return {layer,pad,padArtwork,rotatedSlot,shape,footprint,placed,placedShape:s=>shape(s,0,keep)};
   })();
   function pins(item, def, kind) {
     const g = gate(geometries(def, kind), item);

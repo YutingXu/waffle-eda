@@ -642,7 +642,8 @@ globalThis.AtriumSTEP = (function createSTEP(coreFactory, {point: xform, directi
       if (ownerMirror && records.some(b => b.type === "step")) note("Component models of mirrored parts are placed at their mirrored position without mirroring the model.");
       const ownerPlacement = placement([owner.x, -owner.y, seatingZ(ownerBottom ? "Bottom" : "Top", i, footprint)], [0, 0, ownerBottom ? -1 : 1], [Math.cos(ownerAngle), Math.sin(ownerAngle), 0]);
       for (const raw of records) {
-        const b = ownerMirror && raw.type === "extruded" ? {...raw, rings: raw.rings?.map(r => r.map(X)), contour: raw.contour?.map(g => g.kind === "arc" ?
+        // Outlines (extruded bodies, and STEP bodies drawn as envelopes) reflect; a model keeps raw.at and raw.angle.
+        const b = ownerMirror ? {...raw, rings: raw.rings?.map(r => r.map(X)), contour: raw.contour?.map(g => g.kind === "arc" ?
           {...g, c: X(g.c), start: 180 - g.start, end: 180 - g.end, ccw: !g.ccw} : {kind: "line", a: X(g.a), b: X(g.b)})} : raw;
         const flipped = (ownerBottom ? "Bottom" : "Top") !== b.ownerSide, sign = flipped ? -1 : 1;
         const side = flipped ? (b.side === "Bottom" ? "Top" : "Bottom") : b.side;

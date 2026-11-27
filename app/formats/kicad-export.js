@@ -569,7 +569,7 @@ globalThis.AtriumKiCad = (() => {
         const justify=[horizontal==="center"?"":horizontal,vertical==="middle"?"":vertical,appearance.textMirrored(row,row.layer)?"mirror":""].filter(Boolean).join(" ");
         const hidden=wrapper || show===false || (field==="ref" && !!placed) ||
           (item.hiddenBoardLabels?.includes(row) && show!==true);
-        return text(which,value,flip(row.at),(item.angle||0)+(mirror?-1:1)*row.angle,sourceLayer,row.size,key,justify,hidden,undefined,row);
+        return text(which,value,flip(row.at),(item.angle||0)+row.angle,sourceLayer,row.size,key,justify,hidden,undefined,row);
       }
       lines.push("  "+componentField("ref","reference",localRef,side+"SilkS",.68,wrapper||item.showRef===false||!!native||!!placed,item.showRef),
         "  "+componentField("value","value",localValue,side+"Fab",.8,true,item.showValue));
@@ -577,7 +577,7 @@ globalThis.AtriumKiCad = (() => {
       for(const [i,a] of (native||[]).entries()){
         if((fields.get(a.field)===a && fieldLayer(a.layer)) || !appearance.annotationVisible(item,a))continue;
         const t=appearance.annotationText(item,a);
-        for(const token of graphic(mirror?A.pcbMirror.shape(t,0,l=>l):t,frame,item.id+"/annotation/"+i))lines.push("  "+token);
+        for(const token of graphic(mirror?A.pcbMirror.placedShape(t):t,frame,item.id+"/annotation/"+i))lines.push("  "+token);
       }
       const shapes=observer?observer.items(doc,g.shapes,()=>lines.length+boardObjects.length,"Footprint graphic",item.id):g.shapes;
       let shapeIndex=0;

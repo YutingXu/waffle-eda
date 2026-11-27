@@ -42,7 +42,7 @@ Accepting a change also records it as MCAD's state, so it is not sent back as a 
   - drilled holes (PTH/NPTH, BOARD or the owning designator); IDF 3.0 holes are round, so a slot is a cutout loop on its outline;
   - place, route and via keep-outs and place regions, with heights;
   - placements (locked parts are ECAD-owned);
-  - one `.ELECTRICAL` package per footprint and height.
+  - one `.ELECTRICAL` package per footprint and height; a mirrored part has its own, reflected package.
 - **Import.** Choose an `.emn` in File › Import › MCAD Changes (IDX)…. IDF has no identifiers, so components match by designator and holes by position and diameter.
 
 ## Enclosures and STEP

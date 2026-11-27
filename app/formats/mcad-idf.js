@@ -74,7 +74,8 @@ globalThis.AtriumIDF = (() => {
     L.push(".PLACEMENT");
     const packages = new Map();
     for (const p of snap.parts) {
-      const geom = p.package, part = p.def + (p.height ? "_" + n6(p.height) : "");
+      // A mirrored part (pcb-appearance.js) has its own, reflected package outline.
+      const geom = p.package, part = p.def + (p.height ? "_" + n6(p.height) : "") + (p.mirror ? "_mirrored" : "");
       L.push(q(geom) + " " + q(part) + " " + q(p.ref), n6(p.x) + " " + n6(-p.y) + " 0 " + n6(MC.norm(-p.angle)) + " " + (p.side === "Bottom" ? "BOTTOM" : "TOP") + " " + (p.locked ? "ECAD" : "PLACED"));
       if (!packages.has(geom + "|" + part)) packages.set(geom + "|" + part, {geom, part, p});
     }

@@ -119,7 +119,7 @@ globalThis.AtriumMCAD = (() => {
         if (!def?.footprint) continue;
         parts.push({key: i.id, id: i.id, ref: String(i.ref || ""), value: String(i.value ?? ""), x: r4(i.x), y: r4(i.y), angle: norm(i.angle || 0),
           side: i.layer === "Bottom" ? "Bottom" : "Top", height: heightOf(i, def, project), package: String(def.footprint.name || def.name || def.id), def: def.id,
-          model: modelName(i, def), locked: i.locked === true});
+          model: modelName(i, def), locked: i.locked === true, ...(i.mirror === true && {mirror: true})});
         for (const p of def.footprint.pads || []) {
           const h = holeOf(p, i, datum);
           if (h) opts.mechanicalHole?.(p, i, !h.plated || !!opts.pinHoles);
@@ -154,7 +154,7 @@ globalThis.AtriumMCAD = (() => {
   // A stable 32-bit FNV-1a digest of what MCAD cares about for one object.
   function hashOf(o) {
     const pick = o.key === "board" ? {o: o.outline, c: o.cutouts, t: o.thickness, k: o.constraints}
-      : o.ref != null ? {x: o.x, y: o.y, a: o.angle, s: o.side, h: o.height, m: o.model, l: o.locked, p: o.package}
+      : o.ref != null ? {x: o.x, y: o.y, a: o.angle, s: o.side, h: o.height, m: o.model, l: o.locked, p: o.package, r: o.mirror}
       : o.points ? {p: o.points, k: o.kind, z: [o.z0, o.z1], l: o.layer}
       : o.d != null ? {x: o.x, y: o.y, d: o.d, p: o.plated, s: o.slot}
       : {a: o.a, b: o.b, w: o.width, g: o.angle, r: o.radius};
