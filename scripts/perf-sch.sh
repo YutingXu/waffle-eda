@@ -23,6 +23,7 @@
 #   --project opens a real project read-only through File › Open (the folder's top-level Altium or
 #   KiCad files); nothing is written next to it.
 # Env: CHROME=/path/to/chrome  APP=/path/to/app  RUNS=1 (median of RUNS launches)  ONLY=camera,switch,...
+#      GPU=1 leaves the GPU on (GPU raster, and the GPU renderer where the editor picks it).
 #      BUDGET_<METRIC>=ms overrides one p95 budget (metric upper-cased: BUDGET_PANFIT=12).
 # Budgets are generous (CI machines vary); the targets on an M-series Mac are interaction frames
 # <= 8 ms p95 on the 30-sheet project, sheet switch <= 50 ms, idle wake-ups ~0.
@@ -71,7 +72,7 @@ open(tmp + "/sch.html", "w").write(h)
 def run_once():
     s0 = socket.socket(); s0.bind(("127.0.0.1", 0)); port = s0.getsockname()[1]; s0.close()
     prof = tmp + "/prof"; subprocess.run(["rm", "-rf", prof])
-    proc = subprocess.Popen([chrome, "--headless=new", "--no-first-run", "--allow-file-access-from-files", "--disable-gpu", "--enable-precise-memory-info",
+    proc = subprocess.Popen([chrome, "--headless=new", "--no-first-run", "--allow-file-access-from-files", *([] if os.environ.get("GPU") else ["--disable-gpu"]), "--enable-precise-memory-info",
         "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--js-flags=--expose-gc",
         "--user-data-dir=" + prof, "--remote-debugging-port=%d" % port, "--window-size=1440,900", "--force-device-scale-factor=1",
         "file://" + tmp + "/sch.html"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

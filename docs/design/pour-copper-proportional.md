@@ -231,8 +231,12 @@ edit burns, not the longest task.
 
 ## Not verified
 
-- Timings on a real GPU; every number is headless Chrome with CPU raster. The GPU canvas uses one
-  fan buffer per region still: its caches do not keep the runs a new region shares.
+- Timings on a real GPU in the app. Headless Chrome with the GPU on (`GPU=1 scripts/perf-sch.sh
+  --board pours`, ANGLE on Metal, which also turns on the GPU renderer) was tried, 2 runs per side,
+  Efficiency always: the longest task after an edit went from 138–196 ms to 74–100 ms and CPU per edit
+  from 674–759 ms to 420–530 ms, but those frames are mostly the GPU renderer's scene update
+  (`canvas-gpu.js` update, 40–55 ms a frame) and coverage upload, not pour work. The GPU canvas still
+  uses one fan buffer per region: its caches do not keep the runs a new region shares.
 - WKWebView and the WebAssembly core; neither was available on the measuring machine.
 - A draft with run records cannot be read by a build before this one.
 - What triggers the full-solve fallback for a part move (stage 3).
