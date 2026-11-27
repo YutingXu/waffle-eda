@@ -1757,6 +1757,26 @@
    "status": "interactive"
   },
   {
+   "action": "customise-active-bar",
+   "commands": [
+    "customise-active-bar"
+   ],
+   "labels": [
+    "Customise Active Bar\u2026"
+   ],
+   "menus": [
+    "view"
+   ],
+   "reason": "per-user editor preference stored in the browser; no design change.",
+   "sources": [
+    "index.html",
+    "editor/prefs.js registerAction",
+    "editor/prefs.js registerCommand",
+    "editor/prefs.js"
+   ],
+   "status": "interactive"
+  },
+  {
    "action": "customise-waffle",
    "commands": [],
    "labels": [
@@ -4254,10 +4274,12 @@
    "action": "insert-palette",
    "commands": [],
    "labels": [
-    "Insert or Search\u2026"
+    "Insert or Search\u2026",
+    "Widgets"
    ],
    "menus": [
-    "place"
+    "place",
+    "toolbar"
    ],
    "reason": "Search at the editor pointer. Headless placement takes a document and coordinates through place_part and the object tools.",
    "sources": [
@@ -7674,13 +7696,18 @@
     "VCC",
     "+3V3",
     "+5V",
+    "VDD",
+    "GND power port",
+    "VDD power port",
     "Place power port\u2026"
    ],
    "menus": [
-    "place"
+    "place",
+    "toolbar"
    ],
    "sources": [
     "index.html",
+    "editor/bars.js button",
     "editor/keymap.js"
    ],
    "status": "tool",
@@ -10225,9 +10252,9 @@
  "summary": {
   "command": 121,
   "headless": 277,
-  "interactive": 301,
+  "interactive": 302,
   "missing": 0,
   "tool": 156,
-  "total": 578
+  "total": 579
  }
 }
