@@ -46,15 +46,15 @@ globalThis.AtriumThermalView = (() => {
     if (tab) view.tab = tab;
     if (dlg?.open) { paint(); dlg.querySelector("button, select, input")?.focus(); return dlg; }
     load(doc);
-    const d = el("dialog", null, "work-dialog ui-dialog ui-sheet thm-dialog", {"aria-labelledby": "thm-heading"});
+    const d = el("dialog", null, "work-dialog ui-dialog ui-sheet ui-tool-panel", {"aria-labelledby": "thm-heading", "data-tool": "thermal"});
     dlg = d;
-    const head = el("div", null, "thm-head");
-    const close = button("", () => d.close(), "thm-close", "Close the thermal panel"); close.setAttribute("aria-label", "Close");
+    const head = el("div", null, "ui-tool-head");
+    const close = button("", () => d.close(), "ui-tool-close", "Close the thermal panel"); close.setAttribute("aria-label", "Close");
     const title = el("h2", "Thermal", null, {id: "thm-heading"});
     head.append(title, close);
     const tabs = el("div", null, "thm-seg ui-tabs", {role: "tablist", "aria-label": "Thermal check"});
-    const status = el("p", null, "thm-status", {role: "status", "aria-live": "polite"});
-    const body = el("div", null, "thm-body", {id: "thm-mode-panel", role: "tabpanel"});
+    const status = el("p", null, "ui-tool-status", {role: "status", "aria-live": "polite"});
+    const body = el("div", null, "ui-tool-body", {id: "thm-mode-panel", role: "tabpanel"});
     d.append(head, tabs, status, body);
     d.addEventListener("keydown", e => {
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); d.close(); return; }
@@ -105,7 +105,7 @@ globalThis.AtriumThermalView = (() => {
     if (resultTabs) ui.body.querySelector('.thm-tabs [aria-selected="true"]')?.focus({preventScroll: true});
     if (overlay) ui.body.querySelector('.thm-seg [aria-checked="true"]')?.focus({preventScroll: true});
   }
-  const field = (label, input, unit, cls) => globalThis.AtriumUIKit.analysisField(label, input, unit, cls, "thm");
+  const field = (label, input, unit, cls) => globalThis.AtriumUIKit.analysisField(label, input, unit, cls);
   const numInput = (value, onValue, opts) => globalThis.AtriumUIKit.nullableNumber(value, onValue, opts);
   function select(options, value, onValue, label) {
     const s = el("select", null, "ui-field", {"aria-label": label});
@@ -121,38 +121,38 @@ globalThis.AtriumThermalView = (() => {
   }
   function table(cols, rows, empty = "Nothing to report.") {
     return AtriumUIKit.analysisTable(cols, rows, row => {
-      const tr = el("tr", null, "thm-row" + (row.status ? " thm-" + row.status : ""));
+      const tr = el("tr", null, "ui-tool-row" + (row.status ? " is-" + row.status : ""));
       tr.tabIndex = 0;
       for (const c of row.cells) tr.append(el("td", c));
       const go = () => { if (row.id) { try { H.select([row.id], row.id); } catch { /* gone */ } } if (row.at) H.centerOn?.(row.at); H.invalidate(); };
       tr.onclick = go; tr.onkeydown = e => { if (e.key === "Enter") go(); };
       return tr;
-    }, {wrapClass: "thm-table-wrap", tableClass: "thm-table", empty, emptyClass: "thm-empty"});
+    }, {wrapClass: "ui-tool-table-wrap", tableClass: "ui-tool-table", empty, emptyClass: "ui-tool-empty"});
   }
 
   // ---------------------------------------------------------------- Current Capacity Check
   function paintCurrent() {
     const box = ui.body, o = state.opts, doc = board();
-    const grid = el("div", null, "thm-grid");
+    const grid = el("div", null, "ui-tool-grid");
     grid.append(field("Allowed rise", numInput(o.max_rise, v => { o.max_rise = v > 0 ? v : 10; }, {min: "1", unit:"Δ°C",label: "Allowed temperature rise (°C)"}), "°C"),
       field("Method", select(Object.entries(CC().METHODS), o.method, v => { o.method = v; }, "Method")),
-      field("Current", select([["both", "Larger of required and PDN"], ["rule", "Required (Net/Class currents)"], ["pdn", "PDN Analyzer currents"]], o.source, v => { o.source = v; }, "Current source"), null, "thm-wide"));
+      field("Current", select([["both", "Larger of required and PDN"], ["rule", "Required (Net/Class currents)"], ["pdn", "PDN Analyzer currents"]], o.source, v => { o.source = v; }, "Current source"), null, "ui-tool-wide"));
     const hasRule = (() => { try { return (globalThis.AtriumRules?.effective?.(doc, H.project())?.list || []).some(r => r.type === "currentCapacity"); } catch { return false; } })();
     box.append(el("p", hasRule ? "The board's Current Capacity rules set the scopes and limits; the rise and method here apply where no rule does." :
       "No Current Capacity rule yet: every net with a current is checked with these settings. Add a rule for per-net currents.", "thm-note"), grid);
-    const bar = el("div", null, "work-actions ui-dialog-actions thm-actions");
+    const bar = el("div", null, "work-actions ui-dialog-actions ui-tool-actions");
     bar.append(button("Current Capacity Rule…", () => rulesEditor(), "", "Design › Rules › Current Capacity"), button("Send to Messages", () => currentMessages(true), "", "List the failing conductors in Messages"),
       button("Check", () => runCheck(), "is-primary", "Check every track, pad and via of the nets with a current"));
     box.append(bar);
     const R = state.check;
-    if (!R || R.docId !== doc?.id) { box.append(el("p", "Check to list every conductor of the nets with a current, worst first.", "thm-empty")); return; }
+    if (!R || R.docId !== doc?.id) { box.append(el("p", "Check to list every conductor of the nets with a current, worst first.", "ui-tool-empty")); return; }
     const res = R.res, s = res.summary;
     box.append(el("p", s.checked + " conductor" + (s.checked === 1 ? "" : "s") + " on " + s.nets + " net" + (s.nets === 1 ? "" : "s") + " · " + (s.failing ? s.failing + " over the allowed rise" : "all within the allowed rise") +
       " · worst rise " + fmtT(s.worstRise) + (s.pdn ? " · PDN currents used" : ""), "thm-summary"));
     box.append(table(["Object", "Net", "Size", "Current", "Allowed", "Rise", ""], res.rows.slice(0, 500).map(x => ({id: x.id, at: x.at, status: x.ok ? "ok" : "fail",
       cells: [x.kind === "via" ? "Via" : x.kind === "pad" ? x.label.replace(/ \S+$/, "") : "Track " + x.layer, x.net, x.kind === "via" ? r2(x.drill) + " mm hole" : r2(x.width) + " mm",
         fmtA(x.current) + (x.basis === "pdn" ? " PDN" : ""), fmtA(x.allowed), fmtT(x.rise), x.ok ? "OK" : "Over"]})), "No net has a current. Set one in a Current Capacity rule, or analyse the power nets in Tools › PDN Analyzer."));
-    const notes = el("ul", null, "thm-notes");
+    const notes = el("ul", null, "ui-tool-notes");
     for (const n of res.notes) notes.append(el("li", n));
     notes.append(el("li", "Each conductor is treated as isolated in still air (IPC-2152). Neighbouring heat adds to the rise: see the Temperature Rise Map."));
     box.append(notes);
@@ -194,7 +194,7 @@ globalThis.AtriumThermalView = (() => {
   function paintMap() {
     const box = ui.body, S = setup, doc = board();
     box.append(el("p", "Estimate: a steady-state grid model of copper, dielectric and vias with convection. Check critical parts with a full thermal simulation.", "thm-estimate"));
-    const grid = el("div", null, "thm-grid");
+    const grid = el("div", null, "ui-tool-grid");
     const airSel = select([["natural", "Natural air (h 10)"], ["forced-1", "Forced air ≈ 1 m/s (h 25)"], ["forced-3", "Forced air ≈ 3 m/s (h 50)"], ["forced-5", "Forced air ≈ 5 m/s (h 80)"], ["custom", "Custom h"]], S.air,
       v => { S.air = v; if (v !== "custom") { S.hTop = S.hBottom = TH().AIR[v]; } paint(); }, "Air");
     grid.append(field("Ambient", numInput(S.ambient, v => { S.ambient = v ?? 25; }, {label: "Ambient temperature (°C)"}), "°C"), field("Air", airSel));
@@ -202,25 +202,25 @@ globalThis.AtriumThermalView = (() => {
     grid.append(field("Board edges", select([["adiabatic", "Insulated"], ["convective", "Convective"], ["fixed", "Held at ambient"]], S.edge, v => { S.edge = v; paint(); }, "Board edges")));
     if (S.edge === "convective") grid.append(field("h edge", numInput(S.hEdge, v => { S.hEdge = v ?? 10; }, {min: "0", label: "Edge h (W/m²·K)"}), "W/m²K"));
     box.append(grid);
-    const inc = el("div", null, "thm-bar");
+    const inc = el("div", null, "ui-tool-bar");
     inc.append(check("Component power", S.includeParts, v => { S.includeParts = v; }), check("PDN I²R losses", S.includePDN, v => { S.includePDN = v; }));
     box.append(inc);
     // Powers.
     let list = [];
     try { list = TH().powers(doc, H.defs(), H.project(), S); } catch { list = []; }
-    const more = el("details", null, "thm-more");
+    const more = el("details", null, "ui-tool-more");
     more.append(el("summary", "Component power (" + list.length + " part" + (list.length === 1 ? "" : "s") + ", " + r2(list.reduce((s, p) => s + p.power, 0)) + " W)"));
-    const pt = el("table", null, "thm-table thm-powers"), tb = el("tbody"), hr = el("tr");
+    const pt = el("table", null, "ui-tool-table thm-powers"), tb = el("tbody"), hr = el("tr");
     for (const c of ["Part", "Power", "From"]) hr.append(el("th", c, null, {scope: "col"}));
     const th = el("thead"); th.append(hr); pt.append(th, tb);
     for (const p of list) {
       const tr = el("tr"), inp = numInput(p.power, v => { S.power[p.ref] = Math.max(0, v ?? 0); }, {min: "0", unit:"W",label: p.ref + " power (W)"});
-      const td = el("td"); td.append(inp, el("span", "W", "thm-unit"));
+      const td = el("td"); td.append(inp, el("span", "W", "ui-tool-unit"));
       tr.append(el("td", p.ref), td, el("td", p.source));
       tb.append(tr);
     }
-    if (!list.length) { const tr = el("tr"); tr.append(el("td", "No part has a power. Add \"Power Dissipation\" (W) to the parts, or add the selected parts here.", "thm-empty", {colspan: "3"})); tb.append(tr); }
-    const pbar = el("div", null, "thm-bar");
+    if (!list.length) { const tr = el("tr"); tr.append(el("td", "No part has a power. Add \"Power Dissipation\" (W) to the parts, or add the selected parts here.", "ui-tool-empty", {colspan: "3"})); tb.append(tr); }
+    const pbar = el("div", null, "ui-tool-bar");
     pbar.append(button("Add selected", () => {
       const ids = new Set(H.selection()), parts = doc.items.filter(i => ids.has(i.id) && i.kind === "part" && i.ref);
       if (!parts.length) { say("Select parts on the board first."); return; }
@@ -230,12 +230,12 @@ globalThis.AtriumThermalView = (() => {
     more.append(pt, pbar);
     box.append(more);
     // Heatsinks.
-    const hs = el("details", null, "thm-more");
+    const hs = el("details", null, "ui-tool-more");
     hs.append(el("summary", "Heatsinks (" + S.sinks.length + ")"));
     const hbody = el("div", null, "thm-sinks");
     S.sinks.forEach((s, i) => {
-      const row = el("div", null, "thm-bar");
-      row.append(el("span", (s.name || "Heatsink " + (i + 1)) + " · " + s.side, "thm-label"),
+      const row = el("div", null, "ui-tool-bar");
+      row.append(el("span", (s.name || "Heatsink " + (i + 1)) + " · " + s.side, "ui-tool-label"),
         select([["h", "h"], ["fixed", "Held at"]], s.mode, v => { s.mode = v; paint(); }, "Heatsink kind"),
         s.mode === "fixed" ? field("", numInput(s.rise, v => { s.rise = v ?? 0; }, {unit:"Δ°C",label: "Rise held (°C above ambient)"}), "°C rise") : field("", numInput(s.h, v => { s.h = v ?? 1000; }, {min: "0", label: "Heatsink h (W/m²·K)"}), "W/m²K"),
         button("Remove", () => { S.sinks.splice(i, 1); paint(); }, "", "Remove this heatsink"));
@@ -252,13 +252,13 @@ globalThis.AtriumThermalView = (() => {
       S.sinks.push({id: "sink" + Date.now().toString(36), name: "", side, box: b, mode: "h", h: 1000, rise: 0});
       paint();
     };
-    hbody.append(el("div", null, "thm-bar"));
+    hbody.append(el("div", null, "ui-tool-bar"));
     hbody.lastChild.append(button("Add on top over selection", addSink("top"), "", "A heatsink on the top face over the selected objects (h 1000 W/m²·K)"), button("Add on bottom", addSink("bottom"), "", "A heatsink or cold plate on the bottom face"));
     hs.append(hbody);
     box.append(hs);
-    const adv = el("details", null, "thm-more");
+    const adv = el("details", null, "ui-tool-more");
     adv.append(el("summary", "Grid and materials"));
-    const ag = el("div", null, "thm-grid");
+    const ag = el("div", null, "ui-tool-grid");
     ag.append(field("Grid pitch", numInput(S.pitch, v => { S.pitch = v; }, {min: "0", label: "Grid pitch (mm)", placeholder: "auto"}), "mm"),
       field("Node cap", numInput(S.maxNodes / 1000, v => { S.maxNodes = Math.round((v ?? 300) * 1000); }, {min: "1", label: "Grid node cap (thousands)"}), "k"),
       field("Dielectric k ⊥", numInput(S.kz, v => { S.kz = v ?? .3; }, {min: "0.01", label: "FR-4 through-plane conductivity (W/m·K)"}), "W/m·K"),
@@ -266,7 +266,7 @@ globalThis.AtriumThermalView = (() => {
       field("Via plating", numInput(r2(S.plating * 1000), v => { S.plating = (v ?? 25) / 1000; }, {min: "1", label: "Via plating (µm)"}), "µm"));
     adv.append(ag);
     box.append(adv);
-    const bar = el("div", null, "work-actions ui-dialog-actions thm-actions");
+    const bar = el("div", null, "work-actions ui-dialog-actions ui-tool-actions");
     ui.run = button("Solve", () => solveMap(), "is-primary", "Solve the temperature rise");
     bar.append(button("Send to Messages", () => mapMessages(true), "", "List the hotspots in Messages"), ui.run);
     box.append(bar);
@@ -278,9 +278,9 @@ globalThis.AtriumThermalView = (() => {
   }
   function paintResult() {
     const box = ui.body, R = current();
-    if (!R) { box.append(el("p", "Solve to see the temperature rise on the board.", "thm-empty")); return; }
+    if (!R) { box.append(el("p", "Solve to see the temperature rise on the board.", "ui-tool-empty")); return; }
     const rep = R.report, s = rep.summary;
-    const ctl = el("div", null, "thm-bar");
+    const ctl = el("div", null, "ui-tool-bar");
     const seg = el("div", null, "thm-seg ui-segmented", {role: "radiogroup", "aria-label": "Overlay"});
     for (const [k, t] of [["on", "Map on"], ["off", "Off"]]) {
       const b = button(t, () => { view.show = k; paint(); H.invalidate(); }, "thm-seg-b ui-segment");
@@ -293,12 +293,12 @@ globalThis.AtriumThermalView = (() => {
     layerSel.onchange = () => { view.layer = layerSel.value; images.clear(); H.invalidate(); };
     ctl.append(seg, layerSel);
     box.append(ctl);
-    const dark = darkCanvas(), legend = el("div", null, "thm-legend", {role: "img", "aria-label": "Temperature rise " + scale(R).lo.toFixed(1) + " to " + s.maxRise + " °C above " + s.ambient + " °C ambient"});
-    const bar = el("div", null, "thm-ramp");
+    const dark = darkCanvas(), legend = el("div", null, "ui-tool-legend", {role: "img", "aria-label": "Temperature rise " + scale(R).lo.toFixed(1) + " to " + s.maxRise + " °C above " + s.ambient + " °C ambient"});
+    const bar = el("div", null, "ui-tool-ramp");
     bar.style.backgroundImage = TH().gradient(dark);
-    legend.append(el("span", "+" + scale(R).lo.toFixed(1) + " °C", "thm-tick"), bar, el("span", "+" + s.maxRise + " °C", "thm-tick"));
+    legend.append(el("span", "+" + scale(R).lo.toFixed(1) + " °C", "ui-tool-tick"), bar, el("span", "+" + s.maxRise + " °C", "ui-tool-tick"));
     box.append(legend, el("p", "Rise above " + s.ambient + " °C ambient · peak " + s.maxTemperature + " °C on " + s.layer + " · " + s.power + " W (" + s.partsPower + " W parts, " + s.pdnPower + " W I²R)" + (R.revision !== H.revision() ? " · the board has changed since: solve again" : ""), "thm-summary"));
-    ui.readout = el("p", "Hover over the board for a reading.", "thm-readout", {"aria-live": "off"});
+    ui.readout = el("p", "Hover over the board for a reading.", "ui-tool-readout", {"aria-live": "off"});
     box.append(ui.readout);
     const tabs = el("div", null, "thm-tabs ui-tabs", {role: "tablist", "aria-label": "Temperature results", "data-underline": ""}), body = el("div");
     for (const [k, t] of [["hotspots", "Hotspots (" + rep.hotspots.length + ")"], ["parts", "Parts"], ["model", "Model"]]) {
@@ -316,7 +316,7 @@ globalThis.AtriumThermalView = (() => {
     if (view.sub === "parts") body.append(table(["Part", "Power", "Board under it", ""], rep.parts.map(p => ({id: p.id, at: p.at, status: p.temperature >= WARN_C ? "fail" : "",
       cells: [p.ref, p.power + " W", p.temperature == null ? "—" : p.temperature.toFixed(1) + " °C", p.source]})), "No powered parts."));
     if (view.sub === "model") {
-      const list = el("ul", null, "thm-notes");
+      const list = el("ul", null, "ui-tool-notes");
       list.append(el("li", "Grid " + s.pitch + " mm, " + s.nodes.toLocaleString() + " nodes, " + s.iterations + " CG iterations (MIC(0)), " + Math.round(R.ms) + " ms; energy balance " + (s.balance * 100).toFixed(3) + " %."));
       for (const a of rep.assumptions) list.append(el("li", a));
       list.append(el("li", "Not modelled: component bodies and their own cooling, air heating and flow direction, enclosures, transients, lead conduction in plated holes. Expect ±30 % on the rise."));

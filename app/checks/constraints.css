@@ -15,23 +15,23 @@
 .work-dialog.cm-dialog .cm-close {background:transparent;border-color:transparent;font-size:var(--fs-16);line-height:1;width:28px;padding:0;color:var(--muted)}
 .cm-toolbar {display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--soft)}
 .work-dialog.cm-dialog .cm-find {flex:0 1 260px;min-width:120px}
-.cm-grid th.editable {box-shadow:inset 0 2px var(--primary)}
-.cm-grid th.actual .cm-sort {color:var(--muted)}
-.cm-grid thead tr.cm-filter-row th {top:calc(25px*var(--fs-scale));box-shadow:none}
-.cm-grid th.drop-before {box-shadow:inset 2px 0 var(--focus)}
-.cm-grid th.drop-after {box-shadow:inset -2px 0 var(--focus)}
-.work-dialog.cm-dialog .cm-sort {display:block;white-space:nowrap;min-height:calc(25px*var(--fs-scale));padding:2px 8px 2px 8px}
-.cm-grid th.num .cm-sort {text-align:right}
-.cm-sort[data-dir]::after {content:" " attr(data-dir)}
-.cm-grid td {height:calc(22px + var(--d-row));padding:1px 8px}
-.cm-grid td.num {text-align:right}
-.cm-grid tbody tr:hover td {background:color-mix(in srgb,var(--selection) 28%,var(--paper))}
-.cm-grid tbody tr.sel td {background:color-mix(in srgb,var(--selection) 70%,var(--paper));color:var(--selection-ink)}
-.cm-grid td.editable {cursor:text}
-.cm-grid td.inherited {color:var(--faint)}
-.cm-grid td.bad {color:var(--error-ink);font-weight:600;background:color-mix(in srgb,var(--err-mark) 14%,var(--paper))}
-.cm-grid tbody tr.odd td.bad {background:color-mix(in srgb,var(--err-mark) 18%,var(--paper))}
-.cm-grid td.ok {color:var(--ok-ink)}
+.cm-dialog .ui-sheet-grid th.editable {box-shadow:inset 0 2px var(--primary)}
+.cm-dialog .ui-sheet-grid th.actual .ui-sheet-sort {color:var(--muted)}
+.cm-dialog .ui-sheet-grid thead tr.ui-sheet-filter-row th {top:calc(25px*var(--fs-scale));box-shadow:none}
+.cm-dialog .ui-sheet-grid th.drop-before {box-shadow:inset 2px 0 var(--focus)}
+.cm-dialog .ui-sheet-grid th.drop-after {box-shadow:inset -2px 0 var(--focus)}
+.work-dialog.cm-dialog .ui-sheet-sort {display:block;white-space:nowrap;min-height:calc(25px*var(--fs-scale));padding:2px 8px 2px 8px}
+.cm-dialog .ui-sheet-grid th.num .ui-sheet-sort {text-align:right}
+.cm-dialog .ui-sheet-sort[data-dir]::after {content:" " attr(data-dir)}
+.cm-dialog .ui-sheet-grid td {height:calc(22px + var(--d-row));padding:1px 8px}
+.cm-dialog .ui-sheet-grid td.num {text-align:right}
+.cm-dialog .ui-sheet-grid tbody tr:hover td {background:color-mix(in srgb,var(--selection) 28%,var(--paper))}
+.cm-dialog .ui-sheet-grid tbody tr.sel td {background:color-mix(in srgb,var(--selection) 70%,var(--paper));color:var(--selection-ink)}
+.cm-dialog .ui-sheet-grid td.editable {cursor:text}
+.cm-dialog .ui-sheet-grid td.inherited {color:var(--faint)}
+.cm-dialog .ui-sheet-grid td.bad {color:var(--error-ink);font-weight:600;background:color-mix(in srgb,var(--err-mark) 14%,var(--paper))}
+.cm-dialog .ui-sheet-grid tbody tr.odd td.bad {background:color-mix(in srgb,var(--err-mark) 18%,var(--paper))}
+.cm-dialog .ui-sheet-grid td.ok {color:var(--ok-ink)}
 /* The status column's Pass/Fail is a library .ui-badge; this only keeps the column's labels one width. */
 .cm-badge {min-width:38px;justify-content:center}
 .cm-side {flex:0 0 250px;overflow:auto;border-left:1px solid var(--line);padding:8px 12px;background:var(--soft);font-size:var(--fs-12)}

@@ -1,7 +1,9 @@
 /* History panel (history-panel.js): undo steps, alternate branches and the local history timeline. Tokens only. */
 .hist-tabs {display:flex;gap:var(--s-2);margin-left:auto}
-.hist-list[hidden],.hist-branches[hidden] {display:none}
+.hist-branches[hidden] {display:none}
 .hist-row {position:relative;display:flex;align-items:center;gap:var(--s-8);min-height:var(--ctl-h-lg);padding:var(--s-2) var(--s-8) var(--s-2) var(--s-12);cursor:default;user-select:none;-webkit-user-select:none}
+.hist-row:hover {background:var(--hover)}
+.ui-dock-list:focus .hist-row[aria-selected="true"] {background:var(--selection);color:var(--selection-ink)}
 /* The timeline rail: a dot per state on a vertical line; the current state is filled with the accent. */
 .hist-dot {position:relative;flex:none;width:8px;height:8px;border:1px solid var(--muted);border-radius:var(--r-pill);background:var(--surface)}
 .hist-row.is-current .hist-dot {border-color:var(--accent);background:var(--accent)}
@@ -21,10 +23,10 @@
 .hist-branches > summary:hover {color:var(--ink)}
 .hist-branch .hist-dot {border-color:var(--warning)}
 .hist-note {margin:var(--s-4) var(--s-8);color:var(--muted);font-size:var(--fs-11);line-height:var(--lh)}
-.hist-foot {font-variant-numeric:tabular-nums}
+.ui-dock-panel[data-dock="history"] .ui-dock-foot {font-variant-numeric:tabular-nums}
 /* Timeline rows: the text gets the full width; Compare / Restore copy sit on a second line. */
 .hist-time {flex-wrap:wrap;row-gap:var(--s-4);padding-bottom:var(--s-6)}
-.hist-time .hist-text {flex:1 1 calc(100% - 24px)}
+.hist-time .ui-dock-text {flex:1 1 calc(100% - 24px)}
 .hist-time .hist-dot {align-self:flex-start;margin-top:var(--s-4)}
 .hist-time .hist-btn:first-of-type {margin-left:var(--s-16)}
 

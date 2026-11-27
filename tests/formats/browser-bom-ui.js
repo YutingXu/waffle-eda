@@ -29,7 +29,7 @@ async function openBom(page) {
   await page.evaluate(() => AtriumNavHost.act("bom"));
   const dialog = page.locator("dialog.bom-dialog[open]");
   await dialog.waitFor();
-  await page.waitForFunction(() => document.querySelector(".bom-grid tbody tr.bom-line"));
+  await page.waitForFunction(() => document.querySelector(".ui-sheet-grid tbody tr.bom-line"));
   return dialog;
 }
 async function closeBom(page) {
@@ -74,7 +74,7 @@ async function columnsPanel(page) {
   const panel = dialog.locator("aside#bom-columns");
   assert.equal(await panel.isVisible(), true, "the Columns panel is part of the BOM view");
   const show = panel.getByRole("checkbox", {name: "Show Manufacturer", exact: true});
-  const header = dialog.locator('.bom-grid th[data-key="manufacturer"]');
+  const header = dialog.locator('.ui-sheet-grid th[data-key="manufacturer"]');
   if (await show.isChecked()) await show.uncheck();
   assert.equal(await header.count(), 0);
   await show.check();
@@ -90,7 +90,7 @@ async function columnsPanel(page) {
   assert.ok((await panel.boundingBox()).width <= 25, "the collapsed panel is a slim rail");
   await closeBom(page);
   dialog = await openBom(page);
-  assert.equal(await dialog.locator('.bom-grid th[data-key="manufacturer"]').count(), 1, "the shown column persists");
+  assert.equal(await dialog.locator('.ui-sheet-grid th[data-key="manufacturer"]').count(), 1, "the shown column persists");
   assert.equal(await dialog.locator("aside#bom-columns.collapsed").count(), 1, "the collapsed state persists");
   await dialog.locator("aside#bom-columns").click({position: {x: 12, y: 200}});
   assert.equal(Math.round((await dialog.locator("aside#bom-columns").boundingBox()).width), width, "the width persists");
@@ -109,7 +109,7 @@ async function scrollBudget(page, lines, budget) {
   const metrics = async () => Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map(m => [m.name, m.value]));
   const frames = 120, a = await metrics();
   await page.evaluate(async frames => {
-    const g = document.querySelector(".bom-grid-wrap");
+    const g = document.querySelector(".ui-sheet-wrap");
     let dir = 1;
     for (let i = 0; i < frames; i++) {
       await new Promise(r => requestAnimationFrame(r));

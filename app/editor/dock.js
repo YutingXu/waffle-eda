@@ -43,11 +43,11 @@ globalThis.AtriumDock = (() => {
     {id: "pcb-list", title: "List", match: ".pl-panel", area: "right", action: "pcb-list"},
     {id: "navigator", title: "Navigator", match: ".panel-navp", area: "left", action: "navigator-panel"},
     {id: "filter", title: "Filter", match: ".panel-query", area: "right", action: "query-panel"},
-    {id: "comments", title: "Comments", match: ".panel-rc", area: "right", action: "comments-panel"},
+    {id: "comments", title: "Comments", match: '.ui-dock-panel[data-dock="comments"]', area: "right", action: "comments-panel"},
     {id: "library", title: "Library", match: ".panel-library", area: "right", action: "library-panel"},
     {id: "nets", title: "Nets", match: ".panel-nets", area: "right", action: "nets-panel"},
     {id: "calculators", title: "Calculators", match: ".panel-calc", area: "right", action: "calculators"},
-    {id: "clipboard", title: "Clipboard", match: ".panel-clip", area: "right"},
+    {id: "clipboard", title: "Clipboard", match: '.ui-dock-panel[data-dock="clipboard"]', area: "right"},
     {id: "scripting", title: "Scripting Console", match: ".script-console", area: "right", action: "scripting-console"}
   ];
   const known = id => KNOWN.find(k => k.id === id);

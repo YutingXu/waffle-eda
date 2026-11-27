@@ -390,9 +390,9 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 /* Every resize handle in the app lights like the splitter: --focus on hover, drag and keyboard focus,
    with the same short fade. Feature sashes and column grips are listed here, not styled locally
    (tests/maintenance/css-tokens.py checks that every resize cursor belongs to this list). */
-:is(.ui-splitter,.dock-sash,.split-sash,.dv-side-sash,.bom-resize,.cm-resize,.table-resize,.msg-col-grip,.msg-grip,.script-sash,.bom-panel-edge) {
+:is(.ui-splitter,.dock-sash,.split-sash,.dv-side-sash,.ui-sheet-resize,.table-resize,.msg-col-grip,.msg-grip,.script-sash,.bom-panel-edge) {
   transition:background-color var(--motion-instant) var(--ease-standard)}
-:is(.ui-splitter,.dock-sash,.split-sash,.dv-side-sash,.bom-resize,.cm-resize,.table-resize,.msg-col-grip,.msg-grip,.script-sash,.bom-panel-edge):is(:hover,.is-dragging,:focus-visible) {
+:is(.ui-splitter,.dock-sash,.split-sash,.dv-side-sash,.ui-sheet-resize,.table-resize,.msg-col-grip,.msg-grip,.script-sash,.bom-panel-edge):is(:hover,.is-dragging,:focus-visible) {
   background-color:var(--focus);outline:none}
 @media (any-pointer:coarse) {:is(.ui-splitter)::after {inset:0 calc(-1 * var(--s-8))} :is(.ui-splitter)[aria-orientation=horizontal]::after {inset:calc(-1 * var(--s-8)) 0}}
 

@@ -455,7 +455,7 @@ async function queryConsumers(page,requested) {
   const bom = page.locator(".bom-dialog[open]"), input = bom.getByRole("searchbox",{name:"Search BOM lines"});
   await input.fill(source);
   try { await page.waitForFunction(() => {
-    const grid = document.querySelector(".bom-dialog .bom-grid");
+    const grid = document.querySelector(".bom-dialog .ui-sheet-grid");
     return grid && grid.tBodies[0].textContent.includes("R1") && !grid.tBodies[0].textContent.includes("R2") &&
       !grid.tBodies[0].textContent.includes("C1") && !grid.parentElement.hasAttribute("aria-busy");
   }); } catch (error) { throw Error(await bom.innerText(),{cause:error}); }
@@ -505,7 +505,7 @@ async function queryConsumers(page,requested) {
   await print.getByRole("button",{name:"Close",exact:true}).click();
   await input.fill("R2");
   await page.waitForFunction(() => {
-    const tbody = document.querySelector(".bom-dialog .bom-grid tbody");
+    const tbody = document.querySelector(".bom-dialog .ui-sheet-grid tbody");
     return tbody?.textContent.includes("R2") && !tbody.textContent.includes("R1");
   });
   await bom.getByRole("button",{name:"Close",exact:true}).click();

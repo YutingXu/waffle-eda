@@ -43,7 +43,7 @@ FAMILIES = [
     ("badge", "Badges, counts and dots", "`.ui-badge`, `.ui-count`, `.ui-dot`", r"ui-(?:badge|count|dot)\b", r"[a-z0-9]+-(?:badge|count|dot)"),
     ("search", "Search fields", "`.ui-search`, `AtriumUIKit.search`", r"ui-search", r"[a-z0-9]+-search(?:-box|-wrap)?"),
     ("row", "List rows and tree rows", "`.ui-row`, `.ui-tree-row`, `.ui-list`", r"ui-(?:row|tree-row|list)\b", r"[a-z0-9]+-(?:row|item|entry|twisty)"),
-    ("table", "Tables and grids", "`.ui-table`; editable grids `ui/spreadsheet.css`", r"ui-table|bom-grid|cm-grid|AtriumWindowedTable", r"[a-z0-9]+-(?:table|grid)"),
+    ("table", "Tables and grids", "`.ui-table`; editable grids `ui/spreadsheet.css`", r"ui-table|ui-sheet-grid|AtriumWindowedTable", r"[a-z0-9]+-(?:table|grid)"),
     ("toolbar", "Toolbars", "`.ui-toolbar`, `.ui-toolbar-sep`", r"ui-toolbar", r"[a-z0-9]+-(?:toolbar|bar)"),
     ("menu", "Menus and context menus", "`AtriumContextMenu` (`.nav-menu`), menu bar `.menu-items`", r"AtriumContextMenu|actionMenu\(|nav-menu", r"[a-z0-9]+-menu"),
     ("popover", "Popovers and hover cards", "`.ui-popover`; tooltips and hover cards `AtriumTooltip`", r"ui-popover|AtriumTooltip|data-tooltip", r"[a-z0-9]+-(?:pop|popover|card|peek)"),

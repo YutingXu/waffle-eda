@@ -152,13 +152,13 @@ async function surfaces(page, sample, profile) {
     {id:"pcb-list", action:"pcb-list", selector:".pl-panel", fields:[{control:"Object kind",mode:"standalone"}]},
     {id:"navigator", action:"navigator-panel", selector:".panel-navp", fields:[{control:"Search the Navigator",mode:"standalone"}]},
     {id:"filter", action:"query-panel", selector:".panel-query", fields:[{control:"Query expression",mode:"standalone"}]},
-    {id:"comments", action:"comments-panel", selector:".panel-rc", fields:[{control:"Show comments",mode:"standalone"}]},
+    {id:"comments", action:"comments-panel", selector:'.ui-dock-panel[data-dock="comments"]', fields:[{control:"Show comments",mode:"standalone"}]},
     {id:"calculators", action:"calculators", selector:".panel-calc", fields:[{control:"Calculator",mode:"standalone"}]},
-    {id:"clipboard", action:"clipboard-panel", selector:".panel-clip"},
+    {id:"clipboard", action:"clipboard-panel", selector:'.ui-dock-panel[data-dock="clipboard"]'},
     {id:"scripting", action:"scripting-console", selector:".script-console", fields:[{control:"Script",mode:"standalone"}]},
     {id:"pours", action:"pour-manager", selector:".panel-pours", close:null},
     {id:"mcad", action:"mcad-panel", selector:".panel-mcad"},
-    {id:"history", action:"history-panel", selector:".panel-history"},
+    {id:"history", action:"history-panel", selector:'.ui-dock-panel[data-dock="history"]'},
   ]) {
     await openAction(page,action);
     const scope = page.locator(selector + ":visible");

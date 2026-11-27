@@ -320,7 +320,7 @@ module.exports = async function shortcutLabels(browser) {
       });
       const clipboard = page.getByRole("dialog", {name:"Clipboard history", exact:true});
       const hint = clipboard.locator('.clip-picker-key.ui-shortcut[data-variant="inline"]');
-      const empty = clipboard.locator(".clip-empty");
+      const empty = clipboard.locator(".ui-dock-empty");
       assert.equal(await hint.locator(".ui-shortcut-visual").textContent(), platform === "MacIntel" ? "⌥⌘F6" : "Ctrl+Alt+F6");
       assert.equal(await hint.locator(".shortcut-spoken").textContent(), await hintFor("clipboard-picker", true));
       const copyHint = empty.locator('.ui-shortcut[data-variant="inline"]');
