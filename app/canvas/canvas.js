@@ -2048,10 +2048,11 @@ globalThis.AtriumCanvas = (() => {
       const N=globalThis.AtriumPCBNetLabels;
       if(!N || opts.netNames===false || opts.print || opts.transientGeometry)return;
       const view=artworkViewport(null),pours=(frame||pourFrame(doc,defs,opts)).pours;
-      const layer=opts.layer||"Top",maxWidth=N.trackWidthLimit(sync(doc,defs),layer,scale,view);
-      if(!maxWidth && !pours?.some(r=>r?.layer===layer&&r.net))return;
-      const reusable=artwork && cache?.doc===doc && artwork.rev===cache.rev &&
+      const layer=opts.layer||"Top",scene=sync(doc,defs);
+      const reusable=artwork && scene.doc===doc && artwork.rev===scene.rev &&
         view.every((edge,i)=>edge===artwork.viewport[i]);
+      const {maxWidth,tracks}=N.trackCandidates(scene,layer,scale,view,reusable&&artwork.rawItems);
+      if(!maxWidth && !pours?.some(r=>r?.layer===layer&&r.net))return;
       let items=reusable?artwork.rawItems:null, parts;
       const candidates=()=>items??=query(doc,defs,view);
       const partBoxes=items=>{
@@ -2065,14 +2066,14 @@ globalThis.AtriumCanvas = (() => {
         }
         return out;
       };
-      netLabels=N.place({items:maxWidth?candidates():[],pours,scale,width,height,toScreen:worldToScreen,view,PCB,opts,maxWidth,
+      netLabels=N.place({items:maxWidth?(items??tracks??candidates()):[],pours,scale,width,height,toScreen:worldToScreen,view,PCB,opts,maxWidth,
         trackInk:i=>chosen(i,opts)||opts.highlight&&i.net===opts.highlight?PCB.system.selection:netInk(i,opts)||PCB.ink(layer,i,opts,false),
         pourInk:r=>PCB.ink(r.layer,r,opts,!!opts.highlight&&opts.highlight===r.net),
         obstaclesFor:box=>{
           // Reuse the artwork query when present. For unrotated, retained frames, only a
           // part whose world box reaches this label can block it. A rotated screen bounding
           // box can overlap even outside its inverse transform, so keep the full view there.
-          if(items || rotation || !globalThis.AtriumSpatial || cache?.preparation)return parts??=partBoxes(candidates());
+          if(items || maxWidth || rotation || !globalThis.AtriumSpatial || cache?.preparation)return parts??=partBoxes(candidates());
           return partBoxes(query(doc,defs,worldViewport(box)));
         }});
       N.draw(ctx,netLabels,dpr,monoFont);
