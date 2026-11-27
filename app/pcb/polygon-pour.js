@@ -2597,7 +2597,7 @@ globalThis.AtriumPolygonPour=(()=>{
   // Per-item signature cache (object -> its hash words, box and layer), checked against a content
   // print of every geometry field (arrays and objects by content hash), so a hit always equals a
   // fresh hash, also after an in-place change. Undo's new objects simply miss.
-  const itemSigs=new WeakMap();
+  const itemSigs=new WeakMap(),signatureCerts=new WeakMap();
   function fpWords(fps,defs,i,projectPrecision){
     const g=defs?.get?.(i.def)?.footprint;
     if (!fps.has(g)) {
@@ -2673,6 +2673,12 @@ globalThis.AtriumPolygonPour=(()=>{
     const fps=new Map(),boxes=reuse?reuse.boxes:new Float64Array(items.length*4),words=reuse?reuse.words:new Uint32Array(items.length*2),layerOf=reuse?reuse.layerOf:new Array(items.length);
     const mirrored=options.mirrorSignatures;
     if(options.keepItemHashes)options.keepItemHashes({source:doc.items,length:(doc.items||[]).length,items,boxes,words,layerOf});
+    // An item the undo journal certifies unchanged since this board's last pass keeps its entry
+    // without a field check (its footprint words are still compared), so Undo and Redo after a small
+    // edit check only what they changed. Whatever the journal cannot vouch for is checked as before.
+    const J=!mirrored&&!reuse&&Array.isArray(doc.items)?journalOf():null,cert=J&&signatureCerts.get(doc);
+    const now=J?.recordedChanges?.(doc)?.seq,since=cert&&cert.items===doc.items&&now!=null?J.recordedChanges(doc,cert.seq,4096):null;
+    const certified=since?.ids?i=>!since.ids.has(i.id):null;
     for(let k=reuse?items.length:0;k<items.length;k++){
       if(k&&k%chunk===0)yield;
       const i=items[k];
@@ -2680,7 +2686,7 @@ globalThis.AtriumPolygonPour=(()=>{
       if(!entry){
         const fpw=i.kind==="part"?fpWords(fps,defs,i,projectPrecision):null,old=mirrored?null:itemSigs.get(i);
         // Ordinary editor rows can be mutated in place; mirror rows are replaced by journal messages.
-        if(old&&sigValid(old,i,fpw))entry=old;
+        if(old&&(certified?.(i)&&(fpw?fpw[0]:0)===old.f0&&(fpw?fpw[1]:0)===old.f1||sigValid(old,i,fpw)))entry=old;
         else{
           const box=itemBox(i,defs);
           // Single-layer copper only reaches pours on its layer.
@@ -2696,6 +2702,7 @@ globalThis.AtriumPolygonPour=(()=>{
       }
       boxes.set(entry.box,4*k);layerOf[k]=entry.layer;words[2*k]=entry.w0;words[2*k+1]=entry.w1;
     }
+    if(J&&now!=null&&now===J.recordedChanges?.(doc)?.seq)signatureCerts.set(doc,{seq:now,items:doc.items});
     const rules=pourRules(doc,options);
     const base=fastHasher(projectPrecision);base.value(doc.outline||null);{const ch=globalThis.AtriumBoardShape?.holes?.(doc);if(ch?.length)base.value(ch);}base.value(rules);
     const reach=ruleReach(rules,options);
@@ -3754,14 +3761,17 @@ globalThis.AtriumPolygonPour=(()=>{
   }
   // A stored contour is authored by a verified import or a committed repour. Bind its
   // exact packed rings and arcs to this polygon and the physical inputs of that fill.
+  // Kept by the region's copper when the engine holds it as runs: Undo restores an older version's
+  // copper into the live region object, and that version's digest is still known.
   const packedCopperHashes = new WeakMap();
   function packedCopperHash(region) {
-    let cached = packedCopperHashes.get(region);
-    if (!cached || cached.data !== dataKey(region)) {
+    const key = dataKey(region), by = typeof key === "object" ? key : region;
+    let cached = packedCopperHashes.get(by);
+    if (!cached || cached.data !== key) {
       const hash = hasher();
       hash.value(region.data);
-      cached = {data:dataKey(region), digest:hash.hex()};
-      packedCopperHashes.set(region, cached);
+      cached = {data:key, digest:hash.hex()};
+      packedCopperHashes.set(by, cached);
     }
     return cached.digest;
   }

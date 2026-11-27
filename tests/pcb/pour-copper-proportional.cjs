@@ -163,7 +163,11 @@ function checkStep(label, ed, before, step, kind) {
     stats.regions += pours.length; stats.kept += pours.filter(r => was.has(r)).length;
   }
   if (!engine) return;
-  // (c) caches against cold answers.
+  // (c) caches against cold answers. The pour signatures (items the undo journal vouches for skip
+  // their field check) equal those of a copy of the board nothing has been computed for.
+  const copy = JSON.parse(JSON.stringify(doc)), coldProject = {...ed.project, documents: [copy]};
+  assert.deepEqual(PP.polygonSignatures(doc, defs, {project: ed.project}), PP.polygonSignatures(copy, defs, {project: coldProject}), label + " step " + step + " (" + kind + "): signatures differ from a cold pass");
+  stats.signatures = (stats.signatures || 0) + 1;
   for (const r of pours) {
     const cold = coldRings(r);
     assert.ok(sameRings(C.contours(r), cold), "contours");
