@@ -10,7 +10,9 @@
 // raster, so a sample is input -> handler -> render -> pixels with no vsync wait. Deferred work
 // (timers, idle callbacks) runs between samples in settle(), which also flushes the frame queue.
 //
-// atriumSchProbe({sheets, files, only, mark}) resolves to {metrics, checks, env}:
+// options.board measures idle energy on the PCB benchmark board instead (scripts/perf-sch.sh --board).
+//
+// atriumSchProbe({sheets, files, only, mark, board, efficiency}) resolves to {metrics, checks, env}:
 //   metrics.name = ms, or {n, p50, p95, p99, max} for repeated samples.
 //   mark(tag): optional hook the driver uses to read the browser's CPU counters at phase edges
 //   (Runtime binding; see scripts/perf-sch.sh): "idle-start"/"idle-end", "edit-start"/"edit-end".
@@ -57,7 +59,9 @@ async function schProbe(options) {
   const settle = async ms => {const t = performance.now(); while (performance.now() - t < ms) {await wait(16); flushRAF();}};
   // Waits until two seconds pass with no wake-up at all (timers, frames, idle callbacks), at most
   // 30 s; returns the time the editor kept working and the sources counted meanwhile.
-  const untilQuiet = async () => {
+  // o.armed: also wait while a check client has a timer armed (an Efficiency-mode heavy pass to come).
+  const armed = () => (globalThis.AtriumChecks?.scheduler?.stats?.().armed || []).length > 0;
+  const untilQuiet = async (o = {}) => {
     const q0 = performance.now(); let quietSince = q0, total = 0;
     wake.timeout = wake.interval = wake.raf = wake.idle = 0; wake.sources.clear(); counting = true;
     while (performance.now() - q0 < 30000) {
@@ -65,7 +69,7 @@ async function schProbe(options) {
       await idleFor(250);
       const after = wake.timeout + wake.interval + wake.raf + wake.idle;
       if (after !== before) {quietSince = performance.now(); total += after - before;}
-      else if (performance.now() - quietSince >= 2000) break;
+      else if (performance.now() - quietSince >= 2000 && !(o.armed && armed())) break;
     }
     counting = false;
     return {ms: Math.round(quietSince - q0), total, top: [...wake.sources].sort((a, b) => b[1] - a[1]).slice(0, 8)};
@@ -84,6 +88,40 @@ async function schProbe(options) {
   globalThis.AtriumDRCMarkers?.setVisible?.(false, H());
   await settle(300);
   metrics.heapBootMB = heap();
+
+  // ---------------------------------------------------------------- the PCB benchmark board (options.board)
+  // Idle energy on the 25.6k-object board of tests/pcb/dense-board.js, one editor, no collaboration:
+  // open, how long the editor keeps working (no wake-up for 2 s and no check timer armed, such as the
+  // Efficiency-mode heavy insights pass 8 s after an edit; at most 30 s) and the CPU meanwhile, a 10 s
+  // window that should be quiet, then one small edit (a track vertex) and the same again.
+  // options.efficiency sets Preferences › Energy (auto | always | off) for the run.
+  if (options.board) {
+    if (options.efficiency) globalThis.AtriumPower?.setMode?.(options.efficiency);
+    const {d, defs} = makeAtriumBenchmarkBoard(), p = Atrium.project("Dense signal board");
+    p.documents = [d]; p.library = [...defs.values()];
+    const t0 = performance.now();
+    await H().replaceProject(p, {force: true}); H().selectDocument(d.id);
+    metrics.openMs = +(performance.now() - t0).toFixed(1);
+    checks.project = {sheets: 0, items: d.items.length, parts: d.items.filter(i => i.kind === "part").length, efficient: !!globalThis.AtriumPower?.efficient?.()};
+    const quietWindow = async () => {
+      wake.timeout = wake.interval = wake.raf = wake.idle = 0; wake.sources.clear();
+      mark("idle-start"); counting = true; const i0 = performance.now(); await idleFor(10000); const ms = performance.now() - i0; counting = false; mark("idle-end");
+      return {perSec: +((wake.timeout + wake.interval + wake.raf + wake.idle) / (ms / 1000)).toFixed(2), wakes: {timeout: wake.timeout, interval: wake.interval, raf: wake.raf, idle: wake.idle, top: [...wake.sources].sort((a, b) => b[1] - a[1]).slice(0, 8)}};
+    };
+    mark("settle-start"); const open = await untilQuiet({armed: true}); mark("settle-end");
+    metrics.openQuietAfterMs = Math.round(open.ms + metrics.openMs); checks.openSettleWakeups = {total: open.total, top: open.top};
+    let w = await quietWindow(); metrics.idleWakeupsPerSec = w.perSec; checks.idleWakeups = w.wakes;
+    const tr = d.items.find(i => i.kind === "track" && i.points[0][0] > 100);
+    mark("edit-start");
+    metrics.editFrame = frame(() => H().edit(() => { tr.points[1] = [tr.points[1][0], tr.points[1][1] - .2]; }, "probe", [tr]));
+    const after = await untilQuiet({armed: true}); mark("edit-end");
+    metrics.lastEditQuietAfterMs = after.ms; checks.lastEditSettleWakeups = {total: after.total, top: after.top};
+    w = await quietWindow(); metrics.idleWakeupsAfterPerSec = w.perSec; checks.idleWakeupsAfter = w.wakes;
+    const pass = globalThis.AtriumInsightsUI?.lastPass?.();
+    checks.insights = pass && {mode: pass.mode, why: pass.why, ms: Math.round(pass.ms)};
+    checks.scheduler = globalThis.AtriumChecks?.scheduler?.stats?.();
+    return {metrics, checks, env: {refreshHz, ua: navigator.userAgent, dpr: devicePixelRatio, canvas: [cv().width, cv().height]}};
+  }
 
   // ---------------------------------------------------------------- open
   let project, stats;

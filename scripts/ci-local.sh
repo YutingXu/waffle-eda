@@ -26,7 +26,8 @@
 #   click    scripts/click-through.sh pcb, then schematic (warm + cold passes)
 #   perf     scripts/perf-canvas.sh, scripts/perf-pour.sh (tiled live repour budgets), scripts/perf-view-feel.sh (no blank zoom
 #            frames, part-drag work per move), then scripts/perf-ui.sh (UI-shell p95 budgets) and scripts/perf-sch.sh
-#            (30-sheet schematic budgets; the last three skipped without a browser)
+#            (30-sheet schematic budgets) and scripts/perf-sch.sh --board (idle on the 25.6k-object board, Efficiency
+#            mode); the last four skipped without a browser
 #   gpu      GPU board renderer (app/canvas/canvas-gpu.js): the pixel test against the 2D renderer in Chrome with
 #            its GPU (scripts/gpu-pixels.sh) and in WKWebView (native/tests/macos-harness/gpu-pixels.sh,
 #            needs a logged-in GUI session), geometry on each moving frame, isolated WebKit GPU-process recovery, and then click-through
@@ -186,7 +187,8 @@ for step in $steps; do
              run "perf-pour" scripts/perf-pour.sh
              run "perf-view-feel" scripts/perf-view-feel.sh --skip-if-no-browser
              run "perf-ui" scripts/perf-ui.sh --skip-if-no-browser
-             run "perf-sch" scripts/perf-sch.sh --skip-if-no-browser ;;
+             run "perf-sch" scripts/perf-sch.sh --skip-if-no-browser
+             run "perf-sch board idle" scripts/perf-sch.sh --board --skip-if-no-browser ;;
     gpu)     run "gpu-pixels (Chrome, GPU vs 2D)" scripts/gpu-pixels.sh --skip-if-no-webgl
              run "Retained copper LOD and GPU allocation recovery" gpu_pour_lod
              run "gpu-pixels (WKWebView, GPU vs 2D)" gpu_harness

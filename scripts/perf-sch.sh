@@ -9,8 +9,12 @@
 # scripts/perf-canvas.sh stage 2. Idle and post-edit CPU come from the browser's own counters
 # (DevTools Performance.getMetrics TaskDuration) between marks the probe sets.
 #
-# Usage: scripts/perf-sch.sh [--sheets 30|100] [--project path/to/Project.PrjPcb] [--json] [--out file.json]
+# Usage: scripts/perf-sch.sh [--sheets 30|100] [--project path/to/Project.PrjPcb] [--board] [--json] [--out file.json]
 #                            [--skip-if-no-browser] [--no-budget]
+#   --board measures idle energy on the 25,600-object PCB benchmark board (tests/pcb/dense-board.js)
+#   instead: time and CPU until quiet after open and after one small edit, and 10 s windows that must
+#   be quiet (they span the 8 s Efficiency-mode heavy insights delay). EFFICIENCY=always (default),
+#   off or auto sets Preferences > Energy for the run.
 #   --project opens a real project read-only through File › Open (the folder's top-level Altium or
 #   KiCad files); nothing is written next to it.
 # Env: CHROME=/path/to/chrome  APP=/path/to/app  RUNS=1 (median of RUNS launches)  ONLY=camera,switch,...
@@ -19,10 +23,10 @@
 # <= 8 ms p95 on the 30-sheet project, sheet switch <= 50 ms, idle wake-ups ~0.
 # Exit status: 0 within budget, 1 over budget, 2 no browser or the probe failed.
 root=${0:A:h:h}
-json=0; skip=0; sheets=30; project=""; out=""; nobudget=0
+json=0; skip=0; sheets=30; project=""; out=""; nobudget=0; board=0
 while (( $# )); do
   case $1 in
-    --json) json=1;; --skip-if-no-browser) skip=1;; --no-budget) nobudget=1;;
+    --json) json=1;; --skip-if-no-browser) skip=1;; --no-budget) nobudget=1;; --board) board=1;;
     --sheets) shift; sheets=$1;; --project) shift; project=${1:A};; --out) shift; out=$1;;
     *) print -u2 "unknown argument $1"; exit 2;;
   esac; shift
@@ -37,9 +41,10 @@ if [[ ! -x $chrome ]]; then
   exit 2
 fi
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/atrium-perf-sch.XXXXXX"); trap 'rm -rf $tmp' EXIT
-python3 - "$chrome" "${APP:-$root/app}" "$root" "$tmp" "$json" "${RUNS:-1}" "$sheets" "$project" "$out" "$nobudget" <<'PY'
+python3 - "$chrome" "${APP:-$root/app}" "$root" "$tmp" "$json" "${RUNS:-1}" "$sheets" "$project" "$out" "$nobudget" "$board" <<'PY'
 import sys, os, json, socket, subprocess, time, urllib.request, urllib.parse, statistics
-chrome, app, root, tmp, asjson, runs, sheets, project, outpath, nobudget = sys.argv[1:11]
+chrome, app, root, tmp, asjson, runs, sheets, project, outpath, nobudget, board = sys.argv[1:12]
+board = board == "1"
 sys.path.insert(0, os.path.join(root, "scripts", "ci"))
 import chrome_cdp
 asjson, runs, sheets, nobudget = asjson == "1", int(runs), int(sheets), nobudget == "1"
@@ -54,7 +59,8 @@ if project:
 h = open(app + "/index.html").read()
 h = h.replace("<head>", '<head><base href="file://%s/"><script>window.__errs=[];addEventListener("error",e=>__errs.push(e.message+" @"+(e.filename||"").split("/").pop()+":"+e.lineno));'
     'addEventListener("unhandledrejection",e=>__errs.push("rejection: "+(e.reason&&e.reason.message||e.reason)));</script>' % app, 1)
-h = h.replace("</body>", '<script src="file://%s/tests/schematic/sch-bench-project.js"></script><script src="file://%s/tests/integration/perf-sch.js"></script></body>' % (root, root))
+h = h.replace("</body>", '<script src="file://%s/tests/schematic/sch-bench-project.js"></script>%s<script src="file://%s/tests/integration/perf-sch.js"></script></body>' % (root,
+    '<script src="file://%s/tests/pcb/dense-board.js"></script>' % root if board else "", root))
 open(tmp + "/sch.html", "w").write(h)
 
 def run_once():
@@ -93,6 +99,7 @@ def run_once():
         time.sleep(1.0)
         opts = {"sheets": sheets}
         if files: opts["files"] = files
+        if board: opts["board"] = True; opts["efficiency"] = os.environ.get("EFFICIENCY", "always")
         if os.environ.get("ONLY"): opts["only"] = os.environ["ONLY"].split(",")
         call("Runtime.evaluate", expression="window.__schOut=null;atriumSchProbe(Object.assign(%s,{mark:t=>__schMark(t)})).then(o=>__schOut=JSON.stringify(o)).catch(e=>__schOut='ERR '+e.message+' '+e.stack).finally(()=>__schMark('done'))" % json.dumps(opts))
         # Block on DevTools events (no polling, so the idle window is not disturbed); the probe marks
@@ -135,6 +142,10 @@ B = {"panFit": 16, "panZoomed": 16, "zoomWheel": 25, "rightDragPan": 16, "hover"
      "idleWakeupsPerSec": 1, "idleWakeupsAfterPerSec": 1, "idleCpuPct": 2, "openQuietAfterMs": 20000, "lastEditQuietAfterMs": 20000,
      "editWindowCpuMs": 200, "autosavePassOneEdit": 30, "heapEndMB": 400}
 if sheets >= 100 or files: B = {k: v * 2 for k, v in B.items()}
+# The board (--board): nothing may run once the editor is quiet. See the measurements and reasons in
+# docs/design/unified-rules-and-checks.md (Idle).
+if board: B = {"idleWakeupsPerSec": 0.2, "idleWakeupsAfterPerSec": 0.2, "idleCpuPct": 2, "openQuietAfterMs": 10000, "lastEditQuietAfterMs": 12000,
+               "openSettleCpuMs": 1500, "editWindowCpuMs": 400, "editFrame": 100}
 B = {k: float(os.environ.get("BUDGET_" + k.upper(), v)) for k, v in B.items()}
 fail = []
 if not nobudget:
@@ -145,7 +156,7 @@ if not nobudget:
         if val is not None and val > lim: fail.append("%s %.2f > %g" % (k, val, lim))
 errors = results[-1]["checks"].get("errors", []) + results[-1]["pageErrors"]
 if errors: fail.append("%d page error(s)" % len(errors))
-report = {"workload": ("project " + project) if project else "synthetic %d sheets" % sheets, "metrics": metrics, "checks": results[-1]["checks"],
+report = {"workload": ("PCB benchmark board, Efficiency " + os.environ.get("EFFICIENCY", "always")) if board else ("project " + project) if project else "synthetic %d sheets" % sheets, "metrics": metrics, "checks": results[-1]["checks"],
           "cpuWindows": results[-1]["cpuWindows"], "budgets": B, "failed": fail, "errors": errors, "env": results[-1]["env"], "runs": runs}
 if outpath: open(outpath, "w").write(json.dumps(report, indent=1))
 if asjson: print(json.dumps(report, indent=1))

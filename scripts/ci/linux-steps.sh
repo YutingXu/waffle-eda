@@ -172,6 +172,7 @@ case $step in
     run "perf-pour" zsh scripts/perf-pour.sh
     run "perf-ui" zsh scripts/perf-ui.sh --skip-if-no-browser
     run "perf-sch" zsh scripts/perf-sch.sh --skip-if-no-browser
+    run "perf-sch board idle" zsh scripts/perf-sch.sh --board --skip-if-no-browser
     run "gpu-pixels (GPU vs 2D)" zsh scripts/gpu-pixels.sh --skip-if-no-webgl
     run "Geometry through zoom in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/canvas/browser-zoom-geometry.js
     scripts/ci/node-suites.sh integration-browser palette-actions.browser > /work/browser.log; cat /work/browser.log

@@ -560,6 +560,17 @@ test, never by a comment.
 | Batch "Check Design" | ≤ 1.1 × (today's batch DRC + ERC + DFM run separately). The shared extraction (`rules.extract`, DFM features) is built once per run instead of three times |
 | Memory | violation store ≤ 2,000 per rule (today's cap) and ≤ 50,000 total; waiver matching O(waivers + violations) per update |
 | Big boards | 10k parts and 100k tracks: no main-thread task over 50 ms during online checking (long-task observer in the perf probe) |
+| Idle | nothing runs once the checks are done: no timer, idle callback or frame. `scripts/perf-sch.sh` (30 sheets) and `scripts/perf-sch.sh --board` (the 25.6k-object board, Efficiency mode by default, `EFFICIENCY=off` for the other) hold idle wake-ups to 1/s and 0.2/s and idle CPU to 2 % |
+| Settling on the board | after open: quiet within 10 s and 1.5 s of main-thread CPU (measured 0.8–1.1 s on an M-series Mac on battery, both modes, all checks, connectivity and indexes); after one track edit: quiet within 12 s (8 s of it is the Efficiency-mode heavy delay) and 0.4 s of CPU (measured 0.15–0.22 s) |
+
+**Idle, and the Efficiency-mode heavy pass.** In Efficiency mode an insights pass skips the cached heavy checks
+(necks, return paths, pairs, crosstalk); the ones an edit concerned are *owed* (`AtriumInsights` state `owed`),
+and the scheduler queues one heavy pass 8 s after the plan only when the client `owes(doc)` work. It clears the
+timer when a pass ends with nothing owed. In 0.8.1 the heavy pass ran after every plan, and each of its idle
+slices restarted it (`restart` was passed on to the continuation), so on the benchmark board it never finished:
+about 95 starts a second at 99 % of one core, and the same on a 10k-item schematic sheet. `insights-incremental.cjs`
+holds the incremental engine to a from-scratch pass after random edits from every source (local edits, Undo,
+Redo, a collaboration peer's `derive`, paste, delete, rule edits), in both modes.
 
 ## 3. Cohesion
 

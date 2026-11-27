@@ -649,7 +649,8 @@ globalThis.AtriumChecks = (() => {
     }
     return Object.freeze({WAIT, attach, client, plan, queue: (id, d, phase, o) => { const c = clients.get(id); if (c && host) queue(c, d, phase || "idle", o); }, cancel, resume, pending,
       host: () => host, clients: () => [...clients.keys()], running: id => [...(id ? [clients.get(id)] : clients.values())].some(c => c && [...c.tasks.values()].some(k => k.it && !k.done)),
-      stats: () => ({...stats, last: {...stats.last}}), reset() { cancel(); clients.clear(); host = project = null; attached = false; }});
+      // armed: clients with a debounce or Efficiency-mode heavy timer still to fire (perf probes wait for none).
+      stats: () => ({...stats, last: {...stats.last}, armed: [...clients.values()].filter(c => c.timer || c.heavyTimer).map(c => c.id)}), reset() { cancel(); clients.clear(); host = project = null; attached = false; }});
   })();
 
   // ---------------------------------------------------------------- live ERC (schematic checks while editing)
