@@ -765,6 +765,7 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
 
 // Keep the full pixel result when a band's new footprint is smaller or moves away.
 {
+  require("../../app/pcb/pcb-draw.js");
   const webKit=vm.createContext({AtriumPCBAppearance,AtriumResolvedLand,AtriumSpatial,navigator:{userAgent:"AppleWebKit"}});
   vm.runInContext(gpuCode.replace(sceneExport,"{textLayer, render, damage, stats,"),webKit);
   const {textLayer}=webKit.AtriumCanvasGPU;
@@ -795,11 +796,11 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
       for(let row=H-bottom-h;row<H-bottom;row++)
         bound.set(pixels.subarray(row*W+x,row*W+x+w),row*W+x);
     }};
-  function paint(st,items,cx,flipped,dpr,scale) {
+  function paint(st,items,cx,flipped,dpr,scale,hidden) {
     doc.items=items;
-    const layer="Top",opts={layer,layerMode:"all",flipped};
+    const layer="Top",opts={layer,layerMode:"all",flipped,hidden};
     const I={...view.internals(),ctx:rec.ctx,worldToScreen:()=>[W/(2*dpr)+(flipped?cx:-cx)*scale,H/(2*dpr)],query:()=>items};
-    const V={items:items.filter(i=>i.kind==="label" || i.kind==="part"),all:items,active:layer,o2:opts,padDetails:items.includes(pad),viewport:[-20,-20,20,20]};
+    const V={items:items.filter(i=>i.kind==="label" || i.kind==="part" || i.keepout),all:items,active:layer,o2:opts,padDetails:items.includes(pad),viewport:[-20,-20,20,20]};
     return textLayer(I,st,doc,defs,opts,[cx,0,scale,flipped,W/dpr,H/dpr,dpr],V,null);
   }
   const state=()=>({gl,canvas:rec.canvas,text:{},stats:{acc:{board:0,text:0}},scene:{
@@ -861,6 +862,45 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     assert.deepEqual(drawn,["L0","L1","L2","L3","U1"],"every glyph still reaches the band painter");
     assert.deepEqual(probed,["L0","L1"],"an offscreen glyph is insufficient, but the first visible glyph proves occupancy for the whole band");
   } finally { Object.assign(AtriumPCBText,{paintBox,draw}); }
+  const keepout={id:"hatch",kind:"graphic",layer:"Silk",keepout:true,fill:true,closed:true,
+    points:[[-1.3,-3],[1.2,-2.9],[1,-1.2],[-1.2,-1.1]]};
+  const stroke=rec.ctx.stroke;
+  let boundary;
+  try {
+    rec.ctx.stroke=function(...args) {
+      stroke.apply(this,args);
+      // Stamp the emitted dashed path in the fake backing independently of its upload bounds.
+      const op=rec.list.at(-1);
+      if (!op?.dash?.length) return;
+      const [x,y]=op.d.slice(1,3).map(Math.floor);
+      if (x>=0 && y>=0 && x<W && y<H) {
+        boundary=y*W+x;
+        scratch[boundary]=2;
+      }
+    };
+    const st=state();
+    paint(st,[label,keepout],-3,true,1.5,6);
+    const first=boundary, [, , w,h]=reads.at(-1);
+    assert.ok(w*h<W*H/4,"the actual hatched keepout narrows the upload");
+    assert.equal(scratch[first],2,"a visible boundary reached the backing");
+    assert.deepEqual(st.text.bands[0].tex,scratch,"first transfer keeps the keepout");
+    paint(st,[label,keepout],3,true,1.5,6);
+    const second=boundary;
+    assert.notEqual(second,first,"the new camera moves the keepout boundary");
+    assert.equal(st.text.bands[0].tex[first],0,"a crop clears the prior keepout location");
+    assert.deepEqual(st.text.bands[0].tex,scratch,"the new location and surrounding blank agree");
+    paint(st,[label,keepout],2,true,1.5,6,new Set(["Silk"]));
+    assert.ok(!st.text.bands[0]?.tex,"hiding the band removes its backing from composition");
+    paint(st,[label,keepout],3,true,1.5,6);
+    assert.equal(st.text.bands[0].tex[boundary],2,"the visible band repaints");
+    st.scene.rev++; st.scene.textRev++;
+    paint(st,[label],3,true,1.5,6);
+    assert.deepEqual(st.text.bands[0].tex,scratch,"deleting the keepout clears its prior ink");
+    assert.ok(!scratch.includes(2));
+    const thick={...keepout,fill:false,width:2};
+    paint(state(),[thick],0,false,1,6);
+    assert.deepEqual(reads.at(-1),[0,0,W,H],"unknown thick unfilled keepout retains full transfer");
+  } finally { rec.ctx.stroke=stroke; }
   console.log("WebKit text crops preserve old/new glyph pixels and fall back for native captions and mixed label/path records");
 }
 

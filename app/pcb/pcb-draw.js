@@ -595,13 +595,19 @@ globalThis.AtriumPCBDraw = (() => {
   }
   /** Canvas painter for a keep-out on one copper layer: hatched area or a translucent band with a dashed spine. */
   function drawKeepout(ctx, item, o = {}) {
-    const scale = o.scale || 1, pts = item.points || []; if (pts.length < 2) return;
+    const scale = o.scale || 1, pts = item.points || []; if (pts.length < 2) return true;
     const line = (q, closed) => { ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); for (let k = 1; k < q.length; k++) ctx.lineTo(q[k][0], q[k][1]); if (closed) ctx.closePath(); };
     ctx.save(); ctx.strokeStyle = ctx.fillStyle = o.ink || "#ff0000"; ctx.lineCap = "round"; ctx.lineJoin = "round";
     const base = typeof ctx.globalAlpha === "number" ? ctx.globalAlpha : 1;
-    if (item.fill && pts.length > 2) {
+    const hatched = item.fill && pts.length > 2;
+    if (hatched) {
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const p of pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+      if (o.bandBounds) {
+        // The hatch is clipped to the polygon. Only the round boundary extends beyond it.
+        const pad = .5 / scale;
+        o.bandBounds(ctx, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
+      }
       ctx.save(); line(pts, true); ctx.clip();
       const step = Math.max(8 / scale, (x1 - x0 + y1 - y0) / 400);
       ctx.lineWidth = 1 / scale; ctx.beginPath();
@@ -613,6 +619,7 @@ globalThis.AtriumPCBDraw = (() => {
       ctx.globalAlpha = base; ctx.lineWidth = 1 / scale; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, item.closed); ctx.stroke();
     }
     ctx.restore();
+    return hatched;
   }
 
   // ------------------------------------------------------------------ vertex editing (polygons, regions, keep-outs)

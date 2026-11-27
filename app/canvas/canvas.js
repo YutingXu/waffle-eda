@@ -572,7 +572,7 @@ globalThis.AtriumCanvas = (() => {
       drawPart(ctx,i,doc.schRestored&&SCH?SCH.displayDef(doc,i,getDef(defs,i,doc)):getDef(defs,i,doc),doc.kind,scale,opts,substrate);
       if (selected) pcb ? boardSelectionBox(ctx,partBox(i,A.geometries(getDef(defs,i,doc),doc.kind)),scale) : schBox(partBox(i,A.geometries(getDef(defs,i,doc),doc.kind)));
     } else if (i.keepout===true && pcb && i.points && globalThis.AtriumPCBDraw) {
-      AtriumPCBDraw.drawKeepout(ctx,i,{scale,ink:selected||lit?accent:PCB.ink(boardLayer(i),i,opts,false)});
+      return AtriumPCBDraw.drawKeepout(ctx,i,{scale,ink:selected||lit?accent:PCB.ink(boardLayer(i),i,opts,false),bandBounds});
     } else if (i.dimension && pcb && globalThis.AtriumPCBDraw) {
       AtriumPCBDraw.drawDimension(ctx,i,{scale,ink:selected||lit?accent:PCB.ink(boardLayer(i),i,opts,false)});
     } else if (i.points) {
