@@ -1,7 +1,7 @@
 /* Library panel, footprint and symbol editors, IPC footprint wizard. Theme tokens only. */
 .lib-dialog {width:min(1440px,var(--dialog-avail-w));height:min(960px,var(--dialog-avail-h));max-width:var(--dialog-avail-w);max-height:var(--dialog-avail-h);padding:0;overflow:hidden}
 .lib-dialog[open] {display:flex;flex-direction:column}
-.lib-editor-surface {inline-size:100%;block-size:100%;overflow:hidden}
+.lib-editor-surface {position:static;inline-size:100%;block-size:100%;max-inline-size:none;max-block-size:none;margin:0;padding:0;border:0;overflow:hidden}
 .lib-dialog-head {display:flex;align-items:center;gap:var(--s-8);padding:var(--s-6) var(--s-8) var(--s-6) var(--s-12);border-bottom:1px solid var(--line);background:var(--panel-head)}
 .lib-dialog-head h2 {margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-13);font-weight:var(--fw-semibold)}
 .lib-close {width:26px;height:26px}
@@ -15,7 +15,7 @@
 /* ---------------- editors (placement only; control faces come from app/ui/) */
 .fe-body {flex:1;min-height:0;display:grid;grid-template-columns:auto minmax(0,1fr) 300px;grid-template-rows:minmax(0,1fr)}
 .fe-toolbar {display:flex;flex-direction:column;gap:var(--s-4);padding:var(--s-8) var(--s-6);border-right:1px solid var(--line);background:var(--panel-head);overflow:auto;width:116px}
-.fe-tool {justify-content:space-between;width:100%;text-align:start}
+.fe-tool {display:flex;gap:var(--s-8);justify-content:space-between;width:100%;text-align:start}
 .fe-tool[aria-pressed=true] .ui-shortcut {--shortcut-ink:var(--selection-ink)}
 .fe-sep {height:1px;background:var(--line);margin:var(--s-6) 0}
 .fe-inline {display:grid;grid-template-columns:minmax(0,1fr);margin-top:var(--s-4)}
@@ -152,7 +152,7 @@
 .lib-single-preview .cat-pv-pics {grid-template-columns:1fr}
 .lib-single-preview .cat-pv-pics canvas {height:160px}
 .lib-single-actions {display:flex;gap:var(--s-6)}
-.lib-facets-popover {display:flex;flex-direction:column;padding:var(--s-8);overflow:hidden}
+.lib-facets-popover {position:fixed;z-index:var(--z-popover);display:flex;flex-direction:column;padding:var(--s-8);overflow:hidden}
 .lib-facets-scroll {overflow:auto;min-height:0;display:flex;flex-direction:column;gap:var(--s-4)}
 .lib-facet-row {display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s-6)}
 .lib-facet-row[data-zero] {color:var(--faint)}

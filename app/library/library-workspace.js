@@ -101,14 +101,18 @@ globalThis.AtriumLibraryView = (() => {
     });
     const newBtn = k.button("New", {title: "Create a symbol, footprint or run a wizard"});
     G.AtriumNavCommon?.actionMenu?.(newBtn, () => [
-      {label: "New symbol…", shortcut: "T Y", run: () => api.openSymbolEditor(ctx, null, {asTab: true})},
+      // `action` shows the command's key from AtriumKeymap; `run` still opens the editor as a tab.
+      {label: "New symbol…", action: "symbol-editor", run: () => api.openSymbolEditor(ctx, null, {asTab: true})},
       {label: "New footprint…", run: () => api.openFootprintEditor(ctx, null, {asTab: true})},
       "-",
-      {label: "IPC footprint wizard…", shortcut: "T F", run: () => api.openWizard(ctx)},
+      {label: "IPC footprint wizard…", action: "footprint-wizard", run: () => api.openWizard(ctx)},
       {label: "Symbol wizard…", run: () => host.act?.("symbol-wizard")},
       "-",
       {label: "Manage families…", enabled: !S.lib, run: () => G.AtriumLibraryFamiliesUI?.manage(ctx, {initial: S.selected, done: id => { S.selected = id; render(); }})},
-      {label: "Check library…", run: () => api.checkLibrary(ctx, S.lib)}
+      {label: "Check library…", run: () => {
+        const lib = S.lib;
+        api.checkLibrary(ctx, lib, undefined, {current: () => !closed && S.lib === lib, reveal: id => reveal(project().library.find(d => d.id === id))});
+      }}
     ]);
     const toolbar = k.toolbar([searchWrap, "|", k.chips([chipSym, chipFp], "Geometry"), "->", newBtn], {label: "Library tools"});
     toolbar.classList.add("lib-ws-toolbar");
@@ -136,10 +140,8 @@ globalThis.AtriumLibraryView = (() => {
       facetChips.set(fk, {btn, label});
       facetGroup.append(btn);
     }
-    const clearFiltersBtn = k.button("Clear", {
-      variant: "quiet", size: "sm",
-      run: () => { G.AtriumCatalogue?.clearFacets?.("workspace"); S.query = ""; searchWrap.input.value = ""; S.kindFilter = "all"; chipSym.setAttribute("aria-pressed", "false"); chipFp.setAttribute("aria-pressed", "false"); render(); }
-    });
+    function clearFilters() { G.AtriumCatalogue?.clearFacets?.("workspace"); S.query = ""; searchWrap.input.value = ""; S.kindFilter = "all"; chipSym.setAttribute("aria-pressed", "false"); chipFp.setAttribute("aria-pressed", "false"); render(); }
+    const clearFiltersBtn = k.button("Clear", {variant: "quiet", size: "sm", run: clearFilters});
     clearFiltersBtn.hidden = true;
     const groupSel = k.select([["category", "Group: Category"], ["family", "Group: Family"], ["none", "Group: None"]], {
       value: S.groupBy, label: "Group components by",
@@ -171,9 +173,15 @@ globalThis.AtriumLibraryView = (() => {
       th.scope = "col";
       if (col.key) {
         th.classList.add("lib-ws-sortable");
-        th.addEventListener("click", () => {
+        th.tabIndex = 0; // Enter or Space sorts, as a click does
+        const sort = () => {
           if (S.sortKey === col.key) S.sortDir = -S.sortDir; else { S.sortKey = col.key; S.sortDir = 1; }
           render();
+        };
+        th.addEventListener("click", sort);
+        th.addEventListener("keydown", e => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault(); e.stopPropagation(); sort();
         });
         thMap.set(col.key, th);
       }
@@ -377,6 +385,7 @@ globalThis.AtriumLibraryView = (() => {
 
     function render() {
       if (closed || !root.isConnected) return;
+      watch();
       const p = project();
       S.libraries = allLibs();
       if (S.source !== "project" && !S.libraries.some(l => l.id === S.source)) S.source = "project";
@@ -435,10 +444,7 @@ globalThis.AtriumLibraryView = (() => {
       clearFiltersBtn.hidden = !(anyFacet || S.query.trim() || S.kindFilter !== "all");
 
       // Sort indicators
-      for (const [key, th] of thMap) {
-        if (S.sortKey === key) th.setAttribute("aria-sort", S.sortDir > 0 ? "ascending" : "descending");
-        else th.removeAttribute("aria-sort");
-      }
+      for (const [key, th] of thMap) th.setAttribute("aria-sort", S.sortKey !== key ? "none" : S.sortDir > 0 ? "ascending" : "descending");
 
       // Build virtualized row entries
       const linkedSet = S.lib ? new Set(p.library.filter(d => api.sameLibrary(S.lib, d.libraryRef)).map(d => api.sourceEntry(S.lib, d.libraryRef)?.id || d.libraryRef.id)) : null;
@@ -582,7 +588,7 @@ globalThis.AtriumLibraryView = (() => {
         def, project: p, facts: api.facts(def), used: api.usage(p, def.id),
         validation: api.cachedValidate(def),
         family: G.AtriumComponentFamilies?.memberships(p)?.get(def.id),
-        status, statusText: status ? api.STATE_MARK[status.state] : null,
+        status, statusText: status && !status.pending ? api.stateText(status.missing ? {state: "missing", ref: def.libraryRef} : status) : null,
         statusTone: status ? api.STATE_TONE[status.state] : null,
         tabbed: true, activeTab: S.inspTab, onTab: t => { S.inspTab = t; renderInspector(); },
         currentKind: kind,
@@ -621,17 +627,22 @@ globalThis.AtriumLibraryView = (() => {
     function runEdit(fn, msg) { try { ctx.edit(fn); if (msg) ctx.info?.(msg); render(); } catch (e) { ctx.info?.(e.message); } }
     const kindFor = def => currentKind() === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb";
     function placeEntry(lib, def, kind = kindFor(def)) { if (lib) placeFromSource(lib, def, kind); else place(def, kind); }
-    function place(def, kind) {
-      G.AtriumDocViews?.hide?.(ID);
-      if (ctx.placeDef) ctx.placeDef(def, kind); else ctx.info?.("Placement is unavailable in this build.");
-    }
+    function place(def, kind) { ROWS().place(ctx, def, kind); }
     function editSelected(id, kind) {
       const def = project().library.find(d => d.id === id);
       if (def && !S.lib) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? api.openFootprintEditor : api.openSymbolEditor)(ctx, def, {asTab: true});
     }
+    // A source read finishes only while the tab still shows what started it (as the dock's guard).
+    function guard(lib, placement = false) {
+      const token = intent, owner = project(), source = S.source, rev = ctx.revision(), doc = host.doc?.();
+      return () => !closed && token === intent && project() === owner && S.source === source &&
+        (lib?.kind !== "folder" || G.AtriumLibrarySources?.library(lib.folder) === lib) &&
+        (!placement || rev === ctx.revision() && doc === host.doc?.());
+    }
     function ensureFromSource(lib, def) {
       if (def.stub) {
-        G.AtriumLibrarySources.load(lib, def.id).then(full => { if (!closed) ensureFromSource(lib, full); }, e => ctx.info?.(e.message));
+        const current = guard(lib, true);
+        G.AtriumLibrarySources.load(lib, def.id).then(full => { if (current()) ensureFromSource(lib, full); }, e => { if (current()) ctx.info?.(e.message); });
         return null;
       }
       const p = project(), linked = p.library.find(d => api.linksEntry(lib, d.libraryRef, def.id));
@@ -642,22 +653,15 @@ globalThis.AtriumLibraryView = (() => {
     }
     function placeFromSource(lib, def, kind) {
       if (def.stub) {
-        G.AtriumLibrarySources.load(lib, def.id).then(full => { if (!closed) placeFromSource(lib, full, kind); }, e => ctx.info?.(e.message));
+        const current = guard(lib, true);
+        G.AtriumLibrarySources.load(lib, def.id).then(full => { if (current()) placeFromSource(lib, full, kind); }, e => { if (current()) ctx.info?.(e.message); });
         return;
       }
       if (!Atrium.geometries(def, kind)) return;
       const exact = ensureFromSource(lib, def);
       if (exact) place(exact, kind);
     }
-    async function reviewUpdates(entries) {
-      if (!G.AtriumLibraryDiff) { ctx.info?.("The library review is unavailable in this build."); return; }
-      const p = project(), ready = [];
-      for (const e of entries) {
-        const full = e.src.stub ? await G.AtriumLibrarySources.load(e.lib, e.src.id) : e.src;
-        if (!api.libraryStatus(e.def, [e.lib], p)?.same) ready.push({...e, src: full});
-      }
-      if (ready.length) AtriumLibraryDiff.review(ctx, ready, {done: () => render()});
-    }
+    function reviewUpdates(entries) { return G.AtriumLibraryDockUI.review(ctx, api, entries, {current: guard(null), libs: allLibs, done: () => render()}); }
 
     // Keyboard navigation on the virtualized table
     tableWrap.addEventListener("keydown", e => {
@@ -697,21 +701,37 @@ globalThis.AtriumLibraryView = (() => {
     const onSources = () => scheduleRender();
     G.addEventListener?.("waffle-library-sources", onSources);
     G.addEventListener?.("storage", onSources);
-    const offFolders = G.AtriumLibrarySources?.onChange?.(() => scheduleRender());
+    // Folder, KiCad and group libraries: watched once their modules load (by this tab or the dock), and
+    // restored through the same loaders the dock uses, so the tab lists them when it opens first.
+    let offFolders = null, offGroups = null;
+    function watch() {
+      if (closed) return;
+      offFolders ||= G.AtriumLibrarySources?.onChange?.(scheduleRender);
+      offGroups ||= G.AtriumGroupLocal?.onChange?.(scheduleRender);
+    }
 
     render();
+    api.folderUI(u => { watch(); scheduleRender(); u.restore(project().library.map(d => d.libraryRef?.library).filter(Boolean)); }, true);
+    api.restoreGroups(watch);
+
+    // Show a part: its source, no filter that hides it. A built-in part (starter or catalogue) has no source here.
+    function reveal(def, source) {
+      if (!def) return;
+      const {lib, inProject} = ROWS().revealSource("workspace", def, source, {project: project(), libs: allLibs(), api});
+      cancelIntent();
+      S.source = lib?.id || "project";
+      S.view = "all";
+      S.selected = def.id;
+      clearFilters();
+      if (S.lib?.unopened) api.folderUI(u => u.restore([S.lib.folder]));
+      const idx = S.itemIndex.get(def.id);
+      if (idx != null) windowed.scrollTo(idx);
+      else if (!lib && !inProject) ctx.info?.((def.name || def.id) + " is a built-in part. Place it from Quick Place; it is listed here once placed.");
+    }
 
     return {
-      reveal(def, source) {
-        S.source = source?.id || "project";
-        S.view = "all";
-        S.query = "";
-        searchWrap.input.value = "";
-        S.selected = def?.id || null;
-        render();
-        const idx = S.selected && S.itemIndex.get(S.selected);
-        if (idx != null) windowed.scrollTo(idx);
-      },
+      reveal,
+      showSource(source) { const id = typeof source === "string" ? source : source?.id; if (id && id !== S.source) selectSource(id); },
       focusSearch() { searchWrap.input.focus(); searchWrap.input.select?.(); },
       dispose() {
         closed = true;
@@ -721,6 +741,7 @@ globalThis.AtriumLibraryView = (() => {
         clearTimeout(checkTimer);
         offNav.forEach(off => off?.());
         offFolders?.();
+        offGroups?.();
         G.removeEventListener?.("waffle-library-sources", onSources);
         G.removeEventListener?.("storage", onSources);
       }
@@ -735,7 +756,7 @@ globalThis.AtriumLibraryView = (() => {
       onClose: () => { instance?.dispose(); instance = null; }
     });
     if (o.def) instance?.reveal(o.def, o.source);
-    else instance?.focusSearch();
+    else { if (o.source) instance?.showSource(o.source); instance?.focusSearch(); }
     return instance;
   }
 

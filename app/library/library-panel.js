@@ -1265,9 +1265,11 @@ globalThis.AtriumLibrary = (() => {
       return section;
     },
     // Host an editor in a shared AtriumDocViews editor tab (Design B) or fall back to ui.dialog.
+    // The tab holds a non-modal <dialog open>, as the Rules editor's tab does (rules.js), so code that looks
+    // for the open library dialog (the canvas input, the palette, the camera) finds it.
     editorSurface(title, cls = "", {tabId, icon = "book", hostTab = false} = {}) {
       if (!hostTab || !globalThis.AtriumDocViews) return ui.dialog(title, cls);
-      const wrap = ui.el("div", null, "ui-panel lib-editor-surface " + cls);
+      const wrap = ui.el("dialog", null, "ui-panel lib-editor-surface " + cls);
       wrap.setAttribute("aria-label", title);
       const head = ui.el("header", null, "lib-dialog-head");
       const h2 = ui.el("h2", title);
@@ -1277,23 +1279,27 @@ globalThis.AtriumLibrary = (() => {
       wrap._tabId = tabId || ("lib-editor-" + A.id());
       wrap._tabIcon = icon;
       wrap._isTab = true;
-      Object.defineProperty(wrap, "open", {get: () => !!globalThis.AtriumDocViews?.isOpen?.(wrap._tabId), configurable: true});
-      wrap.close = () => {
-        if (wrap._closing) return;
-        wrap._closing = true;
-        globalThis.AtriumDocViews?.close?.(wrap._tabId);
-      };
       return wrap;
     },
     showSurface(surface) {
       if (!surface._isTab) { ui.show(surface); return; }
+      const V = globalThis.AtriumDocViews, id = surface._tabId;
+      if (V.isOpen(id)) { V.show(id); return; } // this def's editor is already open
       const title = surface.heading?.querySelector("h2")?.textContent || surface.getAttribute("aria-label") || "Editor";
-      globalThis.AtriumDocViews.open(surface._tabId, {
+      // A project switch closes the tab without asking (the modal editor never asked on a switch either),
+      // so a later Save cannot write into the next project.
+      const switched = () => V.close(id);
+      surface.addEventListener("close", () => { globalThis.removeEventListener?.("atrium-host-project", switched); surface.remove(); V.close(id); }, {once: true});
+      globalThis.addEventListener?.("atrium-host-project", switched);
+      V.open(id, {
         title,
         icon: surface._tabIcon,
         mount: box => { box.replaceChildren(surface); },
-        onClose: () => { surface._closing = true; surface.dispatchEvent(new Event("close")); }
+        // The tab's ×, middle click and Delete ask the editor, which closes itself unless unsaved changes are kept.
+        canClose: () => { if (!Object.hasOwn(surface, "requestClose")) return true; surface.requestClose(); return false; },
+        onClose: () => { if (surface.open) surface.close(); }
       });
+      if (!surface.open) surface.show();
     },
     // Large modal work surface; Escape closes unless a child handled it.
     // d.requestClose (set by editors with unsaved state) decides whether × and Esc may close.
@@ -1449,15 +1455,15 @@ globalThis.AtriumLibrary = (() => {
       sameLibrary, sourceEntry, linksEntry, addFromLibrary, libraryStatus, stateText, diffDefs,
       cachedValidate, facts, usage, duplicate, remove, updateParts, similar, search,
       togglePanel, openLibraryFile, manageLibraries, checkLibrary, saveToLibraryDialog,
-      openSymbolEditor, openFootprintEditor, openWizard, chooseCopies, groupUI, folderUI
+      openSymbolEditor, openFootprintEditor, openWizard, chooseCopies, groupUI, folderUI, restoreGroups
     };
   }
   function mountPanel(ctx) {
     if (panel?.node?.isConnected) { if (ctx) panel.ctx = ctx; return panel; }
     panel?.dispose();
     if (!globalThis.AtriumLibraryDockUI) throw Error("Library panel UI module is not loaded.");
-    panel = AtriumLibraryDockUI.mount(ctx, panelApi());
-    return panel;
+    // mounted() runs before the first show, which can subscribe to folder and group changes through `panel`.
+    return AtriumLibraryDockUI.mount(ctx, {...panelApi(), mounted: P => { panel = P; }});
   }
   function groupUI(fn) {
     const ready = globalThis.AtriumGroupLibraryUI ? Promise.resolve(globalThis.AtriumGroupLibraryUI) : globalThis.AtriumLazy?.need("AtriumGroupLibraryUI");
@@ -1465,6 +1471,10 @@ globalThis.AtriumLibrary = (() => {
       if (panel && !panel.groupSub) panel.groupSub = globalThis.AtriumGroupLocal.onChange((_id, _added, _from, installed) => { if (installed !== false) panel?.render?.(); });
       return fn(u);
     }).catch(e => panel?.ctx?.info?.(e.message));
+  }
+  // Group libraries kept on this computer, restored when the dock or the Library tab first shows (fn: before restore).
+  function restoreGroups(fn) {
+    try { if (globalThis.localStorage?.getItem("atrium.group-library.v1")) groupUI(u => { fn?.(); return u.restore(); }); } catch { /* opened explicitly when storage is unavailable */ }
   }
   // Folder libraries and KiCad import (library-sources.js, library-sources-ui.js): loaded on first use, or at
   // panel start when folders are registered (onlyIfUsed).
@@ -1507,7 +1517,8 @@ globalThis.AtriumLibrary = (() => {
     return "Same as " + s.lib.name;
   }
   // Library › Check: health checks of the project library or a library source (AtriumLibraryStore.health).
-  function checkLibrary(ctx, lib, checked) {
+  // o.current: whether the host that asked still shows `lib` (default: the dock); o.reveal(id): show a project def.
+  function checkLibrary(ctx, lib, checked, o = {}) {
     const S = globalThis.AtriumLibraryStore;
     if (!S) { ctx.info?.("Library checks are unavailable in this build."); return null; }
     const project = ctx.currentProject ? ctx.currentProject() : ctx.project;
@@ -1516,8 +1527,8 @@ globalThis.AtriumLibrary = (() => {
       const actions = ui.el("div", null, "lib-actions"); actions.append(ui.button("Cancel", () => d.close()));
       line.setAttribute("role", "status"); d.append(line, actions); ui.show(d);
       const source = globalThis.AtriumLibrarySources;
-      const current = () => d.open && (!ctx.currentProject || ctx.currentProject() === project) &&
-        (!panel || panel.lib === lib && !panel.node.hidden) && source.library(lib.folder) === lib;
+      const shown = o.current || (() => !panel || panel.lib === lib && !panel.node.hidden);
+      const current = () => d.open && (!ctx.currentProject || ctx.currentProject() === project) && shown() && source.library(lib.folder) === lib;
       const rows = lib.defs, checked = new Map();
       // A duplicate-name check needs a content hash only for a repeated name/package.
       const seen = new Set(), repeated = new Set(), key = row => JSON.stringify([row.name?.trim().toLowerCase(), row.footprint?.name || row.package || ""]);
@@ -1539,7 +1550,7 @@ globalThis.AtriumLibrary = (() => {
           }
         }
         const show = current(); if (d.open) d.close();
-        if (show) checkLibrary(ctx, lib, checked);
+        if (show) checkLibrary(ctx, lib, checked, o);
       })().catch(e => { if (d.open) d.close(); ctx.info?.(e.message); });
       return d;
     }
@@ -1550,7 +1561,7 @@ globalThis.AtriumLibrary = (() => {
     for (const x of r.issues.slice(0, 500)) {
       const tr = ui.el("tr", null, "lib-health-" + x.level);
       const name = ui.el("td");
-      if (x.def && !lib) name.append(ui.button(x.name, () => { d.close(); if (panel) { panel.source = "project"; panel.selected = x.def; panel.render?.(); } }, "lib-mini")); else name.append(ui.el("span", x.name));
+      if (x.def && !lib) name.append(ui.button(x.name, () => { d.close(); if (o.reveal) o.reveal(x.def); else if (panel) { panel.source = "project"; panel.selected = x.def; panel.render?.(); } }, "lib-mini")); else name.append(ui.el("span", x.name));
       tr.append(ui.el("td", x.level), name, ui.el("td", x.message)); t.append(tr);
     }
     if (r.issues.length) box.append(t); else box.append(ui.el("p", "No issues found.", "fe-note"));

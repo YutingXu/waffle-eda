@@ -19,7 +19,8 @@ globalThis.AtriumPalette = (() => {
     "palette.edit_options":"Options…",
     "palette.insert_item":"Insert {name}",
     "palette.run_item":"Run {name}",
-    "palette.open_item":"Open {name}"
+    "palette.open_item":"Open {name}",
+    "palette.open_library_tab":"Open in Library tab"
   });
   const RECENT_KEY = "atrium-palette-recent", RECENT_MAX = 12, LIMIT = 60;
   let calculationAvailable = false;
@@ -976,7 +977,7 @@ globalThis.AtriumPalette = (() => {
     const timing = globalThis.AtriumDiagnostics?.performance?.begin("search", "search");
     let next;
     try {
-      next = !rich && !q && mode !== ":" ? search(sources(mode,q),"",{recent}) : ranked(mode,q,rich ? session : null,true);
+      next = !rich && !q && mode !== ":" && entryScope() !== "library" ? search(sources(mode,q),"",{recent}) : ranked(mode,q,rich ? session : null,true);
       timing?.end("completed");
     } catch (error) {
       timing?.end("failed");
@@ -1046,17 +1047,8 @@ globalThis.AtriumPalette = (() => {
     }
     if (session.enhanced) list.push(...globalThis.AtriumPaletteActions?.actions?.(e,req) || [],
       ...e.actions || [], ...globalThis.AtriumPalettePersonal?.actions?.(e,req) || []);
-    if (e.kind === "library") {
-      const rec = IX?.get(e.key);
-      if (rec?.def) {
-        list.push({
-          id: "show-in-library-tab",
-          label: "Open in Library tab",
-          hint: "Mod+L",
-          run: () => globalThis.AtriumLazy?.need?.("AtriumLibrary").then(() => AtriumLazy.need("AtriumLibraryView")).then(v => v.reveal(rec.def, rec.library))
-        });
-      }
-    }
+    const rec = e.kind === "library" && IX?.get(e.key);
+    if (rec?.def) list.push({id:"show-in-library-tab",label:t("palette.open_library_tab"),hint:"Mod+L",run:() => libraryTab(rec)});
     if (e.options?.length) list.push({id:"options",label:t("palette.edit_options"),keepOpen:true,run:() => options(i)});
     if (globalThis.navigator?.clipboard?.writeText) list.push({id:"copy-label",label:t("palette.copy_name"),run:() => navigator.clipboard.writeText(label)});
     return list.map(a => ({...a,run:() => {
@@ -1065,6 +1057,8 @@ globalThis.AtriumPalette = (() => {
       Promise.resolve().then(() => !signal?.aborted && a.run({...req,signal})).catch(error=>report(error,signal));
     }}));
   }
+  // Mod+L or the action: show a library hit in the Library tab.
+  const libraryTab = rec => AtriumLazy.need("AtriumLibrary").then(() => AtriumLazy.need("AtriumLibraryView")).then(v => v.reveal(rec.def,rec.library));
   function actions(i) {return !!session && view?.actions(i,actionList(i));}
   function options(i) { if (results[i]?.options?.length) view?.options(i,requestOf(results[i])); else actions(i); }
   function report(error,signal) {if (!signal?.aborted) host?.info?.(error?.message || String(error));}
@@ -1101,14 +1095,8 @@ globalThis.AtriumPalette = (() => {
     const step = {ArrowDown:1,ArrowUp:-1,PageDown:10,PageUp:-10}[e.key];
     if (step && results.length) {e.preventDefault(); setActive(Math.abs(step) === 1 ? (active+step+results.length)%results.length : Math.max(0,Math.min(results.length-1,active+step)),true,e); return;}
     if (e.key === "Enter") {e.preventDefault(); run(active,{},e.altKey ? "insert" : e.shiftKey ? "apply" : null); return;}
-    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "l" && results[active]?.kind === "library") {
-      const rec = IX?.get(results[active].key);
-      if (rec?.def) {
-        e.preventDefault(); close(false);
-        globalThis.AtriumLazy?.need?.("AtriumLibrary").then(() => AtriumLazy.need("AtriumLibraryView")).then(v => v.reveal(rec.def, rec.library), err => host?.info?.(err?.message));
-        return;
-      }
-    }
+    const rec = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "l" && results[active]?.kind === "library" && IX?.get(results[active].key);
+    if (rec?.def) {e.preventDefault(); close(false); libraryTab(rec).catch(err => host?.info?.(err?.message)); return;}
     if (e.key === "Escape") {e.preventDefault(); close(); return;}
     if (e.key === "Tab" && !e.shiftKey && results[active]?.options?.length) {e.preventDefault(); options(active);}
   }

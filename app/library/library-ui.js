@@ -84,6 +84,21 @@ globalThis.AtriumLibraryRows = (() => {
     return row;
   }
 
+  /** Arm placement of a project def. A document view over the active pane's canvas (the Library tab) steps aside first. */
+  function place(ctx, def, kind) {
+    globalThis.AtriumDocViews?.showCanvas?.();
+    if (ctx.placeDef) ctx.placeDef(def, kind); else ctx.info?.("Placement is unavailable in this build.");
+  }
+
+  /** Reveal a part in the dock or the tab: clear the parameter filters of `key`, and find where it lives (the source
+   *  given, else a registered library holding its id when the project has none). A built-in part has neither. */
+  function revealSource(key, def, source, {project, libs, api}) {
+    globalThis.AtriumLibraryFacetsUI?.close();
+    globalThis.AtriumCatalogue?.clearFacets?.(key);
+    const inProject = project.library.some(d => d.id === def.id);
+    return {inProject, lib: source || (inProject ? null : libs.find(l => api.sourceEntry(l, {id: def.id})) || null)};
+  }
+
   /** Whether the experimental system file-drop receiver is enabled (otherwise pointer drag places live). */
   const dropReceiver = () => globalThis.AtriumPrefs?.get("butter.drop") === true;
 
@@ -296,8 +311,11 @@ globalThis.AtriumLibraryRows = (() => {
     return [...list.querySelectorAll(".ui-row, .lib-tree-more")].filter(node => !node.closest("[hidden]"));
   }
 
-  /** Standard tree keyboard navigation: Up/Down across visible rows, Left/Right to collapse/expand. */
+  /** Standard tree keyboard navigation: Up/Down across visible rows, Left/Right to collapse/expand, Enter/Space toggle a group. */
   function handleTreeKey(e, list, {onSelectRow, onTopEscape}) {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches?.(".lib-group-row")) {
+      e.preventDefault(); e.target.click(); return true;
+    }
     if (e.key === "ArrowRight" && e.target.matches?.(".lib-group-row[aria-expanded=false]")) {
       e.preventDefault(); e.target.click(); return true;
     }
@@ -320,7 +338,7 @@ globalThis.AtriumLibraryRows = (() => {
     return true;
   }
 
-  return Object.freeze({presenceIcons, componentRow, groupRow, categoryTree, componentTree, visibleRows, handleTreeKey, dropReceiver, startDragPlace});
+  return Object.freeze({presenceIcons, componentRow, groupRow, categoryTree, componentTree, visibleRows, handleTreeKey, dropReceiver, startDragPlace, place, revealSource});
 })();
 
 // Shared parameter facet popover for the Library docked tab (Design A) and workspace (Design B).
@@ -729,6 +747,26 @@ globalThis.AtriumLibraryDockUI = (() => {
     globalThis.AtriumLazy?.need?.("AtriumLibraryView").then(go, e => ctx?.info?.(e.message));
   }
 
+  /** Review library updates for project defs: read each source entry, then AtriumLibraryDiff, while `current()` holds. */
+  async function review(ctx, api, entries, {current, libs, done}) {
+    if (!globalThis.AtriumLibraryDiff) { ctx.info?.("The library review is unavailable in this build."); return; }
+    const p = ctx.currentProject ? ctx.currentProject() : ctx.project, rev = ctx.revision?.(), ready = [];
+    const isCurrent = () => current() && rev === ctx.revision?.() && entries.every(e => {
+      const live = libs().find(l => l.id === e.lib.id && l.kind === e.lib.kind);
+      if (e.lib.kind === "group") return live?.revisionKeys?.get(e.src.id) === e.lib.revisionKeys?.get(e.src.id);
+      return e.lib === live;
+    });
+    try {
+      for (const e of entries) {
+        if (!isCurrent()) return;
+        const full = e.src.stub ? await globalThis.AtriumLibrarySources.load(e.lib, e.src.id) : e.src;
+        if (!isCurrent()) return;
+        if (!api.libraryStatus(e.def, [e.lib], p)?.same) ready.push({...e, src: full});
+      }
+      AtriumLibraryDiff.review(ctx, ready, {current: isCurrent, done});
+    } catch (e) { if (current()) ctx.info?.(e.message); }
+  }
+
   function mount(ctx, api) {
     const k = K(), el = k.el;
     const P = {ctx, node: null, selected: null, filter: "all", source: "project", pinsOpen: false, lastRevision: -1, lastLibrary: null};
@@ -771,13 +809,15 @@ globalThis.AtriumLibraryDockUI = (() => {
     globalThis.AtriumNavCommon?.actionMenu?.(moreBtn, () => [
       {label: "Open Library tab", run: () => P.ctx.act?.("library-workspace") || globalThis.AtriumNavHost?.act?.("library-workspace")},
       "-",
-      {label: "New symbol…", shortcut: "T Y", run: () => api.openSymbolEditor(P.ctx, null)},
+      // `action` shows the command's key from AtriumKeymap; `run` opens it with this panel's context.
+      {label: "New symbol…", action: "symbol-editor", run: () => api.openSymbolEditor(P.ctx, null)},
       {label: "New footprint…", run: () => api.openFootprintEditor(P.ctx, null)},
-      {label: "IPC footprint wizard…", shortcut: "T F", run: () => api.openWizard(P.ctx)},
+      {label: "IPC footprint wizard…", action: "footprint-wizard", run: () => api.openWizard(P.ctx)},
       {label: "Symbol wizard…", run: () => globalThis.AtriumNavHost?.act?.("symbol-wizard")},
       "-",
       {label: "Manage families…", enabled: !P.lib, run: () => manageFamilies(P.source === "project" ? P.selected : null)},
-      {label: "Check library…", run: () => api.checkLibrary(P.ctx, P.lib)}
+      {label: "Check library…", run: () => api.checkLibrary(P.ctx, P.lib)},
+      {label: "Catalogue…", run: () => P.ctx.showCatalogue ? P.ctx.showCatalogue() : P.ctx.info?.("The catalogue is unavailable here.")}
     ]);
 
     const noticeSlot = el("div", "lib-notice-slot");
@@ -1199,7 +1239,7 @@ globalThis.AtriumLibraryDockUI = (() => {
       INSP().render(detail, {
         def, project: p, facts: api.facts(def), used: api.usage(p, def.id),
         validation: api.cachedValidate(def), family: P.members?.get(def.id),
-        status, statusText: status ? api.STATE_MARK[status.state] : null,
+        status, statusText: status && !status.pending ? api.stateText(status.missing ? {state: "missing", ref: def.libraryRef} : status) : null,
         statusTone: status ? api.STATE_TONE[status.state] : null,
         currentKind: kind,
         pinsOpen: P.pinsOpen, onTogglePins: () => { P.pinsOpen = !P.pinsOpen; renderDetail(); },
@@ -1262,29 +1302,12 @@ globalThis.AtriumLibraryDockUI = (() => {
       }
     }
 
-    async function reviewUpdates(entries) {
-      if (!globalThis.AtriumLibraryDiff) { P.ctx.info?.("The library review is unavailable in this build."); return; }
-      const current = guard(null), p = project(), rev = P.ctx.revision?.(), ready = [];
-      const isCurrent = () => current() && rev === P.ctx.revision?.() && entries.every(e => {
-        const live = libs().find(l => l.id === e.lib.id && l.kind === e.lib.kind);
-        if (e.lib.kind === "group") return live?.revisionKeys?.get(e.src.id) === e.lib.revisionKeys?.get(e.src.id);
-        return e.lib === live;
-      });
-      try {
-        for (const e of entries) {
-          if (!isCurrent()) return;
-          const full = e.src.stub ? await globalThis.AtriumLibrarySources.load(e.lib, e.src.id) : e.src;
-          if (!isCurrent()) return;
-          if (!api.libraryStatus(e.def, [e.lib], p)?.same) ready.push({...e, src: full});
-        }
-        AtriumLibraryDiff.review(P.ctx, ready, {current: isCurrent, done: () => render()});
-      } catch (e) { if (current()) P.ctx.info?.(e.message); }
-    }
+    function reviewUpdates(entries) { return review(P.ctx, api, entries, {current: guard(null), libs, done: () => render()}); }
 
     function run(fn, message) { try { P.ctx.edit(fn); if (message) P.ctx.info?.(message); render(); } catch (e) { P.ctx.info?.(e.message); } }
     const kindFor = def => currentKind() === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb";
     function placeEntry(lib, def, kind = kindFor(def)) { if (lib) placeFromSource(lib, def, kind); else place(def, kind); }
-    function place(def, kind) { if (P.ctx.placeDef) P.ctx.placeDef(def, kind); else P.ctx.info?.("Placement is unavailable in this build."); }
+    function place(def, kind) { ROWS().place(P.ctx, def, kind); }
     function editSelected(id, kind) {
       const def = project().library.find(d => d.id === id);
       if (def && !P.lib) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? api.openFootprintEditor : api.openSymbolEditor)(P.ctx, def);
@@ -1327,6 +1350,13 @@ globalThis.AtriumLibraryDockUI = (() => {
     // Keyboard navigation & actions
     node.addEventListener("keydown", e => {
       if (e.key === "Escape" && !FACETS()?.isOpen()) { cancelIntent(); select(null); return; }
+      // Tab hops between a selected package row and the first detail action.
+      if (e.key !== "Tab" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const first = detail.querySelector(".lib-detail-actions button:not(:disabled)");
+      const selected = ROWS().visibleRows(list).find(r => r.dataset.def === P.selected && r.closest(".cat-family-packages"));
+      if (!first || !selected) return;
+      const [from, to] = e.shiftKey ? [first, selected] : [selected, first];
+      if (e.target === from) { e.preventDefault(); to.focus(); }
     });
     list.addEventListener("keydown", e => {
       if (ROWS().handleTreeKey(e, list, {
@@ -1336,6 +1366,8 @@ globalThis.AtriumLibraryDockUI = (() => {
       if (e.target !== list && !e.target.matches(".lib-row")) return;
       const id = e.target.dataset.def || P.selected;
       if (!id) return;
+      // The list itself acts on the selection only while its row is visible (not in a collapsed branch).
+      if (e.target === list && !ROWS().visibleRows(list).some(r => r.dataset.def === id)) return;
       if (P.lib) {
         if (e.key === "Enter") { e.preventDefault(); const d = P.lib.defs.find(def => def.id === id); if (d) placeFromSource(P.lib, d, currentKind()); }
         else if (e.key === "Delete" || e.key === "Backspace" || e.key === "e" || e.key === "E") {
@@ -1394,10 +1426,7 @@ globalThis.AtriumLibraryDockUI = (() => {
     function visibilityChanged() {
       if (!node.isConnected) { dispose(); return; }
       const on = visible();
-      if (on && !P.groupRestored) {
-        P.groupRestored = true;
-        try { if (globalThis.localStorage?.getItem("atrium.group-library.v1")) api.groupUI(u => u.restore()); } catch {}
-      }
+      if (on && !P.groupRestored) { P.groupRestored = true; api.restoreGroups(); }
       if (on !== showing) {
         showing = on;
         if (!on) { stop(); return; }
@@ -1427,7 +1456,9 @@ globalThis.AtriumLibraryDockUI = (() => {
     }
 
     P.reveal = (def, source) => {
-      P.source = source?.id || "project"; P.filter = "all"; search.value = def.name || def.id;
+      const {lib} = ROWS().revealSource("panel", def, source, {project: project(), libs: libs(), api});
+      cancelIntent();
+      P.source = lib?.id || "project"; P.filter = "all"; search.value = def.name || def.id;
       render(); select(def.id);
       list.querySelector('[aria-selected="true"]')?.scrollIntoView?.({block: "nearest"});
     };
@@ -1435,9 +1466,10 @@ globalThis.AtriumLibraryDockUI = (() => {
     P.folderProgress = id => { if (P.lib?.folder === id && visible()) renderNotice(); };
     P.toggled = open => { focusOnShow = open; visibilityChanged(); };
     P.focusSearch = () => { focusOnShow = true; visibilityChanged(); if (document.activeElement === search) search.select?.(); };
+    api.mounted?.(P);
     visibilityChanged();
     return P;
   }
 
-  return Object.freeze({mount});
+  return Object.freeze({mount, review});
 })();
