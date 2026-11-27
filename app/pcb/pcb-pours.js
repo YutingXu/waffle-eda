@@ -384,8 +384,14 @@ globalThis.AtriumPCBPours=(()=>{
     return a;
   }
   const copperArcs=c=>c?.arcs?arcsOf(c):null;
-  // The copper behind field k of a region, when its copper holds that field (its data; its arcs too).
-  const heldField=(region,k)=>{const c=(k==="data"||k==="arcs")&&copperOf(region);return c&&(k==="data"||c.arcs)?c:null;};
+  // Which fields of o its copper holds, asked once per object so a consumer (the undo store, the save
+  // cache) names no field: null for an object that holds no copper (one WeakMap miss), else a frozen
+  // {field: role} map, role "text" (the data text) or "arcs" (the true arcs, while o's arcs still read
+  // them). The copper is copperOf(o).
+  const HELD_TEXT=Object.freeze({data:"text"}),HELD_ARCS=Object.freeze({data:"text",arcs:"arcs"});
+  const heldFields=o=>{const c=copperOf(o);return c?c.arcs&&Object.getOwnPropertyDescriptor(o,"arcs")?.get?HELD_ARCS:HELD_TEXT:null;};
+  // The copper behind field k of a region, when its copper holds that field.
+  const heldField=(region,k)=>heldFields(region)?.[k]?copperOf(region):null;
   function copperOf(region){
     const c=region&&typeof region==="object"?copperOfRegion.get(region):null;
     return c&&Object.getOwnPropertyDescriptor(region,"data")?.get?c:null;
@@ -1031,7 +1037,7 @@ globalThis.AtriumPCBPours=(()=>{
   const cached=region=>{const e=decoded.get(region);return !!e&&sameGeometry(e,region)||cachedShare(region)===1;};
   const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,regionLike,paintHook:null,displayHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange,
     table,runsOf,ringBoxes,cached,view,viewDamage,
-    copperOf,withCopper,isCopper,heldField,dataKey,sameData,dataLength,hasData,fieldsOf,runLookup,runIds,fromRuns,runRecord,copperRuns,copperArcs,copperBytes,copperDelta,copperText,arcsText,runStats:()=>({runs:runCache.size,vertices:runVertices,pathVertices:runPathVertices,lodVertices,regionPaths:paths.size})};
+    copperOf,withCopper,isCopper,heldField,heldFields,dataKey,sameData,dataLength,hasData,fieldsOf,runLookup,runIds,fromRuns,runRecord,copperRuns,copperArcs,copperBytes,copperDelta,copperText,arcsText,runStats:()=>({runs:runCache.size,vertices:runVertices,pathVertices:runPathVertices,lodVertices,regionPaths:paths.size})};
   return api;
 })();
 if (typeof module !== "undefined") module.exports = globalThis.AtriumPCBPours;

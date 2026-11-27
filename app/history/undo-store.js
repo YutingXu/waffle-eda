@@ -59,18 +59,22 @@ globalThis.AtriumUndoStore = (() => {
   // replaces a region counts only the runs the old version has and the new one does not
   // (copperDelta), so a run is counted once however many versions of the region hold it.
   const P = () => G.AtriumPCBPours;
-  const fieldOf = (e, k) => (k === "data" || k === "arcs") && P()?.heldField?.(e, k) || e[k];
+  // The fields the engine says e's copper holds (heldFields, asked once per object; null for any
+  // other object) read as that copper; every other field as it is.
+  const heldOf = e => P()?.heldFields?.(e) || null;
   function shallowOf(e) {
     const sh = []; let data = 0;
-    for (const k of Object.keys(e)) { const x = fieldOf(e, k); if (skip(x)) continue; sh.push(k, x); if (typeof x === "string") data += x.length; }
+    const h = heldOf(e), c = h && P().copperOf(e);
+    for (const k of Object.keys(e)) { const x = h?.[k] ? c : e[k]; if (skip(x)) continue; sh.push(k, x); if (typeof x === "string") data += x.length; }
     return {sh, bytes: 16 + sh.length * 8, data};
   }
   function sameShallow(e, v) {
     const sh = v.sh; let i = 0;
-    for (const k of Object.keys(e)) { const x = fieldOf(e, k); if (skip(x)) continue; if (sh[i] !== k || sh[i + 1] !== x) return false; i += 2; }
+    const h = heldOf(e), c = h && P().copperOf(e);
+    for (const k of Object.keys(e)) { const x = h?.[k] ? c : e[k]; if (skip(x)) continue; if (sh[i] !== k || sh[i + 1] !== x) return false; i += 2; }
     return i === sh.length;
   }
-  const copperIn = v => { if (!v?.sh) return null; for (let i = 0; i < v.sh.length; i += 2) if (v.sh[i] === "data" && P()?.isCopper?.(v.sh[i + 1])) return v.sh[i + 1]; return null; };
+  const copperIn = v => { if (!v?.sh) return null; for (let i = 1; i < v.sh.length; i += 2) if (P()?.isCopper?.(v.sh[i])) return v.sh[i]; return null; };
   // A field back on an object: a shared copper through the pour engine (the region holds it again).
   const setField = (o, k, x) => { if (P()?.isCopper?.(x)) P().withCopper(o, x); else o[k] = x; };
   const fromShallow = v => { const o = {}; for (let i = 0; i < v.sh.length; i += 2) setField(o, v.sh[i], v.sh[i + 1]); return o; };
@@ -779,7 +783,8 @@ globalThis.AtriumUndoStore = (() => {
   function patch(o, text) {
     const v = typeof text === "string" ? JSON.parse(text) : text.table ? tableObject(text) : fromShallow(text);
     if (Array.isArray(o)) { o.length = v.length; for (let i = 0; i < v.length; i++) o[i] = v[i]; return; }
-    const keys = Object.keys(v), put = k => text.sh ? setField(o, k, fieldOf(v, k)) : o[k] = v[k];
+    const h = text.sh ? heldOf(v) : null, c = h && P().copperOf(v);
+    const keys = Object.keys(v), put = k => text.sh ? setField(o, k, h?.[k] ? c : v[k]) : o[k] = v[k];
     for (const k of Object.keys(o)) if (!(k in v)) delete o[k];
     for (const k of keys) put(k);
     if(text.table)liveTables.set(o,{state:o.widget.state,value:text});else liveTables.delete(o);

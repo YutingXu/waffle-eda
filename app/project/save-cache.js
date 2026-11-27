@@ -136,12 +136,16 @@ globalThis.AtriumSaveCache = (() => {
       const itemsOf = new Map();
       if (Array.isArray(root?.documents)) for (const d of root.documents) if (d && Array.isArray(d.items)) itemsOf.set(d.items, d);
       let s = "", owner = null;
-      // A region the pour engine holds as runs gives its copper (AtriumPCBPours.copperOf) as the data
-      // segment: the segment's text is the copper's (String(copper)), joined only if a text is wanted.
-      // Its true arcs, when the runs hold them too, are a segment of their own (arcsSegment).
-      const copperOf = r => G.AtriumPCBPours?.copperOf?.(r) || null, held = (r, k) => G.AtriumPCBPours?.heldField?.(r, k) || null;
-      const largeRegion = r => r && !Array.isArray(r) && Object.prototype.propertyIsEnumerable.call(r, "data") &&
-        (copperOf(r)?.chars > LINE || typeof r.data === "string" && r.data.length > LINE);
+      // A region the pour engine holds as runs: each field its copper holds (AtriumPCBPours.heldFields,
+      // asked once per object) is a segment of its own, made from the copper (AtriumPCBPours.copperOf)
+      // and joined only if a text is wanted: the data text (role "text", String(copper)), or the true
+      // arcs (role "arcs", arcsSegment).
+      const copperOf = r => G.AtriumPCBPours?.copperOf?.(r) || null, heldOf = r => G.AtriumPCBPours?.heldFields?.(r) || null;
+      const largeRegion = r => {
+        const c = copperOf(r);
+        if (c) return c.chars > LINE;
+        return r && !Array.isArray(r) && typeof r.data === "string" && r.data.length > LINE && Object.prototype.propertyIsEnumerable.call(r, "data");
+      };
       function walk(v, depth, expanded = false) {
         if (v === null || typeof v !== "object") { s += prim(v); return; }
         if (depth >= FRONTIER && !expanded) { segs.push(s); s = ""; nodes.push(v, depth, segs.length); owners.push(owner); segs.push(null); return; }
@@ -168,20 +172,20 @@ globalThis.AtriumSaveCache = (() => {
           for (const k of keys) order[k] = true;
           keys = Object.keys(order);
         }
+        const roles = expanded ? heldOf(v) : null, copper = roles && copperOf(v);
         for (const k of keys) {
-          const x = expanded && (k === "data" || k === "arcs") && held(v, k) || v[k];
+          const role = roles?.[k], x = role ? copper : v[k];
           if (skip(x)) continue;
           s += (first ? "{\n" : ",\n") + inner + JSON.stringify(k) + ": ";
           first = false;
           // A long data string guarantees both this region and its pours array exceed LINE.
           // Keep the immutable encoded copper as a segment shared with the model. An edit to one
           // region then leaves the other regions' storage chunks and native patch ranges intact.
-          if (expanded && k === "data") {
-            if (typeof x !== "string") { segs.push(s + '"', x); s = '"'; }   // copper: base64, no quoting needed
-            else if (NEEDS_QUOTING.test(x)) { segs.push(s, JSON.stringify(x)); s = ""; }
+          if (role === "text") { segs.push(s + '"', x); s = '"'; }   // copper: base64, no quoting needed
+          else if (role === "arcs") { segs.push(s, arcsSegment(x, depth + 1)); s = ""; }
+          else if (expanded && k === "data") {
+            if (NEEDS_QUOTING.test(x)) { segs.push(s, JSON.stringify(x)); s = ""; }
             else { segs.push(s + '"', x); s = '"'; }
-          } else if (expanded && k === "arcs" && !Array.isArray(x) && typeof x === "object") {
-            segs.push(s, arcsSegment(x, depth + 1)); s = "";
           } else {
             const pours = depth + 1 === FRONTIER && k === "pours" && Array.isArray(x) && x.some(largeRegion);
             walk(x, depth + 1, pours);
