@@ -8,8 +8,13 @@
 // each layer (small pours inside the large ones, poured after them). Sometimes several edits land
 // before a refill, as when the worker is busy. After each refill the stored regions (rings, holes,
 // true arcs, links, bounds) and the polygon signatures equal a full repour of the same board.
+// Refills are repourAll with the sessions (every pour), or, in the worker test, the live worker's own
+// jobs (liveWorkerSteps on a mirror with replaced rows: its choice of stale pours, committed as the
+// editor commits, then the follow-up jobs for the dependent pours it names in `next`); after those no
+// pour may be stale and the stored copper must equal a full repour.
 // Reports how each kind of edit reached the solver. SEEDS=n adds seeds; --quick runs fewer steps;
-// --large adds the 25,600-object benchmark board of scripts/perf-sch.sh --board pours.
+// --large adds the 25,600-object benchmark board of scripts/perf-sch.sh --board pours; ONLY_SEED and
+// STEPS rerun one worker seed.
 // Run: node tests/pcb/pour-area-random.cjs [--quick] [--large]
 const assert = require("node:assert/strict");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};
@@ -31,6 +36,7 @@ function editor(project) {
   return {
     get project() { return project; },
     edit(fn) { const before = U.mark(project); fn(project); U.checkpoint(history, future, before); U.touch(project); },
+    derive(fn) { fn(project); U.touch(project); },
     go(n) { const t = U.jump(history, future, U.mark(project), n); if (!t) return false; project = U.root(); U.touch(project, undefined, true); return true; }
   };
 }
@@ -119,10 +125,45 @@ const note = (kind, mode) => { let h = how.get(kind); if (!h) how.set(kind, h = 
 // relief, 6.. earlier pour; * a changed one) and the share of the pour's box its box covers.
 const modeOf = s => s ? (s.mode === "full" ? "full:" + s.reason + (s.reason === "wide-neighbourhood" && s.widest && process.env.WIDEST ? " cls" + s.widest.cls + (s.widest.changed ? "*" : "") + " " + (s.widest.a / s.frameArea >= .2 ? "big" : "small") : "") : s.mode + (s.arcsMoved ? " (arcs moved)" : "")) : null;
 const regionKey = r => JSON.stringify(r);
-function run(label, project, {seed, steps}) {
+// The live pour worker's job (live-pour-worker.js refill: liveWorkerSteps, its own choice of stale
+// pours) committed as the editor commits it (polygon-pour.js run()), then the jobs the editor runs
+// for the pours the worker names in `next` (dependent pours whose earlier copper changed), until none.
+// The worker solves its own mirror of the board (`mirror`), whose rows are replaced for every item the
+// journal names, as live-pour-worker.js patch() replaces them; the editor's items are edited in place
+// here and Undo restores them in place, so the worker must not see the editor's objects.
+function workerRefill(ed, doc, mirror, area, mirrorSignatures) {
+  const defs = defsOf(ed.project), polygons = {}, project = {...ed.project, documents: ed.project.documents.map(d => d === doc ? mirror : d)};let jobs = 0, v;
+  for (let useArea = area; ; useArea = {sessions: area.sessions, dirtyBoxes: [], changedItems: new Set()}) {
+    mirror.pcbDrawing = doc.pcbDrawing; if (doc.sourcePourSignature) mirror.sourcePourSignature = doc.sourcePourSignature; else delete mirror.sourcePourSignature;
+    const g = I.liveWorkerSteps(mirror, defs, {project, known: new Set(), failed: {}, area: useArea, mirrorSignatures});
+    let x = g.next();
+    while (!x.done) x = x.value?.task ? g.next(I.core.solve(x.value.task)) : g.next();
+    v = x.value; jobs++;
+    assert.ok(!v.unsupported, "the worker path supports the board");
+    if (v.drawing) ed.derive(() => {
+      const drawing = doc.pcbDrawing ||= {annotations: {}};
+      for (const key of ["importedPourSignature", "sourceHatchSignature", "pourSignatures", "pourSignatureVersion"]) if (Object.hasOwn(v.drawing, key)) drawing[key] = v.drawing[key]; else delete drawing[key];
+      AtriumPourMarker.write(drawing, v.unverified);
+      if (v.drawing.pours) drawing.pours = v.drawing.pours; else delete drawing.pours;
+      if (v.stamp) doc.sourcePourSignature = v.stamp; else delete doc.sourcePourSignature;
+    });
+    Object.assign(polygons, v.stats?.polygons || {});
+    if (!v.next?.length) break;
+    assert.ok(jobs < 12, "the dependency chain ends");
+  }
+  return {jobs, polygons, failed: v.failed || []};
+}
+function run(label, project, {seed, steps, worker = false}) {
   const ed = editor(project), docOf = e => e.project.documents.find(d => d.kind === "pcb"), list = ops(docOf), r = rng(seed);
   // The worker's area state (live-pour-worker.js): sessions, the changed items and their old and new boxes.
-  const area = {sessions: new Map(), dirtyBoxes: null, changedItems: null};
+  const area = {sessions: new Map(), dirtyBoxes: null, changedItems: null}, rows = new Map(), mirrorSignatures = new WeakMap();
+  let chained = 0;
+  // The worker's mirror: a fresh row for every item the journal names (all of them without a journal).
+  const mirrorOf = (doc, ids) => ({...doc, items: doc.items.map(i => {
+    let m = rows.get(i.id);
+    if (!m || !ids || ids.has(i.id)) { m = JSON.parse(JSON.stringify(i)); rows.set(i.id, m); }
+    return m;
+  })});
   let at = U.changed(docOf(ed)).seq, boxes = new Map(), pendingKinds = [];
   const snapshot = () => { const defs = defsOf(ed.project); boxes = new Map(docOf(ed).items.map(i => [i.id, I.itemBox(i, defs)])); };
   const refill = step => {
@@ -134,17 +175,30 @@ function run(label, project, {seed, steps}) {
       for (const id of ch.ids) for (const b of [boxes.get(id), byId.has(id) ? I.itemBox(byId.get(id), defs) : null]) if (b) { if (b.every(Number.isFinite)) area.dirtyBoxes.push(b); else area.dirtyBoxes = null; if (!area.dirtyBoxes) break; }
     }
     at = ch.seq;
-    const inc = PP.repourAll(doc, defs, {project: ed.project, reuse: false, area});
+    // repourAll with the sessions (every pour), or the worker's own choice of pours and follow-up jobs.
+    let inc, regions, signatures;
+    if (worker) {
+      const w = workerRefill(ed, doc, mirrorOf(doc, area.changedItems), area, mirrorSignatures);
+      inc = {failed: w.failed, stats: {polygons: w.polygons}};
+      regions = doc.pcbDrawing?.pours || []; signatures = doc.pcbDrawing?.pourSignatures;
+      chained += w.jobs - 1;
+      // The worker left no pour stale.
+      assert.deepEqual(PP.inspectCopper(doc, defs, {project: ed.project}).stale, [], label + " seed " + seed + " step " + step + ": stale after the worker's jobs");
+      at = U.changed(doc, at).seq;
+    } else {
+      inc = PP.repourAll(doc, defs, {project: ed.project, reuse: false, area});
+      regions = inc.regions; signatures = inc.signatures;
+    }
     const full = PP.repourAll(doc, defs, {project: ed.project, reuse: false});
     assert.equal(inc.failed.length, 0, label + " seed " + seed + " step " + step + ": failed " + JSON.stringify(inc.failed));
-    const a = inc.regions.map(regionKey), b = full.regions.map(regionKey);
+    const a = regions.map(regionKey), b = full.regions.map(regionKey);
     if (a.length !== b.length || a.some((x, k) => x !== b[k])) {
-      const k = a.findIndex((x, j) => x !== b[j]), id = (inc.regions[k] || full.regions[k])?.polygon, st = inc.stats.polygons[id]?.area;
+      const k = a.findIndex((x, j) => x !== b[j]), id = (regions[k] || full.regions[k])?.polygon, st = inc.stats.polygons[id]?.area;
       assert.fail(label + " seed " + seed + " step " + step + " (" + pendingKinds.join(", ") + "): pour " + id + " differs from a full repour (region " + k + " of " + a.length + "/" + b.length +
         "; stage 1 " + modeOf(st?.stage1) + ", stage 2 " + modeOf(st?.stage2) + ")");
     }
-    assert.deepEqual(inc.signatures, full.signatures, label + " seed " + seed + " step " + step + " signatures");
-    for (const [id, s] of Object.entries(inc.stats.polygons)) if (s.area) for (const stage of ["stage1", "stage2"]) {
+    assert.deepEqual(signatures, full.signatures, label + " seed " + seed + " step " + step + " signatures");
+    for (const [id, s] of Object.entries(inc.stats.polygons)) if (s?.area) for (const stage of ["stage1", "stage2"]) {
       const m = modeOf(s.area[stage]); if (!m || m === "unchanged") continue;
       for (const kind of pendingKinds) note(kind + " " + stage, m);
     }
@@ -160,7 +214,7 @@ function run(label, project, {seed, steps}) {
     // Sometimes the worker is still busy: the next edits land before its refill.
     if (s === steps || r() < .8) refill(s);
   }
-  console.log("  " + label + " seed " + seed + ": " + steps + " steps byte-identical");
+  console.log("  " + label + " seed " + seed + ": " + steps + " steps byte-identical" + (worker ? " through the worker's jobs (" + chained + " follow-up jobs for dependent pours)" : ""));
 }
 
 let passed = 0;
@@ -171,6 +225,10 @@ test("netted board with ten pours (1,600 objects): every refill equals a full re
 });
 test("board of tests/pcb/pour-area.cjs (vias, relief, Remove Necks): every refill equals a full repour", () => {
   for (const seed of [11, 12, 13, ...(quick ? [] : [14, 15, 16]), ...more(300)]) run("via grid", viaGrid(), {seed, steps: quick ? 12 : 30});
+});
+test("the worker's own jobs (its choice of stale pours, then the dependent pours it names): stored copper equals a full repour", () => {
+  for (const seed of process.env.ONLY_SEED ? [+process.env.ONLY_SEED] : [41, 42, ...(quick ? [] : [43, 44]), ...more(500)]) run("board 40, worker", bench(40), {seed, steps: +process.env.STEPS || (quick ? 10 : 20), worker: true});
+  for (const seed of [51, ...(quick ? [] : [52]), ...more(600)]) run("via grid, worker", viaGrid(), {seed, steps: quick ? 10 : 20, worker: true});
 });
 test("larger board (6,400 objects)", () => {
   for (const seed of [21, ...(quick ? [] : [22]), ...more(200)]) run("board 80", bench(80), {seed, steps: quick ? 5 : 10});
