@@ -19,9 +19,16 @@
 // host named in the invitation may send other people's edits (catch-up), a merge snapshot, or a
 // shared-restore boundary; anyone else's copies of those are filtered to their own edits or ignored.
 //
-// Energy. No polling while nobody moves: presence heartbeats every 20 s (a peer is gone after 60 s
-// or at once when the relay says it left), a 4 s lock heartbeat only while dragging, cursor
-// waypoints only on movement.
+// Energy. No polling while nobody moves: presence heartbeats every 20 s on the transport's keepalive
+// beat, its one steady timer (a peer is gone after 60 s or at once when the relay says it left), a
+// 4 s lock heartbeat only while dragging, cursor waypoints only on movement. An unchanged cursor
+// record and a heartbeat that changes nobody's presence repaint nothing.
+//
+// Bad networks. A guest's bounded CRDT log never drops its own edits before the host confirms them
+// (the host's hello and heartbeat carry its version vector), so a guest that edits offline catches
+// the host up when it returns; past UNSENT of them it says so plainly and offers Save As. A host
+// whose window is the relay (on this network, or pairing codes) ends the session for its guests
+// when it leaves.
 globalThis.AtriumCollabPresence = (() => {
   const G = globalThis, L = () => G.AtriumCollabLock;
   function savedFolder() {
@@ -57,6 +64,9 @@ globalThis.AtriumCollabPresence = (() => {
   const major = v => Number(String(v || "").split(".")[0]) || 0;
   const minor = v => /^\d+\.(\d+)$/.test(v) ? Number(v.split(".")[1]) : 0;
   const HEARTBEAT = 20000, PRESENT = 60000, LOCK_BEAT = 4000, HOST_WAIT = 15000;
+  // A guest keeps its own edits until the host confirms them, up to this many (or this size); past
+  // that, this window's copy can no longer catch the session up, and it says so.
+  const UNSENT = 40000, UNSENT_BYTES = 32 * 1024 * 1024;
   const COLOURS = ["--accent", "--info", "--success", "--warning", "--danger"];
   const el = (tag, text, cls) => AtriumNavCommon.el(tag, text, cls);
   const btn = (text, fn, cls = "collab-button", title) => {
@@ -273,7 +283,7 @@ globalThis.AtriumCollabPresence = (() => {
   }
 
   // ------------------------------------------------------------------ the bar
-  let bar = null, dismissed = new Set();
+  let bar = null, dismissed = new Set(), sessionNotice = null;
   function barNode() {
     if (bar?.isConnected) return bar;
     const area = document.getElementById("editor-area"), panes = document.getElementById("editor-panes");
@@ -314,8 +324,12 @@ globalThis.AtriumCollabPresence = (() => {
           "ask:" + id + ":" + a.session + ":" + (a.asks.find(x => x.doc === id)?.at || 0));
       }
     }
+    // A live session's copy that only this window holds (the host ended the session, or offline
+    // edits the session can no longer take): Save As keeps it.
+    if (sessionNotice) return show("warning", sessionNotice.text, [["Save As…", () => host?.act?.("save-as"), true, "Save this copy of the project as a file"], ...(sessionNotice.actions || [])], sessionNotice.key);
     b.hidden = true;
   }
+  function setSessionNotice(notice) { sessionNotice = notice; soon(); }
   async function lockAction(manager, action, done) {
     if (!manager || manager !== L()?.manager()) return;
     try {
@@ -554,7 +568,9 @@ globalThis.AtriumCollabPresence = (() => {
       if (!S.r) return "Waiting for the shared project";
       if (S.url === "local") return "Live (this computer)";
       const path = pathSummary();
-      return (S.mode === "start" ? "Hosting" : "Live") + (path ? " · " + path : "");
+      // The relay connection dropped while data channels still reach the others.
+      const relay = S.t?.joined?.() === false ? " · reconnecting to the relay server" : "";
+      return (S.mode === "start" ? "Hosting" : "Live") + (path ? " · " + path : "") + relay;
     }
     // A new session. mode "start" hosts this project; "join" uses {url, roomKey, host, salt} from an
     // invitation. A host makes a fresh session salt; on a private relay it presents its host invitation.
@@ -564,9 +580,10 @@ globalThis.AtriumCollabPresence = (() => {
       if (typeof o === "string" || o === null) o = {host: o};
       const hostId = o.host || null;
       if (S) leave();
-      const session = S = {me: null, host: hostId, url, mode, started: Date.now(), peers: new Map(), claims: new Set(), followed: null, applying: false, status: "Connecting…", connection: "connecting", r: null, t: null, timers: [], offs: []};
+      const session = S = {me: null, host: hostId, url, mode, started: Date.now(), peers: new Map(), claims: new Set(), followed: null, applying: false, status: "Connecting…", connection: "connecting", r: null, t: null, timers: [], offs: [], acked: 0};
       if (mode === "join") session.joinRevision = host.revision();
-      soon();
+      session.heartbeat = () => heartbeat(session);
+      setSessionNotice(null);
       try {
         // A peer can introduce a full table even while this project has no widgets.
         const widgets = G.AtriumLabs?.notebookEnabled() !== false ? ["AtriumWidgetCatalogue", "AtriumTableData", "AtriumNotebook"] : [];
@@ -600,6 +617,7 @@ globalThis.AtriumCollabPresence = (() => {
         }
         if (S !== session) return;
         const t = await T.connect({url: address, WebSocket, roomKey, salt, hostToken, persist: true, host: hostId, owner, path, cancelled: () => S !== session,
+          heartbeat: HEARTBEAT, onBeat() { if (S === session) heartbeat(session); },
           onMessage(...args) { if (S === session) onMessage(...args); },
           onState(state, d) { if (S === session) onState(state, d); }});
         if (S !== session) { t.close(); return; }
@@ -658,8 +676,7 @@ globalThis.AtriumCollabPresence = (() => {
         document.addEventListener(event, move, {passive: true, capture: true});
         S.offs.push(() => document.removeEventListener(event, move, true));
       }
-      // The session's only steady timer: a presence heartbeat (data channels carry it when open).
-      S.timers.push(setInterval(() => { if (S !== session) return; sendCursor(); refreshJoin(); session.r?.trim(); session.cursors.request(); soon(); renderStrip(); }, HEARTBEAT));
+      // The presence heartbeat runs on the transport's keepalive beat (onBeat above): no timer of its own.
       if (S.connection === "open") hello();
       G.AtriumHistoryPanel?.sessionChanged();
       renderStrip(); soon();
@@ -709,13 +726,55 @@ globalThis.AtriumCollabPresence = (() => {
       const steps = host?.undoSteps?.(), available = historyAvailability() || {undo: !!steps?.history.length, redo: !!steps?.future.length};
       for (const button of document.querySelectorAll('[data-action="undo"], [data-action="redo"]')) button.disabled = !available[button.dataset.action];
     }
+    // Every HEARTBEAT, on the transport's beat: presence to the others (the host's carries what it
+    // holds of everyone's edits), a join that waits, the bounded log. It repaints only when someone's
+    // presence changed (a peer gone quiet past PRESENT).
+    function heartbeat(session) {
+      if (S !== session) return;
+      sendCursor(undefined, false, false, false, true);
+      refreshJoin();
+      keepLog(session);
+      const here = presentPeers().map(p => p.id).join();
+      if (here !== session.here) { session.here = here; session.cursors?.request(); soon(); renderStrip(); }
+    }
+    // What the host holds of this window's edits (its hello and heartbeat): the log keeps the rest.
+    function noteAck(session, n) {
+      if (!session.r || !Number.isSafeInteger(n) || n <= session.acked) return;
+      session.acked = Math.min(n, session.r.ownSeq());
+    }
+    // The bounded log never drops this window's own edits before the host has them. An older host
+    // never confirms (its hello has no `acks`): while it is here, the log is trimmed as before.
+    // Away from the host, past UNSENT edits, this copy can no longer catch the session up.
+    function keepLog(session) {
+      const r = session.r;
+      if (!r) return;
+      if (isHost(session.me) || !session.host || session.diverged) { r.trim(); return; }
+      const reachable = session.connection === "open" && presentPeers().some(p => p.id === session.host);
+      if (reachable && !session.hostAcks) { r.trim(); return; }
+      if (!reachable) {
+        const unsent = r.unsent(session.acked);
+        if (unsent.ops > UNSENT || unsent.bytes > UNSENT_BYTES) { diverge(session, unsent.ops); r.trim(); return; }
+      }
+      r.trim(session.acked);
+    }
+    // Too many edits away from the host to catch it up: say so, keep them in this window only (it
+    // still receives everyone else's), and offer Save As. Taking the host's copy is the person's
+    // choice: the hello then says base "other" and the host replaces this copy (resetFrom).
+    function diverge(session, n) {
+      session.diverged = true;
+      const take = () => { if (S !== session || session.base === "other") return; session.base = "other"; hello(); setSessionNotice({...sessionNotice, actions: []}); };
+      setSessionNotice({key: "diverged:" + session.started, actions: [["Use the Host's Copy", take, false, "Replace this window's copy with the session's when the host is reachable; your changes that did not reach it are discarded"]],
+        text: "You made more changes away from the session than this window can keep for it (" + n.toLocaleString() + "). They stay in this copy only and no longer reach the others. Save As keeps them."});
+      say("Your offline changes no longer fit the session. Save As keeps them.", "warning");
+    }
     function leave(immediate = false) {
       if (!S) return;
       const session = S;
       if (!immediate && S.editProject === host.project() && (commitTimer || S.dragMessages) && host.drag?.()?.before) host.setTool("select");
       if (S !== session) return;
       if (!immediate && commitTimer) commitNow();
-      if (session.r && session.me) ownSeqs.set(session.me, Math.max(ownSeq(session.me), session.r.ownSeq?.() || 0));
+      // A copy that no longer fits the session (diverge) continues from what the host holds of it.
+      if (session.r && session.me) ownSeqs.set(session.me, Math.max(ownSeq(session.me), (session.diverged ? session.acked : session.r.ownSeq?.()) || 0));
       session.restoreCheck?.reject(Error("The session ended before restoring."));
       releaseRestoreHold(session);
       S = null;
@@ -735,7 +794,8 @@ globalThis.AtriumCollabPresence = (() => {
       const t = session.t;
       if (!immediate && t?.state === "open") {
         const stop = setTimeout(() => t.close(), 250);
-        t.send("bye", {}).finally(() => { clearTimeout(stop); t.close(); });
+        // A host whose window is the relay (on this network, or pairing codes) takes the session with it.
+        t.send("bye", session.host === session.me && (session.lan || session.hub) ? {ended: true} : {}).finally(() => { clearTimeout(stop); t.close(); });
       }
       else t?.close();
       renderStrip(); soon(); host?.redraw?.();
@@ -759,7 +819,10 @@ globalThis.AtriumCollabPresence = (() => {
       else if (state === "resync") hello();
       else if (state === "incompatible") versionNotice(null, d?.protocol > d?.ours);
       else if (state === "ended") status(S.r ? "The host ended the session. You can save your copy." : "The host ended the session before the shared project arrived.");
-      else if (state === "offline") status(!S.r ? "Connection lost while waiting for the shared project. Reconnecting…" : "Offline — edits are kept and sync when the relay is back");
+      // When the host's own window is the relay, "the relay" is the host's computer.
+      else if (state === "offline") status(!S.r ? "Connection lost while waiting for the shared project. Reconnecting…"
+        : S.hostRelays ? "Can't reach the host's computer — your edits are kept here and sync if the session comes back. Save As keeps a copy."
+        : "Offline — edits are kept and sync when the relay is back");
       else if (state === "connecting") status("Connecting…");
       else if (state === "error") status("Relay: " + (d || "Connection error"));
       else if (state === "flood") { const p = S.peers.get(d?.peer); if (p) p.muted = Date.now() + 30000; }
@@ -778,8 +841,11 @@ globalThis.AtriumCollabPresence = (() => {
       say(theyAreNewer ? who + " uses a newer Waffle that this one cannot work with. Update Waffle to edit with them." : who + " uses an older Waffle that cannot join; they need to update.", "warning");
     }
     // sharedRestore: "host" for the host; "guest" only for a guest that knows (and so can verify) its host.
+    // acks: this build's host confirms everyone's edits (vv here, ack on its heartbeat); hub: the
+    // host's own window is the relay, so the session ends when the host leaves.
     const hello = () => S?.t?.send("hello", {name: (pref(PREF_NAME, "") || "Someone").slice(0, 64), has: !!S.r, vv: S.r?.vv() || {}, waypoints: true, personalUndo: 2, reviewRecords:1,
       sharedRestore: isHost(S.me) ? "host" : S.host ? "guest" : null, joinRound: S.joinRound, base: S.r ? S.base || null : null,
+      ...(isHost(S.me) && {acks: 1, ...((S.lan || S.hub) && {hub: 1})}),
       app: appVersion(), format: FORMAT(), protocol: G.AtriumCollabTransport?.constants.PROTOCOL});
     const roundOf = body => Number.isSafeInteger(body.joinRound) && body.joinRound > 0 ? body.joinRound : 0;
     function sendSnapshot(to, joinRound, reset=false) {
@@ -886,14 +952,21 @@ globalThis.AtriumCollabPresence = (() => {
         const round = roundOf(body), reconnected = p.joinRound !== undefined && p.joinRound !== round;
         p.joinRound = round; p.hasProject = body.has === true;
         if (p.hasProject) { p.legacyRetry = false; p.legacyRetryAfter = 0; }
+        // Only the verified host's word counts for what it holds and for its window being the relay.
+        if (isHost(from) && !isHost(S.me)) {
+          S.hostRelays = body.hub === 1;
+          if (body.acks === 1) S.hostAcks = true;
+          if (body.vv && typeof body.vv === "object") noteAck(S, Number(body.vv[S.me]));
+        }
         // A copy that did not come from the host, or claims more edits by the host than it made,
         // may be forged: replace it with the host's (once per join round).
         if (isHost(S.me) && S.r && p.hasProject && (body.base === "other" || body.vv && Number(body.vv[S.me]) > (S.r.vv()[S.me] || 0))) {
           if (p.resetRound !== round || !round) { p.resetRound = round; sendSnapshot(p.id,round,true); }
         } else if (S.r && p.hasProject && body.vv && typeof body.vv === "object") {
           // Others send only their own edits, which a copy someone else made may hide behind a
-          // floor the receiver lacks: ask for those alone.
-          const ops = isHost(S.me) ? S.r.since(body.vv) : S.r.since({...Object.fromEntries(Object.keys(S.r.vv()).map(r => [r, Infinity])), [S.me]: Number(body.vv[S.me]) || 0});
+          // floor the receiver lacks: ask for those alone. A copy that no longer fits the session
+          // (diverge) sends nothing; the host replaces it.
+          const ops = isHost(S.me) ? S.r.since(body.vv) : S.diverged ? [] : S.r.since({[S.me]: Number(body.vv[S.me]) || 0}, S.me);
           if (!p.personalUndo && (ops === null || ops.some(op => op.t === "undo"))) {
             if (!p.rejoinNotice && S.mode === "start") {
               p.rejoinNotice = true;
@@ -956,8 +1029,15 @@ globalThis.AtriumCollabPresence = (() => {
         const doc = clean(body.doc, 128);
         if (body.posOnly === true) {
           if (p.doc === doc) S.cursors.sample(p, doc, point(body.at), body.end === true, body.turn === true);
+          p.record = null;
           return;
         }
+        // The host's heartbeat says how many of this window's edits it holds.
+        if (isHost(from) && !isHost(S.me) && body.ack && typeof body.ack === "object") { S.hostAcks = true; noteAck(S, Number(body.ack[S.me])); }
+        // A heartbeat that repeats the last record only refreshes the soft locks: nothing to draw.
+        const record = JSON.stringify([doc, body.at, body.sel, body.lock, body.act, body.cam]);
+        if (record === p.record && body.end !== true && body.turn !== true) { p.lockAt = Date.now(); return; }
+        p.record = record;
         const act = clean(body.act, 80), changed = p.doc !== doc || p.act !== act;
         S.cursors.sample(p, doc, point(body.at), body.end === true, body.turn === true);
         p.act = act;
@@ -968,7 +1048,17 @@ globalThis.AtriumCollabPresence = (() => {
         if (p.cam && typeof c.flipped === "boolean") p.cam.flipped = c.flipped;
         if (S.followed === from) follow(p);
         if (changed) { soon(); renderStrip(); }
-      } else if (kind === "bye") dropPeer(p, from);
+      } else if (kind === "bye") {
+        // The host's window was the relay: the session has ended for everyone. Final, and said so.
+        if (isHost(from) && body.ended === true && S.mode === "join") { hostEnded(p); return; }
+        dropPeer(p, from);
+      }
+    }
+    function hostEnded(p) {
+      const kept = !!S.r;
+      leave(true);
+      if (kept) setSessionNotice({key: "ended:" + Date.now(), text: p.name + " ended the session. This window keeps your copy, unsaved: Save As keeps it."});
+      say(p.name + " ended the session." + (kept ? " Your copy stays open; Save As keeps it." : " Your project is unchanged."), "warning");
     }
     function dropPeer(p, from) {
       if (!S.peers.has(from)) return;
@@ -985,6 +1075,8 @@ globalThis.AtriumCollabPresence = (() => {
       try {
         const forged = S.base !== "other";
         S.r = replicaFrom(snap, p.id); S.base = "host";
+        S.acked = S.r.vv()[S.me] || 0;
+        if (S.diverged) { S.diverged = false; setSessionNotice(null); }
         patchHost(S, null, undefined, S.editProject, true);
         hello();
         say(forged ? p.name + " (the host) replaced this window's copy of the shared project: it did not match the host's."
@@ -1021,6 +1113,7 @@ globalThis.AtriumCollabPresence = (() => {
         } finally { session.applying = session.adopting = false; }
         if (S !== session) return;
         S.r = r; S.editProject = host.project(); rememberCursor(S); S.base = isHost(p.id) ? "host" : "other";
+        if (isHost(p.id)) S.acked = r.vv()[S.me] || 0;
         rememberRestore(message, p.id);
         G.AtriumHistoryPanel?.sessionChanged();
         if (S.connection === "open") status(connectedStatus());
@@ -1197,6 +1290,7 @@ globalThis.AtriumCollabPresence = (() => {
       return true;
     }
     function sendEdits(batch) {
+      if (S.diverged) return;   // this copy no longer fits the session (diverge): its edits stay here
       try { for (const part of operationBatches(batch)) S.t.send("ops", part); }
       catch (e) { say("This edit is only in your copy. " + e.message, "warning"); }
     }
@@ -1392,7 +1486,7 @@ globalThis.AtriumCollabPresence = (() => {
       for (const id of ids.slice(0, 3)) { const it = d?.items.find(i => i.id === id); if (it) names.push(it.ref || it.text || it.net || it.kind); }
       return names.join(", ") + (ids.length > 3 ? " +" + (ids.length - 3) : "") || "objects";
     }
-    function sendCursor(client, end = false, movement = false, turn = false) {
+    function sendCursor(client, end = false, movement = false, turn = false, beat = false) {
       if (!S?.r || !S.t || S.connection !== "open") return;
       const view = host.view(), cam = view.camera(), sel = (host.selection?.() || []).slice(0, 64), act = activity();
       const route = host.liveRoute?.(), moving = host.drag?.()?.kind === "move" || host.tool?.() === "move-object";
@@ -1420,6 +1514,8 @@ globalThis.AtriumCollabPresence = (() => {
       const body = compact ? {doc, posOnly: true, at} : {...state, at};
       if (end) body.end = true;
       if (turn) body.turn = true;
+      // The host's heartbeat confirms what it holds of everyone's edits (guests trim their logs by it).
+      if (beat && !compact && isHost(S.me)) body.ack = S.r.vv();
       S.t.send("cursor", body);
     }
     function follow(p) {
