@@ -189,6 +189,37 @@ console.log("GPU scene consumes committed strokes and uses directional geometry 
 }
 console.log("F2 ordinary and batched Canvas and cold and committed GPU keep the analytic arc");
 
+// The GPU fill of an exact region leaves its cutouts open, as the 2D even-odd fill does,
+// for a board graphic and for a footprint shape.
+{
+  require(require("../support/app-source-paths.cjs").appFile("board-shape-core.js"));
+  const S = AtriumBoardShape;
+  sandbox.AtriumBoardShape = S;
+  const disk = {version:1, contour:[S.arc([0,0],5,0,180,true), S.line([-5,0],[5,0])], cutouts:[[S.arc([0,-2],.8,0,0,true)]]};
+  const points = S.flattenContour(disk.contour), regionShape = {...disk, sig:S.signature(points)};
+  const region = {id:"disk", kind:"graphic", layer:"Top", fill:true, closed:true, width:0, points, regionShape};
+  const def = {id:"logo", footprint:{pads:[], shapes:[{kind:"path", layer:"Top", fill:true, closed:true, width:0, points, regionShape}]}};
+  const part = {id:"u", kind:"part", def:def.id, ref:"U1", x:20, y:0, layer:"Top"};
+  const covered = (tri, p) => {
+    for (let s = 0; s + 2 < tri.n; s += 3) {
+      const [a, b, c] = [0, 1, 2].map(k => [tri.f[(s + k) * tri.stride], tri.f[(s + k) * tri.stride + 1]]);
+      const d = (u, v, w) => (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0]);
+      const x = d(a, b, p), y = d(b, c, p), z = d(c, a, p);
+      if ((x >= 0 && y >= 0 && z >= 0) || (x <= 0 && y <= 0 && z <= 0)) return true;
+    }
+    return false;
+  };
+  const doc = Atrium.sheet("pcb", "Region hole");
+  doc.items = [region, part];
+  const c = {doc, rev:1, all:doc.items, byId:new Map(doc.items.map(i => [i.id, i])), defs:new Map([[def.id, def]])};
+  const scene = gpu.update({stats:{}, parked:new Map(), gl:{}}, c, "Top"), {tri, ptri} = scene.layers.get("Top");
+  assert.ok(covered(tri, [0,-4]) && covered(tri, [3,-1]), "copper in the semicircle");
+  assert.equal(covered(tri, [0,-2]), false, "the GPU leaves the region cutout open");
+  assert.ok(covered(ptri, [20,-4]), "footprint copper in the semicircle");
+  assert.equal(covered(ptri, [20,-2]), false, "the GPU leaves the footprint region cutout open");
+}
+console.log("GPU region fills keep their cutouts open");
+
 {
   const {appFile} = require("../support/app-source-paths.cjs");
   for (const name of ["pcb-text","stackup","viastack","board-shape","pcb-pours","panel","undo-store"]) require(appFile(name+".js"));
