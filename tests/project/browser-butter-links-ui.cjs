@@ -80,6 +80,15 @@ async function walk(browser, profile, shots) {
     await links.getByRole("button", {name:/^Show \d+ more$/}).waitFor();
     await shot(page, "6-paged");
 
+    // A Git commit that names the object (imported by History) is listed by its subject.
+    await page.evaluate(async id => {
+      const p = AtriumNavHost.project(), url = AtriumLinks.format({projectId:p.id, objectId:id});
+      (await AtriumLazy.need("AtriumLinksDesktop")).index(p.id).importCommits([{revision:"c".repeat(40), subject:"Widen the filter track", recordLinks:[url]}]);
+      AtriumLinksUI.refresh();
+    }, ids[1]);
+    await links.locator(".ui-section", {hasText:"Referenced by"}).locator(".ui-row", {hasText:"Widen the filter track"}).waitFor();
+    await page.evaluate(() => AtriumLinksDesktop.index(AtriumNavHost.project().id).importCommits([], {replace:true}));
+
     // Nothing selected: every stored link with its health, including a missing source.
     await page.evaluate(id => { const h = AtriumNavHost; h.edit(() => { const d = h.doc(); d.items.splice(d.items.findIndex(i => i.id === id), 1); }, "Delete source"); h.select([]); }, ids[4]);
     await links.locator(".ui-section", {hasText:"Links in this project"}).waitFor();

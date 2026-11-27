@@ -110,7 +110,8 @@ globalThis.AtriumLinksUI = (() => {
       const rows = edges.map(edge => {
         const source = edge.source, isCommit = source.kind === "commit";
         const where = source.documentId && host().project().documents.find(d => d.id === source.documentId)?.name;
-        const row = K.row({title:isCommit ? edge.label ?? source.objectId.slice(0, 8) : label(source), detail:[where ?? kind, edge.field].filter(Boolean).join(" · "),
+        // A commit source carries its subject and revision (links.js gitReferences), not an object ID.
+        const row = K.row({title:isCommit ? source.label || source.commitId.slice(0, 8) : label(source), detail:[where ?? kind, edge.field].filter(Boolean).join(" · "),
           run:isCommit ? undefined : () => probeTarget(source)});
         return row;
       });

@@ -157,6 +157,12 @@ globalThis.AtriumLinksDesktop = (() => {
       if (outcome?.status !== "ready" && outcome?.status !== "partial") return outcome ?? {status:"unavailable-host"};
       return;
     }
+    // A datasheet link opens the reader at its page fragment (page 1 without one).
+    if (target.kind === "datasheet" && butterEnabled("datasheets")) {
+      const reader = G.AtriumDatasheetReader ?? await G.AtriumLazy.need("AtriumDatasheetReader");
+      if (!await reader.openLink({id:target.datasheetId ?? target.objectId, page:target.page ?? 1})) return {status:"missing-fragment"};
+      return;
+    }
     if (!target.documentId) return;
     await editor.selectDocument(target.documentId);
     if (editor.project()?.id !== target.projectId || editor.currentId() !== target.documentId)
