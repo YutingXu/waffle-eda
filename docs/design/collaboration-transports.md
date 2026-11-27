@@ -32,10 +32,29 @@ The first trial bundled Tailcat (v0.7.0) and a Go helper per platform. It worked
 | Linux app (WebKitGTK) | Where built with WebRTC (2.38+ with the GStreamer backend) | `native/linux/waffle.py` turns on `enable-webrtc` when the setting exists. Without it the status reads "relay server only" and the relay carries everything. Not yet checked on the Ubuntu runner. |
 | Browsers | Yes (Chrome, Edge, Firefox, Safari) | `http://127.0.0.1` is a secure context for local testing (`waffle_relay.py --dev`). |
 
+## Same-network listeners
+
+A host that shares a session as Visible on this network runs the relay's protocol itself (lan mode: one room, an `info` message with the salt, name and host id before the join). There are three implementations, one per desktop host, and one conformance suite, `native/tests/lan_relay.py`, that runs the same checks against each through a small driver (argv `ROOM SALT`, `WAFFLE_LAN_LIMITS` for scaled limits, `PORT`/`REPLY` lines, `host ID` and stop on stdin):
+
+| Host | Listener | Discovery | Where it listens |
+|---|---|---|---|
+| Linux | `native/linux/lan_relay.py`: `collab/relay/waffle_relay.py` in lan mode | avahi (`avahi-publish-service`, `avahi-browse`) | loopback and the private addresses of interfaces with a device under `/sys/class/net`; default route's first |
+| macOS | `native/macos/LanRelay.swift`: `NWListener` with the WebSocket protocol | Bonjour (`NWListener.Service`, `NetServiceBrowser`) | every interface but cellular and "other" (VPN); addresses listed from `en*` only |
+| Windows | `native/windows/src/Core/LanRelay.cs`: `TcpListener` with RFC 6455 framing written out, as the relay does (`HttpListener` needs a URL ACL beyond loopback) | dnsapi `DnsServiceRegister`/`Browse`/`Resolve` (Windows 10 1903+), behind `ILanDiscovery` | loopback and the private addresses of adapters Windows marks as hardware (`MIB_IF_ROW2`), Ethernet or Wi-Fi, not named as virtual |
+
+The standalone relay and the [threat model](../collaboration.md#threat-model) are the reference; where they differed, the stricter documented behaviour won (November 2026): macOS gained the relay's idle, per-address and join limits, slows a fast sender instead of cutting it off, answers `info` once, and returns `primary`; the relay's lan mode stopped serving `/healthz` and `/join`, admits four connections per place in the room, and keeps the first owner for the whole session (so a guest who arrives first after everyone left cannot take the host's role); `lanHost` answers `{ok: listening}` everywhere; every listener sends a message to each named recipient once.
+
+**Windows guests and `ws://`.** A guest joins a LAN host at `ws://address:48765` from the page's origin, `https://app.waffle.example` in WebView2. Chromium still lets a secure page open `ws://` to a private address (a measurement in Chrome; the host's own `ws://127.0.0.1` is a secure context and unaffected), but this is a deprecated mixed-content allowance, and Chromium's local network access checks may later ask for a permission that the Windows host refuses for every page. Waffle does not rely on it for long. The fix, not built yet, is a host-side socket behind the same bridge:
+
+- Bridge actions `lanConnect {url}` → `{socket}`, `lanSend {socket, data}`, `lanClose {socket}`, and host-to-page messages `{type: "lanSocket", socket, event: "open" | "message" | "close", data}`; `AtriumHost.lanSocket` is a WebSocket look-alike over them, shaped like the pairing code's `socketClass` in `app/project/collab-pair.js` (`readyState`, `onopen`, `onmessage({data})`, `onclose`, `send`, `close`, `bufferedAmount`).
+- The host connects only to `ws://` on loopback or a private address (a `.local` name must resolve to one), text frames only, one socket per page per session, all closed on reload; `System.Net.WebSockets.ClientWebSocket` (.NET Framework 4.8 on Windows 8+) needs no new dependency.
+- The transport already takes a custom `WebSocket` (`T.connect({WebSocket})`, used for pairing codes); `begin()` in `collab-presence.js` would pass `AtriumHost.lanSocket` for a `ws://` address when it exists. `lanInfo()` needs the same constructor (`new (AtriumHost.lanSocket || WebSocket)(url)`), and its failure must arrive as `onclose` so "No Waffle session answered" still shows.
+
 ## Checks
 
 - `tests/collab-transport.cjs`: real Web Crypto, an in-process relay and WebRTC stand-in: verified identity, forged and replayed proofs, ordered relay-to-channel switch, fallback, a stalled peer, forced relay, TURN-only, no WebRTC, invitations.
 - `tests/collab-relay.py`: the relay's protocol, limits, per-peer queues, TURN credentials, `/healthz`, `/join`, `--dev`.
+- `native/tests/lan_relay.py`: the same-network listeners of Linux, macOS and Windows against one conformance suite.
 - `tests/collab-session.cjs`: the session's trust rules (authors, host-only catch-up, merges and restore boundaries).
 - `scripts/collab-smoke.py RELAY`: two headless Chromium editors through a real relay: path and round trip for direct, TURN-only and relay-only.
 - `scripts/collab-demo.py --only live`: two editors in Chrome through the whole session UI.

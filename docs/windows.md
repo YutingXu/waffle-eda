@@ -48,6 +48,7 @@ The Windows host follows the macOS host action by action (`native/macos/main.swi
 - **Title bar.** Waffle draws its own title bar, as on macOS: the app bar is the title bar, with Minimize, Maximize and Close at the top right. Drag its blank space to move the window and snap it to a screen edge; double-click it to maximise or restore; right-click it, or press Alt+Space, for the window menu (Open Recent, Pause All Extensions and Full Screen are there too). The top edge resizes the window, as do the other edges and corners. The window and its controls work while a dialog is open. Snap layouts appear from Win+Z; hovering Maximize does not show them.
 - **Theme.** The title bar and the editor follow the Windows light or dark app mode, and update when you switch it.
 - **Window.** Size, position and maximised state are remembered per monitor layout. If the remembered position is on a monitor that is no longer connected, the window is centred on the main screen. The host is per-monitor DPI aware (v2), so it stays sharp when moved between screens with different scaling.
+- **Live sessions on the same network.** Joining a session by its host's address works. Hosting a session as **Visible on this network** and **Find Sessions on This Network** are not offered yet: the listener (`src/Core/LanRelay.cs`, the same protocol and limits as the macOS and Linux apps) and its DNS-SD announcement (`src/Win/DnsSdDiscovery.cs`) are built but stay off until the checks under [Same-network sessions](#same-network-sessions) pass on a Windows PC. When on, it listens only while a session is shared, only on loopback and the private addresses of physical Ethernet and Wi-Fi adapters (never VPN, Hyper-V, WSL, Bluetooth or other virtual adapters), and stops when the session ends, the page reloads or the window closes. The first time it listens, Windows Defender Firewall asks whether Waffle may accept connections; allow **Private networks**.
 - **Compare revisions** runs `native\git_head.py` with Python 3 (the `py` launcher or `python.exe` on `PATH`, never the Microsoft Store alias) and Git. Without them, revision review explains what to install. Nothing else needs Python.
 
 ## Security
@@ -63,7 +64,7 @@ The Windows host matches the macOS and Linux hosts.
   - sign-in prompts.
 - **The bridge.** The page talks to the host only through `chrome.webview` messages, and only from the top-level editor page. No host objects are injected.
 - **Browser features.** Release builds have no developer tools. The default context menu is reduced to the editing commands inside text fields. Autofill and password saving are off. SmartScreen URL checks, background networking, hyperlink pings, crash-report uploads and browser extensions are off.
-- **Network.** Waffle itself makes no network requests. The only ones are the opt-in features listed in the README's privacy section. The WebView2 Runtime is updated by Windows Update, not by Waffle.
+- **Network.** Waffle itself makes no network requests. The only ones are the opt-in features listed in the README's privacy section. The WebView2 Runtime is updated by Windows Update, not by Waffle. Nothing listens for connections; once same-network hosting is turned on, only a session shared as Visible on this network listens, until it ends ([threat model](collaboration.md#threat-model)).
 - **Other apps.** Waffle writes only inside `%LOCALAPPDATA%\Waffle`, to the files you save or export, and to `.waffle~` recovery files. It never edits another program's settings. The MCP setup card shows text for you to paste. Opening or saving a project also adds it to Explorer's Recent list, as other Windows apps do.
 
 ## Build from source
@@ -121,3 +122,15 @@ The host compiles and its shared rules pass their tests. These need a person on 
 11. **Window state.** Position and size are remembered. Unplug the second monitor and the window comes back on screen.
 12. **MSIX.** It installs with `-AllowUnsigned`, double-clicking a `.waffle` file opens it, and it uninstalls cleanly.
 13. **Revision review.** Works with Python and Git installed. Without them, it shows a clear message.
+
+### Same-network sessions
+
+The listener has passed nothing on Windows yet: it was written on a Mac without a C# compiler. Before turning it on (`lanAvailable` in `native/bridge.js`, the Windows note in `app/project/collab-presence.js`), on a Windows 10 1903+ or 11 PC with the .NET SDK, Python 3 and a second computer (Mac, Linux or Windows) on the same Wi-Fi or Ethernet:
+
+1. `dotnet run --project native\windows\tests -c Release` passes, including the `lan` checks, and `python native\tests\lan_relay.py --target windows` passes every conformance check. Run it on macOS or Linux too (`--target windows` with the .NET SDK installed): the C# listener must agree with the others there as well.
+2. In a test build with `lanAvailable: true` in `native/bridge.js`: Share, tick Visible on this network, Start Session. Windows Defender Firewall asks once; allow Private networks. `Get-NetTCPConnection -State Listen -LocalPort 48765` lists 127.0.0.1 and the Wi-Fi or Ethernet address only; with Hyper-V, WSL or a VPN connected, none of their addresses. The session controls show `address:48765` with the address of the adapter carrying the default route.
+3. On the second computer: `dns-sd -B _waffle._tcp` (macOS) or `avahi-browse -rt _waffle._tcp` (Linux) lists the session name only, with the port and `v=2`. Find Sessions on This Network in Waffle lists it; choose it, type the code, Join: the project arrives, edits flow both ways. Typing `address:48765` and the code joins the same way; a wrong code does not.
+4. On the Windows PC, Find Sessions lists a session shared by the second computer. With the DNS Client service stopped (or on a build without DNS-SD), it says to type the host's address instead.
+5. Leave Session, then reload, then close the window, each after starting a session again: each time `Get-NetTCPConnection -LocalPort 48765` is empty and the second computer no longer lists the session.
+6. Set the Wi-Fi network to Public in Windows settings: guests cannot connect, the host's own window keeps working, and nothing else breaks.
+7. As a guest on Windows, join a macOS or Linux host by address (`ws://` from the `https://app.waffle.example` page): note whether WebView2 warns about mixed content or asks for local network access in DevTools. If it blocks the connection, the guest needs the host-side socket shim described in [Connection options](design/collaboration-transports.md#same-network-listeners).
