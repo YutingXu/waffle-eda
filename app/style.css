@@ -61,6 +61,9 @@
   --chrome-chip-height:var(--chrome-row-height);--chrome-layer-height:var(--chrome-menu-height);--chrome-pill-height:22px;--chrome-layer-swatch:9px;
   --focus-w:2px;--focus-edge-light:#ffffff;--focus-edge-dark:#000000;--focus-ring:0 0 0 var(--focus-w) var(--focus);--sel-bar:inset 2px 0 0 var(--accent);
   --icon-close:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='m6 6 12 12m-12 0L18 6'/%3E%3C/svg%3E");
+  /* Glyphs painted as backgrounds where a control cannot hold an icon element (inputs paint no pseudo-element in WebKit). */
+  --glyph-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.6 8.4 6.5 11.2 12.4 5'/%3E%3C/svg%3E");
+  --glyph-lock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23606060' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='10.5' width='13' height='10' rx='2'/%3E%3Cpath d='M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3'/%3E%3C/svg%3E");
   --sidebar:clamp(196px,16vw,250px);--properties:clamp(256px,23vw,344px);
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --font-ui:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Inter,sans-serif;
@@ -119,7 +122,7 @@ h1,h2,h3,h4,p {margin:0}
 .work-menu {position:relative}
 .work-menu > summary {list-style:none;cursor:default}
 .work-menu > summary::-webkit-details-marker {display:none}
-.menu-items {position:absolute;z-index:6;top:calc(100% + 2px);inset-inline-start:0;width:max-content;min-width:190px;max-width:min(300px,85vw);max-height:calc(100vh - 60px);overflow:auto;padding:4px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--menu-bg);box-shadow:var(--elev-2)}
+.menu-items {position:absolute;z-index:6;top:calc(100% + 2px);inset-inline-start:0;width:max-content;min-width:190px;max-width:min(300px,85vw);max-height:calc(100vh - 60px);overflow:auto;padding:4px;border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--menu-bg);box-shadow:var(--elev-2)}
 .menu-items button {display:flex;align-items:center;justify-content:space-between;gap:22px;width:100%;min-height:var(--ctl-h);padding:3px 10px 3px 22px;text-align:left;font-size:var(--fs-12);position:relative}
 .menu-items [data-action=grid][aria-pressed=true]::before,.menu-items [role=menuitemcheckbox][aria-checked=true]::before {content:"✓";position:absolute;left:7px;font-size:var(--fs-11);color:currentColor}
 .menu-items button > .ui-shortcut {flex:none;margin-inline-start:var(--s-8)}

@@ -2882,7 +2882,7 @@ globalThis.AtriumRules = (() => {
     const SHORT={track:"Track",arc:"Arc",smd:"SMD",th:"TH",via:"Via",fill:"Fill",poly:"Poly",region:"Region",text:"Text",hole:"Hole"};
     function clearanceMatrix(r,f){
       const box=el("div",null,"rules-matrix-box"),mode=el("div",null,"rules-units rules-matrix-mode"),note=el("small",null,"rules-note");
-      const wrap=el("div",null,"rules-table-wrap rules-matrix-wrap"),table=el("table",null,"rules-table rules-matrix");
+      const wrap=el("div",null,"rules-table-wrap rules-matrix-wrap"),table=el("table",null,"rules-matrix ui-matrix");
       mode.setAttribute("role","group");mode.setAttribute("aria-label",f.label);wrap.append(table);
       let stash=r.objects?{...r.objects}:{};
       const single=button("Single value for all",()=>use(false)),perKind=button("Per object kind",()=>use(true));

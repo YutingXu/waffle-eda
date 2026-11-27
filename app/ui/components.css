@@ -165,7 +165,7 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 :is([style*="--swatch:"]) {background:var(--swatch)!important}
 
 /* ---- Radio: a native radio in a row label, like the checkbox ----------------------------------- */
-:is(.ui-radio) {accent-color:var(--accent);flex:none;margin:0}
+/* .ui-radio draws its face in ui/controls.css with the checkbox. */
 :is(.ui-radio-row) {display:flex;align-items:center;gap:var(--s-6);min-block-size:var(--ctl-h)}
 :is(.ui-radio-group) {display:grid;gap:0;border:0;margin:0;padding:0;min-inline-size:0}
 :is(.ui-radio):focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:var(--s-2)}
@@ -206,7 +206,8 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 /* ---- Property row: caption and value side by side (Properties, inspectors, settings) ------------ */
 :is(.ui-prop-row) {
   display:grid;grid-template-columns:minmax(0,var(--ui-prop-label,42%)) minmax(0,1fr);align-items:baseline;column-gap:var(--s-8);
-  min-block-size:var(--ctl-h);padding-block:var(--s-2);
+  /* Every row is as tall as a field row, so read-only values keep the same rhythm as editable ones. */
+  min-block-size:calc(var(--field-height) + 2 * var(--s-2));align-content:center;padding-block:var(--s-2);
 }
 :is(.ui-prop-row) > :where(:first-child) {min-inline-size:0;overflow-wrap:anywhere;color:var(--muted);font-size:var(--fs-12)}
 :is(.ui-prop-row) > :is(.ui-prop-value) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
@@ -307,6 +308,14 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 :is(.ui-table) :where(td)[data-state=error] {color:var(--error);box-shadow:inset var(--s-2) 0 var(--error)}
 :is(.ui-table) :where(td)[data-state=stale] {color:var(--muted);font-style:italic}
 
+/* ---- Matrix: a grid of value cells under column heads with row heads (clearance by object kind) -- */
+:is(.ui-matrix) {border-collapse:separate;border-spacing:var(--s-8) var(--s-6);margin:0 calc(-1 * var(--s-8)) var(--s-6);font-size:var(--fs-12)}
+:is(.ui-matrix) :where(th) {padding:0;color:var(--muted);font-size:var(--fs-11);font-weight:var(--fw-medium);white-space:nowrap}
+:is(.ui-matrix) :where(thead th) {text-align:center;vertical-align:bottom}
+:is(.ui-matrix) :where(tbody th) {text-align:end}
+:is(.ui-matrix) :where(td) {padding:0}
+:is(.ui-matrix) :where(td) > :is(.ui-field-number) {display:block}
+
 /* Viewport chrome for the editor canvases and the overlaid orbit surface. */
 .ui-viewport {--ui-cursor-pan:grab;--ui-cursor-panning:grabbing;width:100%;height:100%;display:block;touch-action:none;outline:none}
 .ui-viewport[data-interaction=design] {user-select:none;-webkit-user-select:none}
@@ -339,8 +348,10 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 :is(.ui-toolbar):where(:not([data-table])) > :is(.ui-search) {flex:0 1 var(--search-w)}
 .ui-toolbar[data-table] {--ui-spacer-basis:0%;gap:var(--s-6);flex:none;min-height:28px;padding:0 var(--s-4) 0 var(--s-8);background:var(--panel-head);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .ui-toolbar[data-table] > h2 {margin:0;font-size:var(--fs-12);font-weight:600;white-space:nowrap}
-:is(.ui-toolbar-actions > button,.ui-toolbar-actions > details > summary) {height:20px;padding:0 var(--s-8);border-radius:var(--r-sm);white-space:nowrap;color:var(--ink);border:1px solid transparent}
-:is(.ui-toolbar-actions > button,.ui-toolbar-actions > details > summary):hover:not(:disabled),.ui-toolbar-filter-actions > button:hover {background:var(--hover)}
+:is(.ui-toolbar-actions > button,.ui-toolbar-actions > details > summary) {height:20px;padding:0 var(--s-8);border-radius:var(--chrome-control-radius);white-space:nowrap;color:var(--ink);border:1px solid transparent;
+  background:var(--button-face);font-weight:var(--fw-medium)}
+:is(.ui-toolbar-actions > button,.ui-toolbar-actions > details > summary):hover:not(:disabled) {background:var(--button-face-hover)}
+.ui-toolbar-filter-actions > button:hover {background:var(--hover)}
 .ui-toolbar-actions[data-feature-actions] > button:first-child:not(:only-child) {border-color:var(--primary-line)}
 /* Floating toolbar (proposed 2026-11-23): the presentation bar over the canvas. It rests at the
    bottom of the stage, fades after a still pointer (data-idle) and returns on any pointer, key or focus. */

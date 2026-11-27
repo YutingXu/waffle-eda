@@ -8,7 +8,7 @@
   margin: 0;
   padding: var(--s-4) var(--s-8);
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-lg);
   background: var(--menu-bg);
   color: var(--ink);
   font-size: var(--fs-12);
