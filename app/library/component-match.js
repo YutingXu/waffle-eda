@@ -10,6 +10,22 @@ globalThis.AtriumComponentMatch = (() => {
     if (!bucket) map.set(key, bucket = []);
     bucket.push(value);
   };
+  // Parameter names as imported keep their source spelling ("Dielectric", "DIELECTRIC MATERIAL",
+  // "Temperature_Characteristic"); this view reads them by one upper-case, single-spaced key.
+  const keyed = new WeakMap();
+  function keyedParameters(parameters) {
+    if (!parameters || typeof parameters !== "object") return {};
+    let out = keyed.get(parameters);
+    if (!out) {
+      out = Object.create(null);
+      for (const [k, v] of Object.entries(parameters)) {
+        const key = norm(k).replace(/[_\s]+/g, " ");
+        if (key && !(key in out) && typeof v !== "object") out[key] = v;
+      }
+      keyed.set(parameters, out);
+    }
+    return out;
+  }
   function passiveRating(prefix, params, value) {
     if (prefix !== "C" && prefix !== "R") return "";
     const raw = String((prefix === "C" ? params.CAPACITANCE : params.RESISTANCE) || value || "").trim();
@@ -26,7 +42,7 @@ globalThis.AtriumComponentMatch = (() => {
     // Older pasted selections retained the source ID after minting their own object and link.
     const detachedSource = !!(p.altiumSourceId && p.link && p.link.split("@")[0] !== p.altiumSourceId &&
       !/^a[uc]-/.test(p.id) && !p.schSource && !p.sourceRecord);
-    const params = def?.parameters || {};
+    const params = keyedParameters(def?.parameters);
     const dielectric = [def?.description, params.DIELECTRIC, params["DIELECTRIC MATERIAL"], params["TEMPERATURE CHARACTERISTIC"]].join(" ");
     const polarized = prefix === "C" && (/electrolyt|tantalum|polari[sz]ed/i.test(dielectric) ||
       terminals.some(t => /^(?:[+-]|POS(?:ITIVE)?|NEG(?:ATIVE)?|ANODE|CATHODE)$/i.test(t.name || "")));

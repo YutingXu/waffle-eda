@@ -331,7 +331,10 @@ globalThis.AtriumEagleImport = (() => {
             fields[i + 1] = geo.fields;
           });
           if (gates > 1) symbol.parts = gates;
-          const def = defs.add({id: A.id(), name: part.deviceset + (part.device || ""), category: "Eagle symbols",
+          // Two technologies of one device are two definitions: name them apart, the technology in
+          // place of the device set's "*" (74*00 -> 74LS00), or after the name when it has none.
+          const tech = part.technology || "", base = tech && part.deviceset.includes("*") ? part.deviceset.replace("*", tech) : part.deviceset;
+          const def = defs.add({id: A.id(), name: base + (part.device || "") + (tech && base === part.deviceset ? " " + tech : ""), category: "Eagle symbols",
             prefix: set.attrs.prefix || ref.replace(/\d+$/, "") || "U", value, symbol, footprintName: device?.attrs.package || "", parameters: deviceParameters, sourceName: name}, key);
           const ties = copperTies(library.packages.get(device?.attrs.package), new Set([...padLists.values()].flat()), [part.deviceset], [...padLists.values()]);
           if (ties.length && !symbol.netTie) { symbol.netTie = true; symbol.netTieGroups = ties.map(g => g.slice()); notes.add("Normally closed solder jumpers import as net ties"); }
