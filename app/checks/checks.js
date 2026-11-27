@@ -35,7 +35,9 @@
 // checkpoint where a slice ends (8 ms in idle time, 6 ms when forced) and where a newer edit abandons
 // it (the finished parts stay with the client).
 //   scheduler.attach(host)   scheduler.client({id, key(doc), phase(doc), delay(), enabled(), docs(),
-//     due(doc), start(doc, slice) -> iterator, unrecorded: "idle"|"sync", heavy?, manual?})
+//     due(doc), start(doc, slice) -> iterator, unrecorded: "idle"|"sync", heavy?, owes?(doc), manual?})
+//     heavy: in Efficiency mode a pass with o.heavy follows 8 s after a plan, when due(doc, {heavy})
+//     (owes(doc): heavy work an Efficiency-mode pass skipped); with nothing owed no timer stays armed.
 //     manual: only queue(id, doc) runs it (an edit neither re-plans nor abandons it); a task that
 //     yields scheduler.WAIT ends its slice early (polygon-pour.js: a pour solve without a worker).
 //   scheduler.plan(id?, o)   scheduler.cancel(id?)   scheduler.stats()
@@ -510,7 +512,14 @@ globalThis.AtriumChecks = (() => {
           for (const d of docs) if (c.due(d, o)) queue(c, d, c.phase?.(d) || "idle", o);
         };
         if (wait) { c.timer = {id:setTimeout(fire, wait), docs}; workChanged(c); } else fire();
-        if (c.heavy && efficient()) c.heavyTimer = setTimeout(() => { c.heavyTimer = 0; if (c.gen === gen) for (const d of docs) queue(c, d, "idle", {...o, heavy: true, now: true, restart: true}); }, c.heavyDelay || 8000);
+        // Efficiency mode: the heavy pass after a quiet while, for a document still being checked or
+        // one the client owes heavy work (c.owes); the timer goes once no document owes any (run()).
+        if (c.heavy && efficient()) c.heavyTimer = setTimeout(() => {
+          c.heavyTimer = 0;
+          if (c.gen !== gen) return;
+          const heavy = {...o, heavy: true, now: true, restart: true};
+          for (const d of docs) if (c.tasks.has(c.key(d)) || c.due(d, heavy)) queue(c, d, "idle", heavy);
+        }, c.heavyDelay || 8000);
       }
     }
     // Queue (or continue) one document's task in an edit-pipeline phase, or at idle without a pipeline.
@@ -559,6 +568,7 @@ globalThis.AtriumChecks = (() => {
               if (r.value != null) task.span?.ready();
               c.done?.(d, r.value);
               task.span?.end("completed");
+              if (c.heavyTimer && c.owes && !c.tasks.size && !c.timer && !(c.docs?.() || []).some(x => c.owes(x))) { clearTimeout(c.heavyTimer); c.heavyTimer = 0; }
               return;
             }
             if (r.value === WAIT || s.expired()) break;
