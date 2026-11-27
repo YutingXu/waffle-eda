@@ -144,7 +144,7 @@ const canonBoxes = c => c && JSON.stringify(c.changes.map(x => ({...x, boxes: x.
 const sameRings = (a, b) => a.length === b.length && a.every((x, i) => x.length === b[i].length && x.every((v, j) => v === b[i][j]));
 const regionJSON = r => JSON.stringify(Object.keys(r).sort().map(k => [k, r[k]]));
 
-const stats = {steps: 0, regions: 0, kept: 0, keptChecked: 0, lod: 0, changes: 0, tables: 0, transfers: 0, sentRuns: 0, allRuns: 0, digests: []};
+const stats = {steps: 0, regions: 0, kept: 0, keptChecked: 0, lod: 0, changes: 0, tables: 0, transfers: 0, sentRuns: 0, allRuns: 0, undoGrowth: [], digests: []};
 function checkStep(label, ed, before, step, kind) {
   const doc = ed.project.documents[0], defs = defsOf(ed.project), pours = doc.pcbDrawing?.pours || [];
   stats.steps++;
@@ -221,10 +221,15 @@ async function run(label, project, {seed, steps}) {
   }
   checkStep(label + " seed " + seed, ed, [], 0, "open");
   for (let s = 1; s <= steps; s++) {
-    const before = (docOf(ed).pcbDrawing?.pours || []).slice();
+    const before = (docOf(ed).pcbDrawing?.pours || []).slice(), u0 = U.stats().bytes;
     let kind, guard = 0;
     do kind = pick(r, list); while (!kind[1](ed, r) && ++guard < 20);
-    refill(ed, docOf(ed));
+    refill(ed, docOf(ed)); U.sync(ed.project);
+    // What the Undo store holds for a refilled island follows its changed runs, not the island.
+    if (engine && /move part \(inside|bend track|add track/.test(kind[0])) {
+      const island = Math.max(...docOf(ed).pcbDrawing.pours.map(x => C.copperBytes(C.copperOf(x)) || 0));
+      stats.undoGrowth.push((U.stats().bytes - u0) / island);
+    }
     checkStep(label + " seed " + seed, ed, before, s, kind[0]);
   }
 }
@@ -234,6 +239,7 @@ const more = (from, n = +(process.env.SEEDS || 0)) => Array.from({length: n}, (_
   for (const seed of [1, 2, 3, 4, ...more(100)]) await run("board 40", board(40), {seed, steps});
   assert.ok(stats.kept > 0, "some islands were kept by a refill");
   if (engine) assert.ok(stats.changes > 0 && stats.lod > 0, "changed copper and LOD were compared " + JSON.stringify({...stats, digests: 0}));
+  if (engine) { const g = stats.undoGrowth.sort((a, b) => a - b), med = g[g.length >> 1]; stats.undoGrowth = {n: g.length, median: +med.toFixed(3), max: +g.at(-1).toFixed(3)}; assert.ok(med < .5, "Undo holds about the changed runs of an island, not the island: " + JSON.stringify(stats.undoGrowth)); }
 });
 console.log("  " + JSON.stringify({...stats, digests: stats.digests.length}));
 if (digestFile) fs.writeFileSync(digestFile, JSON.stringify(stats.digests, null, 0));

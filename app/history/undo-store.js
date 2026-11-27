@@ -741,8 +741,11 @@ globalThis.AtriumUndoStore = (() => {
     }
     else if (r.t === "k") w += size(r.before) + size(r.after);
     else if (r.t === "s") {
-      for (const op of r.removed) w += 24 + held(op[2]) + stretchSize(wireSplices.get(op));
-      for (const op of r.inserted) w += 24 + held(op[2]) + stretchSize(wireSplices.get(op));
+      // A refill splices the new version of an island in for the old: only the old version's runs the
+      // new ones do not hold count, as for a replaced region.
+      const added = r.inserted.map(op => copperIn(op[2])).filter(Boolean);
+      for (const op of r.removed) { const c = copperIn(op[2]); w += 24 + (c ? 64 + op[2].data + P().copperDelta(c, added) : held(op[2])) + stretchSize(wireSplices.get(op)); }
+      for (const op of r.inserted) { const c = copperIn(op[2]); w += 24 + (c ? 64 + op[2].data : held(op[2])) + stretchSize(wireSplices.get(op)); }
     }
     else w += r.before.bytes;
     return r.w = w;

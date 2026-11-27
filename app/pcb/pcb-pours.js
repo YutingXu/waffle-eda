@@ -475,10 +475,13 @@ globalThis.AtriumPCBPours=(()=>{
   const runRecord=run=>({id:run.id,key:run.key,bytes:run.bytes,n:run.n,h1:run.h1,h2:run.h2,at:run.at,arcs:run.arcs});
   const copperRuns=c=>c.runs;
   const copperBytes=c=>c?c.size:0;
-  // The bytes of a's runs that b does not hold (what an Undo record keeps alive when b replaces a).
+  // The bytes of a's runs that b (a copper, or a list of them) does not hold: what an Undo record keeps
+  // alive when b replaces a.
   function copperDelta(a,b){
-    if(!a)return 0;if(!b)return a.size;
-    const have=new Set(b.runs);let n=0;for(const r of a.runs)if(!have.has(r))n+=r.size;return n;
+    if(!a)return 0;
+    const list=(Array.isArray(b)?b:[b]).filter(Boolean);if(!list.length)return a.size;
+    const have=new Set();for(const c of list)for(const r of c.runs)have.add(r);
+    let n=0;for(const r of a.runs)if(!have.has(r))n+=r.size;return n;
   }
   // The arcs field of runs read back from records ({n, arcs}), in order (a recovery draft).
   function arcsText(records){
