@@ -1316,8 +1316,8 @@ for (const hz of [60, 120]) {
   const sliceVM = vm.createContext(fixture);
   vm.runInContext(gpuCode.replace("  return Object.freeze(" + sceneExport,
     "  ({scope, textLayer, pourCoverage, copyCanvas, draw} = globalThis);\n" +
-    "  place = memory = () => true; update = afterMove = queueDriverMemoryProbe = () => {};\n" +
-    "  return Object.freeze({render, damage, stats, views, textSlices, wideLayers, scheduleWide, wideFits, freeWide, releaseCanvas, covers,"), sliceVM);
+    "  const settleAfterMove = afterMove; place = memory = () => true; update = afterMove = queueDriverMemoryProbe = () => {};\n" +
+    "  return Object.freeze({render, damage, stats, views, textSlices, wideLayers, scheduleWide, wideFits, freeWide, releaseCanvas, covers, settleAfterMove,"), sliceVM);
   const slices = sliceVM.AtriumCanvasGPU;
   function viewForSlices(name, wide = false) {
     const cam = [0, 0, 1, false, 200, 80, 1], canvas = {width:200,height:80,isConnected:true}, deleted = [];
@@ -1390,6 +1390,57 @@ for (const hz of [60, 120]) {
   active.start(); runNext(); runNext();
   assert.equal(tasks.size, 0, "cancelling the running job leaves no work on the next refresh");
   if (hz !== 60) continue;
+  // Drive the LOD publisher through the editor's draw/settle route. The prior
+  // generic redraw scheduled a stationary frame during a retained camera move.
+  const appFile = name => path.join(__dirname,"../../app",name);
+  const editor = fs.readFileSync(appFile("editor/editor.js"),"utf8");
+  const from = editor.indexOf("  function draw(){activeDirty=true;"), to = editor.indexOf("  // perf1:",from);
+  assert.ok(from >= 0 && to > from);
+  const hostForLOD = vm.runInContext(`({view,panes,activePane,schedule})=>{
+    let activeDirty=false,pointerOnly=false;
+    const viewportVisible=true, visibleBoardForPaint=p=>p.covered?null:activePane.doc;
+    ${editor.slice(from,to)}
+    return {redraw,redrawPourLOD:typeof redrawPourLOD==="function"?redrawPourLOD:undefined};
+  }`,sliceVM);
+  sliceVM.TextDecoder = TextDecoder;
+  sliceVM.atob = atob;
+  sliceVM.btoa = btoa;
+  sliceVM.AtriumIdle.idle = run => task(() => run({timeRemaining:()=>6}), time + .25);
+  vm.runInContext(fs.readFileSync(appFile("pcb/pcb-pours.js"),"utf8"),sliceVM);
+  const pours = sliceVM.AtriumPCBPours;
+  const ring = Array.from({length:1800},(_,n)=>[20*Math.cos(n*Math.PI/900),20*Math.sin(n*Math.PI/900)]);
+  for (const kind of ["gesture","stationary","2D","split","covered","different board"]) {
+    const {I,st} = viewForSlices("display LOD "+kind);
+    st.exact = {doc:board, rev:1};
+    const defer = kind === "gesture", active = {doc:kind==="different board"?other:board, covered:kind==="covered"};
+    const view = {internals:()=>I,settle(){}};
+    let redraws = 0;
+    const panes = kind==="split" ? [active,{}] : [active];
+    const host = sliceVM.AtriumNavHost = hostForLOD({view,panes,activePane:active,schedule(){redraws++;}});
+    if (kind==="2D") slices.views.delete(I);
+    else if (kind!=="stationary") slices.settleAfterMove(I,st,board,new Map(),{},[],false,true);
+    const region = pours.region([ring],"Top","GND");
+    const stamp = pours.lod.version;
+    assert.equal(pours.lodRingsAt(region,4),null);
+    runNext();
+    assert.equal(pours.lod.version,stamp+1,"the idle publisher still exposes the new contours");
+    assert.ok(pours.lodRingsAt(region,4));
+    assert.equal(redraws,Number(!defer),kind+" chooses the appropriate host redraw");
+    assert.equal(tasks.size,kind==="stationary"||kind==="2D"?0:1,kind+" creates no extra work");
+    if (defer) {
+      host.redraw(); // authored edits and display mode changes still use their existing method
+      assert.equal(redraws,1,"ordinary redraw is independent of display LOD");
+      assert.equal(I.repaints,undefined);
+      runNext();
+      assert.equal(I.repaints,1,"the existing settle timer owns the foreground repaint");
+    } else drain();
+    assert.equal(tasks.size,0,kind+" leaves no recurring work");
+  }
+  assert.match(editor, /redraw,redrawPourLOD,/, "NavHost exposes the narrow redraw endpoint");
+  assert.equal(failure.I.repaints,1,"a failed foreground slice asks for one full repaint and stops");
+  assert.equal(tasks.size,0);
+  console.log("Display LOD coalesces with an existing foreground GPU settle only");
+
   const widePane = viewForSlices("wide policy"), exactPane = viewForSlices("exact policy");
   const {I, st, cam} = widePane, defs = new Map(), opts = {selected:"selected",reuseBase:true}, list = [];
   const schedule = () => slices.scheduleWide(I, st, board, defs, opts, list);

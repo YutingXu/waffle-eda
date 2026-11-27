@@ -604,6 +604,11 @@
   }
   function draw(){activeDirty=true;pointerOnly=false;for(const p of panes)p.view?.settle?.();schedule();}
   function redraw(all=false){if(all===true)for(const p of panes)p.version++;draw();}
+  function redrawPourLOD(){
+    const d=viewportVisible&&panes.length===1&&visibleBoardForPaint(activePane);
+    // An already queued same-pane GPU settle also publishes the new display contours.
+    if(d?.kind!=="pcb"||!globalThis.AtriumCanvasGPU?.canDeferPourLODRedraw?.(view.internals(),d))redraw();
+  }
   // perf1: a frame asked for only because the pointer moved (no other draw() before it) may reuse the board layer.
   var pointerOnly=false;
   function drawPointer(){const fresh=!activeDirty||pointerOnly;draw();if(fresh)pointerOnly=true;}
@@ -2489,7 +2494,7 @@
     messageContext:()=>({project,currentProject:()=>project,info,exportFile:AtriumIO.exportFile,
       select:id=>{const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);},
       locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();}}),
-    redraw,invalidate({overlay=false}={}){navVersion++;if(overlay)drawPointer();else draw();},
+    redraw,redrawPourLOD,invalidate({overlay=false}={}){navVersion++;if(overlay)drawPointer();else draw();},
     invalidateDocument(id,artwork=false){
       for(const p of panes)if((p===activePane?current:p.docId)===id){
         if(artwork)p.view?.invalidate?.(docById(id));

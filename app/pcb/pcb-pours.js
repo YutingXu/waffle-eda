@@ -422,7 +422,11 @@ globalThis.AtriumPCBPours=(()=>{
       const old=Date.now()-2000;
       for(const [r,e] of lodCache){if(lodVertices<=LOD_BUDGET)break;if(e.used<old||lodVertices>2*LOD_BUDGET)dropLod(r);}
     }
-    if(finished&&!lodQueue.length){LOD.version++;try{globalThis.AtriumNavHost?.redraw?.();}catch{/* no editor */}}
+    if(finished&&!lodQueue.length){
+      LOD.version++;
+      const host=globalThis.AtriumNavHost;
+      try{if(host?.redrawPourLOD)host.redrawPourLOD();else host?.redraw?.();}catch{/* no editor */}
+    }
     if(lodQueue.length)lodSchedule();
   }
   function dropLod(region){

@@ -56,6 +56,11 @@ globalThis.AtriumCanvasGPU = (() => {
     st.idle = 0; st.settling = false;
     cancelSlices(st, "textJob");
   }
+  function canDeferPourLODRedraw(I, doc) {
+    const st = views.get(I);
+    return !!st?.idle && st.shown && st.exact?.doc === doc && I.canvas.isConnected &&
+      !st.lost && !st.restoring && !st.off && !st.over && !failed && visible();
+  }
   // An idle job of text slices (textSlices) gives back its unfinished textures.
   function cancelSlices(st, name) {
     const job = st[name];
@@ -2461,7 +2466,12 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           else if (job.y < H) T = textLayer(I, st, doc, defs, opts, c2, job.V, list, job.T, [0, job.y, W, h]);
           else if (own) pourCoverage(I, st, doc, defs, opts, c2, job.V, list, job.T, I.sync(doc, defs));
         });
-      } catch (e) { cancelSlices(st, name); return; }
+      } catch (e) {
+        cancelSlices(st, name);
+        // A failed foreground slice still owes the current camera one full paint.
+        if (own) repaint(I);
+        return;
+      }
       finally {
         I.ctx = keep;
         if (own && h && st.sliceCopy) restorePixels(keep, st.sliceCopy, W, job.y, h);
@@ -3285,7 +3295,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (restoreAfterMs != null) setTimeout(() => { try { x.restoreContext(); } catch {} }, restoreAfterMs);
     return true;
   }
-  return Object.freeze({render, damage, stats, resourceCounters, diagnosticState, status, finish, composite, reset, release: destroy, refresh, pause, loseContext, overlays: () => overlays,
+  return Object.freeze({render, damage, stats, resourceCounters, canDeferPourLODRedraw, diagnosticState, status, finish, composite, reset, release: destroy, refresh, pause, loseContext, overlays: () => overlays,
     hasView: I => views.has(I), enabled: () => wanted(), failed: () => failed,
     // enable(true / false) overrides the preference for this session (tests and benchmarks); enable(null) follows it again.
     enable(v) { failed = false; failReason = ""; force = v == null ? null : !!v; refresh(); },
