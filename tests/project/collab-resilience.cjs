@@ -108,11 +108,13 @@ function network() {
 function editor(net, name, project, o = {}) {
   const id = "p" + name[0].toUpperCase().repeat(22), {document, area} = dom(), listeners = new Map(), notes = [], acts = [];
   let current = project, U = null;
+  // A saved folder project's session: it reports each save ("saved"), as app/project/folder-session does.
+  const folderListeners = new Set(), folder = {on(fn) { folderListeners.add(fn); return () => folderListeners.delete(fn); }};
   const host = {
     project: () => current, revision: () => 1, isDirty: () => false, drag: () => null, tool: () => "select", selection: () => [], defs: () => new Map(),
     docById: id => current.documents.find(d => d.id === id), currentId: () => current.documents[0].id, selectDocument() {}, panes: () => [],
     view: () => ({camera: () => ({cx: 0, cy: 0, scale: 1, flipped: false}), worldToScreen: p => p, screenToWorld: p => p}), canvas: () => null, pointer: () => null,
-    derive(fn) { fn(); U?.record(current); }, markUnsaved() {}, info(text) { notes.push(String(text)); }, undoSteps: () => ({history: [], future: []}), redraw() {},
+    derive(fn) { fn(); U?.record(current); }, folderProject: () => folder, markUnsaved() {}, info(text) { notes.push(String(text)); }, undoSteps: () => ({history: [], future: []}), redraw() {},
     async replaceProject(p, o) { if (o.current && !o.current()) return false; current = p; if (U) { U.reset(); U.mark(p); } return true; },
     on(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); return () => listeners.get(type).delete(fn); },
     registerAction() {}, addRenderer: () => () => {}, act(a) { acts.push(a); }
@@ -138,6 +140,7 @@ function editor(net, name, project, o = {}) {
     session: () => ctx.AtriumCollabLive.session(),
     edit(fn) { U?.mark(current); fn(current); U?.record(current); for (const f of listeners.get("change") || []) f(); ctx.AtriumCollabLive.flush(); },
     fire(type, ...args) { for (const f of listeners.get(type) || []) f(...args); },
+    saved() { for (const f of folderListeners) f("saved"); },
     beat() { e.o?.onBeat?.(); },
     bar() { const b = area.find(n => n.className === "collab-bar" && !n.hidden); return b ? b.text() : ""; },
     barButton(label) { return area.find(n => n.tagName === "BUTTON" && n.textContent === label); }};
@@ -280,6 +283,12 @@ async function testCap() {
   G.fire("dirty", false);
   await paint();
   assert.equal(S.r.stats().repairs, 1, "the audit at save found the change");
+  // The folder session's own save report (one document saved, the editor still unsaved) audits too.
+  G.project.documents.find(d => d.id === "doc-pcb").name = "found at a folder save";
+  G.saved();
+  await paint();
+  assert.equal(S.r.stats().repairs, 2, "the audit at a folder save found the change");
+  assert.ok(!net.log.some(m => m.from === "Guest" && m.kind === "ops" && JSON.stringify(m.body).includes("found at a folder save")), "and published nothing");
   assert.equal(H.project.name, "Shared", "a copy that no longer fits the session publishes nothing through the audit");
   assert.ok(!net.log.some(m => m.from === "Guest" && m.kind === "ops" && JSON.stringify(m.body).includes("found by the audit")));
   const old = S.r, oldStats = JSON.stringify(old.stats());
