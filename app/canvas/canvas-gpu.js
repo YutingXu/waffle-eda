@@ -2376,16 +2376,44 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
     } finally { I.connectivity = saved; }
   }
-  // Views share one work budget after each refresh. Exact-camera work takes priority over
-  // speculative wide artwork. Each indivisible step may overrun; charge its actual time before
-  // starting any successor, and limit work even when the performance clock rounds to zero.
+  // Foreground cameras take turns one step per task. Speculative wide artwork waits for
+  // display refresh and shares one measured budget. An indivisible step can overrun.
   // Aim for about half the observed refresh interval, up to 8 ms. Very fast displays and
   // sufficiently expensive individual steps can still see work span refreshes.
   const SLICE_MS = 3.5;
   const cameraSlices = new Set(), wideSlices = new Set();
-  let cancelSliceFrame = null, runningSliceFrame = false, lastSliceFrame = null;
+  let cancelSliceFrame = null, runningSliceFrame = false, lastSliceFrame = null, cameraTask = false;
+  const postExactSlices = typeof G.MessageChannel === "function";
+  let exactChannel = null;
+  function closeExactChannel() {
+    const channel = exactChannel;
+    exactChannel = null;
+    channel?.port1.close();
+    channel?.port2.close();
+  }
   function scheduleSliceFrame() {
-    if (runningSliceFrame || cancelSliceFrame) return;
+    if (runningSliceFrame) return;
+    const exact = postExactSlices && cameraSlices.size > 0;
+    if (cancelSliceFrame) {
+      if (cameraTask === exact && (cameraSlices.size || wideSlices.size)) return;
+      cancelSliceFrame(); cancelSliceFrame = null;
+    }
+    cameraTask = exact;
+    if (exact) {
+      // A ready foreground camera is already stationary. Yield to input and
+      // other panes after each checked step instead of waiting for display refresh.
+      lastSliceFrame = null;
+      if (!exactChannel) {
+        const channel = exactChannel = new G.MessageChannel();
+        channel.port1.onmessage = () => {
+          if (exactChannel === channel) runSliceFrame(0,true);
+        };
+      }
+      exactChannel.port2.postMessage(null);
+      cancelSliceFrame = closeExactChannel;
+      return;
+    }
+    closeExactChannel();
     if (!(cameraSlices.size || wideSlices.size)) { lastSliceFrame = null; return; }
     const afterRefresh = at => {
       const budget = lastSliceFrame === null ? 5 : Math.max(5, Math.min(8, (at - lastSliceFrame) / 2));
@@ -2397,17 +2425,19 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const id = idle ? idle.sampleFrame(afterRefresh) : G.requestAnimationFrame(afterRefresh);
     cancelSliceFrame = () => idle ? idle.cancelSample(id) : G.cancelAnimationFrame(id);
   }
-  function runSliceFrame(budget) {
+  function runSliceFrame(budget, exact = false) {
     cancelSliceFrame = null;
     runningSliceFrame = true;
     let remaining = budget;
     try {
       while (cameraSlices.size || wideSlices.size) {
+        if (postExactSlices && exact !== (cameraSlices.size > 0)) break;
         const jobs = cameraSlices.size ? cameraSlices : wideSlices, job = jobs.values().next().value;
         if (remaining < budget && job.estimate > remaining) break;
         jobs.delete(job);
         const start = now();
         job.step();
+        if (exact) break;
         remaining -= Math.max(.25, now() - start);
       }
     } finally {
@@ -2418,13 +2448,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   function queueTextSlice(job, own) {
     const jobs = own ? cameraSlices : wideSlices;
     jobs.add(job);
-    job.cancel = () => {
-      jobs.delete(job);
-      if (cameraSlices.size || wideSlices.size) return;
-      cancelSliceFrame?.();
-      cancelSliceFrame = null;
-      scheduleSliceFrame();
-    };
+    job.cancel = () => { jobs.delete(job); scheduleSliceFrame(); };
     scheduleSliceFrame();
   }
   // The text layer for a camera, painted a slice of rows at a time in steps of about SLICE_MS, into

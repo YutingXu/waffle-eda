@@ -1270,19 +1270,28 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   console.log("GPU memory fences coalesce busy draws, wait for current work, and cancel on hide or context loss");
 }
 
-for (const hz of [60, 120]) {
+for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   // Run production textSlices on a virtual display clock with deterministic raster costs.
   // Replace the raster leaves with a per-row witness so the scheduling test needs no WebGL driver.
-  const period = 1000 / hz, tasks = new Map(), perFrame = new Map(), order = [];
+  const period = 1000 / hz, tasks = new Map(), perFrame = new Map(), order = [], worked = [];
+  let running, displayDelay=0, channels=0, staleMessage;
   const scratch = [], drawn = [], shownOverlays = [];
   let time = 0, next = 0, hidden = false, efficient = false, backingSizes = 0, fullBackings = 0, onPower;
-  function task(run, at) {
-    tasks.set(++next, {run, at});
+  function task(run, at, kind, depth = 0) {
+    tasks.set(++next, {run, at, kind, depth, exact:0, wide:0, fromDisplay:running?.kind==="display"});
     return next;
   }
   function runNext() {
-    const [id, {run, at}] = [...tasks].sort((a,b) => a[1].at - b[1].at)[0];
-    tasks.delete(id); time = Math.max(time, at); run();
+    const [id, job] = [...tasks].sort((a,b) => a[1].at - b[1].at)[0];
+    tasks.delete(id);
+    time = Math.max(time, job.at);
+    const started=time;
+    running=job;
+    try { job.run(); }
+    finally {
+      if(job.exact || job.wide)worked.push({exact:job.exact,wide:job.wide,ms:time-started,fromDisplay:job.fromDisplay});
+      running=null;
+    }
   }
   function drain() {
     for (let i = 0; tasks.size; i++) {
@@ -1292,16 +1301,34 @@ for (const hz of [60, 120]) {
   }
   function work(I, ms) {
     const frame = Math.floor(time / period + .00001);
-    perFrame.set(frame, (perFrame.get(frame) || 0) + ms);
+    if(I.wide || !posted)perFrame.set(frame, (perFrame.get(frame) || 0) + ms);
+    running[I.wide?"wide":"exact"]++;
     time += ms;
     order.push(I.name);
   }
   const fixture = {
     AtriumPCBAppearance, performance:{now:() => time},
     AtriumCanvasGPUPref:{decision:() => ({use:true})},
-    setTimeout:(run, delay) => task(run, time + Math.max(.25, delay)),
+    setTimeout(run,delay) {
+      const depth=running?.kind==="timer" ? running.depth+1 : 0;
+      return task(run,time+Math.max(depth>=5?4:.25,delay),"timer",depth);
+    },
     clearTimeout:id => tasks.delete(id),
-    AtriumIdle:{sampleFrame:run => task(() => run(time), period * (1 + Math.floor(time / period + .00001))),
+    MessageChannel:function() {
+      channels++;
+      const ids=new Set(), port1=this.port1={close() {
+        if (!ids.closed) { ids.closed=true; channels--; }
+        for(const id of ids)tasks.delete(id);
+      }};
+      this.port2={postMessage(data) {
+        const receive=port1.onmessage;
+        staleMessage=()=>receive({data});
+        const id=task(()=>{ids.delete(id);receive({data});},time+.25,"message");
+        ids.add(id);
+      },close(){}};
+    },
+
+    AtriumIdle:{sampleFrame:run => task(() => run(time), Math.max(time+displayDelay,period*(1+Math.floor(time/period+.00001))), "display"),
       cancelSample:id => tasks.delete(id)},
     AtriumPower:{visible:() => !hidden, efficient:() => efficient, onChange:run => { onPower = run; }},
     AtriumCanvas:{resizeBacking(c,w,h) {
@@ -1320,7 +1347,7 @@ for (const hz of [60, 120]) {
       return c;
     }},
     draw(_I, _st, _doc, _defs, _opts, _cam, _scene, text) { drawn.push(text); },
-    scope:I => { work(I, .75); I.onScope?.(); return {viewport:[0,0,4,4],o2:{}}; },
+    scope:I => { work(I, I.scopeWork ?? .75); I.onScope?.(); return {viewport:[0,0,4,4],o2:{}}; },
     textLayer(I, st, doc, defs, opts, cam, V, pours, T, [, y, , h]) {
       if (!h) {
         T.key = "painted"; T.bands = [{tex:I.name}]; T.pixels = new Uint8Array(st.canvas.height);
@@ -1329,23 +1356,25 @@ for (const hz of [60, 120]) {
       }
       else if (I.fail) throw new Error("raster failed");
       T.pixels.fill(1, y, y + h);
-      work(I, h ? h / 8 : .75);
+      if (h) I.onRows?.(y,h);
+      work(I, h ? h * (I.workPerRow ?? .125) : .75);
       return T;
     },
     pourCoverage:I => work(I, .75),
     copyCanvas(c, prior) { return Object.assign(prior || {}, {width:c.width,height:c.height,ink:c.ink}); }
   };
+  if (!posted) delete fixture.MessageChannel;
   const sliceVM = vm.createContext(fixture);
   vm.runInContext(gpuCode.replace("  return Object.freeze(" + sceneExport,
     "  ({scope, textLayer, pourCoverage, copyCanvas, draw} = globalThis);\n" +
     "  const settleAfterMove = afterMove; place = memory = () => true; update = afterMove = queueDriverMemoryProbe = () => {};\n" +
     "  return Object.freeze({render, damage, stats, views, textSlices, wideLayers, scheduleWide, wideFits, freeWide, releaseCanvas, covers, settleAfterMove,"), sliceVM);
   const slices = sliceVM.AtriumCanvasGPU;
-  function viewForSlices(name, wide = false) {
-    const cam = [0, 0, 1, false, 200, 80, 1], canvas = {width:200,height:80,isConnected:true}, deleted = [];
+  function viewForSlices(name, wide = false, height = 80) {
+    const cam = [0, 0, 1, false, 200, height, 1], canvas = {width:200,height,isConnected:true}, deleted = [];
     const ctx = {canvas, save() {}, restore() {}, setTransform() {}, drawImage(overlay) { shownOverlays.push(overlay); }};
     canvas.getContext = () => ctx;
-    const I = {name, canvas, ctx, cam:() => cam, cache:{doc:board,rev:1}, withCamera(x,y,s,fn) { fn(); },
+    const I = {name, wide, canvas, ctx, cam:() => cam, cache:{doc:board,rev:1}, withCamera(x,y,s,fn) { fn(); },
       sync() { return this.cache; }, repaint() { this.repaints = (this.repaints || 0) + 1; },
       boardTransform() {}, paintTop() {}, drawBoard(ctx, parts) { ctx.canvas.ink = parts[0].id; this.onOverlay?.(); }};
     const st = {canvas, shown:true, strict:true, powerPreference:"low-power",
@@ -1365,10 +1394,24 @@ for (const hz of [60, 120]) {
   assert.equal(tasks.size, 1, "views subscribe to one display clock");
   drain();
   const peak = Math.max(...perFrame.values());
-  console.log(`GPU text slices at ${hz} Hz work ${peak.toFixed(2)} ms/refresh, exact ${exact.completed.toFixed(2)} ms, complete ${wide.completed.toFixed(2)} ms`);
-  assert.ok(peak <= (hz === 60 ? 8 : 5), "both views share one measured budget per refresh");
+  const foreground=worked.filter(task=>task.exact);
+  const maxTask=Math.max(...foreground.map(task=>task.ms));
+  if (!posted) {
+    assert.ok(foreground.every(job=>job.fromDisplay),"when message tasks are unavailable, exact work starts on a display sample");
+    assert.ok(peak <= (hz === 60 ? 8 : 5),"both queues then share the stock refresh budget");
+    assert.equal(exact.st.stats.textSliceRows,80);
+    assert.equal(exact.st.stats.textSliceWorkMs,12.25);
+    assert.equal(wide.st.stats.wideSliceRows,80);
+    console.log(`GPU text slices at ${hz} Hz without MessageChannel, exact ${exact.completed.toFixed(2)} ms, wide ${wide.completed.toFixed(2)} ms`);
+    continue;
+  }
+  console.log(`GPU text slices at ${hz} Hz, exact ${exact.completed.toFixed(2)} ms, largest task ${maxTask.toFixed(2)} ms, wide ${wide.completed.toFixed(2)} ms`);
+  assert.ok(foreground.every(task=>task.exact===1&&!task.wide),"every exact step yields before returning to another pane or job");
+  assert.ok(maxTask <= 4,"the measured foreground row step stays bounded");
+  assert.ok(peak <= (hz === 60 ? 8 : 5), "speculative wide retains its measured budget per refresh");
+  assert.ok(worked.filter(job=>job.wide).every(job=>job.fromDisplay),"only a display sample can start wide work");
   assert.deepEqual(order.slice(0, 7), Array(7).fill("exact"), "exact-camera work gets priority");
-  assert.ok(exact.completed <= (hz === 60 ? 3 : 4) * period + 2, "the exact camera publishes within its refresh limit");
+  assert.ok(exact.completed < 17, "a foreground message task never inherits nested timer delays");
   assert.ok(wide.completed <= (hz === 60 ? 5 : 7) * period + 4, "all wide rows publish within their refresh limit");
   const e = slices.resourceCounters(exact.I), w = slices.resourceCounters(wide.I);
   assert.deepEqual([e.slicing, e.textSliceRows, e.textSliceWorkMs, e.wideSliceRows], [false, 80, 12.25, 0]);
@@ -1409,8 +1452,56 @@ for (const hz of [60, 120]) {
   assert.equal(tasks.size, 0, "reentrant cancellation cannot leave a display callback");
 
   active.I.onScope = () => slices.pause(active.I);
-  active.start(); runNext(); runNext();
-  assert.equal(tasks.size, 0, "cancelling the running job leaves no work on the next refresh");
+  active.start(); drain();
+  assert.equal(tasks.size, 0, "cancelling the running job leaves no scheduled work");
+
+  order.length=0;
+  const left=viewForSlices("left"), right=viewForSlices("right");
+  left.start();right.start();drain();
+  assert.deepEqual(order.slice(0,8),["left","right","left","right","left","right","left","right"],
+    "exact panes take turns even when the first one still has rows");
+  assert.ok(left.completed > 0 && right.completed > 0);
+
+  const interrupted=viewForSlices("interrupted");
+  let paints=0;
+  interrupted.I.onRows=()=>{
+    paints++;
+    if(paints===1)task(()=>interrupted.cam[0]++,time+.1,"input");
+  };
+  interrupted.start();drain();
+  assert.equal(paints,1,"new input runs before the next stationary strip");
+  assert.equal(interrupted.completed,undefined,"rows for the old camera are never published");
+  assert.deepEqual(interrupted.deleted,["interrupted"]);
+  assert.equal(interrupted.I.repaints,1);
+  assert.equal(tasks.size,0);
+
+  const abandoned=viewForSlices("old channel"), current=viewForSlices("new channel");
+  abandoned.start();
+  const late=staleMessage;
+  slices.pause(abandoned.I);
+  current.start();
+  assert.equal(channels,1,"the superseded message channel closed");
+  const workedBefore=worked.length;
+  task(late,time,"message");runNext();
+  assert.equal(worked.length,workedBefore,"a posted message from a cancelled channel cannot start the new job");
+  drain();
+  assert.ok(current.completed > 0);
+  assert.equal(channels,0,"no channel remains when the exact queue drains");
+
+  const held=viewForSlices("display held",true), heldExact=viewForSlices("ready");
+  displayDelay=1000;
+  const began=time;
+  held.start(); heldExact.start();
+  for(let steps=0;heldExact.completed===undefined;steps++){
+    assert.ok(steps<10 && tasks.size,"the stationary camera completes while the display sample is held");
+    runNext();
+  }
+  assert.ok(heldExact.completed-began<28);
+  assert.equal(held.st.stats.wideSliceRows,0,"the speculative view still waits for display refresh");
+  slices.pause(held.I);
+  displayDelay=0;
+  assert.equal(tasks.size,0,"completion and cancellation leave no idle callback");
+  assert.equal(channels,0,"closed or completed jobs leave no message ports");
   if (hz !== 60) continue;
   // Drive the LOD publisher through the editor's draw/settle route. The prior
   // generic redraw scheduled a stationary frame during a retained camera move.
