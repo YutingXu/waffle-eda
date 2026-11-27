@@ -610,6 +610,10 @@ globalThis.AtriumCollabPresence = (() => {
           session.editProject = host.project();
           session.r = G.AtriumCollabCRDT.create({replica: t.peer, project: session.editProject, owner: t.peer, ownSeq: ownSeq(t.peer)});
           rememberCursor(session);
+          // Materialise and validate the shared project once, when idle: later edits, undo and
+          // incoming patches then bring it up to date for what they touch (a guest's join does this).
+          const replica = session.r, I = G.AtriumIdle;
+          (I ? f => I.idle(f, {timeout: 2000}) : f => setTimeout(f, 50))(() => { if (S === session && session.r === replica) replica.hiddenCount(); });
           session.base = "host";
           if (!session.hub) session.invite = T.invitation({relay: o.lan ? "ws://" + lanHostPort(lanAddresses(o.lan)[0] || "127.0.0.1", o.lan.port) : url, roomKey, host: t.peer, salt});
         }
@@ -1154,7 +1158,7 @@ globalThis.AtriumCollabPresence = (() => {
         }
         return false;
       };
-      const b = session.r.commit(project, {updates: range?.updates, reconcile: locked.size ? reconcile : undefined});
+      const b = session.r.commit(project, {updates: range?.updates, structure: range?.structure, reconcile: locked.size ? reconcile : undefined});
       // A lock rollback may already have advanced the journal inside reconcile.
       rememberCursor(session);
       if (!b) return;

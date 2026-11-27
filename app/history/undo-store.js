@@ -995,15 +995,47 @@ globalThis.AtriumUndoStore = (() => {
     if (dirty || scope || !root || root.ref !== project) return null;
     const cursor = cursorAt(end());
     if (!since || cursorAt(since.pos) !== since) return {cursor, updates: null};
-    const records = new Map();
+    const records = new Map(), moves = new Map();
     for (let at = since.pos - base; at < log.length; at++) {
       const r = log[at];
-      // Order, membership, project metadata, library geometry and derived pours
-      // all need the full collaboration comparison. Nothing outside items is skipped.
-      if (r.t !== "e" || r.node.path !== "items" || !r.node.doc) return {cursor, updates: null};
+      // Project metadata, the document list, library geometry and derived pours need the full
+      // collaboration comparison. Items changed in place and items added to, removed from or
+      // moved within a document's list (the identity splices `s`) are reported as they are.
+      if (r.t !== "e" && r.t !== "s" || r.node.path !== "items" || !r.node.doc) return {cursor, updates: null};
+      if (r.t === "s") {
+        const doc = r.node.doc.ref;
+        let m = moves.get(doc);
+        if (!m) moves.set(doc, m = new Map());
+        // Per item: present at the cursor, present now, and its value when it first left.
+        for (const [, ref, val] of r.removed) {
+          const s = m.get(ref);
+          if (s) s.now = false; else m.set(ref, {was: true, now: false, val});
+        }
+        for (const [, ref] of r.inserted) {
+          const s = m.get(ref);
+          if (s) s.now = true; else m.set(ref, {was: false, now: true});
+        }
+        continue;
+      }
       const previous = records.get(r.ref), {before,after}=valuesOf(r);
       if (previous) { previous.after = after; previous.record = null; }
       else records.set(r.ref, {doc:r.node.doc.ref.id,before,after,record:r});
+    }
+    const structure = [];
+    for (const [doc, m] of moves) {
+      const added = [], removed = [];
+      for (const [ref, s] of m) {
+        records.delete(ref);   // its value is read from the live item
+        if (!isObj(ref) || typeof ref.id !== "string") return {cursor, updates: null};
+        if (s.was) {
+          // The id it had at the cursor: an item whose id changed is compared as a whole project.
+          const id = typeof s.val === "string" ? s.val.includes('"id":' + JSON.stringify(ref.id)) && ref.id : s.val?.table ? s.val.id : null;
+          if (id !== ref.id) return {cursor, updates: null};
+          if (!s.now) removed.push(id);
+        }
+        if (s.now) added.push(ref);
+      }
+      if (added.length || removed.length) structure.push({doc: doc.id, items: doc.items, added, removed});
     }
     const updates = [];
     for (const r of records.values()) {
@@ -1019,7 +1051,7 @@ globalThis.AtriumUndoStore = (() => {
       if (before.id !== after.id) return {cursor, updates: null};
       updates.push({doc: r.doc, before, after});
     }
-    return {cursor, updates};
+    return {cursor, updates, structure};
   }
   // Qualify journaled edits without recording the project. A comparator sees the
   // saved value before each update and the current item. Any splice is uncertain.

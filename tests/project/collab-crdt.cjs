@@ -529,12 +529,19 @@ function item(p, id) { return p.documents.flatMap(d => d.items).find(i => i.id =
   const saved = clone(p), range = U.itemEdits(p, cursor); via.y += 99;
   assert.deepEqual(scoped.commit(p, {updates: range.updates}), full.commit(saved));
   via.y -= 99; cursor = range.cursor;
+  // A reordered item list is reported as structure ({doc, items, added, removed}) and stamps the
+  // same operations as the complete diff; non-item records still require the complete diff.
+  board.items.reverse(); U.record(p);
+  const reordered = U.itemEdits(p, cursor); cursor = reordered.cursor;
+  assert.deepEqual(reordered.updates, []);
+  assert.deepEqual(reordered.structure.map(s => [s.doc, s.removed.length, s.added.length]), [[board.id, 0, board.items.length]]);
+  assert.deepEqual(scoped.commit(p, {updates: reordered.updates, structure: reordered.structure}), full.commit(p));
   for (const mutate of [
-    () => board.items.reverse(), () => { p.componentFamilies = [{id: "family"}]; },
+    () => { p.componentFamilies = [{id: "family"}]; },
     () => { p.parameters = {test: "changed"}; }, () => { sheet.name += " renamed"; }
   ]) {
     mutate(); U.record(p); const range = U.itemEdits(p, cursor); cursor = range.cursor;
-    assert.equal(range.updates, null, "list or non-item records require a complete diff");
+    assert.equal(range.updates, null, "non-item records require a complete diff");
     assert.deepEqual(scoped.commit(p, {updates: range.updates}), full.commit(p));
   }
   const m = U.mark(p);

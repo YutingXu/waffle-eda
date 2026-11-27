@@ -419,7 +419,12 @@ globalThis.AtriumCollabCRDT = (() => {
   function create(o = {}) {
     const replica = String(o.replica || ("r" + Math.random().toString(36).slice(2, 10)));
     if (!ID.test(replica) || replica.includes(".")) throw Error("A replica id is 1–128 printable characters without dots.");
-    const validate = o.validate !== undefined ? o.validate : (p => globalThis.Atrium?.validate?.(p));
+    const validate = o.validate !== undefined ? o.validate : ((p, options) => globalThis.Atrium?.validate?.(p, options));
+    // The materialised view is kept between edits and brought up to date for the objects an
+    // edit touched (refresh). Model validation of those objects uses Atrium.validate's scoped
+    // mode, so only the default validator (or none) allows it; o.incremental: false always
+    // rebuilds the view (the reference path the differential test compares against).
+    const incremental = o.incremental !== false && (o.validate === undefined || o.validate === null);
     // o.owner: the replica id allowed to change the format stamp (FORMAT_KEYS). o.ownSeq: how many
     // edits this replica id made before (a rejoin in the same window); a snapshot may show up to that many.
     const owner = typeof o.owner === "string" ? o.owner : undefined, ownSeq = Number.isSafeInteger(o.ownSeq) && o.ownSeq > 0 ? o.ownSeq : 0;
@@ -428,7 +433,8 @@ globalThis.AtriumCollabCRDT = (() => {
     const vv = new Map(), extra = new Set(), floor = new Map();
     const cellPatchHints = new WeakMap();
     let log = [], undoStack = [], redoStack = [], view = null, verdicts = new Map();
-    const stats = {applied: 0, rejected: 0, buffered: 0, filtered: 0};
+    // refreshed / rebuilt: views brought up to date for the touched objects / materialised whole.
+    const stats = {applied: 0, rejected: 0, buffered: 0, filtered: 0, refreshed: 0, rebuilt: 0};
 
     function obj(id) {
       let x = objs.get(id);
@@ -708,7 +714,8 @@ globalThis.AtriumCollabCRDT = (() => {
       }
     }
     const children = p => [...(kids.get(p) || [])].map(id => objs.get(id)).filter(visible).sort(byPos);
-    function raw(tableOwner) {
+    // Project-level keys: the meta registers and the review records.
+    function topLevel() {
       const p = {};
       for (const [k, r] of meta) if (r.v !== undefined) p[k] = clone(r.v);
       const rows = children(REVIEW);
@@ -716,6 +723,10 @@ globalThis.AtriumCollabCRDT = (() => {
         p.review ??= {version: 1, records: {}};
         for (const x of rows) { const r = nativeReviewRow(fields(x)); p.review.records[r.id] = r; }
       }
+      return p;
+    }
+    function raw(tableOwner) {
+      const p = topLevel();
       p.library = children(LIB).map(fields);
       p.documents = children(DOCS).map(d => { const doc = fields(d); doc.items = children(d.id).map(i => fields(i, tableOwner)); return doc; });
       return p;
@@ -758,14 +769,27 @@ globalThis.AtriumCollabCRDT = (() => {
     }
     function project(tableOwner) {
       const p = raw(tableOwner);
-      if (!validate) { hidden = new Set(); return p; }
-      try { return shown(p, validate(validationCopy(p, tableOwner))); } catch { /* filter below */ }
-      const lib = p.library.filter(d => ok(d.id, () => validate({...shell(p), library: [clone(d)], documents: [{id: "#v", kind: "schematic", name: "v", grid: 1, items: [], outline: [], notes: []}]})));
+      clean = false;
+      if (!validate) { hidden = new Set(); clean = !own(p, COMPAT); return p; }
+      try {
+        const out = shown(p, validate(validationCopy(p, tableOwner)));
+        // The whole project validated: what each object's validity depends on is known (refresh).
+        clean = !hidden.size && !own(p, COMPAT) && !own(out, COMPAT);
+        return out;
+      } catch { /* filter below */ }
+      // A verdict holds for the object's version, the library's and the context it was judged in:
+      // the format stamp (shell) and, for an item, its document.
+      const context = JSON.stringify(shell(p));
+      const lib = p.library.filter(d => ok(d.id, () => validate({...shell(p), library: [clone(d)], documents: [{id: "#v", kind: "schematic", name: "v", grid: 1, items: [], outline: [], notes: []}]}), context));
+      // Items are judged with the valid definitions: their content (a definition's shown geometry
+      // can change with the parts that use it, without an edit of its own).
+      const libKey = context + "/" + digest(JSON.stringify(lib));
       const docs = [];
       for (const d of p.documents) {
-        const items = d.items.filter(i => ok(i.id, () => validate(clone({...shell(p), library: lib, documents: [{...d, items: [i]}]}))));
+        const inDoc = libKey + "/" + d.id + "@" + (objs.get(d.id)?.ver ?? 0);
+        const items = d.items.filter(i => ok(i.id, () => validate(clone({...shell(p), library: lib, documents: [{...d, items: [i]}]})), inDoc));
         const doc = {...d, items: []};
-        if (ok(d.id, () => validate(clone({...shell(p), library: lib, documents: [doc]})))) { doc.items = items; docs.push(doc); }
+        if (ok(d.id, () => validate(clone({...shell(p), library: lib, documents: [doc]})), libKey)) { doc.items = items; docs.push(doc); }
       }
       const out = {...p, library: lib, documents: docs};
       try { validate(clone(out)); } catch {
@@ -780,14 +804,152 @@ globalThis.AtriumCollabCRDT = (() => {
     // The format stamp goes with each per-object check, so an object from a newer minor version is
     // judged as a load of that file would judge it (kept), not as this version's (forward compatibility).
     const shell = p => ({format: "atrium", version: 1, ...(typeof p.formatVersion === "string" ? {formatVersion: p.formatVersion} : {}), name: typeof p.name === "string" ? p.name : "Project"});
-    function ok(id, test) {
-      const x = objs.get(id), key = id + "@" + (x?.ver ?? 0) + "/" + libVer();
+    function ok(id, test, context) {
+      const x = objs.get(id), key = id + "@" + (x?.ver ?? 0) + "/" + context;
       if (verdicts.has(key)) return verdicts.get(key);
       let good = true; try { test(); } catch { good = false; stats.filtered++; }
       if (verdicts.size > 50000) verdicts = new Map();
       verdicts.set(key, good); return good;
     }
-    const libVer = () => { let v = 0; for (const id of kids.get(LIB) || []) v += objs.get(id).ver; return v; };
+    // FNV-1a over a string, as two 32-bit halves (verdict keys).
+    function digest(text) {
+      let a = 0x811c9dc5, b = 0x9747b28c;
+      for (let i = 0; i < text.length; i++) { const c = text.charCodeAt(i); a = Math.imul(a ^ c, 16777619); b = Math.imul(b ^ c, 0x5bd1e995); }
+      return (a >>> 0).toString(36) + (b >>> 0).toString(36) + text.length.toString(36);
+    }
+
+    // ---- the view, brought up to date for what an edit touched ---------------------------------
+    // The view is internal: project() hands out a copy and patches write copies, so nothing outside
+    // can change it. stale: the objects applied operations touched since it was last brought up to
+    // date. refresh() replaces exactly those objects and validates exactly those, which is the
+    // same verdict as validating the whole project when the previous view validated whole (clean)
+    // and nothing the touched objects' validity depends on changed outside them. Atrium.validate's
+    // checks that reach beyond one object, and how they are kept:
+    //   * unique ids: structural. Every id is one replica object with one parent register.
+    //   * a part needs its library definition (geometry for the document's kind), every item is
+    //     judged by its document's kind and by the forward-compatibility stamp (atriumCompat):
+    //     a touched library definition, a changed document kind or an atriumCompat key rebuilds.
+    //   * a panel or drawing has no items; a board with sourceHatchSignature needs a hatched track
+    //     (itemDependent): a touched item or field of such a document rebuilds.
+    //   * once something does not validate, the file-load fallback judges objects in other
+    //     contexts (shell documents, valid definitions only), so only a clean view is refreshed;
+    //     a touched object that fails validation rebuilds (and the fallback filters it).
+    // tests/project/collab-scoped-equivalence.cjs compares this with the full rebuild.
+    let stale = null, clean = false, viewDocs = null, viewItems = null, viewLib = null;
+    const itemDependent = d => (d.kind !== "pcb" && d.kind !== "schematic") || d.pcbDrawing?.sourceHatchSignature !== undefined;
+    function dirty(ids) {
+      if (!stale) { view = null; return; }
+      for (const id of ids) if (id) stale.add(id);
+    }
+    function current(tableOwner) {
+      if (view && stale && (!stale.size || refresh(stale, tableOwner))) { if (stale.size) stats.refreshed++; stale.clear(); return view; }
+      view = project(tableOwner); viewDocs = viewItems = viewLib = null; stats.rebuilt++;
+      stale = incremental ? new Set() : null;
+      return view;
+    }
+    function indexView() {
+      viewDocs = new Map(); viewItems = new Map(); viewLib = new Set(view.library.map(d => d.id));
+      for (const d of view.documents) { viewDocs.set(d.id, d); for (const i of d.items) viewItems.set(i.id, d); }
+    }
+    function placeIn(items, x) {
+      let lo = 0, hi = items.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (byPos(objs.get(items[mid].id), x) < 0) lo = mid + 1; else hi = mid; }
+      return lo;
+    }
+    function refresh(ids, tableOwner) {
+      if (!clean) return false;
+      if (!viewDocs) indexView();
+      let top = null;
+      const docEdits = new Map(), changes = [];
+      for (const id of ids) {
+        if (id === "#meta") { top = topLevel(); continue; }
+        const x = objs.get(id);
+        if (viewLib.has(id) || x?.parent === LIB) {
+          if (viewLib.has(id) || visible(x)) return false;   // definitions: parts depend on them
+          continue;
+        }
+        if (viewDocs.has(id)) {
+          if (!x || x.parent !== DOCS || !visible(x)) return false;
+          docEdits.set(id, fields(x)); continue;
+        }
+        if (x?.parent === DOCS) { if (visible(x)) return false; continue; }   // a new document
+        const was = viewItems.get(id), now = x && visible(x) ? viewDocs.get(x.parent) : undefined;
+        if (was || now) changes.push({x, id, was, now});
+      }
+      // Validate everything first; the view changes only when all of it is accepted.
+      if (top && own(top, COMPAT)) return false;
+      const scoped = new Map(), docOf = new Map();
+      for (const [id, f] of docEdits) {
+        const old = viewDocs.get(id);
+        if (f.kind !== old.kind || itemDependent(f) || itemDependent(old)) return false;
+        const copy = clone({...f, items: []});
+        scoped.set(copy, null); docOf.set(id, copy);
+      }
+      const added = new Map();
+      for (const c of changes) {
+        for (const d of [c.was, c.now]) if (d && (itemDependent(d) || itemDependent(docEdits.get(d.id) || d))) return false;
+        if (!c.now) continue;
+        c.f = fields(c.x, tableOwner);
+        let shell = docOf.get(c.now.id);
+        if (!shell) { shell = {id: c.now.id, kind: c.now.kind}; docOf.set(c.now.id, shell); }
+        if (scoped.get(shell) === null) shell.items.push(clone(c.f));   // a document validated whole
+        else { if (!scoped.has(shell)) scoped.set(shell, []); scoped.get(shell).push(clone(c.f)); }
+        if (!added.has(c.now)) added.set(c.now, []);
+        added.get(c.now).push(c);
+      }
+      if (validate) {
+        try {
+          if (top) validate({...top, library: view.library, documents: view.documents}, {normalize: false, scoped: new Map()});
+          if (scoped.size) validate({format: "atrium", version: 1, name: "Project", library: view.library, documents: [...scoped.keys()]}, {normalize: false, scoped});
+        } catch { return false; }
+      }
+      // Accepted: replace the touched objects in the view.
+      if (top) view = {...top, library: view.library, documents: view.documents};
+      for (const [id, f] of docEdits) {
+        const d = viewDocs.get(id);
+        for (const k of Object.keys(d)) if (k !== "items" && !own(f, k)) delete d[k];
+        for (const [k, v] of Object.entries(f)) d[k] = v;
+      }
+      if (docEdits.size) view.documents.sort((a, b) => byPos(objs.get(a.id), objs.get(b.id)));
+      // An item that stays between its untouched neighbours is replaced where it is.
+      for (const c of changes) if (c.was && c.was === c.now) {
+        const items = c.was.items, i = items.findIndex(it => it.id === c.id), l = items[i - 1], r = items[i + 1];
+        if ((!l || !ids.has(l.id) && byPos(objs.get(l.id), c.x) < 0) && (!r || !ids.has(r.id) && byPos(c.x, objs.get(r.id)) < 0)) {
+          items[i] = c.f; c.was = c.now = null;
+        }
+      }
+      // Membership and order: removals, then insertions at the keys' places. Each list's change is
+      // logged ({to, removed: [[old index, id]] descending, added: [[new index, id]] ascending}) so
+      // an editor list that matched the previous shape can replay it (preparePatch).
+      const moves = new Map(), log = d => { if (!moves.has(d)) moves.set(d, {removed: [], added: []}); return moves.get(d); };
+      for (const c of changes) if (c.was) { log(c.was).removed.push(c.id); viewItems.delete(c.id); }
+      for (const c of changes) if (c.now) { log(c.now).added.push(c); viewItems.set(c.id, c.now); }
+      for (const [d, m] of moves) {
+        const gone = new Set(m.removed), at = [];
+        if (gone.size <= 8) for (const id of gone) at.push([d.items.findIndex(i => i.id === id), id]);
+        else d.items.forEach((i, k) => { if (gone.has(i.id)) at.push([k, i.id]); });
+        at.sort((a, b) => b[0] - a[0]);
+        const list = m.added.sort((a, b) => byPos(a.x, b.x)), small = at.length + list.length <= 32;
+        let kept = d.items;
+        if (small) for (const [k] of at) kept.splice(k, 1);
+        else if (at.length) { const drop = new Set(at.map(r => r[0])); kept = kept.filter((_, n) => !drop.has(n)); }
+        // Where each added item goes among the kept ones (non-decreasing, as the list is sorted).
+        const places = list.map(c => placeIn(kept, c.x));
+        if (small) { list.forEach((c, j) => kept.splice(places[j] + j, 0, c.f)); d.items = kept; }
+        else {
+          const out = new Array(kept.length + list.length);
+          for (let i = 0, j = 0, w = 0; w < out.length;) out[w++] = j < list.length && places[j] === i ? list[j++].f : kept[i++];
+          d.items = out;
+        }
+        shapes.set(d, (shapes.get(d) || 0) + 1);
+        changeLog.set(d, {to: shapes.get(d), removed: at, added: list.map((c, j) => [places[j] + j, c.id])});
+      }
+      return true;
+    }
+    // Lists whose membership or order changed: shapes counts each change of a view list, synced
+    // records the shape an editor list is known to match, changeLog the last change of each view
+    // list. An editor list one change behind replays it instead of comparing the whole list.
+    const shapes = new WeakMap(), synced = new WeakMap(), changeLog = new WeakMap();
 
     // ---- local edits ---------------------------------------------------------------------
     function stamp(op) { op.ts = {c: ++clock, r: replica}; op.n = ++seqNo; return op; }
@@ -799,6 +961,12 @@ globalThis.AtriumCollabCRDT = (() => {
         cur.library = keep(cur.library);
         cur.documents = keep(cur.documents).map(d => ({...d, items: keep(d.items)}));
       }
+      diffMeta(ops, cur, next);
+      diffList(ops, LIB, cur.library, next.library || [], false);
+      diffList(ops, DOCS, cur.documents, next.documents || [], true);
+      return ops;
+    }
+    function diffMeta(ops, cur, next) {
       for (const k of new Set([...Object.keys(cur), ...Object.keys(next)])) {
         if (k === "documents" || k === "library" || k === COMPAT) continue;
         if (k === "review") {
@@ -812,9 +980,6 @@ globalThis.AtriumCollabCRDT = (() => {
         }
         if (canon(cur[k]) !== canon(next[k])) ops.push({t: "meta", k, ...(next[k] === undefined ? {} : {v: clone(next[k])})});
       }
-      diffList(ops, LIB, cur.library, next.library || [], false);
-      diffList(ops, DOCS, cur.documents, next.documents || [], true);
-      return ops;
     }
     function diffWidgetLists(ops, next, cur) {
       if (next.widget === cur.widget) return;
@@ -951,7 +1116,7 @@ globalThis.AtriumCollabCRDT = (() => {
     // The Undo journal certifies that the item lists, their order and non-item
     // fields stayed unchanged. Use the same field, child and vertex operation builder
     // as the full diff, including its document/list order (and thus its stamps).
-    function diffUpdates(next, updates) {
+    function diffUpdates(next, updates, structure) {
       if (!updates || hidden.size || next[COMPAT]) return null;
       const items = [];
       for (const {doc, before, after} of updates) {
@@ -965,6 +1130,7 @@ globalThis.AtriumCollabCRDT = (() => {
         if (!equal?.(shared, before) && canon(shared) !== canon(before)) return null;
         items.push({x, parent, shared, after});
       }
+      if (structure?.length) return diffStructure(structure, items);
       items.sort((a, b) => a.parent === b.parent ? byPos(a.x, b.x) : byPos(a.parent, b.parent));
       const ops = [];
       for (const item of items) {
@@ -972,6 +1138,119 @@ globalThis.AtriumCollabCRDT = (() => {
         diffFields(ops, item.after, item.shared, false);
       }
       return ops;
+    }
+    // Items added to, removed from or moved within a document, as the Undo journal records them
+    // ({doc, items: the live list, added: [item], removed: [id]}), with the items changed in place.
+    // The ops are the full diff's (diffList), in its order: per document, rem for each removed
+    // item, pos, add (revived) or addOp for each run of added items with the fractional keys
+    // keysForOrder gives the run between its two unchanged neighbours, then the field diffs in
+    // list order. check() confirms after applying that the replica holds each touched item as the
+    // editor does, in order (otherwise the next commit compares the whole project).
+    function diffStructure(structure, inPlace) {
+      const perDoc = new Map(), checks = [];
+      const group = doc => { if (!perDoc.has(doc)) perDoc.set(doc, {rems: [], places: [], jobs: []}); return perDoc.get(doc); };
+      for (const item of inPlace) group(item.parent.id).jobs.push({key: item.x.pos.v, id: item.x.id, run() {
+        const ops = []; diffWidgetLists(ops, item.after, item.shared); diffFields(ops, item.after, item.shared, false); return ops;
+      }});
+      for (const {doc, items, added, removed} of structure) {
+        const parent = objs.get(doc), inDoc = x => !!x && x.parent === doc && visible(x);
+        if (!parent || parent.parent !== DOCS || !visible(parent) || !Array.isArray(items) || !Array.isArray(added) || !Array.isArray(removed)) return null;
+        const g = group(doc), present = new Set(added.map(o => o?.id)), gone = [];
+        for (const id of removed) {
+          if (present.has(id)) continue;   // replaced by another object with the same id
+          const x = objs.get(id);
+          if (!inDoc(x)) return null;
+          gone.push(x);
+          checks.push(() => !inDoc(objs.get(id)));
+        }
+        gone.sort(byPos);
+        for (const x of gone) g.rems.push({t: "rem", o: x.id, tags: live(x.id)});
+        if (!added.length) continue;
+        let at;
+        if (added.length > 16) { const m = new Map(); items.forEach((o, i) => m.set(o, i)); at = added.map(o => m.get(o)); }
+        else at = added.map(o => items.lastIndexOf(o));
+        at.sort((a, b) => a - b);
+        if (at.some((i, k) => i === undefined || i < 0 || at[k - 1] === i)) return null;
+        for (let k = 0; k < at.length;) {
+          let end = k; while (end + 1 < at.length && at[end + 1] === at[end] + 1) end++;
+          const from = at[k], to = at[end], run = items.slice(from, to + 1);
+          const left = from > 0 ? items[from - 1] : null, right = to + 1 < items.length ? items[to + 1] : null;
+          const L = left && objs.get(left.id), R = right && objs.get(right.id);
+          if (left && !inDoc(L) || right && !inDoc(R) || L && R && L.pos.v >= R.pos.v) return null;
+          if (run.some(o => !isObj(o) || typeof o.id !== "string")) return null;
+          // Items of the run that already sit between the neighbours keep their keys when in order.
+          const between = run.map(o => objs.get(o.id)).filter(x => inDoc(x) && (!L || byPos(L, x) < 0) && (!R || byPos(x, R) < 0));
+          const positions = new Map(between.map(x => [x.id, x.pos.v]));
+          const stay = new Set(lis(between, [...between].sort(byPos)));
+          const window = [...(left ? [left] : []), ...run, ...(right ? [right] : [])];
+          if (left) { stay.add(left.id); positions.set(left.id, L.pos.v); }
+          if (right) { stay.add(right.id); positions.set(right.id, R.pos.v); }
+          const keys = keysForOrder(window, stay, positions);
+          if ((left && keys[0] !== L.pos.v) || (right && keys.at(-1) !== R.pos.v) || keys.some((key, i) => i && !(keys[i - 1] < key))) return null;
+          run.forEach((o, i) => {
+            const pos = keys[i + (left ? 1 : 0)], x = objs.get(o.id);
+            if (inDoc(x)) { if (pos !== x.pos.v) g.places.push({t: "pos", o: o.id, v: pos}); }
+            else if (x) g.places.push({t: "add", o: o.id, p: doc, tag: "", pos});
+            else g.places.push(addOp(o, doc, pos, false));
+            g.jobs.push({key: pos, id: o.id, run() {
+              const ops = [];
+              if (x) { const was = fields(x); diffWidgetLists(ops, o, was); diffFields(ops, o, was, false); }
+              else diffWidgetLists(ops, o, {});
+              return ops;
+            }});
+          });
+          checks.push(() => {
+            const xs = window.map(o => objs.get(o.id));
+            return xs.every((x, i) => inDoc(x) && (!i || byPos(xs[i - 1], x) < 0)) &&
+              run.every(o => canon(fields(objs.get(o.id))) === canon(o));
+          });
+          k = end + 1;
+        }
+      }
+      // Field diffs read the replica before any of this batch applies, as the full diff does.
+      const ops = [];
+      for (const doc of [...perDoc.keys()].sort((a, b) => byPos(objs.get(a), objs.get(b)))) {
+        const g = perDoc.get(doc);
+        g.jobs.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        ops.push(...g.rems, ...g.places);
+        for (const job of g.jobs) ops.push(...job.run());
+      }
+      Object.defineProperty(ops, "check", {value: () => checks.every(f => f())});
+      return ops;
+    }
+    // After a full diff: the replica holds what the diff targeted as the editor does. Only an
+    // operation without effect (an owner-only format key, say) leaves them apart.
+    function agrees(next, ops) {
+      if (hidden.size || next[COMPAT]) return true;   // set-aside objects: every commit is a full diff
+      const targets = new Set(ops.map(operationTarget));
+      if (targets.has("#meta")) {
+        const metaOps = [];
+        try { diffMeta(metaOps, topLevel(), next); } catch { return false; }
+        if (metaOps.length) return false;
+        targets.delete("#meta");
+      }
+      if (!targets.size) return true;
+      const docs = new Map((next.documents || []).map(d => [d.id, d])), library = new Map((next.library || []).map(d => [d.id, d]));
+      const lists = new Map();
+      const itemOf = (doc, id) => {
+        if (!lists.has(doc)) lists.set(doc, new Map((docs.get(doc)?.items || []).map(i => [i.id, i])));
+        return lists.get(doc).get(id);
+      };
+      const without = o => { const {items, ...rest} = o; return rest; };
+      for (const id of targets) {
+        const x = objs.get(id);
+        if (!x) return false;
+        const shown = visible(x);
+        if (docs.has(id) || x.parent === DOCS) {
+          if (!shown || x.parent !== DOCS || !docs.has(id) || canon(fields(x)) !== canon(without(docs.get(id)))) return false;
+        } else if (library.has(id) || x.parent === LIB) {
+          if (!shown || x.parent !== LIB || !library.has(id) || canon(fields(x)) !== canon(library.get(id))) return false;
+        } else {
+          const inDoc = shown && objs.get(x.parent)?.parent === DOCS, want = docs.has(x.parent) ? itemOf(x.parent, id) : undefined;
+          if (inDoc !== !!want || want && canon(fields(x)) !== canon(want)) return false;
+        }
+      }
+      return true;
     }
     // Remember one exact editor projection. The object's existing version
     // invalidates it on any local or peer change to the owner or its children.
@@ -998,7 +1277,7 @@ globalThis.AtriumCollabCRDT = (() => {
     // Stamps and applies a group of local ops; inserts chained after other new inserts get the
     // ids the stamps produce. Undo needs just this author's previous contribution.
     function local(ops, record = true) {
-      const group = [];
+      const group = [], touched = new Set();
       const dependencies = dependenciesBefore(ops), projections = new Set();
       for (const op of ops) {
         const path = widgetPath(op.o);
@@ -1012,12 +1291,13 @@ globalThis.AtriumCollabCRDT = (() => {
           const entry = op.t === "add" ? {t: op.t, o: op.o, n: op.n, ts: op.ts, p: op.p, pos: op.pos} : op;
           group.push({op: entry, prev: before(op)});
         }
-        apply(op);
+        touched.add(apply(op));
       }
       for (const op of ops) if (op.t === "ins" && typeof op.after === "object" && op.after) op.after = op.after.e;
-      view = null;
+      const related = [...new Set([...changedDependencies(dependencies), ...projections])];
+      dirty(touched); dirty(related);
       if (record && group.length) { undoStack.push(group); if (undoStack.length > LIMITS.undo) undoStack.shift(); redoStack = []; }
-      return [...new Set([...changedDependencies(dependencies), ...projections])];
+      return related;
     }
     function ownValue(reg) {
       const w = contribution(reg, replica);
@@ -1038,29 +1318,33 @@ globalThis.AtriumCollabCRDT = (() => {
       };
       return null;
     }
-    let verifyNextDiff = false;
-    /** @param {any} next @param {{recordUndo?: boolean, updates?: Array<{doc:string, before:any, after:any, tableEdit?:{id:string, before:any, after:any, beforeJSON:string, afterJSON:string, beforeVersion?:object, afterVersion?:object}}>, reconcile?: (ops:any[]) => boolean | Set<string>}} [options] */
-    function commit(next, {recordUndo = true, updates, reconcile} = {}) {
-      const tableOps = diffTableEdit(next, updates), scoped = tableOps ?? diffUpdates(next, updates);
-      let ops = scoped && !verifyNextDiff ? scoped : diff(next);
-      // A structural or legacy edit can be unrepresentable (for example an
-      // owner-only format field). Re-establish agreement with the full diff
-      // before relying on a subsequent journal range.
-      verifyNextDiff = !scoped || (ops !== scoped && (ops.length !== scoped.length ||
-        ops.some((op, i) => op.after && typeof op.after === "object" || canon(op) !== canon(scoped[i]))));
+    // verify: the last commit could not confirm that the replica holds the editor's project, so
+    // the next one compares the whole project (diff) before relying on a journal range again.
+    let verify = false;
+    /** @param {any} next @param {{recordUndo?: boolean, updates?: Array<{doc:string, before:any, after:any, tableEdit?:{id:string, before:any, after:any, beforeJSON:string, afterJSON:string, beforeVersion?:object, afterVersion?:object}}>, structure?: Array<{doc:string, items:any[], added:any[], removed:string[]}>, reconcile?: (ops:any[]) => boolean | Set<string>}} [options] */
+    function commit(next, {recordUndo = true, updates, structure, reconcile} = {}) {
+      const tableOps = structure?.length ? null : diffTableEdit(next, updates), scoped = tableOps ?? diffUpdates(next, updates, structure);
+      let ops = scoped && !verify ? scoped : diff(next), shape = ops === scoped && scoped.check ? scoped : null;
       // A precise rollback can reject whole items and their children.
       // Looking at the live editor again could capture a later, unfinished drag.
       // A structural rollback can also change membership, order and dependencies.
       if (ops.length && reconcile) {
-        // The working editor may have adopted or subsequently edited a materialised value.
-        view = null;
         const rejected = reconcile(ops);
-        if (rejected instanceof Set && scoped && !verifyNextDiff) ops = scoped.filter(op => !rejected.has(operationTarget(op)));
-        else if (rejected) { ops = diff(next); verifyNextDiff = true; }
+        if (rejected instanceof Set && ops === scoped) ops = scoped.filter(op => !rejected.has(operationTarget(op)));
+        else if (rejected) { ops = diff(next); shape = null; }
       }
-      if (!ops.length) return null;
+      if (!ops.length) { verify = false; return null; }
+      // The editor's lists this commit reshaped and that matched the view before it (see synced).
+      const lists = shape && view && stale && !stale.size && viewDocs ? structure.map(e => [e.items, viewDocs.get(e.doc)])
+        .filter(([list, d]) => d && synced.get(list) === (shapes.get(d) || 0)) : [];
       const related = local(ops, recordUndo);
-      if (ops === tableOps && !verifyNextDiff) {
+      // A structural or legacy edit can be unrepresentable (for example an owner-only format
+      // field): confirm on what this commit touched that the replica now holds the editor's
+      // project; when it does not, the next commit compares the whole project.
+      verify = shape ? !shape.check() : ops === scoped ? false : !agrees(next, ops);
+      // The view now holds this edit (refresh, proportional to it): those editor lists match it.
+      if (lists.length && !verify && current() && viewDocs) for (const [list, d] of lists) if (viewDocs.get(d.id) === d) synced.set(list, shapes.get(d) || 0);
+      if (ops === tableOps && !verify) {
         const edit = updates[0].tableEdit, id = edit.id;
         verifiedTable = {id, ver: objs.get(id).ver, version: edit.afterVersion,
           json: edit.afterVersion === undefined ? edit.afterJSON : undefined};
@@ -1159,8 +1443,8 @@ globalThis.AtriumCollabCRDT = (() => {
       const touched = new Set(), dependencies = dependenciesBefore(checked);
       for (const op of checked) { const id = apply(op); if (id) touched.add(id); }
       if (touched.size) {
-        view = null;
         for (const id of changedDependencies(dependencies)) touched.add(id);
+        dirty(touched);
       }
       if (touched.size === 1 && checked.length === 1) {
         const [op] = checked, path = op.t === "set" && widgetPath(op.o);
@@ -1358,7 +1642,7 @@ globalThis.AtriumCollabCRDT = (() => {
         if (pos && pos.ts?.c !== -1) { x.pos = joinReg(x.pos, read(pos)); legacyWitness(pos.ts); }
         trackContainer(x); if (x.seqs.get("points")?.creations) trackPath(x);
       }
-      view = null; verifiedTable = undefined; referencedDefs = null; verdicts.clear();
+      view = null; stale = null; verifiedTable = undefined; referencedDefs = null; verdicts.clear();
     }
     // Reconnect after either side trimmed its log. Validate in isolation, then
     // join the complete snapshot with local/offline state and personal history.
@@ -1411,7 +1695,7 @@ globalThis.AtriumCollabCRDT = (() => {
       const lk = spread((p.library || []).length); (p.library || []).forEach((d, i) => add(d, LIB, lk[i], false));
       const dk = spread(p.documents.length);
       p.documents.forEach((d, i) => { add(d, DOCS, dk[i], true); const ik = spread(d.items.length); d.items.forEach((it, j) => add(it, d.id, ik[j], false)); });
-      view = null;
+      view = null; stale = null;
     }
     // {resume: true}: this replica's own trusted snapshot (a dry run), which continues its sequence.
     if (o.snapshot) load(o.snapshot, false, o.resume === true); else if (o.project) fromProject(o.project);
@@ -1437,49 +1721,165 @@ globalThis.AtriumCollabCRDT = (() => {
       return a.length !== b.length || canon(cell(a)) !== canon(cell(b));
     }
     function preparePatch(target, touched, observers) {
-      // Incoming values always go through the complete model/compatibility
-      // validator. It can set aside an *untouched* object after a dependency changes.
-      const hint = cellPatchHints.get(touched), p = view ??= project(hint?.item), touch = touched ? new Set(touched) : null;
+      // Incoming values always go through the complete model/compatibility validator: the whole
+      // project, or (current) the touched objects of a view that validated whole. A plan writes
+      // copies, so neither the editor nor the view can change the other.
+      const hint = cellPatchHints.get(touched), p = current(hint?.item), touch = touched ? new Set(touched) : null;
       const full = {apply: () => patchLists(target, p, touch, observers)};
       if (!touch || !sameIds(target.documents, p.documents) || !sameIds(target.library, p.library)) return full;
-      if (!sameFields(target, p, ["documents", "library"])) return full;
       for (let i = 0; i < p.library.length; i++) {
         const def = p.library[i];
         if (touch.has(def.id) && canon(target.library[i]) !== canon(def)) return full;
       }
-      const scopes = [], writes = [];
+      // Project keys (callers' touched sets do not name them: compare them all).
+      const top = [];
+      for (const k of new Set([...Object.keys(target), ...Object.keys(p)])) {
+        if (k === "documents" || k === "library") continue;
+        if (!own(p, k)) top.push([k]);
+        else if (!own(target, k) || canon(target[k]) !== canon(p[k])) top.push([k, p[k]]);
+      }
+      const where = stale && clean && view === p ? (viewItems || (indexView(), viewItems)) : null;
+      const placed = new Set();
+      if (where) for (const id of touch) { const d = where.get(id); if (d) placed.add(d.id); }
+      const scopes = [], writes = [], docWrites = [], lists = [], syncs = [];
       for (let d = 0; d < p.documents.length; d++) {
-        const doc = target.documents[d], wanted = p.documents[d].items, items = [];
-        if (touch.has(doc.id) && !sameFields(doc, p.documents[d], ["items"])) return full;
-        if (doc.items.length !== wanted.length) return full;
-        for (let i = 0; i < wanted.length; i++) {
-          const before = doc.items[i], after = wanted[i];
+        const doc = target.documents[d], want = p.documents[d], items = [];
+        let changed = false;
+        if (touch.has(doc.id) && !sameFields(doc, want, ["items"])) { docWrites.push([doc, want]); changed = true; }
+        const observe = observers?.get(doc.id), list = doc.items, wanted = want.items, shape = shapes.get(want) || 0;
+        let reorder = list.length !== wanted.length || !where || synced.get(list) !== shape;
+        if (!reorder && placed.has(doc.id)) for (const id of touch) {
+          if (where.get(id) !== want) continue;
+          const i = list.findIndex(it => it.id === id);
+          if (i < 0 || wanted[i]?.id !== id) { reorder = true; break; }
+        }
+        const replay = reorder && where && replayPlan(list, want, shape, touch, hint, observe, where);
+        if (replay) {
+          lists.push(replay); changed = true; syncs.push([list, shape]);
+          for (const w of replay.writes) { items.push(w.before); writes.push(w); }
+        } else if (reorder && (list.length !== wanted.length || (where ? placed.has(doc.id) : wanted.some(w => touch.has(w.id))))) {
+          // Membership or order may have changed: one pass over the list, untouched items in order.
+          const have = new Map();
+          for (const it of list) if (touch.has(it.id)) have.set(it.id, it);
+          const out = new Array(wanted.length), added = [];
+          let i = 0, same = list.length === wanted.length;
+          for (let j = 0; j < wanted.length; j++) {
+            const w = wanted[j];
+            if (touch.has(w.id)) {
+              const cur = have.get(w.id);
+              have.delete(w.id);
+              if (!cur) { out[j] = clone(w); added.push(out[j]); same = false; continue; }
+              out[j] = cur;
+              const changedWidget = tableCellDiffers(cur, w, hint);
+              if (changedWidget || canon(cur) !== canon(w)) { items.push(cur); writes.push({before: cur, after: w, observe, changedWidget}); }
+            } else {
+              while (i < list.length && touch.has(list[i].id)) i++;
+              if (list[i]?.id !== w.id) return full;
+              out[j] = list[i++];
+            }
+            if (out[j] !== list[j]) same = false;
+          }
+          while (i < list.length && touch.has(list[i].id)) i++;
+          if (i !== list.length) return full;
+          if (!same) { lists.push({list, out, added, removed: [...have.values()], observe}); changed = true; }
+          if (where) syncs.push([list, shape]);
+        } else if (!reorder) {
+          // The list matches: only the touched items, where they are.
+          if (where) syncs.push([list, shape]);
+          if (placed.has(doc.id)) for (const id of touch) {
+            if (where.get(id) !== want) continue;
+            const i = list.findIndex(it => it.id === id), before = list[i], after = wanted[i];
+            const changedWidget = tableCellDiffers(before, after, hint);
+            if (!changedWidget && canon(before) === canon(after)) continue;
+            items.push(before);
+            writes.push({before, after, observe, changedWidget});
+          }
+        } else for (let i = 0, last = wanted.length - 1; i <= last; i++) {
+          const before = list[i], after = wanted[i];
           if (before.id !== after.id) return full;
+          if (i === last && where) syncs.push([list, shape]);
           if (!touch.has(after.id)) continue;
           // A changed cell in the validated widget proves this field needs
           // replacement. Unchanged cells and other edits use the complete diff.
           const changedWidget = tableCellDiffers(before, after, hint);
           if (!changedWidget && canon(before) === canon(after)) continue;
           items.push(before);
-          writes.push({before, after, observe: observers?.get(doc.id), changedWidget});
+          writes.push({before, after, observe, changedWidget});
         }
-        if (items.length) scopes.push({doc, items});
+        if (items.length || changed) scopes.push({doc, items});
       }
+      if (top.length && !scopes.length) scopes.push({doc: target.documents[0], items: []});
       return {scopes, apply() {
+        for (const [k, v] of top) if (v === undefined) delete target[k]; else target[k] = clone(v);
+        for (const [doc, want] of docWrites) {
+          for (const k of Object.keys(doc)) if (k !== "items" && !own(want, k)) delete doc[k];
+          for (const [k, v] of Object.entries(want)) if (k !== "items" && (!own(doc, k) || canon(doc[k]) !== canon(v))) doc[k] = clone(v);
+        }
         for (const {before, after, observe, changedWidget} of writes) {
           observe?.(before, after);
           for (const k of Object.keys(before)) if (!own(after, k)) delete before[k];
           for (const [k, v] of Object.entries(after)) {
-            if (k === "widget" && changedWidget || !own(before, k) || canon(before[k]) !== canon(v)) before[k] = v;
+            if (k === "widget" && changedWidget || !own(before, k) || canon(before[k]) !== canon(v)) before[k] = clone(v);
           }
         }
+        // In place, as a local edit changes a list: caches keyed by the list stay valid.
+        for (const {list, out, added, removed, observe, at, to} of lists) {
+          if (observe) { for (const item of added) observe(null, item); for (const item of removed) observe(item, null); }
+          if (at) {   // a replayed change: removals (descending), then insertions (ascending)
+            if (at.length + to.length <= 32) { for (const [i] of at) list.splice(i, 1); for (const [i, item] of to) list.splice(i, 0, item); }
+            else {
+              const gone = new Set(at.map(([i]) => i)), kept = list.filter((_, i) => !gone.has(i));
+              list.length = kept.length + to.length;
+              for (let i = 0, j = 0, w = 0; w < list.length;) list[w++] = j < to.length && to[j][0] === w - 1 ? to[j++][1] : kept[i++];
+            }
+            continue;
+          }
+          for (let j = 0; j < out.length; j++) list[j] = out[j];
+          list.length = out.length;
+        }
+        for (const [list, shape] of syncs) synced.set(list, shape);
         return target;
       }};
+    }
+    // An editor list that matched the view list one change ago: the plan that replays that change
+    // (removals and insertions by index, checked against the ids) and the field writes of the
+    // touched items that stay; null when the list cannot be shown to match.
+    function replayPlan(list, want, shape, touch, hint, observe, where) {
+      const change = changeLog.get(want), wanted = want.items;
+      if (!change || change.to !== shape || synced.get(list) !== shape - 1) return null;
+      if (list.length - change.removed.length + change.added.length !== wanted.length) return null;
+      const before = new Map();
+      for (const [i, id] of change.removed) { if (list[i]?.id !== id) return null; before.set(id, list[i]); }
+      const writes = [], added = [], removed = [], to = [], placed = new Set();
+      for (const [i, id] of change.added) {
+        const w = wanted[i];
+        if (w?.id !== id) return null;
+        placed.add(id);
+        const cur = before.get(id);
+        before.delete(id);
+        if (!cur) { const item = clone(w); added.push(item); to.push([i, item]); continue; }
+        to.push([i, cur]);
+        const changedWidget = tableCellDiffers(cur, w, hint);
+        if (changedWidget || canon(cur) !== canon(w)) writes.push({before: cur, after: w, observe, changedWidget});
+      }
+      removed.push(...before.values());
+      // Touched items of this list that kept their place (a field edit beside the change).
+      const left = new Set(change.removed.map(r => r[1]));
+      for (const id of touch) {
+        if (where.get(id) !== want || placed.has(id) || left.has(id)) continue;
+        const i = list.findIndex(it => it.id === id);
+        if (i < 0) continue;
+        const x = objs.get(id), j = x ? placeIn(wanted, x) : -1, w = wanted[j];
+        if (w?.id !== id) return null;
+        const cur = list[i], changedWidget = tableCellDiffers(cur, w, hint);
+        if (changedWidget || canon(cur) !== canon(w)) writes.push({before: cur, after: w, observe, changedWidget});
+      }
+      return {list, at: change.removed, to, added, removed, observe, writes};
     }
     function patchLists(target, p, touch, observers) {
       const t = id => !touch || touch.has(id);
       for (const k of Object.keys(target)) if (k !== "documents" && k !== "library" && !own(p, k)) delete target[k];
-      for (const [k, v] of Object.entries(p)) if (k !== "documents" && k !== "library" && (!own(target, k) || canon(target[k]) !== canon(v))) target[k] = v;
+      for (const [k, v] of Object.entries(p)) if (k !== "documents" && k !== "library" && (!own(target, k) || canon(target[k]) !== canon(v))) target[k] = clone(v);
       const sync = (list, want, inner, docId) => {
         const have = new Map((list || []).map(o => [o.id, o]));
         const observe = touch && observers?.get(docId);
@@ -1488,8 +1888,8 @@ globalThis.AtriumCollabCRDT = (() => {
         const result = want.map(w => {
           const cur = have.get(w.id);
           if (observe && touch.has(w.id)) { removed.delete(w.id); observe(cur || null, w); }
-          if (!cur) return w;
-          if (t(w.id)) { for (const k of Object.keys(cur)) if (!(k in w) && !(inner && k === "items")) delete cur[k]; for (const [k, v] of Object.entries(w)) if (!(inner && k === "items")) cur[k] = v; }
+          if (!cur) return clone(w);
+          if (t(w.id)) { for (const k of Object.keys(cur)) if (!(k in w) && !(inner && k === "items")) delete cur[k]; for (const [k, v] of Object.entries(w)) if (!(inner && k === "items")) cur[k] = clone(v); }
           if (inner) cur.items = sync(cur.items, w.items, false, w.id);
           return cur;
         });
@@ -1502,13 +1902,16 @@ globalThis.AtriumCollabCRDT = (() => {
     }
 
     return {
-      replica, commit, receive, project: () => (view ??= project()), raw, preparePatch,
-      patch: (target, touched, observers) => preparePatch(target, touched, observers).apply(), diff, forgetHistoryThrough,
+      // project(): a copy of the view (the view itself is internal and kept between edits).
+      replica, commit, receive, project: () => clone(current()), raw, preparePatch,
+      // {full: true}: the complete list synchronisation (the reference the scoped plan is tested against).
+      patch: (target, touched, observers, {full = false} = {}) => full ? patchLists(target, current(), touched ? new Set(touched) : null, observers) : preparePatch(target, touched, observers).apply(),
+      diff, forgetHistoryThrough,
       // Objects the view leaves out (set aside or invalid): how many, and an edit that removes them.
-      hiddenCount: () => { view ??= project(); return hidden.size; },
+      hiddenCount: () => { current(); return hidden.size; },
       ownSeq: () => seqNo,   // this replica's edit count (create's o.ownSeq for a rejoin)
       discardHidden() {
-        view ??= project();
+        current();
         const ops = [...hidden].filter(id => objs.has(id)).map(id => ({t: "rem", o: id, tags: live(id)})).filter(op => op.tags.length);
         if (!ops.length) return null;
         const related = local(ops, true);
