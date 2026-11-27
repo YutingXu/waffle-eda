@@ -3455,7 +3455,7 @@ globalThis.AtriumRules = (() => {
 
   // The DRC feature kit (as AtriumConnectivity.kit): feature extraction, the broad phase, exact gaps and
   // rule resolution, for checks outside drc() (drc-pours.js, the certificate store) without source patches.
-  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
+  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceLimit,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
   return {kit,defaults,validate,setAside,check,open,rulesFor,scopeCopy,presetRuleKey,materializePresetRules,
     create,migrate,normalize,effective,drc,netLengths,staleTeardrops,fillPieces,
     query,resolver,sizeVia:A.preferredViaSize,netClasses,diffPairs,matchedGroups,detectDiffPairs,stored,store,neckLength,NECK_DEFAULT,

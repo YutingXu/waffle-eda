@@ -271,5 +271,24 @@ console.log("PASS fabrication copper freshness, scoped clearance and physical la
   P.apply(b,lib,o);
   assert.ok(!ink(b.pcbDrawing.pours,...at(.34))&&ink(b.pcbDrawing.pours,...at(.36)),"0.25 mm from the 0.1 mm barrel");
   assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
+  // No Hole cell, no hole clearance (rules.js clearanceLimit): a general gap wider than the
+  // Via-Poly cell does not reach past the land from the barrel, in the pour or in DRC.
+  AtriumProjectRules.edit(p,set=>{const c=set.list.find(r=>r.type==="clearance");c.gap=.2;c.objects={"via-poly":.127};});
+  assert.deepEqual(D.verify(b,lib,null,o).violations.filter(v=>v.what==="Hole clearance"),[],"no hole clearance without a Hole cell");
+  P.apply(b,lib,o);
+  assert.ok(!ink(b.pcbDrawing.pours,...at(.27))&&ink(b.pcbDrawing.pours,...at(.29)),"the land's 0.127 mm governs without a Hole cell");
+  assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
+}
+{
+  // The hole cut follows the land's real outline: a custom land whose drill sits 0.2 mm from its
+  // edge (its box is 2 × 1 mm) still keeps the Poly-Hole cell there, and DRC agrees with the fill.
+  const zone=plane("custom",box(2,2,28,18),{removeDeadCopper:false});
+  const land={id:"c",kind:"pad",net:"SIG",layer:"Multi",x:15,y:10,w:2,h:1,drill:.3,shape:"custom",number:"1",
+    poly:[[-.2,-.5],[1.8,-.5],[1.8,.5],[-.2,.5]]};
+  const {p,b,o,lib}=example([zone,land]);
+  AtriumProjectRules.edit(p,set=>{const c=set.list.find(r=>r.type==="clearance");c.gap=.127;c.objects={"th-poly":.127,"poly-hole":.3};});
+  P.apply(b,lib,o);
+  assert.ok(!ink(b.pcbDrawing.pours,14.57,10)&&ink(b.pcbDrawing.pours,14.53,10),"0.3 mm from the 0.15 mm barrel, past the land's 0.127 mm");
+  assert.deepEqual(D.verify(b,lib,null,o).violations,[]);
 }
 console.log("PASS authored hatch and negative split plane copper, slots and thermals");

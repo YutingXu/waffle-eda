@@ -155,8 +155,9 @@ globalThis.AtriumDRCPours = (() => {
           };
           if (report(gapTo(plane ? f.planeHole : f, rings, grid, need), need, plane ? "Plane clearance" : "Pour clearance")) continue;
           // The barrel of a drilled object keeps the rule's hole cell (Poly-Hole) from the pour as well,
-          // wherever that reaches past its land (as the pour engine cuts it).
-          const holeNeed = !plane && f.planeHole ? K.clearanceGap(r, "poly", "hole") : 0;
+          // wherever that reaches past its land (as the pour engine cuts it), where the rule authors
+          // one (rules.js clearanceLimit: no Hole cell, no hole clearance).
+          const holeNeed = !plane && f.planeHole ? K.clearanceLimit(r, "poly", "hole") ?? 0 : 0;
           if (holeNeed > need + K.EPS) report(gapTo(f.planeHole, rings, grid, holeNeed), holeNeed, "Hole clearance", true);
         }
       }

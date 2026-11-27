@@ -1327,7 +1327,34 @@ globalThis.AtriumPolygonPour=(()=>{
       m=Math.max(m,(g.expansion||0)+(g.airGap||0)+(g.width||0));
     return m;
   }
+  // clearanceFor(doc, polygon, options)(net, kind, item, parent, at, core, radius): the gap the
+  // polygon keeps from an object; .holeCell(net, item, parent, at, core, radius): the Clearance
+  // rule's Polygon-Hole cell for a drilled object's barrel, or null where no rule authors one.
   function clearanceFor(doc,poly,options){
+    return Object.assign(clearanceGapFor(doc,poly,options),{holeCell:holeCellFor(doc,poly,options)});
+  }
+  // As rules.js clearanceLimit and Altium: a hole keeps a clearance of its own only where the
+  // winning rule names the Hole cell (Altium has no Hole object before AD20, and its single-value
+  // rules never put a barrel farther out than its land). The polygon's own clearance (a KiCad zone's)
+  // replaces the rule's gaps, not its hole cell: KiCad keeps hole_clearance from zones as well.
+  function holeCellFor(doc,poly,options){
+    const none=()=>null;
+    if(finite(options.clearance)||typeof options.clearanceFor==="function")return none;
+    const rules=pourRules(doc,options),R=globalThis.AtriumRules,K=R?.kit,native=Array.isArray(rules?.list);
+    if(!K?.clearanceLimit)return none;
+    // A polygon with its own clearance reads the rules the connect context compiled, if any.
+    const compiled=options.connect?.compiled||(poly.clearance==null&&(!rules||rules.version===1||native)&&R.compiled(doc,{rules,defs:options.defs,project:options.project}));
+    const list=compiled?.clearanceReady?compiled.byType.clearance:[],cell=K.clearKey("poly","hole");
+    if(!list.some(r=>own(r.objects,cell)))return none;
+    const subject=K.copperSubject(options.owner||poly,null,"polygon");
+    return (net,item,parent,at,core,radius=0)=>{
+      const other=K.copperSubject(item||{kind:"pad",layer:poly.layer,net},parent,item?.kind||"pad",at);
+      other.ck="hole";other.net=net;
+      if(core?.length)Object.assign(other,K.feature({},core,radius));
+      return K.clearanceLimit(compiled.clearanceRule(subject,other),"poly","hole");
+    };
+  }
+  function clearanceGapFor(doc,poly,options){
     if(finite(options.clearance))return ()=>options.clearance;
     if(poly.clearance!=null)return ()=>poly.clearance;
     if(typeof options.clearanceFor==="function")return (net,kind)=>{const v=options.clearanceFor(net,poly.net,poly,kind);return finite(v)?v:.2;};
@@ -1584,6 +1611,23 @@ globalThis.AtriumPolygonPour=(()=>{
   function spokeOrigin(pc,dir){
     if(!pc.slot)return pc.center;
     return pc.core.reduce((a,b)=>a[0]*dir[0]+a[1]*dir[1]>b[0]*dir[0]+b[1]*dir[1]?a:b);
+  }
+  // Whether a barrel's hole clearance h reaches past its land's clearance c anywhere. The drill core
+  // grown by its radius + h lies within the land grown by c where radius + h <= c + the depth of the
+  // drill core inside the land (the least distance from it to the land's outline, along a slot too):
+  // from the land's real outline, so an offset drill or a narrow custom land is cut where it needs.
+  function holeReach(drill,h,pc,c){
+    const core=drill.core,a=core[0],b=core[core.length-1];let depth=Infinity;
+    for(let i=0;i<=(core.length>1?8:0);i++){const t=i/8;depth=Math.min(depth,landDepth(pc,[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]));}
+    return drill.radius+h>c+depth+1e-9;
+  }
+  // The distance from q to the outline of the land core ⊕ radius, negative outside it.
+  function landDepth(pc,q){
+    const core=pc.core,n=core.length;let d=Infinity;
+    const seg=(a,b)=>{const ex=b[0]-a[0],ey=b[1]-a[1],l=ex*ex+ey*ey,t=l>0?Math.max(0,Math.min(1,((q[0]-a[0])*ex+(q[1]-a[1])*ey)/l)):0;return Math.hypot(a[0]+t*ex-q[0],a[1]+t*ey-q[1]);};
+    if(n<3){d=seg(core[0],core[n-1]);return pc.radius-d;}
+    for(let i=0;i<n;i++)d=Math.min(d,seg(core[i],core[(i+1)%n]));
+    return ringHas(core.flatMap(v=>[+v[0],+v[1]]),q[0],q[1])?pc.radius+d:pc.radius-d;
   }
   // A rectangle (four corners, either winding) grown by d with square corners (flat), or null for
   // any other quadrilateral.
@@ -1895,9 +1939,9 @@ globalThis.AtriumPolygonPour=(()=>{
       // A plated barrel of another net also keeps the rule's hole clearance (Altium's Poly-Hole
       // cell), measured from the drill, wherever that reaches past the land's own clearance. Only
       // a gap that shapes copper enters the clearance trace (pour signatures stay as they were).
-      if(pc.drill>0){
-        const drill=drilledShape(p,pc),h=gapFor(itemNet,"hole",p,parent,drill.center,drill.core,drill.radius);
-        if(h>c+1e-9&&(drill.slot||drill.radius+h>Math.min(pc.w,pc.h)/2+c+1e-9)){trace?.(h);obstacle(drill.core,drill.radius,h);}
+      if(pc.drill>0&&!P.powerPlane){
+        const drill=drilledShape(p,pc),h=gapFor.holeCell(itemNet,p,parent,drill.center,drill.core,drill.radius);
+        if(h!=null&&h>c+1e-9&&holeReach(drill,h,pc,c)){trace?.(h);obstacle(drill.core,drill.radius,h);}
       }
     }
     function text(x,y,angle,size,str,itemNet,item,frame){
