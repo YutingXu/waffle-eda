@@ -1,6 +1,6 @@
 "use strict";
 // Web links in Properties and on the sheet (run by integration-browser.cjs, --links-only):
-// a part's URL parameters are listed under Links, on the sheet and on the board (from its linked
+// a part's URL parameters are listed under Web links, on the sheet and on the board (from its linked
 // schematic part), and open through the host's external-link opener; a hyperlinked text shows and
 // edits its URL and opens it on Cmd/Ctrl+click. Values are made up.
 const assert = require("node:assert/strict");
@@ -28,14 +28,14 @@ module.exports = async function partLinks(browser) {
       sheet.items.push(text);
       return {sheet: sheet.id, part: part.id, link: part.link, text: text.id};
     }, {DATASHEET, VENDOR, TEXT_URL});
-    const links = () => page.evaluate(() => [...document.querySelectorAll("#inspector .ui-list[aria-label=Links] .ui-row")].map(r => [r.querySelector(".ui-row-title").textContent, r.title || r.dataset.tooltip]));
+    const links = () => page.evaluate(() => [...document.querySelectorAll("#inspector .ui-list[aria-label='Web links'] .ui-row")].map(r => [r.querySelector(".ui-row-title").textContent, r.title || r.dataset.tooltip]));
 
-    // The sheet: Links lists the description and the parameter name; the unsafe value is not a link.
+    // The sheet: Web links lists the description and the parameter name; the unsafe value is not a link.
     await page.evaluate(t => { AtriumNavHost.selectDocument(t.sheet); AtriumNavHost.select([t.part]); }, target);
-    await page.locator("#inspector .ui-list[aria-label=Links] .ui-row").first().waitFor();
+    await page.locator("#inspector .ui-list[aria-label='Web links'] .ui-row").first().waitFor();
     assert.deepEqual(await links(), [["Vendor page", VENDOR], ["Datasheet URL", DATASHEET]]);
-    await page.locator("#inspector .ui-list[aria-label=Links] .ui-row").first().click();
-    assert.deepEqual(await page.evaluate(() => opened.splice(0)), [VENDOR], "a Links row opens through the host");
+    await page.locator("#inspector .ui-list[aria-label='Web links'] .ui-row").first().click();
+    assert.deepEqual(await page.evaluate(() => opened.splice(0)), [VENDOR], "a Web links row opens through the host");
     // It reads as a link: link ink and pointer on the title, a muted host line; Enter opens it too.
     const look = await page.evaluate(() => {
       const row = document.querySelector("#inspector a.part-link[href]"), title = row.querySelector(".ui-row-title"), detail = row.querySelector(".ui-row-detail");
@@ -53,7 +53,7 @@ module.exports = async function partLinks(browser) {
       const H = AtriumNavHost, board = H.project().documents.find(d => d.kind === "pcb");
       H.selectDocument(board.id); H.select([board.items.find(i => i.kind === "part" && i.link === t.link).id]);
     }, target);
-    await page.waitForFunction(() => AtriumNavHost.doc().kind === "pcb" && document.querySelectorAll("#inspector .ui-list[aria-label=Links] .ui-row").length === 2);
+    await page.waitForFunction(() => AtriumNavHost.doc().kind === "pcb" && document.querySelectorAll("#inspector .ui-list[aria-label='Web links'] .ui-row").length === 2);
     assert.deepEqual(await links(), [["Vendor page", VENDOR], ["Datasheet URL", DATASHEET]]);
 
     // The hyperlinked text: its URL is a field, with an Open link row.
@@ -90,6 +90,11 @@ module.exports = async function partLinks(browser) {
     // Clearing the field removes the link, in one undo step.
     await field.fill(""); await field.press("Enter");
     assert.equal(await page.evaluate(id => AtriumNavHost.doc().items.find(i => i.id === id).url, at), undefined);
+    // A text without a URL still offers the field, so a link can be added.
+    await page.evaluate(id => AtriumNavHost.select([id]), at);
+    await field.waitFor();
+    await field.fill(TEXT_URL); await field.press("Enter");
+    assert.equal(await page.evaluate(id => AtriumNavHost.doc().items.find(i => i.id === id).url, at), TEXT_URL, "a URL can be added in Properties");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 };

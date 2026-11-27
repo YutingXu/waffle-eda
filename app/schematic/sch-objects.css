@@ -28,7 +28,7 @@
 #inspector .sch-param-add input {min-width:0;height:var(--ctl-h)}
 #inspector .sch-param-add button {grid-column:1 / -1}
 
-/* Properties › Links (sch-object-inspector.js): list rows that are external text links. The title
+/* Properties › Web links (sch-object-inspector.js): list rows that are external text links. The title
    takes the link ink with an outward arrow; the host line stays muted. */
 #inspector a.part-link {text-decoration:none}
 #inspector a.part-link .ui-row-title {display:flex;align-items:center;gap:var(--s-4);color:var(--accent-text)}

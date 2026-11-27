@@ -944,9 +944,10 @@
       const def=defs.get(item.def),editItem=fn=>edit(fn,undefined,[item]),board=pcb()&&item.kind==="part";const s=section(panel,item.kind==="part"?item.ref:globalThis.AtriumSchObjects?.isFrame(item)?"Frame":item.calculation?"Calculation":propLabel[item.kind]||"Object");
       // group(key): a named section in a fixed order, whoever asks first; another key is s. A module that
       // loads after shell.js has made the section collapsible gets its body, so its rows collapse too.
-      const order=board?["Placement","Show on board","3D body","Parameters"]:pcb()&&item.kind==="track"?["Mask expansion"]:[],at={};
+      const order=board?["Placement","Show on board","3D body","Parameters","Web links"]:item.kind==="part"?["Web links"]:pcb()&&item.kind==="track"?["Mask expansion"]:[],at={};
       const group=(key,node)=>{if(!order.includes(key))return s;const g=at[key]||=((order.slice(0,order.indexOf(key)).reverse().map(k=>at[k]).find(Boolean)||s).after(node||=section(document.createDocumentFragment(),key)),node);
         return g.querySelector(":scope > .ui-collapse > .ui-collapse-content")||g;};
+      let linkedParts=null;
       if(item.kind==="part"){
         if(pcb()&&!globalThis.AtriumSupportPlace)globalThis.AtriumLazy?.need?.("AtriumSupportPlace").catch(()=>{});
         const lib=board?["Footprint",def.footprint.name||def.name]:["Symbol",def.name];
@@ -957,6 +958,7 @@
         if(board)row(s,...lib);
         const otherDocs=project.documents.filter(x=>x.kind!==d.kind);
         const matches=otherDocs.flatMap(x=>x.items.filter(y=>item.link&&y.link===item.link).map(y=>[x,y]));
+        linkedParts=matches.map(([,y])=>y).filter(y=>y.kind==="part");
         const go=async()=>{
           const owner=doc(), version=selectionVersion;
           let probe=globalThis.AtriumCrossProbe;
@@ -968,7 +970,7 @@
         else if(matches.length)s.append(inspectorButton("Show on board",go));
         else if(!pcb()){s.append(inspectorButton("Place footprint on board",()=>{focusedPart=item;if(def.footprint)placeLinked(def);else {swapFootprint=item;showLibrary("pcb");}}));}
       }
-      if(globalThis.AtriumSchObjects){if(item.kind==="part")AtriumSchObjects.partParameters(panel,item,def,schCtx(editItem));else if(!pcb()&&AtriumSchObjects.KINDS.has(item.kind))AtriumSchObjects.inspector(s,item,schCtx(editItem));}
+      if(globalThis.AtriumSchObjects){if(item.kind==="part")AtriumSchObjects.partParameters(panel,item,def,{...schCtx(editItem),linked:linkedParts,place:node=>group("Web links",node)});else if(!pcb()&&AtriumSchObjects.KINDS.has(item.kind))AtriumSchObjects.inspector(s,item,schCtx(editItem));}
       if(item.kind==="label"&&pcb()&&globalThis.AtriumPCBText)AtriumPCBText.inspector(s,item,fn=>editItem(()=>fn(item)),unit(),{info});
       else if(item.kind==="label"||item.kind==="netlabel")field(s,"Text",item.text,v=>editItem(()=>{item.text=v;if(item.autoName)delete item.autoName;}));
       if(!pcb())globalThis.AtriumSchObjects?.directives?.(s,item,schCtx(editItem));

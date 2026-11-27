@@ -82,25 +82,34 @@ globalThis.AtriumSchObjectInspector = (() => {
     path.setAttribute("d", "M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4");
     svg.append(path); return svg;
   }
-  // A part's links: its own and its library parameters, then on the other side of the design
+  // A part's web links: its own and its library parameters, then on the other side of the design
   // the linked part's (a board footprint shows the links of its schematic symbol, as in Altium).
+  // Titled "Web links", apart from the Links section of Waffle links between objects (links-ui.js).
+  // c.linked: the parts linked to this one, which the editor already found for Show on board / in
+  // schematic, so the section scans no documents; without it, the other documents are searched.
+  // c.place(section): the section's slot in the inspector's group order (editor.js), else the panel's end.
+  const linkable = i => globalThis.AtriumSchObjects.linkable(i);
   function partLinks(panel, part, def, c, {el}) {
     const defs = c.defs?.(), other = [];
-    for (const d of c.project()?.documents || []) if (d !== c.doc() && part.link)
-      for (const i of d.items) if (i.kind === "part" && i.link === part.link) other.push(i.parameters, defs?.get(i.def)?.parameters);
+    const linked = Array.isArray(c.linked) ? c.linked : !part.link ? [] :
+      (c.project()?.documents || []).flatMap(d => d === c.doc() ? [] : d.items.filter(i => i.kind === "part" && i.link === part.link));
+    for (const i of linked) other.push(i.parameters, defs?.get(i.def)?.parameters);
     const links = linksOf(part.parameters, def?.parameters, ...other);
     if (!links.length) return;
     const s = el("section", null, "inspect-section"), list = el("div", null, "ui-list");
-    list.setAttribute("role", "list"); list.setAttribute("aria-label", "Links");
+    list.setAttribute("role", "list"); list.setAttribute("aria-label", "Web links");
     for (const link of links) list.append(linkRow(el, link));
-    s.append(el("h3", "Links"), list); panel.append(s);
+    s.append(el("h3", "Web links"), list);
+    if (typeof c.place === "function") c.place(s); else panel.append(s);
   }
+  // Cmd+click on macOS (where Ctrl+click is the secondary click, so a contextmenu), Ctrl+click elsewhere.
+  // A Ctrl+right-click on Windows and Linux is a context menu click, never a link.
+  const mac = () => globalThis.AtriumNavCommon?.isMac?.() ?? /Mac|iPhone|iPad/i.test(globalThis.navigator?.platform || "");
   globalThis.document?.addEventListener?.("click", followText, true);
-  globalThis.document?.addEventListener?.("contextmenu", e => {if (e.ctrlKey || e.metaKey) followText(e);}, true);
+  globalThis.document?.addEventListener?.("contextmenu", e => {if (mac() && e.ctrlKey) followText(e);}, true);
   function followText(e) {
-    const h = globalThis.AtriumNavHost;
-    if (!(e.ctrlKey || e.metaKey) || e.button !== 0 && e.type !== "contextmenu" || e.target !== h?.canvas?.() || h.doc?.()?.kind !== "schematic" ||
-      h.tool?.() && h.tool() !== "select") return;
+    const h = globalThis.AtriumNavHost, modified = e.type === "contextmenu" ? mac() && e.ctrlKey : e.button === 0 && (mac() ? e.metaKey : e.ctrlKey);
+    if (!modified || e.target !== h?.canvas?.() || h.doc?.()?.kind !== "schematic" || h.tool?.() && h.tool() !== "select") return;
     const r = e.target.getBoundingClientRect(), item = h.hitAt?.(h.view().screenToWorld([e.clientX - r.left, e.clientY - r.top]));
     if (item?.richText || !openURL(item?.url)) return;
     e.preventDefault(); e.stopImmediatePropagation();
@@ -269,7 +278,8 @@ globalThis.AtriumSchObjectInspector = (() => {
   // Signal directive fields (signals.js §7): the net this item names becomes (part of) a signal, with a
   // polarity for a differential leg, and tags that follow the signal across series parts. Live on the board.
   function directives(s, item, c, {el, field = defaultField}) {
-    if (item.url != null) {
+    // A text takes a URL even when it has none yet (Altium's hyperlinked text); other items show one they carry.
+    if (item.url != null || linkable(item)) {
       s.append(el("h4", "Link", "sch-subhead"));
       field(s, "URL", item.url, v => c.edit(() => {if (v.trim()) item.url = v.trim(); else delete item.url;}));
       if (webURL(item.url)) s.append(linkRow(el, {title: "Open link", url: webURL(item.url)}));
