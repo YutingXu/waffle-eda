@@ -1,7 +1,7 @@
 # Poured copper that costs what an edit touched
 
-Status: all three stages approved by the owner on 2026-11-27. Stage 1 is built and measured (results
-below); stage 2 is being built.
+Status: all three stages approved by the owner on 2026-11-27. Stages 1 and 2 are built and measured
+(results below); stage 3 is being built separately.
 Stages 1 and 2 are on `perf/pour-copper-proportional`, stage 3 on `perf/pour-solve-local`. The
 owner asked for stage 2 to be built whatever stage 1 measures. It follows the measurements on the
 local branch `perf/pcb-edit-proportional` and a read-only map of the pour code made the same day.
@@ -125,7 +125,7 @@ Autosave and Undo still carry the whole island, as expected.
 
 ### 2. Region data in content-addressed runs
 
-Needed only if stage 1 leaves a task over 50 ms. No change to the saved file.
+Built at the owner's request whatever stage 1 measured. No change to the saved file.
 
 - In memory a region's ring data is held as runs of whole rings in canonical order. A run ends
   after a ring chosen by its content, so adding or removing a ring does not move later boundaries.
@@ -135,6 +135,65 @@ Needed only if stage 1 leaves a task over 50 ms. No change to the saved file.
   builds are unaffected.
 
 Expected: bytes per edit follow the changed rings (hundreds of vertices, not 190,000).
+
+#### Stage 2 as built
+
+- A region the pour engine makes (`regionLike`, or `fromRuns` from the live worker) holds its rings as
+  runs: `{key, id, bytes, n, h1, h2, at, arcs}`, interned by id (key: the rings; id: the rings and
+  their true arcs, since a region's `arcs` index rings and shift whenever a ring is inserted). Its
+  `data` and `arcs` are accessors that join the runs into exactly the text and array they were
+  (kept a while, bounded), and writing either makes an ordinary field again. Saving, export, format
+  2, signatures, collaboration snapshots and every other reader of the text read it unchanged; the
+  edit path reads the runs through the engine instead (`dataKey`, `sameData`, `dataLength`,
+  `heldField`, tables and contours from run bytes).
+- Live worker: a new region travels as `fieldsOf` and run ids, with only the runs the editor does not
+  hold (`runIds`, `runLookup`; regions still held as text name their runs alike, so the first edit
+  after opening is not a full send).
+- Undo store: `copperOf`/`heldField` give the region's copper in place of its text and arcs
+  (`fieldOf`, `setField`, `withCopper`); a record that replaces a region counts `copperDelta`, the
+  bytes of runs the old version has and the new one does not, so a run is counted by the one record
+  that drops it from the board. Its other changes are only in how pour data is counted and shared.
+- Autosave (`save-cache.js` `records`/`texts`, `autosave.js` hooks): a region's copper, and its arcs,
+  are segments of their own whose chunk is stored as run ids; each run is a record `r~<id>` written
+  once while snapshots refer to it (`meta.runs`, kept by the sweep). A draft reads back as the same
+  text; a draft of text chunks (every earlier build) reads as before. Builds before this one cannot
+  read a draft with run records.
+- Undo and Redo: the pour signatures skip the field check of items the undo journal vouches for as
+  unchanged since the last pass, and the copper digest for `copperBasis` is kept by copper, so the
+  online DRC's `inspectCopper` after Undo reads what changed.
+- Run size: a run ends after a ring whose hash has its five low bits clear (`RUN_BITS` 5: 32 rings on
+  average). On a board-80 island of 1.96 MB, twenty small edits made new runs of a median 15 KB at
+  3 bits (421 runs), 46 KB at 5 bits (107 runs), 215 KB at 7 bits (23 runs) and 340 KB at 9 bits (10
+  runs, the 256 KB cap). Five bits keeps an edit near 2 % of the island while a board holds a few
+  hundred runs (records, cache entries, path pieces) instead of a few thousand.
+
+#### Stage 2 results
+
+Benchmark board with pours, 3 runs per side alternating base (`cb612f8`) and branch (stage 2 before
+the Undo splice fix), then 2 runs per mode of the final branch for the Undo column; headless Chrome,
+CPU raster, MacBook on battery 83–91 % (final runs on AC power). Medians, range.
+
+| | Efficiency always: base | branch | Efficiency off: base | branch |
+| --- | --- | --- | --- | --- |
+| Longest task after an edit (`editTaskMax`) | 71 ms [67–81] | 0 [0–0] | 68 [65–75] | 0 [0–0] |
+| Longest canvas frame | 81 ms | 36 ms | 69 ms | 39 ms |
+| Canvas time per edit | 95–203 ms | 73–108 ms | 73–224 ms | 63–124 ms |
+| CPU per edit, worst | 532 ms | 348 ms | 553 ms | 359 ms |
+
+| Bytes per edit | base | stage 1 | stage 2 (final) |
+| --- | --- | --- | --- |
+| Worker to editor (move, bend, add, delete, paste) | 7.2, 4.9, 4.9, 2.3, 7.2 MB | 5.0, 5.0, 5.0, 2.4, 7.3 MB | 94, 82, 37, 26, 132 KB |
+| Autosave written (same edits, then undo, redo) | 6.3, 6.3, 6.3, 2.9, 9.2, 9.2, 9.2 MB | the same | 141, 124, 77, 74, 170, 169, 170 KB |
+| Undo held (move, bend, add, delete, paste) | 11.9, 8.0, 8.0, 3.9, 11.9 MB | 8.0, 8.0, 8.0, 3.9, 11.9 MB | 86, 74, 30, 22, 119 KB |
+
+Undo depth on this board within the 64 MB budget: base about 5 to 8 such edits; now the 500-step
+limit comes first (about 64 MB / 120 KB = 530 edits of the largest kind). The worker's first edit
+after opening also sends only the changed runs (96 KB). Autosave's remaining bytes are mostly the
+item chunks that hold the edited object, as on the board without pours. In one final run of nine an
+Undo had a 64 ms task on a loaded machine (the board without pours had 51 ms in the same session); the
+A/B runs had none. The canvas still spends about twice the board without pours (40–52 ms per edit):
+the exact idle frame after a batched item patch repaints the whole board, and the Insights and DRC
+marker layer is planned again when the copper changes.
 
 ### 3. An exact solve that stays local
 
@@ -152,10 +211,28 @@ edit burns, not the longest task.
 - Tile pieces in the saved file.
 - Copper in live sessions, which is covered by local copper (`feat/collab-local-copper`).
 
+## Tests
+
+- `tests/pcb/pour-copper-proportional.cjs`: seeded random edits and refills (moves inside and beside
+  pours, adds, deletes, paste, net and width changes, outline and clearance edits, a peer's edit, Undo,
+  Redo): stored regions equal a from-scratch pour, kept regions equal their fresh encoding, every
+  engine cache, run table, LOD level, signature and `copperChange` equals a cold answer, a region
+  rebuilt from runs (as the worker sends it, from copper or from text) equals the original, and Undo
+  grows by a fraction of the island. `--digest` writes the stored copper per step, to compare with the
+  base branch (identical over 250 steps).
+- `tests/canvas/browser-pour-damage.cjs`: after every editor frame on the pours benchmark board the
+  canvas equals a full paint, with a control that drops the copper damage and must be caught.
+  Antialiasing noise of at most 3 levels is allowed: a part fill of a big region can round an edge
+  pixel differently from the whole path (it always could; filling the whole path clipped instead is
+  exact but costs about 7.5 ms per region and patch).
+- `tests/project/autosave-copper.cjs`: drafts of copper held as runs write a run once, read back as the
+  project's text, are swept with their drafts; drafts of text chunks, and a draft store written by the
+  base branch, read back unchanged.
+
 ## Not verified
 
-- Timings on a real GPU; every number is headless Chrome with CPU raster.
-- Bytes autosave actually writes; inferred from its layout.
-- Solve times with the WebAssembly core; the engine was not built on the measuring machine.
-- That Undo history is shortened in practice by the 64 MB budget on boards like this.
-- What triggers the full-solve fallback for a part move.
+- Timings on a real GPU; every number is headless Chrome with CPU raster. The GPU canvas uses one
+  fan buffer per region still: its caches do not keep the runs a new region shares.
+- WKWebView and the WebAssembly core; neither was available on the measuring machine.
+- A draft with run records cannot be read by a build before this one.
+- What triggers the full-solve fallback for a part move (stage 3).

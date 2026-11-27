@@ -165,10 +165,12 @@ if board: B = {"idleWakeupsPerSec": 0.2, "idleWakeupsAfterPerSec": 0.2, "idleCpu
                "openSettleCpuMs": 1500, "editWindowCpuMs": 400, "editFrame": 100}
 # The edit series (--board nets, --board pours): the longest task until quiet after any one edit and the
 # most CPU one edit costs. With pours, the open pours ten polygons and the first edit after open runs the
-# first pour clearance check, and each edit's refill repaints poured copper (the longest tasks left:
-# 50-88 ms canvas frames; see docs/design/unified-rules-and-checks.md, Edits on a board with poured copper).
+# first pour clearance check. A refill repaints, sends, autosaves and keeps for Undo the copper that
+# changed, not the island (docs/design/pour-copper-proportional.md: measured 0 ms tasks over 50, frames
+# 30-40 ms, 360 ms CPU per edit at most; one run in nine had a 64 ms task after Undo on a loaded machine), so
+# the budgets keep margin over that while catching a return to whole-island work (base: 67-83 ms).
 if board == "nets": B.update({"editTaskMax": 50, "editSeriesCpuMs": 400})
-if board == "pours": B.update({"editTaskMax": 100, "editSeriesCpuMs": 900, "editWindowCpuMs": 1400, "openSettleCpuMs": 2000})
+if board == "pours": B.update({"editTaskMax": 70, "editCanvasMax": 50, "editSeriesCpuMs": 550, "editWindowCpuMs": 1200, "openSettleCpuMs": 1800})
 B = {k: float(os.environ.get("BUDGET_" + k.upper(), v)) for k, v in B.items()}
 fail = []
 if not nobudget:
