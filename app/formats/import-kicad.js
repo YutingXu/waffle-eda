@@ -797,6 +797,10 @@ globalThis.AtriumKiCadImport = (() => {
         pourIndex: priority ? -priority : 0, connectStyle: style, viaConnectStyle: style === "none" ? "none" : "direct", pourOverSameNet: true,
         removeDeadCopper: num(val(fill, "island_removal_mode") ?? val(k, "island_removal_mode"), 0) !== 1, fillMode: hatch ? "hatched" : "solid"};
       if (clearance >= 0) item.clearance = clearance;
+      // KiCad's fill shrinks the copper by half the zone's minimum width and grows it back, so nothing
+      // narrower survives and convex corners round to that radius: Remove Necks at that width.
+      const minWidth = num(val(k, "min_thickness"), NaN);
+      if (minWidth > 0) item.neckWidth = minWidth;
       const gap = num(val(fill, "thermal_gap"), NaN), bridge = num(val(fill, "thermal_bridge_width"), NaN);
       if (gap > 0) item.reliefAirGap = gap;
       if (bridge > 0) item.reliefConductorWidth = bridge;
@@ -1228,7 +1232,8 @@ globalThis.AtriumKiCadImport = (() => {
     try { j = JSON.parse(text); } catch { throw Error("The project file is not valid JSON."); }
     const ns = j?.net_settings || {}, classes = Array.isArray(ns.classes) ? ns.classes : [];
     const project={name:F().stem(name),classes:F().dict(),assignments:F().dict(),patterns:[],
-      minimumDiameter:dimension(j?.board?.design_settings?.rules?.min_via_diameter)};
+      minimumDiameter:dimension(j?.board?.design_settings?.rules?.min_via_diameter),
+      edgeClearance:dimension(j?.board?.design_settings?.rules?.min_copper_edge_clearance)};
     for (const c of classes) {
       if (!className(c?.name)) continue;
       project.classes[c.name]={clearance:+c.clearance,trackWidth:+c.track_width,viaDiameter:+c.via_diameter,viaDrill:+c.via_drill};
@@ -1287,7 +1292,7 @@ globalThis.AtriumKiCadImport = (() => {
     for (const [key, v] of Object.entries(object(board.design_settings))) {
       if (key === "meta") continue;
       if(key==="rules"&&v&&typeof v==="object")for(const [rule,value] of Object.entries(object(v))){
-        const kept=selectedBoards&&rule==="min_via_diameter"&&(value===0||project.minimumDiameter!=null);
+        const kept=selectedBoards&&(rule==="min_via_diameter"&&(value===0||project.minimumDiameter!=null)||rule==="min_copper_edge_clearance"&&project.edgeClearance!=null);
         audit.record("board-rule",kept?"kept":"dropped","board/design_settings/rules/"+rule,null,kept?undefined:
           rule==="min_via_diameter"?"The minimum via diameter needs a selected board and a valid millimetre length.":
           rule==="min_through_hole_diameter"?"The board minimum excludes laser microvias, which this import cannot distinguish.":"This KiCad project constraint has no imported native rule.");
@@ -1552,6 +1557,15 @@ globalThis.AtriumKiCadImport = (() => {
         }
       }
     }
+    // KiCad fills zones the board's copper-to-edge clearance away from Edge.Cuts; Waffle's pour
+    // reads that gap from the polygon (boardClearance), as for Altium's Board Outline Clearance.
+    const edged=new Set();
+    if(project?.edgeClearance>0)for(const board of docs.filter(d=>d.kind==="pcb")){
+      const zones=board.items.filter(i=>i.kind==="polygon"&&!(i.boardClearance>0));if(!zones.length)continue;
+      checkFillBeforeRules(board);
+      for(const z of zones)z.boardClearance=project.edgeClearance;
+      edged.add(board);
+    }
     const handled=new Set(), minimumDiameter=project?.minimumDiameter;
     for(const [key,sources] of customByName){
       const board=sources.length===1?boardsByName.get(key):null;
@@ -1563,7 +1577,7 @@ globalThis.AtriumKiCadImport = (() => {
       checkFillBeforeRules(board);
       applyCustomRules(board,null,minimumDiameter);
     }
-    for (const [board, originalRules] of verifiedFills) if (board.rules !== originalRules)
+    for (const [board, originalRules] of verifiedFills) if (board.rules !== originalRules || edged.has(board))
       board.sourcePourSignature = pours.signature(board, definitions);
     for (const r of results) if (r.kicadProject) finishProjectReport(r.kicadProject, r.kicadProject === project && docs.some(d => d.kind === "pcb"));
     channels(docs, results, tree);
