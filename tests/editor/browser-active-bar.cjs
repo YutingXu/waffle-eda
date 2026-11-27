@@ -119,6 +119,18 @@ async function toolbarsPage(browser) {
     // Delete removes the focused button.
     await press("Junction", "Delete"); await settle(page);
     assert.equal((await stored()).includes("junction"), false);
+    // The row menu moves too (touch and screen-reader users): Move Down, then Move Up.
+    const menuMove = (title, label) => page.evaluate(async ({title, label}) => {
+      const r = [...document.querySelectorAll(".prf-page [role=tree] > .ui-row")].find(x => x.querySelector(".ui-row-title").textContent === title);
+      r.querySelector('[aria-label^="More actions"]').click();
+      for (let i = 0; i < 40 && ![...document.querySelectorAll(".nav-menu [role=menuitem]")].some(b => b.textContent.startsWith(label)); i++) await new Promise(r => setTimeout(r, 50));
+      [...document.querySelectorAll(".nav-menu [role=menuitem]")].find(b => b.textContent.startsWith(label)).click();
+      await new Promise(r => setTimeout(r, 100));
+    }, {title, label});
+    await menuMove("Pan", "Move Down");
+    assert.deepEqual((await stored()).slice(0, 2), ["select", "pan"]);
+    await menuMove("Pan", "Move Up");
+    assert.deepEqual((await stored()).slice(0, 2), ["pan", "select"]);
     // Search adds a command; a separator joins the end.
     await page.evaluate(() => { const s = document.querySelector(".prf-page input[type=search]"); s.value = "zoom in"; s.dispatchEvent(new Event("input", {bubbles:true})); });
     await page.waitForFunction(() => [...document.querySelectorAll(".prf-page .ui-list:not([role=tree]) .ui-row")].length);

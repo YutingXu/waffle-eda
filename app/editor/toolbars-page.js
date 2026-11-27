@@ -125,8 +125,8 @@ globalThis.AtriumToolbarsPage = (() => {
       }
       const prev = items[i - 1];
       return [
-        {label:t("toolbars.move_up"), enabled:i > 0, run:() => move(flat(i), flat(i - 1))},
-        {label:t("toolbars.move_down"), enabled:i < items.length - 1, run:() => move(flat(i), flat(i + 1))},
+        {label:t("toolbars.move_up"), enabled:i > 0, run:() => move(flat(i), i - 1)},
+        {label:t("toolbars.move_down"), enabled:i < items.length - 1, run:() => move(flat(i), i + 1)},
         {label:t("toolbars.into_flyout"), enabled:x !== SEP && prev != null && prev !== SEP, run:() => intoFlyout(i)}
       ];
     }
