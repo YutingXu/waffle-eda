@@ -777,7 +777,9 @@ globalThis.AtriumDRCView = (() => {
         const session = AtriumDRCPours.session ? (first.poursSession ??= AtriumDRCPours.session()) : null;
         const ch = session && v && U?.changed ? U.changed(d, session.since()) : null;
         const it = session ? session.steps(d, host.defs(), rulesOf(d, project), {project, changes:ch?.ids ? ch : null, seq:ch?.seq,
-          key:v ? [v.floor, v.outer, v.project, v.parameters, v.library].join("/") : null, current:() => stamp(d) === revision}) :
+          // The board inputs a check reads outside its items (outerPrint, as online DRC compares them), not
+          // the outer version: view state and other metadata written to the board leave it unchanged.
+          key:v ? v.floor + "/" + v.library + "/" + outerPrint(d, project) : null}) :
           AtriumDRCPours.steps(d, host.defs(), rulesOf(d, project), {project});
         return (function* () {
           let r = it.next();

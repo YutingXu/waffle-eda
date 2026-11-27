@@ -256,7 +256,8 @@ globalThis.AtriumResolvedGeometry = (() => {
   const pourCopies = new WeakMap();
   const jsonValue = value => value !== null && typeof value === "object" ? clone(value) : typeof value === "number" && !Number.isFinite(value) ? null : value;
   function pourCopy(region) {
-    if (!region || typeof region !== "object" || Array.isArray(region) || typeof region.toJSON === "function") return clone(region);
+    if (region == null || typeof region === "function" || typeof region === "symbol") return null; // as in a JSON array
+    if (typeof region !== "object" || Array.isArray(region) || typeof region.toJSON === "function") return clone(region);
     const held = pourCopies.get(region);
     if (held) {
       let k = 0, same = true;

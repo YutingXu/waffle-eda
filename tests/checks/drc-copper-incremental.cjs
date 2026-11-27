@@ -147,10 +147,19 @@ function run(label, project, {seed, steps}) {
   };
   check(0, "open");
   for (let s = 1; s <= steps; s++) {
+    // Sometimes the pour session is running when the edit lands (the refill of the last edit, an idle
+    // slice): it finishes on the board as it was when it started, and the next run continues from there.
+    let running = null;
+    if (r() < .25) {
+      const d0 = docOf(ed), pch = U.changed(d0, S.since()), v0 = U.documentVersions(d0, ed.project, true);
+      running = S.steps(d0, defsOf(ed.project), rules, {project: ed.project, changes: pch.ids ? pch : null, seq: pch.seq, key: versionKey(v0)});
+      running.next();
+    }
     let kind, guard = 0;
     do kind = pick(r, list); while (!kind[1](ed, r) && ++guard < 20);
     refill(ed, docOf(ed));
-    check(s, kind[0]);
+    if (running) { let x = running.next(); while (!x.done) x = running.next(); }
+    check(s, kind[0] + (running ? " (during a run)" : ""));
   }
   console.log("  " + label + " seed " + seed + ": " + steps + " steps, up to " + found.drc + " DRC and " + found.pours + " pour clearance violations");
   return found;

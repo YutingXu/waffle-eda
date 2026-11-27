@@ -222,13 +222,13 @@ globalThis.AtriumDRCPours = (() => {
   //   changes  the items changed since the session's last completed run ({ids, items}, the undo
   //            journal's AtriumUndoStore.changed), or null when unknown;
   //   key      the board's other inputs (its floor, outer, project, parameters and library versions);
-  //   seq      the journal position of `changes` (since() gives it back for the next run);
-  //   current  false when the board changed during the run (its result is then not kept).
+  //   seq      the journal position of `changes` (since() gives it back for the next run).
   // A run re-checks the copper objects of the changed items, the objects within the rule's reach of
   // copper that changed (AtriumPCBPours.copperChange) and every finding of a polygon whose regions
   // were replaced, against the regions near them (localGrid). Anything else or anything unknown (a
   // first run, other inputs, rules, polygons, rule scopes that read other objects) is a full run.
-  // The session is updated only when a run completes, so an abandoned run changes nothing.
+  // The session is updated only when a run completes, so an abandoned run changes nothing; a run
+  // reads the board as it was when it started.
   // Objects are keyed by item and rank among the item's copper objects (steps(): the object index),
   // and findings are ordered as steps() orders them: by their first violating region, then the first
   // grid cell of that region's scan holding the object, then the object's place on the board.
@@ -275,7 +275,7 @@ globalThis.AtriumDRCPours = (() => {
       const t0 = Date.now(), K = R()?.kit, out = [], cap = o.limit ?? 2000;
       const done = (checked, mode) => ({violations: out, checked, ms: Date.now() - t0, mode});
       if (!K || !P()?.contours || doc?.kind !== "pcb") { st = null; return done(0, "full"); }
-      const all = doc.pcbDrawing?.pours || [], regions = all.filter(r => r && r.net && r.count);
+      const all = (doc.pcbDrawing?.pours || []).slice(), regions = all.filter(r => r && r.net && r.count);
       const polygons = new Map();
       for (const item of doc.items) if (item.kind === "polygon" && (regions.length || item.clearance > 0)) polygons.set(item.id, item);
       if (!regions.length && !polygons.size) { st = null; return done(0, "full"); }
@@ -300,11 +300,17 @@ globalThis.AtriumDRCPours = (() => {
       const reach = Math.max(...CR.map(K.clearanceMax)), cell = Math.max(1, reach * 4), gcell = Math.max(.5, reach * 2);
       const ties = G.AtriumNetTies?.drcTies?.(doc, defs) || null, extractOptions = {planeHoles: planeIds.size > 0, nettedCopperOnly: true};
       const rulesSig = JSON.stringify(rules), polySig = JSON.stringify([...polygons.values()]), ids = o.changes?.ids;
-      const same = !!st && st.doc === doc && st.defs === defs && o.key != null && st.key === o.key && st.rulesSig === rulesSig &&
+      // The definitions are compared by the library version in o.key (the editor builds a new index
+      // whenever the journal's outer count moves, with the same definitions).
+      const same = !!st && st.doc === doc && o.key != null && st.key === o.key && st.rulesSig === rulesSig &&
         st.polySig === polySig && st.reach === reach && st.planes === planeIds.size > 0 && ids instanceof Set && local(C);
       const copper = same ? P().copperChange?.(st.pours, all) : null;
+      // Everything a run reads is taken when it starts (the regions, the extracted objects, the board
+      // order), so its result is the board's at its journal position o.seq even when the board changes
+      // while it runs (a refill landing during the run): the next run continues from there.
+      const order0 = doc.items.slice();
       let index = null;
-      const itemIndex = id => (index ??= new Map(doc.items.map((item, k) => [item.id, k]))).get(id) ?? -1;
+      const itemIndex = id => (index ??= new Map(order0.map((item, k) => [item.id, k]))).get(id) ?? -1;
       const scanOrder = (a, b) => a.cx - b.cx || a.cy - b.cy || (a.rec.id === b.rec.id ? 0 : itemIndex(a.rec.id) - itemIndex(b.rec.id)) || a.rec.seq - b.rec.seq;
       // One region against feature records in the region's scan order (steps(): cells by x then y,
       // then the board order), with the whole region's edge grid (full) or one around them.
@@ -412,9 +418,7 @@ globalThis.AtriumDRCPours = (() => {
         return {...r, mode: "full"};
       }
       for (const e of next.entries.values()) { if (out.length >= cap) break; out.push(e.v); }
-      // The board changed during the run (o.current): the result is not kept, the session stays as it was.
-      if (o.current && !o.current()) return {...done(checked, mode), stale: true};
-      st = {doc, defs, key: o.key, seq: o.seq ?? null, rulesSig, polySig, reach, planes: planeIds.size > 0, pours: all.slice(), ...next};
+      st = {doc, defs, key: o.key, seq: o.seq ?? null, rulesSig, polySig, reach, planes: planeIds.size > 0, pours: all, ...next};
       return done(checked, mode);
     }
     return {steps: run, reset() { st = null; }, since: () => st?.seq ?? null, size: () => st ? {items: st.byItem.size, findings: st.entries.size} : null};
