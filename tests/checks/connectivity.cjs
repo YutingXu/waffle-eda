@@ -28,14 +28,45 @@ const once=(r,name)=>r.nets.find(n=>n.name===name);
   assert.equal(inspect([drilled,track("y","B",[[0,0],[2,0]])]).shorts.length,1,"the top land remains");
 }
 {
-  // An unplated land is copper with no net and no barrel (DRC treats it the same way).
-  const npth={...pad("np","A",0,0,2,2,0,"round","Multi",1),plated:false};
-  const across=(id,net,layer="Top")=>track(id,net,[[-2,.7],[2,.7]],layer);
-  assert.equal(inspect([npth,across("t","B")]).shorts.length,0,"one net touching the land is no short");
-  assert.deepEqual(inspect([npth,across("t","B"),track("u","C",[[0,-2],[0,-.7]])]).shorts[0]?.nets,["B","C"],"two nets bridged by the land");
-  assert.equal(inspect([npth,across("t","B"),across("u","C","Bottom")]).shorts.length,0,"no barrel joins the top and bottom lands");
-  assert.equal(once(inspect([npth,across("t","N"),across("u","N","Bottom")]),"N").islands,2);
-  assert.equal(inspect([{...npth,layer:"Top"},across("t","B")]).shorts.length,0,"a single-layer unplated land is netless too");
+  // An unplated land keeps its pad's net, one node per copper layer and no barrel (DRC treats it the same way).
+  // A GND mounting hole: 6 mm land, 3.2 mm drill; the ring runs from 1.6 to 3 mm.
+  const mh={...pad("mh","GND",0,0,6,6,0,"round","Multi",3.2),plated:false};
+  const across=(id,net,y,layer="Top")=>track(id,net,[[-5,y],[5,y]],layer);
+  let r=inspect([mh,across("g","GND",2.5)]);
+  assert.deepEqual([r.shorts.length,r.airwires.length,once(r,"GND").islands,once(r,"GND").pads],[0,0,1,1],"its own net touches it");
+  assert.deepEqual(inspect([mh,across("v","VCC",2.5)]).shorts.map(s=>s.nets),[["GND","VCC"]],"another net crossing the ring is a short");
+  assert.equal(inspect([mh,across("v","VCC",3.15)]).shorts.length,0,"near the ring is the DRC's clearance, not a short");
+  assert.deepEqual(inspect([mh,across("v","VCC",2.5,"Bottom")]).shorts.map(s=>s.nets),[["GND","VCC"]],"the bottom land");
+  // No barrel: top and bottom lands are separate islands, so a net on each side is two shorts with GND, not one.
+  assert.deepEqual(inspect([mh,across("b","B",2.5),across("c","C",2.5,"Bottom")]).shorts.map(s=>s.nets),[["B","GND"],["C","GND"]]);
+  // The ratsnest takes the pad's lands as one terminal: no airwire between them.
+  r=inspect([mh]);
+  assert.deepEqual([r.airwires.length,once(r,"GND").islands,once(r,"GND").pads,r.unassigned,r.stats.objects],[0,1,1,0,2]);
+  const left=pad("p1","GND",-10,0,1,1,0,"round","Multi",.5),right=pad("p2","GND",10,0,1,1,0,"round","Multi",.5);
+  r=inspect([mh,left,right,track("a","GND",[[-10,0],[-2.5,0]]),track("b","GND",[[2.5,0],[10,0]],"Bottom")]);
+  assert.deepEqual([r.airwires.length,once(r,"GND").islands,once(r,"GND").missing],[0,1,0],"reached on each side, no zero-length airwire");
+  // Pins that reach the land still need connecting to the rest of the net, never through a land-to-land airwire.
+  r=inspect([mh,left,right,track("a","GND",[[-10,0],[-2.5,0]])]);
+  assert.deepEqual(r.airwires.map(w=>[w.fromId,w.toId,w.distance]),[["mh","p2",10]]);
+  // A land nothing of its net touches is optional, as on a board whose pour keeps clear of it.
+  r=inspect([mh,left,right]);
+  assert.deepEqual([r.airwires.map(w=>[w.fromId,w.toId]),once(r,"GND").islands,once(r,"GND").pads],[[["p1","p2"]],2,3]);
+  // A footprint's mounting hole takes its pin's net.
+  const lib=new Map([["MH",{id:"MH",footprint:{pads:[{number:"1",x:0,y:0,w:6,h:6,shape:"round",layer:"Multi",drill:3.2,plated:false}],shapes:[]}}]]);
+  const part={id:"H",kind:"part",def:"MH",ref:"H1",x:0,y:0,pinNets:{"1":"GND"}};
+  assert.deepEqual(C.inspect(board([part,across("v","VCC",2.5)]),lib).shorts.map(s=>s.nets),[["GND","VCC"]]);
+  r=C.inspect(board([part,across("g","GND",2.5),track("g2","GND",[[20,0],[25,0]])]),lib);
+  assert.deepEqual([r.airwires.length,once(r,"GND").islands],[1,2]);
+  assert.ok(r.airwires[0].distance>0);
+  // With no net the land is netless copper: one net may touch it, a land bridging two nets is a short,
+  // and nothing joins its top and bottom lands.
+  const bare={...mh,net:""};
+  assert.equal(inspect([bare,across("b","B",2.5)]).shorts.length,0,"one net touching the land is no short");
+  assert.deepEqual(inspect([bare,across("b","B",2.5),track("c","C",[[0,-5],[0,-2.5]])]).shorts.map(s=>s.nets),[["B","C"]],"two nets bridged by the land");
+  assert.equal(inspect([bare,across("b","B",2.5),across("c","C",2.5,"Bottom")]).shorts.length,0,"no barrel joins the top and bottom lands");
+  assert.equal(once(inspect([bare,across("t","N",2.5),across("u","N",2.5,"Bottom")]),"N").islands,2);
+  assert.equal(inspect([bare]).unassigned,1);
+  assert.deepEqual(inspect([{...mh,layer:"Top"},across("v","VCC",2.5)]).shorts.map(s=>s.nets),[["GND","VCC"]],"a single-layer unplated land carries its net too");
 }
 require("../../app/checks/rules.js");
 {

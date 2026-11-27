@@ -133,11 +133,13 @@ globalThis.AtriumDFM = (() => {
         const faces = M.padFaces(layer, p.drill, copperIndex(layer) != null);
         if (faces.length) out.openings.push({base, source: p, parent, faces});
       }
-      if(p.drill>0&&!plated)return;
+      // An unplated hole's land is copper too (of the pad's net, as the DRC and connectivity see it): other
+      // holes and panel separations keep their distance from it. A land the drill removes is none.
+      if(p.drill>0&&!plated&&!(p.plated===false&&(layer==="Multi"||copperIndex(layer)!=null)))return;
       const L=AtriumResolvedLand;
       for(const key of PCB.padPlanes(p,layer,()=>copperKeys)){
         const land=L.geometry(p,key);
-        if(!land||land.holeOnly)continue;
+        if(!land||land.holeOnly||p.drill>0&&!plated&&p.drill>=Math.min(land.w,land.h)-EPS)continue;
         const {at,angle,mirror}=L.place(land,parent),{core,r}=L.core(land,at,angle,mirror);
         const k=key?copperIndex(key):null;
         cu({...base,at,span:k!=null?[k,k]:span,nonConvex:land.shape==="custom"},core,r);

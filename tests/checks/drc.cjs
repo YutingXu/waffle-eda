@@ -78,14 +78,35 @@ close(of(out,"holeToHole")[0].actual,.2);
   close(of(run([custom,probe(1.2)],withRules(c=>{c.list.find(r=>r.type==="clearance").gap=1;}),{types:["clearance"]}),"clearance")[0]?.actual,.9,"custom land pieces");
 }
 {
-  // An unplated land is netless copper (connectivity.js): no clearance or short for one net touching it,
-  // a short when it bridges two nets.
-  const npth={...pad("np","A",0,0,2,2,"round","Multi",1),plated:false}, across=(id,net)=>track(id,net,[[-2,.7],[2,.7]]);
-  let out=run([npth,across("t","B")],base,{types:["clearance","short"]});
-  assert.deepEqual(out.violations.map(v=>v.type),[]);
-  assert.ok(out.notes.some(n=>/without a net/.test(n)),"the land is reported as unchecked netless copper");
-  assert.equal(of(run([npth,across("t","B"),track("u","C",[[0,-2],[0,-.7]])],base,{types:["short"]}),"short").length,1);
-  assert.equal(of(run([{...npth,plated:true},across("t","B")],base,{types:["clearance","short"]}),"short").length,1,"a plated land carries its net");
+  // An unplated land keeps its pad's net on every copper layer, with no barrel joining them (connectivity.js):
+  // DRC clearance, the short check and connectivity agree. A GND mounting hole: 6 mm land, 3.2 mm drill.
+  const mh={...pad("mh","GND",0,0,6,6,"round","Multi",3.2),plated:false}, at=(net,y,layer)=>track("t"+(layer||""),net,[[-5,y],[5,y]],.2,layer);
+  const check=items=>run(items,base,{types:["clearance","short"]});
+  assert.deepEqual(check([mh,at("GND",2.5)]).violations,[],"its own net touches it");
+  let out=check([mh,at("VCC",2.5)]);
+  close(of(out,"clearance")[0]?.actual,0);
+  assert.deepEqual(of(out,"short").map(v=>v.detail),["Short circuit between nets GND, VCC"],"crossing the ring is a short");
+  out=check([mh,at("VCC",3.15)]);
+  close(of(out,"clearance")[0]?.actual,.05);assert.equal(of(out,"short").length,0);
+  assert.ok(!out.notes.some(n=>/without a net/.test(n)),"a netted land is checked");
+  close(of(check([mh,at("VCC",3.15,"Bottom")]),"clearance")[0]?.actual,.05,"the bottom land too");
+  // A footprint's mounting hole takes its pin's net.
+  const lib=new Map([["MH",{id:"MH",footprint:{pads:[{number:"1",x:0,y:0,w:6,h:6,shape:"round",layer:"Multi",drill:3.2,plated:false}],shapes:[]}}]]);
+  const part={id:"p",kind:"part",def:"MH",ref:"H1",x:0,y:0,pinNets:{"1":"GND"}};
+  out=run([part,at("VCC",2.5)],base,{types:["clearance","short"],defs:lib});
+  assert.deepEqual(out.violations.map(v=>v.type).sort(),["clearance","short"]);
+  assert.deepEqual(run([part,at("GND",2.5)],base,{types:["clearance","short"],defs:lib}).violations,[]);
+  // The query geometry (physical extraction) carries the net too.
+  assert.deepEqual(R.kit.extract(board([mh]),defs,{physical:true}).copper.map(f=>f.net),["GND"]);
+  // With no net the land is unassigned copper, as any other: not clearance-checked (noted), one net may
+  // touch it, and a land bridging two nets is a short.
+  const bare={...mh,net:""};
+  out=check([bare,at("B",2.5)]);
+  assert.deepEqual(out.violations,[]);
+  assert.ok(out.notes.some(n=>/^1 copper objects without a net/.test(n)),"the land is reported as unchecked netless copper");
+  assert.equal(of(run([bare,at("B",2.5),track("u","C",[[0,-5],[0,-2.5]])],base,{types:["short"]}),"short").length,1);
+  assert.equal(of(check([bare,at("B",2.5),at("C",2.5,"Bottom")]),"short").length,0,"no barrel joins the top and bottom lands");
+  assert.equal(of(check([{...mh,plated:true},at("VCC",2.5)]),"short").length,1,"a plated land as well");
 }
 
 {

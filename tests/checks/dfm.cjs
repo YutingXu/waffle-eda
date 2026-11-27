@@ -112,6 +112,15 @@ assert.equal(run([via("v", 10, 10), track("t", [[10, 10], [20, 10]], "A")], "dri
   assert.equal(run([drilled, blind], "drillCopper", four).length, 0, "no land left on Inner 2 or Bottom");
   assert.equal(run([{...drilled, backdrill: undefined}, blind], "drillCopper", four).length, 1);
 }
+//    an unplated hole's land is copper of its pad's net (as the DRC and connectivity): a via hole 0.1 mm from
+//    a GND mounting hole's ring is too close unless it is on GND; with no net it is copper all the same.
+{
+  const mh = tht("mh", 20, 20, 6, 3.2, "GND", false), near = net => via("v", 23.25, 20, .6, .3, net);
+  assert.deepEqual(run([mh, near("VCC")], "drillCopper").map(i => i.text), ["Via hole to Pad 1 (GND): 0.1 mm, minimum 0.2 mm."]);
+  assert.equal(run([mh, near("GND")], "drillCopper").length, 0, "its own net");
+  assert.equal(run([{...mh, net: ""}, near("VCC")], "drillCopper").length, 1, "a netless land");
+  assert.equal(run([{...mh, w: 3.2, h: 3.2}, near("VCC")], "drillCopper").length, 0, "no land left around the drill");
+}
 //    drill to edge: a hole 0.2 mm from the board edge.
 pair("drillEdge", [tht("p", 49.3, 20, 1.6, 1)], [tht("p", 45, 20, 1.6, 1)]);
 //    pad hole to hole: 0.3 mm apart (< 0.45).

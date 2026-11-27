@@ -1286,8 +1286,6 @@ globalThis.AtriumRules = (() => {
           return {...AtriumResolvedLand.effective(i,layer),layer};
         });
       }
-      // The land of an unplated hole is copper with no net, as connectivity.js sees it.
-      const unplated=!base.plated&&i.drill>0;
       if(!nettedCopperOnly){
         const widths=lands.filter(p=>!p.holeOnly&&p.w>0&&p.h>0).map(p=>Math.min(p.w,p.h));
         const size=widths.length?Math.min(...widths):0;
@@ -1299,11 +1297,13 @@ globalThis.AtriumRules = (() => {
           geo.holes.push(feature({...base,ck:"hole",item:i,ring,
             what:"Pad",...(parent?{padIndex:slot,padCount}:null)},axis,i.drill/2));
         }
-        if((!net||unplated)&&widths.some(w=>!i.drill||i.drill<w-EPS))geo.unassigned++;
+        if(!net&&widths.some(w=>!i.drill||i.drill<w-EPS))geo.unassigned++;
       }
       if(holesOnly)return;
-      // The drill (round or slotted) is void in every land, as for a via's bore.
-      const bored=i.drill>0?{bore:i.drill/2,boreAxis:PCB.padDrillCore(i,parent,center),...(unplated?{net:""}:null)}:null;
+      // The drill (round or slotted) is void in every land, as for a via's bore. An unplated land is
+      // copper of the pad's net (none when the pad has none), as connectivity.js sees it, so a track of
+      // another net is a clearance hit and a short; its lands are not joined by a barrel there.
+      const bored=i.drill>0?{bore:i.drill/2,boreAxis:PCB.padDrillCore(i,parent,center)}:null;
       for(const land of lands){
         const face=land===i?base:{...base,layer:land.layer,span:sideSpan(land.layer)};
         if(land.holeOnly||!(land.w>0&&land.h>0)){
@@ -1321,7 +1321,7 @@ globalThis.AtriumRules = (() => {
         }
         if(!f){geo.excluded++;continue;}
         if(!nettedCopperOnly)geo.pads.push(f);
-        if(net&&!unplated||physical)geo.copper.push(f.pieces?bored?compound(f,f.pieces.map(q=>({...q,...bored}))):f:feature({...face,at,...bored},shape.core,shape.radius));
+        if(net||physical)geo.copper.push(f.pieces?bored?compound(f,f.pieces.map(q=>({...q,...bored}))):f:feature({...face,at,...bored},shape.core,shape.radius));
       }
     }
     function silk(item,layer,owner,parent,label){

@@ -10,7 +10,7 @@
 globalThis.AtriumConnectivityLive = (() => {
   // An older connectivity.js (no kit) keeps its full pass.
   if(!globalThis.AtriumConnectivity?.kit)return Object.freeze({inspect:()=>null});
-  const {EPS,cmp,compareKey,sets,contact,builder,airwireEdges,joinIslandLinks}=AtriumConnectivity.kit;
+  const {EPS,cmp,compareKey,sets,contact,builder,airwireEdges,joinIslandLinks}=AtriumConnectivity.kit,terminals=AtriumConnectivity.kit.terminals||(g=>g);
   const caches=new WeakMap(),BIG=24,CHUNK=2048,CUTOUT_CHUNK=64,REPLACEMENT_CHUNK=32,AIR_LIMIT=512,NEXT_TASK=Symbol();
   // An item's print: its JSON, less the part fields no copper depends on (the builder never reads
   // them), so a BOM edit of a comment, parameter or DNP flag keeps the part's features and contacts.
@@ -282,12 +282,13 @@ globalThis.AtriumConnectivityLive = (() => {
       const copper=P.contactRegions(doc,defs,options);
       joinIslandLinks(union,entities,copper);
     }
-    const roots=new Map(),byNet=new Map();
+    const roots=new Map(),byNet=new Map(),pinned=new Set();
     for(let n=0;n<entities.length;n++){
       if(n&&(n&2047)===0){yield;if(!current())return;}
       const e=entities[n],r=union.root(n);
       let g=roots.get(r);if(!g)roots.set(r,g=[]);g.push(e);
       if(!e.net)continue;
+      if(e.pin)pinned.add(e.net);
       let groups=byNet.get(e.net);if(!groups)byNet.set(e.net,groups=new Map());
       let h=groups.get(r);if(!h)groups.set(r,h=[]);h.push(e);
     }
@@ -350,7 +351,8 @@ globalThis.AtriumConnectivityLive = (() => {
     yield;
     if(!current())return;
     // Airwires: only nets whose islands changed are solved again.
-    const names=[...byNet.keys()].sort(cmp),groups=names.map(n=>[...byNet.get(n).values()]),todo=[];
+    // Unplated lands: groups are the ratsnest's terminals (connectivity.js terminals()); the counts take every island.
+    const names=[...byNet.keys()].sort(cmp),all=names.map(n=>[...byNet.get(n).values()]),groups=all.map((g,k)=>pinned.has(names[k])?terminals(g):g),todo=[];
     const same=(a,b)=>{if(!b||a.length!==b.length)return false;for(let k=0;k<a.length;k++){const x=a[k],y=b[k];if(x.length!==y.length)return false;for(let j=0;j<x.length;j++)if(x[j]!==y[j])return false;}return true;};
     const air=new Map();
     names.forEach((name,k)=>{const prev=c.air.get(name);if(same(groups[k],prev?.islands))air.set(name,prev);else todo.push(k);});
@@ -363,8 +365,8 @@ globalThis.AtriumConnectivityLive = (() => {
     const nets=[],airwires=[];let count=0;
     for(const [k,name] of names.entries()){
       const islands=groups[k];let pads=0,tracks=0,vias=0;
-      for(const g of islands)for(const i of g){
-        if(i.kind==="pad")pads++;else if(i.kind==="track")tracks++;else if(i.kind==="via")vias++;
+      for(const g of all[k])for(const i of g){
+        if(i.kind==="pad"){if(!i.twin)pads++;}else if(i.kind==="track")tracks++;else if(i.kind==="via")vias++;
         if(++count%CHUNK===0){yield;if(!current())return;}
       }
       const links=air.get(name).links;
