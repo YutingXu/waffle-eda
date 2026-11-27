@@ -56,7 +56,9 @@ async function pourDamage({efficiency, gpu, quick, debug}) {
   const quiet = async (ms = 20000) => { const t = performance.now(); await wait(400); while (performance.now() - t < ms && busy()) await wait(100); await wait(900); };
   await quiet(30000);
   // The live tile preview (Efficiency off) from the first edit on: its patches shown and cleared are damage too.
-  if (!AtriumPower.efficient?.()) { await AtriumPolygonPour.tiles.rebuild?.(); await quiet(); }
+  if (!AtriumPower.efficient?.()) {
+    for (let n = 0; n < 40 && !AtriumPolygonPour.tiles.state; n++) { await AtriumPolygonPour.tiles.rebuild?.(); await quiet(); }
+  }
   await wait(2500);
 
   // After every editor frame: the canvas against a fresh full paint of the same frame in its own view.
