@@ -35,7 +35,7 @@ function face(style, direction) {
 }
 const html = fs.readFileSync(appFile("index.html"), "utf8");
 for (const [id, style, direction] of [["i-power-gnd", "gnd", 3], ["i-power-bar", "bar", 1]]) {
-  const d = face(style, direction), m = html.match(new RegExp('<symbol id="' + id + '" viewBox="0 0 24 24"><path d="([^"]*)"/></symbol>'));
+  const d = face(style, direction), m = html.match(new RegExp('<symbol id="' + id + '" viewBox="0 0 24 24"(?: data-proposed="")?><path d="([^"]*)"/></symbol>'));
   assert.ok(m, id + " is in the icon bank");
   assert.equal(m[1], d, id + " follows the schematic power-port glyph (" + style + "): " + d);
 }
