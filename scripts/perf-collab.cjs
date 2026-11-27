@@ -363,7 +363,9 @@ async function idlePass(s) {
   });
   return out;
 }
-const state = p => p.evaluate(() => { const S = AtriumCollabLive.session(); return {connection: S.connection, vv: S.r.vv(), paths: [...(S.t.paths?.() || new Map()).values()]}; });
+// joined: whether the relay connection is up (null on builds without t.joined: then "open" means it).
+const state = p => p.evaluate(() => { const S = AtriumCollabLive.session(); return {connection: S.connection, joined: S.t.joined?.() ?? null, stalls: S.t.stats?.stalls ?? null, vv: S.r.vv(), paths: [...(S.t.paths?.() || new Map()).values()]}; });
+const relayUp = s => s.connection === "open" && s.joined !== false;
 // One known value per object, so each edit can be checked on the other side.
 const mark = (page, which, field, value) => page.evaluate(({which, field, value}) => {
   const H = AtriumNavHost, board = H.project().documents.find(d => d.kind === "pcb" && d.items.length > 1000);
@@ -375,13 +377,23 @@ const mark = (page, which, field, value) => page.evaluate(({which, field, value}
 }, {which, field, value});
 const read = (page, id, field) => page.evaluate(({id, field}) => { for (const d of AtriumNavHost.project().documents) { const it = d.items.find(i => i.id === id); if (it) return it[field]; } return null; }, {id, field});
 async function arrived(checks) { const out = {}; for (const c of checks) out[c.name] = await read(c.page, c.id, c.field) === c.value; return out; }
+// Both editors back on the relay (with data channels kept, the session may have stayed "open").
 async function waitOpen(s, since, ms = 70000) {
   while (Date.now() - since < ms) {
     const [h, g] = [await state(s.host), await state(s.guest)];
-    if (h.connection === "open" && g.connection === "open") return Date.now() - since;
-    await sleep(100);
+    if (relayUp(h) && relayUp(g)) return Date.now() - since;
+    await sleep(50);
   }
   return null;
+}
+// How long until each editor notices that its relay connection is gone (null: not within ms).
+async function noticed(s, since, ms) {
+  const out = {host: null, guest: null};
+  while (Date.now() - since < ms && (out.host === null || out.guest === null)) {
+    for (const who of ["host", "guest"]) if (out[who] === null && !relayUp(await state(s[who]))) out[who] = Date.now() - since;
+    await sleep(100);
+  }
+  return out;
 }
 async function waitAll(checks, since, ms = 30000) {
   while (Date.now() - since < ms) { const a = await arrived(checks); if (Object.values(a).every(Boolean)) return Date.now() - since; await sleep(100); }
@@ -402,6 +414,7 @@ async function dropPass(s, relayRef) {
   const killedAt = Date.now();
   await sleep(1500);
   const during = {host: (await state(s.host)).connection, guest: (await state(s.guest)).connection};
+  const joinedDuring = {host: (await state(s.host)).joined, guest: (await state(s.guest)).joined};
   await add(s.host, "host", "via:0", "diameter", 0.61, "hostOffline");
   await add(s.guest, "guest", "via:1", "drill", 0.29, "guestOffline");
   await sleep(1000);
@@ -413,21 +426,27 @@ async function dropPass(s, relayRef) {
   const after = {name: "liveAfterReturn", page: s.guest, id: await mark(s.host, "part:1", "value", "after-" + Date.now() % 1e5), field: "value"};
   after.value = await read(s.host, after.id, "value");
   const liveMs = await waitAll([after], Date.now(), 15000);
-  return {downMs: back - killedAt, connectionWhileDown: during, deliveredWhileDown: whileDown, reopenMsAfterReturn: reopen,
-    convergedMsAfterReturn: converged, arrived: final, liveEditAfterReturnMs: liveMs, pathsBefore, pathsAfter: (await state(s.host)).paths};
+  return {downMs: back - killedAt, connectionWhileDown: during, relayJoinedWhileDown: joinedDuring, deliveredWhileDown: whileDown, reopenMsAfterReturn: reopen,
+    convergedMsAfterReturn: converged, arrived: final, lost: Object.values(final).filter(v => !v).length, liveEditAfterReturnMs: liveMs, pathsBefore, pathsAfter: (await state(s.host)).paths};
 }
 // The relay stalls (SIGSTOP) without closing: a half-open connection, as when a sleeping host's
-// network vanishes. Does either editor notice, and do edits still arrive (on a direct data channel)?
+// network vanishes. When does each editor notice, do edits still arrive (on a direct data channel),
+// and after the relay resumes, how soon are both back on it and does every edit arrive?
 async function stallPass(s, relayRef, seconds = 25) {
   relayRef.current.proc.kill("SIGSTOP");
   const t0 = Date.now();
-  const id = await mark(s.host, "via:2", "diameter", 0.62);
-  const deliveredMs = await waitAll([{page: s.guest, id, field: "diameter", value: 0.62}], t0, seconds * 1000);
+  const id = await mark(s.host, "via:2", "diameter", 0.62), gid = await mark(s.guest, "via:3", "diameter", 0.63);
+  const checks = [{page: s.guest, id, field: "diameter", value: 0.62}, {page: s.host, id: gid, field: "diameter", value: 0.63}];
+  const detectMs = await noticed(s, t0, seconds * 1000);
+  const deliveredMs = await waitAll(checks, t0, Math.max(0, seconds * 1000 - (Date.now() - t0)));
   await sleep(Math.max(0, seconds * 1000 - (Date.now() - t0)));
   const during = {host: (await state(s.host)).connection, guest: (await state(s.guest)).connection};
   relayRef.current.proc.kill("SIGCONT");
-  const resumed = Date.now(), afterResume = deliveredMs === null ? await waitAll([{page: s.guest, id, field: "diameter", value: 0.62}], resumed, 30000) : null;
-  return {stallSeconds: seconds, connectionAfterStall: during, deliveredDuringStallMs: deliveredMs, deliveredAfterResumeMs: afterResume};
+  const resumed = Date.now(), rejoinMs = await waitOpen(s, resumed, 40000);
+  const afterResume = deliveredMs === null ? await waitAll(checks, resumed, 30000) : null;
+  const final = await arrived(checks.map((c, i) => ({...c, name: i ? "guestEdit" : "hostEdit"})));
+  return {stallSeconds: seconds, detectMs, connectionAfterStall: during, deliveredDuringStallMs: deliveredMs, rejoinMsAfterResume: rejoinMs,
+    deliveredAfterResumeMs: afterResume, lost: Object.values(final).filter(v => !v).length};
 }
 // A guest falls behind the CRDT's bounded log (LIMITS.log 4,000 operations; trim keeps 2,000):
 // it deletes 4,200 objects while disconnected. The session heartbeat trims every 20 s; it is called
@@ -441,7 +460,10 @@ async function trimPass(s, relayRef) {
     if (H.currentId() !== board.id) H.selectDocument(board.id);
     const ids = board.items.filter(i => i.kind === kind && !i.locked).slice(from, from + 4200).map(i => i.id);
     H.select(ids); H.act("delete"); AtriumCollabLive.flush();
-    const r = AtriumCollabLive.session().r, before = r.stats().log, trimmed = trim ? r.trim() : false;
+    // The trim the session's heartbeat makes (earlier builds: the log's own trim(), as it called it).
+    const S = AtriumCollabLive.session(), r = S.r, before = r.stats().log;
+    let trimmed = false;
+    if (trim) { if (S.heartbeat) { S.heartbeat(); trimmed = r.stats().log < before; } else trimmed = r.trim(); }
     return {deleted: ids.length, logBefore: before, trimmed, logAfter: r.stats().log};
   }, {kind, from, trim});
   const out = {};
