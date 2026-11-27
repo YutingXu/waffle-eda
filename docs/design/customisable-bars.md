@@ -93,6 +93,32 @@ the Toolbars page's search under Macros and sit on a bar like any other command.
 - **Gate.** Macros are registered only while `butter.macros` is on, so macro buttons follow that
   flag with no extra check.
 
+## Sticky flyouts
+
+Approved by the owner on 2026-11-27: this is the Altium behaviour. Choosing an item from a flyout
+makes it that button's face, with its icon, name and shortcut. A click on the button then runs the
+shown tool; long-press, right-click and ArrowDown still open the flyout. The last choice is
+remembered per group and per document kind as view state, alongside the dock's collapsed-panel
+state, and is not an edit to the stored bar. Restore Defaults clears it.
+
+## Additions to the default bar
+
+Approved by the owner on 2026-11-27. These change the shipped default, so they go into the static
+markup like every other default button.
+
+- **Widgets**, on schematic sheets, with a flyout of everything the notebook can insert: text block,
+  calculation, image, table, to-do list and the other sheet widgets, including widgets from
+  extensions. The flyout is **provided**, not listed: the notebook supplies the group from the same
+  catalogue the "/" insert palette shows (`palette-actions.js` insert rows and the `sheet-widgets`
+  provider in `widget-catalogue.js`), the way `AtriumDrawing.toolGroups` already supplies groups for
+  drawings. Choosing an entry runs the palette entry's own `run`. The button is hidden while the
+  notebook is off, through the existing `data-notebook-action` attribute. With sticky flyouts,
+  choosing Widgets › Text block turns the button into Text block.
+- **GND** and **VDD** power ports, on schematic sheets. They use the existing `power:<net>` key that
+  the palette, aliases and shortcut hints already understand (`palette.js`, `palette-personal.js`,
+  `keymap.js`), so a bar item may be a command id or one of these existing keys. Their faces are
+  drawn from the power-port symbol geometry the schematic already renders, not from new artwork.
+
 ## Customise UI
 
 A **Toolbars** page in Preferences, registered with `registerPage` like the other pages.
