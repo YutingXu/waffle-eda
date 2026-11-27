@@ -439,6 +439,59 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   console.log("Pending GPU caption queries preserve document order and outside-viewport occluders");
 }
 
+// Large footprint indices must give the same occlusion result in authored order.
+{
+  const spatial = AtriumSpatial, builds = [];
+  const pad = (x, extra = {}) => ({...F4.pad, x, y:0, w:.5, h:.5, drill:0, layer:"Top", ...extra});
+  const filler = Array.from({length:65}, (_,n)=>pad(20+n*2));
+  const test=(label, prefix, suffix, expected, options={})=>{
+    const target=pad(0,options.land), pads=[...prefix,target,...filler,...suffix];
+    const component={kind:"part",id:"C1",def:"shared",layer:"Top",x:15,y:12,angle:options.angular?-58:90};
+    const other={...component,id:"C2",x:options.coincident?15:400,angle:options.angular?90:-58,mirror:true};
+    const definitions=new Map([["shared",{id:"shared",footprint:{pads,shapes:[]}}]]);
+    if (options.duplicate) pads.push(target);
+    const board=Atrium.sheet("pcb","Large-pad occlusion");
+    board.items=[component,other];
+    const captions = options.only===1?[component]:options.only===2?[other]:board.items;
+    const groups = new Map([["Top",captions.flatMap(parent =>
+      Array.from({length:options.few?2:65},()=>({p:target,parent,g:AtriumPCBAppearance.padGeometry(target,"Top","Top")})))]]);
+    const I={query(_doc,_defs,box) {
+      return board.items.filter(({x,y})=>spatial.overlaps(box,[x-1,y-1,x+1,y+1]));
+    }};
+    sandbox.AtriumSpatial={overlaps:spatial.overlaps};
+    const linear = Array.from(gpu.coveredPadDetails(I,board,definitions,groups));
+    builds.length=0;
+    sandbox.AtriumSpatial={...spatial,create(rows,getBox,pitch) {
+      builds.push(rows.map(getBox));
+      return spatial.create(rows,getBox,pitch);
+    }};
+    try {
+      const indexed = Array.from(gpu.coveredPadDetails(I,board,definitions,groups));
+      assert.deepEqual(indexed,linear,label+" preserves the linear result");
+      assert.deepEqual(indexed,expected,label);
+      if (options.few) assert.equal(builds.length,0,"sparse captions do not build a grid for a large footprint");
+      else if (!expected.length && !options.only) {
+        assert.equal(builds.length,2,"each placement builds one grid");
+        assert.notDeepEqual(builds[0][0],builds[1][0],"shared geometry keeps each placement's own world bounds");
+      }
+    } finally { sandbox.AtriumSpatial=spatial; }
+  };
+  test("Only the mirrored occurrence has a later sibling overlap",
+    [],[pad(.9,{w:.08,h:.08})],["Top"],{land:{w:2,h:.2},angular:true});
+  test("Earlier sibling overlap and earlier unbounded stack do not promote",
+    [pad(.1),pad(-100,{padStack:{Top:{}}})],[],[]);
+  test("Later sibling overlap promotes",[pad(-2)],[pad(.1)],["Top"]);
+  test("A later stack conservatively promotes without a geometric hit",[],[pad(500,{padStack:{Top:{}}})],["Top"]);
+  test("A later custom pad conservatively promotes without a geometric hit",[],[pad(500,{poly:[[0,0],[1,0],[0,1]]})],["Top"]);
+  test("Repeated pad identity retains the first authored occurrence",[],[],["Top"],{duplicate:true});
+  test("Mirrored placement sharing its definition does not reuse the first transform",[],[],[]);
+  test("A large footprint with few eligible pads stays linear",[],[],[],{few:true});
+  test("Coincident earlier placement does not cover the later caption",[],[],[],{coincident:true,only:2});
+  test("Coincident later placement covers the earlier caption",[],[],["Top"],{coincident:true,only:1});
+  test("A non-finite outline follows the legacy predicate",[],[pad(500,{w:Infinity})],["Top"]);
+}
+console.log("Large sibling pads preserve earlier/later order, unbounded pads, and distinct mirrored placements");
+
 // A retained pan still collects captions for newly exposed layers. Ordered copper paints its own.
 {
   const measured=[], layers=new Set(["Top","Multi"]);

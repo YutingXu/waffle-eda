@@ -2819,13 +2819,49 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // Later copper on the same layer can cover a caption painted with its land.
   // Ordinary disjoint pads keep the retained GPU pass; overlapping ones use the ordered layer.
   function coveredPadDetails(I, doc, defs, groups) {
-    const layers = new Set(), c = I.cache;
-    const spatial = c?.doc === doc && c.preparation && G.AtriumSpatial;
+    const layers = new Set(), spatial = G.AtriumSpatial, c = I.cache;
+    const pendingSpatial = c?.doc === doc && c.preparation && spatial;
     let queries = 0, local;
+    let placed, captionCounts;
+    const boundsOf = (pad, item) => {
+      const [x,y] = PCB.padCenter(pad,item), r = Math.hypot(pad.w || pad.diameter || 0, pad.h || pad.diameter || 0) / 2;
+      return [x-r,y-r,x+r,y+r];
+    };
+    function manyCaptions(item, entries) {
+      if (entries.length <= 64) return false;
+      captionCounts ??= new WeakMap();
+      let count = captionCounts.get(entries);
+      if (!count) {
+        captionCounts.set(entries,count = new Map());
+        for (const {parent} of entries) if (parent) count.set(parent,(count.get(parent) || 0) + 1);
+      }
+      return count.get(item) > 64;
+    }
+    // Groups share geometry between placed instances. Index world-space bounds
+    // by placement and only for this synchronous occlusion calculation.
+    function siblingIndex(item, group) {
+      placed ??= new WeakMap();
+      let byGroup = placed.get(item);
+      if (!byGroup) placed.set(item, byGroup = new Map());
+      if (byGroup.has(group)) return byGroup.get(group);
+      const rows = [], first = new Map();
+      let unbounded = -1;
+      for (const [order,pad] of group.pads.entries()) {
+        if (!first.has(pad)) first.set(pad,order+1);
+        if (pad.padStack || pad.poly) { unbounded = order; continue; }
+        const box = boundsOf(pad,item);
+        // The legacy overlap predicate still decides malformed bounds.
+        if (!box.every(Number.isFinite)) { byGroup.set(group,null); return null; }
+        rows.push({order,box});
+      }
+      const entry = {first, unbounded, grid:spatial.create(rows,row=>row.box,1)};
+      byGroup.set(group,entry);
+      return entry;
+    }
     layerPass: for (const [layer, entries] of groups) for (const {p, parent, g} of entries) {
       const box = padDetailBox(g,parent);
       // Amortize the temporary index only when several actual caption queries were needed.
-      if (spatial && ++queries === 8) {
+      if (pendingSpatial && ++queries === 8) {
         // The full pick grid is still under construction. One authoritative query includes
         // later occluders outside the viewport or suppressed by the painter.
         let bounds = null;
@@ -2850,11 +2886,19 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         const group = PCB.footprintLayers(i, PCB.readDefinition(defs,i.def,doc)?.footprint).find(g => g.layer === layer);
         if (!group) continue;
         if (i !== parent && group.shapes.length) { layers.add(layer); continue layerPass; }
+        const indexed = i === parent && group.pads.length > 64 && spatial.create && manyCaptions(i,entries) &&
+          box.every(Number.isFinite) && siblingIndex(i,group);
+        if (indexed) {
+          const first = indexed.first.get(p) ?? 0;
+          if (indexed.unbounded >= first || indexed.grid.query(box).some(row=>row.order >= first)) {
+            layers.add(layer); continue layerPass;
+          }
+          continue;
+        }
         const first = i === parent ? group.pads.indexOf(p) + 1 : 0;
         for (let n = first; n < group.pads.length; n++) {
-          const pad = group.pads[n], center = PCB.padCenter(pad,i);
-          const radius = Math.hypot(pad.w || pad.diameter || 0, pad.h || pad.diameter || 0) / 2;
-          if (pad.padStack || pad.poly || G.AtriumSpatial.overlaps(box, [center[0]-radius, center[1]-radius, center[0]+radius, center[1]+radius])) { layers.add(layer); continue layerPass; }
+          const pad = group.pads[n];
+          if (pad.padStack || pad.poly || spatial.overlaps(box,boundsOf(pad,i))) { layers.add(layer); continue layerPass; }
         }
       }
     }
