@@ -162,7 +162,29 @@ def public_commands(feature, specs):
             if "mcp" in spec.get("surfaces", SURFACES)}
 
 
+def graduated_features():
+    """Features out of beta: on in every workspace. The MCP list must match the editor's (prefs.js)."""
+    sys.path.insert(0, str(ROOT / "mcp"))
+    from server import GRADUATED_BUTTER
+    prefs = (ROOT / "app/editor/prefs.js").read_text(encoding="utf-8")
+    listed = re.search(r"const GRADUATED = Object\.freeze\(\[([^\]]*)\]\);", prefs)
+    assert listed, "app/editor/prefs.js declares GRADUATED"
+    editor = {name for name in re.findall(r'"([a-z][A-Za-z0-9]*)"', listed[1])}
+    assert editor == set(GRADUATED_BUTTER), ("editor and MCP graduated features differ", sorted(editor), sorted(GRADUATED_BUTTER))
+    assert editor <= set(FEATURES), editor
+    return tuple(sorted(editor))
+
+
+GRADUATED = graduated_features()
+
+
+def default_commands():
+    """The Butter commands every MCP workspace lists without --enable-butter."""
+    return {name: spec for feature, specs in inventory(GRADUATED).items() for name, spec in public_commands(feature, specs).items()}
+
+
 def verify_listing(client, current):
+    current = {**default_commands(), **current}
     discovered = client.check_tool("list_commands", {})
     rows = {row["command"]: row for row in discovered["commands"] if row["command"].startswith("butter.")}
     assert set(rows) == set(current), (sorted(rows), sorted(current))
@@ -250,9 +272,15 @@ def run_feature(feature, specs, project, original, source):
     initial_files = workspace_files(root)
     with Stdio(server(project, "--allow-write")) as disabled:
         verify_off(disabled)
-        for name, case in cases.items():
-            verify_disabled(disabled, {"command": name, "args": case["args"]})
+        if feature not in GRADUATED:
+            for name, case in cases.items():
+                verify_disabled(disabled, {"command": name, "args": case["args"]})
         assert workspace_files(root) == initial_files, f"{feature}: default or disabled calls changed workspace bytes"
+    if feature in GRADUATED:
+        # On by default: the cases below run without a flag, and the old flag is still accepted.
+        with Stdio(server(project, *flags)) as flagged:
+            verify_listing(flagged, public)
+        flags = ()
     with Stdio(server(project, *flags)) as enabled:
         verify_listing(enabled, public)
         for name, case in cases.items():
@@ -308,7 +336,7 @@ def main():
     parser.add_argument("--feature", choices=FEATURES, action="append", help="Exercise a bounded feature set")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--inventory", action="store_true", help="Inspect progress without issuing acceptance")
-    mode.add_argument("--smoke", action="store_true", help="Check an unchanged native read with all flags off")
+    mode.add_argument("--smoke", action="store_true", help="Check an unchanged native read with every beta flag off")
     args = parser.parse_args()
     if args.smoke:
         with tempfile.TemporaryDirectory(prefix="waffle-butter-smoke-") as scratch:
@@ -317,7 +345,7 @@ def main():
             with Stdio(server(project)) as client:
                 verify_off(client)
             assert initial == workspace_files(project.parent), "Default commands changed workspace bytes"
-        print("PASS native stdio smoke with all Butter flags off and workspace unchanged")
+        print(f"PASS native stdio smoke with every beta flag off ({', '.join(GRADUATED)} on by default) and workspace unchanged")
         return
     features = tuple(dict.fromkeys(args.feature or FEATURES))
     commands = inventory(features)

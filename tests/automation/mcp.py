@@ -1613,9 +1613,16 @@ class HeadlessToolTests(HeadlessFixture):
         self.assertEqual(preview["inputSchema"]["properties"]["mode"]["enum"], ["preview"])
         with self.assertRaisesRegex(ValueError, "read-only"):
             server.call("import_design", {"paths":[self.path.name], "mode":"save-as"})
+        # Graduated Butter features (links) are on by default, so run_command is advertised with
+        # only their inspection commands and modes. Ordinary commands are still refused.
+        run = next(t for t in server.tool_list() if t["name"] == "run_command")
+        self.assertTrue(run["annotations"]["readOnlyHint"])
+        self.assertTrue(all(c.startswith("butter.links.") for c in run["inputSchema"]["properties"]["command"]["enum"]))
+        self.assertEqual(run["inputSchema"]["properties"]["mode"]["enum"], ["read", "plan"])
+        with self.assertRaisesRegex(ValueError, "read-only"):
+            server.call("run_command", {"command":"set_locked"})
         for name, args in [("apply_proposal", {"file":"review.waffle-ai"}), ("propose_component_edits", {}),
-                           ("run_command", {"command":"set_locked"}), ("generate_bom", {}),
-                           ("export_design", {"translator":"excellon"})]:
+                           ("generate_bom", {}), ("export_design", {"translator":"excellon"})]:
             self.assertNotIn(name, names)
             with self.assertRaisesRegex(ValueError, "read-only"):
                 server.call(name, args)

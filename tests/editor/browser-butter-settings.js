@@ -25,6 +25,13 @@ module.exports = async function settingsOptIn(page, requested, root, menuAction)
     "window-commands-ui.js", "workspace-tools.js", "workspace-tools.css"
   ]);
   const featureAssets = () => requested.filter(name=>butterAssets.has(name));
+  // Graduated features (AtriumPrefs.GRADUATED) are on in a fresh profile; only the beta ones start cold.
+  const graduated = JSON.parse(/const GRADUATED = Object\.freeze\((\[[^\]]*\])\)/.exec(
+    fs.readFileSync(path.join(root,"app","editor","prefs.js"),"utf8"))[1]);
+  const graduatedIds = expected.filter(id=>graduated.includes(id.split(".")[1]));
+  const betaAssets = new Set([...descriptors.filter(({feature})=>!graduated.includes(feature)).map(({feature})=>handler(feature)),
+    "ai-ui.js", "macros-ui.js", "query-service.js", "query-ui.js", "window-commands-ui.js"]);
+  const coldAssets = () => requested.filter(name=>betaAssets.has(name));
   const commandIds = () => page.evaluate(()=>AtriumKeymap.commands().filter(c=>c.id.startsWith("butter.")).map(c=>c.id).sort());
   const prefs = page.getByRole("dialog",{name:"Preferences",exact:true});
   const exportButton = prefs.getByRole("button",{name:"Export all settings…",exact:true});
@@ -53,8 +60,9 @@ module.exports = async function settingsOptIn(page, requested, root, menuAction)
     await page.waitForFunction(()=>AtriumNavHost.folderProject()?.hasPresented("analog"));
   }
 
-  assert.deepEqual(await commandIds(),[]);
-  assert.deepEqual(featureAssets(),[]);
+  await page.waitForFunction(ids=>ids.every(id=>AtriumKeymap.command(id)),graduatedIds);
+  assert.deepEqual(await commandIds(),graduatedIds);
+  assert.deepEqual(coldAssets(),[]);
   const control = await page.evaluate(()=>{
     const host=AtriumNavHost, name=host.doc().name;
     host.edit(()=>{host.doc().name+=" QA";},"Change document name");
@@ -65,7 +73,7 @@ module.exports = async function settingsOptIn(page, requested, root, menuAction)
   await openSettings();
   const initial = await exportBundle();
   assert.ok(flags.every(flag=>initial.prefs[flag]!==true));
-  assert.deepEqual(featureAssets(),[],"exporting Settings leaves Butter cold");
+  assert.deepEqual(coldAssets(),[],"exporting Settings leaves beta Butter features cold");
   await importFlags(initial,true);
   await page.waitForFunction(ids=>ids.every(id=>AtriumKeymap.command(id)),expected);
   assert.deepEqual(await commandIds(),expected);

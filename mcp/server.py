@@ -96,12 +96,17 @@ def proposal_v1_token():
     return "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789_") for _ in range(8))
 
 
+# Butter features out of beta are on for every workspace; --enable-butter adds the others.
+# Mirrors GRADUATED in app/editor/prefs.js (tests/automation/butter-acceptance.py checks they agree).
+GRADUATED_BUTTER = frozenset({"links"})
+
+
 class Server:
     def __init__(self, path, allow_write=False, output_root=None, read_only=False, source_files=(), butter_enabled=(), datasheet_inputs=()):
         if read_only and allow_write:
             raise ValueError("Choose either read-only or write access.")
         self.read_only = read_only
-        self.butter_enabled = frozenset(butter_enabled)
+        self.butter_enabled = frozenset(butter_enabled) | GRADUATED_BUTTER
         self.path = path.resolve()
         if self.path.suffix.lower() == ".atrium" and self.path.is_file():
             raise ObsoleteProject()
@@ -570,7 +575,8 @@ if __name__=="__main__":
     access.add_argument("--allow-write",action="store_true",help="Allow explicit write mode for native folder transactions and selected staged Git commits.")
     parser.add_argument("--output-root",type=Path,help="Folder that generated outputs must stay inside. Defaults to the project folder.")
     parser.add_argument("--enable-butter", action="append", default=[], metavar="FEATURE",
-                        help="Enable a first-party Butter feature for this workspace process. Repeat for each feature.")
+                        help="Enable a first-party Butter feature for this workspace process. Repeat for each feature. "
+                             "Graduated features (" + ", ".join(sorted(GRADUATED_BUTTER)) + ") are always on.")
     parser.add_argument("--datasheet-input", action="append", default=[], metavar="ALIAS=PDF",
                         help="Grant the optional datasheets feature the selected local PDF under an alias.")
     parser.add_argument("--cli",metavar="TOOL",help="Run one tool and print its JSON result instead of serving MCP over stdio. Use \"list\" to list tools.")

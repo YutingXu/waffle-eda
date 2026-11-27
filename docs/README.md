@@ -10,6 +10,7 @@
 | [Footprint wizard](footprint-wizard.md) | The IPC-7351B footprint wizard: 50 package families, density levels, presets, batch generation, sources and limits |
 | [Sourcing](sourcing.md) | How part numbers and supplier data get into the BOM offline; Waffle never invents MPNs |
 | [Keyboard shortcuts](shortcuts.md) | Every bound command for the Altium-style, KiCad-like and VS Code-like presets (generated) |
+| [Links to Waffle](links.md) | Copying and opening `waffle://` links to objects, stored links and references, and registering the link type on each desktop |
 | [MCP and command line](mcp-and-cli.md) | Connecting an AI client, proposals, `--allow-write`, CI recipes |
 | [Extensions](extensions.md) | Writing, permissions, testing and publishing a sandboxed extension |
 | [Theming](theming.md) | Presets, accent, density, theme JSON, VS Code® theme and keybinding import |

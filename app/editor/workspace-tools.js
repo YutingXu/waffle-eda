@@ -106,7 +106,7 @@ globalThis.AtriumIntelUI = (() => {
   }
   function openMessage(status) {
     return {
-      disabled:"Turn on Project Links in Experimental features to open Waffle links.",
+      disabled:"Waffle links are turned off in this profile's settings.",
       "invalid-link":"This is not a Waffle link.",
       "missing-project":"The project for this link could not be found.",
       "project-mismatch":"The chosen project does not match this link.",

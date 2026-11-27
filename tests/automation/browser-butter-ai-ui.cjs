@@ -18,10 +18,10 @@ async function walk(browser, profile, shots) {
   const shot = (page, name, locator = ".panel-ask") => H.shot(page, shots && path.join(shots, profile.name), name, locator);
   const {page, errors} = await H.openDemo(browser, profile, []);
   try {
-    // Flag off: nothing loads, no command, no panel.
-    const off = await page.evaluate(() => ({ui:!!globalThis.AtriumIntelUI, command:!!AtriumKeymap.command("assist.ask-ai"),
+    // Flag off: no command, no panel. (AtriumIntelUI itself is loaded for the graduated Links feature.)
+    const off = await page.evaluate(() => ({command:!!AtriumKeymap.command("assist.ask-ai"),
       panel:!!document.querySelector(".intel-panel")}));
-    assert.deepEqual(off, {ui:false, command:false, panel:false});
+    assert.deepEqual(off, {command:false, panel:false});
     await page.evaluate(async () => {
       AtriumPrefs.set("butter.query", true);
       AtriumPrefs.set("butter.ai", true);

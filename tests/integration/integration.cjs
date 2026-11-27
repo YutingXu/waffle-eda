@@ -216,7 +216,9 @@ async function run(){
   assert.equal(typeof AtriumRules.compiled, "function");
   assert.equal(typeof AtriumMotion.sample, "function");
   assert.equal(globalThis.AtriumMotionDiagnostics, undefined, "ordinary startup leaves developer diagnostics cold");
-  assert.equal(globalThis.AtriumButterEditor, undefined, "ordinary startup leaves Butter opt-in commands cold");
+  // Links has graduated (AtriumPrefs.GRADUATED), so the Butter editor may boot for it; beta features stay cold.
+  assert.ok((globalThis.AtriumButter?.list?.("editor") ?? []).every(c => AtriumPrefs.GRADUATED.includes(c.id.split(".")[1])),
+    "ordinary startup leaves Butter opt-in commands cold");
   const sample=AtriumParts.example(), sampleBoard=sample.documents.find(d=>d.kind==="pcb");
   await folders.openModel(sample);
   await AtriumNavHost.folderProject().requireClosure({purpose:"editor fixture"});
@@ -490,7 +492,7 @@ async function run(){
   console.log("PASS pour intent follows the command palette and ignores unrelated editor input");
   const diagnostics = await AtriumLazy.need("AtriumMotionDiagnostics");
   assert.equal(diagnostics.inspect("sample", {from:0, to:80, elapsedMs:50, durationMs:200, curve:"linear"}).value, 20);
-  assert.equal(globalThis.AtriumButterEditor, undefined, "diagnostics need the broker without opening the Butter editor");
+  assert.ok(!AtriumLazy.files(["AtriumMotionDiagnostics"]).includes("automation/editor-command-host.js"), "diagnostics need the broker without opening the Butter editor");
   console.log("PASS cold developer diagnostics load their registered providers on demand");
 }
 

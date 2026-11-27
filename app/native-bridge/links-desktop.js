@@ -251,7 +251,7 @@ globalThis.AtriumLinksDesktop = (() => {
     return follow(target).then(result => {
       if (result.status !== "found")
         G.AtriumNavHost?.info({
-          disabled:"Waffle links are available when Project Links is enabled in Experimental features.",
+          disabled:"Waffle links are turned off in this profile's settings.",
           "missing-project":"The project for this link could not be found.",
           "project-mismatch":"The selected project does not match this link.",
           "ambiguous-project":"More than one recent project has this identity. Open the intended project first.",

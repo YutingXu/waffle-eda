@@ -39,6 +39,10 @@ globalThis.AtriumPrefs = (() => {
     "routing.dragReroute": "on", "routing.dragRerouteCap": 32, "routing.dragRerouteDepth": 2,
     "library.starterInNewProjects": true, "general.layoutByKind": false, "keyboard.peekCheatsheet": false, "labs.notebook": false
   });
+  // Butter features ("butter.<feature>") start in beta, off by default. A feature comes out of beta by
+  // joining this list: its key then defaults to true, and a stored false still turns it off. AtriumLabs
+  // reads through get() once bound, and the MCP server mirrors the list (GRADUATED_BUTTER in mcp/server.py).
+  const GRADUATED = Object.freeze(["links"]);
   const CHOICES = {"general.units": ["mm", "mil"], "general.startPage": ["auto", "always", "never"], "schematic.orientation": ["landscape", "portrait"],
     "schematic.titleBlock": ["standard", "ansi", "none"], "schematic.afterUpdatePcb": ["show", "stay"],
     "pcb.importRules": ["ask", "use", "keep"], "pcb.livePours": ["live", "manual"], "pcb.livePourDrag": ["live", "drop"], "routing.padEntry": ["centre", "edge", "any"], "routing.dragReroute": ["on", "off", "shift"],
@@ -73,7 +77,7 @@ globalThis.AtriumPrefs = (() => {
   const json = v => { try { return JSON.parse(JSON.stringify(v)); } catch { return undefined; } };
   function get(key) {
     if (key == null) return {...DEFAULTS, ...values};
-    return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : key.startsWith("butter.") ? false : DEFAULTS[key];
+    return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : key.startsWith("butter.") ? GRADUATED.includes(key.slice(7)) : DEFAULTS[key];
   }
   const changed = () => ({...values});
   function persist() {
@@ -790,7 +794,7 @@ globalThis.AtriumPrefs = (() => {
   syncDropPreference();
   const bootButter = () => globalThis.AtriumLazy?.need("AtriumButterEditor").catch(error => globalThis.console?.warn?.(error));
   on("butter.", ({value}) => {if (value === true) bootButter();});
-  if (Object.entries(values).some(([key,value]) => key.startsWith("butter.") && value === true)) bootButter();
+  if ([...Object.keys(values), ...GRADUATED.map(feature => "butter." + feature)].some(key => key.startsWith("butter.") && get(key) === true)) bootButter();
   try { const L = globalThis.AtriumLazy; L.register("AtriumVSCode", {scripts: ["editor/vscode-theme.js"]}); L.register("AtriumPrefsStorage", {scripts: ["editor/prefs-storage.js"]}); L.need("AtriumPrefsStorage").catch(() => {}); } catch {}
   if (doc) {
     const ready = () => {
@@ -815,7 +819,7 @@ globalThis.AtriumPrefs = (() => {
     };
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", ready, {once: true}); else ready();
   }
-  return Object.freeze({STORE, FORMAT, VERSION, DEFAULTS, READERS, GUARDED, get, set, on, reset, changed, exportJSON, importJSON, sheetDefaults, registerPage,
+  return Object.freeze({STORE, FORMAT, VERSION, DEFAULTS, READERS, GUARDED, GRADUATED, get, set, on, reset, changed, exportJSON, importJSON, sheetDefaults, registerPage,
     junctions, exportSettings, importSettings, scrub, extend,
     pages: () => catalog().map(p => ({id: p.id, title: p.title})), open, close, openStartPage, newProject,
     // Tests: reload from storage.

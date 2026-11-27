@@ -14,7 +14,8 @@ async function walk(browser, profile, shots) {
   const panel = page.locator(".panel-design-query");
   const status = () => panel.locator(".ui-status-line").first().textContent();
   try {
-    assert.equal(await page.evaluate(() => !!globalThis.AtriumIntelUI || !!AtriumKeymap.command("assist.design-query")), false);
+    // AtriumIntelUI is already loaded for the graduated Links feature; Query stays off until its flag.
+    assert.equal(await page.evaluate(() => !!AtriumKeymap.command("assist.design-query") || !!document.querySelector(".panel-design-query")), false);
     await page.evaluate(async () => { AtriumPrefs.set("butter.query", true); await AtriumLazy.need("AtriumButterEditor"); });
     await page.waitForFunction(() => AtriumKeymap.command("assist.design-query"));
     await page.evaluate(() => AtriumKeymap.command("assist.design-query").run());
