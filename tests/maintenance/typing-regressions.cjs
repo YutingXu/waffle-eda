@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 class FakeNode {
   constructor(tag) {
     this.tagName = String(tag).toUpperCase(); this.children = []; this.parentNode = null; this.attributes = {};
-    this.dataset = {}; this.style = {}; this.hidden = false; this.value = ""; this.listeners = {}; this._text = "";
+    this.dataset = {}; this.style = {setProperty(k, v) { this[k] = String(v); }, removeProperty(k) { delete this[k]; }, getPropertyValue(k) { return this[k] ?? ""; }}; this.hidden = false; this.value = ""; this.listeners = {}; this._text = "";
     this.className = "";
     this.classList = {
       add: (...names) => { this.className = [...new Set([...this.classes(), ...names])].join(" "); },
@@ -24,6 +24,11 @@ class FakeNode {
   prepend(...nodes) { const old = this.children; this.children = []; this.append(...nodes); this.children.push(...old); }
   replaceChildren(...nodes) { for (const c of this.children) c.parentNode = null; this.children = []; this._text = ""; this.append(...nodes); }
   remove() { if (this.parentNode) { this.parentNode.children = this.parentNode.children.filter(c => c !== this); this.parentNode = null; } }
+  replaceWith(...nodes) {
+    const parent = this.parentNode; if (!parent) return;
+    const at = parent.children.indexOf(this), after = parent.children.slice(at + 1);
+    parent.children = parent.children.slice(0, at); this.parentNode = null; parent.append(...nodes); parent.children.push(...after);
+  }
   setAttribute(k, v) { this.attributes[k] = String(v); }
   getAttribute(k) {
     if (k.startsWith("data-")) {
@@ -87,6 +92,7 @@ const realTimers = {set: globalThis.setTimeout, clear: globalThis.clearTimeout};
   globalThis.setTimeout = () => 0; globalThis.clearTimeout = () => {};
   require("../../app/editor/keymap.js");
   require("../../app/ui/shortcut.js");
+  require("../../app/ui/kit.js"); // AtriumKeymapEditor depends on AtriumUIKit (lazy.js) for its icon buttons
   require("../../app/editor/keymap-editor.js");
   const keymap = globalThis.AtriumKeymap;
   for (const mac of [false, true]) {
@@ -109,10 +115,10 @@ const realTimers = {set: globalThis.setTimeout, clear: globalThis.clearTimeout};
     assert.ok(body.children.includes(d), "the dialog opens");
     assert.ok(d.classList.contains("ui-dialog") && d.querySelector("h2").classList.contains("ui-dialog-title"),
       "the real shell adopts the shortcut editor");
-    const keys = d.find(n => n.tagName === "BUTTON" && n.className === "km-keys");
+    const keys = d.find(n => n.tagName === "BUTTON" && n.className === "ui-shortcut-edit");
     assert.ok(keys, "a key chip for Save");
     keys.click();
-    const recording = d.find(n => n.className === "km-recording");
+    const recording = d.find(n => n.className === "ui-shortcut-recorder");
     assert.ok(recording, "clicking the chip starts recording");
     d.dispatch("keydown", {key: "k", code: "KeyK", ctrlKey: !mac, metaKey: mac});
     const chord = recording.children[0].children[0];
