@@ -78,6 +78,39 @@ globalThis.AtriumAltiumExport = (() => {
   const POWER_STYLE = {circle: 0, arrow: 1, bar: 2, wave: 3, gnd: 4, signal: 5, earth: 6};
   const ELECTRICAL_MAX = 7;
   const IO = {unspecified: 0, output: 1, input: 2, bidirectional: 3};
+  // Signal directive fields (signals.js §7) as Altium parameter sets (record 43), each with its parameters
+  // (record 41) as children, at a point of the wire or at the label that carries them: the import reads a
+  // set there back onto the same net (sch-import.js directives). Each net class is a set of its own, as
+  // Altium places them; a differential pair leg is one set with DifferentialPair=True and its pair classes.
+  const DIRECTIVE_KINDS = new Set(["netlabel", "power", "port", "offsheet", "wire"]);
+  function directivePoint(i) {
+    if (i.kind !== "wire") return Number.isFinite(i.x) && Number.isFinite(i.y) ? [i.x, i.y] : null;
+    // The middle of the wire's first segment: on this wire only, clear of the junctions at its ends.
+    const pts = i.points || [];
+    for (let k = 1; k < pts.length; k++) if (pts[k][0] !== pts[k - 1][0] || pts[k][1] !== pts[k - 1][1])
+      return [(pts[k][0] + pts[k - 1][0]) / 2, (pts[k][1] + pts[k - 1][1]) / 2];
+    return null;
+  }
+  function directiveRecords(doc, push, at, text, report) {
+    const list = v => (Array.isArray(v) ? v : String(v ?? "").split(",")).map(x => String(x).trim()).filter(Boolean);
+    for (const i of doc.items) {
+      if (!DIRECTIVE_KINDS.has(i.kind)) continue;
+      const classes = [...new Set(list(i.netClass))], tags = [...new Set(list(i.tags))];
+      const pair = i.polarity === 1 || i.polarity === -1 || typeof i.diffPair === "string" && !!i.diffPair.trim();
+      if (!classes.length && !pair && !tags.length && !(typeof i.signal === "string" && i.signal.trim())) continue;
+      const p = directivePoint(i);
+      if (!p) { report("Signal directives on an item without a location were not written."); continue; }
+      const set = (name, params) => {
+        const owner = push([["RECORD", 43], ["OWNERPARTID", -1], ...at("LOCATION", p), ["COLOR", 1930808], ["NAME", name]]);
+        for (const [k, v] of params) push([["RECORD", 41], ["OWNERINDEX", owner], ["OWNERPARTID", -1], ...at("LOCATION", p), ["COLOR", 8388608], ["FONTID", 1],
+          ["ISHIDDEN", "T"], ["TEXT", text(v)], ["NAME", k]]);
+      };
+      for (const c of classes) set("NETCLASS", [["ClassName", c]]);
+      if (pair) set("DIFFPAIR", [["DifferentialPair", "True"], ...tags.map(t => ["DifferentialPairClassName", t])]);
+      else if (tags.length) report("Tags on a net that is not a differential pair leg have no Altium directive and were not written.");
+      if (!pair && i.signal) report("A signal name without a differential pair has no Altium directive and was not written.");
+    }
+  }
   function exportSchematic(project, requested, observer, snapshot) {
     const Atr = A(), doc = typeof requested === "string" ? project.documents.find(d => d.id === requested) : requested;
     if (doc?.kind !== "schematic") throw Error("Choose a schematic sheet to export.");
@@ -321,6 +354,7 @@ globalThis.AtriumAltiumExport = (() => {
       } else if (i.kind === "image") report("Embedded images were omitted.");
       else report("Unsupported sheet item " + i.kind + " omitted.");
     }
+    directiveRecords(doc, push, at, text, report);
     if (doc.items.some(i => i.kind === "part" && defs.get(i.def)?.symbol?.alternate)) report("De Morgan (alternate) symbol views export the view placed on the sheet only.");
     // WEIGHT counts the numbered design records, including the sheet itself and all component children.
     const header = record([["HEADER", "Protel for Windows - Schematic Capture Ascii File Version 5.0"], ["WEIGHT", lines.length]]);

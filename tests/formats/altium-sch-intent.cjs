@@ -106,6 +106,18 @@ function sheetProject(res) {
   // The fields are ordinary directive fields: they save, reopen and validate.
   const back = A.validate(nativeRoundTrip(p));
   assert.equal(back.documents[0].items.find(i => i.kind === "wire" && i.signal === "CAN" && i.polarity === 1).netClass, "HS");
+
+  // Altium export writes them back as parameter sets: an import, export and import keeps the same intent.
+  const out = AtriumAltiumExport.exportSchematic(p, doc.id), lines = out.content.split(/\r?\n/);
+  const sets = lines.flatMap((l, k) => /^\|RECORD=43\|/.test(l) ? [k - 1] : []);
+  assert.ok(sets.length >= 7, "one parameter set per net class and per pair leg");
+  for (const k of sets) assert.ok(lines.some(l => /^\|RECORD=41\|/.test(l) && l.includes("|OWNERINDEX=" + k + "|")), "every set has its parameters as children");
+  const again = AtriumSCH.read("Intent.SchDoc", null, out.content, {fidelity:sink()}), q = sheetProject(again), M2 = S.model(q, q.documents.find(d => d.kind === "pcb"));
+  const summary = m => ({classes: m.netClasses(), pairs: m.diffPairClasses(), tags: [...m.netsOfTag("CAN_PAIRS")].sort(),
+    signals: m.signals.filter(x => x.kind === "diff").map(x => [x.name, x.legs.map(l => [l.polarity, l.seeds])]).sort()});
+  assert.deepEqual(summary(M2), summary(M), "the directives survive an Altium round trip");
+  assert.deepEqual(S.directives(q).records.map(r => [r.net, r.signal ?? null, r.polarity ?? null, r.diffPair ?? null, r.tags, r.netTags]).sort(),
+    S.directives(p).records.map(r => [r.net, r.signal ?? null, r.polarity ?? null, r.diffPair ?? null, r.tags, r.netTags]).sort(), "and the fields on each net");
 }
 
 // KiCad: a net class directive label puts its Netclass on the wire it touches.
@@ -194,6 +206,15 @@ function recorder() {
   assert.ok(C.ellipse(moved));
   moved.points[2] = [0, 0];
   assert.equal(C.ellipse(moved), null);
+  // Drawing reuses its check while the points are the same, and notices a point changed in place.
+  {
+    const s = JSON.parse(JSON.stringify(graphics[1])), traced = () => C.trace(recorder(), s);
+    assert.ok(traced() && traced(), "the cached curve draws");
+    const keep = s.points[3].slice(); s.points[3][0] += 1;
+    assert.equal(traced(), false, "a point edited in place draws the points");
+    s.points[3][0] = keep[0];
+    assert.ok(traced(), "and the curve again once the point is back");
+  }
   // A native save keeps every curve, rounded to nanometres.
   const p = sheetProject(res), back = A.validate(nativeRoundTrip(p));
   const backDef = back.library.find(d => d.id === def.id), backShapes = backDef.symbol.shapes.filter(s => s.kind === "circle" || s.arc || s.ellipse);
