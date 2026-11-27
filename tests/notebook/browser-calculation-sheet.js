@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
 const {createStaticServer} = require("../support/browser-app-server.cjs");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const root = process.env.WAFFLE_CALC_ROOT || path.resolve(__dirname,"../..");
 const assets = process.env.WAFFLE_CALC_ASSETS;
 async function run() {

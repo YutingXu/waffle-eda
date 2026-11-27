@@ -1,5 +1,5 @@
 "use strict";
-const assert=require("node:assert/strict"),path=require("node:path"),fs=require("node:fs/promises"),{pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const assert=require("node:assert/strict"),path=require("node:path"),fs=require("node:fs/promises"),{pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 function stats(list){const s=list.slice().sort((a,b)=>a-b),v=q=>Number(s[Math.min(s.length-1,Math.floor(s.length*q))].toFixed(3));return {n:s.length,p50:v(.5),p95:v(.95),max:v(1),over16:s.filter(n=>n>16).length};}
 async function trace(cdp){const done=new Promise(r=>cdp.once("Tracing.tracingComplete",r));await cdp.send("Tracing.end");const {stream}=await done,parts=[];for(;;){const p=await cdp.send("IO.read",{handle:stream});parts.push(p.base64Encoded?Buffer.from(p.data,"base64").toString():p.data);if(p.eof)break;}await cdp.send("IO.close",{handle:stream});return JSON.parse(parts.join("")).traceEvents;}
 (async()=>{

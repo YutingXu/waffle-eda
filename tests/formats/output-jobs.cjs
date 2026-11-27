@@ -2,6 +2,7 @@
 // Output job sets (app/formats/output-jobs.js): format and validation, presets with
 // board-house layouts, the headless runner, manifest checksums, DRC/ERC
 // thresholds, ZIP packaging, path safety and the asynchronous runner.
+require("../support/utc.cjs");   // job folders carry the local date of a fixed instant
 const assert = require("node:assert/strict");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};
 for (const m of ["model", "altium-rules", "rules", "connectivity", "drc", "messages", "erc", "parts", "spatial", "pcb-appearance", "pcb-pours", "stackup", "board-shape",

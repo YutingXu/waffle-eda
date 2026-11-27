@@ -961,9 +961,10 @@ globalThis.AtriumExtensions = (() => {
   // -------------------------------------------------------------- activation
   const timeoutOf = e => Math.min(e.manifest.worker === "dedicated" ? LONG_TIMEOUT : MAX_TIMEOUT, e.manifest.timeoutMs || DEFAULT_TIMEOUT);
   // ------------------------------------------------------------------ grants
-  // Stored per extension: {acknowledged, perms: {permission: true | false}}. A project
-  // extension's grants belong to its exact bundle (id@sha256), so a changed bundle with
-  // the same id starts with nothing and asks again.
+  // Stored per extension: {acknowledged, perms: {permission: true | false}, declared: [permission]}.
+  // `declared` is the sorted permission list the user answered; only a permission marked true is
+  // granted. A project extension's grants belong to its exact bundle (id@sha256), so a changed
+  // bundle with the same id starts with nothing and asks again.
   const grantKey = e => typeof e === "string" ? e : e.origin === "dev" ? "dev:" + e.id + "@" + e.hash : e.origin === "project" ? e.id + "@" + e.hash : e.id;
   const grantOf = e => ls.get(GRANTS, {})[grantKey(e)] || null;
   function saveGrant(e, g) { const all = ls.get(GRANTS, {}), k = grantKey(e); if (g) all[k] = g; else { delete all[k]; openWrites.delete(k); } ls.set(GRANTS, all); }
@@ -986,7 +987,8 @@ globalThis.AtriumExtensions = (() => {
     return "ask";
   }
   function syncPerms(e) {
-    // Built-ins are trusted by provenance: their declared permissions start granted, except
+    // Deny by default: a permission is live only when the grant marks it true. Built-ins are
+    // trusted by provenance: a declared permission the user has not answered is granted, except
     // write:edits (asks) and network hosts (off). The user can still revoke any of them.
     const g = grantOf(e) || (e.origin === "builtin" ? {acknowledged: true, perms: {}} : null), perms = e.perms;
     e.writeTarget = writeTarget();
@@ -994,7 +996,7 @@ globalThis.AtriumExtensions = (() => {
     for (const p of g?.acknowledged ? e.manifest.permissions || [] : []) {
       if (AtriumAPI.isNetworkPermission(p)) continue;
       const v = g.perms?.[p];
-      perms[p] = p === "write:edits" ? currentWrite(e, g, e.writeTarget) : v !== false;
+      perms[p] = p === "write:edits" ? currentWrite(e, g, e.writeTarget) : v === true || e.origin === "builtin" && v === undefined;
     }
     if (e.manifest.contributes?.aiProviders?.length) {
       const signature = JSON.stringify([perms["ai:provider"],perms["propose:edits"],hostsOf(e)]);
@@ -1004,7 +1006,8 @@ globalThis.AtriumExtensions = (() => {
   }
   const hostsOf = e => { const g = grantOf(e); return (e.manifest.permissions || []).filter(p => AtriumAPI.isNetworkPermission(p) && g?.perms?.[p] === true).map(p => p.slice(8)).sort(); };
   function setGrant(e, perm, value) {
-    const g = grantOf(e) || {acknowledged: true, perms: {}};
+    // Changing one permission is not an answer to the others: only a built-in starts acknowledged.
+    const g = grantOf(e) || {acknowledged: e.origin === "builtin", perms: {}};
     if (["write:edits", "propose:edits", "read:project"].includes(perm) && value !== true) e.editEpoch = (e.editEpoch || 0) + 1;
     if (perm === "write:edits") {
       if (value === true) recordWrite(e, g);
@@ -1045,17 +1048,26 @@ globalThis.AtriumExtensions = (() => {
     consentChain = result.catch(() => {});
     return result;
   }
-  async function acknowledge(e, kind, force = false) {
+  // A saved answer covers a manifest when it was given for exactly its permission list. An
+  // answer saved before grants recorded that list covers it only when `legacy` says so.
+  const permissionList = m => [...new Set(m.permissions || [])].sort();
+  const covers = (g, manifest, legacy) => !!g?.acknowledged &&
+    (Array.isArray(g.declared) ? JSON.stringify(g.declared) === JSON.stringify(permissionList(manifest)) : legacy);
+  // Ask unless a saved answer covers the manifest (`force` always asks). The stored grant is only
+  // replaced when the user accepts; cancelling leaves it as it was.
+  async function acknowledge(e, kind, force = false, legacy = true) {
     if (e.origin === "builtin") return true; // built-ins: trusted by provenance
-    if (!force && grantOf(e)?.acknowledged) return true;
+    const decided = () => covers(grantOf(e), e.manifest, legacy);
+    if (!force && decided()) return true;
     const bound = writeTarget();
     const answer = await ask({kind, target:targetName(), manifest: e.manifest, permissions: e.manifest.permissions || [], ...(e.origin === "dev" ? {developer: e.hash} : {})}, exts.get(e.id) === e ? e : null,
-      force ? undefined : () => (grantOf(e)?.acknowledged ? true : undefined));
+      force ? undefined : () => (decided() ? true : undefined));
     if (answer === true) return true;
     if (!answer) return false;
     const perms = {};
     for (const p of e.manifest.permissions || []) if (answer[p] === true || answer[p] === false) perms[p] = answer[p];
-    const grant = {acknowledged: true, perms};
+    const grant = {acknowledged: true, perms, declared: permissionList(e.manifest)};
+    openWrites.delete(grantKey(e)); // a new answer replaces the projects the old one could write to
     if (perms["write:edits"] === true && writeTarget() === bound) recordWrite(e, grant);
     saveGrant(e, grant); if (e.perms) syncPerms(e);
     return true;
@@ -2223,7 +2235,20 @@ globalThis.AtriumExtensions = (() => {
     await readDeclaredJSONC(files, candidates, async (name, file) => { files[name] = await file.text(); });
     return rootFiles(files);
   }
-  async function install(files, {origin = "user", enable} = {}) {
+  // Installs and unpacked loads of one extension id run one at a time, so each one reads the
+  // record and grant the previous one left.
+  const installing = new Map();
+  function serial(files, run) {
+    let id = "";
+    try { id = String(JSON.parse(files?.["waffle-extension.json"])?.id ?? ""); } catch {}
+    const next = (installing.get(id) || Promise.resolve()).then(run, run);
+    const tail = next.then(() => {}, () => {});
+    installing.set(id, tail);
+    tail.then(() => { if (installing.get(id) === tail) installing.delete(id); });
+    return next;
+  }
+  const install = (files, options) => serial(files, () => installNow(files, options));
+  async function installNow(files, {origin = "user", enable} = {}) {
     const raw=JSON.parse(files["waffle-extension.json"]);
     await checkNotebook(raw,files);
     const manifest=validateManifest(raw,files);
@@ -2236,10 +2261,11 @@ globalThis.AtriumExtensions = (() => {
     if (total > MAX_PACKAGE * 1.4) throw Error("Extension packages are limited to " + MAX_PACKAGE / 1e6 + " MB.");
     const hash = manifest.contributes?.mathFunctions?.length ? bundleDigest(manifest, kept) : null;
     if (hash) await checkNotebook(manifest,kept,{id:manifest.id,manifest,hash});
-    // Show the permissions at install. An update that asks for different ones asks again.
-    const same = prior && JSON.stringify([...(prior.manifest.permissions || [])].sort()) === JSON.stringify([...(manifest.permissions || [])].sort());
-    if (!same) saveGrant(manifest.id, null);
-    if (!await acknowledge({id: manifest.id, manifest, perms: {}}, "install")) throw Error("Installation cancelled.");
+    // Show the permissions at install. An update asks again unless the saved answer was given for
+    // exactly its permissions. The grant changes only when the user accepts, so cancelling leaves
+    // the installed version's answers as they were.
+    const same = !!prior && samePermissions(prior.manifest, manifest);
+    if (!await acknowledge({id: manifest.id, manifest, perms: {}}, "install", !prior, same)) throw Error("Installation cancelled.");
     if (prior) { await deactivate(prior.id); removeContributions(prior); }
     await code.put(manifest.id, kept);
     const e = recordOf(manifest, origin, enable ?? (manifest.enabledByDefault !== false || prior?.enabled === true));
@@ -2305,7 +2331,8 @@ globalThis.AtriumExtensions = (() => {
     return (globalThis.AtriumPref || globalThis.AtriumPrefs)?.get?.(DEV_PREF) === true; // AtriumPref reads the stored value before prefs.js loads
   };
   const samePermissions = (a, b) => JSON.stringify([...(a.permissions || [])].sort()) === JSON.stringify([...(b.permissions || [])].sort());
-  async function installDev(files) {
+  const installDev = files => serial(files, () => installDevNow(files));
+  async function installDevNow(files) {
     if (!developerMode()) throw Error("Developer mode is off. Turn it on in Preferences › Extension Development.");
     if (typeof files?.["waffle-extension.json"] !== "string") throw Error("The folder has no waffle-extension.json.");
     const raw=JSON.parse(files["waffle-extension.json"]);

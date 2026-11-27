@@ -17,7 +17,12 @@ globalThis.AtriumPCBTextInspector = (() => {
     const p = props(item, item.layer);
     const set = fn => apply(fn);
     const show = mm => U ? String(U.value(mm, unit)) : String(+mm.toFixed(4));
-    function row(label, control) { const l = el("label", null, "field-row"); l.append(el("span", label), control); root.append(l); return control; }
+    // Property rows (docs/ui-library.md › Property rows): a unit sits inside its field, a check is a switch.
+    function row(label, control, unit, tag = "label") {
+      const l = el(tag, null, "ui-prop-row");
+      if (control.matches("input,select,textarea")) control.classList.add("ui-field");
+      l.append(el("span", label), unit ? AtriumNavCommon.measure(control, unit) : control); root.append(l); return control;
+    }
     function register(input,path,spec) {
       const h=globalThis.AtriumNavHost;
       globalThis.AtriumLazy?.numericField?.(input,{...spec,target:path && h?.currentId?.() ? {scope:"item",documentId:h.currentId(),itemId:item.id,path} : undefined});
@@ -31,7 +36,7 @@ globalThis.AtriumPCBTextInspector = (() => {
         if (!Number.isFinite(v) || v < min || v > 1000) { i.value = show(value); o.info?.("Enter a length of at least " + show(min) + " " + unit + "."); return; }
         set(it => update(it, v));
       };
-      return row(label + " (" + unit + ")", i);
+      return row(label, i, unit);
     }
     /** @param {{min?:number, max?:number, step?:number|string, unit?:string, path?:string[], period?:number, positiveWrap?:boolean, omitZero?:boolean}} [limits] */
     function number(label, value, update, limits = {}) {
@@ -40,7 +45,8 @@ globalThis.AtriumPCBTextInspector = (() => {
       register(i,limits.path,{unit:limits.unit || "",min,max,integer:step===1,
         period:limits.period,positiveWrap:limits.positiveWrap,omitZero:limits.omitZero});
       i.onchange = () => { const v = Number(i.value); if (!i.value || !Number.isFinite(v) || v < min || v > max) { i.value = String(value); return; } set(it => update(it, v)); };
-      return row(label, i);
+      const m = / \(([^()]{1,4})\)$/.exec(label);
+      return m ? row(label.slice(0, m.index), i, limits.unit === "deg" ? "°" : m[1]) : row(label, i);
     }
     function select(label, values, value, update) {
       const s = el("select"); s.setAttribute("aria-label", label);
@@ -49,16 +55,14 @@ globalThis.AtriumPCBTextInspector = (() => {
       return row(label, s);
     }
     function check(label, value, update) {
-      const c = el("input", null, "ui-checkbox"); c.type = "checkbox"; c.checked = !!value; c.setAttribute("aria-label", label);
-      c.onchange = () => set(it => update(it, c.checked));
-      const l = el("label", null, "field-row pcbtext-check"); l.append(el("span", label), c); root.append(l); return c;
+      return AtriumNavCommon.appendSwitchRow(root, label, !!value, on => set(it => update(it, on)));
     }
     // Text (multiline).
     const ta = el("textarea"); ta.rows = Math.min(5, Math.max(1, String(item.text).split("\n").length)); ta.value = item.text ?? "";
     ta.setAttribute("aria-label", "Text"); ta.spellcheck = false;
     ta.onchange = () => { if (!ta.value.trim()) { ta.value = item.text; return; } set(it => { it.text = ta.value; }); };
     ta.onkeydown = e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); ta.blur(); } };
-    const tl = el("label", null, "field-row pcbtext-text"); tl.append(el("span", "Text"), ta); root.append(tl);
+    row("Text", ta);
     // Font type.
     const kinds = el("div", null, "pcbtext-segment ui-segmented"); kinds.setAttribute("role", "radiogroup"); kinds.setAttribute("aria-label", "Font type");
     for (const [k, t] of [["stroke", "Stroke"], ["truetype", "TrueType"], ["barcode", "BarCode"]]) {
@@ -68,7 +72,7 @@ globalThis.AtriumPCBTextInspector = (() => {
         if (k === "barcode") { it.barcode = it.barcode || {type: "code128"}; if (!(it.size >= 2)) it.size = 4; } }); };
       kinds.append(b);
     }
-    const kl = el("div", null, "field-row pcbtext-kind"); kl.append(el("span", "Font type"), kinds); root.append(kl);
+    row("Font type", kinds, "", "div");
     if (o.layers !== false) select("Layer", o.layers || DEFAULT_LAYERS.map(([v, t]) => [v, globalThis.AtriumPCBAppearance?.name?.(v) || t]), item.layer || "Silk", (it, v) => { it.layer = v; });
     if (p.font === "stroke") {
       const fonts = [["default", "Default"], ["sans", "Sans Serif"], ["serif", "Serif"], ["kicad", "KiCad Newstroke"]];
@@ -107,7 +111,7 @@ globalThis.AtriumPCBTextInspector = (() => {
       b.onclick = () => set(it => { it.justify = j; delete it.align; });
       grid.append(b);
     }
-    const jl = el("div", null, "field-row pcbtext-justify-row"); jl.append(el("span", "Justification"), grid); root.append(jl);
+    row("Justification", grid, "", "div");
     select("Mirror", [["auto", "Auto (bottom side)"], ["on", "Mirrored"], ["off", "Not mirrored"]], typeof item.mirrored === "boolean" ? (item.mirrored ? "on" : "off") : "auto",
       (it, v) => { if (v === "auto") delete it.mirrored; else it.mirrored = v === "on"; });
     if (String(item.text).includes("\n")) number("Line spacing (×)", +p.lineSpacing.toFixed(3), (it, v) => { it.lineSpacing = v; }, {min: .5, max: 10, step: .05,path:["lineSpacing"]});

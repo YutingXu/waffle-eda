@@ -43,11 +43,11 @@ globalThis.AtriumDock = (() => {
     {id: "pcb-list", title: "List", match: ".pl-panel", area: "right", action: "pcb-list"},
     {id: "navigator", title: "Navigator", match: ".panel-navp", area: "left", action: "navigator-panel"},
     {id: "filter", title: "Filter", match: ".panel-query", area: "right", action: "query-panel"},
-    {id: "comments", title: "Comments", match: ".panel-rc", area: "right", action: "comments-panel"},
+    {id: "comments", title: "Comments", match: '.ui-dock-panel[data-dock="comments"]', area: "right", action: "comments-panel"},
     {id: "library", title: "Library", match: ".panel-library", area: "right", action: "library-panel"},
     {id: "nets", title: "Nets", match: ".panel-nets", area: "right", action: "nets-panel"},
     {id: "calculators", title: "Calculators", match: ".panel-calc", area: "right", action: "calculators"},
-    {id: "clipboard", title: "Clipboard", match: ".panel-clip", area: "right"},
+    {id: "clipboard", title: "Clipboard", match: '.ui-dock-panel[data-dock="clipboard"]', area: "right"},
     {id: "scripting", title: "Scripting Console", match: ".script-console", area: "right", action: "scripting-console"}
   ];
   const known = id => KNOWN.find(k => k.id === id);
@@ -440,6 +440,7 @@ globalThis.AtriumDock = (() => {
     renderTabs(g, gr, open, (where === "float" ? "Floating" : AREA_NAME[where].replace(/^./, c => c.toUpperCase())) + " tabs");
     if (switched) animateTabChange(strip,priorRect);
     g.classList.toggle("dock-empty", !open.length);
+    // Sized to its content only while a group below it shares the area: dock-fill (render(), the drop preview) wins in dock.css.
     g.classList.toggle("dock-auto", !!gr.auto && !gr.size);
     g.style.flex = gr.size ? "0 0 " + gr.size + "px" : "";
     return open.length;
@@ -1146,7 +1147,9 @@ globalThis.AtriumDock = (() => {
     D.addEventListener("keydown", partKey, true);
     D.addEventListener("click", tabClick, true);
     D.addEventListener("focusin", e => {const p = panelAt(e.target); if (p) lastFocused = p.id;});
-    globalThis.addEventListener("resize", revealActiveTabs);
+    // The window's own resize. The resize event the dock sends after each sash step changes only strips the
+    // strip observer already fits: measuring every strip again there cost 3 ms per keyboard step.
+    globalThis.addEventListener("resize", e => {if (e.isTrusted) revealActiveTabs();});
     kindObserver.observe(D.body, {attributes: true, attributeFilter: ["data-kind"]});
     bodyObserver.observe(D.body, {attributes: true, attributeFilter: ["class"]});
     globalThis.AtriumWorkbench?.onOpen?.(() => syncMenus());

@@ -20,6 +20,7 @@
 //     An editor hint includes the current resolved board view. Standalone callers use the
 //     same physical bounds from a detached board snapshot.
 //   AtriumDRCView.signature(item)                     → change signature of an object
+//   AtriumDRCView.retype(type)                        → add or drop one extra check's findings after its preference changes
 //
 // Waivers (drc-waivers.js, lazy): violations waived with the board (doc.drcWaivers) leave the
 // markers and counts; Messages lists them in a collapsible "Waived (N)" group, reports keep them.
@@ -97,6 +98,9 @@ globalThis.AtriumDRCView = (() => {
     state.publishedAt = key;
     if (!batch && needsPourCheck(d) && state.poursAt !== key) {
       if (!held) pending(d);
+      // The findings wait for poured copper, so its check must be on its way. The view attaches (and plans
+      // "drc") after the board opened, and nothing else plans pour clearance until the next edit.
+      if (!S()?.pending?.("pour-drc", d) && !S()?.running?.("pour-drc")) S()?.plan?.("pour-drc");
       return;
     }
     const replacesBatch = held && list !== state.heldBatch;
@@ -381,8 +385,9 @@ globalThis.AtriumDRCView = (() => {
       // the edited copper's neighborhood. Rebuild the scope against the full board
       // before reusing geometric certificates or publishing an incremental result.
       if (dirty.size) {
-        const prior=state.compiled, dep=prior.recheckBoardItems;
-        const changesGeometry=prior.dependencies.has("geometry:body") || prior.dependencies.has("geometry:origin");
+        // Only the scopes of the rules online DRC runs (rules.js recheckFor): net-wide rules stay in batch DRC.
+        const prior=state.compiled, dep=prior.recheckFor?.(types(doc)) ?? prior.recheckBoardItems;
+        const scoped=dep.dependencies ?? prior.dependencies, changesGeometry=scoped.has("geometry:body") || scoped.has("geometry:origin");
         if (prior.diagnostics.length || prior.measurementIssues.size || dep.length)
           return rebuild("rule scope dependencies changed");
         if(dep.bound || dep.usesParts || changesGeometry) {
@@ -655,7 +660,7 @@ globalThis.AtriumDRCView = (() => {
       } catch (error) {return finish(error);}
       if (!active() || versionAtStart !== stamp(d)) return finish();
       manual = null;
-      last = {doc:d, result, stamp:versionAtStart};
+      last = {doc:d, result, stamp:versionAtStart, options};
       state.pours = pours;
       state.poursAt = R().checkSelected(d,"clearance",options) ? stamp(d) : null;
       const geometry = owner.boardGeometry?.(d);
@@ -937,6 +942,54 @@ globalThis.AtriumDRCView = (() => {
     if (r.mode !== "none" || !reuse) {redrawBoard(d); refreshMessages(d);}
     return r;
   }
+  // An extra check chosen or dropped outside the board (Preferences › Design Checks › Missing Courtyard):
+  // only that type's findings change. The published results (online, or the last batch run with online
+  // DRC off) keep everything else and nothing else is checked again; the batch result's Messages and
+  // report follow. A check still on its way reads the preference itself.
+  function retype(type) {
+    if (!host || !nativeExtras.includes(type)) return;
+    const F = globalThis.AtriumDRCFixes, L = globalThis.AtriumLazy;
+    const boards = host.project().documents.filter(d => d?.kind === "pcb" && (checks.get(d)?.published || batchCurrent(d)));
+    if (!boards.length) return;
+    if (!F) {
+      if (L?.modules?.().includes("AtriumDRCFixes")) L.need("AtriumDRCFixes").then(() => retype(type), () => {});
+      return;
+    }
+    const defs = host.defs(), inspector = globalThis.AtriumDRCInspector;
+    for (const d of boards) {
+      let found = null;
+      const findings = () => found ??= F.checks(d, defs, [type]).filter(v => v.type === type);
+      const swap = (list, on) => {
+        const kept = list.filter(v => v.type !== type);
+        return on ? kept.concat(findings()) : kept;
+      };
+      const state = checks.get(d), key = stamp(d);
+      if (state?.published && state.publishedAt === key) {
+        const on = R().checkSelected(d, type, onlineMode), list = swap(state.published, on);
+        if (state.extra) state.extra = {...state.extra, F:extrasFor(d), out:state.extra.out === state.published ? list : swap(state.extra.out, on)};
+        if (!on) {
+          if (focused?.type === type) focused = null;
+          if (hover?.type === type) hover = null;
+          if (inspector?.current?.()?.type === type) inspector.close?.();
+        }
+        if (current(d)) {
+          if (holdsBatch(state, key)) state.heldBatch = list;
+          show(d, list, true);
+        } else {state.published = list;}
+      }
+      if (batchCurrent(d)) {
+        const r = last.result, options = last.options || {}, id = "atrium-" + type;
+        const dropped = r.rules.filter(x => x.id === id);
+        r.rules = r.rules.filter(x => x.id !== id);
+        r.violations = r.violations.filter(v => v.type !== type);
+        r.total -= dropped.reduce((n, x) => n + (x.count || 0), 0);
+        if (R().checkSelected(d, type, options)) F.augment(r, d, defs, {...options, types:[type]});
+        refreshMessages(d);
+      }
+      redrawBoard(d);
+    }
+    host.invalidate?.();
+  }
   function refreshMessages(d) {
     const M = globalThis.AtriumMessages;
     if (!M?.isOpen() || M.detail() !== "DRC" || last?.doc !== d) return;
@@ -1070,6 +1123,9 @@ globalThis.AtriumDRCView = (() => {
 
   return {toMessages, online, signature, reachOf, run, check, refresh, setEnabled, enabled:() => enabled, budget:() => budget,
     setBudget(ms) {budget = Math.max(5, Number(ms) || 30); checks = new WeakMap(); save(); if (host) schedule();},
+    // The checks selected changed outside the board (Preferences › Design Checks): check again, and
+    // the last batch result no longer answers for the board.
+    retype,
     violations:docId => findCurrent(docId) ? shown.get(docId) || EMPTY : EMPTY,
     waived:docId => findCurrent(docId) ? waivedShown.get(docId) || EMPTY : EMPTY, focused:() => focused,
     focus(v) {focused = v || null; host?.invalidate();}, markerAt, groupAt, status, NET_WIDE, attach};

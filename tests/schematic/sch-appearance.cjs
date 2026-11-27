@@ -17,12 +17,12 @@ function close(a,b){assert.ok(Math.abs(a-b)<1e-6,"expected "+a+" ≈ "+b);}
     "|RECORD=41|OwnerIndex=1|Name=Hidden|Text=Never|IsHidden=T|Location.X=10|Location.Y=20"].join("\n");
   const {documents:[sheet]}=AtriumSCH.read("Probe.SchDoc",null,source),part=sheet.items.find(i=>i.kind==="part");
   assert.equal(part.value,"Logical");assert.equal(part.showValue,false);
-  assert.deepEqual(AtriumSchObjects.shownParams(part),["RATING"]);
+  assert.deepEqual(AtriumSchObjects.shownParams(part),["Rating"],"the caption keeps the parameter name as Altium spells it");
   let at,angle,record;
   const ctx={save(){},restore(){},translate(x,y){at=[x,y];},rotate(a){angle=a;},fillText(t,x,y){record=[t,this.textAlign,this.textBaseline,y<0];}};
   AtriumSchObjects.drawParams(ctx,part,{},10,false);
   close(at[0],116.25*.254);close(at[1],-140*.254);close(Math.sin(angle),-1);assert.deepEqual(record,["3 V","right","alphabetic",true],"bottom-anchored text is drawn on the alphabetic baseline, raised by the descent");
-  part.x+=7;part.parameters={RATING:"5 V"};
+  part.x+=7;part.parameters={Rating:"5 V"};
   AtriumSchObjects.drawParams(ctx,part,{},10,false);close(at[0],116.25*.254+7);assert.equal(record[0],"5 V");
 }
 function graphics(){

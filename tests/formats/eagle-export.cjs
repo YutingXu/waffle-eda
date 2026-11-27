@@ -161,4 +161,24 @@ assert.match(nativeSingle.files[0].text,/<connect gate="G\$1" pin="PIN" pad="1"\
 const padExport = write(native,undefined,{scope:"document",documentId:nativeBoard.id});
 assert.match(padExport.files[0].text,/<contactref element="PAD" pad="3"\/>/);
 assert.deepEqual(padExport.rows.filter(row=>row.kind === "pad").map(row=>[row.source.object,row.status]),[["loose-pad","approximated"]]);
+// An unconnected via is drilled, so the board keeps it: EAGLE vias live in signals, so it gets one
+// of its own (named clear of the design's nets). A slot written as a round EAGLE hole is reported.
+{
+  const free = A.project("Free"), freeBoard = free.documents.find(d=>d.kind === "pcb");
+  freeBoard.items.push({id:"bare-via",kind:"via",x:8,y:8,diameter:.6,drill:.3,layer:"Multi",net:""},
+    {id:"vcc-via",kind:"via",x:12,y:8,diameter:.6,drill:.3,layer:"Multi",net:"VCC"},
+    {id:"named-like-eagle",kind:"track",layer:"Top",width:.2,points:[[1,1],[2,1]],net:"N$1"},
+    {id:"slot-hole",kind:"pad",number:"",x:20,y:8,w:4,h:.8,shape:"round",layer:"Multi",drill:.8,slotLength:4,plated:false});
+  const brd = write(free,undefined,{scope:"document",documentId:freeBoard.id});
+  const text = brd.files[0].text, signals = [...text.matchAll(/<signal name="([^"]*)"[^>]*>([\s\S]*?)<\/signal>/g)];
+  const viaIn = name => signals.filter(m=>m[1] === name).map(m=>(m[2].match(/<via /g) || []).length);
+  assert.deepEqual(viaIn("VCC"),[1]);
+  assert.deepEqual(viaIn("N$2"),[1],"the unconnected via has its own signal");
+  assert.match(text,/<via x="8" y="-8" extent="1-16" drill="0.3" diameter="0.6"/);
+  const row = id => brd.rows.filter(r=>r.source.object === id).map(r=>[r.status,r.reason]);
+  assert.deepEqual(row("bare-via"),[["approximated","The unconnected via is written in a signal of its own."]]);
+  assert.deepEqual(row("slot-hole").map(r=>r[0]),["approximated"]);
+  const back = importPair(brd.files.map(f=>file(f.name,f.text))).model.documents.find(d=>d.kind === "pcb");
+  assert.deepEqual(back.items.filter(i=>i.kind === "via").map(i=>[i.x,i.y,i.net]).sort(),[[12,8,"VCC"],[8,8,"N$2"]]);
+}
 console.log("PASS EAGLE XML pair and single-source export, live edits, net references, mirrored pads, outlines, classes and exact loss rows");

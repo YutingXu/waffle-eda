@@ -3,7 +3,7 @@
 // node tests/motion/browser.cjs light|dark live|controlled [capture-directory] [checkout]
 const assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path"), {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const [theme = "light", mode = "live", directory, root = path.resolve(__dirname, "../..")] = process.argv.slice(2);
 const controlled = mode === "controlled", sample = 1000 / 120;
 const sleep = ms => new Promise(r => setTimeout(r, ms));

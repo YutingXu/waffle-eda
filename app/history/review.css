@@ -1,5 +1,4 @@
 /* Review comments and canvas annotation. Tokens only. */
-.rc-close {margin-left:auto}
 .rc-tools {display:flex;flex-direction:column;gap:var(--s-4);padding:var(--s-4) var(--s-6) var(--s-6);border-bottom:1px solid var(--line)}
 .rc-actions,.rc-row {display:flex;gap:var(--s-4);min-width:0}
 .rc-actions .rc-add {flex:1 1 auto}
@@ -25,7 +24,6 @@
 .rc-input {display:block;width:100%;margin-top:var(--s-6);min-height:44px;resize:vertical}
 .rc-buttons {display:flex;justify-content:flex-end;gap:var(--s-4);margin-top:var(--s-4)}
 .rc-buttons .rc-delete {margin-right:auto;color:var(--error)}
-.rc-empty {margin:var(--s-12);color:var(--muted);font-size:var(--fs-12);line-height:var(--lh-loose)}
 .rc-dialog {width:min(460px,calc(100vw - 48px))}
 .rc-dialog .rc-form > .work-row:has(> span:first-child + .ui-field) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
 .rc-dialog .rc-form > .work-row:has(> span:first-child + textarea) {align-items:start}

@@ -83,6 +83,6 @@ module.exports = async function checkFrameConversion(browser) {
 };
 
 if (require.main===module) (async () => {
-  const browser=await require("playwright-core").chromium.launch({channel:"chrome"});
+  const browser=await require("../support/playwright.cjs").chromium.launch({channel:"chrome"});
   try {await module.exports(browser);} finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

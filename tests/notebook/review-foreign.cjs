@@ -1,6 +1,6 @@
 "use strict";
 // Pass a #38 checkout until its two writers and #40's source share a checkout.
-const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 const source=path.resolve(__dirname,"../.."),root=path.resolve(process.argv[2]||source);
 (async()=>{
   const browser=await chromium.launch({channel:"chrome",args:["--allow-file-access-from-files"]});

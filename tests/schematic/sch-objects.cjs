@@ -213,4 +213,58 @@ const add = (doc, item) => {doc.items.push(item); return item;};
   assert.equal(net(),"VIN_PARENT","moving a sheet symbol keeps its entry connected");
   assert.ok(wire.points.some(at=>A.same(at,S.entryPoint(symbol,symbol.entries[0]))));
 }
+// Resize, reflow, fit and sync keep the parent's wires on the entries they move.
+{
+  function wired(side, offset) {
+    const {p,sch}=blank("Entry edits"), child=A.sheet("schematic","Child");
+    p.documents.push(child);
+    const part=place(child,"R1",5.08,0);
+    add(child,S.make("port",pin(part,1),{text:"EN",io:"input"}));
+    const symbol=add(sch,S.make("sheetsymbol",[0,0],{w:40.64,h:20.32,name:"U_Child",sheet:child.id,entries:[{id:"e",name:"EN",side,offset,io:"input"}]}));
+    const at=S.entryPoint(symbol,symbol.entries[0]), out={left:[-10,0],right:[10,0],top:[0,-10],bottom:[0,10]}[side], end=[at[0]+out[0],at[1]+out[1]];
+    const wire=add(sch,{id:A.id(),kind:"wire",points:[at,end]});
+    add(sch,{id:A.id(),kind:"netlabel",x:end[0],y:end[1],text:"EN_PARENT"});
+    const defs=defsFor(p), net=()=>AtriumHierarchy.compile(p,{defs,scope:"hierarchical"}).netOf(child.id,part.id,"1");
+    const onEntry=()=>wire.points.some(q=>A.same(q,S.entryPoint(symbol,symbol.entries[0])));
+    assert.equal(net(),"EN_PARENT");
+    return {sch,symbol,defs,net,onEntry,end,wire};
+  }
+  // Shrinking the width reflows a top entry from 17.78 to 10.16; its wire follows on every frame.
+  let t=wired("top",17.78);
+  const grip=S.grips(t.symbol).find(g=>g.u===1&&g.v===.5), size=S.resizeAt(t.symbol,grip.at,.1,t.sch,t.defs);
+  size.move([20.32,grip.at[1]],2.54); size.move([12.7,grip.at[1]],2.54);
+  assert.equal(t.symbol.entries[0].offset,10.16);
+  assert.ok(t.onEntry(),"the wire ends on the reflowed entry"); assert.ok(size.affected.includes(t.wire));
+  assert.equal(t.net(),"EN_PARENT","a resize keeps the child pin on the parent net");
+  assert.equal(size.finish(),false);
+  size.cancel();
+  assert.equal(t.symbol.entries[0].offset,17.78); assert.ok(t.onEntry(),"cancel puts the wire back");
+  // The Properties width field reflows through the same path.
+  t=wired("top",17.78);
+  const follow=S.entryWires(t.sch,t.defs,t.symbol); t.symbol.w=12.7; S.reflow(t.symbol); follow.apply(); follow.finish();
+  assert.ok(t.onEntry()); assert.equal(t.net(),"EN_PARENT");
+  // Fit to entries narrows the symbol and moves a right-side entry.
+  t=wired("right",5.08);
+  S.fitSymbol(t.symbol,{snug:true,doc:t.sch,defs:t.defs});
+  assert.ok(t.symbol.w<40.64,"fit narrows the symbol");
+  assert.ok(t.onEntry(),"the wire ends on the fitted entry"); assert.equal(t.net(),"EN_PARENT","fit keeps the parent net");
+  assert.ok(A.same(t.wire.points.at(-1),t.end),"the far end stays on its label");
+}
+// Sync matches Repeat(SIG) entries to the child's SIG port and keeps channels apart.
+{
+  const {p,sch}=blank("Repeat sync"), child=A.sheet("schematic","Channel");
+  p.documents.push(child);
+  const part=place(child,"R1",5.08,0);
+  add(child,S.make("port",pin(part,1),{text:"SIG",io:"input"}));
+  const symbol=add(sch,S.make("sheetsymbol",[0,0],{name:"Repeat(CH,1,2)",sheet:child.id,entries:[{id:"e",name:"Repeat(SIG)",side:"left",offset:2.54,io:"unspecified"}]}));
+  const defs=defsFor(p);
+  const nets=()=>AtriumHierarchy.compile(p,{defs,scope:"hierarchical"}).nets.filter(n=>n.pins.some(x=>x.part.id===part.id&&x.pin.number==="1")).map(n=>n.pins.length);
+  assert.deepEqual(nets(),[1,1],"one SIG net per channel");
+  assert.equal(S.entryPort("Repeat(SIG)"),"SIG"); assert.equal(S.entryPort("EN"),"EN");
+  const r=S.syncEntries(symbol,child,sch,defs);
+  assert.deepEqual(r,{added:[],unmatched:[]},"Repeat(SIG) already meets SIG");
+  assert.deepEqual(symbol.entries.map(e=>[e.name,e.io]),[["Repeat(SIG)","input"]],"no plain SIG entry; the I/O type follows the port");
+  assert.deepEqual(nets(),[1,1],"sync keeps the channels apart");
+  assert.deepEqual(S.layoutEntries(S.portsOf(child),symbol.entries),[]);
+}
 console.log("sch-objects: all checks passed");

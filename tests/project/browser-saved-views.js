@@ -173,7 +173,7 @@ module.exports = async function savedViews(browser) {
 };
 
 if (require.main === module) (async () => {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   const browser = await chromium.launch(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"});
   try {await module.exports(browser);}
   finally {await browser.close();}

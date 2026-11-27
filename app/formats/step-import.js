@@ -360,6 +360,9 @@ globalThis.AtriumSTEPImport = (() => {
     const norm = a => { const l = Math.hypot(a[0], a[1], a[2]); return l > 1e-15 ? [a[0] / l, a[1] / l, a[2] / l] : [0, 0, 1]; };
     // 4x4 as 12 numbers, row-major [R | t].
     const I4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+    // Powers of ten of the ISO 10303-41 SI prefixes; "" is the bare unit.
+    const SI_PREFIX = {EXA: 18, PETA: 15, TERA: 12, GIGA: 9, MEGA: 6, KILO: 3, HECTO: 2, DECA: 1, "": 0,
+      DECI: -1, CENTI: -2, MILLI: -3, MICRO: -6, NANO: -9, PICO: -12, FEMTO: -15, ATTO: -18};
     const mul = (A, B) => { const o = new Array(12); for (let r = 0; r < 3; r++) { for (let c = 0; c < 3; c++) o[r * 4 + c] = A[r * 4] * B[c] + A[r * 4 + 1] * B[4 + c] + A[r * 4 + 2] * B[8 + c]; o[r * 4 + 3] = A[r * 4] * B[3] + A[r * 4 + 1] * B[7] + A[r * 4 + 2] * B[11] + A[r * 4 + 3]; } return o; };
     const inv = M => { const R = [M[0], M[4], M[8], M[1], M[5], M[9], M[2], M[6], M[10]], t = [M[3], M[7], M[11]]; return [R[0], R[1], R[2], -(R[0] * t[0] + R[1] * t[1] + R[2] * t[2]), R[3], R[4], R[5], -(R[3] * t[0] + R[4] * t[1] + R[5] * t[2]), R[6], R[7], R[8], -(R[6] * t[0] + R[7] * t[1] + R[8] * t[2])]; };
     const xp = (M, p) => [M[0] * p[0] + M[1] * p[1] + M[2] * p[2] + M[3], M[4] * p[0] + M[5] * p[1] + M[6] * p[2] + M[7], M[8] * p[0] + M[9] * p[1] + M[10] * p[2] + M[11]];
@@ -374,11 +377,18 @@ globalThis.AtriumSTEPImport = (() => {
       const isA = (e, type) => !!e && (e.t === type || e.t === "" && !!e.parts[type]);
       // A single STEP assembly can mix mm and inch representations. Points,
       // radii and placement origins use their representation's selected context.
-      function lengthScale(e) {
+      // Millimetres per unit: every ISO 10303-41 SI prefix of the metre, and a conversion-based
+      // unit (inch, foot, mil) as its stated factor times the unit that factor is measured in.
+      function lengthScale(e, depth = 0) {
         if (!isA(e, "LENGTH_UNIT")) return null;
         const si = args(e, "SI_UNIT"), cb = args(e, "CONVERSION_BASED_UNIT");
-        if (cb && /inch/i.test(cb[0]?.s || "")) return 25.4;
-        if (si) return ({MILLI: 1, CENTI: 10, MICRO: .001, "": 1000})[si[0]?.e || ""] ?? 1;
+        if (cb) {
+          const factor = get(cb[1]), measure = args(factor, "LENGTH_MEASURE_WITH_UNIT") || args(factor, "MEASURE_WITH_UNIT");
+          const value = typeof measure?.[0] === "number" ? measure[0] : measure?.[0]?.a?.[0], base = depth < 4 ? lengthScale(get(measure?.[1]), depth + 1) : null;
+          if (value > 0 && base > 0 && Number.isFinite(value * base)) return value * base;
+          if (/inch/i.test(cb[0]?.s || "")) return 25.4;
+        }
+        if (si) { const prefix = si[0]?.e || ""; return Object.hasOwn(SI_PREFIX, prefix) ? 10 ** (SI_PREFIX[prefix] + 3) : 1; }
         return null;
       }
       let defaultScale = 1, scale;

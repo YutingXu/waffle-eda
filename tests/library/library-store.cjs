@@ -192,6 +192,11 @@ made.prefix = "R"; made.value = "10k";
   AtriumEditSelection.prepare(target, tsch, clip, new Map()).commit([0, 0]);
   const pasted = target.library.find(d => d.name === live.name);
   assert.equal(S.stepTextOf(target, pasted.footprint.model3d), step + "\n");
+  // A project that already has the definition (but not its model) reuses it and still gets the STEP blob.
+  const holder = A.project("Holder", [clone(live)]), hsch = holder.documents.find(d => d.kind === "schematic");
+  AtriumEditSelection.prepare(holder, hsch, clip, new Map(holder.library.map(d => [d.id, d]))).commit([0, 0]);
+  assert.equal(holder.library.length, 1, "the definition is reused");
+  assert.equal(S.stepTextOf(holder, holder.library[0].footprint.model3d), step + "\n", "its STEP blob is pasted too");
   console.log("PASS 3D models stored once: library copies, status, Save to library inline, replaceDef, paste between projects");
 }
 {

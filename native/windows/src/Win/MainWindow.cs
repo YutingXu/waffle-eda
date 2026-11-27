@@ -35,6 +35,9 @@ namespace Waffle.Windows
         bool launchFailed;
         bool fullScreen;
         bool active = true;
+        // Efficiency mode's Automatic follows energy saver / battery saver (PowerSaving.cs, app/core/power.js).
+        readonly PowerSaving power = new PowerSaving();
+        readonly List<IntPtr> powerNotifications = new List<IntPtr>();
         // Waffle draws its own title bar (window-caption.js): the system caption is removed and the page's
         // app bar takes its place. Without the script the window keeps the system title bar.
         readonly string captionScript;
@@ -185,6 +188,13 @@ namespace Waffle.Windows
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)MenuOpenRecent, "Open Recent…");
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)MenuPause, "Pause All Extensions\tCtrl+Shift+Pause");
             Native.AppendMenuW(menu, Native.MF_STRING, (UIntPtr)MenuFullScreen, "Full Screen");
+            // Windows sends each setting's current value at once, then every change, as WM_POWERBROADCAST.
+            foreach (var setting in new[] { PowerSaving.PowerSavingStatus, PowerSaving.EnergySaverStatus })
+            {
+                var guid = setting;
+                var notification = Native.RegisterPowerSettingNotification(Handle, ref guid, Native.DEVICE_NOTIFY_WINDOW_HANDLE);
+                if (notification != IntPtr.Zero) powerNotifications.Add(notification);
+            }
             // Recompute the frame so WM_NCCALCSIZE removes the system caption before the window is shown.
             if (captionScript != null)
                 Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, Native.SWP_FRAMECHANGED | Native.SWP_NOMOVE | Native.SWP_NOSIZE |
@@ -329,6 +339,7 @@ namespace Waffle.Windows
                 if (!a.IsSuccess) { FailWorkspaceLaunch(); return; }
                 // The state injected at document creation is the one from the first navigation.
                 lastCaptionState = null; PublishCaption();
+                PublishPower(true);
                 host.PageReady();
                 if (workspace != null && !workspace.IsWriter(this))
                     PostWorkspace(new Dictionary<string,object> { ["type"]="arrival", ["tab"]=WorkspaceTab });
@@ -342,7 +353,9 @@ namespace Waffle.Windows
             core.ProcessFailed += OnProcessFailed;
 
             core.SetVirtualHostNameToFolderMapping(Policy.VirtualHost, Path.Combine(root, "app"), CoreWebView2HostResourceAccessKind.Deny);
-            var bridge = "if(window.top===window){window.__waffleLaunchSettle=true;window.__atriumHostAccent=" + Json.Write(SystemAccent()) + ";}\n" +
+            if (Native.GetSystemPowerStatus(out var status)) power.StatusFlag(status.SystemStatusFlag);
+            var bridge = "if(window.top===window){window.__waffleLaunchSettle=true;window.__atriumHostAccent=" + Json.Write(SystemAccent()) +
+                         ";window.__atriumPowerState=" + power.State() + ";}\n" +
                          File.ReadAllText(Path.Combine(root, "bridge.js"), Encoding.UTF8);
             if (OpeningDetached)
                 bridge = "if(window.top===window)window.__waffleWorkspaceLaunch=true;\n" + bridge;
@@ -540,8 +553,36 @@ namespace Waffle.Windows
             else if (m.Msg == Native.WM_DWMCOLORIZATIONCOLORCHANGED ||
                      (m.Msg == Native.WM_SETTINGCHANGE && m.LParam != IntPtr.Zero && Marshal.PtrToStringUni(m.LParam) == "ImmersiveColorSet"))
                 ApplyTheme();
+            else if (m.Msg == Native.WM_POWERBROADCAST)
+                PowerChanged(m);
             base.WndProc(ref m);
             if (m.Msg == Native.WM_MOVE || m.Msg == Native.WM_MOVING) controller?.NotifyParentWindowPositionChanged();
+        }
+
+        // ------------------------------------------------------------------ power saving
+
+        void PowerChanged(Message m)
+        {
+            long kind = (long)m.WParam;
+            if (kind == Native.PBT_POWERSETTINGCHANGE && m.LParam != IntPtr.Zero)
+            {
+                var setting = Marshal.PtrToStructure<Native.POWERBROADCAST_SETTING>(m.LParam);
+                if (setting.DataLength < 4) return;
+                if (!power.Setting(setting.PowerSetting, (uint)Marshal.ReadInt32(m.LParam, Native.PowerSettingData))) return;
+            }
+            else if (kind != Native.PBT_APMPOWERSTATUSCHANGE) return;
+            PublishPower(false);
+        }
+
+        /// Tells the page whether Windows saves power, when that changed (force: after a navigation).
+        void PublishPower(bool force)
+        {
+            if (Native.GetSystemPowerStatus(out var status)) power.StatusFlag(status.SystemStatusFlag);
+            if (core == null || !Policy.AllowMainFrame(core.Source)) return;
+            var script = power.Script(force);
+            if (script == null) return;
+            try { _ = core.ExecuteScriptAsync(script); }
+            catch (Exception e) when (e is InvalidOperationException || e is COMException) { } // the controller is closing
         }
 
         protected override void OnResize(EventArgs e)
@@ -701,6 +742,8 @@ namespace Waffle.Windows
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             launchFallback.Dispose();
+            foreach (var notification in powerNotifications) Native.UnregisterPowerSettingNotification(notification);
+            powerNotifications.Clear();
             workspace?.Close(this);
             try { controller?.Close(); } catch (Exception) { }
             base.OnFormClosed(e);

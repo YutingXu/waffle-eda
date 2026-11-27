@@ -74,12 +74,15 @@ globalThis.AtriumMergeUI = (() => {
   // ------------------------------------------------------------------ live checks
   async function checks(project) {
     const L = G.AtriumLazy, out = {drc: null, erc: null};
-    try { if (L) await L.need(["AtriumRules", "AtriumERC"]); } catch { return out; }
+    const boards = project.documents.filter(d => d.kind === "pcb");
+    const needed = ["AtriumRules", "AtriumERC"];
+    if (boards.length) needed.push("AtriumConnectivity");
+    try { if (L) await L.need(needed); } catch { return out; }
     const defs = new Map((project.library || []).map(d => [d.id, d]));
     try {
       if (G.AtriumRules?.drc) {
         let n = 0;
-        for (const doc of project.documents.filter(d => d.kind === "pcb")) {
+        for (const doc of boards) {
           const rules = G.AtriumRules.stored(doc, project) || G.AtriumRules.defaults();
           n += (G.AtriumRules.drc(doc, defs, rules, {limit: 1000}).violations || []).length;
           await new Promise(r => setTimeout(r, 0));
@@ -240,7 +243,8 @@ globalThis.AtriumMergeUI = (() => {
           if (proposal) {
             const edit = (fn, label, touched, scope) => G.AtriumFolderProjectUI.atomicEdit(o.folder, () =>
               host.edit(fn, "Resolve Git merge", touched, scope));
-            const applied = P.applyChecked(host.project(), proposal, {validate:G.Atrium.validate, edit});
+            // The merged design is the user's own: keep its designators as Git merged them.
+            const applied = P.applyChecked(host.project(), proposal, {validate:G.Atrium.validate, edit, designators:false});
             if (!applied) return;
           }
           d.close();

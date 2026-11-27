@@ -414,4 +414,68 @@ for (const text of ["R12345", "pQgj", " A B ", "Ωµ", "éþ", "🔩", "   ", ""
   assert.equal(T.hitDistance(projected,at,{frame,layer}),0);
   assert.equal(authored.text,"REV .Build");
 }
+// The same implicit reference is read for ordering and painting at successive cameras.
+{
+  const P=AtriumPCBAppearance, doc={kind:"pcb"}, part={ref:"R103",x:3.125,y:-17.3,angle:33.7,layer:"Top"};
+  const def={footprint:{pads:[{x:-1.25,y:3.5,w:2.5,h:.75},{x:2,y:-.5,w:.4,h:1.2}]}};
+  const world=A.world, placement=A.placement, journal=globalThis.AtriumUndoStore;
+  let transforms=0, library=0, editing=false;
+  A.world=(point,item)=>{if(item===part)transforms++;return world(point,item);};
+  A.placement=(item,...args)=>{if(item===part)transforms++;return placement(item,...args);};
+  globalThis.AtriumUndoStore={libraryVersion:()=>library,unrecorded:()=>editing};
+  const reference=()=>[...P.partText(doc,part,def)][0].text;
+  function referenceFromCorners() {
+    const [left,top,right,bottom]=A.bounds(A.symbolPoints(def.footprint));
+    const [l,t,r]=A.bounds([[left,top],[right,top],[right,bottom],[left,bottom]].map(point=>world(point,part)));
+    const text=reference();
+    assert.deepEqual([text.x,text.y],[(l+r)/2,t-.39],"reference position matches the exact four transformed corners");
+    return text;
+  }
+  try {
+    const first=referenceFromCorners();
+    transforms=0;
+    for(let i=0;i<12;i++)assert.deepEqual(reference(),first);
+    assert.equal(transforms,0,"unchanged reference positions do not transform footprint corners for each draw");
+
+    for(const pose of [{x:-9.625},{y:5.5},{mirror:true},{angle:90},{angle:270},{angle:-.001,mirror:false}]) {
+      const prior=reference();
+      Object.assign(part,pose);
+      assert.notDeepEqual(referenceFromCorners(),prior,"the reference follows placement edits");
+    }
+    const before=reference();
+    def.footprint.pads[0].y=-5.5;
+    library++;
+    assert.notDeepEqual(referenceFromCorners(),before,"the reference follows a library revision");
+    editing=true;
+    const pending=reference();
+    def.footprint.pads[0].x=-21.25;
+    assert.notDeepEqual(referenceFromCorners(),pending,"the reference also follows an uncommitted definition edit");
+    part.refAt=[.25,-.5];
+    const explicit=reference();
+    assert.deepEqual([explicit.x,explicit.y],world(part.refAt,part),"an authored position is still used");
+  } finally {
+    A.world=world; A.placement=placement; globalThis.AtriumUndoStore=journal;
+  }
+}
+// Ordering and visibility need the painter's layer sequence, including source
+// fields revealed by the user, without resolving any of their text geometry.
+{
+  require(require("../support/app-source-paths.cjs").appFile("designator-place.js"));
+  const pcb=AtriumPCBAppearance, def={footprint:{pads:[],shapes:[]}};
+  const row=(field,layer)=>({field,layer,at:[.3,-.7],angle:45,size:1});
+  const ref=row("ref","Mechanical 2"), value=row("value","Bottom paste");
+  const sourceRecord="components6/data#17";
+  const doc={kind:"pcb",pcbDrawing:{annotations:{[sourceRecord]:[ref,value]}}};
+  for(const props of [{},{refAt:[.2,1]}, {layer:"Bottom"}, {showRef:false},
+      {designator:{x:1,y:3},side:"bottom"},{designator:{x:1}},{sourceRecord},
+      {sourceRecord,showValue:false},{boardLabels:[]},
+      {boardLabels:[value],hiddenBoardLabels:[ref],showRef:true}]){
+    const part={ref:"R7",value:"10k",x:4,y:-1,angle:45,...props};
+    const expected=Array.from(pcb.partText(doc,part,def),r=>r.text.layer);
+    const world=A.world, placement=A.placement;
+    A.world=A.placement=()=>{throw new Error("a layer query transformed text geometry");};
+    try{assert.deepEqual([...pcb.partTextLayers(doc,part,def)],expected);}
+    finally{A.world=world;A.placement=placement;}
+  }
+}
 console.log("pcb-text tests passed");

@@ -7,7 +7,7 @@ const {execFileSync} = require("node:child_process");
 const os = require("node:os");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const {projectZIP, openProjectZIP, readProjectZIP} = require("../support/browser-native-project.cjs");
 require("../../app/pcb/stackup.js");
 

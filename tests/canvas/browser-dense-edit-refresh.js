@@ -86,7 +86,7 @@ module.exports = async function denseEditRefresh(browser) {
       };
       Object.assign(probe,{
         overview(){
-          const value=label=>[...document.querySelectorAll("#inspector .property-row")].find(n=>n.firstElementChild.textContent===label)?.lastElementChild.textContent;
+          const value=label=>[...document.querySelectorAll("#inspector .ui-prop-row")].find(n=>n.firstElementChild.textContent===label)?.lastElementChild.textContent;
           return [value("Components"),value("Tracks")].map(Number);
         },
         fullCounts:()=>["part","track"].map(kind=>Array.prototype.filter.call(d.items,item=>item.kind===kind).length),

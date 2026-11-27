@@ -138,6 +138,21 @@ const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));
   assert.throws(()=>S.resize(tri,{corners:{bl:{style:"radius",size:1}}}),/rectangular/);
 }
 
+// Dimension edits keep a cutout's material island, on rectangular and scaled boards alike.
+{
+  const sq=(x0,y0,x1,y1)=>S.orient(S.fromPolygon([[x0,y0],[x1,y0],[x1,y1],[x0,y1]]).contour,false);
+  const islands=s=>[...S.profileCutouts(s)].map(r=>r.cutouts.length);
+  for(const base of [S.rect({x:0,y:40,width:50,height:40}),S.fromPolygon([[0,40],[50,40],[50,0],[25,-5],[0,0]])]){
+    const hole=sq(10,10,20,20),s={...base,cutouts:[hole],cutoutRegions:{0:{version:1,contour:hole,cutouts:[sq(13,13,17,17)],sig:S.signature(S.flattenContour(hole))}}};
+    assert.deepEqual(islands(s),[1]);
+    assert.deepEqual(islands(S.resize(s,{width:60})),[1],"a width change keeps the island");
+    assert.deepEqual(islands(S.resize(s,{height:30})),[1],"a height change keeps the island");
+    const moved=S.resize(s,{x:5});
+    assert.deepEqual(islands(moved),[1],"a move keeps the island");
+    close(S.contourBounds([...S.profileCutouts(moved)][0].cutouts[0])[0],18,1e-9,"the island moves with the board");
+  }
+}
+
 // Wizard presets.
 {
   const hat=S.wizard({type:"preset",preset:"rpi-hat",x:0,y:0});

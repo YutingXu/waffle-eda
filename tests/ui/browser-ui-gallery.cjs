@@ -13,6 +13,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
+const efficiencyOff = require("../support/efficiency-off.cjs");
 
 const ROOT = path.resolve(__dirname, "../..");
 const argv = process.argv.slice(2);
@@ -127,6 +128,7 @@ async function checkButtonHover(page, theme, failures) {
 async function checkCustomButtonHover(browser, failures) {
   const profile = PROFILES[0];
   const page = await browser.newPage({viewport:profile.viewport, reducedMotion:"reduce"});
+  await efficiencyOff(page);
   try {
     await open(page, profile);
     for (const [preset, accent, name] of [["light", "#000000", "Primary"], ["dark", "#ffd900", "Primary"], ["dark", "#ffd900", "Pressed"]]) {
@@ -160,6 +162,7 @@ module.exports = async function gallery(browser) {
   await checkCustomButtonHover(browser, failures);
   for (const profile of PROFILES) {
     const page = await browser.newPage({viewport:profile.viewport, hasTouch:profile.touch, reducedMotion:"reduce", deviceScaleFactor:1});
+    await efficiencyOff(page);
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
     try {

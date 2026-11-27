@@ -78,7 +78,19 @@ def verify_signature(path, bundle=False):
     run("codesign", "--verify", "--strict", *(("--deep",) if bundle else ()), path)
     info = subprocess.run(["codesign", "--display", "--verbose=2", path],
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True, text=True).stdout
-    require("Signature=adhoc" in info, f"{path.name}: expected an ad hoc signature")
+    identity = os.environ.get("WAFFLE_SIGN_IDENTITY")
+    if not identity:
+        require("Signature=adhoc" in info, f"{path.name}: expected an ad hoc signature")
+        return
+    # The stable self-signed identity: the same certificate requirement in every release.
+    require(f"Authority={identity}\n" in info, f"{path.name}: expected the {identity} signature")
+    requirement = subprocess.run(["codesign", "--display", "-r-", path], stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, check=True, text=True).stdout
+    leaf = os.environ.get("WAFFLE_SIGN_LEAF") or (ROOT / "native/macos/signing-leaf.txt").read_text().strip()
+    require(f'certificate leaf = H"{leaf}"' in requirement,
+            f"{path.name}: expected the pinned signing certificate in the designated requirement")
+    if bundle:
+        require('identifier "org.waffle.editor"' in requirement, f"{path.name}: expected the Waffle identifier")
 
 
 def verify_app(app, source, version, flavour, expected):

@@ -2,3 +2,5 @@
 # A suite listed here may fail without failing CI; any other failure fails the job. A listed
 # suite that passes is reported as "now passes" so the entry can be removed.
 # Format: <runner> <suite>   # reason        runner: jsc (scripts/test-jsc.sh) or node (scripts/ci/node-suites.sh)
+jsc bom-altium-report   # Altium project variants ([ProjectVariantN] in the PrjPcb) are not imported: PiDP-11's BOM lists A0-A2, J2, R2, R3 that Altium's variant Default marks Not Fitted
+node bom-altium-report   # Altium project variants ([ProjectVariantN] in the PrjPcb) are not imported: PiDP-11's BOM lists A0-A2, J2, R2, R3 that Altium's variant Default marks Not Fitted

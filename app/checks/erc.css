@@ -30,6 +30,9 @@
 .msg-export-items button {display:block;width:100%;text-align:left;padding:4px 8px;color:var(--ink)}
 .msg-grid {flex:1;min-height:0;overflow:auto;outline:none;container-type:inline-size}
 :root[data-focus-nav=keys] .msg-grid:focus-visible {box-shadow:inset 0 0 0 1px var(--focus)}
+/* The keyboard focus can rest on the selected row (Show in Messages, the arrow keys): its ring, inside the row. */
+.msg-grid tbody tr[data-no]:focus {outline:none}
+:root[data-focus-nav=keys] .msg-grid tbody tr[data-no]:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:calc(-1 * var(--focus-w))}
 .msg-grid table {width:100%;border-collapse:collapse;table-layout:fixed}
 .msg-grid thead th {position:sticky;top:0;z-index:1;background:var(--panel-head);border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;text-align:left;font-weight:500}
 .msg-grid thead button {display:block;width:100%;height:20px;padding:0 6px;text-align:left;color:var(--muted);font-size:var(--fs-11);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

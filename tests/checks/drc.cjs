@@ -63,6 +63,51 @@ close(of(out,"holeToHole")[0].actual,.2);
   close(of(check(.46),"clearance")[0]?.actual,0);
   assert.equal(of(check(.46),"short").length,1);
 }
+{
+  // A slotted pad's drill is void like a via's bore: copper inside the slot is measured to the wall.
+  const slot={...pad("slot","A",0,0,7,3,"rect","Multi",2),slotLength:5,plated:true}, probe=(x,y=0)=>pad("p","B",x,y,.2,.2,"round");
+  const check=(x,y)=>run([slot,probe(x,y)],withRules(c=>{c.list.find(r=>r.type==="clearance").gap=1;}),{types:["clearance","short"]});
+  close(of(check(1.2),"clearance")[0]?.actual,.9);
+  assert.equal(of(check(1.2),"short").length,0);
+  close(of(check(-2.2),"clearance")[0]?.actual,.2,"the end cap");
+  close(of(check(1.2,.5),"clearance")[0]?.actual,.4);
+  close(of(check(1.2,.95),"clearance")[0]?.actual,0);
+  assert.equal(of(check(1.2,.95),"short").length,1,"crossing the wall contacts the land");
+  const custom={...slot,shape:"custom",poly:[[-3.5,-1.5],[3.5,-1.5],[3.5,1.5],[0,1.2],[-3.5,1.5]]};
+  assert.ok(R.kit.extract(board([custom]),defs).copper[0].pieces,"a concave land is convex pieces");
+  close(of(run([custom,probe(1.2)],withRules(c=>{c.list.find(r=>r.type==="clearance").gap=1;}),{types:["clearance"]}),"clearance")[0]?.actual,.9,"custom land pieces");
+}
+{
+  // An unplated land keeps its pad's net on every copper layer, with no barrel joining them (connectivity.js):
+  // DRC clearance, the short check and connectivity agree. A GND mounting hole: 6 mm land, 3.2 mm drill.
+  const mh={...pad("mh","GND",0,0,6,6,"round","Multi",3.2),plated:false}, at=(net,y,layer)=>track("t"+(layer||""),net,[[-5,y],[5,y]],.2,layer);
+  const check=items=>run(items,base,{types:["clearance","short"]});
+  assert.deepEqual(check([mh,at("GND",2.5)]).violations,[],"its own net touches it");
+  let out=check([mh,at("VCC",2.5)]);
+  close(of(out,"clearance")[0]?.actual,0);
+  assert.deepEqual(of(out,"short").map(v=>v.detail),["Short circuit between nets GND, VCC"],"crossing the ring is a short");
+  out=check([mh,at("VCC",3.15)]);
+  close(of(out,"clearance")[0]?.actual,.05);assert.equal(of(out,"short").length,0);
+  assert.ok(!out.notes.some(n=>/without a net/.test(n)),"a netted land is checked");
+  close(of(check([mh,at("VCC",3.15,"Bottom")]),"clearance")[0]?.actual,.05,"the bottom land too");
+  // A footprint's mounting hole takes its pin's net.
+  const lib=new Map([["MH",{id:"MH",footprint:{pads:[{number:"1",x:0,y:0,w:6,h:6,shape:"round",layer:"Multi",drill:3.2,plated:false}],shapes:[]}}]]);
+  const part={id:"p",kind:"part",def:"MH",ref:"H1",x:0,y:0,pinNets:{"1":"GND"}};
+  out=run([part,at("VCC",2.5)],base,{types:["clearance","short"],defs:lib});
+  assert.deepEqual(out.violations.map(v=>v.type).sort(),["clearance","short"]);
+  assert.deepEqual(run([part,at("GND",2.5)],base,{types:["clearance","short"],defs:lib}).violations,[]);
+  // The query geometry (physical extraction) carries the net too.
+  assert.deepEqual(R.kit.extract(board([mh]),defs,{physical:true}).copper.map(f=>f.net),["GND"]);
+  // With no net the land is unassigned copper, as any other: not clearance-checked (noted), one net may
+  // touch it, and a land bridging two nets is a short.
+  const bare={...mh,net:""};
+  out=check([bare,at("B",2.5)]);
+  assert.deepEqual(out.violations,[]);
+  assert.ok(out.notes.some(n=>/^1 copper objects without a net/.test(n)),"the land is reported as unchecked netless copper");
+  assert.equal(of(run([bare,at("B",2.5),track("u","C",[[0,-5],[0,-2.5]])],base,{types:["short"]}),"short").length,1);
+  assert.equal(of(check([bare,at("B",2.5),at("C",2.5,"Bottom")]),"short").length,0,"no barrel joins the top and bottom lands");
+  assert.equal(of(check([{...mh,plated:true},at("VCC",2.5)]),"short").length,1,"a plated land as well");
+}
 
 {
   require("../../app/pcb/board-shape-core.js");
@@ -185,4 +230,11 @@ for(let i=0;i<25000;i++){
 const started=Date.now();out=R.drc(board(dense),defs,base,{types:["clearance","width","viaStyle","holeSize","annularRing","holeToHole"]});
 const ms=Date.now()-started;
 assert.ok(ms<8000,"dense board took "+ms+" ms");assert.ok(out.total>0);
+{
+  // A back-drilled via has no land beyond its stop layer: DRC clearance and the short check agree.
+  require("../../app/pcb/stackup.js");require("../../app/pcb/viastack.js");
+  const drilled={...via("v","A",0,0,.8,.3),fromLayer:"Top",toLayer:"Bottom",backdrill:{from:"bottom",toLayer:"Inner 1",stubMax:.2}};
+  assert.deepEqual(run([drilled,track("b","B",[[0,0],[2,0]],.2,"Bottom")],base,{types:["clearance","short"]}).violations,[]);
+  assert.deepEqual(run([drilled,track("t","B",[[0,0],[2,0]])],base,{types:["clearance","short"]}).violations.map(v=>v.type).sort(),["clearance","short"]);
+}
 console.log("PASS DRC width, via style, holes, annular ring, routing layers, clearance shapes, shorts, un-routed nets, silk, differential pairs, lengths, matched lengths, limits and report ("+ms+" ms for 25k objects, "+out.stats.candidates+" candidate pairs)");

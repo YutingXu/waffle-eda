@@ -75,6 +75,19 @@ const file = (name, text) => ({name, bytes: enc.encode(text)});
 const near = (a, b, tol = 1e-3) => Math.abs(a - b) <= tol;
 const nearP = (p, q, tol = 1e-3) => near(p[0], q[0], tol) && near(p[1], q[1], tol);
 const defsOf = p => new Map(p.library.map(d => [d.id, d]));
+// A legacy (KiCad 5) arc is centre, start point and angle. KiCad ends it at the start point turned
+// by the negated angle in its Y-down frame, so +90° from (5, 0) about the origin ends at (0, 5):
+// the same arc a KiCad 6 file writes with three points.
+{
+  const arcOf = source => I.readSet([file("arc.kicad_pcb", '(kicad_pcb (layers (0 "F.Cu" signal) (37 "F.SilkS" user)) ' + source + ")")])[0]
+    .documents[0].items.find(i => i.kind === "graphic").points;
+  const legacy = arcOf('(version 20171130) (gr_arc (start 0 0) (end 5 0) (angle 90) (layer F.SilkS) (width 0.1))');
+  const modern = arcOf('(version 20240108) (gr_arc (start 5 0) (mid 3.535534 3.535534) (end 0 5) (layer "F.SilkS") (stroke (width 0.1) (type solid)))');
+  for (const points of [legacy, modern]) {
+    assert.ok(nearP(points[0], [5, 0]) && nearP(points.at(-1), [0, 5]), "the arc runs from (5, 0) to (0, 5)");
+    assert.ok(points.every(p => near(Math.hypot(...p), 5) && p[1] >= -1e-9), "through the positive Y quadrant");
+  }
+}
 function projectOf(results) {
   const p = A.project("Imported");
   p.documents = results.flatMap(r => r.documents);
@@ -164,6 +177,17 @@ const worldPads = (part, def) => A.pins(part, def, "pcb").map(p => ({n: p.number
   const ambiguous = file("middle.kicad_sch", children(middle, [[inner, "child"], [inner, "absent"]]));
   assert.equal(resistor(I.readSet([sources[0], sources[1], ambiguous, archive("")])).ref, "R?", "duplicate sheet placement IDs cannot establish a unique path");
   console.log("PASS project-specific nested KiCad references, standalone, repeated and ambiguous child placements");
+}
+
+// A datasheet parameter in any spelling (an Altium or Eagle import keeps "Datasheet" as written)
+// fills KiCad's Datasheet field, in the embedded library symbol and on the placed symbol.
+{
+  const project = AtriumParts.example(), sheet = project.documents.find(d => d.kind === "schematic");
+  const part = sheet.items.find(i => i.kind === "part"), def = project.library.find(d => d.id === part.def);
+  def.parameters = {...def.parameters, "Data Sheet": "https://example.com/part.pdf"};
+  delete def.parameters.DATASHEET;
+  const text = AtriumKiCadSchematic.exportSheet(project, sheet).content;
+  assert.equal(text.split('(property "Datasheet" "https://example.com/part.pdf"').length - 1, 1 + sheet.items.filter(i => i.def === def.id).length);
 }
 
 // ------------------------------------------------------------------ 1. round trip
@@ -297,6 +321,10 @@ const worldPads = (part, def) => A.pins(part, def, "pcb").map(p => ({n: p.number
   assert.equal(keepouts.length, 2, "board and footprint keepouts");
   assert.ok(keepouts.every(i => i.fill === true && i.closed === true), "rule areas import as filled keep-out areas");
   assert.ok(board.notes.some(n => /Footprint-owned zones/.test(n)));
+  // KiCad writes a footprint's zone outline in board coordinates, unlike its pads and drawings:
+  // U2 sits at (30, 12) and its keepout stays where the board file puts it, not 30 mm further on.
+  const fpKeepout = keepouts.find(i => i.points.some(p => nearP(p, [29, 14])));
+  assert.ok(fpKeepout && [[31, 14], [31, 15], [29, 15]].every(q => fpKeepout.points.some(p => nearP(p, q))), "footprint zone keeps board coordinates");
   assert.ok(board.items.some(i => i.kind === "label" && i.text === "Atrium import" && i.layer === "Silk"));
   assert.ok(board.items.some(i => i.kind === "graphic" && i.fill && i.layer === "Silk"));
   // Outline: true arc and the circular cutout.

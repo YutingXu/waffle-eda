@@ -405,6 +405,23 @@ globalThis.AtriumLength = (() => {
     const ea = [], eb = [], elen = [], etype = [], eseg = [];
     const link = (a, b, len, type, seg) => { ea.push(a); eb.push(b); elen.push(len); etype.push(type); eseg.push(seg); };
     const attached = new Uint8Array(vertexCount);
+    // A track that runs on into a pad or via to its end counts in full, as routed copper does in
+    // Altium's lengths: a vertex inside the land is no contact when, through it, the track continues
+    // inside the land to a free end; that end is the contact. `inLand(v)` tells which vertices touch.
+    let nbr = null;
+    const tailInside = (v, inLand) => {
+      if (degree[v] !== 2) return false;
+      if (!nbr) {
+        nbr = Array.from({length: vertexCount}, () => []);
+        for (let i = 0; i < sa.length; i++) { nbr[sa[i]].push(sb[i]); nbr[sb[i]].push(sa[i]); }
+      }
+      for (const first of nbr[v]) {
+        let prev = v, cur = first;
+        for (let k = 0; k < 64 && inLand(cur) && degree[cur] === 2; k++) { const next = nbr[cur][0] === prev ? nbr[cur][1] : nbr[cur][0]; prev = cur; cur = next; }
+        if (degree[cur] === 1 && inLand(cur)) return true;
+      }
+      return false;
+    };
     // Pads
     const padNode = new Int32Array(pads.length);
     for (let p = 0; p < pads.length; p++) {
@@ -417,25 +434,32 @@ globalThis.AtriumLength = (() => {
       else for (let v = 0; v < vertexCount; v++) visit(v);
     }
     for (let p = 0; p < pads.length; p++) {
-      for (const placed of pads[p].lands) nearVertices(...placed.at, placed.radius + reach, v => {
-        if (nl[v] < placed.lo || nl[v] > placed.hi) return;
-        if (touches(placed, nx[v], ny[v], nhw[v] * .5 + 1e-6)) { link(v, padNode[p], 0, 2, -1); attached[v] = 1; }
-      });
+      for (const placed of pads[p].lands) {
+        const inside = new Set();
+        nearVertices(...placed.at, placed.radius + reach, v => {
+          if (nl[v] >= placed.lo && nl[v] <= placed.hi && touches(placed, nx[v], ny[v], nhw[v] * .5 + 1e-6)) inside.add(v);
+        });
+        for (const v of inside) if (!tailInside(v, u => inside.has(u))) { link(v, padNode[p], 0, 2, -1); attached[v] = 1; }
+      }
     }
     // Vias: one node per connected layer, chained by barrel edges in z order.
     let viaCount = 0;
     for (const via of vias) {
       const lo = via.fromLayer && via.toLayer ? Math.min(layerIndex(via.fromLayer), layerIndex(via.toLayer)) : 0;
       const hi = via.fromLayer && via.toLayer ? Math.max(layerIndex(via.fromLayer), layerIndex(via.toLayer)) : 127;
-      const r = (via.diameter || 0) / 2, byLayer = new Map();
+      const r = (via.diameter || 0) / 2, byLayer = new Map(), inside = new Set();
       nearVertices(via.x, via.y, r + 1, v => {
         const l = nl[v]; if (l < lo || l > hi) return;
         const d2 = (nx[v] - via.x) ** 2 + (ny[v] - via.y) ** 2;
-        if (d2 > (r + nhw[v] * 0.5 + 1e-6) ** 2) return;
+        if (d2 <= (r + nhw[v] * 0.5 + 1e-6) ** 2) inside.add(v);
+      });
+      for (const v of inside) {
+        if (tailInside(v, u => inside.has(u))) continue;
+        const l = nl[v];
         let n = byLayer.get(l);
         if (n === undefined) { n = nx.length; byLayer.set(l, n); nx.push(via.x); ny.push(via.y); nl.push(l); nk.push(2); nhw.push(0); }
         link(v, n, 0, 2, -1); attached[v] = 1;
-      });
+      }
       for (let p = 0; p < pads.length; p++) {
         for (const placed of pads[p].lands) {
           if (!touches(placed, via.x, via.y, 1e-6)) continue;

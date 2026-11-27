@@ -2,7 +2,7 @@
 // Use Chromium's real OPFS file handles, exclusive streams, structured handle persistence
 // and SHA verification. Only the human's system-picker selection is supplied by the harness.
 const assert = require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
-const {chromium}=require('playwright-core');
+const {chromium}=require('../support/playwright.cjs');
 (async()=>{
   const allowed = new Set(['import-export.js','import-export-browser.js','zip.js']);
   const server=http.createServer((req,res)=>{

@@ -93,6 +93,7 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 - **Use** for a toolbar, heading or row action with a well-known icon from the `index.html` icon bank. New symbols follow [Icons](design-system.md#icons).
 - **Markup** `<button class="ui-icon-button" aria-label="Add" title="Add"><svg class="icon"><use href="#i-plus"/></svg></button>`, or `K.iconButton(name, label, {size, run, pressed})`.
 - **States** hover (soft fill, mouse and pen only), `aria-pressed`/`aria-expanded` (selection fill), `disabled`, keyboard focus. Sizes are `sm` 20, `md` 24 and `lg` 28 px. The icon stays 16 px.
+- **Keyline** every icon in the bank draws with the same 1.6 stroke on the 24-unit grid and fits one optical size: about 16 units for square shapes (the geometry inside 4–20), at most 18 along the long side of a wide or tall shape, and 14 for open strokes such as plus, grid and the chevron (close stays 12). Scale a new icon to the keyline by its coordinates, never with a transform, so the stroke stays 1.6. The gallery's Icon set shows them side by side.
 - **Tokens** `--ink` (one icon ink, as in the Projects panel), `--button-face-hover`, `--button-face-pressed`, `--selection`, `--chrome-control-radius`.
 - **Do** give every icon button a label. The label also supplies the tooltip. **Don't** use a text glyph (×, ⋯, ▸) as the icon. Close buttons use `.ui-close`.
 - The older `.tool` class (extension tools and other canvas chrome) has the same 24 px size and 6 px radius and the same hover fill, `--button-face-hover`. The canvas Active Bar keeps its own 28 px tools and takes that hover fill too.
@@ -113,11 +114,11 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 
 ![Fields](ui-library/field.png)
 
-- **Use** for typed values. Numbers use the 80 px number width and show their unit beside the field.
+- **Use** for typed values. Numbers use the 80 px number width and show their unit beside the field. In a [property row](#prop-row) the number fills the value column and its unit sits inside the field's box, at the trailing edge; the caption never carries the unit.
 - **Markup** `<input class="ui-field">`, `<textarea class="ui-field">`, number with unit: `<span class="ui-field-measure"><input class="ui-field" type="number"><span class="ui-field-unit">mm</span></span>`. `K.field({type, value, unit, invalid, disabled, onInput})`. Inside adopted dialogs, popovers and the inspector, plain inputs get the same face.
-- **States** placeholder, `disabled`, `aria-invalid=true` or `:user-invalid` (`--error` border), focus (fields always show their ring, as native fields do). The field stays 28 px on touch. A Link URL on editing artwork uses the native paper field face, `data-field-face="paper"`. The row label is the hit target. A rejected edit uses `data-edit-rejected` for its error border, or `data-edit-rejected="ink"` for the border and value ink used in the Library. The field’s numeric validation keeps its own `aria-invalid` state.
+- **States** placeholder, `disabled` (hairline `--line` border, a muted well and `--muted` text), `readonly` (`K.field({readOnly})`: no box line, ink text on a quiet well (a 6% `--ink` tint, so it shows on any surface and theme), still selectable), `aria-invalid=true` or `:user-invalid` (`--error` border), focus (fields always show their ring, as native fields do). The field stays 28 px on touch. A Link URL on editing artwork uses the native paper field face, `data-field-face="paper"`. The row label is the hit target. A rejected edit uses `data-edit-rejected` for its error border, or `data-edit-rejected="ink"` for the border and value ink used in the Library. The field’s numeric validation keeps its own `aria-invalid` state.
 - **Stepper commands** use `.ui-stepper-button` with the quiet button face. The square leading hairline separates the command from its number field in either text direction.
-- **Matrix values** use `.ui-field-number[data-value-source]` for compact clearance cells. `inherited` shows the faint fallback, `authored` marks a stored constraint, and `override` marks a per-object rule override.
+- **Matrix values** use `.ui-field-number[data-value-source]` for compact clearance cells. `inherited` shows the faint fallback, `authored` marks a stored constraint, and `override` marks a per-object rule override. Lay the cells out in `table.ui-matrix`: muted column heads (`th[scope=col]`), end-aligned row heads (`th[scope=row]`) and 8 px by 6 px between cells; a lower-triangular matrix leaves the upper cells empty. The Rules dialog's clearance matrix uses it.
 - **Tokens** `--field`, `--input-line`, `--field-height`, `--field-number-width`, `--fs-12`.
 - **Do** use a native `<label>` or `aria-label`, and keep the caption, value and unit on one baseline. **Don't** turn on spelling or autocorrect in single-line fields. `shell.js` turns them off.
 
@@ -129,7 +130,8 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 - **Use** to choose one of six or more options, or options whose labels are long. Use a segmented control for two to five short modes.
 - **Markup** a native single-line `<select class="ui-field">`, or `K.select(options, {value, onChange})`. `ui/dialog.js` routes presses and keys to `AtriumSelectPopup`, which draws `.ui-select-list` with `.ui-select-option` rows. Do not build your own option list. A completion list, such as query, math or rich-text suggestions, reuses `.ui-select-list[data-completion]` and `.ui-select-option`. In a completion list, `aria-selected` marks the active suggestion. It takes the active fill and shows no ✓.
 - **States** `disabled`, the open list (`.active` row, ✓ on the chosen row), RTL chevron.
-- **Tokens** `--menu-bg`, `--selection`, `--elev-2`.
+- **Shape** the list, like every menu (`.nav-menu`, `.menu-items`), has the popover radius `--r-lg`; its rows keep `--r-sm`, which nests inside the 4 px padding.
+- **Tokens** `--menu-bg`, `--selection`, `--elev-2`, `--r-lg`.
 
 <a id="switch"></a>
 ### Switches
@@ -137,8 +139,9 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 ![Switches](ui-library/switch.png)
 
 - **Use** for a setting that applies immediately. Use a checkbox for a choice that is applied with a form.
-- **Markup** `<label class="ui-switch-row"><span>Snap to grid</span><input class="ui-switch" type="checkbox" role="switch"></label>`, or `K.switchRow(label, {checked, onChange})`.
-- **States** off, on (`--primary` track), `disabled`. The knob slides over `--motion-toggle`. With Reduced or Off, the switch changes at once.
+- **Markup** `<label class="ui-switch-row"><span>Snap to grid</span><input class="ui-switch" type="checkbox" role="switch"></label>`, or `K.switchRow(label, {checked, onChange, disabled, locked})`.
+- **States** off, on (`--primary` track), `disabled` (the track fades toward the field, the knob loses its lift, the caption mutes), locked (`data-locked` on the row, `K.switchRow({locked: reason})`: disabled plus a lock on the knob, with the reason as the row's tooltip and accessible description). Use locked only when something else controls the setting. The knob slides over `--motion-toggle`. With Reduced or Off, the switch changes at once.
+- **In a property row** the switch has no text of its own and starts at the value column: `<div class="ui-prop-row"><span>Locked</span><label class="ui-switch-row"><input class="ui-switch" type="checkbox" role="switch" aria-label="Locked"></label></div>`. Never nest the switch's label in a label row. On touch its hit area reaches 44 px; the painted switch keeps its size.
 
 <a id="checkbox"></a>
 ### Checkboxes
@@ -146,7 +149,8 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 ![Checkboxes](ui-library/checkbox.png)
 
 - **Markup** `<label class="ui-checkbox-row"><input class="ui-checkbox" type="checkbox"><span>Label</span></label>`, or `K.checkbox(label, {checked, indeterminate})`.
-- **States** checked, indeterminate, `disabled`, keyboard focus. The row is 44 px high on touch.
+- **Face** the library draws the box (not the platform widget): 14 px, `--r-md`, the field's `--input-line` border; checked and mixed fill with `--primary` and draw the tick (`--glyph-check`) or bar in `--on-primary`. The tick grows in over `--motion-fast` and appears at once with Reduced motion. Forced colours fall back to the platform checkbox. Full-cell grid checkboxes (`[data-checkbox-cells]`) keep their own face.
+- **States** checked, indeterminate, `disabled` (hairline border, muted well; a checked one fades its fill), keyboard focus. The row is 44 px high on touch.
 
 <a id="radio"></a>
 ### Radio buttons
@@ -157,6 +161,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Use** for two to five exclusive options that need a sentence each. Use a segmented control when the labels are short.
 - **Markup** `<fieldset class="ui-radio-group"><label class="ui-radio-row"><input class="ui-radio" type="radio" name="side"><span>Top side</span></label>…</fieldset>`, or `K.radioGroup(options, {value, onChange})`.
+- **Face** drawn with the checkbox: a 14 px circle with the field line; checked fills with `--primary` and grows an `--on-primary` dot.
 
 - **Canvas choices** use `.ui-choice.ui-choice-tinted` on a native button. Markers add `.ui-choice-marker` and use `role=radio` and `aria-checked`. Touch modifiers use `data-size=touch` and `aria-pressed`. Their caller owns selection and grouping.
 
@@ -168,6 +173,8 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 - **Use** for two to five exclusive modes or filters.
 - **Markup** `.ui-segmented` around `.ui-segment` buttons with `aria-pressed`, or around labels that wrap native radio buttons. `K.segmented(options, {value, onChange, size})`. Arrow keys, Home and End move through the segments (`ui/dialog.js`).
 - **States** a soft track with the chosen segment raised (`light-dark(--field, --raised)`), hover, disabled, keyboard focus. High contrast keeps outlined segments.
+- **Motion** a pointer change slides the raised face from the old segment to the new one over `--motion-toggle`, like the switch knob. `ui/kit.js` adopts every `.ui-segmented`, built by the kit or in feature markup, once the kit has loaded (lazy.js prefetches it at idle); before that a change applies at once. Keyboard changes, Reduced motion, Off and high contrast change at once.
+- **In a property row** the control fills the value column with equal segments, as Properties' Side does.
 
 <a id="tabs"></a>
 ### Tabs
@@ -180,6 +187,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 - **Underlined** `data-underline` on `.ui-tabs` shares the existing unfilled hairline band used for result tabs and the Symbol Editor.
 - **Strip** `data-strip` on `.ui-tabs` (`K.tabs(items, {strip:true})`) puts the tabs on a `--panel-head` band with a hairline under it. It is the standard tab strip (approved 2026-11-23): use it for a panel's or a dialog's view switcher. The band is 32 px (`--chrome-tab-height`), and it scrolls sideways when the tabs overflow. A feature does not paint its own band.
 - **Editor strip** `.ui-editor-tab-strip` gives document, split and Dock tabs their shared alignment, height and scrolling. The `data-tab-strip` mode retains the original fills and divider. `.ui-document-tab` supplies the document selection and hover.
+- **Overflowing editor strip** A document or split-pane strip with more tabs than fit says so ([`ui/tab-overflow.js`](../app/ui/tab-overflow.js), `AtriumTabOverflow.watch(strip)`; the editor's strips are watched for you). Each side with tabs beyond it fades (`data-overflow="start|end"`), and a ⋯ icon button after the tabs (`.ui-tab-overflow`, shown only while the strip overflows) lists every tab, the shown one ticked, through the shared dropdown menu. The selected tab scrolls whole into view whenever the selection moves to it, and a mouse wheel turned over the strip scrolls it sideways. Controls that end a strip which is not itself the tablist (a split pane's split and close buttons) go in `.ui-tab-strip-end`, which stays in view while the tabs scroll; the ⋯ goes first there. Dock tab strips keep their own fit-and-⋯ menu (`dock.js`).
 - **Boxed** `data-boxed` keeps the settled compact tab face in existing editable grids such as Bill of Materials and Constraint Manager. It uses the same tab controls and keys.
 
 <a id="chip"></a>
@@ -239,7 +247,9 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Keycaps](ui-library/keycap.png)
 
-- **Markup** `AtriumShortcut.render(binding, {variant:"keycap"|"inline"})`. Take the binding from the keyboard map. Do not type it out. The Mac shows "esc", ⌘ and ⇧ glyphs, and other platforms show words. The style check rejects raw keycap markup.
+- **Markup** `AtriumShortcut.render(binding, {variant:"keycap"|"inline"|"inline-keycap"})`. Take the binding from the keyboard map. Do not type it out. The Mac shows "esc", ⌘ and ⇧ glyphs, and other platforms show words. The style check rejects raw keycap markup.
+- **Where** keycaps for a key on its own, a sequence (`"Mod+K Mod+S"`, one keycap per key) and command palette rows; inline (muted, no caps) at the end of menu rows and in tooltips (`data-tooltip-shortcut`); inline keycaps in running prose. The gallery shows each.
+- **Shortcut editor** (Preferences › Keyboard Shortcuts) a binding is `.ui-chip.ui-shortcut-chip` holding a `button.ui-shortcut-edit` with the inline shortcut, then `.ui-chip-remove`. A conflict sets `data-invalid=true` on the chip (error border and ink) and puts the reason in the key button's title and accessible description. While recording, `.ui-shortcut-recorder` shows the keys so far and how to finish or cancel. A command with no key shows `.ui-shortcut-none` "Not set". Add and reset are small icon buttons (`plus`, `undo`), never text glyphs.
 
 <a id="section"></a>
 ### Section headers
@@ -248,6 +258,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Use** to group content in panels, inspectors, dialogs and settings.
 - **Markup** `<section class="ui-section"><div class="ui-section-head"><h3 class="ui-section-title">Net Classes</h3><div class="ui-section-actions">…</div></div>…</section>`, optional `.ui-section-note`. `K.section(title, {actions, note, quiet}, ...content)`. `data-quiet` removes the hairline when a property list follows.
+- **Bleed** `data-bleed` on the head draws the full-width divider of a docked panel. It reaches the panel's edges through the panel's side padding, `--ui-panel-pad` (8 px unless the panel sets it; Properties sets 12 px).
 - **Tokens** `--fw-semibold`, `--fs-12`, `--head-ink`, `--line`.
 - **Don't** put the section in a bordered card, and don't put its actions in a separate row.
 
@@ -257,9 +268,17 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 ![Property rows](ui-library/prop-row.png)
 
 - **Use** for a caption and a value or control in Properties, inspectors and compact settings.
-- **Markup** `<label class="ui-prop-row"><span>Width</span><input class="ui-field"></label>`. Read-only values use `<span class="ui-prop-value ui-selectable">`, and an error uses `.ui-prop-error`. `K.propRow(caption, control|text, {error, stacked})`. The caption takes 42 % (`--ui-prop-label`). In `data-stacked` rows the caption sits above the value.
-- **States** read-only text, editable, invalid (with its message under the value), and a switch or checkbox aligned to the end. Rows are 44 px high on touch.
-- The PCB and schematic Properties panel uses its existing `#inspector .field-row` rows, which follow the same rules.
+- **Markup** the markup is the contract, so an eager module writes it directly:
+  - a field or select: `<label class="ui-prop-row"><span>Width</span><input class="ui-field"></label>`; the row is the field's label, so a press on the caption focuses the field.
+  - a number with its unit: `<label class="ui-prop-row"><span>Width</span><span class="ui-field-measure"><input class="ui-field"><span class="ui-field-unit">mm</span></span></label>`.
+  - read-only text: `<div class="ui-prop-row" title="SOT-23-5"><span>Package</span><span class="ui-prop-value ui-selectable">SOT-23-5</span></div>`.
+  - a switch: `<div class="ui-prop-row"><span>Locked</span><label class="ui-switch-row"><input class="ui-switch" type="checkbox" role="switch" aria-label="Locked"></label></div>`.
+  - a segmented control: `<div class="ui-prop-row"><span>Side</span><div class="ui-segmented" role="group" aria-label="Side">…</div></div>`.
+
+  An error uses `.ui-prop-error`. `K.propRow(caption, control|text, {error, stacked})` builds the same rows; `AtriumNavCommon.appendPropertyRow`, `appendSwitchRow` and `measure` build them in eager code. In `data-stacked` rows the caption sits above the value.
+- **Value column** the caption takes `--ui-prop-label` (42 % by default; the docked Properties sets `min(84px, 42%)`: 84 px from a 224 px dock, narrower below it, so every row's value starts on the same line at any dock width. There a caption that does not fit ends in an ellipsis, its full text in its tooltip). Every control and read-only value starts on that column. Text fields, selects, textareas, numbers and segmented controls fill it, so their end edges line up too; a switch keeps its natural width. Read-only text wraps, which suits a sentence such as a reason. A row whose value is a short name or number sets `data-clip` (`K.propRow(caption, text, {clip: true})`; `appendPropertyRow` sets it) to keep it on one line.
+- **States** read-only text (regular weight, inset to line up with the text inside fields; with `data-clip`, one line ending in an ellipsis, the full text as the row's tooltip), editable, a number with its unit inside the box (the focus ring, `aria-invalid` and `data-edit-rejected` borders, and the disabled and read-only faces are on the box), invalid (with its message under the value), and a switch at the start of the value column. Every row is as tall as a field row (28 px plus 2 px above and below), so read-only text keeps the same rhythm as editable values. Rows are 44 px high on touch; a field stays 28 px and a switch's hit area reaches 44 px.
+- The PCB and schematic Properties panel (`#inspector`) uses `.ui-prop-row` for every object's rows, with 12 px side padding.
 
 <a id="row"></a>
 ### List and tree rows
@@ -283,7 +302,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Tables](ui-library/table.png)
 
-- **Use** `.ui-table` for a read-only list with columns. The editable grids, such as Bill of Materials and Constraint Manager, share [`ui/spreadsheet.css`](../app/ui/spreadsheet.css) under `.ui-dialog[data-grid]`. Tables with inline pin editors use `.ui-sheet-fields`. Add `data-checkbox-cells` when checkboxes occupy the full cell. Large tables use `AtriumWindowedTable`.
+- **Use** `.ui-table` for a read-only list with columns. The editable grids, such as Bill of Materials and Constraint Manager, share [`ui/spreadsheet.css`](../app/ui/spreadsheet.css) (`.ui-sheet-body`, `.ui-sheet-toolbar`, `.ui-sheet-wrap`, `.ui-sheet-grid`, `.ui-sheet-sort`, `.ui-sheet-resize`, `.ui-sheet-filter`) under `.ui-dialog[data-grid]`. Tables with inline pin editors use `.ui-sheet-fields`. Add `data-checkbox-cells` when checkboxes occupy the full cell. Large tables use `AtriumWindowedTable`.
 - **Cell editor** an active `.ui-field[data-grid-editing]` fills its cell and draws the focus border. The grid owns the editing and commit policy.
 - **Severity editing** Put `data-severity="none|warning|error|fatal"` on a matrix button with `.ui-severity-cell`, a select with `.ui-severity-field`, or a legend swatch with `.ui-severity-swatch`. Use the severity name in the control's accessible label.
 - **Analysis results** Use `K.analysisTable(columns, rows, renderRow, {wrapClass, tableClass, empty, emptyClass})` for scoped headers and a full-width empty state. Keep result limits and row actions in the caller.
@@ -297,8 +316,8 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Markup** `.ui-toolbar[role=toolbar]` with icon buttons, quiet buttons, `.ui-toolbar-sep`, `.ui-toolbar-spacer` and a search field. `K.toolbar(items)`, where `"|"` is a separator and `"->"` is a spacer.
 - **Note formatting** `K.toolbar(items, {floating:"editing"})` uses the editing palette face. The text editor positions its palette next to the note. Formatting selects use `K.select(options, {native:true})`.
-- **Compact actions** `.ui-toolbar-actions` shares the 20 px action face for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
-- **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` gives the existing Nets and PCB List fields their settled native face. The shorter search uses `.ui-search[data-size=compact]`.
+- **Compact actions** `.ui-toolbar-actions` shares the 20 px action face: the small soft-fill button (`--button-face`, `--chrome-control-radius`, medium weight) for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
+- **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` is the 20 px field for the Nets and PCB List headers: the control radius, a 6 px text inset and, on a select, the library chevron. The shorter search uses `.ui-search[data-size=compact]`.
 - **Layer controls** `.ui-layer-action` uses the menu button’s `aria-expanded` or the layer’s `aria-pressed` to draw the state. A non-copper drawing layer uses `aria-current` for the inset mark. The menu can supply its own arrow with `data-menu-indicator=custom`.
 - The canvas Active Bar (`.active-bar .tool`) is a settled surface with its own 28 px tools. Do not copy it into panels. Its buttons are customisable (`app/editor/bars.js`): a command without an icon, and an extension button without one, shows its short title (`.tool-text`, approved 2026-11-27): the same 28 px tool with its height, radius, hover, pressed and focus states, widened with `--s-8` padding, `--fs-12` type on one line, at most four tool widths with an ellipsis, and the full name in the tooltip. Tools that do not fit move into a "⋯" flyout.
 - **Floating** (proposed component, 2026-11-23) `data-floating` (`K.toolbar(items, {floating:true})`) lifts the toolbar onto `--overlay` with `--elev-2` and `--r-lg`, for the presentation bar over the canvas. `data-idle` fades it out over `--motion-base` (no slide under Reduced motion) until the pointer moves, a key is pressed or focus enters it. `.ui-toolbar-title` holds one line of title text. Use it only for a mode the user started, never for chrome that appears on its own.
@@ -319,7 +338,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Popovers](ui-library/popover.png)
 
-- **Tooltips** set `title` or `data-tooltip`, with `data-tooltip-shortcut` for a key. The tooltip does not appear while the control's own label is fully visible.
+- **Tooltips** set `title` or `data-tooltip`, with `data-tooltip-shortcut` for a key. The tooltip does not appear while the control's own label is fully visible. Tooltips, hover cards and problem cards share the popover radius, `--r-lg`.
 - **Hover cards** (canvas objects) are `AtriumTooltip` cards. They are small, they never block the object under the pointer, they close when the camera moves and they never appear on touch.
 - **Problem cards** (problem markers on sheets and boards, `app/problem-hover.js`) are the same `.ui-tooltip.is-card` face with a heading (`.ui-tooltip-head`: a severity `.ui-dot`, the title in `strong`, the severity in `.ui-tooltip-meta`), a detail line, a short `.ui-tooltip-list` for a marker that stands for several problems (`data-wide` lets it grow to 380 px; each row keeps its title and `.ui-tooltip-value` whole on line 1 and wraps the rest to two lines at most), and `.ui-tooltip-actions` with small quiet buttons. `data-interactive` lets the pointer reach the buttons; the card still never takes the focus. They show after a 350 ms rest, sit beside the marker and its objects (never over them) and close on pointer leave, camera change, Escape, a press elsewhere, an edit, and during drags, routes and placement. On touch a tap on a marker shows the card.
 - **Popovers** are `.ui-popover`, a small floating form anchored to a button with `--overlay`, `--r-lg` and `--elev-2`. Close it with Escape and with a click outside it.
@@ -487,7 +506,7 @@ Hover keeps the resting border colour across the app. The UI library lint checks
 
 **Building a panel.** `K.panel({title, actions})`. Put a toolbar or search under the heading only when the list needs one. The body is a `.ui-list` of `.ui-row` or a set of `.ui-section`s. Put state in a `.ui-notice` at the top (stale, offline, read-only) and counts in a `.ui-status-line` or the footer.
 
-**Building an inspector.** Use one `.ui-section` for each group, with `data-quiet` when property rows follow. The docked Inspector shares the section heading layout with the full-width divider used by `.ui-section-head[data-bleed]`. Make each value a `.ui-prop-row`. Edits apply on Enter or blur as one undo step. Show an error under its value with `.ui-prop-error`. Put Add actions as icon buttons on the section heading. Show linked items as `.ui-row`s inside the section, not as cards.
+**Building an inspector.** Use one `.ui-section` for each group, with `data-quiet` when property rows follow. The docked Inspector shares the section heading layout with the full-width divider used by `.ui-section-head[data-bleed]`. Make each value a `.ui-prop-row`. Edits apply on Enter or blur as one undo step. Show an error under its value with `.ui-prop-error`. Put Add actions and other object actions as icon buttons on the section heading (Properties' "Show in schematic"). Show linked items as `.ui-row`s inside the section, not as cards. In Properties, rows from several modules share one object: `editor.js` creates the object's named groups (a placed component's Placement, Show on board, 3D body and Parameters; a track's Mask expansion) in a fixed order, and a contributor adds its rows through `group(key)` on the context it receives, so the order never depends on which lazy module loads first. A lazy module that fills the object's own section reserves its place with `AtriumLazy.appendOnLoad`.
 
 **Lists in lazy modules without eager bytes.** A list needs no builder. Its markup is the contract, and `components.css` is eager: `<div class="ui-list" role="listbox">` with `<div class="ui-row" role="option" aria-selected>` rows (`.ui-row-icon`, `.ui-row-text` > `.ui-row-title` + `.ui-row-detail`, `.ui-row-meta`, `.ui-row-actions`). A lazy module may also `await AtriumLazy.need("AtriumUIKit")` in its own code, which costs no eager bytes. Do not add the kit to a module's `deps` in `lazy.js`, because `lazy.js` is eager. The kit is prefetched at idle, so `globalThis.AtriumUIKit` is usually there already. A list declared in HTML keeps its role and accessible name before the lazy renderer arrives. The renderer supplies the `.ui-row` options. Keyboard movement and the active row stay with the feature.
 
@@ -528,7 +547,11 @@ Hover keeps the resting border colour across the app. The UI library lint checks
 | Fab tab strip | Fabrication Outputs' view tabs use the library strip (`.ui-tabs[data-strip]`); `.fab-tabs` keeps only its margin. | The strip gains the `--panel-head` band. |
 | Second decisions (2026-11-23) | 1: the read-only revision banner and the recovery storage warning are `.ui-notice[data-floating]`; the dead compatibility banner rules are gone. 2: presence badges and extension monograms are `.ui-avatar`; the template layer count is `.ui-overlay-label`. 3: `.ui-icon-button` draws in `--ink`; the Projects actions and Clipboard History's item buttons are `.ui-icon-button`. 4: net, layer, theme, logo, welcome, VS Code import, rich-text and table colours set `--swatch` (cell borders `--swatch-<edge>`); the lint accepts `var(--swatch)` and now also catches `.style.setProperty` faces. 5: `.tool` hovers with `--button-face-hover`. 8: the Nets, Navigator and Signals counts are in their search fields. | Before and after captures in light, dark and touch for each surface. Only the faces the decisions name changed; a docked Nets or Signals heading that held only its title and close button now hides under the dock tab. |
 | Editor strips, lists and completions | The Board Shape, Layer Stack, Signal Integrity, Signals, via fence and View Configuration switchers are `.ui-tabs[data-strip]`. The autorouter strategies are `.ui-row[aria-checked]` radios. Fourteen selection lists (component classes, swap picker, part matches, placeholder candidates, layer sets, pours, board and library rule sets, rule classes, impedance profiles, via templates) follow the lazy-list markup contract, and the math, design-field and package suggestions are `.ui-select-list[data-completion]`. `tests/ui-library-lint.py` now accepts a listbox built on that contract and self-tests both kinds. | Snapshots: View Configuration and Rule Sets change only in the strip and list faces. |
+| Properties rows (2026-11-27) | Properties (`#inspector`) builds every row from `.ui-prop-row`: the shared builders in `editor.js` and `nav-common.js` and the rows of the PCB selection, part, pad, via, text, board-drawing, bus-route, support-placement, schematic object, part text, sheet, document and drawing inspectors. One caption column (84 px, shrinking on a dock narrower than 224 px); fields, selects, numbers and segmented controls fill the value column; units sit inside the number's box (`(mm)` and `(°)` left the captions, the field names keep them); read-only values are one regular-weight line with the full text as a tooltip; checkboxes for immediate settings are switches at the column start; 12 px side padding (`--ui-panel-pad`). A placed component and a track are grouped (component: its designator with Show in schematic as an icon button, Placement with a Top/Bottom segmented Side, Show on board, 3D body, Parameters; track: Track, Mask expansion). Rows keep a fixed order whichever lazy module loads first. The `#inspector .field-row`, `.property-row` and checkbox-row rules are gone. | Gallery specimens for the unit inside the field, a segmented control, switches at the column start and a truncated value. Not yet captured in the running app. |
 | Messages face (2026-11-23) | The Problems domain filters (Schematic, Layout, Fab sign-off, Waived) are `.ui-chip` toggles. The view tabs, the class counters, the time and number columns and the net-pair rows use the UI font (`--font-ui`, tabular figures for numbers) instead of the monospace face, so every source's rows and the panel's head read in one face. | `tests/browser-messages-fonts.js`: one family in the panel; one message, detail and number font across sources. Captures in light, dark and touch. |
+| Shared sheet, tool and dock classes | Renamed `.bom-*` / `.cm-*` editable grid shell classes to `.ui-sheet-*` (`ui/spreadsheet.css`), `.pdn-*` / `.thm-*` analysis panel classes to `.ui-tool-*` (`ui/analysis-panels.css`), and `.panel-clip` / `.panel-history` / `.panel-rc` dock list-panel classes to `.ui-dock-*` (`ui/history-panels.css`), deleting the duplicate legacy selectors. | `css-tokens.py`, `ui-library-lint.py`, `single-owner.py`, `startup-budget.py`, and browser surface comparisons across all seven surfaces. |
+| UI font order and rename leftovers (2026-11-27) | `--font-ui` lists the macOS system faces first (`-apple-system`, `BlinkMacSystemFont`, then `"Segoe UI"`), so a Mac or Linux machine with Segoe UI installed still gets its native face; Windows keeps Segoe UI, and `system-ui` stays after it so Chinese, Japanese and Korean Windows locales keep Segoe UI. Keycaps use `--font-ui` (the separate `--shortcut-font` copy is gone). The Constraint Manager toolbar is `.ui-sheet-toolbar`; the Comments panel's empty state and close button are `.ui-dock-empty` and `.ui-close.ui-dock-close`, like Clipboard and History. | `css-tokens.py`, `ui-library-lint.py`, `single-owner.py` (its dock-shell guard now watches `.ui-dock-panel`), computed-style comparison of the Constraint Manager and Comments against `main`. |
+| Properties history control (2026-11-26) | "Who changed this?", a `<button>` drawn as monospace link text, is now "Show history": a small quiet `.ui-button` with the `history` icon. It shows only when the project's file is in a Git repository (a yes is remembered per history binding; a no for 15 s, so a first commit shows it; a failed read is asked again); opening any Altium or KiCad file binds it for history, so the old gate also showed it outside Git. The revision and History links inside the credit sentence stay inline links. | `tests/history/blame.cjs`; `tests/real-repos/git-workflows.js` and the macOS harness press the new control. |
 
 ## Still to migrate
 

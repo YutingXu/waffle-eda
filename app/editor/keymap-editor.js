@@ -96,7 +96,7 @@ globalThis.AtriumKeymapEditor = (() => {
       const keyCell=el("td",null,"km-key"),chips=el("div",null,"km-chips");
       recs.forEach((rec,n)=>{
         const expr=[cmd.when,rec.when].filter(Boolean).join(" && "),words=api.describeWhen(expr);
-        const chip=el("span",null,"ui-chip km-chip"),keys=el("button",null,"km-keys");keys.type="button";
+        const chip=el("span",null,"ui-chip ui-shortcut-chip"),keys=el("button",null,"ui-shortcut-edit");keys.type="button";
         keys.dataset.binding=String(rec.index);
         const spoken=api.display(rec.key,true);
         keys.append(AtriumShortcut.render(rec.key, {variant:"inline"}));
@@ -104,10 +104,10 @@ globalThis.AtriumKeymapEditor = (() => {
         keys.title=(words||"Always")+(expr?" ("+expr+")":"")+"\nClick to record a new key.";
         keys.onclick=()=>record(tr,keyCell,cmd,rec.index,rec);
         chip.append(keys,button("×",()=>{api.removeBinding(cmd.id,rec.index);status("Removed "+spoken+" from "+title+".");},"ui-chip-remove","Remove "+spoken+" for "+title));
-        if(flagged[n]){chip.dataset.invalid="true";const w=el("span","⚠","km-warn");w.title=flagged[n].map(c=>c.message).join("\n");w.setAttribute("aria-label",w.title);chip.append(w);tr.classList.add("km-conflict");}
+        if(flagged[n]){const why=flagged[n].map(c=>c.message).join("\n");chip.dataset.invalid="true";keys.title=why+"\n"+keys.title;keys.setAttribute("aria-description",why);tr.classList.add("km-conflict");}
         chips.append(chip);
       });
-      if(!recs.length)chips.append(el("span","—","km-unbound"));
+      if(!recs.length)chips.append(el("span","Not set","ui-shortcut-none"));
       keyCell.append(chips);
       const whenCell=el("td",null,"km-when"),contexts=new Map();
       for(const rec of recs)if(!contexts.has(rec.when))contexts.set(rec.when,rec);
@@ -119,13 +119,14 @@ globalThis.AtriumKeymapEditor = (() => {
       }
       const srcCell=el("td",src==="user"?"User":src==="preset"?"Preset":"Default","km-src km-"+src);
       const act=el("td",null,"km-actions");
-      act.append(button("+",()=>record(tr,keyCell,cmd,-1,null),"km-add",'Add a key for '+title));
-      if(src==="user")act.append(button("↺",()=>{api.resetCommand(cmd.id);status(title+" reset.");},"","Reset "+title));
+      const K=globalThis.AtriumUIKit,add=K.iconButton("plus","Add a key for "+title,{size:"sm",run:()=>record(tr,keyCell,cmd,-1,null)});
+      add.classList.add("km-add");act.append(add);
+      if(src==="user")act.append(K.iconButton("undo","Reset "+title,{size:"sm",run:()=>{api.resetCommand(cmd.id);status(title+" reset.");}}));
       tr.append(name,keyCell,whenCell,srcCell,act);return tr;
     }
     function record(tr,cell,cmd,index,rec){
       stopRecording();
-      const chords=[],box=el("span",null,"km-recording"),keysOut=el("span"),help=el("small");
+      const chords=[],box=el("span",null,"ui-shortcut-recorder"),keysOut=el("span"),help=el("small");
       const title=cmd.titles?.[scope.value]||cmd.title;
       help.append("Press keys · ",AtriumShortcut.render("Enter")," to finish · ",AtriumShortcut.render("Escape")," to cancel");
       help.id="km-recording-help";

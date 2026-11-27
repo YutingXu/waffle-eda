@@ -570,6 +570,8 @@ interface SheetConnectivity {
   /** wire id -> net name. */
   byWire: Map<string, string>;
   nets: SheetNet[];
+  /** Generated names recognised from this sheet's pin connectivity. */
+  autoNames: Set<string>;
 }
 
 // ------------------------------------------------------------------ rules (app/rules.js)

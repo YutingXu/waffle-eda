@@ -572,11 +572,11 @@ async function retry(browser, server) {
 
     const coldVisual = visualScript.failures();
     await page.evaluate(() => AtriumNavHost.act("history-panel"));
-    const panel = page.locator(".panel-history");
+    const panel = page.locator('.ui-dock-panel[data-dock="history"]');
     const retry = panel.getByRole("button", {name:"Try again"});
     await retry.waitFor();
     assert.equal(visualScript.failures(), coldVisual + 1, "The visible Undo dock demanded the blocked module");
-    assert.equal(await panel.locator(".hist-list > .hist-row").count(), 0);
+    assert.equal(await panel.locator(".ui-dock-list > .hist-row").count(), 0);
     visualScript.allow();
     await retry.click();
     await panel.locator(".hist-scrub").waitFor();
@@ -703,7 +703,7 @@ async function run(browser) {
 }
 module.exports = run;
 if (require.main === module) (async () => {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   const browser = await chromium.launch({headless: true, ...(process.env.CHROME ? {executablePath: process.env.CHROME} : {channel: "chrome"})});
   try { await run(browser); } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

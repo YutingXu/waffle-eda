@@ -21,6 +21,7 @@ globalThis.AtriumEagleImport = (() => {
   // A source element can supply several placements. Collect its outcome once, even
   // for unused library records, and leave file data out of the editable model.
   const containers = new Set("eagle drawing schematic settings layers libraries library packages symbols devicesets gates devices connects technologies parts sheets instances plain nets segments busses elements signals classes designrules".split(" "));
+  const PLACEHOLDERS = new Set(["NAME", "VALUE", "PART", "GATE"]);
   const objectKinds = new Set("board sheet part instance symbol pin gate device deviceset connect package element wire text frame rectangle circle polygon vertex junction label net signal bus segment pinref contactref attribute param class clearance smd pad hole via dimension layer grid setting description technology".split(" "));
   function sourceEvidence(file, sink) {
     const records = [];
@@ -108,7 +109,9 @@ globalThis.AtriumEagleImport = (() => {
   const kids = (el, name) => el ? el.children.filter(c => c.name === name) : [];
   const kid = (el, name) => el?.children.find(c => c.name === name);
   const path = (el, ...names) => names.reduce((e, n) => kid(e, n), el);
-  const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
+  // Attribute values: a unit suffix converts to millimetres, so "32mil" drills and "1in" radii
+  // read like the "8mil" design rules. Anything else keeps parseFloat's leading-number reading.
+  const num = (v, d = 0) => { const mm = length(v); if (Number.isFinite(mm)) return mm; const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
   // "8mil", "0.2mm", "0.01in" -> mm; bare numbers are millimetres.
   const length = v => { const m = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(mm|mil|in|mic)?\s*$/i.exec(String(v ?? "")); if (!m) return NaN; return +m[1] * ({mil: .0254, in: 25.4, mic: .001}[(m[2] || "mm").toLowerCase()] || 1); };
   const dimension = (v, fallback = 0) => { const mm = length(v); return Number.isFinite(mm) ? mm : fallback; };
@@ -123,7 +126,7 @@ globalThis.AtriumEagleImport = (() => {
   }
 
   function wireCoordinates(a) {
-    const coords = [a.x1, a.y1, a.x2, a.y2].map(value => value?.trim() ? Number(value) : NaN);
+    const coords = [a.x1, a.y1, a.x2, a.y2].map(value => value?.trim() ? length(value) : NaN);
     return coords.every(Number.isFinite) ? coords : null;
   }
   // Wire with optional curve -> points in Waffle axes.
@@ -302,7 +305,13 @@ globalThis.AtriumEagleImport = (() => {
         // in the gate's own frame; the placed instance names its gate with item.unit.
         const gateList = kids(kid(set, "gates"), "gate"), gates = gateList.length, unit = Math.max(1, gateList.findIndex(g => g.attrs.name === a.gate) + 1);
         const ref = a.part, value = part.value ?? (yesno(set.attrs.uservalue) ? "" : part.deviceset + (part.device || ""));
-        const key = JSON.stringify([part.library, part.library_urn || "", part.deviceset, part.device || "", device?.attrs.package || ""]);
+        // The chosen technology's attributes are the device's parameters; the part's own attribute
+        // rows set or override values for this placement. NAME, VALUE, PART and GATE are placeholders.
+        const technology = kids(kid(device, "technologies"), "technology").find(t => (t.attrs.name || "") === (part.technology || ""));
+        const attributes = node => Object.fromEntries(kids(node, "attribute").filter(at => at.attrs.name && at.attrs.value != null && !PLACEHOLDERS.has(at.attrs.name.toUpperCase())).map(at => [at.attrs.name, at.attrs.value]));
+        const deviceParameters = attributes(technology), partParameters = attributes(sourcePart);
+        for (const k of Object.keys(partParameters)) if (deviceParameters[k] === partParameters[k]) delete partParameters[k];
+        const key = JSON.stringify([part.library, part.library_urn || "", part.deviceset, part.device || "", device?.attrs.package || "", part.technology || ""]);
         let entry = gateDefs.get(key);
         if (!entry) {
           const symbol = {shapes: [], pins: []}, fields = [];
@@ -322,13 +331,17 @@ globalThis.AtriumEagleImport = (() => {
             fields[i + 1] = geo.fields;
           });
           if (gates > 1) symbol.parts = gates;
-          const def = defs.add({id: A.id(), name: part.deviceset + (part.device || ""), category: "Eagle symbols",
-            prefix: set.attrs.prefix || ref.replace(/\d+$/, "") || "U", value, symbol, footprintName: device?.attrs.package || "", parameters: {}, sourceName: name}, key);
+          // Two technologies of one device are two definitions: name them apart, the technology in
+          // place of the device set's "*" (74*00 -> 74LS00), or after the name when it has none.
+          const tech = part.technology || "", base = tech && part.deviceset.includes("*") ? part.deviceset.replace("*", tech) : part.deviceset;
+          const def = defs.add({id: A.id(), name: base + (part.device || "") + (tech && base === part.deviceset ? " " + tech : ""), category: "Eagle symbols",
+            prefix: set.attrs.prefix || ref.replace(/\d+$/, "") || "U", value, symbol, footprintName: device?.attrs.package || "", parameters: deviceParameters, sourceName: name}, key);
           const ties = copperTies(library.packages.get(device?.attrs.package), new Set([...padLists.values()].flat()), [part.deviceset], [...padLists.values()]);
           if (ties.length && !symbol.netTie) { symbol.netTie = true; symbol.netTieGroups = ties.map(g => g.slice()); notes.add("Normally closed solder jumpers import as net ties"); }
           gateDefs.set(key, entry = {def, fields});
         }
         const item = {id: A.id(), kind: "part", def: entry.def.id, ref, value, link: "eagle-" + ref, pinNets: {}, x: r4(x), y: r4(y), angle};
+        if (Object.keys(partParameters).length) item.parameters = partParameters;
         if (rot.mirror) item.mirror = true;
         for (const pin of symPins) pinAt.set(a.part + "\u001f" + a.gate + "\u001f" + pin.attrs.name, A.world([num(pin.attrs.x), -num(pin.attrs.y)], item).map(r4));
         if (gates > 1) item.unit = unit;
@@ -343,7 +356,8 @@ globalThis.AtriumEagleImport = (() => {
         doc.items.push(item);
         if (evidence) {
           evidence.produced(inst, doc, doc.items.length - 1);
-          for (const record of [inst, sourcePart, gate, set, device]) evidence.use(record, item);
+          for (const record of [inst, sourcePart, gate, set, device, technology]) if (record) evidence.use(record, item);
+          for (const at of [...kids(technology, "attribute"), ...kids(sourcePart, "attribute")]) evidence.use(at, item);
           for (const at of kids(inst, "attribute")) if (at.attrs.name === "NAME" || at.attrs.name === "VALUE") evidence.use(at, item);
         }
       });

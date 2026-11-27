@@ -7,7 +7,7 @@ globalThis.__uiProbes = {async run(only, config) {
   catch (error) { return "JSERROR LABEL_FEEL: " + error.message + "\n" + error.stack; }
 }};
 
-async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, crossView, settleMs, drawWork}) {
+async function nativeLabelFeel({display, hz, repetitions, lowPower, layerMode, crossView, settleMs, drawWork}) {
   const H = AtriumNavHost, W = window;
   const [C, G, M] = await AtriumLazy.need(["AtriumCamera", "AtriumCanvasGPU", "AtriumMotion", "AtriumCanvasInput"]);
   const post = (op, args = {}) => webkit.messageHandlers.harness.postMessage({op, ...args});
@@ -65,7 +65,7 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     }, "GPU did not submit a stable exact camera");
   }
   const physical = await post("power"), priorPower = AtriumPower.state();
-  if (battery) AtriumPower.host({...priorPower, battery: true});
+  if (lowPower) AtriumPower.host({...priorPower, lowPower: true});
   C.setPref("camera.animate", true);
   C.setPref("mouse.wheel", "zoom");
   C.setPref("mouse.zoomAt", "pointer");
@@ -335,13 +335,13 @@ async function nativeLabelFeel({display, hz, repetitions, battery, layerMode, cr
     const nativeEnd = await post("feel-state");
     return {native, nativeEnd, nativeEndOK: displayOK(nativeEnd) && nativeEnd.backingScale === native.backingScale, engine,
       viewport, normalRenderer, counts, beforeItems, layerMode: lastOptions?.layerMode, activeLayer: lastOptions?.layer, settleMs, drawWork,
-      power: {physical, requestedBatterySimulation: battery,
+      power: {physical, requestedLowPowerSimulation: lowPower,
         actualPriorState: priorPower, measured: AtriumPower.state()}, operations, idle,
       documentUnchanged: H.doc() === doc && H.authoredRevision() === revision && H.isDirty() === dirty && doc.items.length === beforeItems};
   } finally {
     Object.assign(v, original);
     context.getImageData = getImage;
     delete W.__observeCanvasUpload;
-    if (battery) AtriumPower.host(priorPower);
+    if (lowPower) AtriumPower.host(priorPower);
   }
 }

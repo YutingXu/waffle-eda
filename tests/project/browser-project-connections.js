@@ -231,7 +231,7 @@ module.exports = async function projectConnections(browser) {
   } finally {await page.close();}
 };
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   (async () => {const browser = await chromium.launch({channel:"chrome"});
     try {await module.exports(browser);} finally {await browser.close();}})().catch(e => {console.error(e); process.exitCode = 1;});
 }

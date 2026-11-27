@@ -1,6 +1,6 @@
 "use strict";
 const assert=require("node:assert/strict"),{pathToFileURL}=require("node:url"),path=require("node:path");
-const {chromium}=require("playwright-core");
+const {chromium}=require("../support/playwright.cjs");
 async function main() {
   const browser=await chromium.launch({channel:"chrome",headless:true});
   try {

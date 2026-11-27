@@ -63,7 +63,7 @@
 .palette-insert-launch[hidden] {display:none}
 
 /* ---------------------------------------------------------------- context menu, flyouts */
-.nav-menu {position:fixed;z-index:var(--z-float);min-width:200px;max-width:min(340px,90vw);padding:4px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2)}
+.nav-menu {position:fixed;z-index:var(--z-float);min-width:200px;max-width:min(340px,90vw);padding:4px;border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2)}
 .nav-menu {inline-size:calc-size(max-content, round(up,size,1px));max-inline-size:round(down,min(340px,90vw),1px)}
 .nav-menu-item {display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;min-height:calc(24px + var(--d-row));padding:2px 8px;text-align:left;font-size:var(--fs-12);color:inherit}
 .nav-menu-item:disabled {color:var(--faint)}
@@ -82,7 +82,7 @@
 .menu-items [data-checkable][data-checked=true]::before {content:"✓";position:absolute;left:7px;font-size:var(--fs-11);color:var(--accent-text)}
 
 /* ---------------------------------------------------------------- status bar */
-.nav-drc-tip {position:fixed;z-index:var(--z-popover);max-width:340px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-11);pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.nav-drc-tip {position:fixed;z-index:var(--z-popover);max-width:340px;padding:4px 8px;border:1px solid var(--line-strong);border-radius:var(--r-lg);background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);font-size:var(--fs-11);pointer-events:none;display:flex;flex-direction:column;gap:2px}
 .nav-drc-tip[hidden] {display:none}
 .nav-drc-tip strong {font-weight:600}
 .nav-drc-tip small {color:var(--muted)}
@@ -146,9 +146,6 @@
 .keymap-dialog .km-tools {margin-bottom:0}
 .keymap-dialog .km-status:empty {min-height:0;margin:0}
 .km-chips {display:flex;flex-wrap:wrap;gap:4px;align-items:center}
-/* Each binding is a library .ui-chip token (data-invalid marks a conflict); the key button sits inside it. */
-.km-chip {padding-inline:0 var(--s-6)}
-.km-chip .km-keys {min-width:0!important;padding:1px 4px!important}
 .km-ctx {display:block;color:var(--muted);font-size:var(--fs-11);text-align:left;padding:1px 4px;border:1px solid transparent;border-radius:var(--r-sm);
   --ui-button-fill:transparent;--ui-button-hover:var(--hover)}
 .km-ctx + .km-ctx {margin-top:2px}
