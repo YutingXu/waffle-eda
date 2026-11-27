@@ -332,9 +332,14 @@ interface AltiumStreams extends Map<string, Uint8Array> {
   modelStream?(path: string, cap: number): Uint8Array | null;
 }
 /** app/io.js: open, save and export files. */
+type ImportSourceStatus = "kept" | "approximated" | "dropped" | "notApplicable";
 interface ImportSourceFidelity {
-  add(kind: string, status: "kept" | "approximated" | "dropped", source: {file: string, object?: string}, reason?: string, count?: number): void;
-  track(kind: string, status: "kept" | "approximated" | "dropped", source: {file: string, object?: string}, target: object, reason?: string): void;
+  add(kind: string, status: ImportSourceStatus, source: {file: string, object?: string}, reason?: string, count?: number): void;
+  track(kind: string, status: ImportSourceStatus, source: {file: string, object?: string}, target: object, reason?: string): void;
+  /** Settles a record's status once every selected file is read and linked (translator-adapters.js). */
+  decide?(kind: string, source: {file: string, object?: string}, resolve: (confirmed: (key: string) => boolean) => {status: ImportSourceStatus, reason?: string}): void;
+  /** Records a fact that a deferred decision in another file can check. */
+  confirm?(key: string): void;
   produced(documentKind: string, source: {file: string, object?: string}, target: {kind: string, id: string}): void;
   reject(target: object): void;
   note(message: string): void;
@@ -428,6 +433,7 @@ declare var AtriumResolvedLand: AtriumGen<"AtriumResolvedLand">; // app/pcb/pcb-
 declare var AtriumRuleScopeDemand: AtriumGen<"AtriumRuleScopeDemand">; // app/checks/rule-scope-demand.js
 declare var AtriumSavedViews: AtriumGen<"AtriumSavedViews">; // app/saved-views.js
 declare var AtriumSlides: AtriumGen<"AtriumSlides">; // app/slides.js
+declare var AtriumTabOverflow: AtriumGen<"AtriumTabOverflow">; // app/ui/tab-overflow.js
 declare var AtriumUIGallery: AtriumGen<"AtriumUIGallery">; // app/ui/gallery.js
 declare var AtriumUIKit: AtriumGen<"AtriumUIKit">; // app/ui/kit.js
 declare var AtriumUUID: AtriumGen<"AtriumUUID">; // app/uuid-v7.js
@@ -854,6 +860,7 @@ declare var AtriumSaveCache: AtriumGen<"AtriumSaveCache">; // app/save-cache.js
 declare var AtriumSCH: AtriumGen<"AtriumSCH">; // app/sch-import.js
 declare var AtriumSHA256: AtriumGen<"AtriumSHA256">; // app/sha256.js
 declare var AtriumSchAppearance: AtriumGen<"AtriumSchAppearance">; // app/sch-appearance.js
+declare var AtriumSchCurves: AtriumGen<"AtriumSchCurves">; // app/schematic/sch-curves.js
 declare var AtriumSchAuthor: AtriumGen<"AtriumSchAuthor">; // app/sch-author.js
 declare var AtriumSchematicOutput: AtriumGen<"AtriumSchematicOutput">; // app/schematic-output.js
 declare var AtriumSchMarkers: AtriumGen<"AtriumSchMarkers">; // app/sch-markers.js

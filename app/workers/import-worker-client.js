@@ -431,9 +431,11 @@ globalThis.AtriumImport = (() => {
     if (manifest?.drillPlots?.length) after.sourceDrillPlots = manifest.drillPlots;
     if (manifest?.parameters && !Array.isArray(after.parameters)) after.parameters = {...manifest.parameters, ...(after.parameters || {})}; /* PrjPcb parameters (gerber-parity-2) */
     const links = L.reconcile(after, docs, manifest?.netScope);
+    // Altium's per-sheet component classes that equal the classes Waffle generates from the linked sheets.
+    const settled = (L.settleComponentClasses(after, docs) || []).map(({board, note}) => (board.sourceName || board.name) + " — " + note);
     if (own && !after.documents.some(d => d.kind === "pcb")) after.documents.push(L.placeholder("pcb", "Board layout"));
     if (own && !after.documents.some(d => d.kind === "schematic")) after.documents.push(L.placeholder("schematic", "Schematic"));
-    after.importNotes = [...new Set([...(after.importNotes || []), ...links.notes, ...all.flatMap((v, i) => v.notes.map(n => files[i].name + " — " + n))])];
+    after.importNotes = [...new Set([...(after.importNotes || []), ...links.notes, ...all.flatMap((v, i) => v.notes.map(n => files[i].name + " — " + n)), ...settled])];
     if (own) globalThis.AtriumPCB?.addProfileJobs?.(after, manifest);
     return {after, newDoc: docs[0]?.id || current, openLib: !docs.length, libraryTarget: libs.some(l => l.symbol) ? "schematic" : "pcb"};
   }

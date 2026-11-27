@@ -116,7 +116,7 @@ const SNAPSHOT = {
     "nets": ["GP0.3:1", "VCC_3V3:1"],
     "links": [2, 3, 32, 1, 46]
   },
-  "warnings": 22,
+  "warnings": 21,
   "notes": [
     "19 free region(s) imported as filled shapes (Bottom 1, Silk 18).",
     "2 polygon pours imported as editable Waffle pours (outline, net, pour order, island removal). Clearance and connect style come from the design rules.",
@@ -125,8 +125,7 @@ const SNAPSHOT = {
     "5 stored polygon fill region(s) kept as the pours' current copper. They count for connectivity until a repour regenerates them.",
     "Imported 3D bodies (0 extruded, 23 STEP references).",
     "Kept 1 net class (signals and tags).",
-    "Omitted 2 × template images, 1 × template text frames, 2 × embedded images, 1 × parameter sets.",
-    "Omitted 4 other class(es) (component, pad, layer, polygon).",
+    "Omitted 2 × template images, 1 × template text frames, 2 × embedded images.",
     "Omitted advanced placer options6 (1).",
     "Omitted boardregions (1).",
     "Omitted constraintmanager (1).",
@@ -134,12 +133,12 @@ const SNAPSHOT = {
     "Omitted fileversioninfo (1).",
     "Omitted layerkindmapping (1).",
     "Omitted pin swap options6 (1).",
-    "Omitted primitiveparameters (46).",
     "Omitted unionnames (1).",
     "Omitted uniqueidprimitiveinformation (100).",
     "Omitted waivedviolations (15).",
     "Omitted widestrings6 (65).",
-    "PCB import includes 3D bodies. Layer-specific pad stacks, pours and manufacturing settings require review in the source design."
+    "PCB import includes 3D bodies. Layer-specific pad stacks, pours and manufacturing settings require review in the source design.",
+    "Read 4 component classes. 4 of them follow component placement in Altium; Waffle keeps their members from the import."
   ]
 };
 assert.deepEqual(report, SNAPSHOT);

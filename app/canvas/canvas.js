@@ -102,7 +102,7 @@ globalThis.AtriumCanvas = (() => {
   }
   function drawItemPath(ctx, item) {
     const arc = A.pathArc(item);
-    if (!arc) return drawPath(ctx, item.points, item.closed);
+    if (!arc) return globalThis.AtriumSchCurves?.trace(ctx, item) || drawPath(ctx, item.points, item.closed);
     ctx.beginPath();
     appendArc(ctx, arc);
     return true;

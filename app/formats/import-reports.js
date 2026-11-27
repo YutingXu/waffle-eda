@@ -23,6 +23,10 @@ globalThis.AtriumImportReports = (() => {
   const label = name => String(name || "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[-_]/g, " ").replace(/^./, x => x.toUpperCase());
   const term = kind => ({part: "Component", parts: "Components", netlabel: "Net label", sheetsymbol: "Sheet symbol", pad: "Pad", via: "Via", track: "Track"}[kind] || label(kind));
   const statuses = ["kept", "approximated", "dropped"];
+  // Source bookkeeping with no Waffle meaning (translators.js notApplicable): shown apart from the losses,
+  // in a quiet column only when the report has any. Older reports have no such count.
+  const inapplicable = group => group.notApplicable || 0;
+  const statusLabel = status => status === "notApplicable" ? "Not applicable" : label(status);
   const standaloneRules = entry => entry?.report?.translator === "altium-rules";
   function recent(id) {
     const store=state(), entry=store?.byDocument.get(id), scope=store?.ruleOwners.get(id);
@@ -51,7 +55,7 @@ globalThis.AtriumImportReports = (() => {
   function referenceText(r) {
     const s = r.source || {};
     const where = [s.file, s.object].filter(v => v != null && v !== "").join(" · ");
-    return label(r.status) + " · " + where + (r.count > 1 ? " × " + r.count : "") + (r.reason ? " — " + r.reason : "");
+    return statusLabel(r.status) + " · " + where + (r.count > 1 ? " × " + r.count : "") + (r.reason ? " — " + r.reason : "");
   }
   function appendBatch(parent, entries, format, size = 40) {
     const list = node("ul"), more = node("button", "Show more");
@@ -72,7 +76,8 @@ globalThis.AtriumImportReports = (() => {
   }
   let referenceRows = 0;
   function render(box, entry) {
-    const {report, names} = entry, totals = {kept: 0, approximated: 0, dropped: 0};
+    const {report, names} = entry, totals = {kept: 0, approximated: 0, dropped: 0, notApplicable: 0};
+    const quiet = report.kinds.some(inapplicable), shown = quiet ? [...statuses, "notApplicable"] : statuses;
     box.classList.add("import-report");
     const content = node("article");
     content.tabIndex = 0;
@@ -93,18 +98,20 @@ globalThis.AtriumImportReports = (() => {
     table.append(node("caption", "Translation by object kind"));
     // Fixed layout keeps column widths independent of the reference lists shown below a row.
     const cols = node("colgroup");
-    for (const kind of ["kind", "count", "count", "count", "refs"]) { const col = node("col"); col.className = "import-report-col-" + kind; cols.append(col); }
+    for (const kind of ["kind", ...shown.map(() => "count"), "refs"]) { const col = node("col"); col.className = "import-report-col-" + kind; cols.append(col); }
     table.append(cols);
-    for (const name of ["Object kind", "Kept", "Approximated", "Dropped", "Source references"]) {
-      const h = node("th", name); h.scope = "col"; columns.append(h);
+    if (quiet) table.classList.add("import-report-has-inapplicable");
+    for (const name of ["Object kind", ...shown.map(statusLabel), "Source references"]) {
+      const h = node("th", name); h.scope = "col"; if (name === "Not applicable") h.className = "import-report-inapplicable"; columns.append(h);
     }
     head.append(columns); table.append(head, body);
     for (const group of report.kinds) {
       const row = node("tr"), title = node("th", term(group.kind)); title.scope = "row"; row.append(title);
-      for (const status of statuses) {
-        const count = group[status], cell = node("td", String(count));
+      for (const status of shown) {
+        const count = group[status] || 0, cell = node("td", String(count));
         totals[status] += count;
-        if (count && status !== "kept") cell.className = "import-report-warning";
+        if (status === "notApplicable") cell.className = "import-report-inapplicable";
+        else if (count && status !== "kept") cell.className = "import-report-warning";
         row.append(cell);
       }
       const refs = node("td");
@@ -114,7 +121,7 @@ globalThis.AtriumImportReports = (() => {
         const details = node("details"), summary = node("summary", "Show references");
         const expansion = node("tr"), cell = node("td");
         expansion.className = "import-report-references"; expansion.hidden = true;
-        cell.colSpan = 5; cell.id = "import-report-refs-" + (++referenceRows);
+        cell.colSpan = shown.length + 2; cell.id = "import-report-refs-" + (++referenceRows);
         cell.setAttribute("aria-label", term(group.kind) + " source references");
         summary.setAttribute("aria-label", "Show " + term(group.kind) + " source references");
         summary.setAttribute("aria-controls", cell.id);
@@ -133,6 +140,10 @@ globalThis.AtriumImportReports = (() => {
         totals.dropped ? totals.dropped + " dropped" : ""
       ].filter(Boolean).join(" · ") + ". Expand source references to locate affected objects."));
       content.append(warnings);
+    }
+    if (totals.notApplicable) {
+      const quietNote = node("p", totals.notApplicable + " source records have no meaning in Waffle, such as Altium identifiers and containers. They are not losses; the original file keeps them.");
+      quietNote.className = "import-report-inapplicable"; content.append(quietNote);
     }
     if (report.notes?.length) {
       const notes = node("section");

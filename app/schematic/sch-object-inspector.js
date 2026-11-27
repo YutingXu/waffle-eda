@@ -29,6 +29,91 @@ globalThis.AtriumSchObjectInspector = (() => {
     input.onchange = () => update(input.value);
     l.append(m && !opt.options ? AtriumNavCommon.measure(input, m[1]) : input); parent.append(l); return input;
   }
+  // Web links. Altium's component Links are parameter pairs ComponentLink<N>URL and
+  // ComponentLink<N>Description, and HelpURL is the part's help page; datasheet and supplier links
+  // are ordinary parameters with an http(s) value. The parameters stay the record and export as
+  // they are: Links lists them, labelled by their description or name, and opens each one in the
+  // system browser. A schematic text's url (Altium's hyperlinked text) opens on Cmd/Ctrl+click.
+  // Only http and https without credentials open, as for every external link (shell.js).
+  function webURL(raw) {
+    if (typeof raw !== "string" || raw.length > 2048 || !/^\s*https?:\/\//i.test(raw)) return "";
+    try {const u = new URL(raw.trim()); return /^https?:$/.test(u.protocol) && u.hostname && !u.username && !u.password ? u.href : "";} catch {return "";}
+  }
+  function openURL(url) {
+    const href = webURL(url), H = globalThis.AtriumHost;
+    if (!href) return false;
+    if (H?.openURL) Promise.resolve(H.openURL(href)).catch(() => {});
+    else if (!H) globalThis.open?.(href, "_blank", "noopener,noreferrer");
+    return true;
+  }
+  function linksOf(...bags) {
+    const rows = bags.flatMap(bag => !bag || typeof bag !== "object" ? [] : Array.isArray(bag) ? bag.map(r => [r?.name, r?.value]) :
+      Object.entries(bag).map(([k, v]) => [k, v && typeof v === "object" ? v.value : v])).filter(([k]) => typeof k === "string");
+    const key = k => k.replace(/[\s_]+/g, "").toUpperCase(), titles = new Map(), out = [], seen = new Set();
+    for (const [k, v] of rows) {
+      const n = /^COMPONENTLINK(\d+)DESCRIPTION$/.exec(key(k))?.[1];
+      if (n && typeof v === "string" && v.trim() && !titles.has(n)) titles.set(n, v.trim());
+    }
+    for (const [k, v] of rows) {
+      const url = webURL(v), n = /^COMPONENTLINK(\d+)URL$/.exec(key(k))?.[1];
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({name: k, url, title: n ? titles.get(n) || "Link " + n : key(k) === "HELPURL" ? "Help" : k, order: n ? +n : key(k) === "HELPURL" ? 1e6 : 2e6});
+    }
+    // Altium's Links first, by number, then Help, then the other parameters by name: the same order
+    // however the parameters are stored.
+    return out.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).map(({order, ...link}) => link);
+  }
+  // A real text link (a[href]): shell.js opens it in the system browser on click, Enter or tap.
+  function linkRow(el, {title, url, name = ""}) {
+    const row = /** @type {HTMLAnchorElement} */ (el("a", null, "ui-row part-link")), text = el("span", null, "ui-row-text");
+    const host = new URL(url).host, titleRow = el("span", null, "ui-row-title");
+    row.href = url; row.title = url;
+    row.setAttribute("aria-label", title + " (" + host + ")");
+    titleRow.append(title, externalGlyph());
+    text.append(titleRow, el("span", host + (name && name !== title ? " · " + name : ""), "ui-row-detail"));
+    row.append(text);
+    return row;
+  }
+  // An arrow leaving a box: the page opens outside Waffle.
+  function externalGlyph() {
+    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg"), path = document.createElementNS(ns, "path");
+    svg.setAttribute("class", "icon"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true");
+    path.setAttribute("d", "M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4");
+    svg.append(path); return svg;
+  }
+  // A part's web links: its own and its library parameters, then on the other side of the design
+  // the linked part's (a board footprint shows the links of its schematic symbol, as in Altium).
+  // Titled "Web links", apart from the Links section of Waffle links between objects (links-ui.js).
+  // c.linked: the parts linked to this one, which the editor already found for Show on board / in
+  // schematic, so the section scans no documents; without it, the other documents are searched.
+  // c.place(section): the section's slot in the inspector's group order (editor.js), else the panel's end.
+  const linkable = i => globalThis.AtriumSchObjects.linkable(i);
+  function partLinks(panel, part, def, c, {el}) {
+    const defs = c.defs?.(), other = [];
+    const linked = Array.isArray(c.linked) ? c.linked : !part.link ? [] :
+      (c.project()?.documents || []).flatMap(d => d === c.doc() ? [] : d.items.filter(i => i.kind === "part" && i.link === part.link));
+    for (const i of linked) other.push(i.parameters, defs?.get(i.def)?.parameters);
+    const links = linksOf(part.parameters, def?.parameters, ...other);
+    if (!links.length) return;
+    const s = el("section", null, "inspect-section"), list = el("div", null, "ui-list");
+    list.setAttribute("role", "list"); list.setAttribute("aria-label", "Web links");
+    for (const link of links) list.append(linkRow(el, link));
+    s.append(el("h3", "Web links"), list);
+    if (typeof c.place === "function") c.place(s); else panel.append(s);
+  }
+  // Cmd+click on macOS (where Ctrl+click is the secondary click, so a contextmenu), Ctrl+click elsewhere.
+  // A Ctrl+right-click on Windows and Linux is a context menu click, never a link.
+  const mac = () => globalThis.AtriumNavCommon?.isMac?.() ?? /Mac|iPhone|iPad/i.test(globalThis.navigator?.platform || "");
+  globalThis.document?.addEventListener?.("click", followText, true);
+  globalThis.document?.addEventListener?.("contextmenu", e => {if (mac() && e.ctrlKey) followText(e);}, true);
+  function followText(e) {
+    const h = globalThis.AtriumNavHost, modified = e.type === "contextmenu" ? mac() && e.ctrlKey : e.button === 0 && (mac() ? e.metaKey : e.ctrlKey);
+    if (!modified || e.target !== h?.canvas?.() || h.doc?.()?.kind !== "schematic" || h.tool?.() && h.tool() !== "select") return;
+    const r = e.target.getBoundingClientRect(), item = h.hitAt?.(h.view().screenToWorld([e.clientX - r.left, e.clientY - r.top]));
+    if (item?.richText || !openURL(item?.url)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }
   // c: {edit, info, project(), doc(), units:{parse,value,unit}, selectDocument, choose}
   function inspector(s, item, c, {el, button, field = defaultField, descend, grid}) {
     const A = globalThis.Atrium;
@@ -123,9 +208,11 @@ globalThis.AtriumSchObjectInspector = (() => {
         break;
     }
   }
-  // Parameters grid for a part: name, value, visible-on-sheet. Writes part.parameters, which
-  // the BOM reads over the library parameters.
+  // A part's Links (sheet and board), then on the sheet its Parameters grid: name, value,
+  // visible-on-sheet. Writes part.parameters, which the BOM reads over the library parameters.
   function partParameters(panel, part, def, c, {el, button}) {
+    partLinks(panel, part, def, c, {el});
+    if (c.doc()?.kind !== "schematic") return;
     const s = el("section", null, "inspect-section sch-params"); s.append(el("h3", "Parameters")); panel.append(s);
     const own = part.parameters || {}, lib = def?.parameters || {};
     const entries=bag=>Array.isArray(bag)?bag.map(r=>/** @type {[string,any]} */([r.name,r])):Object.entries(bag);
@@ -191,6 +278,13 @@ globalThis.AtriumSchObjectInspector = (() => {
   // Signal directive fields (signals.js §7): the net this item names becomes (part of) a signal, with a
   // polarity for a differential leg, and tags that follow the signal across series parts. Live on the board.
   function directives(s, item, c, {el, field = defaultField}) {
+    // A text takes a URL even when it has none yet (Altium's hyperlinked text); other items show one they carry.
+    if (item.url != null || linkable(item)) {
+      s.append(el("h4", "Link", "sch-subhead"));
+      field(s, "URL", item.url, v => c.edit(() => {if (v.trim()) item.url = v.trim(); else delete item.url;}));
+      if (webURL(item.url)) s.append(linkRow(el, {title: "Open link", url: webURL(item.url)}));
+    }
+    if (item.kind === "label" || item.kind === "textframe") return;
     // The editor's Text field of a net label, above these fields (once a lazily built fragment is in place).
     if (item.kind === "netlabel") Promise.resolve().then(() => complete(s.querySelector?.('input[aria-label="Text"]') || s.ownerDocument?.getElementById?.("inspector")?.querySelector?.('input[aria-label="Text"]'), "netlabel", c));
     if (item.kind === "netlabel" && Atrium.isOffsheet(item)) ioField(s, item, c, field);
@@ -203,5 +297,5 @@ globalThis.AtriumSchObjectInspector = (() => {
     if (item.diffPair) field(s, "Differential pair", item.diffPair, v => set("diffPair", v.trim()));
   }
 
-  return {inspector, partParameters, directives};
+  return {inspector, partParameters, directives, linksOf, webURL};
 })();

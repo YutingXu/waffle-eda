@@ -78,6 +78,39 @@ globalThis.AtriumAltiumExport = (() => {
   const POWER_STYLE = {circle: 0, arrow: 1, bar: 2, wave: 3, gnd: 4, signal: 5, earth: 6};
   const ELECTRICAL_MAX = 7;
   const IO = {unspecified: 0, output: 1, input: 2, bidirectional: 3};
+  // Signal directive fields (signals.js §7) as Altium parameter sets (record 43), each with its parameters
+  // (record 41) as children, at a point of the wire or at the label that carries them: the import reads a
+  // set there back onto the same net (sch-import.js directives). Each net class is a set of its own, as
+  // Altium places them; a differential pair leg is one set with DifferentialPair=True and its pair classes.
+  const DIRECTIVE_KINDS = new Set(["netlabel", "power", "port", "offsheet", "wire"]);
+  function directivePoint(i) {
+    if (i.kind !== "wire") return Number.isFinite(i.x) && Number.isFinite(i.y) ? [i.x, i.y] : null;
+    // The middle of the wire's first segment: on this wire only, clear of the junctions at its ends.
+    const pts = i.points || [];
+    for (let k = 1; k < pts.length; k++) if (pts[k][0] !== pts[k - 1][0] || pts[k][1] !== pts[k - 1][1])
+      return [(pts[k][0] + pts[k - 1][0]) / 2, (pts[k][1] + pts[k - 1][1]) / 2];
+    return null;
+  }
+  function directiveRecords(doc, push, at, text, report) {
+    const list = v => (Array.isArray(v) ? v : String(v ?? "").split(",")).map(x => String(x).trim()).filter(Boolean);
+    for (const i of doc.items) {
+      if (!DIRECTIVE_KINDS.has(i.kind)) continue;
+      const classes = [...new Set(list(i.netClass))], tags = [...new Set(list(i.tags))];
+      const pair = i.polarity === 1 || i.polarity === -1 || typeof i.diffPair === "string" && !!i.diffPair.trim();
+      if (!classes.length && !pair && !tags.length && !(typeof i.signal === "string" && i.signal.trim())) continue;
+      const p = directivePoint(i);
+      if (!p) { report("Signal directives on an item without a location were not written."); continue; }
+      const set = (name, params) => {
+        const owner = push([["RECORD", 43], ["OWNERPARTID", -1], ...at("LOCATION", p), ["COLOR", 1930808], ["NAME", name]]);
+        for (const [k, v] of params) push([["RECORD", 41], ["OWNERINDEX", owner], ["OWNERPARTID", -1], ...at("LOCATION", p), ["COLOR", 8388608], ["FONTID", 1],
+          ["ISHIDDEN", "T"], ["TEXT", text(v)], ["NAME", k]]);
+      };
+      for (const c of classes) set("NETCLASS", [["ClassName", c]]);
+      if (pair) set("DIFFPAIR", [["DifferentialPair", "True"], ...tags.map(t => ["DifferentialPairClassName", t])]);
+      else if (tags.length) report("Tags on a net that is not a differential pair leg have no Altium directive and were not written.");
+      if (!pair && i.signal) report("A signal name without a differential pair has no Altium directive and was not written.");
+    }
+  }
   function exportSchematic(project, requested, observer, snapshot) {
     const Atr = A(), doc = typeof requested === "string" ? project.documents.find(d => d.id === requested) : requested;
     if (doc?.kind !== "schematic") throw Error("Choose a schematic sheet to export.");
@@ -101,6 +134,10 @@ globalThis.AtriumAltiumExport = (() => {
     // push returns the record's OWNERINDEX: its position among the records after the header line.
     const lines = [], push = fields => { lines.push(record(fields, report)); return lines.length - 1; };
     const text = s => clean(s);
+    // Altium lists a part's Links from ComponentLink<N>URL / ComponentLink<N>Description and HelpURL in
+    // this spelling. An import may have changed their case; any other name is written as it is.
+    const linkName = k => String(k).replace(/^componentlink(\d+)(url|description)$/i, (_, n, f) => "ComponentLink" + n + (f.length === 3 ? "URL" : "Description"))
+      .replace(/^helpurl$/i, "HelpURL");
     // Header, then the sheet record (index 0). Child records name their owner by OWNERINDEX,
     // the owner's position among the records after the header.
     push([["RECORD", 31], ["FONTIDCOUNT", 1], ["SIZE1", 10], ["FONTNAME1", "Times New Roman"], ["USEMBCS", "T"], ["ISBOC", "T"], ["HOTSPOTGRIDON", "T"], ["HOTSPOTGRIDSIZE", 4],
@@ -108,7 +145,39 @@ globalThis.AtriumAltiumExport = (() => {
       ["VISIBLEGRIDON", "T"], ["VISIBLEGRIDSIZE", 10], ...(sheet ? [] : [["USECUSTOMSHEET", "T"], ...dxp("CUSTOMX", layout?.width ?? Math.ceil((width + 50.8)/DXP)*DXP), ...dxp("CUSTOMY", layout?.height ?? Math.ceil(sheetH/DXP)*DXP), ["CUSTOMXZONES", 6], ["CUSTOMYZONES", 4], ["CUSTOMMARGINWIDTH", 20]]),
       ["DISPLAY_UNIT", 4]]);
     const owned = (owner, part, fields) => push(owner < 0 ? [...fields.slice(0, 1), ["OWNERPARTID", -1], ...fields.slice(1)] : [...fields.slice(0, 1), ["OWNERINDEX", owner], ["ISNOTACCESIBLE", "T"], ["OWNERPARTID", part], ...fields.slice(1)]);
+    // Exact curves (model.js pathArc, sch-curves.js) as Altium arcs, ellipses, elliptical arcs and
+    // Bézier curves.
+    // Altium's angles turn counterclockwise on its Y-up sheet from STARTANGLE to ENDANGLE.
+    // A curve that is not axis-aligned after placement stays a polyline.
+    const deg = v => Math.round(((v % 360) + 360) % 360 * 1000) / 1000;
+    function curveRecords(owner, partId, s, world, ink) {
+      const vec = (c, d) => { const p = world([c[0] + d[0], c[1] + d[1]]), q = world(c); return [p[0] - q[0], p[1] - q[1]]; };
+      let c, a, b, sweep;
+      const C = globalThis.AtriumSchCurves, arc = Atr.pathArc(s), bezier = !arc && C?.bezier(s);
+      if (bezier) return owned(owner, partId, [["RECORD", 5], ["LINEWIDTH", 1], ["COLOR", ink], ...pts(bezier.map(world))]);
+      const sym = !arc && C?.arc(s), el = !arc && !sym && C?.ellipse(s);
+      // Every curve as c + a·cos t + b·sin t over sweep degrees, in sheet coordinates.
+      if (arc) { const t = Atr.rad(arc.start); c = arc.c; a = [arc.r * Math.cos(t), -arc.r * Math.sin(t)]; b = [-arc.r * Math.sin(t), -arc.r * Math.cos(t)]; sweep = Atr.arcSweep(arc); }
+      else if (sym) { const t = Atr.rad(sym.start); c = [sym.x, sym.y]; a = [sym.r * Math.cos(t), sym.r * Math.sin(t)]; b = [-sym.r * Math.sin(t), sym.r * Math.cos(t)]; sweep = sym.end - sym.start; }
+      else if (el) ({c, a, b, sweep} = el);
+      else return -1;
+      [a, b] = [vec(c, a), vec(c, b)]; c = world(c);
+      const scale = Math.max(Math.hypot(...a), Math.hypot(...b));
+      if (!(scale > 0) || Math.abs(a[0] * a[1] + b[0] * b[1]) > scale * (scale * 1e-5 + 4e-6)) return -1;
+      const rx = Math.hypot(a[0], b[0]), ry = Math.hypot(a[1], b[1]);
+      const angle = t => { const r = Atr.rad(t), x = a[0] * Math.cos(r) + b[0] * Math.sin(r), y = a[1] * Math.cos(r) + b[1] * Math.sin(r); return Math.atan2(-y / ry, x / rx) * 180 / Math.PI; };
+      // On screen (Y down), a negative cross product turns counterclockwise as t grows.
+      const ccw = (a[0] * b[1] - a[1] * b[0]) * sweep < 0, full = Math.abs(sweep) >= 360 - 1e-9;
+      const [from, to] = full ? [0, 360] : ccw ? [deg(angle(0)), deg(angle(sweep))] : [deg(angle(sweep)), deg(angle(0))];
+      const round = Math.abs(rx - ry) <= 1e-6 * scale + 2e-6, centre = P(c);
+      if (full && (s.closed || s.fill)) return owned(owner, partId, [["RECORD", 8], ...dxp("LOCATION.X", centre[0]), ...dxp("LOCATION.Y", centre[1]), ...dxp("RADIUS", rx), ...dxp("SECONDARYRADIUS", ry),
+        ["LINEWIDTH", 1], ["COLOR", ink], ["AREACOLOR", 11599871], ["ISSOLID", T(!!s.fill)]]);
+      return owned(owner, partId, [["RECORD", round ? 12 : 11], ...dxp("LOCATION.X", centre[0]), ...dxp("LOCATION.Y", centre[1]), ...dxp("RADIUS", rx),
+        ...(round ? [] : dxp("SECONDARYRADIUS", ry)), ["LINEWIDTH", 1], ["STARTANGLE", from], ["ENDANGLE", to], ["COLOR", ink]]);
+    }
     function shapeRecords(owner, partId, s, world, ink = 128) {
+      const exact = s.kind === "path" ? curveRecords(owner, partId, s, world, ink) : -1;
+      if (exact >= 0) return exact;
       if (s.kind === "path" && s.points?.length >= 2) {
         let ps = s.points.map(world);
         const closed = s.closed || s.fill;
@@ -195,7 +264,7 @@ globalThis.AtriumAltiumExport = (() => {
         const params = {...(def.parameters || {}), ...(i.parameters || {})};
         for (const [k, v] of Object.entries(params)) {
           if (/^(comment|value|designator)$/i.test(k) || v == null || v === "") continue;
-          owned(owner, -1, [["RECORD", 41], ...at("LOCATION", [i.x, i.y]), ["COLOR", 8388608], ["FONTID", 1], ["ISHIDDEN", i.paramShow?.[k] ? "F" : "T"], ["TEXT", text(v)], ["NAME", text(k)]]);
+          owned(owner, -1, [["RECORD", 41], ...at("LOCATION", [i.x, i.y]), ["COLOR", 8388608], ["FONTID", 1], ["ISHIDDEN", i.paramShow?.[k] ? "F" : "T"], ["TEXT", text(v)], ["NAME", text(linkName(k))]]);
         }
         if (fpName) {
           const list = owned(owner, -1, [["RECORD", 44]]);
@@ -233,7 +302,8 @@ globalThis.AtriumAltiumExport = (() => {
         }
         counts.labels++;
       } else if (i.kind === "label") {
-        push([["RECORD", 4], ...at("LOCATION", [i.x, i.y]), ["ORIENTATION", Math.round(mod(-(i.angle || 0), 360) / 90) % 4], ["COLOR", 8388608], ["FONTID", 1], ["TEXT", text(i.text || "")]]);
+        push([["RECORD", 4], ...at("LOCATION", [i.x, i.y]), ["ORIENTATION", Math.round(mod(-(i.angle || 0), 360) / 90) % 4], ["COLOR", 8388608], ["FONTID", 1], ["TEXT", text(i.text || "")],
+          ...(i.url ? [["URL", text(i.url)]] : [])]);
         counts.graphics++;
       } else if (i.kind === "graphic") {
         if (shapeRecords(-1, -1, {...i, kind: "path"}, p => p, 128) >= 0) counts.graphics++;
@@ -270,6 +340,11 @@ globalThis.AtriumAltiumExport = (() => {
             push([["RECORD",4],...at("LOCATION",[i.x,i.y+3*n]),["FONTID",1],["TEXT",text(line)]]);
           counts.graphics++; fidelity.push(projected.fidelity); report(projected.message); continue;
         }
+        // A hyperlinked one-line text (an Altium text with a field, read as a text frame) stays a linked text.
+        if (i.url && !i.widget && !i.sticky && !i.callout && !String(i.text ?? "").includes("\n")) {
+          push([["RECORD", 4], ...at("LOCATION", [i.x, i.y]), ["COLOR", 8388608], ["FONTID", 1], ["TEXT", text(i.text || "")], ["URL", text(i.url)], ["UNIQUEID", uniqueId(i.id)]]);
+          counts.graphics++; continue;
+        }
         const rich=i.richText || i.math || i.widget || i.calculation || i.sticky || i.callout;
         const note=rich && globalThis.AtriumNotebook?.describe(project,doc,i);
         const value=note?.text ?? i.text ?? "",x0=Math.min(i.x,i.x+i.w),x1=Math.max(i.x,i.x+i.w),y0=Math.min(i.y,i.y+i.h),y1=Math.max(i.y,i.y+i.h);
@@ -279,6 +354,7 @@ globalThis.AtriumAltiumExport = (() => {
       } else if (i.kind === "image") report("Embedded images were omitted.");
       else report("Unsupported sheet item " + i.kind + " omitted.");
     }
+    directiveRecords(doc, push, at, text, report);
     if (doc.items.some(i => i.kind === "part" && defs.get(i.def)?.symbol?.alternate)) report("De Morgan (alternate) symbol views export the view placed on the sheet only.");
     // WEIGHT counts the numbered design records, including the sheet itself and all component children.
     const header = record([["HEADER", "Protel for Windows - Schematic Capture Ascii File Version 5.0"], ["WEIGHT", lines.length]]);

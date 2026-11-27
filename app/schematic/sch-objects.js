@@ -813,16 +813,19 @@ globalThis.AtriumSchObjects = (() => {
     if (item.kind === "bus" || item.kind === "busentry" || item.kind === "noerc") return;
     addControls(s, (ui, target) => ui.inspector(target, item, c, toolHost), c.info);
   }
-  // Signal and tag directive fields (Signal, Polarity, Tags) for net labels, ports, power ports, off-sheet
-  // connectors and wires: they act on the board live (signals.js).
+  // Signal, Polarity and Tags of net labels, ports, power ports, off-sheet connectors and wires
+  // (live on the board, signals.js), and a hyperlinked text's URL.
+  // Texts that take a URL (Cmd/Ctrl+click opens it, sch-object-inspector.js): a plain text, or a text frame
+  // without rich content (rich text takes its clicks for editing).
+  const linkable = i => i?.kind === "label" || i?.kind === "textframe" && !i.richText && !i.math && !i.widget && !i.calculation && i.role !== "frame";
   function directives(s, item, c) {
-    if (!DIRECTIVE_KINDS.has(item.kind)) return;
+    if (!DIRECTIVE_KINDS.has(item.kind) && !item.url && !linkable(item)) return;
     addControls(s, (ui, target) => ui.directives?.(target, item, c, toolHost), c.info);
   }
   function partParameters(panel, part, def, c) {
     addControls(panel, (ui, target) => ui.partParameters(target, part, def, c, toolHost), c.info);
   }
-  return {floating, KINDS, POWER, POWER_TITLES, IO, offsheetIO:A.offsheetIO, SIDES, INK, COMMANDS, LABELS, isBus, busMembers, busWidth, busKind, busAlias, busNetworks,
+  return {floating, linkable, KINDS, POWER, POWER_TITLES, IO, offsheetIO:A.offsheetIO, SIDES, INK, COMMANDS, LABELS, isBus, busMembers, busWidth, busKind, busAlias, busNetworks,
     isFrame, frameBounds, frameContents, grips, reflow, resizeAt, entryWires, entryPort, COMPONENT_KINDS, componentKind, notElectrical, repeatOf, repeatEntry, entryPoint, entryAngle, busEntryEnd,
     hotspots, netSources, portShape, box, hit, entryBox, entryAt, edgeAt, validateItem, draw, hops, hopPath, shownParams, drawParams, make, portsOf, layoutEntries,
     fitSymbol, syncEntries, handles, command, click, preview, finish, rotate, rotatable, rotateItem, cancel, active, dblclick, inspector,

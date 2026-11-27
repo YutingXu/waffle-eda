@@ -56,6 +56,8 @@ globalThis.AtriumLinksUI = (() => {
     details.addEventListener("toggle", () => { if (details.isConnected) closed = !details.open; });
     body.setAttribute("aria-busy", "true");
     section = details;
+    // Two inspector mutations can each start a placement before the first lands: the newest wins.
+    inspector.querySelector(":scope > .intel-links")?.remove();
     inspector.append(details);
     const done = (...nodes) => { if (token !== version || !details.isConnected) return; body.append(...nodes.filter(Boolean)); body.removeAttribute("aria-busy"); };
     if (!G.AtriumLinksDesktop) await G.AtriumLazy.need("AtriumLinksDesktop");

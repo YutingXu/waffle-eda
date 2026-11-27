@@ -562,6 +562,7 @@ async function main(){
     if(safeAreaOnly){await require("./editor/browser-dialog-safe-area.cjs")(browser);return;}
     if(process.argv.includes("--titlebar-only")){await require("./editor/browser-titlebar-safe-area.cjs")(browser);return;}
     if(process.argv.includes("--panels-only")){await require("./editor/browser-panels-menu.js")(browser);return;}
+    if(process.argv.includes("--tab-overflow-only")){await require("./editor/browser-tab-overflow.js")(browser);return;}
     if(process.argv.includes("--menu-toggle-only")){await require("./editor/browser-menu-toggle.js")(browser);return;}
     if(process.argv.includes("--messages-fonts-only")){await require("./editor/browser-messages-fonts.js")(browser);return;}
     if(process.argv.includes("--messages-filter-only")){await require("./editor/browser-messages-filter.js")(browser);return;}
@@ -581,6 +582,7 @@ async function main(){
     if(process.argv.includes("--gpu-pour-lod-only")){await require("./canvas/browser-gpu-pour-lod.cjs")({requireHardware:process.argv.includes("--require-hardware")});return;}
     if(process.argv.includes("--dense-edit-only")){await require("./canvas/browser-dense-edit-refresh.js")(browser);return;}
     if(process.argv.includes("--fields-only")){await require("./schematic/browser-sch-fields.js")(browser);return;}
+    if(process.argv.includes("--links-only")){await require("./schematic/browser-part-links.js")(browser);return;}
     if(process.argv.includes("--notebook-only")){await require("./notebook/browser-notebook-integration.js")(browser);return;}
     if(process.argv.includes("--bom-only")){await require("./formats/browser-bom-ui.js")(browser);return;}
     if(process.argv.includes("--print-only")){await require("./formats/browser-print-unify.js")(browser);return;}
@@ -884,6 +886,7 @@ async function main(){
 
   async function editorInterfaceChecks(){
     await require("./schematic/browser-sch-fields.js")(browser);
+    await require("./schematic/browser-part-links.js")(browser);
     await require("./notebook/browser-infinite-frames.js")(browser);
     await require("./pcb/browser-pcb-text.js")(browser);
     await require("./project/browser-welcome-open.js")(browser);
@@ -922,6 +925,7 @@ async function main(){
     await require("./editor/browser-interface-field-alignment.js")(browser);
     await require("./editor/browser-workbench-tree.js")(browser);
     await require("./editor/browser-panels-menu.js")(browser);
+    await require("./editor/browser-tab-overflow.js")(browser);
     await require("./canvas/browser-frame-monitor.js")(browser);
     await require("./project/browser-project-connections.js")(browser);
     await require("./editor/browser-shortcut-labels.js")(browser);
