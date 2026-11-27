@@ -651,12 +651,15 @@ globalThis.AtriumCollabPresence = (() => {
       }), host.on("document", () => {
         session.pointer = null; session.waypoints.reset(); sendCursor();
       }));
-      // Saved: compare the whole project once (audit). A derived change marks a clean project
-      // unsaved and clean again in one task; that is not a save.
+      // Saved: compare the whole project once (audit). A folder project reports each save, also of
+      // one document while others stay unsaved; any save that leaves the editor clean counts too. A
+      // derived change marks a clean project unsaved and clean again in one task: not a save.
       let blip = false;
       S.offs.push(host.on("dirty", dirty => {
-        if (dirty) { blip = true; queueMicrotask(() => { blip = false; }); } else if (!blip && S === session) audit();
+        if (dirty) { blip = true; queueMicrotask(() => { blip = false; }); } else if (!blip && S === session) auditSoon();
       }));
+      const folderSession = host.folderProject?.();
+      if (folderSession?.on) S.offs.push(folderSession.on(kind => { if (kind === "saved" && S === session) auditSoon(); }));
       const move = e => {
         const canvas = e.target, client = [e.clientX, e.clientY];
         // Closing a keyboard dialog can trigger pointerout from the disappearing
@@ -1277,6 +1280,8 @@ globalThis.AtriumCollabPresence = (() => {
     }
     // The whole-project comparison at save and before leaving (AtriumCollabCRDT audit): what the
     // journal missed is published and counted in r.stats().repairs. Nothing runs while idle.
+    let auditTimer = 0;
+    function auditSoon() { if (!auditTimer) auditTimer = setTimeout(() => { auditTimer = 0; audit(); }, 0); }
     function audit() {
       const session = S;
       if (!session?.r || session.applying || session.editProject !== host.project() || host.drag?.()?.before) { if (commitTimer) commitNow(); return; }

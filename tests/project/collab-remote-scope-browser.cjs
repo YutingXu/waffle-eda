@@ -45,9 +45,17 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     assert.deepEqual(s.errors, [], "no page errors");
     for (const p of s.pages) await p.evaluate(() => AtriumCollabLive.leave()).catch(() => {});
     for (const c of s.contexts) await c.close();
+    console.log("collab-remote-scope-browser: remote scope ok " + JSON.stringify(results));
 
     // ---- the audit: at save and before leaving, never while idle ----
-    const t = await P.session(browser, base, "local", null, {saveFirst: true});
+    // A browser saves an unsaved project as a folder project (a download); later saves keep it.
+    let t;
+    try { t = await P.session(browser, base, "local", null, {saveFirst: true}); }
+    catch (e) {
+      if (!/did not make a folder project/.test(e.message)) throw e;
+      console.log("collab-remote-scope-browser: audit part SKIPPED (this browser cannot save a folder project: " + e.message.split("\n")[0] + ")");
+      return;
+    }
     await t.host.evaluate(P.instrument); await t.guest.evaluate(P.instrument);
     await P.setupKinds(t.host);
     const stats = page => page.evaluate(() => { const {audits, repairs, repairedOps} = AtriumCollabLive.session().r.stats(); return {audits, repairs, repairedOps}; });
@@ -66,12 +74,25 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const idle1 = [await stats(t.host), await stats(t.guest)];
     assert.deepEqual(idle1.map(x => x.audits), idle0.map(x => x.audits), "no audit runs while the editors are idle");
     assert.deepEqual(idle0.map(x => x.audits), [0, 0], "no audit ran during the edits");
+    // Save (the current document, as Save does), and wait for the save itself to finish: the folder
+    // project reports it ("saved"), or the project is replaced. The audit runs a task later.
     const saved = await t.host.evaluate(async () => {
-      AtriumNavHost.markUnsaved(); AtriumNavHost.act("save");
-      for (let k = 0; k < 200 && AtriumNavHost.isDirty(); k++) await new Promise(r => setTimeout(r, 50));
-      return !AtriumNavHost.isDirty() && !!AtriumNavHost.folderProject?.() && !!AtriumCollabLive.session();
+      const H = AtriumNavHost, t0 = performance.now(), events = [], at = () => Math.round(performance.now() - t0);
+      const wait = async done => { while (!done() && performance.now() - t0 < 180000) await new Promise(r => setTimeout(r, 50)); };
+      H.on("dirty", v => events.push("dirty " + v + " @" + at())); H.on("replace", () => events.push("replace @" + at()));
+      H.folderProject?.()?.on?.(kind => { if (kind === "saved" || kind.startsWith("write")) events.push("folder " + kind + " @" + at()); });
+      H.markUnsaved(); H.act("save");
+      await wait(() => events.some(e => e.startsWith("folder saved") || e.startsWith("replace")));
+      const audits = () => AtriumCollabLive.session()?.r.stats().audits || 0;
+      await wait(() => audits() > 0 || !AtriumCollabLive.session());
+      return {savedEvent: events.some(e => e.startsWith("folder saved")), folder: !!H.folderProject?.(), session: !!AtriumCollabLive.session(),
+        audits: audits(), ms: at(), events, status: document.getElementById("status")?.textContent?.slice(0, 160)};
     });
-    assert.ok(saved, "a folder save keeps the session");
+    results.save = saved;
+    assert.ok(saved.savedEvent, "the folder save finished (its \"saved\" report) within 180 s: " + JSON.stringify(saved));
+    assert.ok(saved.folder, "the saved project is still a folder project: " + JSON.stringify(saved));
+    assert.ok(saved.session, "a folder save keeps the session: " + JSON.stringify(saved));
+    assert.equal(saved.audits, 1, "the save ran one whole-project audit: " + JSON.stringify(saved));
     for (let k = 0; k < 40 && await guestValue(v1) !== 0.777; k++) await sleep(100);
     assert.equal(await guestValue(v1), 0.777, "the audit at save publishes the missed change");
     const atSave = await stats(t.host);
@@ -83,6 +104,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     assert.deepEqual(t.errors, [], "no page errors");
     results.audit = {idle: idle1, atSave};
     await t.guest.evaluate(() => AtriumCollabLive.leave()).catch(() => {});
+    console.log("collab-remote-scope-browser: audit ok " + JSON.stringify({audit: results.audit, save: results.save}));
   } finally { await browser.close(); server.close(); }
-  console.log("collab-remote-scope-browser: ok " + JSON.stringify(results));
 })().catch(e => { console.error(e); process.exit(1); });
