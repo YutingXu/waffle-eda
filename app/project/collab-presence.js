@@ -633,6 +633,12 @@ globalThis.AtriumCollabPresence = (() => {
       }), host.on("document", () => {
         session.pointer = null; session.waypoints.reset(); sendCursor();
       }));
+      // Saved: compare the whole project once (audit). A derived change marks a clean project
+      // unsaved and clean again in one task; that is not a save.
+      let blip = false;
+      S.offs.push(host.on("dirty", dirty => {
+        if (dirty) { blip = true; queueMicrotask(() => { blip = false; }); } else if (!blip && S === session) audit();
+      }));
       const move = e => {
         const canvas = e.target, client = [e.clientX, e.clientY];
         // Closing a keyboard dialog can trigger pointerout from the disappearing
@@ -718,7 +724,7 @@ globalThis.AtriumCollabPresence = (() => {
       const session = S;
       if (!immediate && S.editProject === host.project() && (commitTimer || S.dragMessages) && host.drag?.()?.before) host.setTool("select");
       if (S !== session) return;
-      if (!immediate && commitTimer) commitNow();
+      if (!immediate) audit();
       if (session.r && session.me) ownSeqs.set(session.me, Math.max(ownSeq(session.me), session.r.ownSeq?.() || 0));
       session.restoreCheck?.reject(Error("The session ended before restoring."));
       releaseRestoreHold(session);
@@ -1165,6 +1171,18 @@ globalThis.AtriumCollabPresence = (() => {
       if (b.related?.length) {
         patchHost(S, b.related);
       }
+      sendEdits(b); syncHistoryButtons();
+    }
+    // The whole-project comparison at save and before leaving (AtriumCollabCRDT audit): what the
+    // journal missed is published and counted in r.stats().repairs. Nothing runs while idle.
+    function audit() {
+      const session = S;
+      if (!session?.r || session.applying || session.editProject !== host.project() || host.drag?.()?.before) { if (commitTimer) commitNow(); return; }
+      if (commitTimer) commitNow();
+      const b = session.r.audit(session.editProject);
+      rememberCursor(session);
+      if (!b) return;
+      if (b.related?.length) patchHost(session, b.related);
       sendEdits(b); syncHistoryButtons();
     }
     function historyAvailability() {

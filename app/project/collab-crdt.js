@@ -434,7 +434,8 @@ globalThis.AtriumCollabCRDT = (() => {
     const cellPatchHints = new WeakMap();
     let log = [], undoStack = [], redoStack = [], view = null, verdicts = new Map();
     // refreshed / rebuilt: views brought up to date for the touched objects / materialised whole.
-    const stats = {applied: 0, rejected: 0, buffered: 0, filtered: 0, refreshed: 0, rebuilt: 0};
+    // audits / repairs / repairedOps: whole-project comparisons (audit) and the differences they published.
+    const stats = {applied: 0, rejected: 0, buffered: 0, filtered: 0, refreshed: 0, rebuilt: 0, audits: 0, repairs: 0, repairedOps: 0};
 
     function obj(id) {
       let x = objs.get(id);
@@ -834,7 +835,9 @@ globalThis.AtriumCollabCRDT = (() => {
     //   * once something does not validate, the file-load fallback judges objects in other
     //     contexts (shell documents, valid definitions only), so only a clean view is refreshed;
     //     a touched object that fails validation rebuilds (and the fallback filters it).
-    // tests/project/collab-scoped-equivalence.cjs compares this with the full rebuild.
+    // A new Atrium.validate rule that reads across objects must be added to this list.
+    // tests/project/collab-scoped-equivalence.cjs compares this with the full rebuild and guards it;
+    // audit() at save and before leaving publishes and counts anything this path missed.
     let stale = null, clean = false, viewDocs = null, viewItems = null, viewLib = null;
     const itemDependent = d => (d.kind !== "pcb" && d.kind !== "schematic") || d.pcbDrawing?.sourceHatchSignature !== undefined;
     function dirty(ids) {
@@ -1322,8 +1325,8 @@ globalThis.AtriumCollabCRDT = (() => {
     // the next one compares the whole project (diff) before relying on a journal range again.
     let verify = false;
     /** @param {any} next @param {{recordUndo?: boolean, updates?: Array<{doc:string, before:any, after:any, tableEdit?:{id:string, before:any, after:any, beforeJSON:string, afterJSON:string, beforeVersion?:object, afterVersion?:object}}>, structure?: Array<{doc:string, items:any[], added:any[], removed:string[]}>, reconcile?: (ops:any[]) => boolean | Set<string>}} [options] */
-    function commit(next, {recordUndo = true, updates, structure, reconcile} = {}) {
-      const tableOps = structure?.length ? null : diffTableEdit(next, updates), scoped = tableOps ?? diffUpdates(next, updates, structure);
+    function commit(next, {recordUndo = true, updates, structure, reconcile, full = false} = {}) {
+      const tableOps = full || structure?.length ? null : diffTableEdit(next, updates), scoped = full ? null : tableOps ?? diffUpdates(next, updates, structure);
       let ops = scoped && !verify ? scoped : diff(next), shape = ops === scoped && scoped.check ? scoped : null;
       // A precise rollback can reject whole items and their children.
       // Looking at the live editor again could capture a later, unfinished drag.
@@ -1351,6 +1354,15 @@ globalThis.AtriumCollabCRDT = (() => {
       }
       if (!recordUndo) { undoStack = []; redoStack = []; }
       return batch(ops, related);
+    }
+    // The whole-project comparison at the session's natural pauses (save, leaving): a change the
+    // journal did not report (an edit without its hint) or a validity rule refresh does not know
+    // is published here instead of surviving, and counted, so it is visible rather than silent.
+    function audit(next, options) {
+      stats.audits++;
+      const b = commit(next, {...options, full: true});
+      if (b) { stats.repairs++; stats.repairedOps += b.ops.length; }
+      return b;
     }
     function batch(ops, related) {
       const result = {from: replica, ops: ops.map(op => clone(op))};
@@ -1903,7 +1915,7 @@ globalThis.AtriumCollabCRDT = (() => {
 
     return {
       // project(): a copy of the view (the view itself is internal and kept between edits).
-      replica, commit, receive, project: () => clone(current()), raw, preparePatch,
+      replica, commit, audit, receive, project: () => clone(current()), raw, preparePatch,
       // {full: true}: the complete list synchronisation (the reference the scoped plan is tested against).
       patch: (target, touched, observers, {full = false} = {}) => full ? patchLists(target, current(), touched ? new Set(touched) : null, observers) : preparePatch(target, touched, observers).apply(),
       diff, forgetHistoryThrough,

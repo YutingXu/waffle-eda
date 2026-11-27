@@ -13,16 +13,17 @@
 #            and when a guest falls behind the bounded CRDT log.
 #   Stage 3  scripts/bench-collab-editor.cjs (only with EDITOR_BENCH=1): the nudge publication bench.
 #
-# Each stage runs RUNS times (default 3); the summary gives the median and the [min–max] spread of
+# Each stage runs RUNS times (default 3, 5 with --budgets); the summary gives the median and the [min–max] spread of
 # every run's p50 and p95. Machines shared with other work give noisy numbers: treat them as provisional.
 #
-# Budgets (--budgets; the live-session targets in docs/collaboration.md, on the cost pass's transport):
+# Budgets (--budgets; the live-session targets in docs/collaboration.md, on the cost pass's transport;
+# RUNS defaults to 5 and the driver to --reps 20 with --budgets):
 #   guest receive + view + patch of a remote edit, any kind   p95 <= 4 ms
 #   host publication of a local add, delete or paste           p95 <= 4 ms
 #   host publication of an in-place edit (incl. verification)  p95 <= 1 ms
 #   host personal undo (the editor command)                    p95 <= 16 ms
 #   a remote move, property, add or delete: no full Undo-journal sync on the guest and online DRC
-#   over at most 2,000 items (the board has 25,600)
+#   over at most 2,000 items (the board has 25,600); no whole-project audit (save and leave only)
 #
 # Usage: scripts/perf-collab.sh [--json] [--out file.json] [--skip-if-no-browser] [--budgets] [-- driver args]
 #   driver args go to perf-collab.cjs, e.g. -- --transports relay --reps 12 --idle 60 --insights
@@ -50,7 +51,10 @@ if [[ -z $node ]] || (( ! $#paths )) || [[ -z ${CHROME:-} && ! -d "/Applications
 fi
 export NODE_PATH=${(j.:.)paths}
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/atrium-perf-collab.XXXXXX"); trap 'rm -rf $tmp' EXIT
-runs=${RUNS:-3}
+# The budget gate: a run's p95 over 10 reps is that run's slowest sample, so one pause decides it.
+# --budgets therefore takes 20 reps per kind (p95 = the 19th of 20) and the median of 5 runs.
+runs=${RUNS:-$(( budgets ? 5 : 3 ))}
+(( budgets && ! ${driver[(I)--reps]} )) && driver+=(--reps 20)
 for n in {1..$runs}; do
   print -u2 "perf-collab: run $n/$runs: CRDT bench"
   $node $root/scripts/bench-collab-edits.cjs > $tmp/edits$n.json || { print -u2 "perf-collab: bench-collab-edits failed"; exit 2; }
@@ -101,6 +105,9 @@ def budgets():
     def p95(k):
         v = ed.get(k)
         return v["p95"]["median"] if isinstance(v, dict) and v.get("p95") else None
+    # Whole-project audits run only at save and before leaving: none in this pass.
+    for k in [k for k in ed if ".cost.replicaStats." in k and k.endswith(".audits")]:
+        if (ed[k] or {}).get("max"): failed.append("%s: %s whole-project audits without a save or leave" % (k, ed[k]["max"]))
     for k in [k for k in ed if ".cost." in k and k.endswith(".guestRemoteTotalMs")]:
         pre, kind = k[:-len(".guestRemoteTotalMs")], k.split(".")[-2]
         checks = [("guest remote", p95(k), B["remote"])]

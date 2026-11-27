@@ -551,6 +551,30 @@ function item(p, id) { return p.documents.flatMap(d => d.items).find(i => i.id =
   U.reset();
 }
 
+// An edit the Undo journal never heard of (changed without its hint) is not in the scoped
+// publication; the audit (a whole-project comparison at save or before leaving) publishes it and
+// counts it, and finds nothing when the replica already holds the editor's project.
+{
+  const U = globalThis.AtriumUndoStore, p = fixture(), board = p.documents[1];
+  const a = C.create({replica: "alice", project: p}), b = C.create({replica: "bob", project: p}), seen = clone(p);
+  U.reset(); U.mark(p);
+  const cursor = U.itemEdits(p).cursor, quiet = item(p, "v1"), hinted = item(p, "p1b");
+  quiet.x += 5;
+  hinted.x += 1; U.record(p, {doc: board, items: [hinted]});
+  const range = U.itemEdits(p, cursor, true), sent = a.commit(p, {updates: range.updates, structure: range.structure});
+  assert.deepEqual(sent.ops.map(o => o.o), ["p1b"], "the scoped publication carries the reported edit only");
+  b.patch(seen, b.receive(sent, {author: "alice"}).touched);
+  assert.notEqual(item(b.project(), "v1").x, quiet.x);
+  const repair = a.audit(p);
+  assert.deepEqual(repair.ops.map(o => [o.t, o.o, o.k]), [["set", "v1", "x"]], "the audit publishes the missed edit");
+  b.patch(seen, b.receive(repair, {author: "alice"}).touched);
+  assert.equal(C.canon(b.project()), C.canon(p)); assert.equal(C.canon(seen), C.canon(p));
+  assert.equal(a.audit(p), null, "an audit in agreement publishes nothing");
+  const {audits, repairs, repairedOps} = a.stats();
+  assert.deepEqual({audits, repairs, repairedOps}, {audits: 2, repairs: 1, repairedOps: 1});
+  U.reset();
+}
+
 // ---- fractional keys ----------------------------------------------------------------------------------
 {
   const base = fixture(), a = C.create({replica: "alice", project: base}), b = C.create({replica: "bob", project: base});

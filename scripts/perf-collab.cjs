@@ -178,7 +178,9 @@ function stat(xs) {
   return {n: xs.length, p50: at(.5), p95: at(.95), max: +xs.at(-1).toFixed(2)};
 }
 
-async function session(browser, base, mode, relayInfo) {
+// saveFirst: save the project before hosting (in a browser that makes it a folder project, whose
+// later saves keep the project and the session; tests/project/collab-remote-scope-browser.cjs).
+async function session(browser, base, mode, relayInfo, {saveFirst = false} = {}) {
   const separate = mode !== "local";
   const contexts = separate ? [await browser.newContext({viewport:{width:1100, height:790}}), await browser.newContext({viewport:{width:1100, height:790}})]
     : [await browser.newContext({viewport:{width:1100, height:790}})];
@@ -204,11 +206,16 @@ async function session(browser, base, mode, relayInfo) {
   const cpu = async i => { const m = await cdp[i].send("Performance.getMetrics"); return Object.fromEntries(m.metrics.map(x => [x.name, x.value])).TaskDuration * 1000; };
   const url = mode === "local" ? "local" : relayInfo.url;
   const key = "PERF-COLLAB-LOOPBACK-ROOM-KEY-" + Math.random().toString(36).slice(2, 10).toUpperCase();
-  const invite = await host.evaluate(async ({url, key}) => {
+  const invite = await host.evaluate(async ({url, key, saveFirst}) => {
     const p = await (await fetch("/bench.waffle")).json();
     await AtriumNavHost.replaceProject(p, {force:true, copy:true, dirty:false});
+    if (saveFirst) {
+      AtriumNavHost.act("save");
+      for (let k = 0; k < 200 && !(AtriumNavHost.folderProject?.() && !AtriumNavHost.isDirty?.()); k++) await new Promise(r => setTimeout(r, 50));
+      if (!AtriumNavHost.folderProject?.()) throw Error("the first save did not make a folder project");
+    }
     return AtriumCollabLive.start(url, key);
-  }, {url, key});
+  }, {url, key, saveFirst});
   await host.evaluate(instrument);
   // ---- join ----
   const sentBefore = await host.evaluate(() => ({...pcBytes}));
@@ -362,6 +369,9 @@ async function costPass(s) {
       errors: list.filter(x => x.guest?.error).map(x => x.guest.error).slice(0, 2)
     };
   }
+  // Whole-project audits (they run only at save and before leaving) and the repairs they published.
+  const audits = page => page.evaluate(() => { const {audits, repairs, repairedOps, refreshed, rebuilt} = AtriumCollabLive.session().r.stats(); return {audits, repairs, repairedOps, refreshed, rebuilt}; });
+  out.replicaStats = {host: await audits(s.host), guest: await audits(s.guest)};
   return out;
 }
 async function latencyPass(s) {
@@ -615,12 +625,14 @@ function budgets(result) {
   for (const [mode, t] of Object.entries(result.transports)) {
     const c = t.cost;
     if (!c) continue;
+    for (const who of ["host", "guest"]) if (c.replicaStats?.[who]?.audits) failed.push(mode + " " + who + " ran " + c.replicaStats[who].audits + " whole-project audits without a save or leave");
     for (const [kind, row] of Object.entries(c)) {
       if (!row?.guestRemoteTotalMs) continue;
       if (row.guestRemoteTotalMs.p95 > BUDGETS.remoteTotalMs) failed.push(mode + " " + kind + " guest remote p95 " + row.guestRemoteTotalMs.p95 + " ms > " + BUDGETS.remoteTotalMs);
       if (BUDGETS.structural.includes(kind) && row.publishMs.p95 > BUDGETS.publishStructuralMs) failed.push(mode + " " + kind + " publish p95 " + row.publishMs.p95 + " ms > " + BUDGETS.publishStructuralMs);
       if (BUDGETS.inPlace.includes(kind) && row.publishMs.p95 > BUDGETS.publishInPlaceMs) failed.push(mode + " " + kind + " publish p95 " + row.publishMs.p95 + " ms > " + BUDGETS.publishInPlaceMs);
       if (kind === "undo" && row.editMs.p95 > BUDGETS.undoEditMs) failed.push(mode + " undo p95 " + row.editMs.p95 + " ms > " + BUDGETS.undoEditMs);
+      if (kind === "replicaStats") continue;
       if (BUDGETS.scoped.includes(kind) && (row.guestFullSyncs || row.guestDrcItems?.max > BUDGETS.drcItems || row.guestJournalIds?.max >= 1e9))
         failed.push(mode + " " + kind + " re-checked more than the edit: " + JSON.stringify({fullSyncs: row.guestFullSyncs, drcItems: row.guestDrcItems, journalIds: row.guestJournalIds}));
     }
