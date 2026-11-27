@@ -194,6 +194,8 @@ interface AtriumModelAPI {
     rotatedSlot(pad: {drill?: number; slotLength?: number; slotAngle?: number}): boolean;
     shape<T extends object>(shape: T, inner?: number): T;
     footprint<T>(footprint: T, inner?: number, legacy?: boolean): T;
+    placed<I extends {mirror?: boolean}, F>(item: I, footprint: F): {item: I | (Omit<I, "mirror"> & {mirror: false}); footprint: F};
+    placedShape<T extends object>(shape: T): T;
   };
   footprintPadKeys(definition: string, pad: PadDef, index: number, count: number): {padKey: string; padFallback?: string};
   padCornerRatio(pad?: {roundrectRadiusRatio?: number} | null): number;
@@ -276,6 +278,8 @@ interface AtriumModelAPI {
   sheetNets(project: Project, doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, host?: any): SheetConnectivity;
   /** An Altium sheet's name for an unnamed net from its [designator, pin] pairs (NetC1_2), or "" for other sheets. */
   autoNetName(doc: {sourceName?: string} | null | undefined, pins: [string, string | number][]): string;
+  readonly AUTO_NET_NAME: RegExp;
+  isAutoNetName(name: unknown, pins?: SheetConnectivity | ReadonlyArray<readonly [string | undefined, string | number | undefined]>): boolean;
   moveItem(item: Item, dx: number, dy: number, source?: {x?: number; y?: number; points?: Point[]; arc?: boolean | CircularArc; regionShape?: PcbRegionShape}): void;
   wireStretch(wire: WireItem, anchors?: Point[], options?: {spur?: boolean}): WireStretchSession;
   wireStretchState(wire: WireItem): WireStretchState | undefined;
