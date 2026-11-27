@@ -201,12 +201,17 @@ globalThis.AtriumIDF = (() => {
           if (curved?.has(l.label)) trace.approximate(item, "The keep-out's curved edges were sampled into a polygon.");
         }
       } else if (s.tag === "PLACEMENT") {
-        for (let i = 0; i + 1 < s.rows.length; i += 2) {
+        // Each component is a name record followed by a placement record (x y z rotation side ...).
+        // A line that does not start such a pair is skipped alone, so it cannot shift the pairing.
+        let stray = 0;
+        for (let i = 0; i < s.rows.length; i++) {
           const a = s.rows[i], b = s.rows[i + 1];
-          if (a.length < 3 || b.length < 5) continue;
+          if (a.length < 3 || !(b?.length >= 5)) { stray++; trace?.omitted("Component placement", s.tag + "/" + (i + 1), "The placement record is incomplete."); continue; }
+          i++;
           design.parts.push({ident: null, ref: a[2], x: num(b[0], "x") * scale, y: -num(b[1], "y") * scale, angle: M().norm(-num(b[3], "rotation")),
             side: /^BOTTOM$/i.test(b[4]) ? "Bottom" : "Top", height: heights.get(a[0] + "|" + a[1]) ?? null});
         }
+        if (stray) design.notes.push(stray + " incomplete .PLACEMENT line(s) were skipped.");
       } else if (s.tag !== "HEADER") trace?.omitted("IDF section", s.tag, "This section has no mechanical change proposal.");
     }
     // Footprint holes of placed parts are part of the footprint, not proposals: only free holes compare.

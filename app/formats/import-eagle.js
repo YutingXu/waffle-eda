@@ -108,7 +108,9 @@ globalThis.AtriumEagleImport = (() => {
   const kids = (el, name) => el ? el.children.filter(c => c.name === name) : [];
   const kid = (el, name) => el?.children.find(c => c.name === name);
   const path = (el, ...names) => names.reduce((e, n) => kid(e, n), el);
-  const num = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
+  // Attribute values: a unit suffix converts to millimetres, so "32mil" drills and "1in" radii
+  // read like the "8mil" design rules. Anything else keeps parseFloat's leading-number reading.
+  const num = (v, d = 0) => { const mm = length(v); if (Number.isFinite(mm)) return mm; const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
   // "8mil", "0.2mm", "0.01in" -> mm; bare numbers are millimetres.
   const length = v => { const m = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(mm|mil|in|mic)?\s*$/i.exec(String(v ?? "")); if (!m) return NaN; return +m[1] * ({mil: .0254, in: 25.4, mic: .001}[(m[2] || "mm").toLowerCase()] || 1); };
   const dimension = (v, fallback = 0) => { const mm = length(v); return Number.isFinite(mm) ? mm : fallback; };
@@ -123,7 +125,7 @@ globalThis.AtriumEagleImport = (() => {
   }
 
   function wireCoordinates(a) {
-    const coords = [a.x1, a.y1, a.x2, a.y2].map(value => value?.trim() ? Number(value) : NaN);
+    const coords = [a.x1, a.y1, a.x2, a.y2].map(value => value?.trim() ? length(value) : NaN);
     return coords.every(Number.isFinite) ? coords : null;
   }
   // Wire with optional curve -> points in Waffle axes.
