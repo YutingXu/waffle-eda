@@ -1602,6 +1602,50 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     ${editor.slice(from,to)}
     return {redraw,redrawPourLOD:typeof redrawPourLOD==="function"?redrawPourLOD:undefined};
   }`,sliceVM);
+  // The posted job may observe the new camera before the editor's paint callback.
+  const sourceRange = (start, end) => {
+    const a = editor.indexOf(start), b = editor.indexOf(end, a);
+    assert.ok(a >= 0 && b > a);
+    return editor.slice(a, b);
+  };
+  const hostForInterrupt = vm.runInContext(`({pane, clock})=>{
+    const panes=[pane], activePane=pane, viewportVisible=true, homeFit=false, in3D=()=>false;
+    let frame=0, activeDirty=false, pointerOnly=false;
+    function schedule(){if(!frame)frame=clock(()=>{frame=0;activeDirty=false;});}
+    ${sourceRange("  function paneRepaint(", "  view.onRepaint")}
+    ${sourceRange("  function draw(){activeDirty=true;", "  function redraw(")}
+    ${sourceRange("  function cameraFrame(", "  // Preserve first-contact")}
+    return {cameraFrame, repaint:moving=>paneRepaint(pane,moving)};
+  }`,sliceVM);
+  const canvasStub = sliceVM.AtriumCanvas;
+  sliceVM.Atrium = Atrium;
+  vm.runInContext(fs.readFileSync(appFile("canvas/canvas.js"),"utf8"),sliceVM);
+  const createView = sliceVM.AtriumCanvas.create;
+  sliceVM.AtriumCanvas = canvasStub;
+  for (const kind of ["queued movement", "programmatic camera", "unowned motion", "changed revision"]) {
+    const job = viewForSlices(kind), pane = {view:createView(job.I.canvas), version:0};
+    const {view} = pane, settle = view.settle;
+    let settles = 0, paints = 0;
+    view.settle = () => { settles++; settle(); };
+    const host = hostForInterrupt({pane,clock:run => task(()=>{ paints++; run(); },time+period,"display")});
+    view.onRepaint(host.repaint);
+    job.I.repaint = view.internals().repaint;
+    job.start(); runNext(); runNext(); runNext();
+    assert.equal(job.st.stats.textSliceRows,16,"partial textures are written before the next input");
+    if(kind==="queued movement" || kind==="changed revision")host.cameraFrame(pane,false,false);
+    if(kind==="unowned motion")view.moving();
+    job.cam[0]++;
+    if(kind==="changed revision")job.st.scene.rev++;
+    assert.equal(paints,0);
+    runNext();
+    assert.equal(paints,0,"the stale message ran before the scheduled view paint");
+    assert.deepEqual(job.deleted,[kind],"the abandoned texture is freed");
+    assert.equal(job.completed,undefined,"the old camera never publishes");
+    assert.equal(settles,kind==="changed revision"?2:1,kind+" preserves only an already queued camera gesture");
+    drain();
+    assert.equal(paints,1,kind+" still receives one editor paint");
+  }
+  console.log("Stale posted text rows preserve queued editor motion and standalone camera recovery");
   sliceVM.TextDecoder = TextDecoder;
   sliceVM.atob = atob;
   sliceVM.btoa = btoa;

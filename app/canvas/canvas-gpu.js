@@ -41,9 +41,9 @@ globalThis.AtriumCanvasGPU = (() => {
   const canPrepaintWide = I => I.canvas?.isConnected && !G.AtriumPower?.efficient?.();
   const decision = (probe = false) => { try { return G.AtriumCanvasGPUPref?.decision?.(probe) || null; } catch { return null; } };
   const wanted = (choice = decision()) => !failed && (force ?? choice?.use === true);
-  const repaint = I => {
+  const repaint = (I, cameraChanged = false) => {
     if (!visible()) return;
-    if (I?.repaint) I.repaint();
+    if (I?.repaint) I.repaint(cameraChanged);
     else G.AtriumNavHost?.redraw?.(true);
   };
   function cancelPreparation(I) {
@@ -2482,11 +2482,12 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     function step() {
       job.cancel = null;
       if (st[name] !== job) return;
-      if (views.get(I) !== st || st.lost || !st.shown || !visible() || st.scene?.rev !== rev || I.cam().join() !== at || I.cache?.doc !== doc ||
-        st.canvas.width !== W || st.canvas.height !== H || !own && !canPrepaintWide(I)) {
-        // The scaled frame is not left on screen: the next frame is drawn for whatever changed.
+      const current = views.get(I) === st && !st.lost && st.shown && visible() && st.scene?.rev === rev &&
+        I.cache?.doc === doc && st.canvas.width === W && st.canvas.height === H && (own || canPrepaintWide(I));
+      if (!current || I.cam().join() !== at) {
+        // Abandon old rows. If only the camera changed, a queued gesture frame may already own the repaint.
         cancelSlices(st, name); st.stats.sliceAbandoned = (st.stats.sliceAbandoned || 0) + 1;
-        if (own && views.get(I) === st && st.shown) repaint(I);
+        if (own && views.get(I) === st && st.shown) repaint(I,current);
         return;
       }
       // Steps: the objects in view, then the text key and pad captions, then rows of text,

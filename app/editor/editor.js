@@ -54,8 +54,13 @@
   // pane keeps a copy of its state and re-renders only when its inputs change.
   const panes=[{canvas,stage:$("canvas-stage"),view,docId:null,state:null,version:0,sig:""}];
   // A view asks for an exact frame after a pan or zoom gesture and after deferred airwires (canvas.js).
-  function paneRepaint(p){if(!p.view)return;p.version++;if(p.covered)return;if(p===activePane)draw();else schedule();}
-  view.onRepaint?.(()=>paneRepaint(panes[0]));
+  function paneRepaint(p, cameraMoving=false){
+    if(!p.view)return;
+    // A superseded GPU text job must not settle the camera before its queued gesture draws.
+    if(cameraMoving&&p===activePane&&activeDirty&&frame&&viewportVisible&&!homeFit&&!p.covered&&!in3D(p))return;
+    p.version++;if(p.covered)return;if(p===activePane)draw();else schedule();
+  }
+  view.onRepaint?.(cameraMoving=>paneRepaint(panes[0],cameraMoving));
   let activePane=panes[0],splitState=null;
   function paneCoverage(c,covered){
     const p=panes.find(p=>p.canvas===c);
@@ -242,7 +247,7 @@
     const saved=documentViews.get(id);
     const p={canvas:c,stage,view:AtriumCanvas.create(c),docId:id,version:0,sig:"",
       state:saved?{refScale:saved.refScale,hidden:new Set(saved.hidden),layer:saved.layer,layerMode:saved.layerMode}:{refScale:1,hidden:new Set(),layer:"Top",layerMode:"all"}};
-    panes.push(p);p.view.saveWritePending?.(folderPending||folderSaving);p.view.onRepaint?.(()=>paneRepaint(p));splitState={orientation,ratio:clampRatio(ratio)};applySplitLayout();
+    panes.push(p);p.view.saveWritePending?.(folderPending||folderSaving);p.view.onRepaint?.(cameraMoving=>paneRepaint(p,cameraMoving));splitState={orientation,ratio:clampRatio(ratio)};applySplitLayout();
     bindCanvas(c);bindSash(sash);paneObserver.observe(c);
     // The new pane is narrower than the canvas any saved camera came from: fit it.
     p.view.fit(d,defs);p.state.refScale=p.view.scale()||1;
