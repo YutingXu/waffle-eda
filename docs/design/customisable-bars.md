@@ -1,7 +1,9 @@
 # Customisable bars
 
-Status: design approved by the owner on 2026-11-27 with the recommended choices below; no code yet. Scope for Butter is the Active Bar. The same
-model is meant to carry the other bars in Coconut.
+Status: design approved by the owner on 2026-11-27 with the recommended choices below. Phase 1 is
+built (`app/editor/bars.js`, `app/editor/toolbars-page.js`); where the build differs from the first
+draft of this note, the sections below say so. Scope for Butter is the Active Bar. The same model is
+meant to carry the other bars in Coconut.
 
 ## Goal
 
@@ -48,6 +50,10 @@ One preference key, `workbench.bars`. It holds only what the user changed.
   step, and a user who never customises pays nothing at startup.
 - An id the registry does not know (an extension that is switched off) is kept in the list and not
   drawn, as the key map does with unregistered bindings.
+- Buttons the markup hides on a kind (`data-hide-kind="drawing"` on the schematic and board tools,
+  which `style.css` hides on drawings) are not part of that kind's bar and are not offered for it.
+- `"seen": {"<kind>": [id…]}` records the extension buttons a customised kind has already met (see
+  Extensions). It is the only other field; a kind on the default bar has none.
 
 ## Rendering contract
 
@@ -66,15 +72,32 @@ dock applies its saved sizes early. Target cost for the eager budget: under 1 KB
 ## What the registry gains
 
 One optional field on a command: `icon`, the name of an existing sprite symbol (`#i-…`). It lives in
-the registry, not the bar, so menus and the palette can use it later. A command with no icon shows
-its `short` title as a text face, which `route` and `label` already do (`.tool-label`). No icon
-picker and no new artwork in the first version.
+the registry, not the bar, so menus and the palette can use it later. No icon picker and no new
+artwork in the first version.
+
+As built, the field is filled from what Waffle already draws, not from a new table: a chrome control's
+sprite for its `data-action` (the quick-access and status-bar buttons: Undo, Redo, Open, Save, Zoom In,
+Zoom Out, History), then the palette's own action icons (`AtriumPaletteView.actionIcons`) where the
+symbol is named for the action (Fit, Grid, Delete, Rotate, New). A symbol keeps one meaning, so Paste
+does not borrow Zoom In's plus and Zoom In and Zoom Out never share a face. 18 built-in commands draw a
+symbol this way.
+
+A command with no icon shows a text face. The first draft said `route` and `label` already show text
+(`.tool-label`); they do not: on the Active Bar `.tool-label` is visually hidden and only names the
+button for assistive technology. The text face as built is the one the bar already has for extension
+buttons without an icon: two letters of the name inside the 28 px tool, with the full name in the
+tooltip. A wider face with the whole name is the owner's decision.
 
 ## Extensions
 
 `api.ui.addActiveBarButton` keeps its signature. Its button becomes an ordinary item appended to the
 default list for the kinds its `when` allows. The user can move, group or hide it like any other. No
 API version change.
+
+A kind the user has customised keeps its own list, so a button from an extension installed later is
+appended to its end once, the first time the bar meets it. The ids a customised kind has met are kept
+in `workbench.bars` as `seen`; a button the user then removes is in `seen` and stays removed, also
+after a reload.
 
 ## Macros
 
@@ -98,8 +121,13 @@ the Toolbars page's search under Macros and sit on a bar like any other command.
 Approved by the owner on 2026-11-27: this is the Altium behaviour. Choosing an item from a flyout
 makes it that button's face, with its icon, name and shortcut. A click on the button then runs the
 shown tool; long-press, right-click and ArrowDown still open the flyout. The last choice is
-remembered per group and per document kind as view state, alongside the dock's collapsed-panel
-state, and is not an edit to the stored bar. Restore Defaults clears it.
+remembered per document kind as view state (localStorage `atrium.bar-faces`, exported with the
+dock's collapsed-panel state), and is not an edit to the stored bar. Restore Defaults clears it.
+
+As built, the choice is remembered **per button**, not per group. In the default bar several buttons
+share one group: Select and Pan share `select`; Component, Via, Junction and Net label share
+`library`. A face kept per group would turn every button of the group into the same tool. Each
+button (its original command id) keeps its own face instead.
 
 ## Additions to the default bar
 
@@ -111,9 +139,11 @@ markup like every other default button.
   extensions. The flyout is **provided**, not listed: the notebook supplies the group from the same
   catalogue the "/" insert palette shows (`palette-actions.js` insert rows and the `sheet-widgets`
   provider in `widget-catalogue.js`), the way `AtriumDrawing.toolGroups` already supplies groups for
-  drawings. Choosing an entry runs the palette entry's own `run`. The button is hidden while the
-  notebook is off, through the existing `data-notebook-action` attribute. With sticky flyouts,
-  choosing Widgets › Text block turns the button into Text block.
+  drawings. Choosing an entry runs the palette entry's own `run`, at the point Insert at pointer uses
+  from the keyboard (the canvas centre). The button is hidden while the notebook is off, through the
+  existing `data-notebook-action` attribute. Until a face is chosen, a plain click on Widgets opens
+  the "/" insert palette (`insert-palette`). With sticky flyouts, choosing Widgets › Text block turns
+  the button into Text block.
 - **GND** and **VDD** power ports, on schematic sheets. They use the existing `power:<net>` key that
   the palette, aliases and shortcut hints already understand (`palette.js`, `palette-personal.js`,
   `keymap.js`), so a bar item may be a command id or one of these existing keys. Their faces are
@@ -165,9 +195,8 @@ to the kit, the gallery and `docs/ui-library.md` in the same change.
 
 ## Not verified
 
-- That every tool pressed state is applied by `[data-action]` query and survives a re-render. Only
-  three direct `#tools` readers were found (`active-bar.js`, `drawing.js`, `tutorial.js`).
-- That the palette's search index can be queried for commands alone.
-- Touch behaviour of a reorderable list in Preferences.
-- What a parameterised macro's command does when run with no parameters today (the bar should open
-  **Run…** in that case).
+Settled by the build: pressed states survive a re-render because the renderer moves the markup's own
+buttons; the palette's search is queried for commands (`AtriumPalette.searchAll(q, ">")`); the
+reorderable list works by touch (pointer events on the handle, tested); a parameterised macro's
+command run with no parameters uses the defaults and otherwise only reports the missing parameter in
+the status line, so the bar opens **Run…** for any macro with parameters.
