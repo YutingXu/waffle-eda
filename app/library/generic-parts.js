@@ -402,7 +402,7 @@ globalThis.AtriumGenericParts = (() => {
   const PACKAGES = {};
   for (const s of CHIP_SIZES) PACKAGES[s] = {title: s + " (" + METRIC[s] + " metric)", group: "SMD chip", make: f => chipFp(s, KIND[f] || "RES")};
   for (const [k, d] of Object.entries(TANTALUM)) PACKAGES["Tantalum " + k] = {title: "Molded tantalum " + k, group: "SMD molded",
-    make: () => wizard({family: "chip", kind: "CAP", ...clone(d), name: "CAPMP" + k.slice(0, 4) + "X" + code(d.H, 10) + "0N"})};
+    make: () => wizard({family: "chip", kind: "CAP", polar: true, ...clone(d), name: "CAPMP" + k.slice(0, 4) + "X" + code(d.H, 10) + "0N"})};
   for (const m of ["MicroMELF", "MiniMELF", "MELF"]) PACKAGES[m] = {title: m, group: "SMD MELF", make: f => wizard({family: "melf", preset: m, kind: f === "resistor" ? "RES" : "DIO"})};
   for (const s of ["SOD-123", "SOD-323", "SOD-523"]) PACKAGES[s] = {title: s, group: "SMD diode", make: () => wizard({family: "sod", preset: s})};
   for (const [k, d] of Object.entries(DO214)) PACKAGES[k] = {title: k + " (DO-214" + {SMA: "AC", SMB: "AA", SMC: "AB"}[k] + ")", group: "SMD diode",

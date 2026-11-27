@@ -113,6 +113,13 @@ const L=AtriumLibrary,F=AtriumFootprintEditor,A=Atrium;
   const names=q=>L.search(p.library,q).map(d=>d.id).sort();
   assert.deepEqual(names("prefix:J"),["std-j2","std-j3"]);assert.deepEqual(names("pins>4 has:footprint"),["std-opamp"]);assert.deepEqual(names("sot-23"),["std-opamp"]);
   assert.ok(names("pkg:0603").includes("std-r"));
+  // Without the catalogue loaded, pkg: also reads def.package and a Package parameter (the catalogue's package), value: a Value parameter.
+  assert.equal(globalThis.AtriumCatalogue,undefined,"this block tests the fallback matcher");
+  const qfnFp={name:"MCU_FP",pads:[{number:"1",x:0,y:0,w:.3,h:.8}],shapes:[]};
+  const pk=[{id:"q",name:"MCU",prefix:"U",value:"",package:"QFN-32",footprint:qfnFp},{id:"s",name:"Reg",prefix:"U",value:"",parameters:{Package:"SOT-223",Value:"3.3 V"},footprint:qfnFp}];
+  const pkn=q=>L.search(pk,q).map(d=>d.id);
+  assert.deepEqual(pkn("pkg:qfn"),["q"]);assert.deepEqual(pkn("package:qfn-32"),["q"]);assert.deepEqual(pkn("fp:sot-223"),["s"]);
+  assert.deepEqual(pkn("footprint:mcu_fp"),["q","s"],"the footprint name still counts");assert.deepEqual(pkn("value:3.3"),["s"]);assert.deepEqual(pkn("val:3.3"),["s"]);
   // validateDef catches model errors and pin/pad mismatches.
   assert.ok(!L.validateDef({id:"x",name:"",symbol:{pins:[],shapes:[]}}).ok);
   assert.ok(!L.validateDef({id:"x",name:"Bad",footprint:{pads:[{number:"1",x:0,y:0,w:0,h:1}],shapes:[]}}).ok);
