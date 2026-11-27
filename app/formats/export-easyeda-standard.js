@@ -100,16 +100,18 @@ globalThis.AtriumEasyEDAStandardWriter = (() => {
       return row("TRACK",n(i.width || .15),l,clean(i.net),points(ps),id(),0);
     }
     function footprint(i,def) {
-      const fp=def?.footprint;if(!fp)return null;
-      const abs=p=>Atrium.world(p,i),angle=i.angle || 0, silk=layer(i.layer==="Bottom"?"Bottom silk":"Silk");
+      if(!def?.footprint)return null;
+      // Standard footprints have no mirror flag: a mirrored part writes its reflected footprint.
+      const {item:frame,footprint:fp}=Atrium.pcbMirror.placed(i,def.footprint);
+      const abs=p=>Atrium.world(p,i),local=p=>Atrium.world(p,frame),angle=i.angle || 0, silk=layer(i.layer==="Bottom"?"Bottom silk":"Silk");
       const sub=[row("LIB",...pt(loc(i)),["package",fp.name || def.name,"pre",(def.prefix || "U")+"?","value",i.value || ""].map(clean).join("`")+"`",-angle,"",id(),0,"",0),
         boardText("P",abs(i.refAt || [-2,-2]),i.ref,angle,silk,1,i.showRef!==false),boardText("N",abs(i.valueAt || [-2,2]),i.value ?? def.value ?? "",angle,silk,1,i.showValue!==false)];
       for(const p of fp.pads || []) {
         const l=layer(p.drill?"Multi":p.layer || i.layer || "Top");
-        if(l){sub.push(pad(p,abs(loc(p)),(p.angle || 0)+angle,l,i.pinNets?.[p.number] || p.net));add("Footprint pad","kept");}
+        if(l){sub.push(pad(p,local(loc(p)),(p.angle || 0)+angle,l,i.pinNets?.[p.number] || p.net));add("Footprint pad","kept");}
         else add("Footprint pad","dropped","Unmapped pad layer.");
       }
-      for(const sh of fp.shapes || []) {const val=boardGraphic(sh,abs,i);if(val)sub.push(val);add("Footprint artwork",val?"kept":"dropped",val?undefined:"Unsupported artwork or layer.");}
+      for(const sh of fp.shapes || []) {const val=boardGraphic(sh,local,frame);if(val)sub.push(val);add("Footprint artwork",val?"kept":"dropped",val?undefined:"Unsupported artwork or layer.");}
       return sub.join("#@$");
     }
     function boardItem(i,def) {

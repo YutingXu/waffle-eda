@@ -413,41 +413,63 @@ globalThis.Atrium = (() => {
       const match=/^Inner (\d+)$/.exec(name);
       return match && inner>0 && +match[1]<=inner ? "Inner "+(inner+1-+match[1]) : name;
     }
-    function padArtwork(p,inner){
+    const keep=name=>name;
+    function padArtwork(p,inner,side=layer){
       const out={...p};
       if(Array.isArray(p.poly))out.poly=p.poly.map(reflect);
       if(Array.isArray(p.pasteApertures))out.pasteApertures=p.pasteApertures.map(q=>Number.isFinite(q?.x)?{...q,x:-q.x}:q);
-      if(p.padStack)out.padStack=Object.fromEntries(Object.entries(p.padStack).map(([k,row])=>[layer(k,inner),row?{
+      if(p.padStack)out.padStack=Object.fromEntries(Object.entries(p.padStack).map(([k,row])=>[side(k,inner),row?{
         ...row,...(Number.isFinite(row.x)&&{x:-row.x}),...(Number.isFinite(row.angle)&&{angle:angle(-row.angle)}),
         ...(Array.isArray(row.poly)&&{poly:row.poly.map(reflect)})
       }:row]));
       return out;
     }
     const rotatedSlot=p=>p.slotLength>p.drill && Number.isFinite(p.slotAngle) && p.slotAngle!==0;
-    function pad(p,inner=0,legacy=false){
+    function pad(p,inner=0,legacy=false,side=layer){
       const out={...p,x:-(p.x||0),angle:angle(-(p.angle||0))};
       if(!legacy && rotatedSlot(p))out.slotAngle=-p.slotAngle;
-      for(const k of ["layer","fromLayer","toLayer"])if(p[k]!=null)out[k]=layer(p[k],inner);
-      return legacy?out:padArtwork(out,inner);
+      for(const k of ["layer","fromLayer","toLayer"])if(p[k]!=null)out[k]=side(p[k],inner);
+      return legacy?out:padArtwork(out,inner,side);
     }
-    function shape(s,inner=0){
+    // The exact curved outline (regionShape) reflects with its polygon: arcs turn to 180 - angle and
+    // reverse sense. Its signature follows the reflected polygon only when it matched the original,
+    // so a stale outline stays stale. Without the board-shape module the extents check decides.
+    const contour=c=>c.map(g=>g.kind==="arc"?transformArc(g,reflect,0,true):{kind:"line",a:reflect(g.a),b:reflect(g.b)});
+    function region(r,before,after){
+      const S=globalThis.AtriumBoardShape,{sig,cutoutRegions,...rest}=r;
+      const out={...rest,contour:contour(r.contour||[]),cutouts:(r.cutouts||[]).map(contour)};
+      if(sig!=null && S)out.sig=sig===S.signature(before)?S.signature(after):sig;
+      return cutoutRegions&&S?S.mapCutoutRegions(r,out,contour):out;
+    }
+    // side===keep is a part's own mirror flag, which keeps lettering readable: the board moves only the
+    // anchor (pcb-appearance.js placeText). Flipping to the other side mirrors the lettering too.
+    // legacy reproduces the earlier derivation, which left the curved outline as it was.
+    function shape(s,inner=0,side=layer,legacy=false){
       const out={...s};
-      if(s.layer!=null)out.layer=layer(s.layer,inner);
+      if(s.layer!=null)out.layer=side(s.layer,inner);
       if(Array.isArray(s.points)){
         out.points=s.points.map(reflect);
         if(s.arc?.kind==="arc")out.arc=transformArc(s.arc,reflect,0,true);
+        if(!legacy&&s.regionShape&&typeof s.regionShape==="object")out.regionShape=region(s.regionShape,s.points,out.points);
       }
       if(s.x!=null)out.x=-s.x;
-      if(s.kind==="text"){
+      if(s.kind==="text"&&side!==keep){
         out.angle=angle(-(s.angle||0));
         if(typeof s.mirrored==="boolean")out.mirrored=!s.mirrored;
       }
       return out;
     }
-    function footprint(fp,inner=0,legacy=false){
-      return fp && {...clone(fp),pads:(fp.pads||[]).map(p=>pad(p,inner,legacy)),shapes:(fp.shapes||[]).map(s=>shape(s,inner))};
+    function footprint(fp,inner=0,legacy=false,side=layer){
+      return fp && {...clone(fp),pads:(fp.pads||[]).map(p=>pad(p,inner,legacy,side)),shapes:(fp.shapes||[]).map(s=>shape(s,inner,side,legacy))};
     }
-    return {layer,pad,padArtwork,rotatedSlot,shape,footprint};
+    // A PCB part's own `mirror` flag reflects its footprint about the local Y axis and keeps every
+    // layer (pcb-appearance.js padTurn, drillCore). Writers that place footprint-local geometry
+    // use the reflected footprint in an unmirrored frame, which puts every pad, slot and outline
+    // where the board draws it.
+    function placed(item,fp){
+      return item?.mirror===true && fp ? {item:{...item,mirror:false},footprint:footprint(fp,0,false,keep)} : {item,footprint:fp};
+    }
+    return {layer,pad,padArtwork,rotatedSlot,shape,footprint,placed,placedShape:s=>shape(s,0,keep)};
   })();
   function pins(item, def, kind) {
     const g = gate(geometries(def, kind), item);
