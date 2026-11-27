@@ -3151,7 +3151,7 @@ globalThis.AtriumPolygonPour=(()=>{
   // POOL_WORKERS workers (POOL_SIZE.n when set: poolSize() for measurements). With two stages every
   // pour's stage 1 solves at once, so more than the two single-stage chains of the 25.6k board pay
   // off. worker-pool.js caps it at 2 while
-  // AtriumPower.efficient() (Efficiency mode, battery, Low Power Mode).
+  // AtriumPower.efficient() (Efficiency mode: Always, or Automatic in the system power-saving mode).
   const POOL_WORKERS=4,POOL_SIZE={n:0};
   // A solve's time budget on a worker (repourParallel options.budgetMs), and the pool's watchdog
   // behind it (worker-pool.js watchdogMs, where the pool has one: a worker that posts nothing).
