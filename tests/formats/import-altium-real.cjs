@@ -184,12 +184,16 @@ assert.equal(AtriumConnectivity.inspect(repoured, defs).airwires.length, 2);
 // stored, but for tessellation slivers (tests/formats/pour-oracle.cjs explains the measures).
 {
   const oracle = require("../support/pour-oracle.cjs"), loaded = oracle.load(FILES.map(name => ({name, bytes: bytes(name)}))), fresh = oracle.repour(loaded);
-  for (const polygon of loaded.board.items.filter(i => i.kind === "polygon")) {
+  let compared = 0;
+  for (const polygon of loaded.board.items.filter(i => i.kind === "polygon" && !i.cutout && !i.shelved)) {
     const r = oracle.compare(loaded.stored, fresh, {tol: oracle.settings(polygon).arcApproximation + .002, board: loaded.board.outline, polygon});
+    if (r.skipped) continue;   // no stored fill to compare with
+    compared++;
     const wide = r.islands.reduce((s, i) => s + i.area, 0);
     assert.ok(Math.abs(r.poured - r.stored) / r.stored < .005 && r.slivers / r.stored < .006 && wide < .4 && r.maxDeviation < .25,
       r.pour + ": repoured copper differs from Altium's (" + JSON.stringify({stored: r.stored, poured: r.poured, slivers: r.slivers, wide, deviation: r.maxDeviation}) + ")");
   }
+  assert.ok(compared > 0, "some pour has stored fill to compare with");
 }
 console.log("PASS real Altium project (PiDP-11 I/O Expander): " + report.schematic.parts + " schematic parts, " + report.board.parts + " board parts, " +
   report.board.nets + " nets, " + report.board.tracks + " tracks, " + report.board.vias + " vias, " + report.board.pours + " editable pours (" + report.board.storedPours + " stored fill regions), unrouted " + report.connectivity.withoutPours + " -> " + report.connectivity.airwires + ", " + report.warnings + " notes");
