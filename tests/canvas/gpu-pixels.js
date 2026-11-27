@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds, pourCoverageLod};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, panStripUpload, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds, pourCoverageLod};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -1466,6 +1466,107 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       ctx.fillText = fillText;
       gl.texSubImage2D = upload;
       view.dispose(); stage.remove();
+    }
+  }
+
+  function panStripUpload() {
+    const key = "panStripUpload";
+    if (!/(?:Chrome|Chromium)\//.test(navigator.userAgent)) { okLifecycle(key,"skipped: Chromium direct strip path"); return; }
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:257px;height:183px";
+    document.body.append(canvas);
+    const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map();
+    const doc = Atrium.sheet("pcb","Pan strip upload");
+    doc.outline = [[-25,-16],[25,-16],[25,16],[-25,16]];
+    doc.items = [
+      {kind:"label",id:"east",layer:"Silk",x:10.2,y:1,size:1.4,width:.18,text:"Pgq"},
+      {kind:"label",id:"west",layer:"Silk",x:-11.8,y:-1,size:1.6,width:.19,text:"Qjy"},
+      {kind:"label",id:"north",layer:"Silk",x:-2,y:-7.6,size:1.3,width:.16,text:"Ag"},
+      {kind:"label",id:"south",layer:"Silk",x:1,y:7.4,size:1.1,width:.18,text:"dj"},
+      {kind:"label",id:"corner",layer:"Silk",x:10.4,y:7.45,size:1.9,width:.21,text:"Jq"}
+    ];
+    const opts={editorPane:true,grid:false,origin:false,showUnrouted:false,netNames:false};
+    const opacity=PCB.layerAlpha("Silk"), rows=out.panStripUpload=[];
+    try {
+      PCB.setLayerOpacity("Silk",.63);
+      for (const flipped of [false,true]) {
+        const initial={cx:0,cy:0,scale:12,referenceScale:12,flipped};
+        view.restoreCamera(initial); view.render(doc,defs,{...opts,noReuse:true});
+        const gl=canvas.previousElementSibling?.getContext("webgl2");
+        if (!gl) throw Error("no GPU strip context");
+        const texSub=gl.texSubImage2D, fb=gl.createFramebuffer(), uploads=[], frames=[];
+        const dpr=I.cam()[6];
+        const pixels=()=>{
+          const c=GPU().composite(I);
+          if (!c) throw Error("no GPU strip frame");
+          return c.getContext("2d").getImageData(0,0,c.width,c.height).data;
+        };
+        gl.texSubImage2D=function(...args) {
+          const [target,level,x,y,w,h,format,type,source]=args;
+          const direct=source instanceof HTMLCanvasElement && source!==canvas;
+          if (args.length!==9 || target!==gl.TEXTURE_2D || level!==0 || format!==gl.RGBA ||
+              type!==gl.UNSIGNED_BYTE || !(direct || source instanceof ImageData))
+            return texSub.apply(this,args);
+          const tex=gl.getParameter(gl.TEXTURE_BINDING_2D), prior=gl.getParameter(gl.FRAMEBUFFER_BINDING);
+          const skip=gl.getParameter(gl.UNPACK_SKIP_ROWS), flip=gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
+          const straight=!gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
+          const expected=direct?source.getContext("2d").getImageData(0,0,w,h).data:source.data;
+          const out=texSub.apply(this,args), actual=new Uint8Array(w*h*4);
+          try {
+            gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+            gl.readPixels(x,y,w,h,gl.RGBA,gl.UNSIGNED_BYTE,actual);
+          } finally {
+            gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,null,0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER,prior);
+          }
+          let delta=0, max=0, alphaDelta=0, ink=0;
+          for(let i=0;i<actual.length;i++){
+            const row=Math.floor(i/(w*4)), j=(h-1-row)*w*4+i%(w*4);
+            const change=Math.abs(actual[i]-expected[j]);
+            if(change) delta++;
+            if(i%4===3) { if(change) alphaDelta++; if(expected[j]>0 && expected[j]<255) ink++; }
+            max=Math.max(max,change);
+          }
+          uploads.push({direct,rect:[x,y,w,h],source:[source.width,source.height],skip,flip,straight,delta,max,alphaDelta,ink});
+          return out;
+        };
+        try {
+          const start=GPU().resourceCounters(I).retainedFrames;
+          for(const [dx,dy] of [[13,-19],[-7,9],[3,1],[-1,-3],[-19,13]]) {
+            view.pan(dx/dpr,dy/dpr); view.moving(); view.render(doc,defs,opts);
+            frames.push({camera:view.camera(),pixels:pixels()});
+            if (gl.getParameter(gl.UNPACK_SKIP_ROWS)!==0 || gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL))
+              throw Error("strip upload did not restore unpack state");
+          }
+          const retained=GPU().resourceCounters(I).retainedFrames-start;
+          const comparisons=[];
+          gl.texSubImage2D=texSub;
+          for(const frame of frames){
+            view.restoreCamera(frame.camera); view.render(doc,defs,{...opts,noReuse:true});
+            const fresh=pixels();
+            comparisons.push({bytes:differentBytes(frame.pixels,fresh),strong:differentPixels(frame.pixels,fresh,16)});
+          }
+          rows.push({flipped,dpr,retained,uploads,comparisons});
+        } finally {
+          gl.texSubImage2D=texSub;
+          gl.deleteFramebuffer(fb);
+        }
+      }
+      const passed=rows.every(row=>row.retained===5 && row.uploads.length>0 &&
+        row.uploads.every(u=>u.direct && u.flip && u.straight && !u.delta) &&
+        row.uploads.some(u=>u.ink>0 && u.skip>0 && u.rect[1]>0) &&
+        row.uploads.some(u=>u.rect[2]%2===1 || u.rect[3]%2===1) &&
+        row.uploads.some(u=>u.source[0]>u.rect[2] || u.source[1]>u.rect[3]) &&
+        row.uploads.some(u=>u.rect[2]>u.rect[3]) && row.uploads.some(u=>u.rect[3]>u.rect[2]) &&
+        row.comparisons.every(c=>!c.bytes));
+      if (passed) okLifecycle(key,"wrapped strips match full frames and the requested source texels");
+      else failLifecycle(key,JSON.stringify(rows.map(({uploads,...row})=>({...row,uploads:uploads.length,
+        direct:uploads.filter(u=>u.direct).length,incorrect:uploads.filter(u=>u.delta||!u.flip||!u.straight).slice(0,5),
+        oversized:uploads.filter(u=>u.skip>0 && u.ink>0).length}))));
+    } finally {
+      PCB.setLayerOpacity("Silk",opacity);
+      view.dispose(); canvas.remove();
     }
   }
 

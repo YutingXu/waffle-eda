@@ -906,6 +906,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   const ua = G.navigator?.userAgent || "";
   const READBACK = /AppleWebKit/.test(ua) && !/Chrome\/|Chromium\//.test(ua);
   const gtkMask = READBACK && /^Linux\b/.test(G.navigator?.platform || "") && !/Android/.test(ua);
+  const directStrips = !READBACK && /(?:Chrome|Chromium)\//.test(ua);
   function uploadCanvas(gl, tex, canvas, sx, sy, sw, sh, format=gl.RGBA, timing) {
     const w = canvas.width, h = canvas.height, bottom = h-sy-sh, partial = sw !== w || sh !== h;
     gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -2568,11 +2569,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (strip) return;
     if (drew) st.overlayWorld = copyCanvas(I.ctx.canvas, st.overlayWorld); else releaseCanvas(st, "overlayWorld");
   }
-  function stripContext(st, key, w, h) {
+  function stripContext(st, key, w, h, direct) {
     let c = st[key];
     if (!c) { c = st[key] = G.document.createElement("canvas"); c.width = c.height = 1; }
     G.AtriumCanvas.resizeBacking(c,Math.max(c.width,w),Math.max(c.height,h));
-    return c.getContext("2d", {willReadFrequently: true});
+    return c.getContext("2d", {willReadFrequently: !direct});
   }
   // A pan (the exact frame's scale) moves the text bands by whole device pixels (X, Y) and draws only what it
   // uncovers. A band's texels hold the view around the exact camera modulo the band's size (the copy shader's
@@ -2604,14 +2605,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       size[0] = Math.max(size[0], w); size[1] = Math.max(size[1], h);
     }
     const large = st.stripLarge || Math.max(wide[1], tall[0]) > Math.min(W, H) / 8;
+    const direct = directStrips && gl.UNPACK_SKIP_ROWS !== undefined;
     let horizontal, vertical;
     if (large) {
       // A large jump can need a whole-frame backing. Drop the thin caches before allocating it.
       if (!st.stripLarge) { releaseCanvas(st, "stripWide"); releaseCanvas(st, "stripTall"); }
-      horizontal = vertical = stripContext(st, "stripLarge", Math.max(wide[0], tall[0]), Math.max(wide[1], tall[1]));
+      horizontal = vertical = stripContext(st, "stripLarge", Math.max(wide[0], tall[0]), Math.max(wide[1], tall[1]), direct);
     } else {
-      if (wide[0]) horizontal = stripContext(st, "stripWide", ...wide);
-      if (tall[0]) vertical = stripContext(st, "stripTall", ...tall);
+      if (wide[0]) horizontal = stripContext(st, "stripWide", ...wide, direct);
+      if (tall[0]) vertical = stripContext(st, "stripTall", ...tall, direct);
     }
     const gone = P.gone?.length ? new Set(P.gone) : null, t = now();
     const all = e => e, boxes = st.scene.cache.boxes;
@@ -2648,8 +2650,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         }
         if (READBACK) band.inkRect = undefined;
         gl.bindTexture(gl.TEXTURE_2D, bandTexture(st,band,W,H));
+        const source = ink && direct && g.canvas;
+        // Skip unused rows in the source scratch after flipping it. The texture's
+        // destination offset is independent of the scratch's allocated height.
+        const skip = source ? source.height - h : 0;
         if (ink) gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, tx, H - ty - h, w, h, gl.RGBA, gl.UNSIGNED_BYTE, ink ? g.getImageData(0, 0, w, h) : blank);
+        if (skip) gl.pixelStorei(gl.UNPACK_SKIP_ROWS, skip);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, tx, H - ty - h, w, h, gl.RGBA, gl.UNSIGNED_BYTE, ink ? source || g.getImageData(0, 0, w, h) : blank);
+        if (skip) gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
         if (ink) gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
         st.stats.textUpload += bytes;
       });
