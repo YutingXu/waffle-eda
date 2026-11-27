@@ -105,14 +105,18 @@
     if (u.tag || u.symbol === "%" || u.symbol === "ppm/K") q.preferred = u.symbol;
     return q;
   }
+  // Only the absolute scale carries the 273.15 offset, so °C and Δ°C never convert into each other.
+  const crossScale=(q,u)=>[q.tag,u.tag].includes("celsius") && [q.tag,u.tag].includes("delta");
   function compatible(q,u) {
     if (!equalDims(q.dimensions,u.dimensions)) return false;
     if (q.tag === u.tag) return true;
     // Kelvin is the explicit coherent representation of absolute temperatures and intervals.
-    return [q.tag,u.tag].every(t => ["","celsius","delta"].includes(t)) && equalDims(q.dimensions,names.K.dimensions);
+    return !crossScale(q,u) && [q.tag,u.tag].every(t => ["","celsius","delta"].includes(t)) && equalDims(q.dimensions,names.K.dimensions);
   }
   function as(q,text) {
     const u=unit(text);
+    if (q && equalDims(q.dimensions,u.dimensions) && crossScale(q,u))
+      fail("unit",q.tag==="delta" ? "A temperature interval converts to Δ°C or K, not "+text+"." : "An absolute temperature converts to °C or K, not "+text+".");
     if (!q || !compatible(q,u)) fail("dimension","Expected a value in " + (text || "dimensionless units") + ".");
     return (q.value-u.offset)/u.factor;
   }
@@ -207,8 +211,14 @@
     if (q.kind === "record") return {display:q.display,unit:""};
     if (q.kind === "assertion") return {display:q.display,unit:presentation({...q,kind:"quantity"},requested).unit};
     const explicit=requested != null && requested !== "";
-    // A celsius value is stored in kelvin, so only its offset unit can label it.
-    const fixed=explicit ? requested : q.preferred || (q.tag==="count" ? "ea" : q.tag==="celsius" ? "°C" : "");
+    // A temperature is stored in kelvin, so its own scale labels it: °C for an absolute
+    // temperature, Δ°C for an interval (plain K would copy back without its interval kind).
+    let fixed=explicit ? requested : q.preferred || (q.tag==="count" ? "ea" : q.tag==="celsius" ? "°C" : q.tag==="delta" ? "Δ°C" : "");
+    // A display unit, such as a table column's, picks the scale family. The value keeps its
+    // kind: an interval in a °C column shows in Δ°C and an absolute one in a Δ°C column in °C.
+    const scale=fixed ? unitInfo(fixed)?.tag : "";
+    if (q.tag==="delta" && scale==="celsius") fixed="Δ°C";
+    else if (q.tag==="celsius" && scale==="delta") fixed="°C";
     if (explicit || fixed) {
       const magnitude=as(q,fixed);
       const exactCount=q.tag==="count" && Number.isSafeInteger(magnitude) && (!q.worst || !uncertain(q)) && !q.unknown?.length;
@@ -444,12 +454,14 @@
     if (op==="+" || op==="-") {
       if ((a.tag==="count") !== (b.tag==="count")) fail("dimension","Add or subtract counts in ea or pcs.",(a.tag==="count" ? n?.right : n?.left)?.span);
       sameDimension(a,b,true);
-      if (a.bound && a.bound===b.bound && op==="-") return correlatedExact(a,b,0,a.dimensions,a.tag==="count" ? "count" : "");
+      if (a.bound && a.bound===b.bound && op==="-") return correlatedExact(a,b,0,a.dimensions,a.tag==="count" ? "count" : a.tag==="celsius" ? "delta" : "");
       const sign=op==="+" ? 1 : -1;
       if (op==="+" && a.tag==="celsius" && b.tag==="celsius") fail("unit","Add a temperature interval to an absolute temperature.");
-      if (op==="-" && b.tag==="celsius" && a.tag!=="celsius") fail("unit","Subtract an interval from an absolute temperature.");
-      // An absolute temperature keeps its scale whichever operand carries it.
-      const tag=a.tag==="celsius" && b.tag==="celsius" ? "delta" : a.tag==="celsius" || b.tag==="celsius" ? "celsius" : a.tag || b.tag;
+      if (op==="-" && b.tag==="celsius" && a.tag==="delta") fail("unit","Subtract an interval from an absolute temperature.");
+      // An absolute temperature keeps its scale whichever operand carries it. Plain kelvin is
+      // coherent for both kinds: beside an absolute temperature it is an interval, except when
+      // an absolute temperature is subtracted from it, where only the absolute reading holds.
+      const tag=b.tag==="celsius" && op==="-" ? "delta" : a.tag==="celsius" || b.tag==="celsius" ? "celsius" : a.tag || b.tag;
       const x=lift([a,b],{value:a.value+sign*b.value,dimensions:a.dimensions,tag,partials:[1,sign],bounds:extremes(fourCorners(a.worst,b.worst,(u,v)=>u+sign*v))});
       const shown=a.tag===tag && sharedPreferred([a,b]);
       if (tag==="celsius") x.preferred="°C";
@@ -498,6 +510,8 @@
       const total = args.slice(1).reduce((a,b) => arithmetic("+",a,b),scalar(args[0]));
       if (name === "sum") return total;
       const mean=arithmetic("/",total,exact(args.length));
+      // A mean of intervals or angles is an interval or an angle, shown as its arguments were.
+      if (["delta","angle"].includes(total.tag)) mean.tag=total.tag;
       if (total.preferred) mean.preferred=total.preferred;
       return mean;
     }

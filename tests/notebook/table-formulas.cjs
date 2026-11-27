@@ -234,4 +234,27 @@ if(process.argv.includes("--numeric-peer")){
     {rowId,columnId,content:R.scan(table,"=AVERAGE(B1:B1)")}]);
   assert.equal(engine.compute(table,{revision:1}).value(rowId,columnId).display,"25 °C");
 }
+
+{
+  // A °C column holds absolute temperatures. A difference of two is an interval, shown in Δ°C
+  // as the sheet shows it, never offset by 273.15, and its copied text pastes back unchanged.
+  let table=T.create(3,3,()=>String(++id));
+  const rows=table.rows.map(row=>row.id),[a,b,d]=table.columns.map(col=>col.id);
+  table={...table,columns:table.columns.map(col=>col.id===d?{...col,unit:"Δ°C"}:{...col,unit:"°C"})};
+  const engine=R.engine(),bind=source=>engine.compute(table).bind(source);
+  table=T.batch(table,[{rowId:rows[0],columnId:a,content:{kind:"literal",text:"30"}},{rowId:rows[1],columnId:a,content:{kind:"literal",text:"20"}},
+    {rowId:rows[0],columnId:d,content:{kind:"literal",text:"5"}}]);
+  for(const [row,column,source,display] of [[0,b,"=A1-A2","10 Δ°C"],[1,b,"=MAX(A1:A2)","30 °C"],[2,b,"=A2+C1","25 °C"],
+    [1,d,"=A1-A2","10 Δ°C"],[2,d,"=A1","30 °C"]]){
+    table=T.change(table,rows[row],column,{content:bind(source)});
+    const sheet=AtriumCalculationCore.evaluate(source.slice(1).replace(/MAX\(A1:A2\)/,"max(A1,A2)").replace(/A1/g,"30 °C").replace(/A2/g,"20 °C").replace(/C1/g,"5 Δ°C"),
+      {displayUnit:column===d?"Δ°C":"°C"});
+    const result=engine.compute(table).value(rows[row],column);
+    assert.equal(result.display,display,source); assert.equal(sheet.display,display,source); assert.equal(result.copyText,display,source);
+  }
+  table=T.change(table,rows[2],a,{content:{kind:"literal",text:engine.compute(table).value(rows[0],b).copyText}});
+  assert.equal(engine.compute(table).value(rows[2],a).display,"10 Δ°C");
+  table=T.change(table,rows[2],b,{content:bind("=MAX(A1:A3)")});
+  assert.equal(engine.compute(table).value(rows[2],b).diagnostic.code,"unit");
+}
 console.log("Table formula bindings, quantities, shared graph and clipboard passed.");
