@@ -2161,13 +2161,13 @@ globalThis.AtriumCanvas = (() => {
       // side's bodies. It is kept apart because primitives rank by paint order, where current copper sits
       // below silk, so no single priority could place it.
       const current=opts.layer||"Top",side=layerSide(current,flipped);
-      let best=null,bestPriority=-1,bestDistance=Infinity,bestStrong=false;const ranked=scalar?null:[];
+      let best=null,bestPriority=-1,bestDistance=Infinity,anyStrong=false;const ranked=scalar?null:[];
       let aside=null,asideDistance=Infinity;const asides=scalar?null:[];
       for(let n=nearby.length-1;n>=0;n--){
         const i=nearby[n];
         if(kinds&&!kinds.has(i.kind)||opts.skip?.has(i.id))continue; // skip: ids already offered (touch cycling)
         if(opts.contactOnly&&!canContact(i,null,opts))continue;
-        let distance=Infinity,priority=-1,hitLayer=null,other=false;
+        let distance=Infinity,priority=-1,hitLayer=null,ownLayer=null,other=false;
         if(doc.kind==="pcb"){
           if(boardVisible(i,opts)){
             bodyHit=false;
@@ -2175,7 +2175,7 @@ globalThis.AtriumCanvas = (() => {
             if(distance<=tol){
               const near=i.kind==="part"&&(i.layer==="Bottom"?"Bottom":"Top")===side;
               other=i.kind==="part"&&!near&&!bodyHit;
-              hitLayer=i.kind==="part"?null:boardLayer(i);
+              hitLayer=ownLayer=i.kind==="part"?null:boardLayer(i);
               priority=i.kind==="part"?bodyHit?(near?-.5:-.75):partPriority:layerRank(hitLayer,opts,flipped)/101;
             }
           }
@@ -2196,9 +2196,11 @@ globalThis.AtriumCanvas = (() => {
           else asides.push({item:i,distance});
           continue;
         }
-        const strong=doc.kind==="pcb"&&(i.kind==="part"?priority>0:hitLayer===current||hitLayer==="Multi");
+        // A track hit through its mask or paste opening is still a hit on its own copper layer.
+        const strong=doc.kind==="pcb"&&(i.kind==="part"?priority>0:[ownLayer,hitLayer].some(l=>l===current||l==="Multi"));
+        anyStrong||=strong;
         if(scalar){
-          if(priority>bestPriority||priority===bestPriority&&distance<bestDistance){best=i;bestPriority=priority;bestDistance=distance;bestStrong=strong;}
+          if(priority>bestPriority||priority===bestPriority&&distance<bestDistance){best=i;bestPriority=priority;bestDistance=distance;}
         }else{
           let place=ranked.length;
           for(let k=0;k<place;k++){
@@ -2208,11 +2210,12 @@ globalThis.AtriumCanvas = (() => {
           if(place<limit){ranked.splice(place,0,{item:i,priority,distance,strong});if(ranked.length>limit)ranked.pop();}
         }
       }
-      if(scalar)return aside&&!(best&&bestStrong)?aside:best;
+      // Asides go after every strong hit, which can rank below silk or mask in the all-layers mode.
+      if(scalar)return aside&&!anyStrong?aside:best;
       if(asides.length){
         asides.sort((a,b)=>a.distance-b.distance);
-        const at=ranked.findIndex(row=>!row.strong);
-        ranked.splice(at<0?ranked.length:at,0,...asides);
+        const last=ranked.findLastIndex(row=>row.strong);
+        ranked.splice(anyStrong?(last<0?ranked.length:last+1):0,0,...asides);
       }
       return ranked.slice(0,limit).map(row=>row.item);
     }

@@ -303,6 +303,16 @@ require("../../app/schematic/sch-objects.js");
   view.render(s, sideDefs, {grid: false});
   assert.equal(at([9, 0], "Silk"), "tsilk", "current-layer silk over an other-side pad");
   assert.deepEqual(view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}).slice(0, 2).map(i => i.id), ["far", "tsilk"], "the stack lists the other-side part first, then the silk");
+  // A current-layer track under silk, or hit through its own mask opening, still keeps the other-side
+  // part behind it: the pick and the stack follow paint order (silk, then the track), then the part.
+  const stack = () => view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}).map(i => i.id);
+  for (const track of [{id: "ttrack"}, {id: "mtrack", maskExpansion: .05}]) {
+    s.items.push({kind: "track", net: "D", layer: "Top", width: .2, points: [[9, -3], [9, 3]], ...track});
+    view.render(s, sideDefs, {grid: false});
+    assert.equal(at([9, 0], "Top"), "tsilk", "the pick follows paint order, " + track.id);
+    assert.ok(stack().indexOf("far") > stack().indexOf(track.id), "the other-side part comes after the current-layer track, " + track.id + ": " + stack());
+    s.items.pop();
+  }
   view.fit(doc, defs);
   view.render(doc, defs, {grid: false});
 }
