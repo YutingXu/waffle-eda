@@ -422,20 +422,29 @@ globalThis.AtriumPCBPours=(()=>{
   }
   // Runs by id from regions an editor already holds (their copper, or slices of their text), for
   // fromRuns: the live worker sends only the runs the editor does not have.
+  // The runs of a region held as text, by id ({t, run, arcs}): its arcs split by run as regionLike
+  // splits them. Empty when its arcs cannot be (they are then sent whole).
+  function textRuns(r){
+    let t;try{t=table(r);}catch{return [];}
+    const arcs=Array.isArray(r.arcs)&&r.arcs.length?arcsByRun(r.arcs,t):null;
+    if(Array.isArray(r.arcs)&&r.arcs.length&&!arcs)return [];
+    return t.runs.map((run,j)=>{
+      const a=arcs?.[j]||null,x={key:run.key,arcs:a,bytes:new Uint8Array(0)};made(x);
+      return {id:x.id,t,run,arcs:a};
+    });
+  }
   function runLookup(regions){
     const at=new Map();
     for(const r of regions||[]){
       const c=copperOf(r);
       if(c){for(const run of c.runs)at.set(run.id,run);continue;}
-      if(Array.isArray(r.arcs)&&r.arcs.length)continue;   // its runs' arcs are not split out: sent whole
-      let t;try{t=table(r);}catch{continue;}
-      for(const run of t.runs)if(!at.has(run.key))at.set(run.key,{region:r,t,run});
+      for(const x of textRuns(r))if(!at.has(x.id))at.set(x.id,{region:r,...x});
     }
     return id=>{
       const x=at.get(id);
       if(!x||x.bytes)return x||null;
       const g0=Math.floor(x.run.b0/3),g1=Math.ceil(x.run.b1/3),bytes=decode(x.region.data.slice(4*g0,4*g1));
-      const run=intern(runOf(bytes,{...x.t,at:x.t.at.map(v=>v-3*g0)},{...x.run,b0:x.run.b0-3*g0,b1:x.run.b1-3*g0}));
+      const run=intern(runOf(bytes,{...x.t,at:x.t.at.map(v=>v-3*g0)},{...x.run,b0:x.run.b0-3*g0,b1:x.run.b1-3*g0},x.arcs));
       at.set(id,run);return run;
     };
   }
@@ -445,8 +454,7 @@ globalThis.AtriumPCBPours=(()=>{
     for(const r of regions||[]){
       const c=copperOf(r);
       if(c){for(const run of c.runs)ids.add(run.id);continue;}
-      if(Array.isArray(r.arcs)&&r.arcs.length)continue;
-      try{for(const run of table(r).runs)ids.add(run.key);}catch{/* sent whole */}
+      for(const x of textRuns(r))ids.add(x.id);
     }
     return ids;
   }

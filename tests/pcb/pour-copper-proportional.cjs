@@ -188,6 +188,11 @@ function checkStep(label, ed, before, step, kind) {
       assert.ok(sameRings(C.contours(back), cold), "contours of a region rebuilt from runs");
       assert.equal(C.dataLength(r), r.data.length, "data length without the text");
       stats.transfers++; stats.sentRuns += sent.size; stats.allRuns += keys.length;
+      // The same from regions held as text (a worker mirror just after open): their runs are named alike.
+      const texts = before.map(x => ({...x})), textLookup = C.runLookup(texts);
+      const viaText = C.fromRuns(structuredClone(C.fieldsOf(r)), keys, new Map(copper.runs.filter(x => !textLookup(x.id)).map(x => [x.id, structuredClone(C.runRecord(x))])), C.runLookup(texts));
+      assert.ok(viaText && regionJSON(viaText) === regionJSON(r), "a region rebuilt from runs of regions held as text");
+      assert.deepEqual([...C.runIds(texts)].sort(), [...C.runIds(before)].sort(), "runs of text and of copper are named alike");
     }
     for (const k of [3, 12]) {
       const lod = C.lodRingsAt(r, k);
