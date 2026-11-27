@@ -240,7 +240,8 @@ globalThis.AtriumMergeUI = (() => {
           if (proposal) {
             const edit = (fn, label, touched, scope) => G.AtriumFolderProjectUI.atomicEdit(o.folder, () =>
               host.edit(fn, "Resolve Git merge", touched, scope));
-            const applied = P.applyChecked(host.project(), proposal, {validate:G.Atrium.validate, edit});
+            // The merged design is the user's own: keep its designators as Git merged them.
+            const applied = P.applyChecked(host.project(), proposal, {validate:G.Atrium.validate, edit, designators:false});
             if (!applied) return;
           }
           d.close();

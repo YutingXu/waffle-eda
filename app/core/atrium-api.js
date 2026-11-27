@@ -485,18 +485,52 @@ globalThis.AtriumAPI = (() => {
     return use(need(name));
   }
 
-  // Maps, Sets and typed arrays become JSON-friendly values for scripts and MCP.
-  function toPlain(v, depth = 0) {
-    if (v == null || typeof v !== "object") return typeof v === "function" ? undefined : v;
-    if (depth > 40) return null;
-    if (v instanceof Map) return Array.from(v, ([k, x]) => (plain(x) ? {key: k, ...toPlain(x, depth + 1)} : [k, toPlain(x, depth + 1)]));
-    if (v instanceof Set) return Array.from(v, x => toPlain(x, depth + 1));
-    if (ArrayBuffer.isView(v)) return v;
-    if (v instanceof Date) return v.toISOString();
-    if (Array.isArray(v)) return v.map(x => toPlain(x, depth + 1));
-    const out = {};
-    for (const k of Object.keys(v)) { const x = toPlain(v[k], depth + 1); if (x !== undefined) out[k] = x; }
-    return out;
+  // Maps, Sets and typed arrays become JSON-friendly values for scripts and MCP. A Map entry is
+  // {key, ...value} when its value is a plain record without its own `key` field, otherwise
+  // [key, value], so every key survives. BigInts become decimal text and a cycle becomes null.
+  // `json` also turns typed arrays into arrays, for results sent as JSON text.
+  // JSON writes an object once for every place that refers to it, so a few shared objects can
+  // stand for an enormous result. The walk is bounded as JSON would expand it: at most
+  // `limits.values` values (objects, array elements and fields) and `limits.text` characters of
+  // text, and it stops at `limits.deadline` (a Date.now() time). Past a bound it throws.
+  const PLAIN_VALUES = 2e7, PLAIN_TEXT = 2.5e8;
+  const plainRecord = x => plain(x) && (Object.getPrototypeOf(x) === Object.prototype || Object.getPrototypeOf(x) === null) && !Object.prototype.hasOwnProperty.call(x, "key");
+  function toPlain(v, json = false, limits = {}) {
+    const maxValues = limits.values ?? PLAIN_VALUES, maxText = limits.text ?? PLAIN_TEXT, deadline = limits.deadline ?? Infinity;
+    const path = new Set();
+    let values = 0, text = 0, checkAt = 1024;
+    const tooLarge = () => { throw Error("The result is too large to return: as JSON it has more than " + (text > maxText ? maxText + " characters of text" : maxValues + " values") + ". An object it refers to more than once counts each time."); };
+    function walk(v, depth) {
+      if (++values > maxValues) tooLarge();
+      if (typeof v === "string") { if ((text += v.length) > maxText) tooLarge(); return v; }
+      if (typeof v === "bigint") return String(v);
+      if (v == null || typeof v !== "object") return typeof v === "function" || typeof v === "symbol" ? undefined : v;
+      if (depth > 40 || path.has(v)) return null;
+      if (values >= checkAt) { checkAt = values + 1024; if (Date.now() > deadline) throw Error(limits.late || "Preparing the result took too long."); }
+      path.add(v);
+      try {
+        const d = depth + 1;
+        if (v instanceof Map) {
+          const out = [];
+          for (const [k, x] of v) out.push(plainRecord(x) ? {key: walk(k, d), ...walk(x, d)} : [walk(k, d), walk(x, d)]);
+          return out;
+        }
+        if (v instanceof Set) { const out = []; for (const x of v) out.push(walk(x, d)); return out; }
+        if (ArrayBuffer.isView(v)) {
+          const wide = typeof BigInt64Array === "function" && (v instanceof BigInt64Array || v instanceof BigUint64Array);
+          if (!json && !wide) return v;
+          const list = v instanceof DataView ? new Uint8Array(v.buffer, v.byteOffset, v.byteLength) : v;
+          if ((values += list.length) > maxValues) tooLarge();
+          return wide ? Array.from(list, String) : Array.from(list);
+        }
+        if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
+        if (Array.isArray(v)) { const out = new Array(v.length); for (let i = 0; i < v.length; i++) out[i] = walk(v[i], d); return out; }
+        const out = {};
+        for (const k of Object.keys(v)) { const x = walk(v[k], d); if (x !== undefined) out[k] = x; }
+        return out;
+      } finally { path.delete(v); }
+    }
+    return walk(v, 0);
   }
   const clone = v => (v === undefined ? undefined : typeof structuredClone === "function" ? structuredClone(v) : JSON.parse(JSON.stringify(v)));
   // si-sim: field-solver results by geometry, shared by every caller (the key is the whole input).

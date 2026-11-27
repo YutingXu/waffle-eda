@@ -28,11 +28,12 @@ globalThis.AtriumScripting = (() => {
     for (const k of ["api", "console", "args"]) names.delete(k);
     return [...names].filter(n => /^[A-Za-z_$][\w$]*$/.test(n));
   }
-  function format(args) {
+  function format(args, deadline) {
     return args.map(a => {
-      if (typeof a === "string") return a;
+      if (typeof a === "string" || typeof a === "bigint") return String(a);
       if (a instanceof Error) return a.message;
-      try { const s = JSON.stringify(a); return s === undefined ? String(a) : s; } catch { return String(a); }
+      // A log line keeps 4000 characters, so a value too large to write is shown by its type.
+      try { const s = JSON.stringify(globalThis.AtriumAPI?.toPlain ? AtriumAPI.toPlain(a, true, {values: 1e6, text: 4e6, deadline}) : a); return s === undefined ? String(a) : s; } catch { return String(a); }
     }).join(" ").slice(0, 4000);
   }
   /**
@@ -45,7 +46,7 @@ globalThis.AtriumScripting = (() => {
     // Never evaluate script text in the editor's realm: there, scripts run in the sandbox worker.
     if (globalThis.document && globalThis.window === globalThis) return Promise.reject(Error("runHeadless is for headless hosts. In the editor, scripts run in the sandboxed worker (AtriumExtensions.runScript)."));
     const started = Date.now(), timeoutMs = Math.max(1, options.timeoutMs ?? 5000), log = [];
-    const push = (level, args) => { if (log.length < 2000) log.push({level, text: format(args)}); };
+    const push = (level, args) => { if (log.length < 2000) log.push({level, text: format(args, started + timeoutMs)}); };
     const out = extra => ({ms: Date.now() - started, log, ...extra});
     let h;
     try {
@@ -64,10 +65,15 @@ globalThis.AtriumScripting = (() => {
       const fn = new Function("api", "console", "args", ...hidden, '"use strict";\nreturn (async () => {\n' + String(code) + "\n})();");
       running = fn(h.api, consoleObject, options.args ?? null, ...hidden.map(() => undefined));
     } catch (e) { running = Promise.reject(e); }
+    const failed = e => out({ok: false, project: h.project, result: null, error: {message: String(e?.message || e), line: lineOf(e)}, transactions: h.steps.length, steps: h.steps});
     return Promise.resolve(running).then(value => {
       if (Date.now() - started > timeoutMs) throw Error("The script exceeded its " + timeoutMs + " ms time limit.");
-      return out({ok: true, project: h.project, result: AtriumAPI.toPlain(value) ?? null, error: null, transactions: h.steps.length, steps: h.steps});
-    }, e => out({ok: false, project: h.project, result: null, error: {message: String(e?.message || e), line: lineOf(e)}, transactions: h.steps.length, steps: h.steps}));
+      // Preparing the result counts toward the time limit and is bounded in size.
+      let result;
+      try { result = AtriumAPI.toPlain(value, true, {values: 5e6, text: 1e8, deadline: started + timeoutMs, late: "The script exceeded its " + timeoutMs + " ms time limit while preparing its result."}) ?? null; }
+      catch (e) { return failed({message: e.message}); }
+      return out({ok: true, project: h.project, result, error: null, transactions: h.steps.length, steps: h.steps});
+    }, failed);
   }
   // Script line of an error, when the engine reports one (the wrapper adds 2 lines).
   function lineOf(e) {
@@ -334,7 +340,7 @@ return parts.length + " rows";`}
         let text;
         if (r.value === undefined || r.value === null) text = "Done";
         else if (typeof r.value === "string") text = r.value;
-        else { try { text = JSON.stringify(r.value, null, 2); } catch { text = String(r.value); } }
+        else { try { text = JSON.stringify(globalThis.AtriumAPI?.toPlain ? AtriumAPI.toPlain(r.value, true) : r.value, null, 2); } catch { text = String(r.value); } }
         if (text.length > 20000) text = text.slice(0, 20000) + "\n… (truncated)";
         write("result", text).append(el("small", meta));
       } else write("error", (r.error?.message || "Script failed") + meta);
