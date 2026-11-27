@@ -569,13 +569,15 @@ globalThis.AtriumCatalogue = (() => {
   // "Clear" and "Show more" are small quiet library buttons in the accent ink.
   const quietButton = (text, cls) => { const b = el("button", text, "ui-button " + cls); b.type = "button"; b.dataset.variant = "quiet"; b.dataset.size = "sm"; return b; };
   function rowIcons(def, target) {
-    const icons = el("span", null, "cat-row-icons");
+    if (globalThis.AtriumLibraryRows?.presenceIcons) return AtriumLibraryRows.presenceIcons(def, target);
+    const icons = el("span", null, "ui-row-icons");
     icons.setAttribute("aria-hidden", "true");
     for (const kind of target ? [target] : ["schematic", "pcb"]) {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       const use = document.createElementNS(svg.namespaceURI, "use");
       const present = kind === "pcb" ? def.footprint : def.symbol;
-      svg.setAttribute("class", present ? "icon" : "icon empty");
+      svg.setAttribute("class", "icon");
+      if (!present) svg.dataset.absent = "";
       use.setAttribute("href", kind === "pcb" ? "#i-chip" : "#i-schematic");
       svg.append(use); icons.append(svg);
     }
@@ -619,7 +621,7 @@ globalThis.AtriumCatalogue = (() => {
       const sel = st.facets[k] || (st.facets[k] = new Map());
       const g = el("details", null, "cat-facet"); g.open = sel.size > 0 || !st.folded.has(k); g.dataset.facet = k;
       g.addEventListener("toggle", () => { if (g.open) st.folded.delete(k); else st.folded.add(k); });
-      const s = el("summary"); s.append(el("span", label)); if (sel.size) { const n = el("small", String(sel.size), "ui-count cat-badge"); n.dataset.tone = "accent"; s.append(n); } g.append(s);
+      const s = el("summary", null, "ui-disclosure-marker"); s.append(el("span", label)); if (sel.size) { const n = el("small", String(sel.size), "ui-count cat-badge"); n.dataset.tone = "accent"; s.append(n); } g.append(s);
       // Pins in numeric order; Value and Package by how many parts share them (the short list shows the common
       // ones); the rest in natural order.
       const values = [...m].sort((a, b) => (k === "pins" ? (+a[1].label) - (+b[1].label) : k === "value" || k === "package" ? b[1].n - a[1].n : 0) || natural(a[1].label, b[1].label));
@@ -627,7 +629,7 @@ globalThis.AtriumCatalogue = (() => {
       const opts = el("div", null, "cat-opts");
       values.forEach(([v, c], i) => {
         if (i >= cap && !sel.has(v)) return;
-        const row = el("label", null, "cat-opt" + (c.n ? "" : " zero")), box = el("input"); box.type = "checkbox"; box.checked = sel.has(v);
+        const row = el("label", null, "ui-checkbox-row cat-opt" + (c.n ? "" : " zero")), box = el("input", null, "ui-checkbox"); box.type = "checkbox"; box.checked = sel.has(v);
         box.dataset.ref = k + "|" + v; box.setAttribute("aria-label", label + " " + c.label + ", " + c.n + (c.n === 1 ? " part" : " parts"));
         box.onchange = () => { if (box.checked) sel.set(v, c.label); else sel.delete(v); onChange(); };
         const name = el("span", c.label); name.title = c.label;
@@ -636,7 +638,7 @@ globalThis.AtriumCatalogue = (() => {
       if (values.length > cap) { const more = quietButton("Show all " + values.length, "cat-more"); more.dataset.ref = "more|" + k; more.onclick = () => { st.more.add(k); onChange(); }; opts.append(more); }
       g.append(opts); body.append(g);
     }
-    if (!shown) body.append(el("p", "No parameters to filter by.", "cat-none"));
+    if (!shown) body.append(globalThis.AtriumUIKit ? AtriumUIKit.empty({text: "No parameters to filter by."}) : el("p", "No parameters to filter by.", "ui-empty"));
     if (focus) [...host.querySelectorAll("[data-ref]")].find(n => n.dataset.ref === focus)?.focus();
     return nActive;
   }
@@ -654,7 +656,7 @@ globalThis.AtriumCatalogue = (() => {
     const order = [...GROUPS.map(x => x[0]), "Other"], rankCat = c => { const i = LEAVES.indexOf(c); return i < 0 ? 1e3 : i; };
     const node = (name, count, id, cls) => {
       const d = el("details", null, "cat-node " + cls); d.open = !!o.open || !closed.has(key + "|" + id); d.dataset.category = name;
-      const s = el("summary", null, "ui-chrome-action ui-chrome-action-compact"); s.append(el("span", name), el("small", String(count))); d.append(s);
+      const s = el("summary", null, "ui-chrome-action ui-chrome-action-compact ui-disclosure-marker"); s.append(el("span", name), el("small", String(count))); d.append(s);
       d.addEventListener("toggle", () => { if (o.open) return; if (d.open) closed.delete(key + "|" + id); else closed.add(key + "|" + id); });
       return d;
     };
@@ -688,7 +690,7 @@ globalThis.AtriumCatalogue = (() => {
     const families = AtriumComponentFamilies.browse(o.owner, grouped);
     function branch(host, name, count, key, type, reveal, fill) {
       const node = el("details", null, "cat-node " + type);
-      const summary = el("summary", null, "ui-chrome-action ui-chrome-action-compact"); summary.append(el("span", name), el("small", count));
+      const summary = el("summary", null, "ui-chrome-action ui-chrome-action-compact ui-disclosure-marker"); summary.append(el("span", name), el("small", count));
       if (type === "cat-family") summary.dataset.fill = "soft";
       summary.onfocus = summary.onclick = o.onGroup || null;
       node.append(summary); host.append(node);
@@ -805,7 +807,11 @@ globalThis.AtriumCatalogue = (() => {
       const id = el("dd", def.id, "cat-id"); dl.append(el("dt", "Library id"), id);
       box.append(dl);
       const s = sourced(def);
-      box.append(el("p", s ? "Supplier part: " + s : "Generic part: needs sourcing before ordering (BOM › Optimise › Suppliers).", "cat-pv-source" + (s ? "" : " warn")));
+      if (globalThis.AtriumUIKit) {
+        box.append(AtriumUIKit.notice({tone: s ? "success" : "warning", text: s ? "Supplier part: " + s : "Generic part: needs sourcing before ordering (BOM › Optimise › Suppliers)."}));
+      } else {
+        box.append(el("p", s ? "Supplier part: " + s : "Generic part: needs sourcing before ordering (BOM › Optimise › Suppliers).", "ui-notice"));
+      }
       if (def.description) box.append(el("p", def.description, "cat-pv-desc"));
     }
     host.append(box);
@@ -882,28 +888,31 @@ globalThis.AtriumCatalogue = (() => {
     let shown, highlighted, choosePackage;
     const show = (def, row, grouped = false) => {
       if (highlighted !== row) {
-        highlighted?.classList.remove("selected");
+        highlighted?.setAttribute("aria-selected", "false");
         highlighted = row;
-        highlighted?.classList.add("selected");
+        highlighted?.setAttribute("aria-selected", "true");
       }
       if (shown === def && choosePackage === grouped) return;
       shown = def; choosePackage = grouped; st.selected = def?.id || null; sh.preview.replaceChildren();
       preview(sh.preview, def, {member: members?.get(def?.id), onPlace: o.onPick, choosePackage, pins: true});
     };
     const row = (def, variant) => {
-      const b = el("button", null, "library-row"); b.type = "button"; b.dataset.def = def.id;
+      const b = el("button", null, "ui-row library-row"); b.type = "button"; b.dataset.def = def.id;
+      b.setAttribute("aria-selected", "false");
       if (variant) b.dataset.packageChoice = "";
       b.onclick = () => o.onPick?.(def);
       b.onfocus = () => show(def, b);
       // Filtering can put a different row under a stationary pointer.
       b.onpointermove = e => { if (e.pointerType !== "touch") show(def, b); };
-      const name = el("span", null, "library-name");
-      name.append(el("strong", variant?.label || def.name), el("small", variant ? variant.description : subtitle(def, target)));
+      const name = el("span", null, "ui-row-text library-name");
+      name.append(el("span", variant?.label || def.name, "ui-row-title"), el("span", variant ? variant.description : subtitle(def, target), "ui-row-detail"));
       if (variant) name.append(el("span", variant.context, "visually-hidden"));
       name.title = variant ? [variant.label, variant.description].filter(Boolean).join(" · ") : def.name;
-      const f = rec(def).f, tags = el("span", null, "cat-tags");
+      const f = rec(def).f, tags = el("span", null, "ui-row-meta cat-tags");
       for (const t of [f.mounting, f.pins && f.pins + "p"]) if (t) tags.append(el("span", t, "ui-badge cat-tag"));
-      b.append(rowIcons(def, variant ? null : target), name, tags);
+      const icons = rowIcons(def, variant ? null : target);
+      icons.classList.add("ui-row-icon");
+      b.append(icons, name, tags);
       return b;
     };
     const filtering = !!q.trim() || res.active > 0;

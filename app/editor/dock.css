@@ -94,10 +94,6 @@
 .dock-zen #workbench {--sidebar:0px;--properties:0px}
 .dock-zen :is(#navigator,#properties,#dock-bottom,.dock-float,body > .statusbar) {display:none}
 
-/* ---- Library panel: list and detail share a tall group instead of a 38 % detail strip */
-.dock-body > .panel-library .lib-list {flex:1 1 40%;min-height:120px}
-.dock-body > .panel-library .lib-detail {flex:0 1 auto;max-height:55%;min-height:0}
-
 /* ---- dialogs */
 .dock-dialog {--ui-dialog-width:min(440px,calc(100vw - 40px))}
 .dock-dialog .work-row {display:grid;grid-template-columns:minmax(72px,max-content) minmax(0,1fr);align-items:center;gap:var(--s-8);margin:var(--s-8) 0}

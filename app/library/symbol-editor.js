@@ -35,7 +35,7 @@ globalThis.AtriumSymbolEditor = (() => {
     const source = ctx.def ? clone(ctx.def) : {id: A.id(), name: L.uniqueName({library: ctx.library || []}, "New component"), prefix: "U", value: "", category: "Project components"};
     const model = source.symbol ? L.symbolModel(source.symbol) : {pins: [], shapes: [{kind: "path", style: "body", closed: true, fill: true, points: [[-5.08, -5.08], [5.08, -5.08], [5.08, 5.08], [-5.08, 5.08]]}], parts: 1, alternate: false};
     const meta = {name: source.name, prefix: source.prefix || "U", value: source.value || "", description: source.description || "", parameters: {...(source.parameters || {})}};
-    const dlg = ui.dialog("Symbol Editor", "se-dialog"), title = dlg.heading.querySelector("h2");
+    const dlg = ui.editorSurface("Symbol Editor", "se-dialog", {tabId: "symbol-editor:" + source.id, icon: "schematic", hostTab: !!ctx.asTab}), title = dlg.heading.querySelector("h2");
     const shortcutText = text => AtriumNavCommon.shortcutParts(text, {enter:"Enter", escape:"Escape", rotate:"Space"});
     let tool = "select", gate = 1, alt = false, selection = {pins: new Set(), shapes: new Set()}, pointer = [0, 0], screenPointer = null, drag = null, drawing = null;
     let template = {number: "1", name: "", electrical: 4, length: 2 * G, orientation: "left"}, tab = "props";
@@ -74,9 +74,11 @@ globalThis.AtriumSymbolEditor = (() => {
     const statusLine = el("div", null, "fe-status"), coords = el("span", null, "fe-coords"), hint = el("span", null, "fe-hint"); statusLine.append(coords, hint);
     const centre = el("div", null, "fe-centre"); centre.append(canvas, statusLine);
     const side = el("aside", null, "fe-side se-side"), tabs = el("div", null, "se-tabs ui-tabs"), pane = el("div", null, "se-pane"), checks = el("div", null, "fe-checks");
-    tabs.dataset.underline = "";
+    tabs.dataset.strip = "";
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Symbol inspector");
     for (const [k, t] of [["props", "Properties"], ["pins", "Pin table"]]) {
-      const b = el("button", t, "ui-tab"); b.type = "button"; b.dataset.tab = k;
+      const b = el("button", t, "ui-tab"); b.type = "button"; b.setAttribute("role", "tab"); b.dataset.tab = k;
       b.onclick = () => { tab = k; renderSide(); }; tabs.append(b);
     }
     side.append(tabs, pane, checks);
@@ -383,7 +385,13 @@ globalThis.AtriumSymbolEditor = (() => {
         const tr = el("tr"); if (selection.pins.has(i)) tr.className = "sel";
         for (const [k] of cols) {
           const td = el("td");
-          if (!k) { const b = ui.button("−", () => change(() => { model.pins.splice(i, 1); clearSel(); })); b.setAttribute("aria-label", "Delete pin " + p.number); td.append(b); }
+          if (!k) {
+            const b = globalThis.AtriumUIKit
+              ? AtriumUIKit.iconButton("minus", "Delete pin " + p.number, {size: "sm", run: () => change(() => { model.pins.splice(i, 1); clearSel(); })})
+              : ui.button("−", () => change(() => { model.pins.splice(i, 1); clearSel(); }), null, "quiet");
+            if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", "Delete pin " + p.number);
+            td.append(b);
+          }
           else if (k === "electrical") { const sel = el("select"); for (const [v, t] of ELEC) sel.add(new Option(t, v)); sel.value = String(p.electrical ?? 4); sel.onchange = () => change(() => { p.electrical = +sel.value; }); sel.setAttribute("aria-label", "Type of pin " + p.number); td.append(sel); }
           else if (k === "orientation") { const sel = el("select"); for (const [v, t] of [["left", "Left"], ["right", "Right"], ["up", "Top"], ["down", "Bottom"]]) sel.add(new Option(t, v)); sel.value = p.orientation; sel.onchange = () => change(() => { p.orientation = sel.value; }); sel.setAttribute("aria-label", "Side of pin " + p.number); td.append(sel); }
           else if (k === "hidden") { const c = el("input"); c.type = "checkbox"; c.checked = !!p.hidden; c.onchange = () => change(() => { if (c.checked) p.hidden = true; else delete p.hidden; }); c.setAttribute("aria-label", "Hide pin " + p.number); td.append(c); }
@@ -447,13 +455,26 @@ globalThis.AtriumSymbolEditor = (() => {
     }
     function renderChecks() {
       checks.replaceChildren();
+      const k = globalThis.AtriumUIKit;
       const d = {...source, ...meta, symbol: built().symbol}, v = L.validateDef(d);
-      const head = el("header", null, "fe-checks-head"); head.append(el("h3", "Checks"), el("span", v.errors.length ? v.errors.length + " error(s)" : v.warnings.length ? v.warnings.length + " warning(s)" : "All clear", v.errors.length ? "bad" : v.warnings.length ? "warn" : "ok"));
-      checks.append(head);
-      const ul = el("ul"); for (const e of v.errors) ul.append(el("li", e, "lvl-error")); for (const w of v.warnings) ul.append(el("li", w, "lvl-warning"));
       const off = model.pins.filter(p => Math.abs(p.x / G - Math.round(p.x / G)) > 1e-6 || Math.abs(p.y / G - Math.round(p.y / G)) > 1e-6);
-      if (off.length) ul.append(el("li", off.length + " pin tip(s) are off the 2.54 mm grid; wires may not connect.", "lvl-warning"));
-      checks.append(ul, el("p", model.pins.length + " pins" + (model.parts > 1 ? " · " + model.parts + " gates" : "") + (model.alternate ? " · De Morgan" : ""), "fe-note"));
+      const summary = v.errors.length ? v.errors.length + " error(s)" : v.warnings.length || off.length ? (v.warnings.length + (off.length ? 1 : 0)) + " warning(s)" : "All clear";
+      const tone = v.errors.length ? "danger" : (v.warnings.length || off.length) ? "warning" : "success";
+      const rows = [];
+      if (k) {
+        for (const e of v.errors) rows.push(k.row({title: e, icon: k.dot("danger"), role: "listitem"}));
+        for (const w of v.warnings) rows.push(k.row({title: w, icon: k.dot("warning"), role: "listitem"}));
+        if (off.length) rows.push(k.row({title: off.length + " pin tip(s) are off the 2.54 mm grid; wires may not connect.", icon: k.dot("warning"), role: "listitem"}));
+        const listEl = rows.length ? k.list(rows, {role: "list", label: "Symbol checks"}) : null;
+        const stats = k.statusLine(model.pins.length + " pins" + (model.parts > 1 ? " · " + model.parts + " gates" : "") + (model.alternate ? " · De Morgan" : ""));
+        checks.append(k.section("Checks", {quiet: true, actions: [k.badge(summary, tone)]}, ...(listEl ? [listEl, stats] : [stats])));
+      } else {
+        const ul = el("ul");
+        for (const e of v.errors) ul.append(el("li", e, "lvl-error"));
+        for (const w of v.warnings) ul.append(el("li", w, "lvl-warning"));
+        if (off.length) ul.append(el("li", off.length + " pin tip(s) are off the 2.54 mm grid; wires may not connect.", "lvl-warning"));
+        checks.append(ul);
+      }
     }
     function refresh() {
       title.textContent = "Symbol Editor — " + meta.name;
@@ -491,7 +512,7 @@ globalThis.AtriumSymbolEditor = (() => {
         ...(redo.length ? [{key: "cmd:symbol:redo", kind: "command", label: "Redo", detail: "Symbol Editor", run: () => doUndo(false)}] : [])
       ]
     });
-    ui.show(dlg);
+    ui.showSurface(dlg);
     setTool("select"); refresh(); stage.observe(); canvas.focus();
     return {dialog: dlg, model, meta, stage, setTool, build, change, generate: rows => change(() => generate(rows)), setTab: t => { tab = t; renderSide(); }, setGate: g => { gate = g; refresh(); }};
   }
