@@ -98,7 +98,9 @@ assert.ok(thermal.result.regions.some(r=>r.links.some(l=>l[0]==="relief")),"the 
 const split={kind:"polygon",id:"split",cutout:true,layer:"Multi",points:box(41,0,43,64)};
 journalEdit("split",()=>doc.items.push(split));
 const cut=compare("split that reaches the polygon boundary").result;
-assert.equal(cut.stats.polygons.upper.area.stage1.mode,"full");
+// The cut crosses the polygon outline, which is spliced where the cut meets it (no full solve).
+assert.equal(cut.stats.polygons.upper.area.stage1.mode,"local");
+assert.ok(cut.stats.polygons.upper.area.stage1.straddlers>0,"the polygon outline straddles the region");
 assert.ok(cut.regions.filter(r=>r.polygon==="upper").length>1);
 journalEdit("relief",()=>doc.items.splice(doc.items.indexOf(find("relief")),1));
 const dead=compare("deleting an isolated island's only anchor").result;
