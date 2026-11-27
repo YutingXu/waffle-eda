@@ -103,6 +103,15 @@ globalThis.AtriumPCBPours=(()=>{
     const arcs=arcsByRun(extra?.arcs,fresh);
     return withCopper(base,new Copper(fresh.runs.map((run,j)=>intern(runOf(bytes,fresh,run,arcs?.[j]))),rings.length,!!arcs));
   }
+  // regionLike's answer when the caller knows the rings are those of `region` (the area patch left
+  // the island as it was): that region, removed from `prior`, if `prior` still holds it and its other
+  // fields equal extra's; else null, and the caller encodes. No ring is converted, hashed or compared.
+  function regionAgain(prior,region,extra){
+    const i=prior&&region?prior.indexOf(region):-1;
+    if(i<0||!sameFields(region,extra))return null;
+    prior.splice(i,1);
+    return region;
+  }
   const sameBytes=(a,b,at)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[at+i])return false;return true;};
   const BASE_FIELDS=new Set(["layer","net","bounds","count","data"]);
   const sameValue=(a,b)=>a===b||Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&(a.every(x=>typeof x==="number")&&b.every(x=>typeof x==="number")?a.every((x,i)=>x===b[i]):JSON.stringify(a)===JSON.stringify(b))||
@@ -1035,7 +1044,7 @@ globalThis.AtriumPCBPours=(()=>{
   }
   // The rings of a region and their boxes are cached (no decoding needed to read them).
   const cached=region=>{const e=decoded.get(region);return !!e&&sameGeometry(e,region)||cachedShare(region)===1;};
-  const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,regionLike,paintHook:null,displayHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange,
+  const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,regionLike,regionAgain,paintHook:null,displayHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange,
     table,runsOf,ringBoxes,cached,view,viewDamage,
     copperOf,withCopper,isCopper,heldField,heldFields,dataKey,sameData,dataLength,hasData,fieldsOf,runLookup,runIds,fromRuns,runRecord,copperRuns,copperArcs,copperBytes,copperDelta,copperText,arcsText,runStats:()=>({runs:runCache.size,vertices:runVertices,pathVertices:runPathVertices,lodVertices,regionPaths:paths.size})};
   return api;

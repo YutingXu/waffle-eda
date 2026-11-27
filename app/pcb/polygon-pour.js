@@ -1401,7 +1401,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
 
   // --------------------------------------------------------------- regions
-  const {contours:rings,region:encode,regionLike:encodeLike,dataKey}=AtriumPCBPours;
+  const {contours:rings,region:encode,regionLike:encodeLike,regionAgain,dataKey}=AtriumPCBPours;
 
   // ------------------------------------------------------------------ pour
   // ------------------------------------------------- smart connect styles
@@ -2150,7 +2150,7 @@ globalThis.AtriumPolygonPour=(()=>{
   // links and the island tests are then decided by the rules of CORE.islands and keep(), asked only
   // where their answer can have changed (areaPatch, areaKeep). tests/pcb/pour-area-random.cjs checks it.
   const AREA_GUARD=4,AREA_LIMIT=.5,areaRingMemo=new WeakMap(),areaTagMemo=new WeakMap();
-  const areaCanonical=new WeakMap(),areaCanonicalIslands=new WeakMap(),areaArcRotation=new WeakMap(),areaConverted=new WeakMap(),areaRegionContours=new WeakMap();
+  const areaCanonical=new WeakMap(),areaCanonicalIslands=new WeakMap(),areaArcRotation=new WeakMap(),areaConverted=new WeakMap(),areaRegionContours=new WeakMap(),areaFinished=new WeakMap();
   function areaRingInfo(ring){
     let info=areaRingMemo.get(ring);
     if(!info){info={box:boxOf(ring)};areaRingMemo.set(ring,info);}
@@ -2170,6 +2170,15 @@ globalThis.AtriumPolygonPour=(()=>{
   // Compare full input geometry and the authored arc identities. Local ordinals
   // preserve distinct arcs even if they describe coincident circles. The mapping
   // between two runs' arc tables must be one-to-one for the retained inputs.
+  // Whether trueArcSteps reads the same of registered arcs A and B (job.arcs, centre and radius per
+  // arc id) for rings rs: none when both are empty, else the arcs their tags name.
+  function areaSameArcs(rs,A,B){
+    if(A===B)return true;
+    if(!A?.length||!B?.length)return !A?.length&&!B?.length;
+    for(const r of rs)for(const t of areaTagInfo(r.tags).ids)
+      for(let j=3*t;j<3*t+3;j++)if(!Object.is(A[j],B[j]))return false;
+    return true;
+  }
   function areaTagInfo(tags){
     if(!tags)return {ids:[],pattern:""};
     let info=areaTagMemo.get(tags);
@@ -2710,7 +2719,16 @@ globalThis.AtriumPolygonPour=(()=>{
       const links=[],seen=new Set();
       for(const k of isl.links){const l=job.links[k];if(!l)continue;const key=JSON.stringify(l);if(!seen.has(key)){seen.add(key);links.push(l);}}
       const rs=[{ring:isl.ring,tags:isl.tags},...isl.holes.map(h=>({ring:h.ring,tags:h.tags}))];
-      const arcs=job.arcs?.length?yield* trueArcSteps(rs,job):null;
+      // An island the area patch left as it was (the same object, areaKeep and areaCanonicalIslands)
+      // in the same frame was finished before (areaFinished): its true arcs are the ones found then
+      // when the registered arcs its rings are tagged with are the same (areaArcInputs), and it is the
+      // region made then while the pour still holds that region with the same links and arcs
+      // (regionAgain), so its rings are neither scanned for arcs, converted nor encoded again. The arc
+      // scan starts a tagged ring at a change of tag (trueArcSteps); the rings it left are kept too.
+      const f0=job.areaExact?areaFinished.get(isl):null,f=f0&&f0.S===S&&f0.ox===ox&&f0.oy===oy&&f0.layer===layer&&f0.net===net?f0:null;
+      const arcsAgain=!!f&&areaSameArcs(rs,f.arcs0,job.arcs);
+      if(arcsAgain)f.rings.forEach((ring,k)=>{rs[k].ring=ring;});
+      const arcs=arcsAgain?f.arcs:job.arcs?.length?yield* trueArcSteps(rs,job):null;
       yield;
       /** @type {{polygon: typeof P.id, links: typeof links, hatchSkipped?: boolean, arcs?: NonNullable<typeof arcs>}} */
       const extra={polygon:P.id,links,...(stats.hatchSkipped?{hatchSkipped:true}:{})};
@@ -2718,8 +2736,13 @@ globalThis.AtriumPolygonPour=(()=>{
       // An island identical to one of the pour's regions now (same rings, links and arcs) is that region:
       // not encoded again, and the editor keeps its object and everything cached for it.
       if(job.areaExact){
-        const mm=rs.map(r=>areaToMm(r.ring)),region=encodeLike(job.prior,mm.map(e=>e.mm),layer,net,extra);
-        areaRegionContours.set(region,{data:dataKey(region),count:region.count,rings:mm.map(e=>e.stored)});
+        let region=f?regionAgain(job.prior,f.region,extra):null;
+        if(region)stats.regionsKept=(stats.regionsKept||0)+1;
+        else{
+          const mm=rs.map(r=>areaToMm(r.ring));region=encodeLike(job.prior,mm.map(e=>e.mm),layer,net,extra);
+          areaRegionContours.set(region,{data:dataKey(region),count:region.count,rings:mm.map(e=>e.stored)});
+        }
+        areaFinished.set(isl,{region,S,ox,oy,layer,net,arcs0:job.arcs,arcs,rings:rs.map(r=>r.ring)});
         regions.push(region);
       }else regions.push(encodeLike(job.prior,rs.map(r=>toMm(r.ring)),layer,net,extra));
       yield;
