@@ -776,5 +776,6 @@ globalThis.AtriumPaletteView = (() => {
     }
     return {open, close, results, select, options, actions, actionsKey, present, back: leave};
   }
-  return Object.freeze({create, resultTitle});
+  // actionIcons: the palette's icon per action, which the Active Bar reuses for command faces (bars.js).
+  return Object.freeze({create, resultTitle, actionIcons:Object.freeze({...ACTION_ICONS})});
 })();

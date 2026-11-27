@@ -799,10 +799,10 @@ globalThis.AtriumPrefs = (() => {
       for (const k of ["pcb.rerouteOnDrag", "pcb.smartGuides", "pcb.hud", "pcb.designatorsFollow", "pcb.trackWidth", "pcb.showRatsnest"]) if (k in values) apply(k, values[k]);
       for (const k of Object.keys(SNAP)) if (k in values && globalThis.AtriumPCBEdit?.snapPrefs?.[SNAP[k]] !== values[k]) apply(k, values[k]);
       const K = globalThis.AtriumKeymap;
-      const add = (id, title, run, defaultKeys) => {
+      const add = (id, title, run, defaultKeys, category = "File") => {
         if (id === "preferences") h?.registerAction?.("preferences-page", run);
         else h?.registerAction?.(id, run);
-        try { if (!K?.command?.(id)) K?.registerCommand?.({id, title, run, defaultKeys, category: "File"}); } catch {}
+        try { if (!K?.command?.(id)) K?.registerCommand?.({id, title, run, defaultKeys, category}); } catch {}
       };
       add("preferences", "Preferences…", () => open(), ["Mod+,", "T P"]);
       add("start-page", "Start Page", () => openStartPage());
@@ -811,7 +811,7 @@ globalThis.AtriumPrefs = (() => {
       add("import-vscode-keybindings", "Import VS Code keybindings…", () => vscode("keysDialog"));
       add("export-settings", "Export settings…", exportAll);
       add("import-settings", "Import settings…", () => { importAll(); });
-      add("customise-active-bar", "Customise Active Bar…", () => AtriumLazy.need("AtriumActiveBarMenu").then(() => open("toolbars"))); // bars.js: the page
+      add("customise-active-bar", "Customise Active Bar…", () => AtriumLazy.need("AtriumActiveBarMenu").then(() => open("toolbars")), undefined, "View"); // bars.js: the page
       globalThis.AtriumNavCommon?.menuItem("file", "new-from-template", "New from Template…", {after: "new"});
       globalThis.AtriumAutosave?.launchHome?.(() => openStartPage({launch:true}));
     };

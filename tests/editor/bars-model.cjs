@@ -67,6 +67,20 @@ const entries = [...bar.matchAll(/<span class="tool-divider"[^>]*>|<button\b([^>
   assert.deepEqual(B.put("garbage", "pcb", ["pan"], def), {version:1, active:{pcb:["pan"]}});
 }
 {
+  // Extension buttons a customised bar has met: a new one joins once; a removed one stays removed.
+  const def = B.defaults(entries, "pcb");
+  let v = B.put(null, "pcb", ["select", "ext.a"], def, ["ext.a"]);
+  assert.deepEqual(v.seen, {pcb:["ext.a"]});
+  assert.deepEqual(B.newcomers(v, "pcb", ["ext.a", "ext.b"]), ["ext.b"], "a new extension button is offered once");
+  v = B.put(v, "pcb", ["select", "ext.a", "ext.b"], def, ["ext.a", "ext.b"]);
+  v = B.put(v, "pcb", ["select"], def, ["ext.a", "ext.b"]);
+  assert.deepEqual(B.newcomers(v, "pcb", ["ext.a", "ext.b"]), [], "removed buttons stay removed");
+  assert.deepEqual(B.newcomers(v, "schematic", ["ext.a"]), [], "a kind on the default bar takes extensions as the default does");
+  assert.equal(B.put(v, "pcb", null, def), null, "restoring the kind forgets what it met");
+  assert.deepEqual(B.normalize({version:1, active:{pcb:[]}, seen:{pcb:["a", "a", 3, "b c"], schematic:["x"]}}), {version:1, active:{pcb:[]}, seen:{pcb:["a"]}},
+    "seen lists are ids, deduplicated, and only for customised kinds");
+}
+{
   // Flyouts and separators.
   assert.deepEqual(B.members({face:"route", more:["a", "b"]}), ["route", "a", "b"]);
   assert.deepEqual(B.members({face:"route", more:["a", "route", "b"]}), ["a", "route", "b"], "the list may place the face");

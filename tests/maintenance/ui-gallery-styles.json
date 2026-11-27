@@ -173,6 +173,7 @@
   "drag/Targets/2": "div.ui-drop-target.ui-gallery-drop rgb(236, 236, 236)|rgb(80, 80, 80)|0px|none|rgb(80, 80, 80)|4px|0px|0px|11px|400|auto|none|1|default|none",
   "drag/Targets/3": "div.ui-drop-target.ui-gallery-drop rgb(236, 236, 236)|rgb(80, 80, 80)|0px|none|rgb(80, 80, 80)|4px|0px|0px|11px|400|auto|none|1|default|none",
   "drag/Insertion line/0": "div.ui-drop-line rgb(21, 89, 167)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|999px|0px|0px|12px|400|auto|none|1|default|none",
+  "drag/Reorderable list/0": "div.ui-list rgba(0, 0, 0, 0)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|0px|0px|0px|12px|400|auto|none|1|default|none",
   "panel/Inspector/0": "section.ui-panel rgb(248, 248, 248)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|4px|0px|0px|12px|400|0px|rgba(0, 0, 0, 0.14) 0px 2px 8px 0px|1|default|none",
   "panel/Overlay drawers/0": "aside.ui-drawer.ui-gallery-static rgb(248, 248, 248)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|0px|8px|8px|12px|400|0px|rgba(0, 0, 0, 0.19) 0px 3px 12px 0px|1|default|none",
   "panel/Overlay drawers/1": "aside.ui-drawer.ui-gallery-static rgb(248, 248, 248)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|0px|8px|8px|12px|400|0px|rgba(0, 0, 0, 0.133) -8px 0px 24px 0px|1|default|none"
@@ -351,6 +352,7 @@
   "drag/Targets/2": "div.ui-drop-target.ui-gallery-drop rgb(59, 59, 59)|rgb(185, 185, 185)|0px|none|rgb(185, 185, 185)|4px|0px|0px|11px|400|auto|none|1|default|none",
   "drag/Targets/3": "div.ui-drop-target.ui-gallery-drop rgb(59, 59, 59)|rgb(185, 185, 185)|0px|none|rgb(185, 185, 185)|4px|0px|0px|11px|400|auto|none|1|default|none",
   "drag/Insertion line/0": "div.ui-drop-line rgb(10, 132, 255)|rgb(226, 226, 226)|0px|none|rgb(226, 226, 226)|999px|0px|0px|12px|400|auto|none|1|default|none",
+  "drag/Reorderable list/0": "div.ui-list rgba(0, 0, 0, 0)|rgb(226, 226, 226)|0px|none|rgb(226, 226, 226)|0px|0px|0px|12px|400|auto|none|1|default|none",
   "panel/Inspector/0": "section.ui-panel rgb(48, 48, 48)|rgb(226, 226, 226)|0px|none|rgb(226, 226, 226)|4px|0px|0px|12px|400|0px|rgba(0, 0, 0, 0.467) 0px 2px 8px 0px|1|default|none",
   "panel/Overlay drawers/0": "aside.ui-drawer.ui-gallery-static rgb(48, 48, 48)|rgb(226, 226, 226)|0px|none|rgb(226, 226, 226)|0px|8px|8px|12px|400|0px|rgba(0, 0, 0, 0.667) 0px 3px 12px 0px|1|default|none",
   "panel/Overlay drawers/1": "aside.ui-drawer.ui-gallery-static rgb(48, 48, 48)|rgb(226, 226, 226)|0px|none|rgb(226, 226, 226)|0px|8px|8px|12px|400|0px|rgba(0, 0, 0, 0.267) -8px 0px 24px 0px|1|default|none"
@@ -529,6 +531,7 @@
   "drag/Targets/2": "div.ui-drop-target.ui-gallery-drop rgb(236, 236, 236)|rgb(80, 80, 80)|0px|none|rgb(80, 80, 80)|4px|0px|0px|11px|400|auto|none|1|default|none",
   "drag/Targets/3": "div.ui-drop-target.ui-gallery-drop rgb(236, 236, 236)|rgb(80, 80, 80)|0px|none|rgb(80, 80, 80)|4px|0px|0px|11px|400|auto|none|1|default|none",
   "drag/Insertion line/0": "div.ui-drop-line rgb(21, 89, 167)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|999px|0px|0px|12px|400|auto|none|1|default|none",
+  "drag/Reorderable list/0": "div.ui-list rgba(0, 0, 0, 0)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|0px|0px|0px|12px|400|auto|none|1|default|none",
   "panel/Inspector/0": "section.ui-panel rgb(248, 248, 248)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|4px|0px|0px|12px|400|0px|rgba(0, 0, 0, 0.14) 0px 2px 8px 0px|1|default|none",
   "panel/Overlay drawers/0": "aside.ui-drawer.ui-gallery-static rgb(248, 248, 248)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|0px|8px|8px|12px|400|0px|rgba(0, 0, 0, 0.19) 0px 3px 12px 0px|1|default|none",
   "panel/Overlay drawers/1": "aside.ui-drawer.ui-gallery-static rgb(248, 248, 248)|rgb(31, 31, 31)|0px|none|rgb(31, 31, 31)|0px|8px|8px|12px|400|0px|rgba(0, 0, 0, 0.133) -8px 0px 24px 0px|1|default|none"

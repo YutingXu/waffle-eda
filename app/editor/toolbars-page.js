@@ -215,6 +215,7 @@ globalThis.AtriumToolbarsPage = (() => {
     }
     const off = G.AtriumPrefs?.on?.(B().PREF, () => { if (card.isConnected) draw(); else off?.(); });
     draw();
+    B().loadIcons?.().then(() => { if (card.isConnected) draw(); });
   }
   return Object.freeze({render});
 })();

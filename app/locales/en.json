@@ -3537,6 +3537,7 @@
   "prefs.using_gpu_webgl2": "Using GPU (WebGL2)",
   "prefs.via_diameter": "Via diameter",
   "prefs.via_drill": "Via drill",
+  "prefs.view": "View",
   "prefs.waffle_makes_a_folder_with_waffle_extension_json": "Waffle makes a folder with waffle-extension.json, main.js, a sandbox test and a README, and saves it as a .zip.",
   "prefs.walkaround_jitter_tolerance": "Walkaround jitter tolerance",
   "prefs.wheel_preset": "Wheel preset",

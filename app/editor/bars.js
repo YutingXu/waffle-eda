@@ -8,6 +8,8 @@
 //       Place › Power Port › <net>), "|" (a separator) or {face, more:[id…]} (a button and its flyout).
 //       At most 24 items per bar and 16 per flyout. Unknown ids are kept and not drawn; a malformed
 //       value draws the default. Settings export, import and Restore Defaults carry it as any preference.
+//       "seen":{<kind>:[id…]} lists the extension buttons a customised bar has already met: a new one is
+//       added once at the end, and one the user removed stays removed.
 //   "atrium.bar-faces" (localStorage, view state beside the dock's collapsed panels, exported with them)
 //       {<kind>:{<slot>:face}}: the last flyout choice per button (sticky flyouts). A face is a command
 //       id, or {id, label, icon, group} for an entry a module provides (the notebook's Widgets).
@@ -40,7 +42,10 @@ globalThis.AtriumBars = (() => {
     const active = {};
     for (const [k, list] of Object.entries(value.active))
       if (/^[a-z][a-z0-9-]{0,31}$/.test(k) && Array.isArray(list)) active[k] = list.map(item).filter(x => x != null).slice(0, LIMITS.bar);
-    return {version:VERSION, active};
+    const seen = {};
+    for (const [k, ids] of Object.entries(object(value.seen) ? value.seen : {}))
+      if (active[k] && Array.isArray(ids)) { const v = [...new Set(ids.filter(isId))].slice(0, 64); if (v.length) seen[k] = v; }
+    return Object.keys(seen).length ? {version:VERSION, active, seen} : {version:VERSION, active};
   }
   // Separators never lead, trail or double up on the bar.
   function tidy(list, isSep = x => x === SEP) {
@@ -59,11 +64,20 @@ globalThis.AtriumBars = (() => {
   // A group's flyout: its face first, unless the list places the face itself.
   const members = x => object(x) ? (x.more.includes(x.face) ? x.more.slice() : [x.face, ...x.more]) : [];
   // The stored value after setting one kind's list (null or the default list: that kind is removed).
-  function put(stored, kind, list, def) {
-    const active = {...(normalize(stored)?.active || {})};
+  // seen: the extension buttons present now, which this kind's bar has therefore met.
+  function put(stored, kind, list, def, seen = []) {
+    const was = normalize(stored), active = {...(was?.active || {})}, met = {...(was?.seen || {})};
     const next = Array.isArray(list) ? normalize({active:{[kind]:list}}).active[kind] : null;
-    if (!next || same(next, def)) delete active[kind]; else active[kind] = next;
-    return Object.keys(active).length ? {version:VERSION, active} : null;
+    if (!next || same(next, def)) { delete active[kind]; delete met[kind]; }
+    else { active[kind] = next; met[kind] = [...new Set([...(met[kind] || []), ...seen])]; }
+    return Object.keys(active).length ? normalize({version:VERSION, active, seen:met}) : null;
+  }
+  // Extension buttons a customised bar has not met yet: they join its end once.
+  function newcomers(stored, kind, ids) {
+    const v = normalize(stored), list = v?.active[kind];
+    if (!list) return [];
+    const on = new Set(list.flatMap(x => x === SEP ? [] : object(x) ? [x.face, ...x.more] : [x])), met = new Set(v.seen?.[kind] || []);
+    return ids.filter(id => !on.has(id) && !met.has(id));
   }
   function cleanFaces(value) {
     const out = {};
@@ -80,7 +94,7 @@ globalThis.AtriumBars = (() => {
     }
     return out;
   }
-  const model = {LIMITS, KINDS, SEP, normalize, tidy, defaults, members, put, cleanFaces, item};
+  const model = {LIMITS, KINDS, SEP, normalize, tidy, defaults, members, put, newcomers, cleanFaces, item};
   if (!D) return Object.freeze(model);
 
   // ------------------------------------------------------------------ storage
@@ -124,7 +138,7 @@ globalThis.AtriumBars = (() => {
     if (!when) return true;
     try { return K()?.compileWhen(when)?.(assume(k), true) !== false; } catch { return true; }
   }
-  const defaultList = k => defaults(entries(), k, extNodes().map(n => ({id:idOf(n), when:n.dataset.when || ""})), allows);
+  const defaultList = k => defaults(entries().filter(e => e.sep || !hiddenOn(k).has(e.id)), k, extNodes().map(n => ({id:idOf(n), when:n.dataset.when || ""})), allows);
   const effective = k => listFor(k) ?? defaultList(k);
   // Commands come and go (macros, extensions, Experimental features): a stored bar draws what exists now.
   let redraw = false;
@@ -144,6 +158,7 @@ globalThis.AtriumBars = (() => {
   function drawable(id, k) {
     if (!isId(id)) return false;
     if (id.startsWith("power:")) return k === "schematic";
+    if (hiddenOn(k).has(id)) return false;
     const n = template(id);
     if (n) return !n.dataset.scope || n.dataset.scope === k;
     if (extNodes().some(x => idOf(x) === id)) return true;
@@ -166,6 +181,44 @@ globalThis.AtriumBars = (() => {
     return n ? base(n) : known.get(id)?.label || id;
   }
   const base = n => n.dataset.baseTitle || (n.getAttribute("aria-label") || n.title || "").replace(/\s*\(.*\)$/, "");
+
+  // ------------------------------------------------------------------ command icons
+  // The registry's `icon` for built-in commands comes from what Waffle already draws: first a chrome
+  // control's sprite (the quick-access and status-bar buttons: Undo, Zoom In…), then the palette's own
+  // action icons (AtriumPaletteView.actionIcons) where the symbol is named for the action (Fit, Grid,
+  // Delete, Rotate). A symbol keeps one meaning: Paste is not drawn as Zoom In's plus.
+  let table = null, tableLoad = null;
+  function pairIcons() {
+    const pairs = new Map(), meaning = new Map();
+    for (const n of D.querySelectorAll("[data-action]:not([data-power-net])")) {
+      const u = n.querySelector(":scope > svg > use")?.getAttribute("href");
+      if (!u?.startsWith("#i-") || n.closest("#tools")) continue;
+      const a = n.dataset.action, icon = u.slice(3);
+      if (!pairs.has(a)) pairs.set(a, icon);
+      if (!meaning.has(icon)) meaning.set(icon, a);
+    }
+    for (const n of pristine) { const u = n.querySelector?.("use")?.getAttribute("href"); if (u && !meaning.has(u.slice(3))) meaning.set(u.slice(3), idOf(n)); }
+    for (const [a, icon] of Object.entries(table || {}))
+      if (!pairs.has(a) && (a === icon || a.startsWith(icon + "-")) && (!meaning.has(icon) || meaning.get(icon) === icon)) pairs.set(a, icon);
+    for (const c of K()?.commands() || []) {
+      const icon = c.builtin && !c.icon && pairs.get(c.id);
+      if (icon && D.getElementById("i-" + icon)) c.icon = icon;
+    }
+  }
+  // Load the palette's table only when a button to draw has no icon yet (or the Toolbars page asks).
+  function loadIcons() {
+    const L = G.AtriumLazy;
+    return tableLoad ??= L.need("AtriumPalette").then(() => L.need("AtriumPaletteView")).then(V => { table = V.actionIcons || {}; }, () => { table = {}; })
+      .then(() => pairIcons());
+  }
+  function needIcons(ids) {
+    if (table || !ids.some(id => !template(id) && !id.startsWith("power:") && command(id) && !command(id).icon)) return null;
+    return loadIcons();
+  }
+  const drawnIds = k => [...(listFor(k) || []).flatMap(x => x === SEP ? [] : object(x) ? [x.face] : [x]),
+    ...Object.values(faces()[k] || {}).map(f => typeof f === "string" ? f : f.id)];
+  // Tools the markup hides on a kind (data-hide-kind: drawings hide the schematic and board tools).
+  const hiddenOn = k => new Set(pristine.filter(n => (n.dataset.hideKind || "").split(/\s+/).includes(k)).map(idOf));
   function iconOf(id, k) {
     if (id.startsWith("power:")) return groundNet(id.slice(6)) ? "power-gnd" : "power-bar";
     const use = template(id)?.querySelector("use")?.getAttribute("href");
@@ -256,6 +309,14 @@ globalThis.AtriumBars = (() => {
         used.add(n); out.push(n);
       }
     }
+    // An extension button this customised bar has never met joins its end, once.
+    if (list && !Array.isArray(given)) {
+      const fresh = newcomers(G.AtriumPref?.get(PREF), k, extIds(k));
+      if (fresh.length) queueMicrotask(() => {
+        const now = listFor(k), add = newcomers(G.AtriumPref?.get(PREF), k, extIds(k));
+        if (now && add.length) write(put(G.AtriumPref?.get(PREF), k, [...now, ...add].slice(0, LIMITS.bar), defaultList(k), extIds(k)));
+      });
+    }
     const shown = list ? tidy(out, n => isDivider(n)) : out;
     for (const n of shown) if (n.nodeType === 1 && n.dataset.scope && !n.classList.contains("ext-tool")) n.hidden = n.dataset.scope !== k;
     for (const n of [...bar.children, ...pristine]) if (!shown.includes(n) && n !== more && !made.has(n) && n.parentNode !== parked) parked.append(n);
@@ -265,6 +326,7 @@ globalThis.AtriumBars = (() => {
     rendering = false;
     G.AtriumActiveBar?.titles();
     fit();
+    if (!table && list) needIcons(drawnIds(k))?.then(() => render(k));
     if (focused) [...bar.children].find(n => slots.get(n) === focused)?.focus();
   }
   // ------------------------------------------------------------------ overflow
@@ -360,7 +422,8 @@ globalThis.AtriumBars = (() => {
   }
 
   // ------------------------------------------------------------------ editing (the Toolbars page)
-  function setList(k, list) { write(put(G.AtriumPref?.get(PREF), k, list, defaultList(k))); }
+  const extIds = k => extNodes().filter(n => allows(n.dataset.when || "", k)).map(idOf);
+  function setList(k, list) { write(put(G.AtriumPref?.get(PREF), k, list, defaultList(k), extIds(k))); }
   function reset(k) {
     if (k) { setList(k, null); const all = faces(); delete all[k]; writeFaces(all); }
     else { writeFaces({}); write(null); }
@@ -382,7 +445,8 @@ globalThis.AtriumBars = (() => {
 
   // ------------------------------------------------------------------ boot
   let watcher = null;
-  function sync() { render(); }
+  // The first drawing: the bar stays hidden (active-bar.js) until the faces have their icons.
+  function sync() { pairIcons(); render(); return needIcons(drawnIds(kind()))?.then(() => render()); }
   if (bar) {
     bar.addEventListener("click", e => {
       const b = /** @type {HTMLElement|null} */ (e.target).closest?.("[data-bar-run]");
@@ -405,9 +469,10 @@ globalThis.AtriumBars = (() => {
       resetKeys:[PREF], reset:clearFaces,
       render(c, api) { G.AtriumLazy.appendOnLoad("AtriumToolbarsPage", c, (ui, into) => ui.render(into, api), m => api.el && c.append(api.el("p", "prf-note", m))); }});
     if (G.AtriumPrefs) page(G.AtriumPrefs); else G.AtriumLazy?.need?.("AtriumPrefs").then(page, () => {});
+    pairIcons();
     queueMicrotask(fit);
   }
   return Object.freeze({...model, sync, render, fit, flyout, choose, run, menu, customise, effective, defaultList, listFor, setList, reset, clearFaces,
-    faces:k => k ? faces()[k] || {} : faces(), flyoutOf, info, drawable, name, kinds:() => KINDS.slice(), PREF, FACES});
+    faces:k => k ? faces()[k] || {} : faces(), flyoutOf, info, drawable, name, kinds:() => KINDS.slice(), loadIcons, PREF, FACES});
 })();
 if (typeof module !== "undefined") module.exports = globalThis.AtriumBars;

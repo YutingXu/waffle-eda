@@ -111,6 +111,12 @@ async function toolbarsPage(browser) {
     }, {title, key, mods});
     const first = await rows();
     assert.deepEqual(first.slice(0, 3), ["Select", "Pan", "Separator"]);
+    // Drawing: only the tools drawings show (style.css hides the schematic and board ones there).
+    await page.evaluate(() => [...document.querySelectorAll(".prf-page .ui-segment")].find(b => b.textContent === "Drawing").click());
+    await settle(page);
+    assert.deepEqual(await rows(), ["Select", "Pan", "Separator", "Drawing view", "Dimension", "Note callout", "Table", "Text", "Line", "Separator", "Annotate"]);
+    await page.evaluate(() => [...document.querySelectorAll(".prf-page .ui-segment")].find(b => b.textContent === "Schematic").click());
+    await settle(page);
     // Keyboard: Alt+↑ moves Pan above Select, and focus stays on it.
     await press("Pan", "ArrowUp", {altKey:true}); await settle(page);
     assert.deepEqual((await stored()).slice(0, 2), ["pan", "select"]);
@@ -267,10 +273,37 @@ async function overflow(browser) {
   } finally { await page.close(); }
 }
 
+async function icons(browser) {
+  const page = await open(browser);
+  try {
+    const r = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumActiveBarMenu");
+      await AtriumBars.sync();
+      AtriumBars.setList("schematic", ["select", "undo", "redo", "fit", "zoom-in", "zoom-out", "grid", "delete", "rotate", "paste", "move-object"]);
+      await AtriumBars.loadIcons(); AtriumBars.render();
+      const face = a => { const b = document.querySelector('#tools [data-action="' + a + '"]'); return b?.querySelector("use")?.getAttribute("href") || b?.querySelector(".tool-text")?.textContent || null; };
+      const out = {};
+      for (const a of ["undo", "redo", "fit", "zoom-in", "zoom-out", "grid", "delete", "rotate", "paste", "move-object"]) out[a] = face(a);
+      out.count = AtriumKeymap.commands().filter(c => c.builtin && c.icon).length;
+      AtriumBars.reset();
+      return out;
+    });
+    const {count, ...faces} = r;
+    assert.deepEqual(faces, {undo:"#i-undo", redo:"#i-redo", fit:"#i-fit", "zoom-in":"#i-plus", "zoom-out":"#i-minus", grid:"#i-grid", delete:"#i-delete", rotate:"#i-rotate",
+      paste:"PA", "move-object":"MO"}, "faces reuse the symbols the chrome and the palette draw; Paste does not borrow Zoom In's plus");
+    console.log("PASS command icons: " + count + " built-in commands draw an existing symbol");
+  } finally { await page.close(); }
+}
+
 async function extensionsAndMacros(browser) {
   const page = await open(browser, {prefs:{"butter.macros":true}});
   try {
-    // An extension's Active Bar button (api.ui.addActiveBarButton, unchanged) joins the default bar.
+    // A customised bar first: an extension installed later still reaches it, once, at the end.
+    await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumActiveBarMenu");
+      AtriumBars.setList("schematic", ["select", "pan", "|", "route", "fit"]);
+    });
+    // An extension's Active Bar button (api.ui.addActiveBarButton, unchanged) is an ordinary item.
     await page.evaluate(() => {
       const manifest = {id:"test.barbutton", name:"Bar Button", version:"1.0.0", apiVersion:1, main:"main.js", activationEvents:["onStartup"], permissions:["ui:command"],
         contributes:{commands:[{command:"bar.hello", title:"Say Hello"}]}};
@@ -281,9 +314,22 @@ async function extensionsAndMacros(browser) {
     await page.waitForFunction(() => document.querySelector("dialog.ext-prompt[open]"), null, {timeout:20000});
     await page.evaluate(() => [...document.querySelectorAll("dialog.ext-prompt[open] button")].find(b => b.textContent === "Install").click());
     await page.waitForFunction(() => document.querySelector('#tools .ext-tool[data-command="bar.hello"]'), null, {timeout:20000});
-    assert.equal((await visible(page)).at(-1), "bar.hello");
+    await settle(page);
+    assert.equal((await visible(page)).at(-1), "bar.hello", "a new extension button joins the customised bar at its end");
+    assert.deepEqual(await page.evaluate(() => [AtriumPrefs.get("workbench.bars").active.schematic, AtriumPrefs.get("workbench.bars").seen]),
+      [["select", "pan", "|", "route", "fit", "bar.hello"], {schematic:["bar.hello"]}]);
+    // Removed, it stays removed, also after a reload.
+    await page.evaluate(() => AtriumBars.setList("schematic", ["select", "pan", "|", "route", "fit"]));
+    await page.reload();
+    await demo(page);
+    await page.waitForFunction(() => globalThis.AtriumExtensions?.list?.().some(r => r.id === "test.barbutton" && r.status === "active"), null, {timeout:30000});
+    await settle(page); await wait(500);
+    assert.equal((await visible(page)).includes("bar.hello"), false, "a removed extension button stays removed");
+    assert.deepEqual(await page.evaluate(() => AtriumPrefs.get("workbench.bars").active.schematic), ["select", "pan", "|", "route", "fit"]);
+    await page.evaluate(() => AtriumBars.reset());
+    await settle(page);
+    assert.equal((await visible(page)).at(-1), "bar.hello", "the default bar takes extension buttons at its end");
     const ext = await page.evaluate(async () => {
-      await AtriumLazy.need("AtriumActiveBarMenu");
       const k = "schematic";
       AtriumBars.setList(k, ["bar.hello", "select", "route"]); await new Promise(r => setTimeout(r, 100));
       const moved = [...document.getElementById("tools").children].map(n => n.dataset.command || n.dataset.action);
@@ -447,6 +493,7 @@ async function run(browser) {
   await toolbarsPage(browser);
   await sticky(browser);
   await overflow(browser);
+  await icons(browser);
   await extensionsAndMacros(browser);
   await widgetsAndPower(browser);
   await settings(browser);
