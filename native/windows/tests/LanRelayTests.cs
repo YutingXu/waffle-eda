@@ -157,6 +157,80 @@ namespace Waffle.Windows.Tests
             host.WaitForCollab();
             Check((string)ui.Last["error"] == "Not a session id.", "lanStart's errors reach the page");
             host.Closing();
+            LanSocketTests(scratch, room, salt);
+        }
+
+        static Dictionary<string, object> Await(Func<Dictionary<string, object>> found, string what)
+        {
+            var until = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < until)
+            {
+                var hit = found();
+                if (hit != null) return hit;
+                System.Threading.Thread.Sleep(10);
+            }
+            Check(false, what + " (timed out)");
+            return null;
+        }
+
+        /// The host's WebSocket for the page (LanSockets.cs): only ws:// to loopback or a private address,
+        /// against the C# listener itself on loopback, and through the bridge actions.
+        static void LanSocketTests(string scratch, string room, string salt)
+        {
+            group = "lan sockets";
+            Check(LanSockets.Target("ws://127.0.0.1:48765").ToString() == "ws://127.0.0.1:48765/" &&
+                  LanSockets.Target("ws://192.168.1.20:48765/").ToString() == "ws://192.168.1.20:48765/" &&
+                  LanSockets.Target("ws://[fd12::7]:48765").ToString() == "ws://[fd12::7]:48765/", "loopback and private addresses");
+            foreach (var url in new[] { "wss://192.168.1.20:48765", "http://192.168.1.20:48765", "ws://8.8.8.8:48765", "ws://203.0.113.9:48765",
+                                        "ws://example.com:48765", "ws://192.168.1.20:48765/x", "ws://192.168.1.20:48765/?q", "ws://a:b@192.168.1.20:48765",
+                                        "ws://[fe80::1]:48765", "ws://169.254.1.1:48765", "javascript:1", "", null })
+                Throws(() => LanSockets.Target(url), "only to ws:// addresses", "refused: " + url);
+
+            var relay = new LanRelay(loopbackOnly: true);
+            var port = (int)relay.Start(room, salt, "Bench")["port"];
+            var events = new List<Dictionary<string, object>>();
+            Action<Dictionary<string, object>> collect = e => { lock (events) events.Add(e); };
+            Func<string, Dictionary<string, object>> message = t => { lock (events) return events.FirstOrDefault(e => (string)e["event"] == "message" && ((string)e["data"]).Contains("\"t\":\"" + t + "\"")); };
+            var sockets = new LanSockets();
+            var id = sockets.Connect("ws://127.0.0.1:" + port, collect).GetAwaiter().GetResult();
+            sockets.Run(id);
+            Check(sockets.Send(id, "{\"t\":\"info\"}"), "send");
+            var info = Await(() => message("info"), "info through the host's socket");
+            Check(info != null && ((string)info["data"]).Contains("\"name\":\"Bench\"") && (int)info["socket"] == id && (string)info["type"] == "lanSocket", "the listener answers info");
+            Check(Await(() => { lock (events) return events.FirstOrDefault(e => (string)e["event"] == "drain"); }, "drain") != null, "a sent message is reported as drained");
+            sockets.Send(id, "{\"t\":\"info\"}");   // a second info is no join: refused and closed
+            Check(Await(() => { lock (events) return events.FirstOrDefault(e => (string)e["event"] == "close"); }, "close") != null && sockets.Count == 0,
+                  "the listener's close reaches the page");
+            try { sockets.Connect("ws://127.0.0.1:9", collect).GetAwaiter().GetResult(); Check(false, "nothing listens on port 9"); }
+            catch (HostError e) { Check(e.Message.StartsWith("No Waffle session answered at 127.0.0.1:9"), "nothing answered: " + e.Message); }
+
+            // Through the bridge: lanConnect replies with the socket; lanSend, events; a reload closes them all.
+            var ui = new FakeUi();
+            var host = new Host(new PortableFs(), ui, new FakeGit(), Directory.CreateDirectory(Path.Combine(scratch, "lan-socket-support")).FullName, testTranslators);
+            host.Receive(Policy.PageUri, Msg("id", 1, "action", "lanConnect", "url", "ws://127.0.0.1:" + port));
+            Func<int, Dictionary<string, object>> reply = n => { lock (ui.Posts) return ui.Posts.FirstOrDefault(p => p.TryGetValue("id", out var v) && v is double d && d == n); };
+            var connected = Await(() => reply(1), "lanConnect's reply");
+            var socket = connected?["result"] as Dictionary<string, object>;
+            Check(socket != null && socket["socket"] is double, "lanConnect: {socket}");
+            if (socket != null)
+            {
+                host.Receive(Policy.PageUri, Msg("action", "lanSend", "socket", socket["socket"], "data", "{\"t\":\"info\"}"));
+                Check(Await(() => { lock (ui.Posts) return ui.Posts.FirstOrDefault(p => Equals(p.GetValueOrDefault("type"), "lanSocket") && Equals(p.GetValueOrDefault("event"), "message")); },
+                            "a message event") != null, "the page gets the listener's answer");
+                host.Receive(Policy.PageUri, Msg("action", "lanSend", "socket", 99.0, "data", "x"));   // no such socket: ignored
+            }
+            host.Receive(Policy.PageUri, Msg("id", 2, "action", "lanConnect", "url", "ws://8.8.8.8:48765"));
+            var refused = Await(() => reply(2), "refused lanConnect");
+            Check(refused != null && ((string)refused["error"]).Contains("only to ws:// addresses"), "lanConnect refuses other addresses");
+            host.Receive(Policy.PageUri, Msg("id", 3, "action", "lanConnect", "url", "ws://127.0.0.1:" + port));
+            Await(() => reply(3), "a second socket");
+            int before;
+            lock (ui.Posts) before = ui.Posts.Count;
+            host.PageGone();
+            System.Threading.Thread.Sleep(300);
+            lock (ui.Posts) Check(ui.Posts.Skip(before).All(p => !Equals(p.GetValueOrDefault("type"), "lanSocket")), "a reloaded page hears nothing from its old sockets");
+            host.Closing();
+            relay.Stop();
         }
     }
 }

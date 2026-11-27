@@ -32,6 +32,7 @@ src/Core/               platform-independent, shared with the tests
   Policy.cs             navigation policy, accepted file types, Windows path rules (WinPath)
   Host.cs               the bridge protocol, action by action, as in native/macos/main.swift
   LanRelay.cs           same-network sessions: the relay protocol in lan mode on TcpListener, which adapters count
+  LanSockets.cs         the page's ws:// to this computer and the local network, opened by the host (ClientWebSocket)
   HostFiles.cs          Native file handles, Altium source copies, recent projects and library reads
   FolderProject.cs      Durable format-2 folder transaction and staged assets
   WindowState.cs        remembered window frame and the off-screen rules

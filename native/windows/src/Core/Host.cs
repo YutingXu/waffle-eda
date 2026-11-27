@@ -79,6 +79,7 @@ namespace Waffle.Windows
         // Same-network sessions (LanRelay.cs). The window gives it this computer's adapters and DNS-SD;
         // without them it finds no local network. It listens only while the page shares a session.
         public LanRelay Lan = new LanRelay();
+        readonly LanSockets lanSockets = new LanSockets();
         readonly ExternalTools external;
         int pageGeneration;
         KeyValuePair<string, string>? pickedHistory, gitSource;
@@ -148,6 +149,7 @@ namespace Waffle.Windows
             // A reloaded or failed page has no session to share: after any lanStart still queued.
             var lan = Lan;
             collab.Post(() => lan.Stop());
+            lanSockets.CloseAll();
         }
 
         List<Dictionary<string, object>> CrashHistory()
@@ -402,6 +404,12 @@ namespace Waffle.Windows
                 case "externalCancel":
                     external.Cancel(Str(request, "runId"));
                     return;
+                // A socket lanConnect opened (LanSockets.cs): no reply, its events say what happens.
+                case "lanSend": case "lanClose":
+                    if (!request.TryGetValue("socket", out var socket) || !(socket is double number) || number < 1 || number > int.MaxValue) return;
+                    if (action == "lanSend") lanSockets.Send((int)number, Str(request, "data"));
+                    else lanSockets.Close((int)number, false);
+                    return;
             }
             object rawId;
             if (!request.TryGetValue("id", out rawId) || !(rawId is double)) return;
@@ -558,6 +566,24 @@ namespace Waffle.Windows
                         ui.Main(() => { if (generation == pageGeneration) Reply(id, result, error); });
                     };
                     if (action == "lanBrowse") ui.Background(job); else collab.Post(job);
+                    return;
+                }
+                case "lanConnect":
+                {
+                    var generation = pageGeneration;
+                    Action<Dictionary<string, object>> events = e => ui.Main(() => { if (generation == pageGeneration) ui.Post(Json.Write(e)); });
+                    lanSockets.Connect(Str(request, "url"), events).ContinueWith(task => ui.Main(() =>
+                    {
+                        if (task.IsFaulted)
+                        {
+                            var failure = task.Exception.InnerException;
+                            if (generation == pageGeneration) Reply(id, null, failure is HostError ? failure.Message : "No Waffle session answered.");
+                            return;
+                        }
+                        if (generation != pageGeneration) { lanSockets.Close(task.Result, false); return; }
+                        Reply(id, new Dictionary<string, object> { { "socket", task.Result } });
+                        lanSockets.Run(task.Result);
+                    }));
                     return;
                 }
                 case "recoverySession": Reply(id, null); return;

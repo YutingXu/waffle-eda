@@ -597,7 +597,7 @@ globalThis.AtriumCollabPresence = (() => {
           WebSocket = o.socket; address = "ws://pair.invalid"; path = o.path || "relay";
           session.pairing = o.pairing;
           o.pairing?.onEnd?.(() => { if (S === session) { leave(true); say("The pairing with the host ended. Ask them for a new pairing code to join again.", "warning"); } });
-        }
+        } else if (G.AtriumHost?.lanSocket && /^ws:\/\//i.test(url)) WebSocket = await G.AtriumHost.lanSocket();   // ws:// on this network through the host (Windows)
         if (S !== session) return;
         const t = await T.connect({url: address, WebSocket, roomKey, salt, hostToken, persist: true, host: hostId, owner, path, cancelled: () => S !== session,
           onMessage(...args) { if (S === session) onMessage(...args); },
@@ -1725,12 +1725,13 @@ globalThis.AtriumCollabPresence = (() => {
       });
     }
     // The public facts of a session shared on the network (salt, name, host id), before joining.
-    function lanInfo(url) {
+    async function lanInfo(url) {
+      const Socket = G.AtriumHost?.lanSocket ? await G.AtriumHost.lanSocket() : G.WebSocket;
       return new Promise((resolve, reject) => {
         let ws;
         const fail = () => reject(Error("No Waffle session answered at " + url.replace(/^ws:\/\//, "") + ". Check the address, and that the host chose Visible on this network."));
         const timer = setTimeout(() => { try { ws?.close(); } catch { /* closed */ } fail(); }, 6000);
-        try { ws = new G.WebSocket(url); } catch { clearTimeout(timer); fail(); return; }
+        try { ws = new Socket(url); } catch { clearTimeout(timer); fail(); return; }
         ws.onopen = () => ws.send(JSON.stringify({t: "info"}));
         ws.onmessage = e => {
           let m = null; try { m = JSON.parse(e.data); } catch { /* not ours */ }
