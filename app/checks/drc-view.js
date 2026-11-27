@@ -133,7 +133,17 @@ globalThis.AtriumDRCView = (() => {
     const K = globalThis.AtriumChecks;
     if (!K) return;
     let a = adapters.get(d.id);
-    if (!a) adapters.set(d.id, a = v => K.fromDRC(v, d.id));
+    // An incremental check keeps the violation objects it did not re-check: their shared form is kept too,
+    // so a publication converts what the edit changed.
+    if (!a) {
+      const held = new WeakMap();
+      adapters.set(d.id, a = v => {
+        if (!v || typeof v !== "object") return K.fromDRC(v, d.id);
+        let x = held.get(v);
+        if (x === undefined) held.set(v, x = K.fromDRC(v, d.id));
+        return x;
+      });
+    }
     K.publish(d.id, "drc", shown.get(d.id) || EMPTY, a, {pending, unavailable});
     K.publish(d.id, "drc-waived", waivedShown.get(d.id) || EMPTY, a);
     // Net-wide results change only with a batch run (or a waiver): keep the published list while they hold.
@@ -371,7 +381,10 @@ globalThis.AtriumDRCView = (() => {
       const copperChanged = state.copper !== deps.copper;
       const refreshCopper = violations => {
         const T = types().filter(t => COPPER_TYPES.has(t));
-        const r = T.length ? R().drc(doc, defs, rules, {compiled:state.compiled,project:hint?.project,types:T, limit:5000}) : {violations:[]};
+        // Polygon Connect and Return Path read the copper and the items themselves, not the extracted
+        // board features (only Creepage Distance does): an empty extraction spares a pass over the board.
+        const geo = T.includes("creepage") && state.compiled.byType.creepage?.length || !R().kit?.extract ? null : {geo:R().kit.extract({...doc, items:[]}, defs)};
+        const r = T.length ? R().drc(doc, defs, rules, {compiled:state.compiled,project:hint?.project,types:T, limit:5000, ...geo}) : {violations:[]};
         return violations.filter(v => !COPPER_TYPES.has(v.type)).concat(r.violations);
       };
       const changes = indexedChanges(doc,hint,delta,known,physical);
