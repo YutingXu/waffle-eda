@@ -439,6 +439,83 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   console.log("Pending GPU caption queries preserve document order and outside-viewport occluders");
 }
 
+// A ready board grid shares its broad query only across dense placed captions.
+{
+  const U=AtriumUndoStore, spatial=AtriumSpatial, builds=[], queries=[];
+  const pad=(x,n)=>({...F4.pad,x,y:0,w:.5,h:.5,angle:0,drill:0,number:String(n),layer:"Bottom"});
+  const part=(id,def,x)=>({...F4.part,kind:"part",id,def,x,y:0,angle:0,mirror:true,layer:"Bottom",showRef:false});
+  const host=part("many","many",0), first=part("first","custom",.34), last=part("last","custom",20);
+  const remote=part("remote","custom",1600);
+  const pkg={id:"many",footprint:{pads:Array.from({length:70},(_,n)=>({...pad((69-n)*.8,n+1),w:n===69?.75:.5})),shapes:[]}};
+  const custom={id:"custom",footprint:{pads:[{...pad(0,1),w:.22,h:.22,poly:[[-.11,-.11],[.11,-.11],[0,.11]]}],shapes:[]}};
+  const copper={id:"track",kind:"track",layer:"Bottom",width:.05,points:[[0,-.2],[0,.2]]};
+  const loose={...pad(-3,1),id:"loose",kind:"pad",layer:"Top",net:"loose",y:10};
+  const looseCover={id:"loose-cover",kind:"track",layer:"Top",width:.1,points:[[-3,9.9],[-3,10.1]]};
+  const board=Atrium.sheet("pcb","Ready caption grid");
+  board.items=[first,host,copper,last,remote,loose,looseCover];
+  const project={documents:[board],library:[pkg,custom]}, history=[], future=[];
+  const definitions=()=>new Map(project.library.map(def=>[def.id,def]));
+  const opts={layer:"Bottom",netNames:true};
+  const I=AtriumCanvas.create(AtriumPDF.recorder(800,600).canvas).internals();
+  const wrap=ready=>({
+    get cache(){return ready?I.cache:null;},
+    query(doc,defs,rect){queries.push(Array.from(rect));return I.query(doc,defs,rect);}
+  });
+  const byId=id=>board.items.find(item=>item.id===id);
+  const viewport=[-70,-3,.1,3];
+  const probe=(name,expected,{sparse=false,spread=false,standalone=false}={})=>{
+    const defs=definitions(), parts=[byId("many")];
+    if(spread)parts.push(byId("remote"));
+    if(standalone)parts.push(byId("loose"));
+    I.query(board,defs,viewport);
+    assert.ok(I.cache.index && !I.cache.preparation);
+    const groups=gpu.padDetails(parts,defs,80,opts,board);
+    assert.equal(groups.get("Bottom").length,spread?71:70);
+    if(sparse)groups.get("Bottom").length=63;
+    const linear=Array.from(gpu.coveredPadDetails(wrap(false),board,defs,groups));
+    builds.length=0; queries.length=0;
+    sandbox.AtriumSpatial={...spatial,create(items,getBox,pitch) {
+      if(pitch===4)builds.push(items.map(item=>item.id));
+      return spatial.create(items,getBox,pitch);
+    }};
+    try {
+      const indexed=Array.from(gpu.coveredPadDetails(wrap(true),board,defs,groups));
+      assert.deepEqual(indexed,linear,name+" preserves the authoritative grid result");
+      assert.deepEqual(indexed,expected,name);
+      if(sparse || spread) {
+        assert.equal(builds.length,0,name+" does not build a second index");
+        assert.equal(queries.length,sparse?63:71);
+      } else {
+        assert.equal(builds.length,1,name+" uses one local index");
+        assert.ok(builds[0].includes("many") && !builds[0].includes("track"));
+        if(standalone)assert.equal(queries.length,65,"a loose pad still uses the authoritative document query");
+        else assert.equal(queries.length,64,"dense placed captions share one document query");
+      }
+    } finally { sandbox.AtriumSpatial=spatial; }
+  };
+
+  U.record(project);
+  probe("Earlier cross-footprint copper and later nonpart copper do not cover a placed caption",[]);
+  probe("Sparse placed captions",[],{sparse:true});
+  probe("Spread-out caption union",[],{spread:true});
+  probe("Later copper still covers a loose caption",["Top"],{standalone:true});
+
+  const mark=U.mark(project);
+  last.x=.34;
+  U.checkpoint(history,future,mark,"Move custom copper beside the mirrored package");
+  U.record(project,[{doc:board,items:[last]}]);
+  I.query(board,definitions(),viewport);
+  assert.ok(!spatial.overlaps(I.cache.boxes.get(last),viewport),"custom footprint starts outside the viewport");
+  probe("Later custom copper beyond the viewport covers the mirrored edge caption",["Bottom"]);
+  assert.deepEqual(builds[0],["first","many","last"],"the scoped part index follows authoritative document order");
+  U.jump(history,future,U.mark(project),-1);
+  probe("Undo restores the exact earlier-only overlap",[]);
+  U.jump(history,future,U.mark(project),1);
+  probe("Redo restores the later outside-viewport occluder",["Bottom"]);
+  U.reset();
+  console.log("Ready placed-caption queries share dense bounds and preserve mirrored order through Undo and Redo");
+}
+
 // Large footprint indices must give the same occlusion result in authored order.
 {
   const spatial = AtriumSpatial, builds = [];

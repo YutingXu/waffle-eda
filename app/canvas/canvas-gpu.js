@@ -2836,7 +2836,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // Ordinary disjoint pads keep the retained GPU pass; overlapping ones use the ordered layer.
   function coveredPadDetails(I, doc, defs, groups) {
     const layers = new Set(), spatial = G.AtriumSpatial, c = I.cache;
-    const pendingSpatial = c?.doc === doc && c.preparation && spatial;
+    const cached = c?.doc === doc && spatial?.create && c.boxes;
+    const pending = cached && c.preparation, ready = cached && !pending && c.index;
     let queries = 0, local;
     let placed, captionCounts;
     const boundsOf = (pad, item) => {
@@ -2876,22 +2877,29 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     layerPass: for (const [layer, entries] of groups) for (const {p, parent, g} of entries) {
       const box = padDetailBox(g,parent);
-      // Amortize the temporary index only when several actual caption queries were needed.
-      if (pendingSpatial && ++queries === 8) {
-        // The full pick grid is still under construction. One authoritative query includes
-        // later occluders outside the viewport or suppressed by the painter.
-        let bounds = null;
+      // Reuse one authoritative query in dense caption regions. With a ready board
+      // index only placed captions benefit: their later occluders must be parts.
+      if ((pending || ready && parent) && ++queries === (pending ? 8 : 64)) {
+        let bounds = null, count = 0;
         for (const entries of groups.values()) for (const {g,parent} of entries) {
+          if (ready && !parent) continue;
           const rect = padDetailBox(g,parent);
-          if (rect.every(Number.isFinite)) bounds = mergeBounds(bounds,rect);
+          if (!rect.every(Number.isFinite)) continue;
+          bounds = mergeBounds(bounds,rect);
+          count++;
         }
+        // Allow occluders beyond the viewport or suppressed by its painter.
+        // Keep narrow ready-index queries when the union spans more cells than captions.
         if (bounds) {
-          const items = I.query(doc,defs,bounds), boxes = I.cache.boxes;
-          local = spatial.create(items,item => boxes.get(item),4);
+          const [x0,y0,x1,y1] = bounds.map(v => Math.floor(v / 4));
+          if (pending || (x1-x0+1)*(y1-y0+1) <= count) {
+            const items = I.query(doc,defs,bounds), boxes = I.cache.boxes;
+            local = spatial.create(ready ? items.filter(i => i.kind === "part") : items,item => boxes.get(item),4);
+          }
         }
       }
       let after = false;
-      const items = local && box.every(Number.isFinite) ? local.query(box) : I.query(doc, defs, box);
+      const items = local && (pending || parent) && box.every(Number.isFinite) ? local.query(box) : I.query(doc, defs, box);
       for (const i of items) {
         if (i === (parent || p)) after = true;
         if (i.kind !== "part") {
