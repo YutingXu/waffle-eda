@@ -55,7 +55,7 @@ function metrics(project) {
     for(const p of fixtures())console.log(p.name,JSON.stringify(metrics(p)));
     return;
   }
-  const {chromium}=require("playwright-core");
+  const {chromium}=require("../support/playwright.cjs");
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"waffle-netlist-")),browser=await chromium.launch({headless:true,...(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})});
   try {
     if(screens)fs.mkdirSync(screens,{recursive:true});

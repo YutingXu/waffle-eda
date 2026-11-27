@@ -3,7 +3,7 @@
 // always contain this generated project, never a customer's design.
 const assert=require("node:assert/strict");
 const path=require("node:path"), fs=require("node:fs/promises"), {pathToFileURL}=require("node:url");
-const {chromium}=require("playwright-core");
+const {chromium}=require("../support/playwright.cjs");
 
 async function main() {
   const browser=await chromium.launch(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"});

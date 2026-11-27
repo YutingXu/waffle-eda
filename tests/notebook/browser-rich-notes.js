@@ -1,5 +1,5 @@
 "use strict";
-const assert=require("node:assert/strict"), path=require("node:path"), fs=require("node:fs/promises"), {pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const assert=require("node:assert/strict"), path=require("node:path"), fs=require("node:fs/promises"), {pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 (async()=>{
   const browser=await chromium.launch(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"});
   const page=await browser.newPage({viewport:{width:1320,height:900},reducedMotion:"reduce",hasTouch:true});

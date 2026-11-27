@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const {createStaticServer} = require("../support/browser-app-server.cjs");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 
 const app = path.resolve(process.argv[2] || path.join(__dirname,"../../app"));
 // canvas-input.js is the shared touch recogniser (pan, tap, hold, move) and loads for every profile.

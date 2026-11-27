@@ -309,6 +309,6 @@ async function measure(browser){
 }
 module.exports=run;
 if(require.main===module)(async()=>{
-  const {chromium}=require("playwright-core"),browser=await chromium.launch({headless:true,...(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})});
+  const {chromium}=require("../support/playwright.cjs"),browser=await chromium.launch({headless:true,...(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})});
   try{if(process.argv.includes("--measure"))await measure(browser);else await run(browser);}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs"), os = require("node:os"), path = require("node:path");
 const {pathToFileURL} = require("node:url");
 const {hostEnv, folderFiles} = require("../support/native-folder-fixture.cjs");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const root = path.resolve(__dirname, "../..");
 for (const name of ["model", "source-file", "format-2-codec", "format-2-units", "format-2-values", "format-2-model"])
   require(require("../support/app-source-paths.cjs").appFile(name + ".js"));

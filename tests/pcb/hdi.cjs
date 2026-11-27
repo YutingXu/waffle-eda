@@ -7,8 +7,9 @@
 // tests/fixtures/hdi/. Boards without HDI keep their outputs (no HDI notes, no via-fill files).
 //
 // Regenerate the goldens after an intended output change:
-//   jsc tests/jsc-shim.js -- tests/pcb/hdi.cjs --print > /tmp/hdi.txt   (or: node tests/pcb/hdi.cjs --print)
+//   TZ=UTC jsc tests/jsc-shim.js -- tests/pcb/hdi.cjs --print > /tmp/hdi.txt   (or: node tests/pcb/hdi.cjs --print)
 //   python3 -c "import re,sys;t=open('/tmp/hdi.txt',newline='').read();[open('tests/fixtures/hdi/'+n,'w',newline='').write(b) for n,b in re.findall(r'^=== (\S+)\n(.*?)\n=== end\n',t,re.S|re.M)]"
+require("../support/utc.cjs");   // drill headers carry local time and offset; the goldens are in UTC
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};

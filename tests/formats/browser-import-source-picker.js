@@ -291,6 +291,6 @@ async function run(browser) {
 }
 module.exports=run;
 if(require.main===module)(async()=>{
-  const browser=await require("playwright-core").chromium.launch(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"});
+  const browser=await require("../support/playwright.cjs").chromium.launch(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"});
   try{await run(browser);}finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
