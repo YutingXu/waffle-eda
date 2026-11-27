@@ -1078,6 +1078,7 @@ globalThis.AtriumLazy = (() => {
         need("AtriumUIKit").then(() => surface.removeEventListener("focusin", searchFocus, true), () => {});
       };
       surface.addEventListener("focusin", searchFocus, true);
+      prefetch(["AtriumUIKit", "AtriumMotionUI"]); // the kit adopts .ui-search and slides .ui-segmented
       const hintEvents = ["pointerover","pointerout","pointerdown","pointerup","pointercancel","focusin","focusout"];
       let firstHint, loadingHint = false;
       const loadHint = () => {
