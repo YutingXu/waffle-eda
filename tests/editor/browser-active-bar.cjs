@@ -322,7 +322,10 @@ async function extensionsAndMacros(browser) {
     await page.evaluate(() => AtriumBars.setList("schematic", ["select", "pan", "|", "route", "fit"]));
     await page.reload();
     await demo(page);
-    await page.waitForFunction(() => globalThis.AtriumExtensions?.list?.().some(r => r.id === "test.barbutton" && r.status === "active"), null, {timeout:30000});
+    // The extension starts again (onStartup) and adds its button; the bar must leave it out.
+    await page.evaluate(() => AtriumLazy.need("AtriumExtensions"));
+    await page.waitForFunction(() => document.querySelector('.ext-tool[data-command="bar.hello"]') || AtriumExtensions.list().some(r => r.id === "test.barbutton" && r.status === "active"), null, {timeout:60000})
+      .catch(async e => { throw Error(e.message + " " + JSON.stringify(await page.evaluate(() => AtriumExtensions.list().map(r => [r.id, r.status])))); });
     await settle(page); await wait(500);
     assert.equal((await visible(page)).includes("bar.hello"), false, "a removed extension button stays removed");
     assert.deepEqual(await page.evaluate(() => AtriumPrefs.get("workbench.bars").active.schematic), ["select", "pan", "|", "route", "fit"]);
