@@ -28,6 +28,14 @@ const now=()=>globalThis.performance?.now?performance.now():Date.now();
   vnear(M.project(m.vp,iso.target,300,200),[150,100],1e-4,"target at centre");
   const I=M.mul(m.vp,M.invert(m.vp));for(let i=0;i<16;i++)near(I[i],i%5===0?1:0,1e-5,"vp·vp⁻¹");
   assert.ok(m.near>0&&m.far>m.near&&m.far/m.near<=4000.0001,"depth range hugs the scene");
+  // Clearance to the nearest drawn box moves the near plane out, by at most the frustum corner's cosine.
+  const boxes=[{instances:[{box:[-5,-5,0,5,5,2],k:1},{box:[100,100,0,101,101,1],k:0}]}];
+  near(M.clearanceOf([0,0,12],boxes),10);near(M.clearanceOf([0,0,1],boxes),0,0,"inside a box");
+  near(M.clearanceOf([100.5,100.5,12],boxes,x=>x.k),Math.hypot(95.5,95.5,10),1e-9,"hidden boxes do not count");
+  const inner={...iso,target:[0,0,0],dist:3},mc=M.matrices(inner,1.5,{c:[0,0,0],r:200},12),corner=1/Math.hypot(1,Math.tan(15*Math.PI/180)*Math.hypot(1,1.5));
+  near(M.matrices(inner,1.5,{c:[0,0,0],r:200}).near,mc.far/4000,1e-9);near(mc.near,12*corner*0.98,1e-9,"clearance sets the near plane");
+  assert.ok(mc.near<12*corner,"a box corner at the frustum edge stays beyond the near plane");
+  near(M.matrices(inner,1.5,{c:[0,0,0],r:200},1e9).near,mc.far/2,1e-9,"and never reaches the far plane");
   // A ray through a pixel passes through the points that project there.
   for(const [nx,ny] of [[0,0],[0.5,-0.3],[-0.9,0.8]]){
     const r=M.ray(iso,1.5,nx,ny),p=[r.o[0]+r.d[0]*40,r.o[1]+r.d[1]*40,r.o[2]+r.d[2]*40],s=M.project(m.vp,p,300,200);
@@ -416,6 +424,28 @@ async function viewerLifetime(){
     v.camera({yaw:35});run(frames);
     assert.equal(v.scene(),first,"moving the camera reuses the uploaded scene");
     assert.ok(mk.log.draws>draws,"the new camera still draws");
+    // Depth precision. A STEP package marking stands 1-3 µm proud of its body. With the near plane at
+    // far/4000 whenever the eye was inside the scene sphere, one 24-bit depth step spanned 5-12 µm at
+    // 40-115 mm and WebKit dropped the marking (z-fighting). The near plane now follows the clearance
+    // to the nearest drawn box, so 3 µm keeps many steps, and nothing drawn lies before the near plane.
+    {
+      const box=first.parts.find(i=>i.id===part.id).box,target=[(box[0]+box[3])/2,(box[1]+box[4])/2,box[5]];
+      const depth=(m,p)=>{const P=m.vp,z=P[2]*p[0]+P[6]*p[1]+P[10]*p[2]+P[14],w=P[3]*p[0]+P[7]*p[1]+P[11]*p[2]+P[15];return (z/w+1)/2*(2**24-1);};
+      for(const [dist,yaw,pitch] of [[6,-115,25],[30,-33,40],[45,60,60],[90,-90,90]]){
+        v.camera({target,dist,yaw,pitch,fov:30});v.renderNow();
+        const m=v.lastMatrices,sc=v.scene(),inside=M.frame(v.camera()).eye;
+        const steps=depth(m,target)-depth(m,[target[0],target[1],target[2]+0.003]);
+        assert.ok(steps>=64,"3 µm above a part top spans "+steps.toFixed(2)+" depth steps at "+dist+" mm (near "+m.near.toFixed(4)+" mm)");
+        for(const b of sc.batches)for(const x of b.instances){
+          const q=x.box,d=Math.hypot(Math.max(q[0]-inside[0],0,inside[0]-q[3]),Math.max(q[1]-inside[1],0,inside[1]-q[4]),Math.max(q[2]-inside[2],0,inside[2]-q[5]));
+          assert.ok(d>=m.near,"no drawn box is nearer than the near plane");
+        }
+      }
+      // An eye inside a drawn box keeps the scene-sphere near plane.
+      v.camera({target:[(box[0]+box[3])/2,(box[1]+box[4])/2,(box[2]+box[5])/2],dist:1e-3,yaw:0,pitch:45,fov:30});v.renderNow();
+      near(v.lastMatrices.near,v.lastMatrices.far/4000,1e-9,"inside a body the near plane falls back");
+      v.camera({yaw:35,dist:first.sphere.r*3,target:first.sphere.c});
+    }
     wire.points[0][0]-=1;U.touch(project);revision++;v.refresh();
     assert.equal(U.documentVersions(doc,project),null,"painting does not sync pending history");
     run(timers);run(frames);

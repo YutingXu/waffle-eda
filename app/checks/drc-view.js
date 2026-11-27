@@ -385,8 +385,9 @@ globalThis.AtriumDRCView = (() => {
       // the edited copper's neighborhood. Rebuild the scope against the full board
       // before reusing geometric certificates or publishing an incremental result.
       if (dirty.size) {
-        const prior=state.compiled, dep=prior.recheckBoardItems;
-        const changesGeometry=prior.dependencies.has("geometry:body") || prior.dependencies.has("geometry:origin");
+        // Only the scopes of the rules online DRC runs (rules.js recheckFor): net-wide rules stay in batch DRC.
+        const prior=state.compiled, dep=prior.recheckFor?.(types(doc)) ?? prior.recheckBoardItems;
+        const scoped=dep.dependencies ?? prior.dependencies, changesGeometry=scoped.has("geometry:body") || scoped.has("geometry:origin");
         if (prior.diagnostics.length || prior.measurementIssues.size || dep.length)
           return rebuild("rule scope dependencies changed");
         if(dep.bound || dep.usesParts || changesGeometry) {

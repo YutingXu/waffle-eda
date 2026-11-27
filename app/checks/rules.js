@@ -633,6 +633,7 @@ globalThis.AtriumRules = (() => {
       return entry;
     };
   }
+  const PART_RELATIONS = new Set(["relation:componentclass","relation:xsignal","relation:xsignalclass","relation:signal","relation:tag"]);
   const needsMeasurement = plan => plan?.dependencies?.some(k=>k.startsWith("geometry:")||k.startsWith("rule:")||k==="field:length");
   // Ordinary optional fields may be absent. Only a measurement the evaluated
   // condition actually needed makes a check incomplete.
@@ -785,20 +786,35 @@ globalThis.AtriumRules = (() => {
       return null;
     }
     const clearanceRule=(a,b)=>pair("clearance",a,b);
-    const anchors=new Set(),names=new Set();
-    const usesParts=[...dependencies].some(k=>["relation:componentclass","relation:xsignal","relation:xsignalclass","relation:signal","relation:tag"].includes(k));
-    let bound=false;
-    for(const rows of Object.values(byType))for(const r of rows)for(const [scope,plan] of [[r.scope,r.scopePlan],[r.scope2,r.scope2Plan]]){
-      for(const ref of plan?.references || []){
-        const id=ref.target?.itemId ?? ref.target?.id;
-        if(!id || ref.family!=="anchor"&&!scope?.bindings?.length)continue;
-        anchors.add(id);bound=true;
-        if(!scope.bindings?.some(b=>b.span[0]===ref.span[0]&&b.span[1]===ref.span[1]))names.add(ref.name);
+    // What an incremental re-check must know about the rules' scopes: the objects they name (anchors,
+    // names), whether part edits can change membership (usesParts) or a measured length (length), and
+    // their dependencies. recheckFor(types) reads only the rules of those types: online DRC checks
+    // local types and leaves net-wide ones (Matched Lengths …) to batch DRC, so their scopes must not
+    // turn a part move into a whole-board check. A rule(MinWidth) scope also reads the Width rules.
+    function recheckOf(rows,deps){
+      const anchors=new Set(),names=new Set(),own=deps||new Set();
+      let bound=false;
+      for(const r of rows)for(const [scope,plan] of [[r.scope,r.scopePlan],[r.scope2,r.scope2Plan]]){
+        if(!deps)for(const k of plan?.dependencies || [])own.add(k);
+        for(const ref of plan?.references || []){
+          const id=ref.target?.itemId ?? ref.target?.id;
+          if(!id || ref.family!=="anchor"&&!scope?.bindings?.length)continue;
+          anchors.add(id);bound=true;
+          if(!scope.bindings?.some(b=>b.span[0]===ref.span[0]&&b.span[1]===ref.span[1]))names.add(ref.name);
+        }
       }
+      return {anchors,names,usesParts:[...own].some(k=>PART_RELATIONS.has(k)),bound,length:own.has("field:length"),dependencies:own};
     }
-    const recheckBoardItems = {anchors,names,usesParts,bound,length:dependencies.has("field:length")};
+    const recheckBoardItems = recheckOf(Object.values(byType).flat(),dependencies);
+    function recheckFor(types){
+      const rows=[],seen=new Set();
+      const add=t=>{if(seen.has(t))return;seen.add(t);for(const r of byType[t]||[])rows.push(r);};
+      for(const t of types)add(t);
+      if(rows.some(r=>[r.scopePlan,r.scope2Plan].some(p=>p?.dependencies?.includes("rule:MinWidth"))))add("width");
+      return recheckOf(rows,null);
+    }
 
-    return {set,byType,first,viaStyle,either,pair,clearanceRule,clearanceReady,classes,pairs,pairOfNet,pairClasses,matcher,profiles,signals:env,dependencies,diagnostics,measurementIssues,recheckBoardItems};
+    return {set,byType,first,viaStyle,either,pair,clearanceRule,clearanceReady,classes,pairs,pairOfNet,pairClasses,matcher,profiles,signals:env,dependencies,diagnostics,measurementIssues,recheckBoardItems,recheckFor};
   }
 
   // ---------------------------------------------------------------- query API
