@@ -215,6 +215,15 @@ async function run() {
       await page.locator("#canvas").focus();
       await page.waitForFunction(()=>!window.draftField.isConnected); // the held rebuild runs once focus leaves Properties
       assert.equal(await page.evaluate(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w),2,"Escape discarded the draft");
+      // A length typed under a held rebuild commits when focus leaves at once, before the calculation answers:
+      // the held rebuild waits for that commit instead of replacing the field under it.
+      await padWidth.focus();await padWidth.fill("3 mm");
+      await padWidth.evaluate(()=>AtriumNavHost.moduleLoaded("AtriumPCBTextRich"));
+      await page.locator("#canvas").focus();
+      await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===3,null,{timeout:5000})
+        .catch(()=>assert.fail("a length committed on blur under a held rebuild was dropped"));
+      await padWidth.focus();await padWidth.fill("2 mm");await padWidth.press("Enter");
+      await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===2);
       await page.evaluate(()=>{
         const h=AtriumNavHost;
         h.edit(()=>{

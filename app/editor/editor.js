@@ -886,12 +886,16 @@
   function revealInspector(launch=false){if(inspectorDirty&&$("inspector").getClientRects().length){inspectorVisible=true;inspect(false,launch);}}
   // A module that arrives in the background (moduleLoaded) does not rebuild Properties under a field being
   // typed in: that would drop the draft and its selection. The rebuild waits until focus leaves the panel,
-  // unless an edit or a selection change rebuilds it first.
+  // unless an edit or a selection change rebuilds it first. A length field commits on blur through the
+  // calculations worker, so the held rebuild waits for that commit: rebuilding under it would drop the value.
+  // Held means dirty too, so a panel hidden before focus leaves still rebuilds when it is shown again.
   let lazyRefresh=false,inspectorHeld=false,heldPanel=null;
   function typingInInspector(panel){const a=document.activeElement;return !!a&&panel.contains(a)&&a.matches("textarea,[contenteditable=true],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=color])");}
   function holdInspector(panel){
-    inspectorHeld=true;if(heldPanel===panel)return;heldPanel=panel;
-    panel.addEventListener("focusout",e=>{if(inspectorHeld&&!panel.contains(e.relatedTarget))setTimeout(()=>{if(inspectorHeld&&!typingInInspector(panel))inspect();},0);});
+    inspectorHeld=true;inspectorDirty=true;if(heldPanel===panel)return;heldPanel=panel;
+    const rebuild=()=>{if(inspectorHeld&&!typingInInspector(panel))inspect();};
+    panel.addEventListener("focusout",e=>{if(!inspectorHeld||panel.contains(e.relatedTarget))return;
+      setTimeout(()=>Promise.resolve(globalThis.AtriumNumericFields?.finishEdits?.(navHost)).catch(()=>{}).then(rebuild),0);});
   }
   function inspect(reuseOverview=false,launch=false){
     inspectorDirty=!inspectorVisible||!viewportVisible&&!launch;if(inspectorDirty)return;
