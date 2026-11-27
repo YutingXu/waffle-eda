@@ -76,6 +76,9 @@ namespace Waffle.Windows
         readonly LibraryReads libraryReads;
         // run:external (ExternalTools.cs): the window's dialogs; null means programs cannot be run here.
         public IExternalUi ExternalUi;
+        // Same-network sessions (LanRelay.cs). The window gives it this computer's adapters and DNS-SD;
+        // without them it finds no local network. It listens only while the page shares a session.
+        public LanRelay Lan = new LanRelay();
         readonly ExternalTools external;
         int pageGeneration;
         KeyValuePair<string, string>? pickedHistory, gitSource;
@@ -142,6 +145,9 @@ namespace Waffle.Windows
         {
             ready = false; pageGeneration++; ButterDropEnabled=false; typedDrop=null; ResetImportedSave(); pendingImportTokens.Clear(); ClearFolders(); ClearNativeDocuments(); pickedHistory = gitSource = null;
             closeAfterSave = null; foreignCloseRequested = foreignImportId = null;
+            // A reloaded or failed page has no session to share: after any lanStart still queued.
+            var lan = Lan;
+            collab.Post(() => lan.Stop());
         }
 
         List<Dictionary<string, object>> CrashHistory()
@@ -528,6 +534,30 @@ namespace Waffle.Windows
                         }
                         catch (Exception e) { ui.Main(() => { if (generation == pageGeneration) Reply(id, null, Message(e)); }); }
                     });
+                    return;
+                }
+                case "lanStart": case "lanHost": case "lanStop": case "lanBrowse":
+                {
+                    // On the collab queue, in order (a stop after a reload follows any start); looking
+                    // for sessions takes seconds and runs on its own.
+                    var relay = Lan;
+                    var generation = pageGeneration;
+                    string room = Str(request, "room"), salt = Str(request, "salt"), name = Str(request, "name"), peer = Str(request, "host");
+                    Action job = () =>
+                    {
+                        object result = null;
+                        string error = null;
+                        try
+                        {
+                            result = action == "lanStart" ? relay.Start(room, salt, name)
+                                : action == "lanHost" ? relay.SetHost(peer)
+                                : action == "lanStop" ? relay.Stop()
+                                : relay.Browse();
+                        }
+                        catch (Exception e) { error = e is HostError ? e.Message : "Sharing on this network failed: " + e.Message; }
+                        ui.Main(() => { if (generation == pageGeneration) Reply(id, result, error); });
+                    };
+                    if (action == "lanBrowse") ui.Background(job); else collab.Post(job);
                     return;
                 }
                 case "recoverySession": Reply(id, null); return;

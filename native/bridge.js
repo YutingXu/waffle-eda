@@ -683,9 +683,10 @@
       if(!sourceToken)throw Error("Select the original Altium document again.");
       return request("exportBinaryCopy",{name,data:encodeBytes(bytes),sourceToken});
     },
-    // Same-network sessions (native/macos/LanRelay.swift, native/linux/lan_relay.py): a listener and an
-    // mDNS advertisement only while the host shares a session as "Visible on this network".
-    // Not in the Windows app yet (WebView2): the editor shows a note instead.
+    // Same-network sessions (native/macos/LanRelay.swift, native/linux/lan_relay.py,
+    // native/windows/src/Core/LanRelay.cs): a listener and an mDNS advertisement only while the host
+    // shares a session as "Visible on this network". The Windows host answers these calls, but stays
+    // off (the editor shows a note) until docs/windows.md#same-network-sessions passes on Windows.
     lanAvailable: !webview,
     lanStart(room,salt,name){return request("lanStart",{room:String(room),salt:String(salt),name:String(name||"")});},
     lanHost(host){return request("lanHost",{host:String(host)});},

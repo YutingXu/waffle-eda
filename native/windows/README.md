@@ -31,6 +31,7 @@ build.ps1               runs scripts/build-windows.ps1
 src/Core/               platform-independent, shared with the tests
   Policy.cs             navigation policy, accepted file types, Windows path rules (WinPath)
   Host.cs               the bridge protocol, action by action, as in native/macos/main.swift
+  LanRelay.cs           same-network sessions: the relay protocol in lan mode on TcpListener, which adapters count
   HostFiles.cs          Native file handles, Altium source copies, recent projects and library reads
   FolderProject.cs      Durable format-2 folder transaction and staged assets
   WindowState.cs        remembered window frame and the off-screen rules
@@ -41,6 +42,7 @@ src/Win/                Windows only
   WinFs.cs              IHostFs on Win32: GetFinalPathNameByHandle, reparse tags, MoveFileEx, owner-only ACLs, named mutex
   GitRunner.cs          python -I -B native/git_head.py (py launcher; skips the Store alias)
   Dialogs.cs            alert / confirm / prompt and the close confirmation
+  DnsSdDiscovery.cs     _waffle._tcp announcements and searches with dnsapi (Windows 10 1903+)
   Native.cs             P/Invoke declarations
 window-caption.js       Waffle's title bar in the page: window controls, moving, resizing (staged beside bridge.js)
 packaging/              AppxManifest.xml and logo assets for the MSIX
