@@ -16,12 +16,16 @@ getImageData raster flush) is timed, and each piece is charged to the frame that
   frame       p50/p95 ms of the rAF callback + raster                          budget: p95 <= 8.3
   slice       p95 ms of a single re-route slice (between frames)               reported
   drop        pointerup handler: final route of all 48, gloss, one edit         budget: <= 250 ms
+  afterDrop   longest main-thread task in the 2 s after the drop               budget: <= 250 ms
+  afterUndo   longest main-thread task in the 2 s after one Undo               budget: <= 250 ms
+  fullChecks  whole-board online DRC passes after the drop and Undo             must be 0 (a Matched Lengths
+              rule scoped by component class is net-wide: batch DRC only, so the online check stays local)
   live        connections re-routed live in the last frame                     must be 32 (the cap)
   undo        one undo after the drop restores the board exactly               must be true
   esc         Esc during a second drag leaves the board exactly as it was     must be true
 
 Usage: scripts/perf-drag.py [--json] [--shots DIR]   (perf-canvas.sh runs it; DRAGFEEL=0 skips it there)
-Env:   CHROME  APP=/path/to/app  DRAG_SCALE=24 (px per mm)  BUDGET_DRAG_BUSY=8.3  BUDGET_DRAG_FRAME=8.3  BUDGET_DRAG_DROP=250
+Env:   CHROME  APP=/path/to/app  DRAG_SCALE=24 (px per mm)  BUDGET_DRAG_BUSY=8.3  BUDGET_DRAG_FRAME=8.3  BUDGET_DRAG_DROP=250  BUDGET_DRAG_AFTER_DROP=250  BUDGET_DRAG_AFTER_UNDO=250
 """
 import base64, importlib.util, json, math, os, shutil, sys, tempfile, time
 
@@ -61,8 +65,17 @@ for(const pd of pads){
   d.items.push({id:"qv"+pd.number,kind:"via",net,x:v[0],y:v[1],diameter:.45,drill:.2,layer:"Multi"});
 }
 d.items.push({id:"QFN",kind:"part",def:def.id,x:cx,y:cy,angle:0,ref:"U99",pinNets});
+// A net-wide rule (Matched Lengths, batch DRC only) scoped by component class, as imported Altium boards
+// have (InXSignalClass): online DRC must not turn the drop or its Undo into a whole-board check.
+{const R=AtriumRules,set=R.migrate(R.stored(d,p)||R.defaults());
+  set.list.push({id:"perf-matched",type:"matchedLengths",name:"Matched_Components",comment:"",enabled:true,
+    priority:1+set.list.filter(r=>r.type==="matchedLengths").length,scope:AtriumDesignQueryRecord.selector("componentclass","All Components"),tolerance:.5,withinPair:false,pairTolerance:.1});
+  R.store(d,p,set);}
 await H.replaceProject(p,{force:true});H.selectDocument(d.id);await new Promise(r=>setTimeout(r,400));
 await AtriumLazy.need("AtriumRouter");
+// Whole-board online checks (every local type on the edited board itself, not a neighbourhood sub-board).
+{const R=AtriumRules,drc=R.drc;window.__full=0;R.drc=function(doc,defs,rules,o){if(doc===H.doc()&&o?.types?.includes("clearance"))__full++;return drc.apply(this,arguments);};}
+window.__lt=[];try{new PerformanceObserver(l=>{for(const e of l.getEntries())__lt.push([e.startTime,e.duration]);}).observe({type:"longtask"});}catch{}
 const c=H.canvas(),ctx=c.getContext("2d"),raf=window.requestAnimationFrame.bind(window);
 window.__ev=[];window.__f=[];window.__sl=[];window.__live=[];
 addEventListener("pointermove",e=>{window.__h0=performance.now();},true);
@@ -121,10 +134,13 @@ def run(tmp):
         time.sleep(.3)
         res = json.loads(p.eval(RESULT))
         t0 = time.time()
+        p.eval("window.__full=0;0")
         p.eval("window.__dropT=null;addEventListener('pointerup',()=>{window.__dropT=performance.now();},{capture:true,once:true});addEventListener('pointerup',()=>{window.__dropMs=performance.now()-window.__dropT;},{once:true});0")
         p.mouse("mouseReleased", x, y, button="left", buttons=0, clicks=1)
-        time.sleep(.6)
+        time.sleep(2)
         res["drop"] = p.eval("+(window.__dropMs||-1).toFixed(1)")
+        # The longest main-thread task from the drop until 2 s later (online DRC, airwires, pours …).
+        res["afterDrop"] = p.eval("+Math.max(0,...__lt.filter(([t])=>t>=window.__dropT).map(([,ms])=>ms)).toFixed(1)")
         res["dropStatus"] = p.eval("document.getElementById('status')?.textContent||''")
         after = p.eval("JSON.stringify(AtriumNavHost.doc().items)")
         res["changed"] = after != before
@@ -132,8 +148,10 @@ def run(tmp):
             shot.append(p.call("Page.captureScreenshot", format="png")["data"])
             os.makedirs(shots, exist_ok=True)
             for i, b in enumerate(shot): open(os.path.join(shots, "dense-drag-%d.png" % i), "wb").write(base64.b64decode(b))
-        p.eval("window.dispatchEvent(new CustomEvent('atrium-command',{detail:'undo'}));0"); time.sleep(.5)
+        p.eval("window.__undoT=performance.now();window.dispatchEvent(new CustomEvent('atrium-command',{detail:'undo'}));0"); time.sleep(2)
         res["undo"] = p.eval("JSON.stringify(AtriumNavHost.doc().items)") == before
+        res["fullChecks"] = p.eval("__full")
+        res["afterUndo"] = p.eval("+Math.max(0,...__lt.filter(([t,ms])=>t+ms>=window.__undoT).map(([,ms])=>ms)).toFixed(1)")
         # Esc during a second drag: exactly as before.
         p.eval("AtriumNavHost.select(['QFN']);0"); time.sleep(.3)
         p.mouse("mouseMoved", S[0], S[1]); p.mouse("mousePressed", S[0], S[1], button="left", buttons=1, clicks=1)
@@ -154,11 +172,15 @@ try:
     r = run(tmp)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
-B = {"busyP95": float(os.environ.get("BUDGET_DRAG_BUSY", 8.3)), "frameP95": float(os.environ.get("BUDGET_DRAG_FRAME", 8.3)), "drop": float(os.environ.get("BUDGET_DRAG_DROP", 250))}
+B = {"busyP95": float(os.environ.get("BUDGET_DRAG_BUSY", 8.3)), "frameP95": float(os.environ.get("BUDGET_DRAG_FRAME", 8.3)), "drop": float(os.environ.get("BUDGET_DRAG_DROP", 250)),
+     "afterDrop": float(os.environ.get("BUDGET_DRAG_AFTER_DROP", 250)), "afterUndo": float(os.environ.get("BUDGET_DRAG_AFTER_UNDO", 250))}
 fail = []
 if r["busy"]["p95"] is None or r["busy"]["p95"] > B["busyP95"]: fail.append("main-thread work per frame p95 %s ms > %g ms" % (r["busy"]["p95"], B["busyP95"]))
 if r["frame"]["p95"] is None or r["frame"]["p95"] > B["frameP95"]: fail.append("frame p95 %s ms > %g ms" % (r["frame"]["p95"], B["frameP95"]))
 if not (0 <= r["drop"] <= B["drop"]): fail.append("drop %s ms > %g ms" % (r["drop"], B["drop"]))
+if r["fullChecks"] != 0: fail.append("online DRC checked the whole board %s time(s) after the drop and Undo, want 0" % r["fullChecks"])
+for k in ("afterDrop", "afterUndo"):
+    if not (0 <= r[k] <= B[k]): fail.append("longest task %s %s ms > %g ms" % ("after the drop" if k == "afterDrop" else "after Undo", r[k], B[k]))
 if r["live"][0] + r["live"][2] != 32: fail.append("live re-routes %s, want the cap (32)" % r["live"])
 if not r["changed"]: fail.append("the drop changed nothing")
 if not r["undo"]: fail.append("one undo did not restore the board")
@@ -170,6 +192,7 @@ else:
     print("  busy/frame p50 %.2f  p95 %.2f  max %.2f   frame p50 %.2f  p95 %.2f   handler p95 %.2f   slice p95 %s max %s   (budget p95 %g / %g)" % (
         r["busy"]["p50"] or 0, r["busy"]["p95"] or 0, r["busy"]["max"] or 0, r["frame"]["p50"] or 0, r["frame"]["p95"] or 0, r["handler"]["p95"] or 0, r["slice"]["p95"], r["slice"]["max"], B["busyP95"], B["frameP95"]))
     print("  frames %d, events %d, slices %d, live [routed, lines, updating] %s   drop %.1f ms (budget %g)   undo %s   esc %s" % (r["frames"], r["events"], r["slices"], r["live"], r["drop"], B["drop"], r["undo"], r["esc"]))
+    print("  longest task after the drop %.1f ms (budget %g), after Undo %.1f ms (budget %g)   whole-board online checks %d" % (r["afterDrop"], B["afterDrop"], r["afterUndo"], B["afterUndo"], r["fullChecks"]))
     print("  status after drop: " + r["dropStatus"][:160])
     print("FAIL: " + "; ".join(fail) if fail else "PASS drag re-route budgets")
 sys.exit(1 if fail else 0)

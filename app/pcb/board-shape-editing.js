@@ -38,12 +38,14 @@ globalThis.AtriumBoardShapeEditing = (() => {
     if (!(width > 0 && height > 0)) throw Error("Width and height must be positive.");
     const params = analyze(shape);
     let out;
-    if (params) out = {...rect({...params, x: ll[0], y: ll[1], width, height, corners: o.corners || params.corners}), cutouts: shape.cutouts || []};
+    if (params) out = rect({...params, x: ll[0], y: ll[1], width, height, corners: o.corners || params.corners});
     else {
       if (o.corners && Object.values(o.corners).some(c => c && c.style !== "sharp")) throw Error("Corner styles apply to rectangular boards only.");
       out = scale(shape, width / w, height / h, ll);
-      out.cutouts = shape.cutouts || [];
     }
+    // Unscaled cutouts keep their material islands; translate moves both.
+    out = {...out, cutouts: shape.cutouts || []};
+    if (shape.cutoutRegions) out.cutoutRegions = shape.cutoutRegions; else delete out.cutoutRegions;
     out = translate(out, x - ll[0], y - ll[1]);
     return {...out, source: shape.source || "vertices"};
   }

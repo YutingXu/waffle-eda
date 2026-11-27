@@ -263,6 +263,66 @@ require("../../app/schematic/sch-objects.js");
   assert.equal(view.hit(doc, defs, at, opts), null);
 }
 
+// The current layer decides between the board's sides, as in Altium: a top and a bottom part
+// stacked at one spot pick by the current layer's side, and a part on the other side loses to a
+// primitive on the current layer.
+{
+  const two = {pads: [[-1, 0], [1, 0]].map(([x, y], n) => ({number: String(n + 1), x, y, w: .8, h: .8, shape: "rect"})), shapes: [],
+    courtyard: [[-2, -1], [2, -1], [2, 1], [-2, 1]]};
+  const sideDefs = new Map([["r", {id: "r", name: "0805", footprint: two}]]);
+  const s = Atrium.sheet("pcb", "Sides");
+  s.items.push({id: "top", kind: "part", def: "r", ref: "R1", x: 0, y: 0, angle: 0, layer: "Top"},
+    {id: "bot", kind: "part", def: "r", ref: "R2", x: 0, y: 0, angle: 0, layer: "Bottom", mirror: true},
+    {id: "tb", kind: "track", net: "B", layer: "Bottom", width: .2, points: [[1, -3], [1, 3]]},
+    {id: "far", kind: "part", def: "r", ref: "R3", x: 10, y: 0, angle: 0, layer: "Bottom", mirror: true},
+    {id: "tt", kind: "track", net: "C", layer: "Top", width: .2, points: [[11, -3], [11, 3]]});
+  view.fit(s, sideDefs);
+  view.render(s, sideDefs, {grid: false});
+  const at = (q, layer) => view.hit(s, sideDefs, q, {...opts, layer})?.id ?? null;
+  for (const layer of ["Top", "Silk", "Top paste", "Top mask"]) {
+    assert.equal(at([-1, 0], layer), "top", "pad, " + layer);
+    assert.equal(at([0, .5], layer), "top", "body, " + layer);
+    assert.equal(at([1, 0], layer), "top", "a current-side part beats an other-side track, " + layer);
+  }
+  for (const layer of ["Bottom", "Bottom silk", "Bottom paste", "Bottom mask"]) {
+    assert.equal(at([-1, 0], layer), "bot", "pad, " + layer);
+    assert.equal(at([0, .5], layer), "bot", "body, " + layer);
+  }
+  assert.equal(at([11, 0], "Top"), "tt", "a current-layer track beats the other side's pad");
+  assert.equal(at([11, .5], "Top"), "tt", "and the other side's body");
+  assert.equal(at([11, 0], "Bottom"), "far", "from the part's own side its pad wins");
+  assert.equal(at([10, 0], "Top"), "far", "an other-side part alone is still picked");
+  assert.equal(at([10, .5], "Top"), "far", "and its body");
+  // The other side's own silk or mask over its pad does not take the click from that part, from the
+  // top side or from a layer with no side; a primitive on the current layer still does.
+  const square = (id, layer, x) => ({id, kind: "graphic", layer, fill: true, closed: true, width: 0, points: [[x - .3, -.3], [x + .3, -.3], [x + .3, .3], [x - .3, .3]]});
+  s.items.push(square("bsilk", "Bottom silk", 9), square("bmask", "Bottom mask", 9));
+  view.render(s, sideDefs, {grid: false});
+  for (const layer of ["Top", "Silk", "Inner 1", "Multi"]) assert.equal(at([9, 0], layer), "far", "other-side silk and mask over its pad, " + layer);
+  s.items.push(square("tsilk", "Silk", 9));
+  view.render(s, sideDefs, {grid: false});
+  assert.equal(at([9, 0], "Silk"), "tsilk", "current-layer silk over an other-side pad");
+  assert.deepEqual(view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}).slice(0, 2).map(i => i.id), ["far", "tsilk"], "the stack lists the other-side part first, then the silk");
+  // A current-layer track under silk, or hit through its own mask opening, still keeps the other-side
+  // part behind it: the pick and the stack follow paint order (silk, then the track), then the part.
+  const stack = () => view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}).map(i => i.id);
+  for (const track of [{id: "ttrack"}, {id: "mtrack", maskExpansion: .05}]) {
+    s.items.push({kind: "track", net: "D", layer: "Top", width: .2, points: [[9, -3], [9, 3]], ...track});
+    view.render(s, sideDefs, {grid: false});
+    assert.equal(at([9, 0], "Top"), "tsilk", "the pick follows paint order, " + track.id);
+    assert.ok(stack().indexOf("far") > stack().indexOf(track.id), "the other-side part comes after the current-layer track, " + track.id + ": " + stack());
+    s.items.pop();
+  }
+  // A shorter stack is the start of a longer one, wherever the cut falls among the current-layer hits.
+  s.items.push({id: "via9", kind: "via", x: 9, y: 0, diameter: .6}, {id: "ttrack", kind: "track", net: "D", layer: "Top", width: .2, points: [[9, -3], [9, 3]]});
+  view.render(s, sideDefs, {grid: false});
+  const full = view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}, 8).map(i => i.id);
+  for (let n = 1; n < full.length; n++) assert.deepEqual(view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}, n).map(i => i.id), full.slice(0, n), "a stack of " + n);
+  s.items.splice(-2);
+  view.fit(doc, defs);
+  view.render(doc, defs, {grid: false});
+}
+
 // Resize keeps the centre.
 const centre = () => view.screenToWorld([size.width / 2, size.height / 2]);
 const c0 = centre();

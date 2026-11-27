@@ -39,6 +39,7 @@
 //
 // Usage: scripts/perf-view-feel.sh [--json] (finds node and playwright-core), or node scripts/perf-view-feel.cjs [--json]
 // Env:   CHROME=/path/to/chrome  APP=/path/to/app (A/B)  BOARD=file[,file...] (an Altium project's files: .PrjPcb, .SchDoc, .PcbDoc)
+//        ONLY=gpu requires a hardware run. The default also measures 2D and reports an unavailable GPU as skipped.
 //        PART=R4  ONLY=gpu|2d  ZOOM=0 (skip)  DRAG=0 (skip)  PAN=0 (skip)  SETTLE=0 (skip)  CPU_THROTTLE=4  BUDGET_ZOOM_FRAME=8  BUDGET_ZOOM_SETTLE=8  BUDGET_ZOOM_BLANK=0.01  BUDGET_ZOOM_SCALED_BLANK=0.03  BUDGET_DRAG_P95=8
 //        BUDGET_DRAG_MISMATCH=0.001  BUDGET_DRAG_TEXT=0.25  BUDGET_PAN_BLANK=0.01  BUDGET_PAN_WORK=4  BUDGET_PAN_FRAME=1.5
 //        BUDGET_PAN_UPLOAD=0.1
@@ -114,7 +115,11 @@ async function open(browser) {
 async function renderer(page, which) {
   return page.evaluate(async which => {
     const G = globalThis.AtriumCanvasGPU, H = AtriumNavHost;
-    if (which === "gpu" && !AtriumCanvasGPUPref.decision().use) return false;
+    if (which === "gpu") {
+      // open() has selected a visible PCB and may have loaded the renderer ahead of its idle probe.
+      const choice = AtriumCanvasGPUPref.decision(true);
+      if (!choice.use || choice.software) return {skipped: choice.reason || "WebGL2 is using a software renderer", device: choice.device};
+    }
     G?.enable?.(which === "gpu");
     window.dispatchEvent(new CustomEvent("atrium-command", {detail: "fit"}));
     H.redraw(true);
@@ -369,12 +374,16 @@ function panProbe(page, zoom, stream, capture) {
       const {page, errors} = await open(browser);
       try {
         const initial = await renderer(page, which);
-        if (initial === false) { result.renderers[which] = {skipped:"no hardware-accelerated WebGL2"}; continue; }
+        if (initial.skipped) {
+          result.renderers[which] = initial;
+          if (process.env.ONLY === "gpu") fail.push(`gpu: ${initial.skipped}`);
+          continue;
+        }
         if (initial.renderer !== which) {
           fail.push(`${which}: hardware selected the wrong renderer (${initial.reason || initial.renderer})`);
           continue;
         }
-        const r = result.renderers[which] = {};
+        const r = result.renderers[which] = which === "gpu" && initial.device ? {device: initial.device} : {};
         if (process.env.ZOOM !== "0") {
           r.zoom = await zoomProbe(page, which);
           for (const b of r.zoom) {

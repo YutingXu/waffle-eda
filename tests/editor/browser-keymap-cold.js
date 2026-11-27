@@ -185,7 +185,7 @@ module.exports = async function coldKeymap(browser, app = path.join(__dirname, "
 };
 
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   const executablePath = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   (async () => {
     const browser = await chromium.launch({headless:true, executablePath, args:["--allow-file-access-from-files","--use-angle=swiftshader","--enable-unsafe-swiftshader"]});

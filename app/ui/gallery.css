@@ -33,3 +33,7 @@
 .ui-gallery-graph {position:relative;inline-size:min(100%,420px)}
 .ui-gallery-graph > canvas {position:absolute;inset-block-start:0;inset-inline-start:var(--s-4);pointer-events:none}
 .ui-gallery-graph > .ui-row {padding-inline-start:calc(var(--ui-graph-w,40px) + var(--s-8))}
+/* A document strip too narrow for its tabs (the overflow fades and ⋯). */
+.ui-gallery-tabbar {display:flex;max-inline-size:320px;min-inline-size:0;background:var(--app)}
+.ui-gallery-tabbar > .ui-editor-tab-strip {flex:1 1 auto;min-inline-size:0}
+.ui-gallery-tabbar .ui-tab {flex:none;white-space:nowrap}

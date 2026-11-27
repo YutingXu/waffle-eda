@@ -3,7 +3,7 @@
 // Sheet artwork is separate from electrical objects. An imported title block or port
 // outline cannot become a wire, net or placement target through decorative geometry.
 globalThis.AtriumSchAppearance = (() => {
-  const A=Atrium;
+  const A=Atrium,G=globalThis;
   // Altium Designer's default schematic palette. Text uses Altium's default system
   // font, Times New Roman 10, which the importer maps to 2.032 mm.
   const wire="#000080",component="#800000",fillInk="#ffffb0",pinInk="#000000",border="#000000";
@@ -22,7 +22,7 @@ globalThis.AtriumSchAppearance = (() => {
     }
     return moved;
   }
-  try{setTheme(globalThis.AtriumTheme?.canvasPalette?.("sch"));}catch{}
+  try{setTheme(G.AtriumTheme?.canvasPalette?.("sch"));}catch{}
   const face={family:system,size:fontSize,ink:wire};
   const clamped=(v,min,max)=>Math.max(min,Math.min(max,v));
   // Native sheets keep the origin 12.7 mm inside the upper left corner at every size.
@@ -32,7 +32,7 @@ globalThis.AtriumSchAppearance = (() => {
   function drawingBounds(doc, defs, ink) {
     if (ink === undefined) {
       defs ??= new Map((context?.library || []).map(d => [d.id,d]));
-      ink = globalThis.AtriumCanvas?.artBounds(doc, defs) || A.docBounds(doc, defs);
+      ink = G.AtriumCanvas?.artBounds(doc, defs) || A.docBounds(doc, defs);
     }
     const b = ink || [-24,-16,24,16], title = templates[sheetOf(doc).titleBlock];
     if (!isInfinite(doc) || !title) return b.slice();
@@ -74,8 +74,8 @@ globalThis.AtriumSchAppearance = (() => {
   // singleNegation(on, true) (the Preferences toggle) also redraws every pane and drops cached PCB text layouts.
   function singleNegation(v,redraw){
     if(v!==undefined)single=v!==false;
-    if(redraw){globalThis.AtriumPCBText?.clearCache?.();globalThis.AtriumNavHost?.redraw?.(true);}
-    return single??=globalThis.AtriumPref?.get?.("schematic.singleNegation",true)!==false;
+    if(redraw){G.AtriumPCBText?.clearCache?.();G.AtriumNavHost?.redraw?.(true);}
+    return single??=G.AtriumPref?.get?.("schematic.singleNegation",true)!==false;
   }
   function negation(text,on=singleNegation()){
     text=String(text??"");
@@ -89,7 +89,7 @@ globalThis.AtriumSchAppearance = (() => {
   // that size, so its top, middle and bottom baselines drift (a bottom-anchored power port name
   // falls onto its bar). Text is therefore always drawn on the alphabetic baseline, shifted by
   // the offset the browser reports for the asked baseline at 100 px.
-  const baselineShifts=new Map();let metrics;const metricsCtx=()=>(metrics??=globalThis.document?.createElement("canvas").getContext("2d"));
+  const baselineShifts=new Map();let metrics;const metricsCtx=()=>(metrics??=G.document?.createElement("canvas").getContext("2d"));
   function baselineShift(face,baseline){
     if(baseline==="alphabetic")return 0;
     const key=face+"|"+baseline;let v=baselineShifts.get(key);
@@ -360,7 +360,7 @@ globalThis.AtriumSchAppearance = (() => {
     ctx.strokeStyle=line;ctx.lineWidth=Math.max(1/scale,p?.width||s.width||.254);
     if(s.kind==="circle"){
       ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-    }else if(!path(ctx,s.points,s.closed))return;
+    }else if(!G.AtriumSchCurves?.trace(ctx,s)&&!path(ctx,s.points,s.closed))return;
     if(s.fill){ctx.fillStyle=p?.fill||fillInk;ctx.fill();}
     ctx.stroke();
   }
@@ -517,15 +517,15 @@ globalThis.AtriumSchAppearance = (() => {
     if(project)setProject(project);
     if(!container||doc?.kind!=="schematic")return;
     const fill=(ui,target)=>ui.fill(target,doc,apply,project,{plain,count,inch:IN});
-    if(globalThis.AtriumSheetInspector)fill(globalThis.AtriumSheetInspector,container);
-    else globalThis.AtriumLazy?.appendOnLoad("AtriumSheetInspector",container,fill,e=>globalThis.AtriumNavHost?.info(e));
+    if(G.AtriumSheetInspector)fill(G.AtriumSheetInspector,container);
+    else G.AtriumLazy?.appendOnLoad("AtriumSheetInspector",container,fill,e=>G.AtriumNavHost?.info(e));
   }
   function eligible(doc,{source=doc,includeRestored=false}={}){
     return doc.kind==="schematic" && !doc.schDrawing && (includeRestored || !doc.schRestored) &&
       /\.schdoc$/i.test(source.sourceName||"") && /^[a-f0-9]{64}$/.test(source.sourceSha256||"");
   }
   function sourceKey(item){
-    if(globalThis.AtriumTranslatorProvenance)return AtriumTranslatorProvenance.schematicSourceKey(item);
+    if(G.AtriumTranslatorProvenance)return AtriumTranslatorProvenance.schematicSourceKey(item);
     const k=item.schSource;
     return Number.isInteger(k?.record)&&typeof k.role==="string"?k.record+":"+k.role:null;
   }

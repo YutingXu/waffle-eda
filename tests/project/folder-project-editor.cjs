@@ -10,7 +10,7 @@ const hash = b => createHash("sha256").update(b).digest("hex");
 const td = new TextDecoder(), te = new TextEncoder();
 
 (async () => {
-  const {document,window} = await setup({demo:false});
+  const {document,window} = await setup({demo:false,coldScripts:["checks/connectivity.js"]});
   await AtriumLazy.need(["AtriumFormat2Closure","AtriumAI"]);
   const C = AtriumFormat2, M = AtriumFormat2Model, H = AtriumNavHost;
   const native = AtriumHost, writes = [], reads = [], acknowledgements = [], readGroups = [], closed = [];
@@ -23,7 +23,10 @@ const td = new TextDecoder(), te = new TextEncoder();
   paths.set(manifest,C.serialize(C.create(owner,[sheet,board])));
   for (const ref of [sheet,board]) {
     paths.set(ref.path,C.serialize(M.createDocument({...Atrium.sheet(ref.docKind,ref.name),id:ref.id,
-      items:[{kind:"netlabel",id:"name-"+ref.id,x:1.27,y:2.54,text:"Design"}]})));
+      items:[{kind:"netlabel",id:"name-"+ref.id,x:1.27,y:2.54,text:"Design"},...(ref.docKind==="pcb" ? [
+        {kind:"track",id:"track-a",layer:"Top",width:.2,net:"N",points:[[0,0],[1,0]]},
+        {kind:"track",id:"track-b",layer:"Top",width:.2,net:"N",points:[[5,0],[6,0]]}
+      ] : [])]})));
   }
   const workerPool = globalThis.AtriumWorkerPool;
   function startWorker(name) {
@@ -95,6 +98,8 @@ const td = new TextDecoder(), te = new TextEncoder();
   async function until(f,message) {
     for(let t=Date.now()+4000;!f();){if(Date.now()>t)assert.fail(message+"; "+document.getElementById("status").textContent);await new Promise(r=>setTimeout(r,10));}
   }
+  const initialPower = AtriumPower.state();
+  AtriumPower.host({occluded:true});
   document.querySelector('[data-action="open"]').click();
   await until(()=>acknowledgements.length,"normal File Open acknowledged folder adoption");
   assert.deepEqual(acknowledgements,[true]);
@@ -104,6 +109,10 @@ const td = new TextDecoder(), te = new TextEncoder();
   assert.equal(H.doc().items[0].text,"Design");
   assert.deepEqual([H.doc().items[0].x,H.doc().items[0].y],[1.27,2.54]);
   const session=H.folderProject();
+  assert.equal(session.loadedDocument(board.id),undefined,"schematic-first open leaves the PCB unhydrated");
+  assert.ok(!AtriumLazy.boardRenderers({documents:[{kind:"pcb",id:board.id}]}).includes("AtriumConnectivity"),
+    "a board reference requests no physical solver");
+  assert.equal(globalThis.AtriumConnectivity,undefined,"a reference-only PCB leaves physical connectivity cold");
   {
     const power = AtriumPower.state();
     const savedSnapshot = () => session.requireClosure({purpose:"explicit saved verification",saved:true});
@@ -129,8 +138,19 @@ const td = new TextDecoder(), te = new TextEncoder();
       refuseBatch = false; AtriumPower.host({occluded:power.occluded});
     }
   }
+  let atMaterialization;
+  const stopBoardLoad = session.on((event,detail) => {
+    if (event === "loaded" && detail.id === board.id) atMaterialization = {selected:H.currentId(), solver:globalThis.AtriumConnectivity};
+  });
   await H.selectDocument(board.id);
+  stopBoardLoad();
+  assert.equal(atMaterialization?.selected,sheet.id,"board initialization precedes changing the active document");
+  assert.equal(typeof atMaterialization?.solver?.inspectFull,"function","physical connectivity is ready when the deferred board materializes");
   assert.equal(H.currentId(),board.id);
+  const graph = H.connections();
+  assert.deepEqual(graph,atMaterialization.solver.inspectFull(H.doc(),H.defs()));
+  assert.equal(graph.airwires.length,1,"the first synchronous graph joins the two separate tracks");
+  AtriumPower.host({occluded:initialPower.occluded});
   const item=H.doc().items[0];
   H.edit(()=>{item.text="Changed";},"Edit label",[item.id],{documents:[board.id],items:[item.id]});
   assert.equal(session.modified(board.id),true);

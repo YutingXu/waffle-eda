@@ -93,6 +93,7 @@ globalThis.AtriumKiCadImport = (() => {
     rule_area: "rule-area", table: "table", bus_alias: "bus-alias", paper: "page-setting", title_block: "title-block"}));
   const BOARD_KINDS = new Map(Object.entries({segment: "track", arc: "track", via: "via", gr_text: "label", zone: "polygon", dimension: "dimension",
     gr_text_box: "textframe", image: "image", target: "target", table: "table", group: "group", generated: "generated", paper: "page-setting", title_block: "title-block"}));
+  const DIRECTIVE_HEADS = new Set(["netclass_flag", "directive_label"]);
   const malformed = "The source record has missing or invalid geometry.";
   const unsupported = "The KiCad reader does not translate this record.";
   const tessellated = "The curve is represented by straight segments.";
@@ -796,6 +797,10 @@ globalThis.AtriumKiCadImport = (() => {
         pourIndex: priority ? -priority : 0, connectStyle: style, viaConnectStyle: style === "none" ? "none" : "direct", pourOverSameNet: true,
         removeDeadCopper: num(val(fill, "island_removal_mode") ?? val(k, "island_removal_mode"), 0) !== 1, fillMode: hatch ? "hatched" : "solid"};
       if (clearance >= 0) item.clearance = clearance;
+      // KiCad's fill shrinks the copper by half the zone's minimum width and grows it back, so nothing
+      // narrower survives and convex corners round to that radius: Remove Necks at that width.
+      const minWidth = num(val(k, "min_thickness"), NaN);
+      if (minWidth > 0) item.neckWidth = minWidth;
       const gap = num(val(fill, "thermal_gap"), NaN), bridge = num(val(fill, "thermal_bridge_width"), NaN);
       if (gap > 0) item.reliefAirGap = gap;
       if (bridge > 0) item.reliefConductorWidth = bridge;
@@ -1128,15 +1133,16 @@ globalThis.AtriumKiCadImport = (() => {
         doc.items.push({id:A.id(),kind:"image",x:r4(center[0]-w/2),y:r4(center[1]-h/2),w:r4(w),h:r4(h),
           src:"data:image/png;base64,"+encoded,extent:[meta.width,meta.height],name:"KiCad image.png"});
       }
-      else if (head === "netclass_flag" || head === "directive_label") notes.add("Net class directives omitted");
+      else if (DIRECTIVE_HEADS.has(head)) directives.push(k);
       else if (head === "rule_area" || head === "table") notes.add("Rule areas and tables omitted");
     }
+    const directives = [];
     for (const k of t) {
       if (!isL(k)) continue;
       const first = audit && doc.items.length;
       let reason, kind;
       F().guard(notes, () => readSheetItem(k, audit && ((k, message) => { kind = k; reason = message; })));
-      if (audit && k[0]!=="paper" && !SHEET_META.has(k[0])) {
+      if (audit && k[0]!=="paper" && !SHEET_META.has(k[0]) && !DIRECTIVE_HEADS.has(k[0])) {
         const item = doc.items[first], head = k[0];
         kind ||= item?.kind || SCHEMATIC_KINDS.get(head) || "unknown";
         if (!reason && item) {
@@ -1156,6 +1162,7 @@ globalThis.AtriumKiCadImport = (() => {
         audit.produced("schematic", k, doc.items, first);
       }
     }
+    if (directives.length) F().guard(notes, () => netClassDirectives(doc, directives, new Map(defs.list.map(d => [d.id, d])), notes, audit));
     if (audit) for (const lib of all(libNodes, "symbol")) if (!seenLibs.has(lib)) {
       const power = usedPower.has(lib);
       audit.record("symbol-definition", power ? "approximated" : "dropped", lib, null,
@@ -1177,6 +1184,28 @@ globalThis.AtriumKiCadImport = (() => {
     if (instanceList.length) result.kicadInstanceList = instanceList;
     doc.kicadUuid = sheetUuid;
     return result;
+  }
+  // Net class directive labels (netclass_flag, directive_label) attach at their connection point to a
+  // wire or a label. Their Netclass field becomes the netClass directive field (an exact net tag,
+  // signals.js §7) on the wire or label there.
+  function netClassDirectives(doc, list, defs, notes, audit) {
+    const onWire = (p, i) => i.points.some((q, n) => n > 0 && A.nearSegment(p, i.points[n - 1], q) < .0001);
+    const label = i => ["netlabel", "offsheet", "port"].includes(i.kind) && !globalThis.AtriumSchObjects?.isBus?.(i.text);
+    for (const k of list) {
+      const at = xy(k, "at"), p = at && P(at), fields = all(k, "property").map(f => [String(f[1] ?? ""), String(f[2] ?? "")]);
+      const classes = fields.filter(([n, v]) => /^net ?class$/i.test(n) && v.trim()).flatMap(([, v]) => v.split(",").map(x => x.trim()).filter(Boolean));
+      const other = fields.filter(([n, v]) => !/^net ?class$/i.test(n) && v.trim()).map(([n]) => n);
+      const target = p && (doc.items.find(i => i.kind === "wire" && onWire(p, i)) || doc.items.find(i => label(i) && A.same([i.x, i.y], p)));
+      let pin = "";
+      if (p && !target) for (const i of doc.items) if (i.kind === "part" && !pin) pin = A.pins(i, defs.get(i.def), "schematic").filter(q => A.same(q.at, p)).map(q => (i.ref || "") + "-" + q.number)[0] || "";
+      let reason = !classes.length ? "The directive label has no Netclass field." : !target ? (pin ? "The directive label touches pin " + pin + " only. Waffle keeps directives on a wire or label." : "No wire or label is under the directive label.") : "";
+      if (!reason) {
+        const have = String(target.netClass || "").split(",").map(x => x.trim()).filter(Boolean);
+        target.netClass = [...new Set([...have, ...classes])].join(",");
+        if (other.length) reason = "Fields " + other.slice(0, 4).join(", ") + " are not translated.";
+      } else notes.add("Net class directive labels omitted: " + reason);
+      audit?.record("directive", !target || !classes.length ? "dropped" : reason ? "approximated" : "kept", k, target && classes.length ? target : null, reason || undefined);
+    }
   }
   function firstInstance(k, sheetUuid) {
     const paths = all(one(k, "instances"), "project").flatMap(p => all(p, "path"));
@@ -1203,7 +1232,8 @@ globalThis.AtriumKiCadImport = (() => {
     try { j = JSON.parse(text); } catch { throw Error("The project file is not valid JSON."); }
     const ns = j?.net_settings || {}, classes = Array.isArray(ns.classes) ? ns.classes : [];
     const project={name:F().stem(name),classes:F().dict(),assignments:F().dict(),patterns:[],
-      minimumDiameter:dimension(j?.board?.design_settings?.rules?.min_via_diameter)};
+      minimumDiameter:dimension(j?.board?.design_settings?.rules?.min_via_diameter),
+      edgeClearance:dimension(j?.board?.design_settings?.rules?.min_copper_edge_clearance)};
     for (const c of classes) {
       if (!className(c?.name)) continue;
       project.classes[c.name]={clearance:+c.clearance,trackWidth:+c.track_width,viaDiameter:+c.via_diameter,viaDrill:+c.via_drill};
@@ -1262,7 +1292,7 @@ globalThis.AtriumKiCadImport = (() => {
     for (const [key, v] of Object.entries(object(board.design_settings))) {
       if (key === "meta") continue;
       if(key==="rules"&&v&&typeof v==="object")for(const [rule,value] of Object.entries(object(v))){
-        const kept=selectedBoards&&rule==="min_via_diameter"&&(value===0||project.minimumDiameter!=null);
+        const kept=selectedBoards&&(rule==="min_via_diameter"&&(value===0||project.minimumDiameter!=null)||rule==="min_copper_edge_clearance"&&project.edgeClearance!=null);
         audit.record("board-rule",kept?"kept":"dropped","board/design_settings/rules/"+rule,null,kept?undefined:
           rule==="min_via_diameter"?"The minimum via diameter needs a selected board and a valid millimetre length.":
           rule==="min_through_hole_diameter"?"The board minimum excludes laser microvias, which this import cannot distinguish.":"This KiCad project constraint has no imported native rule.");
@@ -1527,6 +1557,15 @@ globalThis.AtriumKiCadImport = (() => {
         }
       }
     }
+    // KiCad fills zones the board's copper-to-edge clearance away from Edge.Cuts; Waffle's pour
+    // reads that gap from the polygon (boardClearance), as for Altium's Board Outline Clearance.
+    const edged=new Set();
+    if(project?.edgeClearance>0)for(const board of docs.filter(d=>d.kind==="pcb")){
+      const zones=board.items.filter(i=>i.kind==="polygon"&&!(i.boardClearance>0));if(!zones.length)continue;
+      checkFillBeforeRules(board);
+      for(const z of zones)z.boardClearance=project.edgeClearance;
+      edged.add(board);
+    }
     const handled=new Set(), minimumDiameter=project?.minimumDiameter;
     for(const [key,sources] of customByName){
       const board=sources.length===1?boardsByName.get(key):null;
@@ -1538,7 +1577,7 @@ globalThis.AtriumKiCadImport = (() => {
       checkFillBeforeRules(board);
       applyCustomRules(board,null,minimumDiameter);
     }
-    for (const [board, originalRules] of verifiedFills) if (board.rules !== originalRules)
+    for (const [board, originalRules] of verifiedFills) if (board.rules !== originalRules || edged.has(board))
       board.sourcePourSignature = pours.signature(board, definitions);
     for (const r of results) if (r.kicadProject) finishProjectReport(r.kicadProject, r.kicadProject === project && docs.some(d => d.kind === "pcb"));
     channels(docs, results, tree);

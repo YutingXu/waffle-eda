@@ -188,7 +188,7 @@ module.exports = async function windowsCaption(browser) {
 
 if (require.main === module) (async () => {
   let chromium;
-  try { ({chromium} = require("playwright-core")); }
+  try { ({chromium} = require("../support/playwright.cjs")); }
   catch { console.log("SKIP Windows caption: Playwright Core is unavailable."); return; }
   const executablePath = process.env.CHROME;
   const browser = await chromium.launch({headless:true, args:["--allow-file-access-from-files"], ...(executablePath ? {executablePath} : {channel:"chrome"})});

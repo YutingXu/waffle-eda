@@ -553,22 +553,36 @@ globalThis.AtriumPCBAppearance = (() => {
     if(cache)localBoxes.set(g,bounds);
     return bounds;
   }
+  function placedBounds(part,[l,t,r,b]){
+    const {at}=Atrium.placement(part);
+    return Atrium.bounds([at([l,t]),at([r,t]),at([r,b]),at([l,b])]);
+  }
   function partBounds(part,geometry){
-    const [l,t,r,b]=localBounds(geometry);
-    return Atrium.bounds([[l,t],[r,t],[r,b],[l,b]].map(p=>Atrium.world(p,part)));
+    return placedBounds(part,localBounds(geometry));
   }
+  // The order probe, band planner and painter all read the same implicit
+  // reference position as the camera moves. Its bounds and pose come from
+  // the board and library, so a new camera needs no new transform.
+  const referencePositions=new WeakMap();
   function referenceAnchor(part,geometry){
-    const [l,t,r]=partBounds(part,geometry);
-    return [(l+r)/2,t-.39];
+    const box=localBounds(geometry), {x,y}=part, angle=part.angle||0, mirror=!!part.mirror;
+    const prior=referencePositions.get(part);
+    if(prior?.box===box && Object.is(prior.x,x) && Object.is(prior.y,y) && prior.angle===angle && prior.mirror===mirror)
+      return prior.anchor;
+    const [l,t,r]=placedBounds(part,box), anchor=[(l+r)/2,t-.39];
+    referencePositions.set(part,{box,x,y,angle,mirror,anchor});
+    return anchor;
   }
-  function* partText(doc,part,def,authoredPart=part){
+  const partTextLayers=(doc,part,def)=>partText(doc,part,def,part,true);
+  function* partText(doc,part,def,authoredPart=part,layersOnly=false){
     const native=sourceLabels(doc,authoredPart);
     if(part.designator){
-      const D=globalThis.AtriumDesignators, placed=D?.label(part,def);
-      if(placed)yield {kind:"designator",field:"ref",member:["reference"],authoredDegrees:part.designator.angle||0,
+      const D=globalThis.AtriumDesignators, placed=layersOnly?D?.labelLayer(part):D?.label(part,def);
+      if(placed)yield layersOnly?placed:{kind:"designator",field:"ref",member:["reference"],authoredDegrees:part.designator.angle||0,
         text:D.textShape(placed),box:placed.box,center:placed.center};
     }else if(!native && part.showRef!==false && part.ref){
       const layer=overlay(part);
+      if(layersOnly){yield layer;return;}
       const [x,y]=part.refAt?Atrium.world(part.refAt,part):referenceAnchor(part,def?.footprint);
       const text={kind:"text",text:part.ref,x,y,size:.68,angle:0,layer,justify:part.refAt?"bottom-left":"bottom-center",
         mirrored:textMirrored({},layer)};
@@ -576,6 +590,7 @@ globalThis.AtriumPCBAppearance = (() => {
     }
     if(native)for(const [i,a] of native.entries()){
       if(!annotationVisible(part,a))continue;
+      if(layersOnly){yield a.layer;continue;}
       const text=annotationText(part,a,false), hidden=authoredPart.hiddenBoardLabels?.indexOf(a)??-1;
       const member=hidden<0?["label",String(i)]:["hiddenBoardLabels",String(hidden)];
       yield {kind:"annotation",field:a.field,member,authoredDegrees:a.angle,text,row:a,index:i};
@@ -594,7 +609,7 @@ globalThis.AtriumPCBAppearance = (() => {
     workspaceGridCoarse:"Workspace Grid - Large", dim:"Dimmed Layers", origin:"Origin Marker",
     drillEdge:"Non-plated Hole Edge", padText:"Pad Numbers and Nets", marquee:"Selection Box"
   });
-  return Object.freeze({sourceLabelRows,sourceLabels,annotationText,annotationVisible,partText,partBounds,localBounds,placeText,textAnchors,textJustification,textMirrored,color,name,system,index,order,layerRank,displayPad,padGeometry,padPolygon,padCenter,footprintPlacement,padTurn,padDrillCore,padNet,padPlated,padCaption,padCaptionMinPx,readDefinition,retainedMirrorSource,copperInterval,copperSpan,throughSpan,partialSpan,padLayer,hasPadRows,padPlanes,boardLayer,shapeLayer,overlay,traceOpenings,curvedRegion,shapeStrokeWidth,boardStrokeWidth,onLayer,visible,ink,viaInk,footprintLayers,
+  return Object.freeze({sourceLabelRows,sourceLabels,annotationText,annotationVisible,partText,partTextLayers,partBounds,localBounds,placeText,textAnchors,textJustification,textMirrored,color,name,system,index,order,layerRank,displayPad,padGeometry,padPolygon,padCenter,footprintPlacement,padTurn,padDrillCore,padNet,padPlated,padCaption,padCaptionMinPx,readDefinition,retainedMirrorSource,copperInterval,copperSpan,throughSpan,partialSpan,padLayer,hasPadRows,padPlanes,boardLayer,shapeLayer,overlay,traceOpenings,curvedRegion,shapeStrokeWidth,boardStrokeWidth,onLayer,visible,ink,viaInk,footprintLayers,
     defaultColor,defaultSystem,defaultOpacity,opacity,layerOpacity,layerAlpha,setLayerOpacity,setColor,setSystem,setOpacity,reset,onChange,isCustom,
     setThemeBase,withPalette,themeLayerColors,baseSystem,isCustomSystem,themeBase:()=>({...themeBase}),group,systemNames,storageKey:STORE});
 })();

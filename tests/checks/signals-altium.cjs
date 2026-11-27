@@ -91,7 +91,9 @@ const boardOf = p => p.documents.find(d => d.kind === "pcb");
   assert.match(text, /PINPAIRCOUNT=4/);
   assert.match(text, /PINPAIRNAME\d=PCIE_TX_P_XS\|[^\r\n]*PINPAIRPINS\d=U1-3,C1-1,C1-2,J1-3\|PINPAIRPINUNIQUEIDS\d=PHWGSKKT,KTPEBONA,CEXTXDLH,OSCNRRQO\|PINPAIRGUID\d=\{505FF14D-1DF0-4BFE-924F-31F3894569A9\}/);
   const back = AtriumIO.read("Back.PcbDoc", new TextEncoder().encode(text)).documents[0];
-  assert.equal(back.lengthTuning, undefined, "xSignals are the signal model's (from the board's records)");
+  assert.equal(back.lengthTuning?.xSignals, undefined, "xSignals are the signal model's (from the board's records)");
+  // Altium measures an xSignal as routed copper only: the imported board does not add C1's own span.
+  for (const d of [b, back]) assert.equal(d.lengthTuning?.seriesModel, "none", "Altium xSignal lengths leave series parts out");
   assert.deepEqual(S.xsView(back, {documents: [back]}).xSignals.map(x => x.name).sort(), ["PCIE_TX_N_XS", "PCIE_TX_P_XS", "USB_DM_XS", "USB_DP_XS"]);
   void out;
 }

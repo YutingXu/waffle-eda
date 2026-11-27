@@ -422,5 +422,35 @@ globalThis.AtriumGuides = (() => {
     return changed;
   }
 
-  return {begin, draw, align, distribute, alignToGrid, array, applyPlan, itemBox, style: STYLE};
+  function command(action,{doc,defs,selection,excluded,unit,info,promptValue,edit,guard,wires,followDesignators}) {
+    const ids = doc().items.filter(item => selection.has(item.id) && !excluded(item)).map(item => item.id);
+    const grid = action === "align-grid", units = A.units;
+    const run = plan => {
+      if (plan.locked?.length && !guard(plan.locked, () => run(plan))) return;
+      if (!plan.moves.length) {info("Nothing to move."); return;}
+      const touched = new Set();
+      edit(() => {
+        applyPlan(doc(), defs(), plan, wires, touched);
+        for (const obj of followDesignators(plan.moves.map(move => move.id))) touched.add(obj);
+      }, undefined, touched);
+      info(plan.moves.length + (plan.moves.length === 1 ? " object moved" : " objects moved"));
+    };
+    if (ids.length < (grid ? 1 : 2)) {
+      info(grid ? "Select the objects to align to the grid." : "Select two or more objects.");
+      return;
+    }
+    if (action === "make-row" || action === "make-column") {
+      const row = action === "make-row";
+      promptValue(row ? "Row pitch" : "Column pitch", units.format(doc().grid * 8, unit()), text => {
+        const pitch = units.parse(text, unit());
+        if (!(pitch > 0)) {info("Enter a pitch greater than zero."); return;}
+        run(array(doc(), defs(), ids, row ? "x" : "y", pitch));
+      }, "Apply", {unit:unit(), storageUnit:"mm", nanometres:true, min:.000001});
+      return;
+    }
+    run(grid ? alignToGrid(doc(), defs(), ids) : action.startsWith("distribute")
+      ? distribute(doc(), defs(), ids, action === "distribute-h" ? "x" : "y") : align(doc(), defs(), ids, action.slice(6)));
+  }
+
+  return {begin, draw, align, distribute, alignToGrid, array, applyPlan, command, itemBox, style: STYLE};
 })();

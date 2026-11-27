@@ -163,7 +163,7 @@ module.exports = dialogSafeArea;
 
 async function main() {
   let chromium;
-  try { ({chromium} = require("playwright-core")); }
+  try { ({chromium} = require("../support/playwright.cjs")); }
   catch { console.log("SKIP dialog safe area: Playwright Core is unavailable."); return; }
   const executablePath = process.env.CHROME;
   const browser = await chromium.launch({headless:true, args:["--allow-file-access-from-files"], ...(executablePath ? {executablePath} : {channel:"chrome"})});

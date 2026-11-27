@@ -5,7 +5,7 @@ const {createHash}=require("node:crypto");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 
 async function scenario(browser, modern) {
   const page = await browser.newPage({viewport:{width:1260,height:880},deviceScaleFactor:2,acceptDownloads:true});

@@ -5,6 +5,8 @@
 root=${0:A:h:h}
 jsc=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 [[ -x $jsc ]] || { print -u2 "JavaScriptCore's jsc was not found; use: node tests/run.cjs"; exit 2; }
+# JavaScriptCore reads TZ only at start, so suites cannot pin it themselves (tests/support/utc.cjs).
+export TZ=UTC
 python3 -B "$root/scripts/prepare-assets.py" || exit 2
 names=()
 while (( $# )) && [[ $1 != -- ]]; do names+=("$1"); shift; done
@@ -41,6 +43,7 @@ for test_path in $test_paths; do
     ai) reason="requires Node filesystem writes and a child process" ;;
     import-worker|live-pour-worker) reason="requires Node worker threads" ;;
     diff-worker) reason="requires URL to place diff-worker.js beside diff.js (the Node inventory runs it)" ;;
+    altium-links) reason="requires URL to check link addresses (the Node inventory runs it)" ;;
     integration-browser|collab-pair-browser|palette-actions.browser|browser-apricot-readonly|browser-apricot-native-query|browser-import-export-target|browser-butter-ai|butter-macros-browser|browser-butter-ai-ui|browser-butter-query-ui|browser-butter-macros-ui|browser-butter-links-ui|butter-intel-ui-shared) reason="requires Node, Playwright and Chromium" ;;
     browser-format-2-git|browser-butter-history) reason="requires Node child processes, Playwright, Chromium, Python 3 and Git (runs in Chromium CI)" ;;
     browser-dialog-geometry|browser-dialog-safe-area|browser-titlebar-safe-area|browser-surface-motion|browser-workbench-spatial|browser-dock-beta|browser-ui-gallery|browser-ui-snapshots) reason="requires Node and real Chromium layout, focus and animations" ;;

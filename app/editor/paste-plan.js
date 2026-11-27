@@ -82,7 +82,8 @@ globalThis.AtriumPastePlan = (() => {
       checkImages();
       if(transfer)media.commit(clip,doc,transfer);
       for(const def of newDefs)project.library.push(def);
-      if(newDefs.length&&clip.blobs)for(const k in clip.blobs)(project.blobs||={})[k]||=clip.blobs[k];
+      // A reused definition names the same 3D model as the copied one, so its STEP blob comes along too.
+      if(clip.blobs)for(const k in clip.blobs)(project.blobs||={})[k]||=clip.blobs[k];
       for(const item of items){
         if(item.kind!=="imageMarkup")A.moveItem(item,at[0],at[1]);
         doc.items.push(item);

@@ -2,7 +2,7 @@
 
 Use **File → Open…** (`Mod+O`), drag files onto the editor, or choose **File → Import → Altium Project / Document…**. Select related files together so the translator can link sheets, boards, libraries and model references. An imported design opens as a project. To bring a document into an open design, use **+ → Add Existing to Project…** on that project’s title row in the Projects panel.
 
-After each import, an **Import Report** tab shows the number of objects **kept**, **approximated** and **dropped**. Expand a row’s **Show references** control for the source file, object and reason. Review the warning totals and translator notes before using the result. Select a design tab to resume editing. Use **Reports → Import Report** or **⋯ → Import Report** on the project’s title row to revisit its report.
+After each import, an **Import Report** tab shows the number of objects **kept**, **approximated** and **dropped**. A quieter **Not applicable** column counts source records that have no meaning in Waffle, such as Altium pin identifiers, model containers and the copies of a multi-part component's other parts that import where those parts are placed. They are not losses, and the original file keeps them. Expand a row’s **Show references** control for the source file, object and reason. Review the warning totals and translator notes before using the result. Select a design tab to resume editing. Use **Reports → Import Report** or **⋯ → Import Report** on the project’s title row to revisit its report.
 
 Parsing runs in a background worker with input limits, progress and a **Cancel import** control.
 
@@ -30,6 +30,8 @@ Opening another design from the desktop file chooser gives it a separate window.
 | `.PrjPcb` | The list of documents, matched against the files selected with it |
 | `.RUL` and `Rules6` records | Browsable under **Design → Rules… → Altium Source Rules**. Supported minimums can be applied to the board's active rules. After an import, Messages asks once: *This board has N design rules from Altium. Use them?* with **Use the board's rules** (Replace with supported rules, one undo step; pours the new clearances affect are repoured), **Keep Waffle defaults** and **Review…** (opens Altium Source Rules). **Preferences → PCB → Imported boards** can answer for you (Ask, Always use the board's rules, Keep Waffle defaults); MCP `import_design` takes `source_rules: "use"`. KiCad, Eagle and EasyEDA rules are converted on import, so they are never asked about. |
 
+**Directives and curves.** An Altium parameter set (a directive) gives its net class, differential pair and differential pair class to the wire or net label under it, as that object's Net class, Signal, Polarity and Tags fields; Altium export writes them back as parameter sets. A directive that touches no wire or label, and parameters such as rules, are listed in the import report. KiCad net class directive labels work the same way. Schematic arcs, circles, ellipses and Bézier curves keep their exact curves and export to Altium as the same records.
+
 **Tested on a real project.** `tests/import-altium-real.cjs` imports an open-source Altium project (the PiDP-11 I/O Expander, BSD-2-Clause, in `tests/fixtures/altium/`) and compares an import report with a snapshot: 23 parts on the sheet and the board, 30 nets on both, 194 tracks, 59 vias, and 2 polygon pours whose 5 stored fill regions count for connectivity (unrouted connections drop from 48 to 2; the two left are stub tracks inside a drill hole). The board contains 23 authored 3D bodies referencing eight distinct embedded STEP files. The report also identifies unsupported records, including unions and waived violations.
 
 Board tracks, footprint artwork and board outlines retain their circular arcs. Select a board arc to edit its centre, radius and angles in Properties. Gerber and IPC-2581 use circular commands, DXF uses arcs or bulges, and PDF uses cubic curves tested to a 0.005 mm radial tolerance at 1:1. Tools that need polygons, including copper clearance checks, use sampled points.
@@ -40,8 +42,13 @@ Board tracks, footprint artwork and board outlines retain their circular arcs. S
 their series parts) and xSignal classes become signals and tags, and rules scoped to them (for example
 `InDifferentialPairClass('HS_PAIRS')`, `InxSignalClass('PCIE_TX_XSIGNALS')`) apply once you use the board's
 rules. Export writes them back, keeping Altium's unique IDs. Checked on a board saved by Altium Designer 26
-(`tests/fixtures/altium/pairs-xsignals`, `tests/signals-altium.cjs`). Component, pad, layer and polygon
-classes are not imported.
+(`tests/fixtures/altium/pairs-xsignals`, `tests/signals-altium.cjs`). Component classes become the board's
+component classes (**Design → Classes…**), so `InComponentClass('Name')` rules match their members. A class
+that Altium generated for a schematic sheet and that has the same members as the class Waffle generates for
+that sheet is not stored twice. Altium's automatic Top Side, Bottom Side, Inside Board and Outside Board classes
+keep the members they had at import; Waffle does not update them when parts move. The built-in All Nets, All
+Components and All Differential Pairs classes work as in Altium. Pad, layer, polygon and from-to classes are
+not imported, and export does not write component classes yet.
 
 Altium's relative PCB origin (**Edit → Origin**) comes in with the board. **Fabrication Outputs** uses that datum by default for Gerber, NC Drill and pick-and-place. Choose **Design origin (absolute)** or **Board lower-left corner** to match an existing job. If the job used a separate Excellon datum, set **NC drill origin** in the **NC Drill** tab or in the **Gerber and drill** job settings. The MCP setting is `drill_origin`. [Altium fabrication setup](https://www.altium.com/documentation/altium-designer/preparing-for-manufacture/output-jobs/fabrication-data)
 
@@ -50,6 +57,8 @@ Use **Profile stroke width (mm)** in the **Gerber** tab or in the **Gerber and d
 A PCB project with one applicable Gerber setup saved in its `.PrjPcb` can also provide an **Altium board profile** job. Waffle keeps the selected Mechanical 1 or Keep-Out filename and stroke width when the source layer contains only one uniformly drawn copy of the board perimeter and every cutout. Run the job under **Output Jobs**, or with MCP `run_output_job`. For automatically generated Altium profiles and settings held only in a companion `.OutJob`, enter the width in your output settings. PiDP-11 Rev A is one example of a project whose Gerber setup is in its separate `Fabrication.OutJob`.
 
 Waffle links a schematic part to its footprint when the designator, footprint and pin mapping agree; ambiguous links are listed in the report. **Properties → Import report → Restore source appearance** re-applies the original page and symbol styling.
+
+**Web links.** Component parameters, hidden ones included, come in from the sheet and from the board (the PcbDoc's component parameters go on the footprint). Waffle keeps Altium's convention rather than a separate link record: a component link is the parameter pair `ComponentLink<N>URL` and `ComponentLink<N>Description`, and `HelpURL` is its help page. **Properties → Web links** lists these, then every other parameter whose value is an http or https address (a datasheet or supplier page), and opens one in your browser. A board footprint also shows the links of its schematic part. Schematic text with an Altium hyperlink (a text's URL, or a Hyperlink object) keeps it as its **URL**, which **Properties → Link** also sets on any text; Cmd+click (Ctrl+click on Windows and Linux) opens it. Only http and https addresses without a user name or password are opened. Altium export writes the text's URL and the link parameters in Altium's spelling.
 
 ### Exporting an edited copy back
 

@@ -6,10 +6,12 @@ if (!globalThis.AtriumLandContours && typeof require === "function") require("..
 // counter-intuitive, so it is off by default):
 //   - Each violation draws a marker in its severity colour with a shape cue, so colour is not
 //     the only signal: a ring for errors, a triangle for warnings, a dashed ring for waived
-//     violations. Markers grow with zoom within an on-screen range (problem-marks.js). Inside it an X marks a conflict between two objects (clearance, short, hole
+//     violations. Markers grow with zoom within an on-screen range (problem-marks.js), staying
+//     smaller than a via close up, in thin strokes (problem-marks.js STROKE). Inside it an X marks a conflict between two objects (clearance, short, hole
 //     to hole …), a dot a single-object rule (width, hole size, annular ring …).
-//   - The objects involved get a subtle outline in the same colour; a dashed detail line joins
-//     the two closest points.
+//   - The objects involved get a subtle outline in the same colour at half strength; a dashed detail
+//     line joins the two closest points.
+//   - Footprint findings (Missing Courtyard) are listed, not drawn, until one is chosen (LISTED).
 //   - Hovering a marker emphasises it and its objects a little, and writes one quiet line
 //     in the status bar ("Clearance 0.186 < 0.2 mm · A2.2 ↔ Track A1 · click for details").
 //     After a rest, the small problem card (problem-hover.js) says what it is beside the marker,
@@ -28,13 +30,18 @@ globalThis.AtriumDRCMarkers = (() => {
   const C = () => globalThis.AtriumNavCommon, A = () => globalThis.Atrium, R = () => globalThis.AtriumRules;
   // Canvas palette (problem-marks.js BOARD: the board canvas is dark in every theme). Severity first;
   // ring is the focus ring of the pinned violation, halo the dark edge that keeps glyphs readable on copper.
-  const P = globalThis.AtriumProblemMarks, B = P.BOARD, planFor = P.register();
+  const P = globalThis.AtriumProblemMarks, B = P.BOARD, S = P.STROKE, planFor = P.register();
   const COLORS = Object.freeze({error: B.error, warning: B.warning, waived: B.waived, halo: B.halo, ring: B.ring, dim: B.dim,
     overlay: B.error, marker: B.error, detail: B.error});
   // error | warning | waived. Waived rows come from drc-view.js with a `waived` waiver attached.
   const severity = v => v?.waived ? "waived" : v?.warning || v?.type === "unrouted" ? "warning" : "error";
   const RANK = {error: 3, warning: 2, waived: 1};
   const PAIRED = new Set(["clearance", "short", "holeToHole", "silkToSilk", "silkToMask", "boardOutlineClearance", "dfaSpacing", "returnPathVia", "diffPairsRouting"]);
+  // Findings about a footprint in the library rather than about its place on the board (Missing
+  // Courtyard): every placement of the footprint would carry the same marker, so they stay in Messages
+  // and draw on the board only while one is chosen there (focused).
+  const LISTED = new Set(["courtyard"]);
+  const listedOut = (v, focused) => LISTED.has(v.type) && v !== focused;
   let visible = true;
   try { const s = JSON.parse(globalThis.localStorage?.getItem("atrium-drc-markers") || "null"); if (s) visible = s.visible !== false; } catch { /* storage unavailable */ }
   const save = () => { try { globalThis.localStorage?.setItem("atrium-drc-markers", JSON.stringify({visible})); } catch { /* storage unavailable */ } };
@@ -108,17 +115,17 @@ globalThis.AtriumDRCMarkers = (() => {
   // {v, shapes, live} for each violation to draw; live is false for filtered-out objects.
   // `rev` (the editor's revision) keeps each violation's shapes and box between frames; `view` (a world
   // box) leaves out the rows that cannot reach it.
-  function visibleList(doc, defs, list, {hidden = null, selectable = null, rev = null, view = null, preview = null, publication = null} = {}, eligibility = null) {
-    return rowViews(rowsOf(doc, defs, list, rev, preview, publication), {hidden, selectable, view, publication}, eligibility);
+  function visibleList(doc, defs, list, {hidden = null, selectable = null, rev = null, view = null, preview = null, publication = null, focused = null} = {}, eligibility = null) {
+    return rowViews(rowsOf(doc, defs, list, rev, preview, publication), {hidden, selectable, view, publication, focused}, eligibility);
   }
-  function rowViews(entry, {hidden, selectable, view, publication}, eligibility, members = null) {
+  function rowViews(entry, {hidden, selectable, view, publication, focused = null}, eligibility, members = null) {
     const out = [];
     if (!entry) return out;
     let cached = eligibility?.get(entry);
     if (eligibility && !cached) eligibility.set(entry, cached = []);
     for (let i = 0; i < entry.rows.length; i++) {
       const r = entry.rows[i];
-      if (!r || !reaches(r.box, view) && !members?.(r.v)) continue;
+      if (!r || listedOut(r.v, focused) || !(members ? members(r, i) : reaches(r.box, view))) continue;
       let row = cached?.[i];
       if (row === undefined) {
         row = rowView(r, hidden, selectable, !!publication);
@@ -224,6 +231,8 @@ globalThis.AtriumDRCMarkers = (() => {
   }
   // A subtle outline around an offending primitive: a soft band along tracks, a thin ring
   // around pads and vias, a dashed box around a part. Hovered or pinned: a little stronger.
+  // Half strength at rest: the marker already says where; the ring only says which object.
+  const OUTLINE_ALPHA = .5;
   function outline(ctx, s, px, color, hot) {
     ctx.strokeStyle = color; ctx.setLineDash([]);
     if (s.kind === "line") {
@@ -234,7 +243,7 @@ globalThis.AtriumDRCMarkers = (() => {
       ctx.stroke();
       return;
     }
-    ctx.globalAlpha *= hot ? 1 : .75; ctx.lineWidth = (hot ? 2 : 1.25) * px;
+    ctx.globalAlpha *= hot ? 1 : OUTLINE_ALPHA; ctx.lineWidth = (hot ? 2 : 1) * px;
     if (s.kind === "circle") { ctx.beginPath(); ctx.arc(s.at[0], s.at[1], Math.max(s.r, 3 * px) + 1.5 * px, 0, Math.PI * 2); ctx.stroke(); }
     else if (s.kind === "pad") { padPath(ctx, s, 1.5 * px); ctx.stroke(); }
     else if (s.kind === "box") { ctx.setLineDash([5 * px, 3 * px]); ctx.strokeRect(s.box[0], s.box[1], s.box[2] - s.box[0], s.box[3] - s.box[1]); ctx.setLineDash([]); }
@@ -258,8 +267,8 @@ globalThis.AtriumDRCMarkers = (() => {
     if (pinned) { ctx.lineWidth = 1.5 * px * w; ctx.strokeStyle = COLORS.ring; ctx.beginPath(); ctx.arc(at[0], at[1], r + 4 * px * w, 0, Math.PI * 2); ctx.stroke(); }
     ctx.setLineDash(sev === "waived" ? [2.5 * px * w, 2 * px * w] : []);
     ctx.beginPath(); appendMarkerBorder(ctx, at, r, sev);
-    ctx.lineWidth = 3.2 * px * w; ctx.strokeStyle = COLORS.halo; ctx.stroke();
-    ctx.lineWidth = (hot || pinned ? 2.2 : 1.6) * px * w; ctx.strokeStyle = color; ctx.stroke();
+    ctx.lineWidth = S.halo * px * w; ctx.strokeStyle = COLORS.halo; ctx.stroke();
+    ctx.lineWidth = (hot || pinned ? S.hot : S.line) * px * w; ctx.strokeStyle = color; ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = color; ctx.strokeStyle = color;
     const cross = glyph(v) === "x" && sev !== "waived";
@@ -302,7 +311,8 @@ globalThis.AtriumDRCMarkers = (() => {
       }
       const cell = P.pcbCell(frame);
       const z = P.size(frame.scale, "pcb");
-      if (cell) return coarsePlan(doc, defs, list, q, frame, z, cell, eligibility?.rows);
+      if (cell) return coarsePlan(doc, defs, list, q, frame, z, cell, eligibility);
+      if (eligibility) eligibility.index = null;
       const rows = visibleList(doc, defs, list, q, eligibility?.rows);
       const waived = visibleList(doc, defs, o.waived, q, eligibility?.rows);
       const overview = rows.length + waived.length > LOD_ROWS && !!frame.worldToScreen;
@@ -314,7 +324,7 @@ globalThis.AtriumDRCMarkers = (() => {
     const paint = (ctx, a) => {
       const plan = markerPlan(doc, defs, list, o, a);
       const {rows, waived} = plan;
-      if (!rows.length && !waived.length) return;
+      if (!(plan.hasRows ?? (rows.length || waived.length))) return;
       const clip = a.area && a.worldViewport?.(a.area, PADDING);
       if (plan.overview) {
         // A damage strip uses the whole view's cell winners and outline style order.
@@ -349,9 +359,9 @@ globalThis.AtriumDRCMarkers = (() => {
   function releaseLayers() { for (const c of held) c.width = c.height = 1; held.clear(); layers = new WeakMap(); }
   const clock = () => globalThis.performance?.now?.() ?? Date.now();
   function retainedOverview(ctx, a, plan, o) {
-    const {rows, waived} = plan;
     const target = ctx.canvas, m = typeof ctx.getTransform === "function" ? ctx.getTransform() : null;
     if (a.area || !m || !target?.width || !target.height || typeof OffscreenCanvas !== "function" || globalThis.AtriumCanvasGPU?.overlays?.()) return false;
+    const {rows, waived} = plan.rowLists?.() || plan;
     const key = [target.width, target.height, m.a, m.b, m.c, m.d, m.e, m.f, a.scale, ctx.globalAlpha, o.focused, o.hover, waived.length];
     const items = [...waived, ...rows];
     // A paired finding can switch from one visible primitive to the other at the same shape count.
@@ -451,25 +461,161 @@ globalThis.AtriumDRCMarkers = (() => {
   // Close markers merged (problem-marks.js cluster): errors outrank warnings, warnings waived ones.
   const RANK_OF = {error: 0, warning: 1, waived: 2}, atOf = r => r.v.at || r.v.otherAt;
   const scoreOf = r => r.score;
+  function coarseKey(v, cell) {
+    const at = v.at || v.otherAt;
+    return at && Math.floor(at[0] / cell) + "," + Math.floor(at[1] / cell);
+  }
+  function addIndexedMember(group, row, i) {
+    if (!row) return group;
+    if (!group) return {first: i, rep: row, members: [row], at: atOf(row), score: row.score};
+    group.members.push(row);
+    if (row.score > group.score) { group.rep = row; group.at = atOf(row); group.score = row.score; }
+    return group;
+  }
+  function indexedCells(owner, entry, exceptions, cell) {
+    const prior = owner.index;
+    if (prior?.entry === entry && prior.exceptions === exceptions && prior.cell === cell) return prior;
+    const count = entry?.rows.length || 0, total = count + (exceptions?.rows.length || 0);
+    const next = new Int32Array(total).fill(-1), ids = new Int32Array(total).fill(-1);
+    const columns = new Map(), cells = [], anchorless = [], listed = [];
+    const active = owner.rows.get(entry), waived = owner.rows.get(exceptions);
+    const raw = i => i < count ? entry.rows[i] : exceptions.rows[i - count];
+    for (let i = 0; i < total; i++) {
+      const row = raw(i);
+      if (!row) continue;
+      // Listed findings (LISTED) stay out of the cells and their cached groups: whether one draws
+      // depends on the focus, which changes without a new index. indexedRows adds the focused one.
+      if (LISTED.has(row.v.type)) { listed.push(i); continue; }
+      const at = row.v.at || row.v.otherAt;
+      if (!at) { anchorless.push(i); continue; }
+      const x = Math.floor(at[0] / cell), y = Math.floor(at[1] / cell);
+      let column = columns.get(x);
+      if (!column) columns.set(x, column = new Map());
+      let bin = column.get(y);
+      if (!bin) {
+        bin = {id: cells.length, first: i, last: i, witness: -1, bounds: null, complete: true, group: null};
+        column.set(y, bin); cells.push(bin);
+      } else { next[bin.last] = i; bin.last = i; }
+      ids[i] = bin.id;
+      // On a later band, the pane may already have filtered all members.
+      // Build those groups in the same pass, without consulting a new object.
+      if (bin.complete) {
+        const row = i < count ? active?.[i] : waived?.[i - count];
+        if (row === undefined) { bin.complete = false; bin.group = undefined; }
+        else bin.group = addIndexedMember(bin.group, row, i);
+      }
+      // Union is only a rejection bound. Long objects and gaps between objects
+      // still use their own boxes before a whole cell is admitted.
+      const b = row.box;
+      if (b && b[0] <= b[2] && b[1] <= b[3]) {
+        const a = bin.bounds;
+        if (!a) bin.bounds = b.slice();
+        else {
+          a[0] = Math.min(a[0], b[0]); a[1] = Math.min(a[1], b[1]);
+          a[2] = Math.max(a[2], b[2]); a[3] = Math.max(a[3], b[3]);
+        }
+      } else if (b) bin.bounds = [-Infinity, -Infinity, Infinity, Infinity];
+    }
+    return owner.index = {entry, exceptions, cell, cells, columns, count, raw, next, ids, anchorless, listed};
+  }
+  function indexedRows(index, o, eligibility) {
+    const {entry, exceptions, cell, count, cells, columns, raw, next, ids, anchorless, listed} = index, view = o.view;
+    const resolved = e => {
+      let rows = eligibility.rows.get(e);
+      if (!rows && e) eligibility.rows.set(e, rows = []);
+      return rows;
+    };
+    const active = resolved(entry), waived = resolved(exceptions);
+    const resolve = i => {
+      const list = i < count ? active : waived, k = i < count ? i : i - count;
+      let row = list[k];
+      if (row === undefined) list[k] = row = rowView(raw(i), o.hidden, o.selectable, true);
+      return row;
+    };
+    const groups = [], outlines = [], admitted = new Uint8Array(cells.length), relevant = new Uint8Array(cells.length);
+    for (const bin of cells) {
+      if (!reaches(bin.bounds, view)) continue;
+      if (bin.witness < 0 || !reaches(raw(bin.witness).box, view)) {
+        bin.witness = bin.first;
+        while (bin.witness >= 0 && !reaches(raw(bin.witness).box, view)) bin.witness = next[bin.witness];
+        if (bin.witness < 0) continue;
+      }
+      relevant[bin.id] = 1;
+      let group = bin.group;
+      if (group === undefined) {
+        group = null;
+        for (let i = bin.first; i >= 0; i = next[i])
+          group = addIndexedMember(group, resolve(i), i);
+        bin.group = group;
+      }
+      if (group) { admitted[bin.id] = 1; groups.push(group); }
+    }
+    // The focused listed finding, if any, joins its cell for this plan only (a new group object: the
+    // cached cell group stays without it), as the unindexed path's P.cells would place it.
+    const focus = o.focused && LISTED.has(o.focused.type) ? listed.find(i => raw(i).v === o.focused) ?? -1 : -1;
+    let focusAdmitted = false;
+    if (focus >= 0) {
+      const r = raw(focus), at = r.v.at || r.v.otherAt, own = reaches(r.box, view);
+      if (!at) {
+        const row = own ? resolve(focus) : null;
+        if (row) { focusAdmitted = true; if (focus < count) outlines.push(row); }
+      } else {
+        const bin = columns.get(Math.floor(at[0] / cell))?.get(Math.floor(at[1] / cell));
+        if (bin && (relevant[bin.id] || own)) {
+          let group = null, placed = false;
+          for (let i = bin.first; i >= 0; i = next[i]) {
+            if (!placed && focus < i) { group = addIndexedMember(group, resolve(focus), focus); placed = true; }
+            group = addIndexedMember(group, resolve(i), i);
+          }
+          if (!placed) group = addIndexedMember(group, resolve(focus), focus);
+          const slot = groups.indexOf(bin.group);
+          if (slot >= 0) groups.splice(slot, 1);
+          if (group) { admitted[bin.id] = 1; groups.push(group); }
+          focusAdmitted = !!group?.members.includes(resolve(focus));
+        } else if (!bin && own) {
+          const group = addIndexedMember(null, resolve(focus), focus);
+          if (group) { groups.push(group); focusAdmitted = true; }
+        }
+      }
+    }
+    // A hidden early member must not reorder a cell ahead of an earlier
+    // eligible member in another cell. Ties follow active rows then waivers.
+    groups.sort((a, b) => a.first - b.first);
+    let hasRows = groups.length > 0 || focusAdmitted;
+    for (const i of anchorless) {
+      if (!reaches(raw(i).box, view)) continue;
+      const row = resolve(i);
+      if (!row) continue;
+      hasRows = true;
+      if (i < count) outlines.push(row);
+    }
+    // The full 2D raster cache still compares ordered rows. The direct GPU,
+    // strip, and pointer routes only consume the smaller cell/outline plan.
+    const include = (row, i) => i === focus ? focusAdmitted : ids[i] >= 0 ? admitted[ids[i]] : reaches(row.box, view);
+    const rowLists = () => ({rows: rowViews(entry, o, eligibility.rows, include),
+      waived: rowViews(exceptions, o, eligibility.rows, (row, i) => include(row, i + count))});
+    return {groups, outlines, rowLists, hasRows};
+  }
   function coarsePlan(doc, defs, list, o, frame, z, cell, eligibility) {
     const entry = rowsOf(doc, defs, list, o.rev, o.preview, o.publication);
     const exceptions = rowsOf(doc, defs, o.waived, o.rev, o.preview, o.publication);
-    const cellKey = v => {
-      const at = v.at || v.otherAt;
-      return at && Math.floor(at[0] / cell) + "," + Math.floor(at[1] / cell);
-    };
-    // Select whole cells where their artwork reaches the padded view. A long track can make a cell
-    // relevant even when the marker's anchor is far away. Take every eligible member of that cell.
-    const relevant = new Set();
-    if (o.view) for (const e of [entry, exceptions]) for (const r of e?.rows || []) {
-      if (!r || !reaches(r.box, o.view)) continue;
-      const key = cellKey(r.v);
-      if (key) relevant.add(key);
+    let groups, outlines, rowLists, hasRows, rows, waived;
+    if (eligibility && o.view && (entry?.rows.length || 0) + (exceptions?.rows.length || 0) > LOD_ROWS) {
+      ({groups, outlines, rowLists, hasRows} = indexedRows(indexedCells(eligibility, entry, exceptions, cell), o, eligibility));
+    } else {
+      const relevant = new Set(), view = o.view;
+      if (view) for (const e of [entry, exceptions]) for (const r of e?.rows || []) {
+        if (!r || listedOut(r.v, o.focused) || !reaches(r.box, view)) continue;
+        const key = coarseKey(r.v, cell);
+        if (key) relevant.add(key);
+      }
+      const members = view && (r => reaches(r.box, view) || relevant.has(coarseKey(r.v, cell)));
+      rows = rowViews(entry, o, eligibility?.rows, members);
+      waived = rowViews(exceptions, o, eligibility?.rows, members);
+      groups = P.cells([...rows, ...waived], atOf, 1, cell, scoreOf);
+      outlines = rows.filter(r => !atOf(r));
     }
-    const members = o.view && (v => relevant.has(cellKey(v)));
-    const rows = rowViews(entry, o, eligibility, members), waived = rowViews(exceptions, o, eligibility, members);
-    const groups = P.cells([...rows, ...waived], atOf, 1, cell, scoreOf);
-    const ordinary = [], single = [], inspected = [], outlines = rows.filter(r => !atOf(r));
+    const ordinary = [], single = [], inspected = [];
     const inspect = [], clustered = [], reach = P.hit(z.screen * 1.2);
     const mark = (row, members) => ({row, score: row.score, v: row.v, at: atOf(row), live: row.live,
       members, reach, n: 1, hot: row.v === o.hover, pinned: row.v === o.focused});
@@ -492,7 +638,7 @@ globalThis.AtriumDRCMarkers = (() => {
     // even when a proxy changes at a distant edge. The picker uses this same order.
     ordinary.sort((a, b) => markerStyle(a) - markerStyle(b));
     inspected.sort((a, b) => Number(a.pinned) - Number(b.pinned));
-    return {rows, waived, overview: true, cell, clustered, ordinary, single, outlines, inspected, inspect,
+    return {rows, waived, rowLists, hasRows, overview: true, cell, clustered, ordinary, single, outlines, inspected, inspect,
       marks: [...single, ...ordinary, ...inspected]};
   }
   const mergeAt = (rows, scale) => P.cluster(rows, atOf, scale, "pcb", r => RANK_OF[severity(r.v)]);
@@ -635,7 +781,7 @@ globalThis.AtriumDRCMarkers = (() => {
           push(slots, tag, "line", color, r.live ? .3 : .15, width, shape, draw);
         } else {
           const box = shape.kind === "box";
-          push(fixedStyles, tag + (box ? 4 : 0), box ? "box" : "ring", color, r.live ? .75 : .375, 1.25 * px, shape, draw);
+          push(fixedStyles, tag + (box ? 4 : 0), box ? "box" : "ring", color, r.live ? OUTLINE_ALPHA : OUTLINE_ALPHA / 2, px, shape, draw);
         }
       }
       if (v.otherAt && v.at && near(v.at, v.otherAt) > 1e-6) push(fixedStyles, tag + 8, "detail", color, live ? .6 : .35, px, v, draw);
@@ -677,9 +823,9 @@ globalThis.AtriumDRCMarkers = (() => {
       ctx.globalAlpha = st.waived ? .75 : st.live ? 1 : .45;
       ctx.setLineDash(st.sev === "waived" ? [2.5 * px * w, 2 * px * w] : []);
       if (!paths) { ctx.beginPath(); markerBorders(ctx, st, r); }
-      ctx.lineWidth = 3.2 * px * w; ctx.strokeStyle = COLORS.halo;
+      ctx.lineWidth = S.halo * px * w; ctx.strokeStyle = COLORS.halo;
       if (paths) ctx.stroke(paths.border); else ctx.stroke();
-      ctx.lineWidth = 1.6 * px * w; ctx.strokeStyle = color;
+      ctx.lineWidth = S.line * px * w; ctx.strokeStyle = color;
       if (paths) ctx.stroke(paths.border); else ctx.stroke();
       ctx.setLineDash([]); ctx.fillStyle = color;
       if (paths) { if (st.x) ctx.stroke(paths.glyph); else ctx.fill(paths.glyph); }

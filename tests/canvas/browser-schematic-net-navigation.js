@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const {projectZIP, openProjectZIP} = require("../support/browser-native-project.cjs");
 require("../../app/schematic/sch-objects.js");
 

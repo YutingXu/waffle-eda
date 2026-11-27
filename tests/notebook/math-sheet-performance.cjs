@@ -94,7 +94,7 @@ console.log(JSON.stringify({
 }));
 
 async function browserPan() {
-  const { chromium } = require("playwright-core");
+  const { chromium } = require("../support/playwright.cjs");
   const { pathToFileURL } = require("node:url");
   for (const module of ["source-file","format-2-codec","format-2-units","format-2-values","format-2-model","import-sidecars","zip"])
     require(appFileFrom(path.join(root,"app"),module+".js"));

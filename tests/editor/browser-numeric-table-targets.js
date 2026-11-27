@@ -2,7 +2,7 @@
 
 // Run in the combined Butter checkout, or pass the pinned table branch's app directory.
 const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url");
-const {chromium}=require("playwright-core");
+const {chromium}=require("../support/playwright.cjs");
 const app=path.resolve(__dirname,"../../app"),tables=path.resolve(process.argv[2] || app);
 require(path.join(app,"project/source-file.js"));
 const T=require(path.join(tables,"table-data.js")),F=require(path.join(tables,"table-formulas.js"));

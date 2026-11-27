@@ -50,6 +50,23 @@ test("highlighted shapes: tracks, vias, the nearest pad of a part, else its box"
   assert.deepEqual(M.shapes(b, defs, {type: "length", id: "gone"}), []);
 });
 
+test("calm markers: footprint findings are listed, not drawn, until chosen; thin strokes; smaller than a via close up", () => {
+  const b = board([via("v", "A", 0, 0), part("p", "R1", 4, 0, {"1": "C", "2": "D"})]);
+  const court = {type: "courtyard", warning: true, id: "p", at: [4, 0]}, clear = {type: "clearance", id: "v", at: [0, .3]};
+  assert.deepEqual(M.visibleList(b, defs, [court, clear], {}).map(r => r.v), [clear], "Missing Courtyard stays in Messages");
+  assert.deepEqual(M.visibleList(b, defs, [court, clear], {focused: court}).map(r => r.v), [court, clear], "the chosen one is drawn");
+  const P = globalThis.AtriumProblemMarks;
+  assert.ok(P.MAX <= 14, "a marker never grows past 14 px");
+  const close = P.size(80, "pcb"); // 80 px per mm: a 0.6 mm via is 48 px across
+  assert.ok(2 * close.screen < .6 * 80, "the marker stays smaller than the via it points at");
+  assert.ok(P.STROKE.line <= 1.25 && P.STROKE.halo <= 2.5, "thin severity outline on a slim halo");
+  // Every stroke a marker draws stays within the hot width at the largest size.
+  const widths = [], ctx = new Proxy({setLineDash() {}}, {get: (t, k) => k in t ? t[k] : () => {}, set: (t, k, v) => { if (k === "lineWidth") widths.push(v); t[k] = v; return true; }});
+  const paint = M.overlay(b, defs, [clear], {});
+  paint(ctx, {scale: 80});
+  assert.ok(widths.length && Math.max(...widths) * 80 <= P.STROKE.halo * Math.sqrt(P.MAX / P.MIN) + 1e-9, JSON.stringify(widths.map(w => w * 80)));
+});
+
 test("layer visibility and the selection filter", () => {
   const b = board([track("t1", "A", [[0, 0], [5, 0]]), track("t2", "B", [[0, 1], [5, 1]], .2, "Bottom"), via("v", "C", 9, 9)]);
   const list = [{type: "width", id: "t1", at: [1, 0]}, {type: "width", id: "t2", at: [1, 1]}, {type: "clearance", id: "v", otherId: "t2", at: [9, 9]}, {type: "unrouted", id: "t1", at: [0, 0]},
@@ -330,6 +347,80 @@ test("camera moves reuse world eligibility and leave the exact projected glyphs 
     tested = []; publication = () => true;
     paint();
     assert.deepEqual(tested, ["t0", "t1"], "a replacement publication revalidates rows");
+  } finally { U.reset(); }
+});
+
+test("dense published cameras reuse world cell keys but recalculate the visible winners", () => {
+  const U = AtriumUndoStore, line = track("long", "A", [[-20, 1], [42, 1]]), b = board([line]);
+  const err = {type:"clearance", id:line.id, at:[-3,1]}, warn = {type:"width", at:[-1,2], warning:true};
+  const list = [err, warn, ...Array.from({length:360}, (_, i) =>
+    ({type:"width", at:[3+(i%36)*.12, (i%19)*.2], warning:i%2===0}))];
+  const waived = [{...warn, waived:{id:"W"}}], host = {doc:()=>b, defs:()=>defs, revision:()=>1};
+  const canvas = {}, options = {hidden:new Set(), layer:"Top", layerMode:"all"}, width=96, height=48;
+  let publication = {}, scales = [7,6], start=0, hover=null, focused=null;
+  const redraw = (scale, retain, area=null) => {
+    const rec = AtriumPDF.recorder(width,height), left=-start*scale, top=12;
+    const worldToScreen = ([x,y]) => [left+x*scale,top+y*scale];
+    const worldViewport = (area,pad=0) => {
+      const [x,y,r,h] = area || [0,0,width,height];
+      return [(x-left-pad)/scale,(y-top-pad)/scale,(r-left+pad)/scale,(h-top+pad)/scale];
+    };
+    const frame = {width,height,scale,area,canvas,options,worldToScreen,worldViewport,selectable:()=>true};
+    const o = {focused,hover,waived,publication:retain?publication:null};
+    rec.ctx.setTransform(scale,0,0,scale,left,top);
+    M.renderFor(host,b,list,o).overlay(rec.ctx,frame);
+    return rec.list;
+  };
+  const floor = Math.floor;
+  U.reset(); U.record({library:[],documents:[b]});
+  try {
+    redraw(scales[0],true);
+    let floors = 0;
+    Math.floor = n => {floors++;return floor(n);};
+    const retained = redraw(scales[1],true);
+    Math.floor = floor;
+    assert.ok(floors < list.length, "same world band does not re-bin every published marker at the next zoom");
+    assert.deepEqual(retained,redraw(scales[1],false));
+    assert.ok(retained.length,"a long outline admits its distant marker cell");
+    start=-1.5; hover=warn; focused=err;
+    assert.deepEqual(redraw(5,true),redraw(5,false),"pan and under-pointer promotion repaint the same ordered ink");
+    assert.deepEqual(redraw(5,true,[0,0,30,height]),redraw(5,false,[0,0,30,height]),"damage strip uses the same complete cells");
+    assert.deepEqual(redraw(3.9,true),redraw(3.9,false),"changing the scale band rebuilds keys");
+    assert.deepEqual(redraw(37,true),redraw(37,false),"close detail keeps its independent path");
+    warn.at = [1,1]; list.reverse(); publication = {};
+    assert.deepEqual(redraw(6,true),redraw(6,false),"republishing mutable source coordinates and order invalidates keys");
+    line.points = [[80,1],[81,1]];
+    U.record({library:[],documents:[b]},{doc:b,items:[line]});
+    assert.deepEqual(redraw(6,true),redraw(6,false),"a journal geometry change invalidates the old bounds");
+  } finally { Math.floor=floor; U.reset(); }
+});
+
+test("dense cells require an exact member bound even when their joint box reaches the view", () => {
+  const U = AtriumUndoStore, x = track("x","A",[[0,0],[110,1]]), y = track("y","A",[[0,0],[1,110]]);
+  const doc = board([x,y]), project = {library:[],documents:[doc]}, canvas = {}, publication = {};
+  const list = [{id:x.id,type:"width",at:[0,0]}, {id:y.id,type:"width",at:[1,1]},
+    ...Array.from({length:280}, () => ({type:"width",at:[7,1],warning:true}))];
+  const host = {doc:()=>doc,defs:()=>defs,revision:()=>1};
+  const paint = (left, top, cached, source=list, waived=null) => {
+    const scale=6, width=24, height=24, rec=AtriumPDF.recorder(width,height);
+    const worldToScreen = ([x,y]) => [scale*(x-left),scale*(y-top)];
+    const worldViewport = (_a, p=0) => [left-p/scale,top-p/scale,left+(width+p)/scale,top+(height+p)/scale];
+    rec.ctx.setTransform(scale,0,0,scale,-left*scale,-top*scale);
+    M.renderFor(host,doc,source,{publication:cached?publication:null,waived}).overlay(rec.ctx,
+      {canvas,width,height,scale,worldToScreen,worldViewport});
+    return rec.list;
+  };
+  U.reset(); U.record(project);
+  try {
+    assert.equal(paint(80,80,true).length,0,"union alone cannot admit the cell");
+    const crossing = paint(70,0,true);
+    assert.ok(crossing.length,"a member's distant track admits the whole cell");
+    assert.deepEqual(crossing,paint(70,0,false),"the offscreen center and long outline preserve their order");
+    assert.equal(paint(80,80,true).length,0,"the anchored witness does not leak into the reverse camera");
+    assert.deepEqual(paint(70,0,true),crossing);
+    const waived = Array.from({length:280}, (_,i)=>({type:"width",id:x.id,waived:{id:"W"+i}}));
+    assert.equal(paint(70,0,true,[],waived).length,0,"anchorless waived-only rows produce no marker ink");
+    assert.equal(paint(80,80,true,[],waived).length,0,"anchorless waivers outside the view produce no marker ink");
   } finally { U.reset(); }
 });
 
@@ -848,6 +939,44 @@ test("dense problem hover reuses the current marker boxes without walking the bo
     globalThis.AtriumNavHost = saved.host;
     U.reset();
   }
+});
+
+test("listed findings draw only while focused, on the cell index and the immediate path alike", () => {
+  const U = AtriumUndoStore, b = board([]), defs = new Map();
+  U.reset(); U.record({library: [], documents: [b]});
+  try {
+    // 260 findings (over LOD_ROWS) at a coarse scale: a publication takes the cached cell index, none the immediate path.
+    const filler = Array.from({length: 260}, (_, i) => ({type: "width", at: [5 + 1.5 * i, 0]}));
+    const alone = {type: "courtyard", warning: true, at: [400, 1]}, beside = {type: "courtyard", warning: true, at: [5.2, .1]};
+    const list = [beside, ...filler, alone];
+    const size = {width: 5100, height: 50}, canvas = {getBoundingClientRect: () => ({left: 100, top: 150, ...size})};
+    let scale = 10;
+    const project = ([x, y]) => [scale * x, scale * y], viewport = () => [-1, -1, 505, 5];
+    const pane = {docId: b.id, canvas, view: {scale: () => scale, worldToScreen: project, worldViewport: viewport}};
+    const host = {doc: () => b, defs: () => defs, revision: () => 1};
+    const published = () => true;
+    const ink = (rows, focused, publication) => {
+      const rec = AtriumPDF.recorder(size.width, size.height);
+      M.renderFor(host, b, rows, {publication, focused}).overlay(rec.ctx, {canvas, scale, ...size, worldToScreen: project, worldViewport: viewport});
+      return JSON.stringify(rec.list);
+    };
+    const pick = (v, focused, publication) => M.groupAt(host, pane, list, 100 + v.at[0] * scale, 150 + v.at[1] * scale, null, publication, focused);
+    for (const s of [10, 3]) {
+      scale = s;
+      assert.ok(AtriumProblemMarks.pcbCell({scale, worldToScreen: project}), "a coarse scale");
+      for (const publication of [published, null]) {
+        const label = (publication ? "cell index" : "immediate") + " at scale " + s;
+        // Before, during and after each focus: the same published plan is reused across the focus changes.
+        for (const focused of [null, alone, null, beside, null]) {
+          assert.equal(ink(list, focused, publication), ink(list, focused, publication ? null : published), label + ": both paths paint the same");
+          assert.equal(pick(alone, focused, publication)?.v ?? null, focused === alone ? alone : null, label + ": the isolated finding is a target only while focused");
+          const near = pick(beside, focused, publication)?.members || [];
+          assert.equal(near.includes(beside), focused === beside, label + ": the finding joins its cell only while focused");
+        }
+        assert.equal(ink(list, null, publication), ink(filler, null, publication), label + ": unfocused listed findings leave no ink");
+      }
+    }
+  } finally { U.reset(); }
 });
 
 console.log(passed + " drc-markers tests passed");

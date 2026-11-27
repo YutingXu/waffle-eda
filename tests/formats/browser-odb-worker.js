@@ -129,7 +129,7 @@ async function releaseProbe(browser) {
 }
 
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   (async() => {
     const browser = await chromium.launch({...(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"}),
       args:["--allow-file-access-from-files"]});

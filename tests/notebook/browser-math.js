@@ -3,7 +3,7 @@ const assert = require("node:assert/strict"),
   path = require("node:path"),
   fs = require("node:fs");
 const { pathToFileURL } = require("node:url"),
-  { chromium } = require("playwright-core");
+  { chromium } = require("../support/playwright.cjs");
 async function run(browser, root, shots) {
   for (const theme of ["light", "dark"]) {
     const touch = theme === "dark",

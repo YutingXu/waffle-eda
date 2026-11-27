@@ -641,12 +641,12 @@ globalThis.AtriumPolygonPour=(()=>{
       return false;
     }
     // The pour predicate. Classes: 0 polygon, 1 board, 2 obstacle, 3 relief
-    // annulus, 4 spoke, 5 relief pad, 6.. earlier pours.
+    // annulus, 4 spoke, 5 same-net clearance (a spoke crosses it), 6.. earlier pours.
     function pourInside(K,hasBoard){
       return w=>{
         if(w[0]===0||(hasBoard&&w[1]===0)||w[2]>0)return false;
         for(let c=6;c<K;c++)if(w[c]>0)return false;
-        return w[3]===0||(w[4]!==0&&w[5]===0);
+        return w[4]!==0||(w[3]===0&&w[5]===0);
       };
     }
     // solve(task): the transferable part of a pour. task = {shapes:[{cls,
@@ -1327,7 +1327,34 @@ globalThis.AtriumPolygonPour=(()=>{
       m=Math.max(m,(g.expansion||0)+(g.airGap||0)+(g.width||0));
     return m;
   }
+  // clearanceFor(doc, polygon, options)(net, kind, item, parent, at, core, radius): the gap the
+  // polygon keeps from an object; .holeCell(net, item, parent, at, core, radius): the Clearance
+  // rule's Polygon-Hole cell for a drilled object's barrel, or null where no rule authors one.
   function clearanceFor(doc,poly,options){
+    return Object.assign(clearanceGapFor(doc,poly,options),{holeCell:holeCellFor(doc,poly,options)});
+  }
+  // As rules.js clearanceLimit and Altium: a hole keeps a clearance of its own only where the
+  // winning rule names the Hole cell (Altium has no Hole object before AD20, and its single-value
+  // rules never put a barrel farther out than its land). The polygon's own clearance (a KiCad zone's)
+  // replaces the rule's gaps, not its hole cell: KiCad keeps hole_clearance from zones as well.
+  function holeCellFor(doc,poly,options){
+    const none=()=>null;
+    if(finite(options.clearance)||typeof options.clearanceFor==="function")return none;
+    const rules=pourRules(doc,options),R=globalThis.AtriumRules,K=R?.kit,native=Array.isArray(rules?.list);
+    if(!K?.clearanceLimit)return none;
+    // A polygon with its own clearance reads the rules the connect context compiled, if any.
+    const compiled=options.connect?.compiled||(poly.clearance==null&&(!rules||rules.version===1||native)&&R.compiled(doc,{rules,defs:options.defs,project:options.project}));
+    const list=compiled?.clearanceReady?compiled.byType.clearance:[],cell=K.clearKey("poly","hole");
+    if(!list.some(r=>own(r.objects,cell)))return none;
+    const subject=K.copperSubject(options.owner||poly,null,"polygon");
+    return (net,item,parent,at,core,radius=0)=>{
+      const other=K.copperSubject(item||{kind:"pad",layer:poly.layer,net},parent,item?.kind||"pad",at);
+      other.ck="hole";other.net=net;
+      if(core?.length)Object.assign(other,K.feature({},core,radius));
+      return K.clearanceLimit(compiled.clearanceRule(subject,other),"poly","hole");
+    };
+  }
+  function clearanceGapFor(doc,poly,options){
     if(finite(options.clearance))return ()=>options.clearance;
     if(poly.clearance!=null)return ()=>poly.clearance;
     if(typeof options.clearanceFor==="function")return (net,kind)=>{const v=options.clearanceFor(net,poly.net,poly,kind);return finite(v)?v:.2;};
@@ -1535,25 +1562,29 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     return {decide,power,currentOf,ipcWidth,footprint,set,compiled};
   }
-  // Same-net pads and vias of a polygon on its layer, as decide() inputs.
-  function connectTargets(doc,defs,P,visit,items){
-    const layer=P.layer,net=P.net;if(!net)return;
+  // A same-net pad or via of a polygon on its layer as a decide() input, or null. With `reached`
+  // (the polygon outline flattened), only a pad the outline reaches (centre or a corner of the pad box).
+  function connectTarget(P,p,parent,id,slot,index,fp,def,reached){
+    const layer=P.layer,net=P.net;if(!net)return null;
     const {padLayer,onLayer}=appearance();
+    const l=padLayer(parent,p);if(!onLayer(l,layer,p))return null;
+    const itemNet=parent&&own(parent.pinNets,p.number)?parent.pinNets[p.number]:p.net||"";if(itemNet!==net)return null;
+    let pc=padOnLayer(p,parent,layer);if(!pc||p.holeOnly||pc.drill>=Math.min(pc.w,pc.h)-1e-9||(pc.drill>0&&p.plated===false))return null;
+    const kind=p.kind==="via"?"via":pc.drill>0?"th":"smd";
+    if(P.powerPlane&&pc.drill>0)pc=drilledShape(p,pc,P.powerPlane[kind==="via"?"via":"pad"]?.expansion||0);
+    if(reached){
+      const r=Math.max(pc.w,pc.h)/2,[x,y]=pc.center;
+      if(!(ringHas(reached,x,y)||ringHas(reached,x-r,y-r)||ringHas(reached,x+r,y-r)||ringHas(reached,x+r,y+r)||ringHas(reached,x-r,y+r)))return null;
+    }
+    const key=parent?parent.id+":"+(p.number!=null&&p.number!==""?p.number:"#"+index):id;
+    const label=parent?parent.ref+"-"+(p.number||"#"+index):kind==="via"?"Via":"Pad "+(p.number||"");
+    return {P,kind,net,layer,parent,pad:p,index,fp,def,pc,key,label,id,slot};
+  }
+  // Same-net pads and vias of a polygon on its layer that its outline reaches, as decide() inputs.
+  function connectTargets(doc,defs,P,visit,items){
+    if(!P.net)return;
     const outline=P.outline.flatMap(q=>[+q[0],+q[1]]);if(outline.length<6)return;
-    // Only pads the polygon outline reaches (centre or a corner of the pad box).
-    const reaches=pc=>{const r=Math.max(pc.w,pc.h)/2,[x,y]=pc.center;
-      return ringHas(outline,x,y)||ringHas(outline,x-r,y-r)||ringHas(outline,x+r,y-r)||ringHas(outline,x+r,y+r)||ringHas(outline,x-r,y+r);};
-    const take=(p,parent,id,slot,index,fp,def)=>{
-      const l=padLayer(parent,p);if(!onLayer(l,layer,p))return;
-      const itemNet=parent&&own(parent.pinNets,p.number)?parent.pinNets[p.number]:p.net||"";if(itemNet!==net)return;
-      let pc=padOnLayer(p,parent,layer);if(!pc||p.holeOnly||pc.drill>=Math.min(pc.w,pc.h)-1e-9||(pc.drill>0&&p.plated===false))return;
-      const kind=p.kind==="via"?"via":pc.drill>0?"th":"smd";
-      if(P.powerPlane&&pc.drill>0)pc=drilledShape(p,pc,P.powerPlane[kind==="via"?"via":"pad"]?.expansion||0);
-      if(!reaches(pc))return;
-      const key=parent?parent.id+":"+(p.number!=null&&p.number!==""?p.number:"#"+index):id;
-      const label=parent?parent.ref+"-"+(p.number||"#"+index):kind==="via"?"Via":"Pad "+(p.number||"");
-      visit({P,kind,net,layer,parent,pad:p,index,fp,def,pc,key,label,id,slot});
-    };
+    const take=(p,parent,id,slot,index,fp,def)=>{const o=connectTarget(P,p,parent,id,slot,index,fp,def,outline);if(o)visit(o);};
     for(const i of items||doc.items||[]){
       if(i.kind==="via")take(i,null,i.id,0);
       else if(i.kind==="pad")take(i,null,i.id,0);
@@ -1580,6 +1611,60 @@ globalThis.AtriumPolygonPour=(()=>{
   function spokeOrigin(pc,dir){
     if(!pc.slot)return pc.center;
     return pc.core.reduce((a,b)=>a[0]*dir[0]+a[1]*dir[1]>b[0]*dir[0]+b[1]*dir[1]?a:b);
+  }
+  // Whether a barrel's hole clearance h reaches past its land's clearance c anywhere. The drill core
+  // grown by its radius + h lies within the land grown by c where radius + h <= c + the depth of the
+  // drill core inside the land (the least distance from it to the land's outline, along a slot too):
+  // from the land's real outline, so an offset drill or a narrow custom land is cut where it needs.
+  function holeReach(drill,h,pc,c){
+    const core=drill.core,a=core[0],b=core[core.length-1];let depth=Infinity;
+    for(let i=0;i<=(core.length>1?8:0);i++){const t=i/8;depth=Math.min(depth,landDepth(pc,[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]));}
+    return drill.radius+h>c+depth+1e-9;
+  }
+  // The distance from q to the outline of the land core ⊕ radius, negative outside it.
+  function landDepth(pc,q){
+    const core=pc.core,n=core.length;let d=Infinity;
+    const seg=(a,b)=>{const ex=b[0]-a[0],ey=b[1]-a[1],l=ex*ex+ey*ey,t=l>0?Math.max(0,Math.min(1,((q[0]-a[0])*ex+(q[1]-a[1])*ey)/l)):0;return Math.hypot(a[0]+t*ex-q[0],a[1]+t*ey-q[1]);};
+    if(n<3){d=seg(core[0],core[n-1]);return pc.radius-d;}
+    for(let i=0;i<n;i++)d=Math.min(d,seg(core[i],core[(i+1)%n]));
+    return ringHas(core.flatMap(v=>[+v[0],+v[1]]),q[0],q[1])?pc.radius+d:pc.radius-d;
+  }
+  // A rectangle (four corners, either winding) grown by d with square corners (flat), or null for
+  // any other quadrilateral.
+  function mitred(core,d){
+    if(!(d>0))return null;
+    const n=core.length,s=Math.sign(signedArea(core.flatMap(q=>[+q[0],+q[1]])));if(!s)return null;
+    const out=[];
+    for(let i=0;i<n;i++){
+      const a=core[(i+n-1)%n],p=core[i],b=core[(i+1)%n];
+      const ux=p[0]-a[0],uy=p[1]-a[1],vx=b[0]-p[0],vy=b[1]-p[1],lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
+      if(!(lu>1e-9&&lv>1e-9)||Math.abs(ux*vx+uy*vy)>1e-6*lu*lv)return null;
+      // Outward normals of the two edges (the interior is on the left of a positive ring).
+      const n1=[s*uy/lu,-s*ux/lu],n2=[s*vy/lv,-s*vx/lv];
+      out.push(p[0]+d*(n1[0]+n2[0]),p[1]+d*(n1[1]+n2[1]));
+    }
+    return out;
+  }
+  // How far a spoke of half width cw runs from origin along dir before it has left the air gap ring
+  // `gap` (flat): the farthest point of the ring within the spoke's band (the crossings of its
+  // centre line and both edges, and the ring's vertices between them); null when no line crosses it.
+  function spokeReach(gap,origin,dir,cw){
+    if(!gap||gap.length<6)return null;
+    const n=gap.length>>1,nx=-dir[1],ny=dir[0];let far=-Infinity,cross=false;
+    for(let i=0;i<n;i++){
+      const ax=gap[2*i]-origin[0],ay=gap[2*i+1]-origin[1];
+      if(Math.abs(ax*nx+ay*ny)<=cw)far=Math.max(far,ax*dir[0]+ay*dir[1]);
+    }
+    for(const s of [-cw,0,cw]){
+      const ox=origin[0]+nx*s,oy=origin[1]+ny*s;
+      for(let i=0,j=n-1;i<n;j=i++){
+        const ax=gap[2*j]-ox,ay=gap[2*j+1]-oy,ex=gap[2*i]-gap[2*j],ey=gap[2*i+1]-gap[2*j+1];
+        const den=dir[0]*ey-dir[1]*ex;if(Math.abs(den)<1e-15)continue;
+        const u=(dir[1]*ax-dir[0]*ay)/den;if(u<0||u>1)continue;
+        const t=(ax*ey-ay*ex)/den;if(t>far)far=t;cross=true;
+      }
+    }
+    return cross&&far>0?far:null;
   }
   // Relief spokes that reach the stored pour, per relief pad (starved thermals).
   function thermals(doc,defs,options={}){
@@ -1614,7 +1699,7 @@ globalThis.AtriumPolygonPour=(()=>{
     return ins;
   }
 
-  const CLS={A:0,B:1,O:2,R:3,S:4,P:5};
+  const CLS={A:0,B:1,O:2,R:3,S:4,N:5};
   const HATCH_MAX=60000,HATCH_SCAN=2000000;
   // pour(doc, defs, polygon, options) -> regions in AtriumPCBPours format,
   // each tagged with `polygon` (the source item id) and `links` (the
@@ -1668,11 +1753,14 @@ globalThis.AtriumPolygonPour=(()=>{
     const connect=options.connect||(net?connectContext(doc,defs,options):null);
     const gapFor=clearanceFor(doc,P,{...options,connect,defs,owner:polygon}), trace=options.traceClearance;
     const clearance=trace?(...args)=>{const gap=gapFor(...args);trace(gap);return gap;}:gapFor;
-    const shapes=[],anchors=[],uClass=new Map();
+    const shapes=[],anchors=[],spokes=[],uClass=new Map();
     // options.keyed (tile repour): every shape and anchor records the item it comes from
     // ("*" for the polygon, board and hatch); options.items pours only those items and
     // options.noGlobals leaves the polygon-wide shapes out; options.frame fixes the integer frame.
     const keyed=!!options.keyed,subset=options.items||null,globals=!options.noGlobals;let cur="*";
+    // Tiled pours (a display patch until the exact repour lands) and options.earlySpokes keep the
+    // relief spokes in stage 1, before the island tests; untiled pours add them in stage 3.
+    const deferSpokes=!keyed&&!options.earlySpokes;
     // options.contrib (exact reuse): collects the ids of the items that gave this pour a shape, an anchor or a connect decision.
     const contrib=options.contrib||null;
     const put=s=>{if(keyed)s.key=cur;if(contrib&&cur!=="*")contrib.add(cur);shapes.push(s);};
@@ -1722,11 +1810,14 @@ globalThis.AtriumPolygonPour=(()=>{
     const maxRelief=reliefReach(P,reach);
     const samePolygonNet=n=>!!net&&n===net;
     // SAFE (20 nm) covers rounding to the 10 nm integer grid, so measured
-    // clearance is never below the rule.
-    function obstacle(core,radius,c){
+    // clearance is never below the rule, and copper never rounds into a zero-gap
+    // obstacle (a plane void) where the keep-out check would see it.
+    // cls CLS.N: the clearance kept from same-net copper the pour does not pour over (Altium's
+    // Don't Pour Over Same Net Objects). A relief spoke still crosses it, as Altium's spoke tracks do.
+    function obstacle(core,radius,c,cls=CLS.O){
       if(trace)return;
-      const flat=rounded(core,radius+c+(c>0?safe:0),tol,"outer",arcSink);
-      if(flat&&near(boxOf(flat)))add(CLS.O,flat);
+      const flat=rounded(core,radius+c+safe,tol,"outer",arcSink);
+      if(flat&&near(boxOf(flat)))add(cls,flat);
     }
     function anchor(core,radius,link,raw){
       if(trace)return;
@@ -1742,39 +1833,69 @@ globalThis.AtriumPolygonPour=(()=>{
       const reach=arc?(radius+safe+TOUCH+Math.max(0,finite(maxRule)?maxRule:gap(item.points)))/Math.cos(Math.PI/256)+tol+TRACK_CHORD_ERROR:w+maxRule*2+1;
       for(const pts of pathRuns(item,parent,arc,clipBox(work,reach))){
         if(!arc&&!near(clipBox(Atrium.bounds(pts),reach)))continue;
-        const close=closed&&pts.length>2,filled=fill&&close,avoid=!same||!P.pourOverSameNet;
+        const close=closed&&pts.length>2,filled=fill&&close,avoid=!same||!P.pourOverSameNet,cls=same?CLS.N:CLS.O;
         const c=filled&&avoid?gap(pts):0;
         for(let i=1;i<pts.length+Number(close);i++){
           const s=[pts[i-1],pts[i%pts.length]];
           if(same&&w>0)anchor(s,w/2,link);
-          if(avoid&&(w>0||filled))obstacle(s,radius,filled?c:gap(s));
+          if(avoid&&(w>0||filled))obstacle(s,radius,filled?c:gap(s),cls);
         }
         if(!filled)continue;
         let flat=pts.flat();if(same)anchor(null,0,link,flat);
         if(!avoid)continue;
         if(signedArea(flat)<0)flat=reversed(flat);
-        const ring=offsetRing(flat,radius+c+(c>0?safe:0),tol,arcSink);
-        if(ring&&near(boxOf(ring)))put({cls:CLS.O,flat:ring,av:ring.av,oriented:true});
+        const ring=offsetRing(flat,radius+c+safe,tol,arcSink);
+        if(ring&&near(boxOf(ring)))put({cls,flat:ring,av:ring.av,oriented:true});
       }
     }
+    // A relief: the land grown by the air gap is cleared (CLS.R) except for the spokes (CLS.S).
+    // As in Altium, whose spokes are tracks from the land's centre, a spoke runs from the centre
+    // (a slot's end) across the land to 1 µm past its own air gap, and the land itself is not
+    // cleared from it: the stored fill holds the spokes over the land. A spoke stops at its own
+    // gap's edge, so it never bridges the air gap of another same-net land nearby. A hatched pour's
+    // spoke is a track laid over the hatch openings, on past its gap to meet a hatch line.
+    // As in Altium, whose spokes are added to the pour after its island tests, an untiled pour sets
+    // its spokes aside (job.spokes). Its island tests see each spoke as a probe 1 µm beyond the
+    // spoke's end (the anchor records the land too): copper the air gap cuts off goes with the island
+    // tests. Stage 3 (spokeStage) then draws what of each probed spoke survives the obstacles and
+    // joins the land to that copper, and links copper to the land only through such a spoke: a
+    // spoke cut on its way, or one the polygon outline clips short of the land, connects nothing.
+    // Tiled pours (and options.earlySpokes) draw the spokes in the one overlay and link the land.
     function relief(pc,d,link){
-      const airGap=d.airGap,reach=Math.hypot(pc.w,pc.h)/2+airGap+Math.max(d.spokeWidth,airGap)+.05;
-      add(CLS.R,rounded(pc.core,pc.radius+airGap,tol,"outer",arcSink));
-      const pad=rounded(pc.core,pc.radius,tol,"inner");
-      if(pad){
-        if(P.powerPlane){
-          // A negative plane has no separate land flash. The inner contour of
-          // its thermal aperture is copper, including the mouth of the barrel.
-          put({cls:CLS.R,flat:signedArea(pad)>0?reversed(pad):pad,oriented:true});
-        }else add(CLS.P,pad);
+      const hatched=P.fillMode==="hatched",airGap=d.airGap,cw=d.spokeWidth/2,fallback=Math.hypot(pc.w,pc.h)/2+airGap+Math.max(d.spokeWidth,airGap)+.05;
+      // A rectangular land's air gap keeps the land's square corners, as Altium cuts it.
+      const gap=!P.powerPlane&&pc.core.length===4&&!(pc.radius>1e-9)&&mitred(pc.core,airGap)||rounded(pc.core,pc.radius+airGap,tol,"outer",arcSink);
+      add(CLS.R,gap);
+      if(P.powerPlane){
+        // A negative plane has no separate land flash. The inner contour of
+        // its thermal aperture is copper, including the mouth of the barrel.
+        const pad=rounded(pc.core,pc.radius,tol,"inner");
+        if(pad)put({cls:CLS.R,flat:signedArea(pad)>0?reversed(pad):pad,oriented:true});
       }
-      const cw=d.spokeWidth/2,base=pc.angle+(d.angle===45?45:0);
+      const base=pc.angle+(d.angle===45?45:0);
+      // landed: a spoke is in the one overlay, so the land itself is an anchor.
+      let landed=!deferSpokes,land=null;
       for(let k=0;k<4;k+=d.entries===2?2:1){
         const angle=base+k*90,dir=angle?Atrium.rotate([1,0],angle):[1,0],origin=spokeOrigin(pc,dir);
-        const frame={x:origin[0],y:origin[1],angle};
-        add(CLS.S,[[0,-cw],[reach,-cw],[reach,cw],[0,cw]].flatMap(q=>world(q[0],q[1],frame)));
+        const frame={x:origin[0],y:origin[1],angle},far=P.powerPlane?null:spokeReach(gap,origin,dir,cw);
+        const reach=far==null?fallback:hatched?Math.max(far+.001,fallback):far+.001;
+        const spoke=[[0,-cw],[reach,-cw],[reach,cw],[0,cw]].flatMap(q=>world(q[0],q[1],frame));
+        if(far==null||!deferSpokes){add(CLS.S,spoke);landed=true;continue;}
+        const h=cw/2,at=anchors.length;
+        anchor(null,0,link,[[far+.002,-h],[Math.max(far+.003,reach),-h],[Math.max(far+.003,reach),h],[far+.002,h]].flatMap(q=>world(q[0],q[1],frame)));
+        // A probe outside the work box meets no copper: that spoke is not drawn.
+        if(anchors.length===at)continue;
+        anchors[at].land=land||=rounded(pc.core,pc.radius+.002,tol,"outer");
+        if(spoke.length>=6&&near(boxOf(spoke)))spokes.push({flat:spoke,anchor:at});
       }
-      anchor(pc.core,pc.radius,link);
+      if(landed)anchor(pc.core,pc.radius,link);
+    }
+    // A land's clearance. Altium cuts a rectangular land's clearance with square corners (as its
+    // relief air gap), seen in the stored fill of public boards; other lands grow with round corners.
+    function landObstacle(pc,c){
+      const flat=!trace&&!P.powerPlane&&pc.core.length===4&&!(pc.radius>1e-9)?mitred(pc.core,c+safe):null;
+      if(flat){if(near(boxOf(flat)))add(CLS.O,flat);}
+      else obstacle(pc.core,pc.radius,c);
     }
     function pad(p,parent,link,index){
       const {padLayer,onLayer}=appearance(),layerName=padLayer(parent,p);
@@ -1792,19 +1913,36 @@ globalThis.AtriumPolygonPour=(()=>{
       if(hole||(pc.drill>0&&p.plated===false)){
         const drill=drilledShape(p,pc),c=clearance("","hole",p,parent,pc.center,drill.core,drill.radius);
         obstacle(drill.core,drill.radius,c);
-        if(!hole)obstacle(pc.core,pc.radius,clearance(""));
+        // An unplated land is never joined (contactRegions leaves it out, as connectivity's ratsnest makes it
+        // optional): the pour keeps clear of it. Another net's pour keeps the DRC's gap to the land's net.
+        if(!hole)obstacle(pc.core,pc.radius,itemNet&&!samePolygonNet(itemNet)?clearance(itemNet,"th",p,parent,pc.center,pc.core,pc.radius):clearance(""));
         return;
       }
       const isVia=p.kind==="via";
       if(samePolygonNet(itemNet)){
         const key=parent?parent.id+":"+(p.number!=null&&p.number!==""?p.number:"#"+index):link[0];
-        const d=decided.get(key)||{style:isVia?"direct":"relief",spokeWidth:P.reliefConductorWidth,entries:P.reliefEntries,angle:P.reliefAngle,airGap:P.reliefAirGap};
+        // A same-net land the outline does not reach (its centre and corners lie outside) can still
+        // meet the copper: it connects by its own rule too.
+        let d=decided.get(key);
+        if(!d&&connect){
+          const fp=parent?defs?.get?.(parent.def)?.footprint:null,o=connectTarget(P,p,parent,link[0],link[1],index,fp,parent?defs?.get?.(parent.def):undefined,null);
+          if(o){d=connect.decide(o);decided.set(key,d);}
+        }
+        d||={style:isVia?"direct":"relief",spokeWidth:P.reliefConductorWidth,entries:P.reliefEntries,angle:P.reliefAngle,airGap:P.reliefAirGap};
         if(d.style==="relief")relief(pc,d,link);
-        else if(d.style==="none")obstacle(pc.core,pc.radius,clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius));
+        else if(d.style==="none")landObstacle(pc,clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius));
         else anchor(pc.core,pc.radius,link);
         return;
       }
-      obstacle(pc.core,pc.radius,clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius));
+      const c=clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius);
+      landObstacle(pc,c);
+      // A plated barrel of another net also keeps the rule's hole clearance (Altium's Poly-Hole
+      // cell), measured from the drill, wherever that reaches past the land's own clearance. Only
+      // a gap that shapes copper enters the clearance trace (pour signatures stay as they were).
+      if(pc.drill>0&&!P.powerPlane){
+        const drill=drilledShape(p,pc),h=gapFor.holeCell(itemNet,p,parent,drill.center,drill.core,drill.radius);
+        if(h!=null&&h>c+1e-9&&holeReach(drill,h,pc,c)){trace?.(h);obstacle(drill.core,drill.radius,h);}
+      }
     }
     function text(x,y,angle,size,str,itemNet,item,frame){
       const s=+size||.75,w=String(str||"").length*s*.65;if(!(w>0))return;
@@ -1820,12 +1958,14 @@ globalThis.AtriumPolygonPour=(()=>{
       const old=previous?.sources.get(id),def=sourceRecords&&i.kind==="part"?defs?.get?.(i.def):null;
       const footprint=def?.footprint,decision=sourceDecisions?.has(id)?JSON.stringify(sourceDecisions.get(id)):null;
       if(old&&!sourceRecords.has(id)&&old.item===i&&old.def===def&&old.footprint===footprint&&old.decision===decision&&!area.changedItems.has(id)){
+        const base=anchors.length;
         for(const s of old.shapes)shapes.push(s);
         for(const a of old.anchors)anchors.push(a);
+        for(const k of old.spokes||[])spokes.push({areaInteger:k.areaInteger,anchor:base+k.offset});
         sourceRecords.set(id,old);reusedItems++;
         continue;
       }
-      const shapeStart=shapes.length,anchorStart=anchors.length;
+      const shapeStart=shapes.length,anchorStart=anchors.length,spokeStart=spokes.length;
       switch(i.kind){
         case "track":case "graphic":{
           if(i.sourcePour!=null&&i.sourcePour===P.id||((i.keepout||isKeepout(i.layer))&&!Atrium.keepoutBlocks(i,"copper")))break;
@@ -1858,15 +1998,16 @@ globalThis.AtriumPolygonPour=(()=>{
             if(s.kind==="path")path(s,sNet,link,keep,i);
             else if(s.kind==="circle"){
               const c=world(s.x,s.y,i),r=(+s.r||0)+(+s.width||0)/2;
-              if(samePolygonNet(sNet)){anchor([c],r,link);if(P.pourOverSameNet)return;}
-              obstacle([c],r,keep?clearance(""):clearance(sNet,s.fill?"region":"track",s,i,c));
+              const same=samePolygonNet(sNet);
+              if(same){anchor([c],r,link);if(P.pourOverSameNet)return;}
+              obstacle([c],r,keep?clearance(""):clearance(sNet,s.fill?"region":"track",s,i,c),same?CLS.N:CLS.O);
             }else if(s.kind==="text"&&!keep)text(s.x,s.y,s.angle,s.size,s.text,sNet,s,i);
           });
           break;
         }
       }
       if(sourceRecords){
-        sourceRecords.set(id,{item:i,def,footprint,decision,shapeStart,shapeEnd:shapes.length,anchorStart,anchorEnd:anchors.length});
+        sourceRecords.set(id,{item:i,def,footprint,decision,shapeStart,shapeEnd:shapes.length,anchorStart,anchorEnd:anchors.length,spokeStart,spokeEnd:spokes.length});
         preparedItems++;
       }
     }
@@ -1914,7 +2055,8 @@ globalThis.AtriumPolygonPour=(()=>{
       }else for(let k=0;k<cells.length;k+=2){
         const x=cells[k],y=cells[k+1],q=[];
         for(const [du,dv] of [[-h,-h],[h,-h],[h,h],[-h,h]])q.push(x+du*c-dv*sn,y+du*sn+dv*c);
-        add(CLS.O,q);
+        // An opening of the fill, not an object: stage 3 does not cut a spoke track with it.
+        if(q.length>=6)put({cls:CLS.O,flat:q,hatch:true});
       }
     }
     if(globals&&board&&P.boardClearance>0){
@@ -1949,18 +2091,33 @@ globalThis.AtriumPolygonPour=(()=>{
       if(options.slices&&++tick%SLICE_CHUNK===0)yield;
       const e="areaInteger" in s?s.areaInteger:intShape(s,S,ox,oy);
       if(sourceRecords)s.areaInteger=e;
-      if(!e)continue;if(keyed)e.key=s.key;input.push(e);
+      if(!e)continue;if(keyed)e.key=s.key;if(s.hatch)e.hatch=true;input.push(e);
+    }
+    // The spokes set aside (stage 3): integer rings, each with the index of its probe anchor.
+    const spokeRings=[];
+    for(const k of spokes){
+      const e="areaInteger" in k?k.areaInteger:intShape({cls:CLS.S,flat:k.flat},S,ox,oy);
+      if(sourceRecords)k.areaInteger=e;
+      if(e)spokeRings.push({ring:e.ring,sign:e.sign,anchor:k.anchor});
     }
     const K=6+uClass.size,hasBoard=!!board;
     // Dead copper: islands must touch a same-net object on this layer.
+    const intRing=flat=>{const ring=new Int32Array(flat.length);for(let i=0;i<flat.length;i+=2){ring[i]=toInt(flat[i]-ox);ring[i+1]=toInt(flat[i+1]-oy);}return ring;};
     const final={removeDead:!!(P.removeDeadCopper&&net),minArea:P.islandAreaThreshold*S*S,minSize:P.minPrimLength*S,
       anchors:anchors.map(a=>{
         if(a.areaRing)return a.areaRing;
-        const ring=new Int32Array(a.flat.length);
-        for(let i=0;i<a.flat.length;i+=2){ring[i]=toInt(a.flat[i]-ox);ring[i+1]=toInt(a.flat[i+1]-oy);}
+        const ring=intRing(a.flat);
         if(sourceRecords)a.areaRing=ring;
         return ring;
       })};
+    // A spoke's probe anchor stands for its land (stage 3 links through drawn spokes only): the land, per anchor, or null.
+    let probed=false;
+    const lands=anchors.map(a=>{
+      if("areaLand" in a){probed||=!!a.areaLand;return a.areaLand;}
+      const ring=a.land&&a.land.length>=6?intRing(a.land):null;probed||=!!ring;
+      if(sourceRecords)a.areaLand=ring;
+      return ring;
+    });
     // Remove Necks / Outlines Only (PourCore shapeIslands) on the final copper of an untiled pour.
     if(!keyed){const m=morphOf(P,S,input);if(m)final.morph=m;}
     // Tiled pours solve in one stage; untiled ones in two: this task leaves the island tests to stage 2.
@@ -1971,13 +2128,23 @@ globalThis.AtriumPolygonPour=(()=>{
       for(const r of sourceRecords.values()){
         if(r.shapes)continue;
         r.shapes=shapes.slice(r.shapeStart,r.shapeEnd).map(s=>({areaBox:s.areaBox,areaInteger:s.areaInteger}));
-        r.anchors=anchors.slice(r.anchorStart,r.anchorEnd).map(a=>({link:a.link,areaRing:a.areaRing}));
+        r.anchors=anchors.slice(r.anchorStart,r.anchorEnd).map(a=>({link:a.link,areaRing:a.areaRing,areaLand:a.areaLand??null}));
+        r.spokes=spokes.slice(r.spokeStart,r.spokeEnd).map(k=>({areaInteger:k.areaInteger,offset:k.anchor-r.anchorStart}));
       }
       job.areaPrepared={key:areaKey,S,ox,oy,safe,sources:sourceRecords,arcs:arcSink,initialArcLength:previous?.initialArcLength??arcSink?.length??0};
       stats.preparedItems={rebuilt:preparedItems,reused:reusedItems};
     }
     if(keyed){job.anchorKeys=anchors.map(a=>a.key);job.earlier=earlier;job.work=work;job.extent=extent;job.tol=tol;}
-    else{job.final=final;job.clear={clearance,tol,work};if(options.poured?.length)job.poured=options.poured;}
+    else{
+      job.final=final;job.clear={clearance,tol,work};if(options.poured?.length)job.poured=options.poured;
+      if(probed){
+        // What can cut a spoke in stage 3: the polygon, the board and the obstacles over any spoke.
+        const over=boxIndex(spokeRings.map(k=>boxOf(k.ring)),S),env=[];
+        if(spokeRings.length)for(const e of input)if(e.cls===CLS.A||e.cls===CLS.B||e.cls===CLS.O&&!e.hatch&&over(boxOf(e.ring)))env.push({cls:e.cls,ring:e.ring,sign:e.sign,tags:e.tags});
+        // anchors: stage 2's, each probe replaced by its land.
+        job.spokes={rings:spokeRings,env,hasBoard,lands,anchors:final.anchors.map((r,k)=>lands[k]||r)};
+      }
+    }
     return job;
   }
   // The template of Remove Necks and Outlines Only (PourCore shapeIslands): a regular polygon of k
@@ -2315,6 +2482,108 @@ globalThis.AtriumPolygonPour=(()=>{
     stats.milliseconds=now()-t0;
     return {S:job.S,ox:job.ox,oy:job.oy,K:task.K,hasBoard:task.hasBoard,inputs,solved,stats};
   }
+  // over(box): whether box meets any of boxes (integer), through a grid of about 1 mm cells.
+  function boxIndex(boxes,S){
+    const c=Math.max(16,Math.round(S)),cells=new Map(),key=(x,y)=>x*67108864+y;
+    boxes.forEach((b,i)=>{for(let x=Math.floor(b[0]/c);x<=Math.floor(b[2]/c);x++)for(let y=Math.floor(b[1]/c);y<=Math.floor(b[3]/c);y++){const k=key(x,y);let l=cells.get(k);if(!l)cells.set(k,l=[]);l.push(i);}});
+    return q=>{
+      const x0=Math.floor(q[0]/c),x1=Math.floor(q[2]/c),y0=Math.floor(q[1]/c),y1=Math.floor(q[3]/c);
+      if((x1-x0+1)*(y1-y0+1)>cells.size)return boxes.some(b=>areaOverlaps(b,q));
+      for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)for(const i of cells.get(key(x,y))||[])if(areaOverlaps(boxes[i],q))return true;
+      return false;
+    };
+  }
+  // Stage 3 of an untiled pour: the relief spokes it set aside (job.spokes), added to the copper
+  // after the island tests (Altium's spokes are tracks it adds to the poured copper). `solved` is
+  // stage 2's final solution; `earlier` stage 2's shapes (the earlier pours' copper, cls 6 and up).
+  // A generator of the tasks to solve (each answered with its solution), returning the copper:
+  //   1. the spokes whose probe the copper reaches, less what stage 1 cut from them (polygon, board,
+  //      obstacles) and the earlier pours: their pieces (spokeTask);
+  //   2. the pieces that touch their land and copper, joined to that copper (spokeUnion), linked
+  //      with each probe replaced by its land.
+  // Copper no drawn piece joins keeps only its other links, and goes with Remove Dead Copper when
+  // the probes were all it touched (spokeStrip): a probe predicts a spoke, it connects nothing.
+  function* spokeStage(job,solved,earlier){
+    if(!job.spokes||!solved?.islands?.length)return solved;
+    const t=spokeTask(job,solved,earlier),u=t?spokeUnion(job,solved,t,yield t.task):null;
+    if(!u){const islands=spokeStrip(job,solved.islands);return islands===solved.islands?solved:{...solved,islands};}
+    return spokeMerge(job,solved,u,yield u.task);
+  }
+  const spokeIsland=isl=>({ring:isl.ring,box:boxOf(isl.ring),holes:isl.holes.map(h=>({ring:h.ring,box:boxOf(h.ring)}))});
+  function spokeTask(job,solved,earlier){
+    const sp=job.spokes;if(!sp.rings.length)return null;
+    const reached=new Set();for(const isl of solved.islands)for(const k of isl.links)reached.add(k);
+    const kept=sp.rings.filter(k=>reached.has(k.anchor));if(!kept.length)return null;
+    const shapes=kept.map(k=>({cls:CLS.S,ring:k.ring,sign:k.sign,tags:null}));
+    for(const e of sp.env){shapes.push(e);if(e.cls===CLS.A)shapes.push({cls:CLS.R,ring:e.ring,sign:e.sign,tags:null});}
+    let K=6;
+    if(earlier?.length){
+      const over=boxIndex(kept.map(k=>boxOf(k.ring)),job.S);
+      for(const e of earlier)if(e.cls>=6&&over(boxOf(e.ring))){shapes.push(e);K=Math.max(K,e.cls+1);}
+    }
+    return {task:{shapes,K,hasBoard:sp.hasBoard,anchors:[],removeDead:false,minArea:0,minSize:0},kept};
+  }
+  // The pieces that touch a land of their spokes and the copper one of those spokes probed, with
+  // that copper, as one task; null when no piece joins any.
+  function spokeUnion(job,solved,t,pieces){
+    const sp=job.spokes,byLand=new Map();
+    for(const k of t.kept){const r=sp.lands[k.anchor];if(!r)continue;let e=byLand.get(r);if(!e)byLand.set(r,e={land:{ring:r,box:boxOf(r)},probes:new Set()});e.probes.add(k.anchor);}
+    const probedBy=new Map();
+    solved.islands.forEach((isl,i)=>{for(const k of isl.links)if(sp.lands[k]){let l=probedBy.get(k);if(!l)probedBy.set(k,l=[]);l.push(i);}});
+    const measured=new Map(),island=i=>{let m=measured.get(i);if(!m)measured.set(i,m=spokeIsland(solved.islands[i]));return m;};
+    const touched=new Set(),joins=[];
+    for(const piece of pieces.islands||[]){
+      const pi=spokeIsland(piece),edge={ring:piece.ring,box:pi.box};let joined=false;
+      for(const {land,probes} of byLand.values()){
+        if(!CORE.touches(land,pi))continue;
+        for(const k of probes)for(const i of probedBy.get(k)||[])if(CORE.touches(edge,island(i))){touched.add(i);joined=true;}
+      }
+      if(joined)joins.push(piece);
+    }
+    if(!joins.length)return null;
+    const shapes=[],untouched=[];
+    solved.islands.forEach((isl,i)=>{
+      if(!touched.has(i)){untouched.push(isl);return;}
+      shapes.push({cls:CLS.S,ring:isl.ring,sign:1,tags:isl.tags});
+      for(const h of isl.holes)shapes.push({cls:CLS.S,ring:h.ring,sign:1,tags:h.tags});
+    });
+    const islandEnd=shapes.length;
+    for(const p of joins){shapes.push({cls:CLS.S,ring:p.ring,sign:1,tags:p.tags});for(const h of p.holes)shapes.push({cls:CLS.S,ring:h.ring,sign:1,tags:h.tags});}
+    for(const e of sp.env)if(e.cls===CLS.A||e.cls===CLS.B){shapes.push(e);if(e.cls===CLS.A)shapes.push({cls:CLS.R,ring:e.ring,sign:e.sign,tags:null});}
+    return {task:{shapes,K:6,hasBoard:sp.hasBoard,anchors:sp.anchors,removeDead:false,minArea:0,minSize:0},islandEnd,untouched,spokes:joins.length};
+  }
+  // Islands without the links only a probe gave them; with Remove Dead Copper, those the probes
+  // alone kept are gone. The same array when no island has such a link.
+  function spokeStrip(job,islands){
+    const lands=job.spokes.lands,dead=job.final.removeDead;
+    if(!islands.some(isl=>isl.links.some(k=>lands[k])))return islands;
+    const out=[];
+    for(const isl of islands){
+      if(!isl.links.some(k=>lands[k])){out.push(isl);continue;}
+      const links=isl.links.filter(k=>!lands[k]);
+      if(!dead||links.length)out.push({...isl,links});
+    }
+    return out;
+  }
+  // Stage 3 solved: the untouched islands back with the new ones, stage 2's island counts kept. A
+  // ring the spokes left as it was (the same vertices, from any start) stays the stage 2 object, so
+  // what is keyed by ring identity (canonical rotations, later pours' offsets) is reused.
+  function spokeMerge(job,solved,u,s3){
+    const low=r=>{let m=0;for(let i=2;i<r.length;i+=2)if(r[i]<r[m]||(r[i]===r[m]&&r[i+1]<r[m+1]))m=i;return m;};
+    const byKey=new Map(),key=r=>{const m=low(r);return r.length+":"+r[m]+":"+r[m+1];};
+    for(let i=0;i<u.islandEnd;i++){const e=u.task.shapes[i];if(!e.ring.length)continue;const k=key(e.ring);let l=byKey.get(k);if(!l)byKey.set(k,l=[]);l.push(e);}
+    const same=(a,b)=>{const n=a.length,ma=low(a),mb=low(b);for(let i=0;i<n;i++)if(a[(ma+i)%n]!==b[(mb+i)%n])return false;return true;};
+    const kept=r=>{const l=byKey.get(key(r.ring));const e=l?.find(e=>same(e.ring,r.ring));return e?{ring:e.ring,tags:e.tags}:r;};
+    const islands=s3.islands.map(isl=>{const o=kept(isl);return {...isl,ring:o.ring,tags:o.tags,holes:isl.holes.map(kept)};});
+    const stats={...solved.stats,spokes:u.spokes,tSolve:(solved.stats?.tSolve||0)+(s3.stats?.tSolve||0)};
+    return {...solved,islands:[...spokeStrip(job,u.untouched),...islands],stats};
+  }
+  // Stage 3 on the caller's thread (pour(), finish() of a stage-1 solution).
+  function withSpokes(job,solved,earlier){
+    const g=spokeStage(job,solved,earlier);let r=g.next();
+    while(!r.done)r=g.next(CORE.solve(r.value));
+    return r.value;
+  }
   // The final solution, canonical (every path stores the same bytes). stage1: stage 1's stats.
   function finalize(solved,stage1,area=false){
     CORE.canonical(solved,area?areaCanonical:null);solved.final=true;
@@ -2325,7 +2594,7 @@ globalThis.AtriumPolygonPour=(()=>{
   function solveStages(job,solved1){
     const g=stage2Steps(job,solved1,job.poured||[],true);let r=g.next();while(!r.done)r=g.next();
     const s=r.value;
-    return {job:s.job,solved:finalize(s.task?CORE.solve(s.task):s.solved,s.stage1)};
+    return {job:s.job,solved:finalize(withSpokes(s.job,s.task?CORE.solve(s.task):s.solved,s.task?.shapes),s.stage1)};
   }
   // The rings of an earlier pour's region r that pour P clears (prepare above; the exact reuse key
   // reads the same rings): same layer, another net, within the clearance of the work box.
@@ -2469,6 +2738,22 @@ globalThis.AtriumPolygonPour=(()=>{
       const dir=sweep<0?-1:1,a0=ang(i0);sweep=Math.abs(sweep);
       if(!(sweep>1e-9&&sweep<TWO-1e-9))continue;
       const rel=a=>wrap(dir*(a-a0));
+      // The arc only moves the run's chords out to the circle: copper nearer the centre than every
+      // chord of the run (a relief spoke running in to the land's centre) cannot meet it.
+      let rIn=Infinity;
+      for(let v=i0;v<i1;v++){
+        const ax=g[2*(v%n)]-cx,ay=g[2*(v%n)+1]-cy,bx=g[2*((v+1)%n)]-cx,by=g[2*((v+1)%n)+1]-cy,ex=bx-ax,ey=by-ay,l=ex*ex+ey*ey;
+        const f=l>0?Math.max(0,Math.min(1,-(ax*ex+ay*ey)/l)):0;rIn=Math.min(rIn,Math.hypot(ax+f*ex,ay+f*ey));
+      }
+      rIn-=2;
+      // The angular stretch of the edge piece from t1 to t2 (relative to the centre) meets the sweep.
+      const meets=(px,py,dx,dy,t1,t2)=>{
+        if(t2<t1)return false;
+        const x1=px+t1*dx,y1=py+t1*dy,x2=px+t2*dx,y2=py+t2*dy;
+        const u=rel(Math.atan2(y1,x1)),dl=dir*Math.atan2(x1*y2-y1*x2,x1*x2+y1*y2);
+        const lo=Math.min(u,u+dl),hi=Math.max(u,u+dl),eps=1e-7;
+        return (hi>eps&&lo<sweep-eps)||(hi-TWO>eps&&lo-TWO<sweep-eps)||(hi+TWO>eps&&lo+TWO<sweep-eps);
+      };
       let clear=true;
       const cA=cell(cx-R,cy-R),cB=cell(cx+R,cy+R);
       for(let a=Math.floor(cA/cols);a<=Math.floor(cB/cols)&&clear;a++)for(let b=cA%cols;b<=cB%cols&&clear;b++){
@@ -2483,11 +2768,12 @@ globalThis.AtriumPolygonPour=(()=>{
           if(!(qa>0)||disc<0)continue;
           const sq=Math.sqrt(disc),t1=Math.max(0,(-qb-sq)/(2*qa)),t2=Math.min(1,(-qb+sq)/(2*qa));
           if(t1>t2)continue;
-          const x1=px+t1*dx,y1=py+t1*dy,x2=px+t2*dx,y2=py+t2*dy;
-          const u=rel(Math.atan2(y1,x1)),dl=dir*Math.atan2(x1*y2-y1*x2,x1*x2+y1*y2);
-          let lo=Math.min(u,u+dl),hi=Math.max(u,u+dl);
-          const eps=1e-7;
-          if((hi>eps&&lo<sweep-eps)||(hi-TWO>eps&&lo-TWO<sweep-eps)||(hi+TWO>eps&&lo+TWO<sweep-eps))clear=false;
+          // Leave out the piece inside the inner circle.
+          const qi=px*px+py*py-rIn*rIn,di=rIn>0?qb*qb-4*qa*qi:-1;
+          if(di>0){
+            const si=Math.sqrt(di),s1=(-qb-si)/(2*qa),s2=(-qb+si)/(2*qa);
+            if(meets(px,py,dx,dy,t1,Math.min(t2,s1))||meets(px,py,dx,dy,Math.max(t1,s2),t2))clear=false;
+          }else if(meets(px,py,dx,dy,t1,t2))clear=false;
         }
       }
       if(!clear)continue;
@@ -2838,6 +3124,10 @@ globalThis.AtriumPolygonPour=(()=>{
     // Remove Necks / Outlines Only on the final copper.
     const mo=f?.morph;
     if(mo){m(mo.mode);ints(mo.t);if(mo.u)ints(mo.u);else m(-13);m(mo.keep.length);for(const r of mo.keep)ints(r);}else m(-12);
+    // Stage 3: the spokes set aside (each with its probe) and what can cut them.
+    const sp=job.spokes;
+    if(sp){m(sp.rings.length);for(const k of sp.rings){m(k.anchor);m(k.sign);ints(k.ring);}m(sp.env.length);for(const e of sp.env){m(e.cls);m(e.sign);ints(e.ring);}m(sp.hasBoard?1:0);
+      sp.lands.forEach((r,k)=>{if(r){m(k);ints(r);}});m(-15);}else m(-14);
     return (a>>>0).toString(16)+"."+(b>>>0).toString(16)+"."+(c>>>0).toString(16);
   }
   function changesSince(rc,seq){
@@ -2992,11 +3282,25 @@ globalThis.AtriumPolygonPour=(()=>{
         solved=yield {task:s2.task,hash:rc?hash1+"/"+ek:null,stage:2,j};solvedHere=true;
       }
     }
+    // Stage 3 (spokeStage). An incremental (area) repour keeps each of its solutions while that task's
+    // inputs are the same objects, so later pours still reuse their offsets of this copper.
+    let stage3=null;
+    {
+      const g=spokeStage(s2.job,solved,s2.task?.shapes),prior=area?previousArea?.stage3:null;let r=g.next(),n=0;
+      while(!r.done){
+        const task=r.value,refs=[...task.shapes.map(e=>e.ring),...task.anchors],p=prior?.[n];
+        const same=p&&p.refs.length===refs.length&&p.refs.every((x,k)=>x===refs[k]);
+        const s3=same?p.solved:yield {task,hash:null,stage:3,j};
+        if(area)(stage3||=[]).push({refs,solved:s3});
+        n++;r=g.next(s3);
+      }
+      solved=r.value;
+    }
     finalize(solved,s2.stage1,!!area);
     const regions=slices?yield* pauses(finishSteps(s2.job,solved)):finish(s2.job,solved);
     if(area){
       s2.job.stats.area={stage1:area1.stats,stage2:area2?.stats||(s2.task?.morph?{mode:"full",reason:"island-shaping"}:null)};
-      area.sessions.set(p.id,{stage1:area1,stage2:area2,prepared:job.areaPrepared,offsets});
+      area.sessions.set(p.id,{stage1:area1,stage2:area2,stage3,prepared:job.areaPrepared,offsets});
     }
     if(rc){
       if(solvedHere)REUSE.stats.solved++;
@@ -3149,7 +3453,7 @@ globalThis.AtriumPolygonPour=(()=>{
   // POOL_WORKERS workers (POOL_SIZE.n when set: poolSize() for measurements). With two stages every
   // pour's stage 1 solves at once, so more than the two single-stage chains of the 25.6k board pay
   // off. worker-pool.js caps it at 2 while
-  // AtriumPower.efficient() (Efficiency mode, battery, Low Power Mode).
+  // AtriumPower.efficient() (Efficiency mode: Always, or Automatic in the system power-saving mode).
   const POOL_WORKERS=4,POOL_SIZE={n:0};
   // A solve's time budget on a worker (repourParallel options.budgetMs), and the pool's watchdog
   // behind it (worker-pool.js watchdogMs, where the pool has one: a worker that posts nothing).
@@ -5258,8 +5562,11 @@ globalThis.AtriumPolygonPour=(()=>{
     const variable=list.some(p=>variableConnections(settings(p),connectRules));
     const connect=list.length?connectContext(doc,defs,options):null;
     // Remove Necks and Outlines Only are not local (a tile cannot tell a neck): pours on a layer with
-    // such a pour are left to the exact repour, and so are the pours after them there.
-    const whole=new Set(list.filter(p=>{const s=settings(p);return s.fillMode==="outline"||s.fillMode==="solid"&&s.neckWidth>=NECK_MIN;}).map(p=>p.layer));
+    // such a pour are left to the exact repour, and so are the pours after them there. A neck width
+    // no wider than the pour's spokes (KiCad's zone minimum width, imported as one) cuts only
+    // slivers narrower than a spoke: the tiles show them until the exact repour lands, as they show
+    // the spokes before the island tests.
+    const whole=new Set(list.filter(p=>{const s=settings(p);return s.fillMode==="outline"||s.fillMode==="solid"&&s.neckWidth>=NECK_MIN&&s.neckWidth>s.reliefConductorWidth+1e-9;}).map(p=>p.layer));
     for(const p of list){
       if(whole.has(p.layer))continue;
       const job=yield* prepareSteps(doc,defs,p,{...options,connect,keyed:true,arcs:false,poured:[],earlier:earlier.slice(),slices:options.slices});

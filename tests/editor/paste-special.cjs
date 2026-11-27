@@ -73,4 +73,25 @@ const parts = doc => doc.items.filter(i => i.kind === "part").map(i => i.ref);
   plan.commit([0, 0]);
   assert.equal(new Set(sch.items.map(i => i.id)).size, 6, "two copies of a cut, each with its own ids");
 }
-console.log("PASS paste-special: designator modes, labels, arrays and keep-net-names");
+// 5. Image markups sit in their image's coordinates: an array moves each image copy, never a markup
+//    (no x/y to step), and a text markup's plain-string richText pastes with notebook features on.
+{
+  for (const m of ["note-fields", "notebook"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+  const p = A.project("Images", AtriumParts.catalogue), sch = p.documents[0];
+  const photo = {id:"photo", kind:"image", x:6, y:9, w:8, h:5, src:"data:image/png;base64,iVBORw0KGgo="};
+  const box = {id:"box", kind:"imageMarkup", imageId:"photo", shape:"box", at:[100000, 100000], to:[400000, 400000], width:4000, colour:"#aa3344"};
+  const note = {...box, id:"note", shape:"text", richText:"Check the rail"};
+  sch.items.push(photo, box, note);
+  const clip = ES.capture(sch, defsFor(p), new Set(["photo", "box", "note"]));
+  PS.build(p, sch, clip, defsFor(p), {count:3, dx:20, dy:0}).commit([0, 0]);
+  const images = sch.items.filter(i => i.kind === "image"), marks = sch.items.filter(i => i.kind === "imageMarkup");
+  assert.deepEqual(images.slice(1).map(i => i.x), [0, 20, 40], "each image copy steps by the spacing");
+  assert.equal(marks.length, 8);
+  assert.ok(marks.every(m => !("x" in m) && !("y" in m)), "no markup gains a position");
+  assert.deepEqual(marks.slice(2).map(m => m.imageId), images.slice(1).flatMap(i => [i.id, i.id]), "each copy marks its own image");
+  assert.deepEqual(marks.filter(m => m.shape === "text").map(m => m.richText), Array(4).fill("Check the rail"));
+  A.validate(A.clone(p));
+  // Moving a markup by itself leaves it where its image puts it.
+  A.moveItem(box, 5, 5); assert.ok(!("x" in box));
+}
+console.log("PASS paste-special: designator modes, labels, arrays, keep-net-names and image markups");

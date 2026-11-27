@@ -3,7 +3,6 @@ import CoreText
 import WebKit
 import PDFKit
 import UniformTypeIdentifiers
-import IOKit.ps
 
 private let translators = TranslatorFiles(Bundle.main.resourceURL?.appendingPathComponent("app/translators.json"))
 
@@ -1072,12 +1071,12 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         webProcessAvailable && id > requestBase && id <= requestBase + Self.requestPageSize
     }
 
-    // Energy: what the page cannot see itself. Window occlusion, Low Power Mode and
-    // the power source go to AtriumPower (app/core/power.js) as the "atrium-power" event; a change in the
-    // project's folder (someone's lock or presence file, a save, a Git checkout) as "waffle-project-folder",
+    // Energy: what the page cannot see itself. Window occlusion and Low Power Mode go to AtriumPower
+    // (app/core/power.js) as the "atrium-power" event. Automatic Efficiency mode follows Low Power Mode
+    // only, so the power source (battery or mains) is not watched. A change in the project's folder
+    // (someone's lock or presence file, a save, a Git checkout) goes as "waffle-project-folder",
     // so collaboration polling backs off instead of listing the folder every few seconds. All of it is
     // notification-driven: no timers, no polling, no activity assertions (App Nap applies when hidden).
-    private var powerSource: CFRunLoopSource?
     private var lastPower: [String: Bool] = [:]
     private var folderWatch: DispatchSourceFileSystemObject?
     private var watchedFolder: URL?
@@ -1093,23 +1092,12 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
             guard let self = self, self.initialPageReady else { return }
             self.web.evaluateJavaScript("window.__waffleSystemAccent?.(\(self.systemAccent()))", completionHandler: nil)
         })
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        if let source = IOPSNotificationCreateRunLoopSource({ context in
-            guard let context = context else { return }
-            let desktop = Unmanaged<Desktop>.fromOpaque(context).takeUnretainedValue()
-            DispatchQueue.main.async { desktop.pushPower() }
-        }, context)?.takeRetainedValue() {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
-            powerSource = source
-        }
     }
 
     /// Sends the power state to the page when it changed (force: always; the harness uses it after it overrides the page's view).
     func pushPower(force: Bool = false) {
         guard initialPageReady, let web = web, let window = window else { return }
-        let source = IOPSGetProvidingPowerSourceType(nil)?.takeUnretainedValue() as String?
-        let state = ["occluded": !window.occlusionState.contains(.visible), "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled,
-                     "battery": source == kIOPSBatteryPowerValue]
+        let state = ["occluded": !window.occlusionState.contains(.visible), "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled]
         if !force && state == lastPower { return }
         lastPower = state
         web.callAsyncJavaScript("globalThis.__atriumPowerState = state; window.dispatchEvent(new CustomEvent('atrium-power', {detail: state}))",
@@ -1285,7 +1273,6 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         watchFolder(of: nil)
         powerObservers.forEach(NotificationCenter.default.removeObserver)
         powerObservers.removeAll()
-        if let source = powerSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode); powerSource = nil }
         web.configuration.userContentController.removeScriptMessageHandler(forName: "atriumHost")
         initialPageReady = false
         web.stopLoading()

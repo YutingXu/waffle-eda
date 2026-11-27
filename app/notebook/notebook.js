@@ -141,8 +141,9 @@ globalThis.AtriumNotebook = (() => {
     const project=owner || globalThis.AtriumNavHost?.project?.();
     return items.some(i=>i.richText) && project?.documents.includes(doc)?{noteProject:projectToken(project),noteDoc:doc.id}:null;
   }
+  // An image text markup's richText may be a plain string, which binds nothing.
   function copyBindings(i,project,doc,clip,ids) {
-      for(const b of i.richText.blocks) for(const run of b.runs) if(run.binding) {
+      for(const b of i.richText?.blocks || []) for(const run of b.runs || []) if(run.binding) {
         const b=run.binding, mapped=ids.has(b.itemId), origin=clip.noteDoc || clip.doc;
         const internal=b.scope==="sheet"?b.docId===origin:mapped;
         const docIds=internal && b.docId?new Map([[b.docId,doc.id]]):new Map();

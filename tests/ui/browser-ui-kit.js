@@ -139,7 +139,7 @@ module.exports = async function uiKit(browser) {
     const engineering = await page.evaluate(async () => {
       const K = await AtriumLazy.need("AtriumUIKit"), values = [];
       const input = K.nullableNumber(null, value => values.push(value), {label:"Thermal rise", min:0});
-      const row = K.analysisField("Thermal rise", input, "°C rise", "", "thm");
+      const row = K.analysisField("Thermal rise", input, "°C rise", "");
       window.kit.append(row);
       for (const value of ["0", ""]) {
         input.value = value;

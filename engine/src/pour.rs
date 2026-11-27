@@ -1152,12 +1152,12 @@ fn touches(r: &[f64], b: &[f64; 4], isl: &Poly) -> bool {
 }
 
 /// The pour predicate. Classes: 0 polygon, 1 board, 2 obstacle, 3 relief annulus, 4 spoke,
-/// 5 relief pad, 6.. earlier pours.
+/// 5 same-net clearance (a spoke crosses it), 6.. earlier pours.
 fn pour_inside(k: usize, has_board: bool) -> impl Fn(&[i32]) -> bool {
     move |w: &[i32]| {
         if w[0] == 0 || (has_board && w[1] == 0) || w[2] > 0 { return false; }
         for c in 6..k { if w[c] > 0 { return false; } }
-        w[3] == 0 || (w[4] != 0 && w[5] == 0)
+        w[4] != 0 || (w[3] == 0 && w[5] == 0)
     }
 }
 

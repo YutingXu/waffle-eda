@@ -32,6 +32,17 @@ assert.equal(pcb.sourceRuleChecks.kinds.length,pcb.sourceRules.length);
 assert.ok(pcb.sourceRuleChecks.batch.includes(2)&&!pcb.sourceRuleChecks.batch.includes(11));
 assert.ok(pcb.sourceRuleChecks.online.includes(11));
 assert.equal(pcb.ruleCheckSelection,undefined,"reading a source board retains its check selection for adoption");
+// Component parameters keep Altium's names as written, so Properties, the BOM and an export back
+// to Altium show "Manufacturer Part Number", not "MANUFACTURER PART NUMBER".
+{
+  const u2 = sch.items.find(i => i.kind === "part" && i.ref === "U2"), params = defs.get(u2.def).parameters;
+  assert.equal(params["Manufacturer Part Number"], "MCP23016-I/SO");
+  assert.equal(params["Supplier Part Number 1"], "MCP23016-I/SO-ND");
+  assert.equal(params["Case Code"], "SOIC-28");
+  assert.ok(!Object.keys(params).some(k => k !== "" && k === k.toUpperCase() && /[A-Z]{2}/.test(k) && k.includes(" ")), "no name is upper-cased on import");
+  const r4 = sch.items.find(i => i.kind === "part" && i.ref === "R4");
+  assert.equal(r4.value, defs.get(r4.def).parameters.Value, "=Value still resolves through the renamed key");
+}
 
 // ---------------------------------------------------------------- report
 const count = (d, k) => d.items.filter(i => i.kind === k).length;
@@ -116,7 +127,7 @@ const SNAPSHOT = {
     "nets": ["GP0.3:1", "VCC_3V3:1"],
     "links": [2, 3, 32, 1, 46]
   },
-  "warnings": 22,
+  "warnings": 21,
   "notes": [
     "19 free region(s) imported as filled shapes (Bottom 1, Silk 18).",
     "2 polygon pours imported as editable Waffle pours (outline, net, pour order, island removal). Clearance and connect style come from the design rules.",
@@ -125,8 +136,7 @@ const SNAPSHOT = {
     "5 stored polygon fill region(s) kept as the pours' current copper. They count for connectivity until a repour regenerates them.",
     "Imported 3D bodies (0 extruded, 23 STEP references).",
     "Kept 1 net class (signals and tags).",
-    "Omitted 2 × template images, 1 × template text frames, 2 × embedded images, 1 × parameter sets.",
-    "Omitted 4 other class(es) (component, pad, layer, polygon).",
+    "Omitted 2 × template images, 1 × template text frames, 2 × embedded images.",
     "Omitted advanced placer options6 (1).",
     "Omitted boardregions (1).",
     "Omitted constraintmanager (1).",
@@ -134,12 +144,12 @@ const SNAPSHOT = {
     "Omitted fileversioninfo (1).",
     "Omitted layerkindmapping (1).",
     "Omitted pin swap options6 (1).",
-    "Omitted primitiveparameters (46).",
     "Omitted unionnames (1).",
     "Omitted uniqueidprimitiveinformation (100).",
     "Omitted waivedviolations (15).",
     "Omitted widestrings6 (65).",
-    "PCB import includes 3D bodies. Layer-specific pad stacks, pours and manufacturing settings require review in the source design."
+    "PCB import includes 3D bodies. Layer-specific pad stacks, pours and manufacturing settings require review in the source design.",
+    "Read 4 component classes. 4 of them follow component placement in Altium; Waffle keeps their members from the import."
   ]
 };
 assert.deepEqual(report, SNAPSHOT);
@@ -181,5 +191,20 @@ for (const a of AtriumConnectivity.inspect(pcb, defs).airwires) {
 const repoured = A.clone(pcb), result = AtriumPolygonPour.apply(repoured, defs);
 assert.ok(result.regions.length > 0 && repoured.pcbDrawing.pours.every(r => r.polygon != null));
 assert.equal(AtriumConnectivity.inspect(repoured, defs).airwires.length, 2);
+// ... and the same copper: repoured under the board's own rules, each pour matches the fill Altium
+// stored, but for tessellation slivers (tests/formats/pour-oracle.cjs explains the measures).
+{
+  const oracle = require("../support/pour-oracle.cjs"), loaded = oracle.load(FILES.map(name => ({name, bytes: bytes(name)}))), fresh = oracle.repour(loaded);
+  let compared = 0;
+  for (const polygon of loaded.board.items.filter(i => i.kind === "polygon" && !i.cutout && !i.shelved)) {
+    const r = oracle.compare(loaded.stored, fresh, {tol: oracle.settings(polygon).arcApproximation + .002, board: loaded.board.outline, polygon});
+    if (r.skipped) continue;   // no stored fill to compare with
+    compared++;
+    const wide = r.islands.reduce((s, i) => s + i.area, 0);
+    assert.ok(Math.abs(r.poured - r.stored) / r.stored < .005 && r.slivers / r.stored < .006 && wide < .4 && r.maxDeviation < .25,
+      r.pour + ": repoured copper differs from Altium's (" + JSON.stringify({stored: r.stored, poured: r.poured, slivers: r.slivers, wide, deviation: r.maxDeviation}) + ")");
+  }
+  assert.ok(compared > 0, "some pour has stored fill to compare with");
+}
 console.log("PASS real Altium project (PiDP-11 I/O Expander): " + report.schematic.parts + " schematic parts, " + report.board.parts + " board parts, " +
   report.board.nets + " nets, " + report.board.tracks + " tracks, " + report.board.vias + " vias, " + report.board.pours + " editable pours (" + report.board.storedPours + " stored fill regions), unrouted " + report.connectivity.withoutPours + " -> " + report.connectivity.airwires + ", " + report.warnings + " notes");

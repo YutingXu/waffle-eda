@@ -10,7 +10,10 @@ globalThis.AtriumTranslators = (() => {
     exchange: {global: "AtriumTranslatorExports", script: "formats/translator-exports.js"},
     manufacturing: {global: "AtriumTranslatorManufacturing", script: "formats/translator-manufacturing.js"}
   });
-  const statuses = new Set(["kept", "approximated", "dropped"]);
+  // notApplicable: source bookkeeping with no Waffle meaning (an Altium pin UniqueID, a container record, the
+  // duplicate copy of a part imported where it is placed). The original file keeps it; it is not a loss.
+  // Rows carry the notApplicable count only when it is nonzero, so older reports read unchanged.
+  const statuses = new Set(["kept", "approximated", "dropped", "notApplicable"]);
 
   function format(id, direction) {
     const descriptor = R.get(id);
@@ -94,7 +97,7 @@ globalThis.AtriumTranslators = (() => {
       const row = item.row, object = source.object == null ? null : String(source.object);
       const why = reason ? String(reason).slice(0, 2048) : undefined;
       row.referenceCount++;
-      row[status] += count;
+      row[status] = (row[status] || 0) + count;
       if (!Number.isSafeInteger(row[status])) throw Error("The fidelity count exceeds the supported range.");
       if (row.references.length < 256) {
         account(64 + (source.file.length + (object?.length || 0) + (why?.length || 0)) * 2);

@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const {fields, near, textBaselines, baselineResults, failures, assertBaselinePerturbations} = require("../support/dialog-geometry.cjs");
 
 const className = "Precision interface assembly components with long engineering provenance";
@@ -18,7 +18,8 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     const disclosure = inspector.getByRole("button", {name:"Selection Filter",exact:true});
     if (await disclosure.getAttribute("aria-expanded") === "false") await disclosure.click();
     const select = inspector.getByRole("combobox",{name:"Component class filter"});
-    const side = inspector.getByRole("combobox",{name:"Side",exact:true});
+    // Side is a segmented control now; the part's Designator is a field in the same value column.
+    const designator = inspector.getByRole("textbox",{name:"Designator",exact:true});
     await select.waitFor();
     await page.evaluate(({theme,rtl,name}) => {
       AtriumTheme.setPreset(theme);
@@ -27,11 +28,11 @@ async function check(browser, {theme, touch = false, rtl = false}) {
       host.edit(() => AtriumComponentClasses.set(pcb,name,["R1"]),"Test class",[{doc:pcb}]);
       host.select([pcb.items.find(item => item.ref === "U1").id]);
     },{theme,rtl,name:className});
-    await side.waitFor();
+    await designator.waitFor();
     const session = await page.context().newCDPSession(page);
     const geometry = await fields(page,session,inspector);
     const filter = geometry.find(row => row.name === "Component class filter");
-    const comparison = geometry.find(row => row.name === "Side");
+    const comparison = geometry.find(row => row.name === "Designator");
     const control = await select.evaluate(node => {
       const row = node.closest("label");
       const style = getComputedStyle(node), option = getComputedStyle(node.options[0]);
@@ -54,7 +55,7 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     assert.equal(control.scheme,theme === "light" ? "light" : "dark");
     assert.ok(control.contrast >= 4.5,"field text has readable contrast");
     assert.equal(control.position,rtl ? "12px, 16px" : "calc(100% - 16px), calc(100% - 12px)");
-    assert.ok(near(filter.x,comparison.x) && near(filter.width,comparison.width),"Class and Side share a control column");
+    assert.ok(near(filter.x,comparison.x) && near(filter.width,comparison.width),"Class and Designator share a control column");
     assert.ok(near(filter.height,28) && near(comparison.height,28));
     assert.ok(near(control.row.height,touch ? 44 : 28));
     const readClass = async () => (await textBaselines(page,session,inspector))

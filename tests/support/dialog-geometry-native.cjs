@@ -302,7 +302,7 @@ function cases(page) {
         prefs.set("butter.visualHistory",true);
       });
       await run("history-panel");
-      const panel = page.locator(".panel-history"), slider = panel.getByRole("slider",{name:"Session and Git history"});
+      const panel = page.locator('.ui-dock-panel[data-dock="history"]'), slider = panel.getByRole("slider",{name:"Session and Git history"});
       await page.waitForFunction(() => Number(document.querySelector(".hist-scrub input")?.max) >= 1);
       await slider.evaluate(input => {
         input.value = "0";

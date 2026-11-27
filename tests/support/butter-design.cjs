@@ -3,7 +3,7 @@
 // editor in light, dark and touch, and optionally writes state screenshots for the design notes.
 const path = require("node:path"), fs = require("node:fs");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("./playwright.cjs");
 
 const PROFILES = [
   {name:"light", theme:"light", touch:false, viewport:{width:1280, height:820}},

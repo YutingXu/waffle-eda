@@ -70,6 +70,35 @@ assert.equal(fixed.items.find(i => i.id === "v2").backdrill, undefined);
   assert.equal(VS.report(sample, library, {max: .25}).rows[0].status, "backdrilled");
 }
 
+// Pads connect by their real land, not a circle around the pad centre: a 10 × 1 mm
+// pad 2.2 mm clear of the via land is not a connection, and turning the same pad
+// (or its footprint) through 90° runs it over the via.
+{
+  const v = via("pad-via", 10, {y: 13}), bottom = {...track("pad-via", "Bottom", 10), points: [[7, 13], [10, 13]]};
+  const pad = {id: "long", kind: "pad", x: 10, y: 10, w: 10, h: 1, shape: "rect", layer: "Top", net: "SIG", number: "1"};
+  const clear = VS.report(board([v, bottom, pad]), defs, {max: .25}).rows[0];
+  assert.deepEqual(clear.used, ["Bottom"], "a long pad 2.2 mm clear of the land does not connect");
+  assert.equal(clear.status, "over");
+  assert.deepEqual(VS.report(board([v, bottom, {...pad, angle: 90}]), defs, {max: .25}).rows[0].used, ["Top", "Bottom"]);
+  const def = {id: "long-pad", footprint: {pads: [{number: "1", x: 0, y: 0, w: 10, h: 1, shape: "rect", layer: "Top"}]}};
+  const part = angle => ({id: "u", kind: "part", def: def.id, ref: "U1", x: 10, y: 10, angle, layer: "Top", pinNets: {"1": "SIG"}});
+  const library = new Map([[def.id, def]]);
+  assert.deepEqual(VS.report(board([part(0), v, bottom]), library, {max: .25}).rows[0].used, ["Bottom"]);
+  assert.deepEqual(VS.report(board([part(90), v, bottom]), library, {max: .25}).rows[0].used, ["Top", "Bottom"]);
+}
+
+// A pour that overlaps the via land without covering its centre still connects,
+// so the recommended back-drill stops at that layer instead of cutting it.
+{
+  const v = via("pour-via", 10, {y: 13}), top = {...track("pour-via", "Top", 10), points: [[7, 13], [10, 13]]};
+  const pour = {id: "pour", kind: "polygon", layer: "Inner 1", net: "SIG", points: [[10.1, 8], [20, 8], [20, 18], [10.1, 18]]};
+  const result = VS.report(board([v, top, pour]), defs, {max: .25}).rows[0];
+  assert.deepEqual(result.used, ["Top", "Inner 1"]);
+  assert.deepEqual(result.recommend, {from: "bottom", toLayer: "Inner 1"});
+  const apart = {...pour, points: [[10.4, 8], [20, 8], [20, 18], [10.4, 18]]};
+  assert.deepEqual(VS.report(board([v, top, apart]), defs, {max: .25}).rows[0].used, ["Top"], "a pour clear of the land does not connect");
+}
+
 // ---- DRC rule ------------------------------------------------------------------------------
 assert.ok(R.types.viaStub && R.checkedTypes.includes("viaStub"));
 const rules = R.migrate(R.create());

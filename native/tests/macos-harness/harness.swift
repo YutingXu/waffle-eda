@@ -1362,8 +1362,8 @@ extension Desktop {
             if (document.body.classList.contains('hide-right')) H.act('toggle-right');
             return H.doc().id === p && H.selection()[0] === r;
             """, ["p":boardId,"r":r1])
-        // Blame walks the history only on request: press the Properties line's "Who changed this?" first.
-        _ = await until(10) { await truthy("const l = document.querySelector('#inspector .blame-line'); if (/Changed .* by/.test(l?.textContent || '')) return true; const b = [...(l?.querySelectorAll('.blame-link') || [])].find(x => /Who changed/.test(x.textContent)); if (b) b.click(); return !!b") }
+        // Blame walks the history only on request: press the Properties line's "Show history" button first.
+        _ = await until(10) { await truthy("const l = document.querySelector('#inspector .blame-line'); if (/Changed .* by/.test(l?.textContent || '')) return true; const b = l?.querySelector('.blame-show'); if (b) b.click(); return !!b") }
         let blamed = await until(20) { await truthy("return /Changed .* by Ana Lee/.test(document.querySelector('#inspector .blame-line')?.textContent || '')") }
         // The Properties panel in a dialog frame, so the screenshot shows it whatever WebKit last painted.
         _ = await js("""

@@ -10,7 +10,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 SUPPORT_SUITES = (
     "app-source-paths.py", "browser-app-server-test.cjs", "chrome_cdp_test.py",
-    "mcp_stdio.py", "standalone-chromium-test.cjs", "stdio-frames.cjs",
+    "mcp_stdio.py", "playwright-test.cjs", "standalone-chromium-test.cjs", "stdio-frames.cjs",
 )
 
 

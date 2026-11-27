@@ -292,11 +292,7 @@ globalThis.AtriumSchFields = (() => {
   // ------------------------------------------------------------------ Properties panel
   // ctx: {doc, defs, edit(fn, touched), field(parent, label, value, update, opt), section(parent, title),
   //       row(parent, label, value), select(id)}
-  function check(parent, text, on, update) {
-    const l = document.createElement("label"), span = document.createElement("span"), box = document.createElement("input");
-    l.className = "field-row part-check"; span.textContent = text; box.type = "checkbox"; box.checked = on; box.setAttribute("aria-label", text);
-    box.onchange = () => update(box.checked); l.append(span, box); parent.append(l); return box;
-  }
+  const check = (parent, text, on, update) => AtriumNavCommon.appendSwitchRow(parent, text, on, update);
   function inspect(panel, ctx, ref) {
     const f = find(ctx.doc(), ctx.defs(), ref);
     if (!f) return false;
@@ -314,7 +310,7 @@ globalThis.AtriumSchFields = (() => {
     ctx.field(s, "X (from part)", local[0], v => edit(p => setPosition(p, f.def, key, f.pos, [v, local[1]])), {length:true});
     ctx.field(s, "Y (from part)", local[1], v => edit(p => setPosition(p, f.def, key, f.pos, [local[0], v])), {length:true});
     ctx.field(s, "Rotation (°)", String(norm(f.paint.angle)), v => edit(p => rotate(p, f.def, key, f.pos, norm(+v - norm(f.paint.angle)))),
-      {values:["0", "90", "180", "270"]});
+      {values:["0", "90", "180", "270"].map(a => [a, a + "°"])});
     ctx.field(s, "Font size (pt)", String(Math.round((f.paint.size || SIZE) / .2032 * 10) / 10), v => edit(p => setSize(p, f.def, key, f.pos, Math.max(1, Math.min(200, v)) * .2032)), {number:true, min:1, step:1});
     ctx.row(s, "Font", f.paint.family || FAMILY);
     ctx.row(s, "Owner", part.ref || part.def);

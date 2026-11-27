@@ -120,18 +120,26 @@ globalThis.AtriumDFM = (() => {
       const net = parent?.pinNets?.[p.number] ?? p.net ?? "";
       const label = "Pad " + (parent ? (parent.ref || "?") + "-" : "") + (p.number ?? "?");
       const size = Math.min(p.w || 0, p.h || 0), plated = PCB.padPlated(p, parent, layer);
-      if (p.drill > 0) out.holes.push({id, label, at: center, core: PCB.padDrillCore(p, parent, center), d: p.drill, plated, via: false, net, span: [0, 127], size,
-        ring: plated && p.drill < size ? (size - p.drill) / 2 : null, own: parent ? parent.id + ":" + p.number : id, ...(parent ? {partPad: p, def: parent.def, padIndex, padCount} : null)});
+      if (p.drill > 0) {
+        // A slot's ring is the land left beside the routed slot (the DRC's measure), not (min(w, h) - drill) / 2.
+        const core = PCB.padDrillCore(p, parent, center), slotRing = globalThis.AtriumRules?.kit?.slotRing;
+        const slot = plated && p.drill < size && core.length === 2 && slotRing ? slotRing(core, p.drill / 2, [p], parent) : undefined;
+        out.holes.push({id, label, at: center, core, d: p.drill, plated, via: false, net, span: [0, 127], size,
+          ring: !plated || !(p.drill < size) ? null : slot === undefined ? (size - p.drill) / 2 : slot === null ? null : Math.max(0, slot),
+          own: parent ? parent.id + ":" + p.number : id, ...(parent ? {partPad: p, def: parent.def, padIndex, padCount} : null)});
+      }
       const base = {id, label, net, span, kind: "pad", own: parent ? parent.id + ":" + p.number : id, component: parent?.ref || null, plated, at: center};
       if (size > 0) {
         const faces = M.padFaces(layer, p.drill, copperIndex(layer) != null);
         if (faces.length) out.openings.push({base, source: p, parent, faces});
       }
-      if(p.drill>0&&!plated)return;
+      // An unplated hole's land is copper too (of the pad's net, as the DRC and connectivity see it): other
+      // holes and panel separations keep their distance from it. A land the drill removes is none.
+      if(p.drill>0&&!plated&&!(p.plated===false&&(layer==="Multi"||copperIndex(layer)!=null)))return;
       const L=AtriumResolvedLand;
       for(const key of PCB.padPlanes(p,layer,()=>copperKeys)){
         const land=L.geometry(p,key);
-        if(!land||land.holeOnly)continue;
+        if(!land||land.holeOnly||p.drill>0&&!plated&&p.drill>=Math.min(land.w,land.h)-EPS)continue;
         const {at,angle,mirror}=L.place(land,parent),{core,r}=L.core(land,at,angle,mirror);
         const k=key?copperIndex(key):null;
         cu({...base,at,span:k!=null?[k,k]:span,nonConvex:land.shape==="custom"},core,r);
@@ -151,8 +159,14 @@ globalThis.AtriumDFM = (() => {
       if (track) out.tracks.push({...base,points,arc:points!==item.points?item.arc:null,closed:points===item.points&&!!item.closed});
     } else if (item.kind === "via") {
       const span = PCB.copperSpan(item) || [0, 127], at = [item.x, item.y];
-      const base = {id, label: "Via", net: item.net || "", span, kind: "via", own: id, at};
-      cu(base, [at], (item.diameter || 0) / 2);
+      const base = {id, label: "Via", net: item.net || "", span, kind: "via", own: id, at}, VS = globalThis.AtriumViaStack;
+      // Per-layer lands (via stacks, and none on back-drilled layers): AtriumViaStack.padOn, as the DRC.
+      if (VS && (item.backdrill || VS.modeOf(item) !== "simple")) {
+        for (const key of copperKeys) {
+          const k = copperIndex(key), land = VS.padOn(item, key);
+          if (k != null && land.diameter > 0) cu({...base, span: [k, k]}, [at], land.diameter / 2);
+        }
+      } else cu(base, [at], (item.diameter || 0) / 2);
       if (item.drill > 0) out.holes.push({id, label: "Via", at, d: item.drill, plated: true, via: true, net: item.net || "", span, size: item.diameter || 0, ring: item.diameter > item.drill ? (item.diameter - item.drill) / 2 : null, own: id});
       out.openings.push({base, source: item, faces: M.FACES});
     } else if (item.kind === "pad") pad(item, null);
@@ -437,6 +451,15 @@ globalThis.AtriumDFM = (() => {
       else add("ring", "warning", h.label + ": the ring " + mm(h.ring) + " breaks out at drill tolerance (+" + mm(L.drillTolPlus) + " oversize, ±" + mm(L.holePosition) + " position).", h.id, h.at, {subject});
     }
   }
+  // Copper wholly inside a hole (round or slotted) is measured to the hole wall, as the DRC
+  // (rules.js boreGap) and connectivity (inBore) treat the drill: null when it reaches the wall.
+  function inHole(h, c) {
+    const a = h.core[0], b = h.core[h.core.length - 1];
+    let extent = 0;
+    for (const p of c.core) extent = Math.max(extent, dist(nearest(p, a, b), p));
+    const d = h.r - extent - c.r;
+    return d > 0 ? d : null;
+  }
   function drills(F, L, add, copperGrid, edges, want) {
     const reach = Math.max(L.viaToTrack || 0, L.pthToTrack || 0, L.npthToTrack || 0, L.innerViaToCopper || 0, L.innerPthToCopper || 0);
     const holeF = h => feat(h, h.core || [h.at], h.d / 2);
@@ -450,7 +473,7 @@ globalThis.AtriumDFM = (() => {
           const inner = c.span[0] > 0 && c.span[1] < 127;
           const need = !h.plated ? L.npthToTrack : h.via ? (inner ? L.innerViaToCopper : L.viaToTrack) : (inner ? L.innerPthToCopper : L.pthToTrack);
           if (!(need > 0) || boxGap(hf.box, c.box) >= need) continue;
-          const g = gap(hf, c);
+          const g = inHole(hf, c) ?? gap(hf, c);
           if (g + EPS < need && (!worst || g < worst.g)) worst = {g, c, need};
         }
         if (worst) add("drillCopper", "error", h.label + " hole to " + worst.c.label + (worst.c.net ? " (" + worst.c.net + ")" : "") + ": " + mm(worst.g) + ", minimum " + mm(worst.need) + ".", h.id, h.at, {otherId: worst.c.id});

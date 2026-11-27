@@ -1611,9 +1611,11 @@ globalThis.AtriumDiffView = (() => {
     m.drc = "busy"; paintSummary();
     const go = async () => {
       if (S?.token !== token) return;
-      try { if (!G.AtriumRules && G.AtriumLazy) await G.AtriumLazy.need("AtriumRules"); } catch { /* no rules module */ }
-      if (S?.token !== token) return;
-      try { await m.drcDelta({active: () => S?.token === token}); } catch { m.drc = null; }
+      try {
+        if (G.AtriumLazy) await G.AtriumLazy.need(["AtriumRules", "AtriumConnectivity"]);
+        if (S?.token !== token) return;
+        m.drc = await m.drcDelta({active: () => S?.token === token});
+      } catch { m.drc = null; }
       if (S?.token !== token) return;
       paintSummary();
       // The open chip shows the result; a failed run closes it (the chip offers the delta again).

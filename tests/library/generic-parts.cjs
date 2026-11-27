@@ -311,3 +311,35 @@ function board() {
   }
   console.log("PASS generic parts");
 }
+// ------------------------------------------------------------ polarity marks and library health of every generator output
+{
+  require("../../app/library/library-store.js");
+  const S = AtriumLibraryStore;
+  // A polarised part's silk marks pad 1: mirroring the silk across the axis between pads 1 and 2 must not give it back.
+  // The 0603 LED named pin 1 K with both ends drawn alike; tantalum chips (pin 1 +) had no mark either.
+  const key = s => JSON.stringify(s.kind === "circle" ? ["c", +s.x.toFixed(3), +s.y.toFixed(3), s.r] : ["p", s.points.map(q => [+q[0].toFixed(3), +q[1].toFixed(3)]).sort((a, b) => a[0] - b[0] || a[1] - b[1])]);
+  const mirror = (s, ax) => s.kind === "circle" ? {...s, x: ax === "x" ? -s.x : s.x, y: ax === "y" ? -s.y : s.y} : {...s, points: s.points.map(q => ax === "x" ? [-q[0], q[1]] : [q[0], -q[1]])};
+  for (const fam of GP.ORDER.filter(f => GP.FAMILIES[f].polar)) for (const pkg of GP.FAMILIES[fam].packages) {
+    const fp = GP.make({family: fam, package: pkg}).footprint, p1 = fp.pads.find(q => q.number === "1"), p2 = fp.pads.find(q => q.number === "2");
+    const ax = Math.abs(p1.x - p2.x) > Math.abs(p1.y - p2.y) ? "x" : "y", silk = fp.shapes.filter(s => s.style === "silk"), have = new Set(silk.map(key));
+    assert.ok(!silk.every(s => have.has(key(mirror(s, ax)))), "pad 1 is marked on " + fam + " " + pkg);
+  }
+  const led = GP.make({family: "led", package: "0603"}).footprint, dot = led.shapes.find(s => s.style === "silk" && s.kind === "circle" && s.fill);
+  assert.ok(dot && dot.x < led.pads.find(q => q.number === "1").x, "the 0603 LED's dot sits beside pad 1 (the cathode)");
+  // Library health: SMD retention tabs are unnumbered like the through-hole pegs (they were both "MP": "Pads without a pin: MP").
+  const issues = d => (S.health([d]).issues || []).filter(x => x.level !== "info").map(x => x.code + " " + x.message);
+  for (const fam of GP.ORDER) for (const pkg of GP.FAMILIES[fam].packages) for (const [sub] of GP.FAMILIES[fam].subtypes || [[undefined]])
+    assert.deepEqual(issues(GP.make({family: fam, package: pkg, subtype: sub})), [], "health " + fam + " " + pkg + " " + (sub || ""));
+  for (const type of Object.keys(CG.TYPES)) for (const mount of ["tht", "smd"]) for (const orientation of ["vertical", "right-angle"]) for (const rows of [1, 2]) for (const [numbering] of CG.NUMBERING) {
+    let d;
+    try { d = GP.make({family: "connector", type, mount, orientation, rows, cols: 4, numbering, pegs: true}); } catch { continue; }
+    assert.deepEqual(issues(d), [], "health " + d.footprint.name);
+  }
+  const smd = GP.make({family: "connector", type: "jst", cols: 4, pitch: 1, mount: "smd", orientation: "right-angle", pegs: true}).footprint;
+  const tabs = smd.pads.filter(q => q.number === "");
+  assert.equal(tabs.length, 2); assert.ok(tabs.every(q => !(q.drill > 0)), "two SMD retention tabs");
+  // Silk still clears the tabs (they are copper, unlike the unplated pegs).
+  for (const s of smd.shapes.filter(s => s.style === "silk" && s.kind === "path")) for (const q of s.points) for (const t of tabs)
+    assert.ok(!(Math.abs(q[0] - t.x) < t.w / 2 && Math.abs(q[1] - t.y) < t.h / 2), "silk off the retention tabs");
+  console.log("PASS polarity marks on every polarised generic package; library health clean for every generic package and connector");
+}

@@ -77,7 +77,7 @@ function ring(R, G, ox, oy, prev) {
     default: return polyAround(x, y, R.pick([3, 4, 6]), 1 + R.int(G / 2), R() * 6.28, .8, R);                                     // irregular convex-ish
   }
 }
-// A thermal relief group at (x, y): annulus (3), spokes (4) at an odd angle, relief pad (5), and its anchor.
+// A thermal relief group at (x, y): annulus (3), spokes (4) at an odd angle, a same-net clearance over the land (5), and its anchor.
 function relief(R, x, y, r, gap, spoke) {
   const n = R.pick([8, 16, 32]), base = R.range(0, 90), spokes = [];
   for (let k = 0; k < 4; k += R() < .3 ? 2 : 1) spokes.push(rotatedRect(x, y, r + gap + spoke + 2, spoke, base + 90 * k));

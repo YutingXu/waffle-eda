@@ -20,7 +20,7 @@ function args() {
 
 async function launch() {
   let chromium;
-  try { ({chromium} = require("playwright-core")); } catch { return null; }
+  try { ({chromium} = require("../support/playwright.cjs")); } catch { return null; }
   return chromium.launch({headless:true, args:["--allow-file-access-from-files"], executablePath:process.env.CHROME ||
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"});
 }

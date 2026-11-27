@@ -12,18 +12,18 @@ globalThis.AtriumPCBSelectionInspector = (() => {
   function install(ctx, {el, button, isBottom, LABELS, plural, guardLocked, changeSnap}) {
     const {isLocked, applyLock, lockPlan, applyFlip, flipPlan, unionOf, sharedFields, applyField, ruleCheck, VARIES, similarProps, findSimilar, snapPrefs} = globalThis.AtriumPCBEdit;
     // ---------- Properties
+    // Locked is a switch: it applies at once. A mixed selection shows it off until every object is locked.
     function lockToggle(parent, items) {
-      const l = el("label", null, "field-row pcb-edit-check"), box = el("input"); box.type = "checkbox";
       const all = items.every(isLocked), some = items.some(isLocked);
-      box.checked = all; box.indeterminate = some && !all; box.setAttribute("aria-label", "Locked");
-      box.onchange = () => { const ids = items.map(i => i.id); ctx.edit(() => applyLock(ctx.doc(), lockPlan(ctx.doc(), ids, box.checked)), undefined, items); };
-      l.append(el("span", "Locked"), box); parent.append(l); return box;
+      const box = AtriumNavCommon.appendSwitchRow(parent, "Locked", all, on => { const ids = items.map(i => i.id); ctx.edit(() => applyLock(ctx.doc(), lockPlan(ctx.doc(), ids, on)), undefined, items); });
+      box.indeterminate = some && !all; return box;
     }
     const kindLabel = kind => (ctx.pcb() ? LABELS[kind] : SCH_LABELS[kind]) || kind;
-    function inspectItem(section, item) {
+    // group(key) (editor.js): the named Properties group a row belongs to; without it every row stays in the object's section.
+    function inspectItem(section, item, group = () => section) {
       const ui = globalThis.AtriumNavHost.ui;
-      if (ctx.pcb() && item.kind === "part" && ctx.defs().get(item.def)?.footprint) {
-        const sel = ui.field(section, "Side", isBottom(item) ? "Bottom" : "Top", null, {values: ["Top", "Bottom"]});
+      const placed = ctx.pcb() && item.kind === "part" && ctx.defs().get(item.def)?.footprint, at = placed ? group("Placement") : section;
+      if (placed) {
         const go = () => {
           const doc = ctx.doc(); let changed = [];
           ctx.edit(() => {
@@ -31,22 +31,33 @@ globalThis.AtriumPCBSelectionInspector = (() => {
             changed = parts.concat(ctx.afterFlip?.(parts.map(p => p.id)) || []);
           }, undefined, () => [{doc, items:changed, library:true}]);
         };
-        // Changing side moves a placed part: locked parts ask first, as drag and nudge do.
-        sel.onchange = () => { if (guardLocked([item.id], "Flip", go)) go(); else sel.value = isBottom(item) ? "Bottom" : "Top"; };
+        // Side: a segmented control (docs/ui-library.md › Segmented controls). Changing side moves a placed
+        // part: locked parts ask first, as drag and nudge do, and the pressed segment stays until the flip.
+        const row = el("div", null, "ui-prop-row"), sides = el("div", null, "ui-segmented"), side = isBottom(item) ? "Bottom" : "Top";
+        sides.setAttribute("role", "group"); sides.setAttribute("aria-label", "Side");
+        for (const v of ["Top", "Bottom"]) {
+          const b = el("button", v, "ui-segment"); b.type = "button"; b.value = v; b.setAttribute("aria-pressed", String(v === side));
+          b.onclick = () => { if (v !== side && guardLocked([item.id], "Flip", go)) go(); };
+          sides.append(b);
+        }
+        row.append(el("span", "Side"), sides); at.append(row);
       }
-      lockToggle(section, [item]);
+      if (item.kind !== "track") lockToggle(at, [item]);
       if (unionOf(item)) {
         const u = unionOf(item);
         ui.row(section, "Union", ctx.doc().items.filter(i => unionOf(i) === u).length + " objects");
       }
-      if (item.kind === "track" || item.kind === "pad" || item.kind === "via") copperFields(section, item);
+      if (item.kind === "track" || item.kind === "pad" || item.kind === "via") copperFields(section, item, group);
     }
-    function copperFields(s, item) {
+    function copperFields(s, item, group) {
       const {field, row} = globalThis.AtriumNavHost.ui, {inspect, info, len} = ctx;
       const edit = fn => ctx.edit(fn, undefined, [item]);
       const d = ctx.doc(), defs = ctx.defs(), project = ctx.project();
       const unitLabel = name => name + " (" + ctx.unit() + ")";
       if(item.kind==="track"){
+        // Track: Net, Layer, Width and Locked; the mask openings in their own group.
+        field(s,"Net",item.net||"",v=>edit(()=>item.net=v),{allowEmpty:true});
+        field(s,"Layer",item.layer||"Top",v=>edit(()=>item.layer=v),{values:ctx.layers()});
         field(s,unitLabel("Width"),item.width,v=>{
           const changed = item.width !== v;
           const accepted = edit(() => item.width = v);
@@ -54,16 +65,18 @@ globalThis.AtriumPCBSelectionInspector = (() => {
             globalThis.AtriumMacros?.recordCurrent("butter.macros.set-track-width", {width:v}, {changed:1}, "write");
           return accepted;
         },{length:true,min:.001,key:"width"});
-        field(s,"Layer",item.layer||"Top",v=>edit(()=>item.layer=v),{values:ctx.layers()});
+        lockToggle(s, [item]);
         if(item.layer==="Top" || item.layer==="Bottom"){
-          for(const [key,label] of [["maskExpansion","Solder mask expansion"],["pasteExpansion","Paste mask expansion"]]){
-            const input=field(s,unitLabel(label),item[key],v=>edit(()=>{if(v==null)delete item[key];else item[key]=v;}),{length:true,allowEmpty:true,key});
+          const mask=group("Mask expansion");
+          for(const [key,label] of [["maskExpansion","Solder mask"],["pasteExpansion","Paste mask"]]){
+            const input=field(mask,label,item[key],v=>edit(()=>{if(v==null)delete item[key];else item[key]=v;}),{length:true,allowEmpty:true,key});
+            input.setAttribute("aria-label",unitLabel(label+" expansion"));
             input.placeholder="Covered";
             input.title="Blank leaves the track covered. Zero opens the copper width. A signed length expands or contracts each edge.";
           }
         }
       }
-      if(["via","track","pad"].includes(item.kind))field(s,"Net",item.net||"",v=>edit(()=>item.net=v),{allowEmpty:true});
+      if(item.kind==="via"||item.kind==="pad")field(s,"Net",item.net||"",v=>edit(()=>item.net=v),{allowEmpty:true});
       if(item.kind==="pad")padFields(s,item,edit,unitLabel);
       if(item.kind!=="via")return;
       const VS=globalThis.AtriumViaStack;
@@ -83,14 +96,10 @@ globalThis.AtriumPCBSelectionInspector = (() => {
       };
       expansion("maskExpansion","Mask expand","Blank follows the solder mask rule. A signed length grows or shrinks the opening on each edge.");
       if(smd&&outer){
-        const l=el("label",null,"field-row pcb-edit-check"),box=el("input");box.type="checkbox";box.checked=!item.noPaste;box.setAttribute("aria-label","Paste");
-        box.onchange=()=>edit(()=>{if(box.checked)delete item.noPaste;else item.noPaste=true;});l.append(el("span","Paste"),box);s.append(l);
+        AtriumNavCommon.appendSwitchRow(s,"Paste",!item.noPaste,on=>edit(()=>{if(on)delete item.noPaste;else item.noPaste=true;}));
         if(!item.noPaste)expansion("pasteExpansion","Paste expand","Blank follows the paste mask rule. A signed length grows or shrinks the stencil opening on each edge.");
       }
-      if(!smd){
-        const l=el("label",null,"field-row pcb-edit-check"),box=el("input");box.type="checkbox";box.checked=item.plated!==false;box.setAttribute("aria-label","Plated");
-        box.onchange=()=>edit(()=>{if(box.checked)delete item.plated;else item.plated=false;});l.append(el("span","Plated"),box);s.append(l);
-      }
+      if(!smd)AtriumNavCommon.appendSwitchRow(s,"Plated",item.plated!==false,on=>edit(()=>{if(on)delete item.plated;else item.plated=false;}));
       // After the pad's size and hole (the board drawing adds those when the fields land in the section).
       const rows=[];for(let n=first?first.nextSibling:s.firstChild;n;n=n.nextSibling)rows.push(n);
       queueMicrotask(()=>{const host=rows[0]?.parentElement;if(host)host.append(...rows);});
@@ -106,7 +115,7 @@ globalThis.AtriumPCBSelectionInspector = (() => {
       queueMicrotask(()=>{const host=s.parentElement?.closest(".inspect-section");if(host)host.after(s);});
       const unitLabel=name=>name+" ("+ctx.unit()+")";
       const change=fn=>ctx.edit(()=>{fn();delete item.template;if(VS.modeOf(item)!=="simple")VS.sync(item,VS.keysOf(d,item,defs));},undefined,[item]);
-      const check=(label,on,set)=>{const l=el("label",null,"field-row pcb-edit-check"),box=el("input");box.type="checkbox";box.checked=!!on;box.setAttribute("aria-label",label);box.onchange=()=>set(box.checked);l.append(el("span",label),box);s.append(l);return box;};
+      const check=(label,on,set)=>AtriumNavCommon.appendSwitchRow(s,label,!!on,set);
       // Template.
       const templates=VS.templates(d,project);
       const tpl=field(s,"Template",item.template&&VS.find(d,item.template,project)?item.template:"",v=>{const t=VS.find(d,v,project);ctx.edit(()=>{if(!t){delete item.template;return;}VS.applyTemplate(item,t);if(VS.modeOf(item)!=="simple")VS.sync(item,VS.keysOf(d,item,defs));},undefined,[item]);},
@@ -206,21 +215,22 @@ globalThis.AtriumPCBSelectionInspector = (() => {
       for (const f of info.fields) {
         if (f.type === "side" && !ctx.pcb()) continue;
         if (f.type === "bool") { lockToggle(s, info.items); continue; }
-        const l = el("label", null, "field-row"), mixed = f.value === VARIES;
-        let input;
+        const l = el("label", null, "ui-prop-row"), mixed = f.value === VARIES;
+        let input, unit = "";
         if (f.type === "layer" || f.type === "anylayer" || f.type === "side") {
-          input = el("select");
+          input = el("select", null, "ui-field");
           const values = f.type === "side" ? ["Top", "Bottom"] : f.type === "layer" ? ctx.layers() : [...new Set([...ctx.layers(), "Silk", "Bottom silk", "Mechanical", ...info.items.map(i => i.layer).filter(Boolean)])];
           if (mixed) input.add(new Option("<varies>", ""));
           for (const v of values) input.add(new Option(ctx.layerName?.(v) || v, v));
           input.value = mixed ? "" : f.value;
           input.onchange = () => { if (input.value) commit(f.key, input.value); };
         } else {
-          input = el("input"); input.type = "text"; input.autocomplete = "off"; input.spellcheck = false;
+          input = el("input", null, "ui-field"); input.type = "text"; input.autocomplete = "off"; input.spellcheck = false;
           if(f.type==="length" || f.type==="number") {
-            const length=f.type==="length",unit=length ? ctx.unit() : f.key==="angle" ? "deg" : "";
+            const length=f.type==="length",numeric=length ? ctx.unit() : f.key==="angle" ? "deg" : "";
             input.inputMode="decimal";
-            globalThis.AtriumLazy?.numericField?.(input,{unit,storageUnit:length?"mm":unit,nanometres:length,min:length ? .000001 : undefined});
+            globalThis.AtriumLazy?.numericField?.(input,{unit:numeric,storageUnit:length?"mm":numeric,nanometres:length,min:length ? .000001 : undefined});
+            unit = numeric === "deg" ? "°" : numeric;
           }
           input.placeholder = mixed ? "<varies>" : "";
           input.value = mixed || f.value == null ? "" : String(f.type === "length" && ctx.unitValue ? ctx.unitValue(f.value) : f.value);
@@ -234,7 +244,8 @@ globalThis.AtriumPCBSelectionInspector = (() => {
           };
         }
         input.setAttribute("aria-label", f.label);
-        l.append(el("span", f.type === "length" ? f.label + " (" + ctx.unit() + ")" : f.label), input); s.append(l);
+        // The unit sits inside the field (docs/ui-library.md › Property rows).
+        l.append(el("span", unit ? f.label.replace(/ \([^()]{1,4}\)$/, "") : f.label), unit ? AtriumNavCommon.measure(input, unit) : input); s.append(l);
       }
       return true;
     }

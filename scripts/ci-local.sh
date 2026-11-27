@@ -67,7 +67,11 @@ e2e_full() {
     node=${ATRIUM_CI_CACHE:-$HOME/.cache/atrium-ci}/node-$ver/bin/node
     [[ -x $node ]] || PREFIX=${node:h:h} sh scripts/ci/install-node.sh >&2 || return 1
   fi
-  python3 tests/e2e/run.py --node $node --fetch --mutations
+  local rc=0
+  python3 tests/e2e/run.py --node $node --fetch --mutations || rc=$?
+  # Repour the fetched boards against the fill their tools stored (tests/formats/pour-oracle.cjs).
+  $node tests/formats/pour-oracle.cjs --require-corpus || rc=1
+  return $rc
 }
 rust_build() {
   local cargo=${CARGO:-}
@@ -174,7 +178,7 @@ for step in $steps; do
     swift)   run "swift typecheck native/macos" swift_typecheck
              run "macOS folder transaction and conflict recovery" folder_transactions
              run "build-mac.sh (universal, ad hoc)" build_app
-             for t in git_head host_state project_journal source_copies project_archive import_save_exports external_tools lan_relay; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
+             for t in git_head host_state project_journal source_copies project_archive import_save_exports external_tools lan_relay power_saver; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
     windows) run "Windows host: core tests + cross-built package" windows_build ;;
     harness) run "macos-harness" harness
              run "macOS component move, Edit menu Undo/Redo and durable reopen" env HARNESS_BACKGROUND=1 native/tests/macos-harness/component-undo.sh "$scratch/component-undo"

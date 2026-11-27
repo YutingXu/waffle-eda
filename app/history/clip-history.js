@@ -531,7 +531,7 @@ globalThis.AtriumClipHistory = (() => {
   }
   const binding = id => globalThis.AtriumKeymap?.hintKey?.(id, host?.doc?.()?.kind) || "";
   function emptyState() {
-    const empty = el("p", "empty-state clip-empty", "Copy something"), copy = binding("copy");
+    const empty = el("p", "empty-state ui-dock-empty", "Copy something"), copy = binding("copy");
     if (copy) empty.append(" (", AtriumShortcut.render(copy, {variant:"inline"}), ")");
     empty.append(" and it appears here.");
     return empty;
@@ -555,7 +555,7 @@ globalThis.AtriumClipHistory = (() => {
     if (d && d.kind !== e.kind) r.classList.add("is-other-kind");
     const thumb = el("canvas", "clip-thumb"); thumb.setAttribute("aria-hidden", "true"); thumb.width = 1; thumb.height = 1;
     thumb.dataset.kind = e.kind;
-    const text = el("div", "clip-text");
+    const text = el("div", "ui-dock-text");
     const top = el("div", "clip-line");
     top.append(el("span", "clip-name", nameOf(e)));
     if (e.id === currentId) { const current = el("span", "ui-badge clip-badge", "Current"); current.dataset.tone = "success"; top.append(current); }
@@ -595,18 +595,18 @@ globalThis.AtriumClipHistory = (() => {
     if (panel) return true;
     const nav = doc?.getElementById?.("properties");
     if (!nav) return false;
-    panel = el("section", "panel panel-clip"); panel.setAttribute("aria-labelledby", "clip-heading"); panel.hidden = true;
+    panel = el("section", "panel ui-dock-panel"); panel.dataset.dock = "clipboard"; panel.setAttribute("aria-labelledby", "clip-heading"); panel.hidden = true;
     const head = el("header", "pane-heading"), h2 = el("h2", null, "Clipboard"); h2.id = "clip-heading";
-    const count = el("span", "clip-count");
+    const count = el("span", "ui-dock-count");
     const clearBtn = el("button", "clip-clear ui-button", "Clear"); clearBtn.type = "button"; clearBtn.dataset.size = "sm"; clearBtn.title = "Clear the history (pinned clips stay)";
     clearBtn.onclick = () => { const n = entries.filter(e => !e.pinned).length; clear(false); say(n ? "Cleared " + n + (n === 1 ? " clip" : " clips") + " from the clipboard history; pinned clips stay." : "Nothing to clear; pinned clips stay."); };
-    const close = el("button", "ui-close clip-close", "×"); close.type = "button"; close.title = "Close Clipboard"; close.setAttribute("aria-label", "Close Clipboard");
+    const close = el("button", "ui-close ui-dock-close", "×"); close.type = "button"; close.title = "Close Clipboard"; close.setAttribute("aria-label", "Close Clipboard");
     close.onclick = () => toggle(false);
     head.append(h2, count, clearBtn, close);
-    const listBox = el("div", "ui-list clip-list pane-scroll"); listBox.dataset.layout = "flush"; listBox.dataset.selectOnFocus = ""; listBox.setAttribute("role", "listbox"); listBox.setAttribute("aria-label", "Clipboard history"); listBox.tabIndex = 0;
+    const listBox = el("div", "ui-list ui-dock-list pane-scroll"); listBox.dataset.layout = "flush"; listBox.dataset.selectOnFocus = ""; listBox.setAttribute("role", "listbox"); listBox.setAttribute("aria-label", "Clipboard history"); listBox.tabIndex = 0;
     const empty = emptyState();
     const note = el("p", "clip-note"); note.hidden = true;
-    const foot = el("p", "clip-foot", "Click copies · Enter or double-click pastes · drag to the canvas");
+    const foot = el("p", "ui-dock-foot", "Click copies · Enter or double-click pastes · drag to the canvas");
     const search=searchBar(paint); panel.append(head, search.bar, listBox, empty, note, foot);
     nav.append(panel);
     ui = {count, list: listBox, empty, note, clear: clearBtn,search,watch:globalThis.AtriumHistoryArtwork?.watch(listBox)};
@@ -754,9 +754,9 @@ globalThis.AtriumClipHistory = (() => {
     picker = el("dialog", "clip-picker"); picker.setAttribute("aria-label", "Clipboard history");
     const head = el("header", "clip-picker-head"), title = el("h2", null, "Clipboard history");
     head.append(title, AtriumShortcut.render(binding("clipboard-picker"), {variant:"inline", node:el("span", "clip-picker-key")}));
-    const listBox = el("div", "ui-list clip-list"); listBox.dataset.layout = "flush"; listBox.dataset.selectOnFocus = ""; listBox.setAttribute("role", "listbox"); listBox.setAttribute("aria-label", "Clipboard history"); listBox.tabIndex = 0;
+    const listBox = el("div", "ui-list ui-dock-list"); listBox.dataset.layout = "flush"; listBox.dataset.selectOnFocus = ""; listBox.setAttribute("role", "listbox"); listBox.setAttribute("aria-label", "Clipboard history"); listBox.tabIndex = 0;
     const empty = emptyState();
-    const foot = el("p", "clip-foot", "Enter pastes · Space copies · P pins · Esc closes");
+    const foot = el("p", "ui-dock-foot", "Enter pastes · Space copies · P pins · Esc closes");
     const more = el("button", "clip-open-panel ui-button", "Open Clipboard panel"); more.type = "button"; more.dataset.size = "sm";
     more.onclick = () => { closePicker(); toggle(true); };
     const bar = el("div", "clip-picker-foot"); bar.append(foot, more);

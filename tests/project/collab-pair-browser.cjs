@@ -28,7 +28,7 @@ const fs = require("node:fs"), path = require("node:path");
 const ROOT = path.resolve(__dirname, "../..");
 const shots = (i => i >= 0 ? path.resolve(process.argv[i + 1]) : null)(process.argv.indexOf("--shots"));
 let chromium;
-try { ({chromium} = require("playwright-core")); } catch { console.log("collab-pair-browser: SKIP (no playwright-core)"); process.exit(0); }
+try { ({chromium} = require("../support/playwright.cjs")); } catch { console.log("collab-pair-browser: SKIP (no playwright-core)"); process.exit(0); }
 const chrome = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find(c => c && fs.existsSync(c));
 if (!chrome) { console.log("collab-pair-browser: SKIP (no Chrome)"); process.exit(0); }
 

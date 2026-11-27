@@ -25,7 +25,7 @@ globalThis.AtriumShell = (() => {
     const focused = container.contains(doc.activeElement) && doc.activeElement;
     wrapper.className = "ui-collapse";
     content.className = "ui-collapse-content";
-    for (const item of [...container.children]) if (item !== heading) content.append(item);
+    for (const item of [...container.childNodes]) if (item !== heading) content.append(item); // with appendOnLoad markers
     wrapper.append(content);
     container.append(wrapper);
     wrapper.inert = container.classList.contains("collapsed");
@@ -67,7 +67,7 @@ globalThis.AtriumShell = (() => {
     let summary = "No objects selected.";
     if (ids.length > 1) {
       const section = inspector.querySelector(":scope > .inspect-section:not(.pcb-edit-filter-section)");
-      const counts = [...(section?.querySelectorAll(":scope > .property-row, :scope > .ui-collapse > .ui-collapse-content > .property-row") || [])]
+      const counts = [...(section?.querySelectorAll(".ui-prop-row") || [])]
         .map(row => [row.firstElementChild?.textContent, row.lastElementChild?.textContent])
         .filter(([kind, count]) => kind && /^\d+$/.test(count));
       const breakdown = counts.map(([kind, count]) => kind + " count " + count + ".").join(" ");
@@ -78,7 +78,7 @@ globalThis.AtriumShell = (() => {
           || selected.kind.replace(/([a-z])([A-Z])/g, "$1 $2");
       const name = selected.ref || selected.name || selected.text;
       const net = selected.net || (selected.kind === "wire"
-        ? [...inspector.querySelectorAll(".property-row")].find(n => n.firstElementChild?.textContent === "Connected net")?.lastElementChild?.textContent : "");
+        ? [...inspector.querySelectorAll(".ui-prop-row")].find(n => n.firstElementChild?.textContent === "Connected net")?.lastElementChild?.textContent : "");
       const layer = selected.layer && (globalThis.AtriumPCBAppearance?.name?.(selected.layer) || selected.layer);
       summary = title + (name ? " " + name : "") + " selected." +
         (selected.value ? " " + selected.value + "." : "") + (net ? " Net " + net + "." : "") + (layer ? " Layer " + layer + "." : "");

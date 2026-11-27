@@ -195,7 +195,7 @@ async function measure(page,{peers = 0} = {}) {
         fill:rgba(getComputedStyle(node).backgroundColor),weight:getComputedStyle(node).fontWeight})),
       coords:pick(one("#coords"),["font-variant-numeric","flex-shrink"]),
       statusButtons:all(".statusbar .status-action",node=>pick(node,["font-size","border-top-width"])),
-      propertyRows:all("#inspector .property-row",node=>box(node)),
+      propertyRows:all("#inspector div.ui-prop-row:has(> .ui-prop-value)",node=>box(node)),
       snapColors,chips,colors,indicators,
       filterHeader:{rect:box(filterHeading),action:box(filterAction),text:styles(filterAction,["text-decoration-line"])["text-decoration-line"],
         edge:getComputedStyle(filterHeading || document.body).paddingInlineEnd,
@@ -395,7 +395,7 @@ function geometryProblems(m) {
       check(equalPaletteColor(chip.ink,m.colors["--muted"]),"inactive chip uses muted ink",chip.ink);
     }
   }
-  for (const row of m.propertyRows) rect(row,null,24,"Properties row");
+  for (const row of m.propertyRows) rect(row,null,m.coarse ? 44 : 32,"Properties row"); // a field row's height (docs/ui-library.md › Property rows)
   if (m.kind==="pcb") {
     const layer = m.layer;
     rect(layer?.bar,null,30,"PCB layer strip");

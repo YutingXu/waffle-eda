@@ -58,5 +58,10 @@
     "directory": "butter-project-metadata",
     "manifest": "Project Metadata.waffle",
     "sha256": "d2020b80f77c6d085022f27797063eec9b0b94e318b36f7a7fe07886f07d87ca"
+  },
+  {
+    "directory": "schematic-curves",
+    "manifest": "Schematic Curves.waffle",
+    "sha256": "e22584964191cb50a8d5b8937208380a47f8a8e6d7485abc422518ddea707912"
   }
 ]

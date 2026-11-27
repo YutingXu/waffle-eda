@@ -348,7 +348,7 @@ globalThis.AtriumSplitFollow = (() => {
       b.addEventListener("click", e => {e.stopPropagation(); setFollow(!follow); P0()?.canvas?.focus?.();});
       b.addEventListener("pointerdown", e => e.preventDefault());   // the active pane keeps focus
     }
-    const close = strip.querySelector(":scope > :is(.pane-arrange,.pane-close)");
+    const close = strip.querySelector(".pane-arrange, .pane-close");
     if (close && b.nextSibling !== close) close.before(b); else if (!close && b.parentElement !== strip) strip.append(b);
     b.hidden = false;
     b.setAttribute("aria-pressed", String(follow));

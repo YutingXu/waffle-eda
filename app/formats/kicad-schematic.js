@@ -1,6 +1,12 @@
 "use strict";
 globalThis.AtriumKiCadSchematic = (() => {
   const A = Atrium, K = AtriumKiCad, q = K.quote;
+  // KiCad's Datasheet field, from a Datasheet or Datasheet URL parameter in any spelling (KiCad imports store
+  // DATASHEET; Altium and Eagle imports keep "Datasheet" as written).
+  const datasheet = def => {
+    for (const [k, v] of Object.entries(def?.parameters || {})) if (/^data[\s_]*sheet(?:[\s_]*url)?$/i.test(k.trim()) && typeof v === "string" && v) return v;
+    return "";
+  };
   const rounded = value => Math.round(value * 10000) / 10000;
   const positiveAngle = angle => ((angle % 360) + 360) % 360;
   const point = p => p.map(rounded).join(" ");
@@ -68,7 +74,7 @@ globalThis.AtriumKiCadSchematic = (() => {
         put(sec(s), "(text " + q(s.text) + " " + pos(p,angle*10) + " " + effects(s.size || 1.27, s.align==="center"?"bottom":s.align==="right"?"right bottom":"left bottom") + ")");
       } else report("Unsupported library shape " + s.kind + " omitted.");
     }
-    const props = [["Reference",def.prefix||"U"],["Value",def.value||def.name],["Footprint",def.footprint?.name?K.footprintId(def.footprint.name):""],["Datasheet",def.parameters?.DATASHEET||""]];
+    const props = [["Reference",def.prefix||"U"],["Value",def.value||def.name],["Footprint",def.footprint?.name?K.footprintId(def.footprint.name):""],["Datasheet",datasheet(def)]];
     return ["(symbol "+q("Waffle:"+entry),"(pin_names (offset 0) hide) (pin_numbers hide) (in_bom yes) (on_board yes)",
       ...props.map(([key,value],i)=>property(key,value,[0,0],0,1.27,i>1)),
       ...[...sections].sort(([a],[b])=>a<b?-1:a>b?1:0).flatMap(([k,body])=>["(symbol "+q(entry+"_"+k),...body,")"]),...lines,...pinLines,")"].join("\n      ");
@@ -226,7 +232,7 @@ globalThis.AtriumKiCadSchematic = (() => {
         const propAngle=cardinal%180;
         const fields=[property("Reference",i.ref,textAt(i.refAt,0),propAngle,1.72,i.showRef===false,i.refAt||vertical?"left":""),
           property("Value",i.value,textAt(i.valueAt,1),propAngle,1.45,i.showValue===false,i.valueAt||vertical?"left":""),
-          property("Footprint",footprint?K.footprintId(footprint):"",origin,0,1.27,true),property("Datasheet",def.parameters?.DATASHEET||"",origin,0,1.27,true)];
+          property("Footprint",footprint?K.footprintId(footprint):"",origin,0,1.27,true),property("Datasheet",datasheet(def),origin,0,1.27,true)];
         const uuid=K.symbolUuid(doc,i);
         const pinIds=def.symbol.pins.flatMap((p,j)=>p.number&&!(def.symbol.parts>1&&p.part>0&&p.part!==unit)?["(pin "+q(p.number)+" "+stamp(i.id+"/pin/"+p.number+"/"+j)+")"]:[]);
         objects.push(["(symbol (lib_id "+q("Waffle:"+entry)+") "+pos(origin,positiveAngle(-cardinal))+" (unit "+unit+")"+(def.symbol.alternate&&i.alt?" (convert 2)":"")+" (in_bom yes) (on_board yes) (uuid "+uuid+")",

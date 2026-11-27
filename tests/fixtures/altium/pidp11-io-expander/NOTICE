@@ -63,3 +63,15 @@ f1cae67437698f5a0812729ef9bc1892266bd644ded128e599863b5acdb51b00.
 The board outline and the three overlay arc centers were also measured through
 the native PCB editor. This derived fixture is covered by the same BSD-2-Clause
 license.
+
+Altium report readings (altium-reports-reva.json)
+-------------------------------------------------
+Readings of three further files from the same RevA release zip (sha256 87c4064f...), made by
+tests/support/altium-reports.cjs: the rule rows, counts and listed violations of
+"Fabrication/Design Rules Check.html" (sha256 6ca049d16095ebba1bfc7c1f4748dd3b12ac85537157799dd30b39b177056f6c),
+the messages of "Fabrication/Electrical Rules Check.html" (sha256 8d819428ca29a83efdd261cb7c0d3642e493db4916c84f2f95d1e3a3eac34004)
+and the cells of "Assembly/Bill of Materials.xlsx" (sha256 77eb7feb32be2a72135146b353c85dd9354c3fb94f55b2d9f7b71253011d7c13).
+The reports name a path on the author's machine, so only the readings are kept. With the full-tier
+cache (tests/altium-fidelity/fetch.py) the suites read the originals again and require the same
+readings. Used by tests/checks/drc-altium-report.cjs and tests/formats/bom-altium-report.cjs.
+Same BSD-2-Clause terms as the release.

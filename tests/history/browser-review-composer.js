@@ -139,6 +139,6 @@ module.exports = async function reviewComposer(browser, {shots} = {}) {
   }
 };
 if (require.main === module) (async () => {
-  const b = await require("playwright-core").chromium.launch({channel: "chrome", args: ["--allow-file-access-from-files"]});
+  const b = await require("../support/playwright.cjs").chromium.launch({channel: "chrome", args: ["--allow-file-access-from-files"]});
   try { await module.exports(b); } finally { await b.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
