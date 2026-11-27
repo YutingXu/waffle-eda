@@ -92,12 +92,24 @@ globalThis.AtriumSchObjects = (() => {
     return null;
   }
   const repeatEntry = name => /^\s*repeat\s*\(\s*([^()]+?)\s*\)\s*$/i.exec(name || "")?.[1] || null;
+  // The child port an entry meets (Repeat(SIG): SIG).
+  const entryPort = name => repeatEntry(name) || name;
 
   // ------------------------------------------------------------------ geometry
   const rot = (p, a) => A.rotate(p, a || 0);
   function entryPoint(s, e) {
     const o = e.offset;
     return e.side === "right" ? [s.x + s.w, s.y + o] : e.side === "top" ? [s.x + o, s.y] : e.side === "bottom" ? [s.x + o, s.y + s.h] : [s.x, s.y + o];
+  }
+  // Wires on a sheet symbol's entries follow an edit that moves them, as in a move: capture
+  // before the edit, apply() after.
+  function entryWires(doc, defs, s, selected = new Set([s.id])) {
+    const was = doc ? (s.entries || []).map(e => [e, entryPoint(s, e)]) : [];
+    const edges = was.length ? A.schematicAttachments(doc, defs || new Map(), was.map(e => e[1]), selected) : null;
+    return {get affected() {return edges?.affected || [];}, finish:() => !!edges?.finish(), apply() {
+      const to = new Map(was.map(([e, at]) => [A.pointKey(at), entryPoint(s, e)]));
+      return edges ? edges.apply(at => {const p = to.get(A.pointKey(at)); return p && !A.same(p, at) ? p : null;}) : [];
+    }};
   }
   const entryAngle = side => ({left:0, right:180, top:90, bottom:270})[side] ?? 0;
   function busEntryEnd(i) {const s = i.size || GRID; return A.world([s, -s], i);}
@@ -292,14 +304,17 @@ globalThis.AtriumSchObjects = (() => {
   }
   // A resize session when `p` is on a grip of `i` (editor drag): move(p, grid), cancel().
   // Entries keep their place on the sheet while the far edges move and reflow when a side shrinks.
-  function resizeAt(i, p, tol) {
+  // Their wires on `doc` follow; changed: what the last move touched (null: it added a wire).
+  function resizeAt(i, p, tol, doc, defs) {
     if(globalThis.AtriumLabs?.notebookEnabled()===false && A.notebookItemKind(i))return null;
     const g = grips(i).find(q => Math.hypot(q.at[0] - p[0], q.at[1] - p[1]) <= tol);
     if (!g) return null;
     if (i.asset && i.angle && globalThis.AtriumNotebookImages) return AtriumNotebookImages.resizeAt(i,g);
     const was = {x:i.x, y:i.y, w:i.w, h:i.h, entries:(i.entries || []).map(e => ({...e}))};
     const fixed = [i.x + (1 - g.u) * i.w, i.y + (1 - g.v) * i.h], absolute = was.entries.map(e => entryPoint(was, e));
-    return {grip:g, move(q, grid = GRID) {
+    const wires = entryWires(doc, defs, i);
+    let changed = [i];
+    return {grip:g, get affected() {return [i, ...wires.affected];}, get changed() {return changed;}, finish:wires.finish, move(q, grid = GRID) {
       // The edges snap to the sheet grid; entries keep Altium's 2.54 mm pitch.
       const snap = v => Math.round((grid > 0 ? Math.round(v / grid) * grid : v) * 1e6) / 1e6, [mw, mh] = i.kind === "sheetsymbol" ? minSize(was) : [grid, grid];
       let x0 = was.x, x1 = was.x + was.w, y0 = was.y, y1 = was.y + was.h;
@@ -315,9 +330,10 @@ globalThis.AtriumSchObjects = (() => {
       if (i.entries) {
         i.entries.forEach((e, n) => {const a = absolute[n]; e.offset = r6(e.side === "left" || e.side === "right" ? a[1] - y0 : a[0] - x0);});
         reflow(i);
+        changed = wires.apply(); changed &&= [i, ...changed];
       }
       return i;
-    }, cancel() {Object.assign(i, {x:was.x, y:was.y, w:was.w, h:was.h}); if (i.entries) i.entries = was.entries;}};
+    }, cancel() {Object.assign(i, {x:was.x, y:was.y, w:was.w, h:was.h}); i.entries?.forEach((e, n) => Object.assign(e, was.entries[n])); wires.apply(); wires.finish();}};
   }
 
   // ------------------------------------------------------------------ validation
@@ -701,7 +717,7 @@ globalThis.AtriumSchObjects = (() => {
     return out.sort((a, b) => a.name.localeCompare(b.name, "en", {numeric:true}));
   }
   function layoutEntries(ports, existing = []) {
-    const have = new Set(existing.map(e => e.name)), sides = {left:[], right:[]};
+    const have = new Set(existing.map(e => entryPort(e.name))), sides = {left:[], right:[]};
     for (const e of existing) if (sides[e.side]) sides[e.side].push(e.offset);
     const out = [];
     for (const p of ports) {
@@ -714,7 +730,9 @@ globalThis.AtriumSchObjects = (() => {
   }
   // Grows the symbol to hold its entries; snug (placement, Fit to entries) sizes it to them exactly,
   // on the grid, no smaller than 4 x 3 grid units. A symbol without entries keeps its size.
+  // o.doc, o.defs: the symbol's sheet, whose wires follow the entries.
   function fitSymbol(s, o = {}) {
+    if (o.doc) {const w = entryWires(o.doc, o.defs, s); fitSymbol(s, {snug:o.snug}); w.apply(); w.finish(); return s;}
     const side = k => s.entries.filter(e => k.includes(e.side));
     const rows = Math.max(0, ...side(["left", "right"]).map(e => e.offset)), cols = Math.max(0, ...side(["top", "bottom"]).map(e => e.offset));
     const wide = k => Math.max(0, ...side([k]).map(e => textWidth(e.name, SIZE * .85) + 4));
@@ -726,23 +744,14 @@ globalThis.AtriumSchObjects = (() => {
   // Altium "Synchronize Sheet Entries and Ports": add entries for new child ports; report
   // entries that no longer match a port. Returns {added, unmatched}.
   function syncEntries(symbol, child, parent, defs = new Map()) {
-    const previous = parent ? symbol.entries.map(entry => [entry, entryPoint(symbol, entry)]) : [];
+    const wires = entryWires(parent, defs, symbol);
     const ports = portsOf(child), names = new Set(ports.map(p => p.name));
     const added = layoutEntries(ports, symbol.entries);
     symbol.entries.push(...added);
-    for (const e of symbol.entries) {const p = ports.find(q => q.name === e.name); if (p && e.io !== p.io && p.io !== "unspecified") e.io = p.io;}
+    for (const e of symbol.entries) {const p = ports.find(q => q.name === entryPort(e.name)); if (p && e.io !== p.io && p.io !== "unspecified") e.io = p.io;}
     fitSymbol(symbol);
-    const moved = new Map();
-    for (const [entry, at] of previous) {
-      const next = entryPoint(symbol, entry);
-      if (!A.same(at, next)) moved.set(A.pointKey(at), next);
-    }
-    if (moved.size) {
-      const attachments = A.schematicAttachments(parent, defs, previous.map(([, at]) => at), new Set([symbol.id]));
-      attachments.apply(at => moved.get(A.pointKey(at)));
-      attachments.finish();
-    }
-    return {added:added.map(e => e.name), unmatched:symbol.entries.filter(e => !names.has(e.name) && !names.has(repeatEntry(e.name))).map(e => e.name)};
+    wires.apply(); wires.finish();
+    return {added:added.map(e => e.name), unmatched:symbol.entries.filter(e => !names.has(entryPort(e.name))).map(e => e.name)};
   }
 
   // ------------------------------------------------------------------ editor tools
@@ -814,7 +823,7 @@ globalThis.AtriumSchObjects = (() => {
     addControls(panel, (ui, target) => ui.partParameters(target, part, def, c, toolHost), c.info);
   }
   return {floating, KINDS, POWER, POWER_TITLES, IO, offsheetIO:A.offsheetIO, SIDES, INK, COMMANDS, LABELS, isBus, busMembers, busWidth, busKind, busAlias, busNetworks,
-    isFrame, frameBounds, frameContents, grips, reflow, resizeAt, COMPONENT_KINDS, componentKind, notElectrical, repeatOf, repeatEntry, entryPoint, entryAngle, busEntryEnd,
+    isFrame, frameBounds, frameContents, grips, reflow, resizeAt, entryWires, entryPort, COMPONENT_KINDS, componentKind, notElectrical, repeatOf, repeatEntry, entryPoint, entryAngle, busEntryEnd,
     hotspots, netSources, portShape, box, hit, entryBox, entryAt, edgeAt, validateItem, draw, hops, hopPath, shownParams, drawParams, make, portsOf, layoutEntries,
     fitSymbol, syncEntries, handles, command, click, preview, finish, rotate, rotatable, rotateItem, cancel, active, dblclick, inspector,
     partParameters, directives, toolHost, owns:i => KINDS.has(i?.kind)};

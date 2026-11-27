@@ -30,10 +30,10 @@ globalThis.AtriumSchObjectInspector = (() => {
   // c: {edit, info, project(), doc(), units:{parse,value,unit}, selectDocument, choose}
   function inspector(s, item, c, {el, button, field = defaultField, descend, grid}) {
     const A = globalThis.Atrium;
-    const {POWER_TITLES, IO, SIDES, reflow, repeatOf, command, fitSymbol, make} = globalThis.AtriumSchObjects;
+    const {POWER_TITLES, IO, SIDES, reflow, repeatOf, command, fitSymbol, make, entryWires} = globalThis.AtriumSchObjects;
     const edit = fn => c.edit(fn), project = c.project();
     const len = (label, key, obj = item, min = 0) => {const input=field(s, label + " (" + c.unit() + ")", A.units.value(obj[key], c.unit()), v => {
-      const n = A.units.parse(v, c.unit()); if (!(n > min)) {c.info("Enter a length such as 0.25mm or 10mil."); return;} edit(() => {if (obj.widget && globalThis.AtriumSheetWidgets) {const [w,h]=AtriumSheetWidgets.size(obj.widget.type,key==="w"?n:obj.w,key==="h"?n:obj.h);obj.w=w;obj.h=h;} else obj[key]=n; if (obj.kind === "sheetsymbol") reflow(obj);});
+      const n = A.units.parse(v, c.unit()); if (!(n > min)) {c.info("Enter a length such as 0.25mm or 10mil."); return;} edit(() => {if (obj.widget && globalThis.AtriumSheetWidgets) {const [w,h]=AtriumSheetWidgets.size(obj.widget.type,key==="w"?n:obj.w,key==="h"?n:obj.h);obj.w=w;obj.h=h;} else if (obj.kind === "sheetsymbol") {const wires = entryWires(c.doc(), c.defs?.(), obj); obj[key]=n; reflow(obj); wires.apply(); wires.finish();} else obj[key]=n;});
     });
       globalThis.AtriumLazy?.numericField?.(input,{unit:c.unit(),storageUnit:"mm",nanometres:true,min:min+1e-6,
         locals:()=>globalThis.AtriumNumericFields.geometryLocals(item,c.doc().id),
@@ -68,7 +68,7 @@ globalThis.AtriumSchObjectInspector = (() => {
         const child = project.documents.find(d => d.id === item.sheet);
         const actions = el("div", null, "inspect-actions");
         if (child) actions.append(button("Open " + child.name, () => descend(item, null, c)), button("Sync entries", () => command("sch-sync-entries", {...c, selected:() => item})));
-        if (item.entries.length) actions.append(button("Fit to entries", () => edit(() => fitSymbol(item, {snug:true}))));
+        if (item.entries.length) actions.append(button("Fit to entries", () => edit(() => fitSymbol(item, {snug:true, doc:c.doc(), defs:c.defs?.()}))));
         else actions.append(button("Create child sheet", () => {
           const d = A.sheet("schematic", item.name.replace(/^U_/, "") || "Sheet");
           item.entries.forEach((e, n) => d.items.push(make("port", [0, n * grid * 2], {text:e.name, io:e.io})));

@@ -1815,7 +1815,7 @@
     const frameOnly=(e.ctrlKey||e.metaKey)&&globalThis.AtriumSchObjects?.isFrame(hit);
     if(frameOnly && selectedIds.size>1)choose(hit.id);
     // Schematic: a grip of the selected rectangle resizes it.
-    const resize=!pcb()&&selectedIds.size===1&&selectedIds.has(hit.id)&&globalThis.AtriumSchObjects?.resizeAt?.(hit,p,6/view.scale());
+    const resize=!pcb()&&selectedIds.size===1&&selectedIds.has(hit.id)&&globalThis.AtriumSchObjects?.resizeAt?.(hit,p,6/view.scale(),doc(),defs);
     const copy=e.pointerType==="touch"&&e.ctrlKey&&globalThis.AtriumLabs?.notebookEnabled()!==false&&globalThis.AtriumTouchPrecision;
     if(resize&&!e.shiftKey&&!copy&&!frameOnly){drag={kind:"resize",id:e.pointerId,item:hit,start:s,resize,before:null};info("Drag to size. Escape cancels.");return;}
     if(e.shiftKey){
@@ -1892,7 +1892,7 @@
     if(drag?.kind==="copy"&&(drag.copy.plan||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3))drag.copy.move(p);
     if(drag?.kind==="resize"&&(drag.before||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3)){
       if(!drag.before)drag.before=snapshot();
-      drag.resize.move(p,touchFree()?0:doc().grid);invalidateViews(doc(),[drag.item]);
+      drag.resize.move(p,touchFree()?0:doc().grid);invalidateViews(doc(),drag.resize.changed===undefined?[drag.item]:drag.resize.changed);
       info("Size "+len(drag.item.w)+" × "+len(drag.item.h));
     }
     if(drag?.kind==="text"&&(drag.before||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3)){
@@ -1949,7 +1949,7 @@
   // Include earlier mirror positions and their attached wires, even after the translation was restarted.
   function dragHint(plan,follow,r){
     if(pcbEdit&&!r||!drag.resize&&!drag.segment&&!drag.translation)return;
-    const items=drag.resize?[drag.item]:drag.segment?[drag.item,...(drag.segment.followers||[]).map(f=>f.wire)]:[...drag.translation.affected];
+    const items=drag.resize?drag.resize.affected||[drag.item]:drag.segment?[drag.item,...(drag.segment.followers||[]).map(f=>f.wire)]:[...drag.translation.affected];
     return {doc:doc(),items:[...items,...(drag.mirrorItems||[]),...planItems(plan),...follow],library:!!(drag.flipLibrary||r?.mirrors?.length)};
   }
   function planItems(plan){const ids=new Set((plan?.modify||[]).map(m=>m.id));return ids.size?doc().items.filter(i=>ids.has(i.id)):[];}
@@ -1978,6 +1978,7 @@
       }else{
         let routed=null,follow=[];
         if(drag.reroute){try{const plan=drag.reroute.commit();if(plan.modify.length||plan.add.length||plan.remove.length){AtriumRouter.apply(doc(),plan);routed=plan;}if(plan.message)info(plan.message);}catch(error){info(error.message);routed=false;}}
+        if(drag.resize?.finish?.())invalidateViews(doc());
         if(!drag.segment&&drag.translation){
           if(drag.translation.finish())invalidateViews(doc());
           follow=followDesignators(drag.translation.affected.filter(i=>i.kind==="part").map(i=>i.id));
