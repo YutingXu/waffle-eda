@@ -2900,38 +2900,67 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // The wide copy for the camera (cx, cy, scale), on a canvas of its own, in idle slices (textSlices): glyphs
   // there may differ slightly from the view's, which only a moving frame shows.
   function wideLayers(I, st, doc, defs, opts, list, cx, cy, scale) {
-    const E = st.exact, W = I.canvas.width, H = I.canvas.height, forKey = st.text.key, forOverlay = !!st.overlayWorld;
+    const E = st.exact, forKey = st.text.key, forOverlay = !!st.overlayWorld, c = wideCanvas(I, st);
+    textSlices(I, st, doc, defs, opts, list, "wideText", [cx, cy, scale], c, (T, V) => {
+      if (st.exact !== E || st.text.key !== forKey) { if (T) for (const b of T.bands || []) st.gl.deleteTexture(b.tex); return; }
+      publishWide(I, st, doc, defs, opts, c, E, forKey, forOverlay, cx, cy, scale, T, V);
+    });
+  }
+  function wideCanvas(I, st) {
     let c = st.wideCanvas;
     if (!c) {
       c = st.wideCanvas = G.document.createElement("canvas");
       st.wideCanvasPublished = false;
     }
-    G.AtriumCanvas.resizeBacking(c,W,H);
-    textSlices(I, st, doc, defs, opts, list, "wideText", [cx, cy, scale], c, (T, V) => {
-      if (st.exact !== E || st.text.key !== forKey) { if (T) for (const b of T.bands || []) st.gl.deleteTexture(b.tex); return; }
-      const old = st.wide, keep = I.ctx, overlayKeep = st.overlayWorld, overlayView = st.overlayV;
-      st.wide = null;
-      if (old && old.text !== T) for (const b of old.text.bands || []) st.gl.deleteTexture(b.tex);
-      try {
-        I.ctx = c.getContext("2d");
-        st.overlayWorld = old?.overlay || null;
-        // The wide overlay belongs to the bands completed by this job.
-        I.withCamera(cx, cy, scale, () => overlayWorld(I, st, doc, defs, opts, I.cam(), V, false, T));
-        // Retained zoom reads the bands and copied overlay; only exact text paints strips.
-        if (T) T.canvas = T.ctx = T.strip = null;
-        st.wide = {...E, cx, cy, scale, text: T || {key: null}, overlay: st.overlayWorld, forKey, forOverlay};
-      } finally {
-        I.ctx = keep; st.overlayWorld = overlayKeep; st.overlayV = overlayView;
-      }
-      // Give back the initial idle backing once. A later build reuses the regrown canvas,
-      // even if GPU pressure has discarded the prior wide textures.
-      if (st.wideCanvas === c && !st.wideCanvasPublished) {
-        st.wideCanvasPublished = true;
-        if (!old && !st.wideText) c.width = 0;
-      }
-      st.checkMemory = true;
-      st.stats.wideBuilds = (st.stats.wideBuilds || 0) + 1;
-    });
+    G.AtriumCanvas.resizeBacking(c, I.canvas.width, I.canvas.height);
+    return c;
+  }
+  function publishWide(I, st, doc, defs, opts, c, E, forKey, forOverlay, cx, cy, scale, T, V) {
+    const old = st.wide, keep = I.ctx, overlayKeep = st.overlayWorld, overlayView = st.overlayV;
+    st.wide = null;
+    if (old && old.text !== T) for (const b of old.text.bands || []) st.gl.deleteTexture(b.tex);
+    try {
+      I.ctx = c.getContext("2d");
+      st.overlayWorld = old?.overlay || null;
+      // The wide overlay belongs to the bands completed by this job.
+      I.withCamera(cx, cy, scale, () => overlayWorld(I, st, doc, defs, opts, I.cam(), V, false, T));
+      // Retained zoom reads the bands and copied overlay; only exact text paints strips.
+      if (T) T.canvas = T.ctx = T.strip = null;
+      st.wide = {...E, cx, cy, scale, text: T || {key: null}, overlay: st.overlayWorld, forKey, forOverlay};
+    } finally {
+      I.ctx = keep; st.overlayWorld = overlayKeep; st.overlayV = overlayView;
+    }
+    // Give back the initial idle backing once. A later build reuses the regrown canvas,
+    // even if GPU pressure has discarded the prior wide textures.
+    if (st.wideCanvas === c && !st.wideCanvasPublished) {
+      st.wideCanvasPublished = true;
+      if (!old && !st.wideText) c.width = 0;
+    }
+    st.checkMemory = true;
+    st.stats.wideBuilds = (st.stats.wideBuilds || 0) + 1;
+  }
+  // A gesture frame zooming out past every retained source. An exact frame for the live camera covers
+  // only that camera, so each following outward step would need another; prepare the layers for twice
+  // the area at once instead, as the idle wide copy does. Later outward steps scale them until they are
+  // exhausted: one build per halving of the scale rather than one per gesture frame.
+  function wideNow(I, st, doc, defs, opts, list, cx, cy, scale) {
+    const E = st.exact, forKey = st.text.key, forOverlay = !!st.overlayWorld, c = wideCanvas(I, st);
+    const W = c.width, H = c.height, keep = I.ctx, T = {key: null};
+    cancelWide(st);
+    let painted = null, V = null;
+    try {
+      I.ctx = c.getContext("2d");
+      I.withCamera(cx, cy, scale, () => {
+        const cam = I.cam();
+        V = scope(I, st, doc, defs, opts, cam, list, false);
+        painted = textLayer(I, st, doc, defs, opts, cam, V, list, T, [0, 0, W, H]);
+      });
+    } catch (e) {
+      for (const b of T.bands || []) st.gl.deleteTexture(b.tex);
+      throw e;
+    } finally { I.ctx = keep; }
+    if (!painted) for (const b of T.bands || []) st.gl.deleteTexture(b.tex);
+    publishWide(I, st, doc, defs, opts, c, E, forKey, forOverlay, cx, cy, scale, painted ? T : null, V);
   }
   // After an exact frame, once the view has been still for 250 ms (never during a drag or gesture).
   function scheduleWide(I, st, doc, defs, opts, list) {
@@ -3270,6 +3299,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           if (wide && (!L || Math.abs(wide.scale - scale) < Math.abs(E.scale - scale)) &&
               wideFits(st, E, doc, c.rev, list) &&
               covers(wide, cx, cy, scale, flipped, width, height, !wide.text.pours && artworkBounds)) L = wide;
+          // A gesture frame, not the settling one: that frame is exact for its camera anyway.
+          if (!L && gesture && !settling && sized && scale < E.scale && I.canvas?.isConnected && !opts.transientGeometry) {
+            wideNow(I, st, doc, defs, opts, list, cx, cy, scale * .5);
+            if (!memory(I, st, doc)) return false;
+            const w = st.wide;
+            if (wideFits(st, E, doc, c.rev, list) && covers(w, cx, cy, scale, flipped, width, height, !w.text.pours && artworkBounds)) L = w;
+          }
         }
         if (L) {
           const k = scale / L.scale, f = flipped ? -1 : 1, LT = L.text;

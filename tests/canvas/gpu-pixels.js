@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, panStripUpload, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds, pourCoverageLod};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, panStripUpload, drcMarkerPan, earlySettle, zoomOutGesture, terminalOverlay, pourCoverageBounds, pourCoverageLod};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -956,6 +956,13 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     if (!row.moved || !row.sharpening || !row.retained || !row.markerDrawn || !row.appearanceExact || row.appearanceMismatch || !row.hiddenPixels)
       failLifecycle("earlySettle", JSON.stringify(row));
     else okLifecycle("earlySettle", "early repaint draws the marker over the retained zoom and hiding silk draws the new appearance");
+  }
+
+  function zoomOutGesture() {
+    const row = gpuZoomOutGesture(GPU());
+    if (row.fullFrames || !row.builds || row.builds > row.limit || !row.exactInk || row.unmatched > .03)
+      failLifecycle("zoomOutGesture", JSON.stringify(row));
+    else okLifecycle("zoomOutGesture", `${row.frames} outward gesture frames scaled retained layers, with ${row.builds} wider builds and ${(row.unmatched * 100).toFixed(2)}% of exact pixels unmatched`);
   }
 
   async function terminalOverlay() {
@@ -2110,6 +2117,52 @@ function gpuEarlySettle(GPU) {
       sharpening:motion.counters.slicing, retained:!early.counters.exactCamera && !differentBytes(motion.pixels, early.pixels),
       markerDrawn, appearanceExact:appearance.counters.exactCamera, appearanceMismatch:differentBytes(appearance.pixels,coldHidden.pixels),
       hiddenPixels:differentPixels(coldHidden.pixels,coldVisible.pixels,48)};
+  } finally {
+    view.dispose(); canvas.remove();
+  }
+}
+
+// A continuous zoom out (a trackpad pinch: many small steps) reveals area that no retained layer
+// holds. Each step must not redraw the exact layers for its camera. The renderer prepares twice the
+// area at once and scales it, so an 8x zoom out needs about one build per halving of the scale.
+function gpuZoomOutGesture(GPU) {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:320px;height:200px";
+  document.body.append(canvas);
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map();
+  const doc = Atrium.sheet("pcb", "Continuous zoom out");
+  doc.outline = [[-160,-100],[160,-100],[160,100],[-160,100]];
+  for (let x = -150; x <= 150; x += 25) for (let y = -100; y <= 100; y += 20)
+    doc.items.push({kind:"label",id:`l${x},${y}`,layer:"Silk",x,y,size:4,width:.5,text:"SILK"});
+  const opts = {editorPane:true, grid:false, origin:false, showUnrouted:false};
+  const pixels = () => {
+    const image = GPU.composite(I);
+    if (!image) throw Error("zoom out needs an actual GPU frame");
+    return image.getContext("2d").getImageData(0,0,image.width,image.height).data;
+  };
+  try {
+    view.restoreCamera({cx:0,cy:0,scale:24,referenceScale:24});
+    view.render(doc, defs, {...opts, noReuse:true});
+    const before = GPU.resourceCounters(I), builds = GPU.stats(I).wideBuilds || 0, steps = 20;
+    for (let i = 0; i < steps; i++) { view.zoom(.9); view.moving(); view.render(doc, defs, opts); }
+    const after = GPU.resourceCounters(I), moving = pixels();
+    view.settle(); view.render(doc, defs, {...opts, noReuse:true});
+    const exact = pixels(), w = canvas.width, h = canvas.height, background = exact.slice(0, 4);
+    // Exact pixels with no gesture pixel within one pixel and 64 levels: lettering the scaled layers lost.
+    // Resampling only softens and shifts edges by a pixel.
+    let unmatched = 0, exactInk = 0;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const k = (y * w + x) * 4;
+      if (rgbDifference(exact, background, k, 0) > 64) exactInk++;
+      let near = false;
+      for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1 && !near; dx++) near = rgbDifference(exact, moving, k, k + (dy * w + dx) * 4) <= 64;
+      if (!near) unmatched++;
+    }
+    const frames = after.frames - before.frames;
+    return {frames, fullFrames:frames - (after.retainedFrames - before.retainedFrames),
+      builds:(GPU.stats(I).wideBuilds || 0) - builds, limit:Math.ceil(Math.log2(1 / Math.pow(.9, steps))) + 1,
+      exactInk, unmatched:+(unmatched / ((w - 2) * (h - 2))).toFixed(4)};
   } finally {
     view.dispose(); canvas.remove();
   }
