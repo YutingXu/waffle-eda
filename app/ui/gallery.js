@@ -13,8 +13,6 @@ globalThis.AtriumUIGallery = (() => {
     const s = K().el("div", "ui-gallery-specimen"), cap = K().el("span", "ui-gallery-caption", label), box = K().el("div", "ui-gallery-stage");
     box.append(...nodes); s.append(cap, box); return s;
   };
-  // Rows as a docked panel lays them out (data-prop-fill): controls fill the value column, values stay on one line.
-  const filled = s => { s.lastElementChild.dataset.propFill = ""; return s; };
   const family = (id, title, note, ...specimens) => {
     const s = K().section(title, {note, level: 2}, ...specimens);
     s.id = "ui-" + id; s.classList.add("ui-gallery-family"); s.dataset.family = id;
@@ -246,15 +244,15 @@ globalThis.AtriumUIGallery = (() => {
       family("prop-row", "Property rows", "Caption and value side by side; Properties, inspectors and settings.",
         specimen("Rows", k.propRow("Designator", k.field({value: "U3", label: "Designator"})), k.propRow("Width", k.field({type: "number", value: "0.2", unit: "mm", label: "Width"})),
           k.propRow("Locked", k.switchRow("", {checked: true})), k.propRow("Package", "SOT-23-5"), k.propRow("Value", AtriumNavCommon.elWithAttributes("input", null, "ui-field", {value:"1k2k", "aria-label":"Value", "data-edit-rejected":""}), {error: "Not a resistance"})),
-        filled(specimen("Unit inside the field", k.propRow("X", k.field({value: "18.5", unit: "mm", label: "X (mm)"})), k.propRow("Rotation", k.field({value: "90", unit: "°", label: "Rotation (°)"})),
+        specimen("Unit inside the field", k.propRow("X", k.field({value: "18.5", unit: "mm", label: "X (mm)"})), k.propRow("Rotation", k.field({value: "90", unit: "°", label: "Rotation (°)"})),
           k.propRow("Height", k.field({placeholder: "Library", unit: "mm", label: "3D height (mm)"})), k.propRow("Width", k.field({value: "0", unit: "mm", invalid: true, label: "Width (mm)"})),
-          k.propRow("Gap", k.field({value: "0.2", unit: "mm", disabled: true, label: "Gap (mm)"})))),
-        filled(specimen("Segmented", k.propRow("Side", k.segmented(["Top", "Bottom"], {value: "Top", label: "Side"})))),
+          k.propRow("Gap", k.field({value: "0.2", unit: "mm", disabled: true, label: "Gap (mm)"}))),
+        specimen("Segmented", k.propRow("Side", k.segmented(["Top", "Bottom"], {value: "Top", label: "Side"}))),
         specimen("Switch at column start", ...[["Designator", true], ["Comment", false]].map(([caption, checked]) => {
           const row = k.switchRow("", {checked}); row.querySelector("input").setAttribute("aria-label", "Show " + caption.toLowerCase()); row.firstElementChild.remove();
           return k.propRow(caption, row);
         })),
-        filled(specimen("Truncated value", k.propRow("Library", "Waffle standard parts · passive components · thick-film chip resistors, 0402")))),
+        specimen("Truncated value", k.propRow("Library", "Waffle standard parts · passive components · thick-film chip resistors, 0402", {clip: true}))),
       family("row", "List and tree rows", "One row shape for lists and trees: icon, title, detail, meta, actions on hover.",
         specimen("List", k.list([
           k.row({title: "Sensor board", icon: "board", detail: "PCB · Saved 2 min ago", meta: "v12"}),

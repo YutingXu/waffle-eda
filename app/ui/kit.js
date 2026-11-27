@@ -266,10 +266,11 @@ globalThis.AtriumUIKit = (() => {
   }
   /** A property row: caption and value or control. A string value is read-only text: one line, with the
    *  full text as the row's tooltip. A field (with or without its unit) makes the row its label. */
-  function propRow(caption, value, {error, stacked} = {}) {
+  function propRow(caption, value, {error, stacked, clip} = {}) {
     const control = typeof value === "string" ? el("span", "ui-prop-value ui-selectable", value) : value;
     const row = el(control instanceof HTMLElement && control.matches("input,select,textarea,.ui-field-measure") ? "label" : "div", "ui-prop-row");
     if (stacked) row.dataset.stacked = "";
+    if (clip) row.dataset.clip = "";
     if (typeof value === "string") row.title = value;
     row.append(el("span", null, caption), control);
     if (error) { const e = el("span", "ui-prop-error", error); row.append(e); control.setAttribute?.("aria-invalid", "true"); }

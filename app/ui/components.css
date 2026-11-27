@@ -211,18 +211,19 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
   min-block-size:calc(var(--field-height) + 2 * var(--s-2));align-content:center;padding-block:var(--s-2);
 }
 :is(.ui-prop-row) > :where(:first-child) {min-inline-size:0;overflow-wrap:anywhere;color:var(--muted);font-size:var(--fs-12)}
-/* Every control and read-only value starts on the value column. */
+/* One value column: every control and read-only value starts on it. Read-only text is inset to line up with
+   the text inside fields. It wraps; a row of short values sets data-clip to keep it on one line (the row
+   carries the full text as a tooltip). */
 :is(.ui-prop-row) > :is(.ui-prop-value) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+:is(.ui-prop-row):not([data-stacked]) > :is(.ui-prop-value) {padding-inline-start:calc(var(--s-8) + 1px)}
+:is(.ui-prop-row)[data-clip] > :is(.ui-prop-value) {white-space:nowrap}
 :is(.ui-prop-row):has(> :is(.ui-switch-row,input[type=checkbox])) {align-items:center}
 :is(.ui-prop-row)[data-stacked] {grid-template-columns:minmax(0,1fr);row-gap:var(--s-2)}
 :is(.ui-prop-row) > :is(.ui-prop-error) {grid-column:2;color:var(--error);font-size:var(--fs-11)}
-/* A docked panel of rows (data-prop-fill on the panel, as Properties has): boxed controls fill the value
-   column, so their end edges line up too, and a read-only value stays on one line (its row carries the full
-   text as a tooltip), inset to line up with the text inside fields. Dialog rows keep their widths and wrap. */
-:is([data-prop-fill]) :is(.ui-prop-row) > :is(input.ui-field,select.ui-field,textarea.ui-field) {inline-size:100%;min-inline-size:0}
-:is([data-prop-fill]) :is(.ui-prop-row) > :is(.ui-segmented) {display:flex}
-:is([data-prop-fill]) :is(.ui-prop-row) > :is(.ui-segmented) > :is(.ui-segment) {flex:1 1 0;min-inline-size:0}
-:is([data-prop-fill]) :is(.ui-prop-row) > :is(.ui-prop-value) {white-space:nowrap;padding-inline-start:calc(var(--s-8) + 1px)}
+/* Boxed controls fill the value column, so their end edges line up too. */
+:is(.ui-prop-row) > :is(input.ui-field,select.ui-field,textarea.ui-field) {inline-size:100%;min-inline-size:0}
+:is(.ui-prop-row) > :is(.ui-segmented) {display:flex}
+:is(.ui-prop-row) > :is(.ui-segmented) > :is(.ui-segment) {flex:1 1 0;min-inline-size:0}
 /* A number keeps its unit inside the field's box, at the trailing edge. Only in property rows: a
    .ui-field-measure elsewhere keeps the unit beside the field. The box carries the field's face and states
    (controls.css › disabled and read-only fields), so the input inside stays clear. */
