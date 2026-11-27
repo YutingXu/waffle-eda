@@ -66,6 +66,9 @@ globalThis.atriumCanvasDamage = async function () {
   }
   const rect = (x0,y0,x1,y1) => [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
   try {
+    const epochs = atriumCanvasPourEpoch();
+    failures.push(...epochs.failures);
+    cases.push(...epochs.cases);
     const zoom = await atriumCanvasViaMarkZoom();
     failures.push(...zoom.failures);
     cases.push(...zoom.cases);
@@ -456,6 +459,100 @@ globalThis.atriumCanvasDamage = async function () {
   } finally {
     U.reset(); AtriumPower.setMode(efficient); globalThis.AtriumCanvasFast = original;
   }
+};
+
+
+// Make a real idle pour publication while three editor views keep their backing frames.
+globalThis.atriumCanvasPourEpoch = function () {
+  const P = AtriumPCBPours, defs = new Map(), cases = [], failures = [];
+  const opts = {reuseBase:true, grid:false, layer:"Top", origin:false};
+  const board = Atrium.sheet("pcb", "Pour epoch");
+  board.items = Array.from({length:320}, (_, i) => ({id:"t"+i,kind:"track",layer:"Top",width:.14,
+    points:[[9+i%20*.7,4+Math.floor(i/20)*.65],[9.5+i%20*.7,4+Math.floor(i/20)*.65]]}));
+  board.outline = [[0,0],[32,0],[32,18],[0,18]];
+  const holes = Array.from({length:32}, (_, i) => Array.from({length:96}, (_, n) => {
+    const a = n * Math.PI / 48;
+    return [2+i%8*4+1.1*Math.cos(a),2+Math.floor(i/8)*4+1.1*Math.sin(a)];
+  }));
+  const pours = [P.region([board.outline,...holes], "Top", "GND")];
+  board.pcbDrawing = {pours};
+  board.sourcePourSignature = P.signature(board, defs);
+  const sheet = Atrium.sheet("schematic", "Unaffected sheet");
+  sheet.items = board.items.map(t => ({id:t.id,kind:"wire",points:t.points}));
+  const views = [], idle = globalThis.AtriumIdle, jobs = [];
+  globalThis.AtriumIdle = {idle: fn => jobs.push(fn), cancel() {}};
+  const here = (doc, k, flipped = false) => {
+    const c = document.createElement("canvas");
+    c.style.cssText = "display:block;width:360px;height:260px";
+    document.body.append(c);
+    const ctx = c.getContext("2d"), view = AtriumCanvas.create(c);
+    const fill = ctx.fillRect, copy = ctx.drawImage;
+    let repaints = 0, copies = 0;
+    ctx.fillRect = function (...args) { repaints++; return fill.apply(this,args); };
+    ctx.drawImage = function (...args) { copies++; return copy.apply(this,args); };
+    view.restoreCamera({cx:16,cy:9,scale:k/devicePixelRatio,referenceScale:16,flipped});
+    const pixels = () => ctx.getImageData(0,0,c.width,c.height).data;
+    const paint = (draw = opts) => {
+      repaints = copies = 0;
+      const reused = view.render(doc,defs,draw) === true;
+      return {reused,repaints,copies};
+    };
+    views.push({view,c});
+    return {view, paint, pixels};
+  };
+  const changed = (a, b) => a.reduce((sum,value,n) => sum + Number(value !== b[n]),0);
+  try {
+    const check = (name, pass, info) => {
+      cases.push({name,...info});
+      if (!pass) failures.push(name);
+    };
+    const version = P.lod.version;
+    const scenes = [["PCB stored rings",board,16,true], ["Schematic",sheet,4,false], ["PCB low LOD",board,4,false]];
+    const states = scenes.map(([name,doc,k,flipped]) => {
+      const scene = here(doc,k,flipped);
+      scene.paint();
+      const warm = scene.paint();
+      check(name+" caches before the publication", warm.reused && !warm.repaints && warm.copies === 1, warm);
+      return {scene, start:scene.pixels()};
+    });
+    const I = states[0].scene.view.internals(), keyOf = AtriumCanvasFast.keyOf;
+    const overview = keyOf(I,board,defs,opts,[]);
+    const keyAt = P.lod.keyAt;
+    const withoutAccessor = () => {
+      try { delete P.lod.keyAt; return keyOf(I,board,defs,opts); }
+      finally { P.lod.keyAt = keyAt; }
+    };
+    const older = withoutAccessor();
+    for (let n=0; n<24 && jobs.length && P.lod.version===version; n++) jobs.shift()({timeRemaining:() => 12});
+    check("A real low-LOD pour finishes in idle", P.lod.version>version, {versionBefore:version,versionAfter:P.lod.version});
+    check("2D overview and older pour APIs keep the publication epoch", changed(overview,keyOf(I,board,defs,opts,[])) &&
+      changed(older,withoutAccessor()), {});
+    scenes.forEach(([name,doc,k,flipped], i) => {
+      const {scene,start} = states[i], low = i === 2;
+      const activity = scene.paint(), actual = scene.pixels();
+      const reference = here(doc,k,flipped);
+      reference.paint({...opts,noReuse:true});
+      const diff = changed(actual,reference.pixels()), moved = changed(actual,start);
+      check(name+" after the publication matches fresh pixels", !diff && (low ? moved>0 && !activity.reused && activity.repaints>0 :
+        !moved && activity.reused && !activity.repaints && activity.copies===1), {...activity,diff,moved});
+    });
+    const exact = states[0].scene, visible = exact.pixels();
+    const hidden = {...opts,hidden:new Set(["Source pours"])};
+    const activity = exact.paint(hidden), reference = here(board,16,true);
+    reference.paint({...hidden,noReuse:true});
+    const diff = changed(exact.pixels(),reference.pixels()), moved = changed(exact.pixels(),visible);
+    check("Changing pour visibility still repaints stored rings", !activity.reused && !diff && moved>0, {...activity,diff,moved});
+    const beforeEdit = exact.pixels(), track = board.items[0];
+    track.points = track.points.map(([x,y]) => [x,y+.3]);
+    exact.view.invalidate(board,[track]);
+    exact.paint(hidden); reference.paint({...hidden,noReuse:true});
+    const edited = exact.pixels(), editDiff = changed(edited,reference.pixels()), editMoved = changed(edited,beforeEdit);
+    check("A PCB edit under the stored-rings key still paints new geometry", !editDiff && editMoved>0, {diff:editDiff,moved:editMoved});
+  } finally {
+    for (const {view,c} of views) { view.dispose(); c.remove(); }
+    P.release(pours,[]); globalThis.AtriumIdle = idle;
+  }
+  return {cases,failures};
 };
 
 

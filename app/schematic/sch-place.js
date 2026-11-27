@@ -418,9 +418,44 @@ globalThis.AtriumSchPlace = (() => {
     return true;
   }
 
+  function mirrorCommand(action,{doc,defs,pcb,tool,pending,paste,drag,movingObject,pointer,selection,ghostAngle,
+    setGhostAngle,edit,invalidateViews,makeTranslation,draw,info}) {
+    const axis = action === "mirror-x" ? "x" : "y", word = axis === "x" ? "horizontally" : "vertically";
+    if (pcb()) {info("Mirror X/Y is for schematics. On boards, L flips a component to the other side."); return;}
+    if (tool === "place" && pending) {setGhostAngle(mirrorGhost(axis,ghostAngle)); info("Mirrored " + word + "."); draw(); return;}
+    if (tool === "sch-place") {info(mirrorFloating(axis) ? "Mirrored " + word + "." : "This object does not mirror."); draw(); return;}
+    if (tool === "paste" && paste) {
+      mirrorItems({kind:"schematic",grid:doc().grid,items:paste.items},paste.defs,new Set(paste.items.map(item => item.id)),axis,[0,0]);
+      paste.bounds = Atrium.docBounds({...doc(),outline:[],items:paste.items},paste.defs);
+      draw();
+      return;
+    }
+    if (drag?.kind === "move" && drag.before && !drag.segment) {
+      const touched = drag.mirrorItems ??= new Set();
+      for (const item of drag.translation.affected) touched.add(item);
+      drag.translation.apply(0,0);
+      drag.translation.finish();
+      mirrorItems(doc(),defs(),selection,axis,drag.anchor,touched,{avoidPinShorts:true});
+      invalidateViews(doc());
+      drag.lastDelta = null;
+      drag.translation = makeTranslation(drag.frameOnly);
+      if (pointer) drag.translation.apply(...drag.anchor.map((v,k) => Atrium.snap(v+pointer[k]-drag.origin[k],doc().grid)-v));
+      invalidateViews(doc());
+      info("Mirrored " + word + ".");
+      draw();
+      return;
+    }
+    const ids = tool === "move-object" && movingObject ? new Set([movingObject.item.id]) : selection;
+    if (!ids.size) {info("Select parts, wires or graphics to mirror. While placing or dragging, press X or Y."); return;}
+    const touched = new Set();
+    let count = 0;
+    edit(() => {count = mirrorItems(doc(),defs(),ids,axis,undefined,touched,{avoidPinShorts:true});},undefined,touched);
+    info(count ? count + (count === 1 ? " object" : " objects") + " mirrored " + word + "." : "Nothing in the selection mirrors.");
+  }
+
   return Object.freeze({prefs, setPrefs, toggleAutoIncrement, increment, nextFree, prefixOf, refsIn, beginPart, ghostPart, decorate, setTemplate, mirrorGhost,
     power, powerStyleFor, unusedPins, noErcUnused, noErcCommand, lastName, placed, labelGhost, placeLabel, label:() => label, setLabel:t => {label = String(t);}, POWER_PRESETS,
-    mirrorItems, mirrorFloating, popover, closePopover:() => closePopover(null, false), isOpen:() => !!pop?.isConnected});
+    mirrorItems, mirrorFloating, mirrorCommand, popover, closePopover:() => closePopover(null, false), isOpen:() => !!pop?.isConnected});
 })();
 // Edit › Auto-increment toggle, registered once the navigation host exists.
 globalThis.AtriumNavHost?.registerAction?.("sch-auto-increment", () => {
