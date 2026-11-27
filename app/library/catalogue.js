@@ -752,7 +752,11 @@ globalThis.AtriumCatalogue = (() => {
   function preview(host, def, o = {}) {
     cancelPreview(host);
     const box = el("div", null, "cat-pv"); box.dataset.def = def?.id || "";
-    if (!def) { box.append(el("p", o.choosePackage ? "Choose a package." : "Choose a component to preview.", "cat-none")); host.append(box); return box; }
+    if (!def) {
+      const text = o.choosePackage ? "Choose a package." : "Choose a component to preview.";
+      box.append(globalThis.AtriumUIKit ? AtriumUIKit.empty({text}) : el("p", text, "ui-empty"));
+      host.append(box); return box;
+    }
     const r = rec(def);
     if (o.title !== false) {
       const t = el("div", null, "cat-pv-title");

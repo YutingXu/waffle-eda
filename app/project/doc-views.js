@@ -5,7 +5,10 @@
 // in that pane shows the canvas again; the view keeps its tab until it is closed (its ×, a middle click, or Delete
 // on the focused tab). One view per id; opening an open view shows it. A view's canClose() is asked first when
 // the user closes its tab: false keeps the tab (an editor with unsaved changes asks, then closes itself).
-// close(id) always closes, as on a project switch. showCanvas() hides the views over the active pane's canvas.
+// close(id) always closes. A project switch (the nav host's "replace") closes every view here, without asking:
+// a view or an editor draft built for the old project must not act on the next one (a Save would write the part
+// into it). The host marks a replace that keeps the same project ({sameProject:true}: an undo-tree branch switch,
+// a workspace window's mirror refresh), and the views stay. showCanvas() hides the views over the active pane's canvas.
 //
 //   AtriumDocViews.open(id, {title, icon?, mount(el), onClose?, canClose?}) -> the view's element (mount runs once)
 //   AtriumDocViews.show(id) / hide(id) / close(id) / isOpen(id) / decorate() / showCanvas()
@@ -167,6 +170,7 @@ globalThis.AtriumDocViews = (() => {
     G.AtriumNavCommon?.ready?.(h => {
       h.on?.("document", () => { showCanvas(); decorate(); });
       h.on?.("panes", decorate);
+      h.on?.("replace", detail => { if (!detail?.sameProject) for (const id of [...views.keys()]) close(id); });
     });
   }
   return Object.freeze({open, show, hide, close, decorate, showCanvas, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});

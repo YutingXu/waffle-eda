@@ -129,9 +129,10 @@ globalThis.AtriumLibrarySourcesUI = (() => {
     const k = globalThis.AtriumUIKit, el = ui().el, rec = S().folders().find(f => f.id === lib.folder), r = lib.report || {};
     const box = el("div", null, "lib-folder");
     const rows = [];
-    const add = (caption, v) => { if (v !== "" && v != null) rows.push(k ? k.propRow(caption, String(v)) : el("p", caption + ": " + v)); };
-    add("Folder", rec?.root || lib.path || "—");
-    add("Components", lib.defs.length.toLocaleString("en"));
+    // A path or a count stays on one line (its full text in the tooltip); a summary or a sentence wraps.
+    const add = (caption, v, clip = false) => { if (v !== "" && v != null) rows.push(k ? k.propRow(caption, String(v), {clip}) : el("p", caption + ": " + v)); };
+    add("Folder", rec?.root || lib.path || "—", true);
+    add("Components", lib.defs.length.toLocaleString("en"), true);
     if (r.paired || r.symbolOnly || r.footprintOnly) add("Paired", n(r.paired || 0, "symbol") + " with footprints · " + (r.symbolOnly || 0) + " symbol only · " + n(r.footprintOnly || 0, "footprint") + " only");
     if (lib.stats) add("Last scan", summary(lib, lib.stats));
     if (lib.offline) add("Files", "Not read in this session. Rescan to read the folder again.");

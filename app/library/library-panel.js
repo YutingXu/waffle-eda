@@ -1281,16 +1281,24 @@ globalThis.AtriumLibrary = (() => {
       wrap._isTab = true;
       return wrap;
     },
+    // An editor tab asked for (asTab) that is already open: shown, and its editor returned, so open() builds no
+    // second editor. A modal open (the dock, the wizard's "Open in Footprint Editor" with a new draft) still builds.
+    showOpenTab(tabId, asTab) {
+      const V = globalThis.AtriumDocViews;
+      if (!asTab || !V?.isOpen(tabId)) return null;
+      V.show(tabId);
+      return document.getElementById("doc-view-" + tabId)?.querySelector(":scope > dialog")?.editor || {};
+    },
     showSurface(surface) {
       if (!surface._isTab) { ui.show(surface); return; }
       const V = globalThis.AtriumDocViews, id = surface._tabId;
-      if (V.isOpen(id)) { V.show(id); return; } // this def's editor is already open
+      // The editors ask showOpenTab first; an editor built anyway releases its canvas input (on "close").
+      if (V.isOpen(id)) { surface.dispatchEvent(new Event("close")); V.show(id); return; }
       const title = surface.heading?.querySelector("h2")?.textContent || surface.getAttribute("aria-label") || "Editor";
-      // A project switch closes the tab without asking (the modal editor never asked on a switch either),
-      // so a later Save cannot write into the next project.
-      const switched = () => V.close(id);
-      surface.addEventListener("close", () => { globalThis.removeEventListener?.("atrium-host-project", switched); surface.remove(); V.close(id); }, {once: true});
-      globalThis.addEventListener?.("atrium-host-project", switched);
+      // A project switch closes the tab without asking (AtriumDocViews closes every view on "replace"; the modal
+      // editor never asked on a switch either), so a later Save cannot write into the next project. The view's
+      // onClose closes the dialog; its close event then finds the view gone.
+      surface.addEventListener("close", () => { surface.remove(); V.close(id); }, {once: true});
       V.open(id, {
         title,
         icon: surface._tabIcon,
@@ -1452,7 +1460,7 @@ globalThis.AtriumLibrary = (() => {
   function panelApi() {
     return {
       SOURCES, STATE_MARK, STATE_TONE, ui, sourceStore,
-      sameLibrary, sourceEntry, linksEntry, addFromLibrary, libraryStatus, stateText, diffDefs,
+      sameLibrary, sourceEntry, linksEntry, addFromLibrary, libraryStatus, stateText, stateLabel, diffDefs,
       cachedValidate, facts, usage, duplicate, remove, updateParts, similar, search,
       togglePanel, openLibraryFile, manageLibraries, checkLibrary, saveToLibraryDialog,
       openSymbolEditor, openFootprintEditor, openWizard, chooseCopies, groupUI, folderUI, restoreGroups
@@ -1510,12 +1518,16 @@ globalThis.AtriumLibrary = (() => {
   const STATE_TONE = {update: "accent", diverged: "warning"};
   function stateText(s) {
     const revs = "rev " + s.fromRev + (s.toRev !== s.fromRev ? " → rev " + s.toRev : "");
-    if (s.state === "missing") return "Library " + (s.ref?.name || "source") + " is not registered on this computer. The project copy still works.";
+    if (s.state === "missing" || s.missing) return "Library " + (s.ref?.name || "source") + " is not registered on this computer. The project copy still works.";
+    if (s.pending) return (s.lib?.name || "The library") + " is not read yet, so this copy is not compared with it.";
     if (s.state === "update") return "Update available from " + s.lib.name + " (" + revs + ")";
     if (s.state === "edited") return "Edited in this project since it came from " + s.lib.name + " (" + revs + ")";
     if (s.state === "diverged") return "Changed here and in " + s.lib.name + " (" + revs + ")";
     return "Same as " + s.lib.name;
   }
+  // The short badge for a libraryStatus() state; stateText() is its sentence (the badge's tooltip).
+  const STATE_LABEL = {current: "Current", update: "Update", edited: "Edited", diverged: "Diverged", missing: "Missing", pending: "Not read"};
+  const stateLabel = s => STATE_LABEL[s?.missing ? "missing" : s?.state] || "";
   // Library › Check: health checks of the project library or a library source (AtriumLibraryStore.health).
   // o.current: whether the host that asked still shows `lib` (default: the dock); o.reveal(id): show a project def.
   function checkLibrary(ctx, lib, checked, o = {}) {

@@ -90,9 +90,12 @@ module.exports = async function uxConsistency(browser) {
       await page.waitForFunction(() => document.activeElement?.matches('details[data-menu="file"] > summary'));
 
       await choose("window", "library-panel");
-      const source = page.locator(".panel-library:visible").getByRole("combobox", {name:"Library source"});
+      // Import library files… is in the source bar's "Add library" menu.
+      const library = page.locator(".panel-library:visible");
+      await library.getByRole("combobox", {name:"Library source"}).waitFor();
       const picker = page.waitForEvent("filechooser");
-      await source.selectOption("@import");
+      await library.getByRole("button", {name:"Add library", exact:true}).click();
+      await page.getByRole("menuitem", {name:"Import library files…", exact:true}).click();
       await (await picker).setFiles(path.join(__dirname, "../fixtures/kicad/Lab_Amp.kicad_sym"));
       const review = page.getByRole("dialog", {name:"Import library components"});
       await review.getByText(/symbol only/i).first().waitFor();

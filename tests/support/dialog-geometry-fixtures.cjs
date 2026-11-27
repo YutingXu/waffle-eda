@@ -158,7 +158,8 @@ function cases(page) {
       name:"Symbol Editor pin table for a placed component",
       async open() {
         const target = await openFor("schematic", "part", "edit-symbol", /^Symbol Editor/);
-        await button(target, "Pin table").click();
+        // The Symbol Editor's inspector views are a tab strip (role tab).
+        await target.getByRole("tab", {name:"Pin table", exact:true}).click();
         await target.locator(".se-table input").first().waitFor();
       },
     },

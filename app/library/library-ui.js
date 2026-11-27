@@ -7,6 +7,18 @@ globalThis.AtriumLibraryRows = (() => {
   const K = () => globalThis.AtriumUIKit;
   const closedNodes = new Set();
   const openFamilies = new WeakMap();
+  let branchIds = 0;
+  /** Tree semantics the kit's rows leave to the caller: a row's level, and a header owning its branch's group
+   *  (the group is the header's sibling in the DOM, so the header names it with aria-owns). */
+  function treeLevel(row, depth) { row.setAttribute("aria-level", String((depth || 0) + 1)); return row; }
+  function ownBranch(head, box) { box.id ||= "lib-tree-branch-" + ++branchIds; head.setAttribute("aria-owns", box.id); }
+  /** A focusable K.splitter is a separator with a value: the size it sets, within its limits (as the dock's own). */
+  function splitterValue(splitter, now, min, max) {
+    splitter.setAttribute("aria-valuemin", String(min));
+    splitter.setAttribute("aria-valuemax", String(max));
+    splitter.setAttribute("aria-valuenow", String(Math.round(now)));
+    return splitter;
+  }
 
   /** Compact symbol / footprint presence glyphs (14 px dense icons, dimmed when absent). */
   function presenceIcons(def, target) {
@@ -57,6 +69,7 @@ globalThis.AtriumLibraryRows = (() => {
       role: o.role || "treeitem"
     });
     row.classList.add("lib-row");
+    if (row.getAttribute("role") === "treeitem") treeLevel(row, o.depth);
     if (o.extraClass) row.classList.add(o.extraClass);
     row.dataset.def = def.id;
     row.tabIndex = o.selected ? 0 : -1;
@@ -161,6 +174,7 @@ globalThis.AtriumLibraryRows = (() => {
       role: "treeitem"
     });
     row.classList.add("lib-group-row");
+    treeLevel(row, depth);
     row.tabIndex = -1;
     row.addEventListener("click", () => onToggle?.());
     if (onFocus) row.addEventListener("focus", () => onFocus(row));
@@ -207,6 +221,7 @@ globalThis.AtriumLibraryRows = (() => {
         }
       });
       head.dataset.category = name;
+      ownBranch(head, box);
       parent.append(head, box);
       ensure();
     }
@@ -280,6 +295,7 @@ globalThis.AtriumLibraryRows = (() => {
         }
       });
       head.classList.add(depth === 0 ? "lib-family-head" : "lib-chip-head");
+      ownBranch(head, box);
       parent.append(head, box);
       ensure();
     }
@@ -338,7 +354,7 @@ globalThis.AtriumLibraryRows = (() => {
     return true;
   }
 
-  return Object.freeze({presenceIcons, componentRow, groupRow, categoryTree, componentTree, visibleRows, handleTreeKey, dropReceiver, startDragPlace, place, revealSource});
+  return Object.freeze({presenceIcons, componentRow, groupRow, categoryTree, componentTree, visibleRows, handleTreeKey, dropReceiver, startDragPlace, place, revealSource, splitterValue});
 })();
 
 // Shared parameter facet popover for the Library docked tab (Design A) and workspace (Design B).
@@ -411,6 +427,7 @@ globalThis.AtriumLibraryFacetsUI = (() => {
         onChange?.();
       }
     });
+    clearBtn.dataset.ref = "clear"; // the focus keys of AtriumCatalogue.facetsUI: "clear", "facet|value", "more|facet"
     const list = onlyFacet ? cat.FACETS.filter(([fk]) => fk === onlyFacet) : cat.FACETS;
     const headerTitle = title || (onlyFacet ? (list[0]?.[1] || "Filter") : "Filters");
     const body = k.el("div", "lib-facets-scroll");
@@ -436,16 +453,20 @@ globalThis.AtriumLibraryFacetsUI = (() => {
           }
         });
         row.classList.add("lib-facet-row");
+        const box = row.querySelector("input");
+        if (box) box.dataset.ref = fk + "|" + v;
         if (!c.n) row.dataset.zero = "";
         const countEl = k.el("span", "ui-row-meta", String(c.n));
         row.append(countEl);
         rows.push(row);
       });
       if (values.length > cap) {
-        rows.push(k.button("Show all " + values.length, {
+        const more = k.button("Show all " + values.length, {
           variant: "quiet", size: "sm",
           run: () => { st.more.add(fk); onChange?.(); }
-        }));
+        });
+        more.dataset.ref = "more|" + fk;
+        rows.push(more);
       }
       if (onlyFacet) {
         body.append(...rows);
@@ -458,6 +479,20 @@ globalThis.AtriumLibraryFacetsUI = (() => {
     host.append(k.section(headerTitle, {actions: [clearBtn]}, body));
   }
 
+  /** After a refill, focus the control that had it, found by its key (data-ref, as AtriumCatalogue.facetsUI keeps it).
+   *  A Show all that is gone hands focus to the first value it revealed; a disabled Clear to the first value. */
+  function restoreFocus(pop, was) {
+    if (!was) return;
+    const controls = [...pop.querySelectorAll("[data-ref]")].filter(n => !n.disabled);
+    const values = controls.filter(n => n.matches("input"));
+    let next = controls.find(n => n.dataset.ref === was);
+    if (!next && was.startsWith("more|")) {
+      const facet = values.filter(n => n.dataset.ref.startsWith(was.slice(5) + "|"));
+      next = facet[8] || facet[facet.length - 1];
+    }
+    (next || values[0] || controls[0])?.focus({preventScroll: true});
+  }
+
   /** Toggle a shared .ui-popover anchored to `trigger`. Re-renders in place on filter changes. */
   function togglePopover(trigger, {key, getCounts, onChange, onlyFacet, title}) {
     if (active?.trigger === trigger) { close(); return false; }
@@ -466,8 +501,14 @@ globalThis.AtriumLibraryFacetsUI = (() => {
     pop.setAttribute("role", "dialog");
     pop.setAttribute("aria-label", title || "Parameter filters");
     const refresh = () => {
+      const focused = document.activeElement, was = pop.contains(focused) ? focused.dataset?.ref || null : null;
+      const scroller = pop.querySelector(".lib-facets-scroll"), scrolled = scroller?.scrollTop || 0;
       onChange?.();
-      if (active?.popover === pop) fill(pop, key, getCounts?.() || {}, refresh, {onlyFacet, title});
+      if (active?.popover !== pop) return;
+      fill(pop, key, getCounts?.() || {}, refresh, {onlyFacet, title});
+      const again = pop.querySelector(".lib-facets-scroll");
+      if (again) again.scrollTop = scrolled;
+      restoreFocus(pop, was);
     };
     fill(pop, key, getCounts?.() || {}, refresh, {onlyFacet, title});
     document.body.append(pop);
@@ -509,11 +550,14 @@ globalThis.AtriumLibraryInspector = (() => {
     }, {wrapClass: "lib-pins-wrap", tableClass: "ui-table"});
   }
 
-  function buildProperties(def, {facts, used, status, statusText, statusTone, lib, linked, onReviewUpdate}) {
+  function buildProperties(def, {facts, used, status, statusText, statusLabel, statusTone, lib, linked, onReviewUpdate}) {
     const k = K(), rows = [];
-    const add = (caption, value) => {
-      if (value === "" || value == null) return;
-      rows.push(k.propRow(caption, typeof value === "string" ? value : value));
+    // Short values (names, ids, counts) stay on one line and end in an ellipsis; a long one is the row's tooltip.
+    const add = (caption, value, clip = true) => {
+      if (value === "" || value == null) return null;
+      const row = k.propRow(caption, value, {clip: clip && typeof value === "string"});
+      rows.push(row);
+      return row;
     };
     add("Value", def.value || "");
     add("Footprint", facts.pkg || "");
@@ -527,15 +571,18 @@ globalThis.AtriumLibraryInspector = (() => {
     }
     if (def.symbol?.parts > 1) add("Gates", def.symbol.parts + (def.symbol.alternate ? " + De Morgan" : ""));
     if (!lib && status) {
+      // The source's name and a short state badge; the state's sentence is the row's tooltip.
       const val = k.el("span", "ui-prop-value lib-prop-inline");
-      val.append(k.el("span", null, status.lib?.name || def.libraryRef?.library || "Library"));
-      val.append(k.badge(statusText || status.state, statusTone));
+      val.append(k.el("span", null, status.lib?.name || def.libraryRef?.name || "Library"));
+      if (statusLabel) val.append(k.badge(statusLabel, statusTone));
       if (status.src && !status.same && onReviewUpdate) {
         val.append(k.button("Review…", {size: "sm", run: onReviewUpdate}));
       }
-      add("Library", val);
+      const row = add("Library", val);
+      if (row && statusText) row.title = statusText;
     }
-    for (const [key, val] of Object.entries(facts.params || {}).slice(0, 12)) add(key, String(val));
+    // A parameter that reads as a sentence (a description, a note) wraps.
+    for (const [key, val] of Object.entries(facts.params || {}).slice(0, 12)) add(key, String(val), !/\s\S+\s/.test(String(val)));
     return rows;
   }
 
@@ -582,10 +629,20 @@ globalThis.AtriumLibraryInspector = (() => {
     return cmds;
   }
 
+  /** Cancel the inspector's pending preview frame. AtriumCatalogue keys a frame by the node the preview went
+   *  into (the inspector's body, or a tab's preview box), not by `host`. True when one was pending. */
+  function cancelPreview(host) {
+    const C = globalThis.AtriumCatalogue;
+    if (!C?.cancelPreview) return false;
+    let cancelled = C.cancelPreview(host);
+    for (const n of host.querySelectorAll(".lib-inspector-body, .lib-single-preview")) cancelled = C.cancelPreview(n) || cancelled;
+    return cancelled;
+  }
+
   /** Render the inspector into `host`. Supports compact (docked) and tabbed (workspace) layouts. */
   function render(host, spec) {
     const k = K();
-    globalThis.AtriumCatalogue?.cancelPreview?.(host);
+    cancelPreview(host);
     host.replaceChildren();
     const def = spec.def;
     if (!def) {
@@ -726,7 +783,7 @@ globalThis.AtriumLibraryInspector = (() => {
     }
   }
 
-  return Object.freeze({render, buildPinsTable, buildProperties});
+  return Object.freeze({render, cancelPreview, buildPinsTable, buildProperties});
 })();
 
 // Docked Library tab (Design A), mounted inside AtriumDock's "library" tab.
@@ -765,6 +822,19 @@ globalThis.AtriumLibraryDockUI = (() => {
       }
       AtriumLibraryDiff.review(ctx, ready, {current: isCurrent, done});
     } catch (e) { if (current()) ctx.info?.(e.message); }
+  }
+
+  /** Update placed parts of project `def`: older linked copies follow only when ticked (api.chooseCopies). `run(fn)`
+   *  applies the edit as the dock or the tab does; the report names retargets, rewires, stubs, cleared pin nets and
+   *  pins left unconnected. */
+  function updatePlaced(ctx, api, def, project, run) {
+    const go = ids => run(() => {
+      const r = api.updateParts(project(), def, {sources: ids});
+      ctx.info?.("Updated " + r.parts + " part(s): " + r.retargeted + " retargeted, " + r.rewired + " wire end(s) followed moved pins, " + (r.stubs ? r.stubs + " stub(s) kept connections, " : "") +
+        r.dropped + " stale pin net(s) cleared" + (r.disconnected.length ? " · ⚠ now unconnected: " + r.disconnected.slice(0, 8).join(", ") + (r.disconnected.length > 8 ? "…" : "") : "") + ".");
+    });
+    const older = api.similar(project(), def);
+    if (!older.length) go([]); else api.chooseCopies(def, older, go);
   }
 
   function mount(ctx, api) {
@@ -878,8 +948,10 @@ globalThis.AtriumLibraryDockUI = (() => {
         const h = split.getBoundingClientRect().height || 400;
         detailPct = Math.max(20, Math.min(72, detailPct - (delta / h) * 100));
         split.style.setProperty("--ui-split-detail", detailPct.toFixed(1) + "%");
+        ROWS().splitterValue(splitter, detailPct, 20, 72);
       }
     });
+    ROWS().splitterValue(splitter, detailPct, 20, 72);
     const detail = el("div", "lib-detail pane-scroll");
     split.append(listWrap, splitter, detail);
 
@@ -1235,12 +1307,11 @@ globalThis.AtriumLibraryDockUI = (() => {
         return;
       }
       const status = api.libraryStatus(def, P.libraries, p);
-      const older = api.similar(p, def);
       INSP().render(detail, {
         def, project: p, facts: api.facts(def), used: api.usage(p, def.id),
         validation: api.cachedValidate(def), family: P.members?.get(def.id),
-        status, statusText: status && !status.pending ? api.stateText(status.missing ? {state: "missing", ref: def.libraryRef} : status) : null,
-        statusTone: status ? api.STATE_TONE[status.state] : null,
+        status, statusText: status ? api.stateText(status.missing ? {state: "missing", ref: def.libraryRef} : status) : null,
+        statusLabel: api.stateLabel(status), statusTone: status ? api.STATE_TONE[status.state] : null,
         currentKind: kind,
         pinsOpen: P.pinsOpen, onTogglePins: () => { P.pinsOpen = !P.pinsOpen; renderDetail(); },
         onReviewUpdate: status?.src && !status.same ? () => reviewUpdates([{def, lib: status.lib, src: status.src}]) : null,
@@ -1255,15 +1326,7 @@ globalThis.AtriumLibraryDockUI = (() => {
           } : null,
           manageFamily: globalThis.AtriumLibraryFamiliesUI ? () => manageFamilies(def.id) : null,
           duplicate: () => run(() => { const c = api.duplicate(project(), def); P.selected = c.id; }, "Duplicated " + def.name),
-          updateParts: () => {
-            const go = ids => run(() => {
-              const r = api.updateParts(project(), def, {sources: ids});
-              P.ctx.info?.("Updated " + r.parts + " part(s): " + r.retargeted + " retargeted, " + r.rewired + " wire end(s) followed moved pins, " + (r.stubs ? r.stubs + " stub(s) kept connections, " : "") +
-                r.dropped + " stale pin net(s) cleared" + (r.disconnected.length ? " · ⚠ now unconnected: " + r.disconnected.slice(0, 8).join(", ") : "") + ".");
-            }, null);
-            if (!older.length) { go([]); return; }
-            api.chooseCopies(def, older, go);
-          },
+          updateParts: () => updatePlaced(P.ctx, api, def, project, run),
           reviewUpdate: () => status?.src && reviewUpdates([{def, lib: status.lib, src: status.src}]),
           saveToLibrary: () => api.saveToLibraryDialog(P.ctx, def, () => render()),
           saveToFolder: (globalThis.AtriumHost?.chooseLibraryFolder || globalThis.showDirectoryPicker)
@@ -1419,7 +1482,7 @@ globalThis.AtriumLibraryDockUI = (() => {
     function stop() {
       cancelIntent();
       FACETS()?.close();
-      if (globalThis.AtriumCatalogue?.cancelPreview(detail)) needsRender = true;
+      if (INSP().cancelPreview(detail)) needsRender = true;
       clearTimeout(checkTimer); checkTimer = 0;
       clearInterval(tick); tick = 0;
     }
@@ -1471,5 +1534,5 @@ globalThis.AtriumLibraryDockUI = (() => {
     return P;
   }
 
-  return Object.freeze({mount, review});
+  return Object.freeze({mount, review, updatePlaced});
 })();

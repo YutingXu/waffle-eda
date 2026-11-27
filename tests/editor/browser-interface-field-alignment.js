@@ -122,10 +122,12 @@ async function surfaces(page, sample, profile) {
     {control:"Search the library",mode:"standalone"},{control:"Library source",mode:"standalone"},
   ],"library");
   for (const [editor, trigger, fields] of [
-    ["Symbol Editor","New symbol",["Name","Prefix"]],
-    ["Footprint Editor","New footprint",["Name",{control:"Drawing layer",mode:"stacked"},{control:"Body height",mode:"compound"}]],
+    ["Symbol Editor","New symbol…",["Name","Prefix"]],
+    ["Footprint Editor","New footprint…",["Name",{control:"Drawing layer",mode:"stacked"},{control:"Body height",mode:"compound"}]],
   ]) {
-    await click(library.getByRole("button",{name:trigger,exact:true}));
+    // New symbol… and New footprint… are in the Library's "Library commands" menu.
+    await click(library.getByRole("button",{name:"Library commands",exact:true}));
+    await click(page.getByRole("menuitem",{name:trigger,exact:true}));
     const window = page.getByRole("dialog",{name:editor,exact:false});
     await sample(editor + " · Properties and toolbar",window,fields);
     await page.keyboard.press("Escape");

@@ -136,10 +136,13 @@ globalThis.AtriumFootprintEditor = (() => {
   function open(ctx = {}) {
     const L = AtriumLibrary, ui = L.ui, el = ui.el;
     const draft = draftFrom(ctx.def, ctx.library);
+    // Edit on a part whose editor tab is open shows that tab, and builds no second editor.
+    const tabId = "footprint-editor:" + draft.id, openTab = ui.showOpenTab(tabId, !!ctx.asTab);
+    if (openTab) return openTab;
     const isNew = !ctx.def;
     if (!draft.footprint) draft.footprint = {name: draft.name, pads: [], shapes: []};
     const fp = () => draft.footprint;
-    const dlg = ui.editorSurface("Footprint Editor", "fe-dialog", {tabId: "footprint-editor:" + draft.id, icon: "chip", hostTab: !!ctx.asTab});
+    const dlg = ui.editorSurface("Footprint Editor", "fe-dialog", {tabId, icon: "chip", hostTab: !!ctx.asTab});
     const title = dlg.heading.querySelector("h2");
     const shortcutText = text => AtriumNavCommon.shortcutParts(text, {enter:"Enter", escape:"Escape", shift:"Shift"});
     const endRenumber = " Press {enter} or {escape} to finish.";
@@ -851,11 +854,12 @@ globalThis.AtriumFootprintEditor = (() => {
     // Checks run at once for ordinary footprints and are debounced (120 ms) for large ones.
     let checkTimer = 0;
     function runChecks() { checkTimer = 0; issues = AtriumLibrary.checkFootprint(fp()); renderChecks(); stage.render(); }
+    function heading() { return "Footprint Editor — " + (fp().name || draft.name); }
     function refresh() {
       clearTimeout(checkTimer);
       if (fp().pads.length < 300) issues = AtriumLibrary.checkFootprint(fp());
       else checkTimer = setTimeout(runChecks, 120);
-      title.textContent = "Footprint Editor — " + (fp().name || draft.name);
+      title.textContent = heading();
       saveButton.textContent = snapshot() === saved ? "Save" : "Save •";
       renderProps(); renderChecks(); stage.render();
     }
@@ -896,12 +900,13 @@ globalThis.AtriumFootprintEditor = (() => {
         ...(redo.length ? [{key: "cmd:footprint:redo", kind: "command", label: "Redo", detail: "Footprint Editor", run: () => doUndo(false)}] : [])
       ]
     });
+    title.textContent = heading(); // the editor tab takes its title from the heading
     ui.showSurface(dlg);
     setTool("select");
     refresh();
     stage.observe();
     canvas.focus();
-    return {dialog: dlg, draft, stage, setTool, select: (pads = [], shapes = []) => { selection = {pads: new Set(pads), shapes: new Set(shapes)}; refresh(); }, change, save, issues: () => (issues = AtriumLibrary.checkFootprint(fp()))};
+    return dlg.editor = {dialog: dlg, draft, stage, setTool, select: (pads = [], shapes = []) => { selection = {pads: new Set(pads), shapes: new Set(shapes)}; refresh(); }, change, save, issues: () => (issues = AtriumLibrary.checkFootprint(fp()))};
   }
   return Object.freeze({open, padArray, incrementNumber, nextNumber, renumber, layerShape, layerKey, padContains, shapeDistance, LAYERS});
 })();

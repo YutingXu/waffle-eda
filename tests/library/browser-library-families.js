@@ -60,7 +60,7 @@ module.exports = async function libraryFamilies(browser) {
         node.querySelector('.lib-row[data-def="family-qfn"]').click();
         node.querySelector(".lib-panel-close").click();
         window.setTimeout = (fn, ...args) => {
-          if (String(new Error().stack).includes("library-panel.js")) keyTimers++;
+          if (/library-(panel|ui)\.js/.test(String(new Error().stack))) keyTimers++;
           return later(fn, ...args);
         };
         for (const type of ["keyup", "pointerup"]) document.body.dispatchEvent(new Event(type, {bubbles: true}));
@@ -77,7 +77,9 @@ module.exports = async function libraryFamilies(browser) {
     await page.evaluate(() => { AtriumNavHost.edit(() => { AtriumNavHost.project().library.find(d => d.id === "family-sibling").name = "MX110-G"; }); });
     await search.fill("MX"); await search.fill("");
     const manager = page.getByRole("dialog", {name: "Component families", exact: true});
-    await panel.getByRole("button", {name: "Manage families…", exact: true}).click();
+    // The Library's commands are in its "Library commands" menu; a component's in the detail's "More component actions".
+    await panel.getByRole("button", {name: "Library commands", exact: true}).click();
+    await page.getByRole("menuitem", {name: "Manage families…", exact: true}).click();
     await manager.getByLabel("Family name", {exact: true}).fill("Bench Devices");
     for (const [id, chip] of [["family-qfn", "MX100"], ["family-bga", "MX100"], ["family-sibling", "MX110"]]) {
       await manager.getByRole("searchbox").fill(id);
@@ -88,28 +90,30 @@ module.exports = async function libraryFamilies(browser) {
     await manager.getByRole("button", {name: "Save family", exact: true}).click();
     await manager.waitFor({state: "hidden"});
     await search.fill("Bench Devices");
-    await panel.locator(".cat-family > summary", {hasText: "Bench Devices"}).waitFor();
-    assert.equal(await panel.locator(".cat-family-chip > summary").count(), 2);
+    await panel.locator(".lib-family-head", {hasText: "Bench Devices"}).waitFor();
+    assert.equal(await panel.locator(".lib-chip-head").count(), 2);
     assert.equal(await panel.locator(".cat-family-packages .lib-row:visible").count(), 3);
-    assert.equal(await panel.getByRole("button", {name: /QFN-2.*Bench Devices, MX100/}).count(), 1);
-    assert.equal(await panel.getByRole("button", {name: /QFN-2.*Bench Devices, MX110/}).count(), 1);
+    assert.equal(await panel.getByRole("treeitem", {name: /QFN-2.*Bench Devices, MX100/}).count(), 1);
+    assert.equal(await panel.getByRole("treeitem", {name: /QFN-2.*Bench Devices, MX110/}).count(), 1);
     await search.fill("Bench Devices MX100");
     const dockChoice = panel.locator(".cat-family-packages .lib-row").first();
-    const dockChip = panel.locator(".cat-family-chip > summary");
+    const dockChip = panel.locator(".lib-chip-head");
+    const dockPlace = panel.locator(".lib-detail-actions").getByRole("button", {name: "Place", exact: true});
     await search.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowDown");
     assert.equal(await focused(dockChoice), true);
+    // Tab hops from the selected package to the detail's first action (its Place button), and back.
     await page.keyboard.press("Tab");
-    assert.equal(await focused(panel.locator(".cat-pv-pins > summary")), true);
+    assert.equal(await focused(dockPlace), true);
     await page.keyboard.press("Shift+Tab");
     assert.equal(await focused(dockChoice), true, "reverse Tab returns to the selected dock package");
     await page.keyboard.press("ArrowUp");
     assert.equal(await focused(dockChip), true);
-    assert.equal(await panel.getByRole("button", {name: "Place on board", exact: true}).count(), 0);
+    assert.equal(await dockPlace.count(), 0, "a chip heading has no placement action");
     await page.keyboard.press("Enter");
     assert.equal(await dockChoice.isVisible(), false);
-    await page.keyboard.press("Shift+Tab");
+    // Tree headers are not Tab stops (tabindex -1): one Shift+Tab reaches the list.
     await page.keyboard.press("Shift+Tab");
     assert.equal(await focused(panel.locator(".lib-list")), true);
     await page.keyboard.press("Enter");
@@ -119,11 +123,15 @@ module.exports = async function libraryFamilies(browser) {
     await search.fill("Bench Devices MX100 pkg:BGA");
     await row("family-bga").click();
     const details = panel.locator(".lib-detail");
+    const command = async name => {
+      await details.getByRole("button", {name: "More component actions", exact: true}).click();
+      await page.getByRole("menuitem", {name, exact: true}).click();
+    };
     assert.equal(await details.locator('.cat-pv[data-def="family-bga"] canvas').count(), 2, "the exact package has both previews");
     assert.equal(await row("family-qfn").count(), 0, "package search disambiguates the chip's variants");
 
     // Edit the selected variant without switching the Library's source or filter.
-    await details.getByRole("button", {name: "Edit symbol", exact: true}).click();
+    await command("Edit symbol");
     const symbolEditor = page.locator("dialog.se-dialog[open]");
     await symbolEditor.locator("h2", {hasText: "MX100-B"}).waitFor();
     const pinTool = symbolEditor.getByRole("button", {name: "Pin", exact: true});
@@ -135,7 +143,7 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(await symbolEditor.getByRole("button", {name: "Select", exact: true}).getAttribute("aria-pressed"), "true");
     await symbolEditor.getByRole("button", {name: "Cancel", exact: true}).press("Enter");
     await symbolEditor.waitFor({state: "hidden"});
-    await details.getByRole("button", {name: "Edit footprint", exact: true}).click();
+    await command("Edit footprint");
     const footprintEditor = page.locator("dialog.fe-dialog[open]");
     await footprintEditor.locator("h2", {hasText: "BGA-2"}).waitFor();
     const padTool = footprintEditor.getByRole("button", {name: "Pad", exact: true});
@@ -151,7 +159,7 @@ module.exports = async function libraryFamilies(browser) {
     await footprintEditor.waitFor({state: "hidden"});
 
     assert.equal(await page.evaluate(() => !!globalThis.AtriumSchPlace), false, "browsing and editing do not load schematic placement");
-    await details.getByRole("button", {name: "Place on sheet", exact: true}).click();
+    await command("Place symbol on sheet");
     await page.waitForFunction(() => AtriumNavHost.tool() === "place" && AtriumNavHost.doc().kind === "schematic");
     await canvas.click({position: {x: 148, y: 180}});
     await canvas.click({position: {x: 210, y: 220}});
@@ -202,7 +210,7 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(await focused(placeButton), true);
     await page.setViewportSize({width: 1024, height: 640});
     const preview = place.locator(".cat-preview"), pins = preview.locator(".cat-pv-pins > summary");
-    assert.match(await preview.locator(".cat-pv-source").textContent(), new RegExp(longMPN));
+    assert.match(await preview.locator(".cat-pv .ui-notice").first().textContent(), new RegExp(longMPN));
     assert.equal(await preview.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true, "the full MPN wraps at a smaller window size");
     assert.equal(await preview.getByRole("table", {name: "Symbol pins"}).count(), 0);
     await page.keyboard.press("Tab");
@@ -235,15 +243,16 @@ module.exports = async function libraryFamilies(browser) {
     // While unpaired, both loose assets are independently browseable. Attach only a compatible footprint.
     await search.fill("Loose symbol test");
     await row("family-loose").click();
-    assert.equal(await details.getByRole("button", {name: "Place on board", exact: true}).isDisabled(), true);
-    await details.getByRole("button", {name: "Attach footprint…", exact: true}).click();
+    // A symbol-only part offers no board placement: its one Place button places the symbol on a sheet.
+    assert.equal(await details.getByRole("button", {name: "Place", exact: true}).getAttribute("title"), "Place symbol on sheet");
+    await command("Attach footprint…");
     const attach = page.getByRole("dialog", {name: "Attach footprint to Loose symbol test", exact: true});
     await attach.getByLabel("Footprint to use", {exact: true}).selectOption("family-bad");
     assert.equal(await attach.getByRole("button", {name: "Attach footprint", exact: true}).isDisabled(), true);
     assert.match(await attach.getByRole("alert").textContent(), /Missing pads for pins 1/);
     await attach.getByLabel("Footprint to use", {exact: true}).selectOption("family-land");
     await attach.getByRole("button", {name: "Attach footprint", exact: true}).click();
-    await details.getByRole("button", {name: "Edit footprint", exact: true}).waitFor();
+    await attach.waitFor({state: "hidden"});
     assert.deepEqual(await page.evaluate(() => {
       const defs = AtriumNavHost.defs();
       return [defs.get("family-loose").footprint.name, !!defs.get("family-land").footprint];
@@ -252,7 +261,7 @@ module.exports = async function libraryFamilies(browser) {
     // Exact ID search uses the catalogue's id field.
     await search.fill("id:family-qfn");
     await row("family-qfn").click();
-    await details.getByRole("button", {name: "Add package…", exact: true}).click();
+    await command("Add package…");
     const add = page.getByRole("dialog", {name: "Add package to MX100-P", exact: true});
     await add.getByLabel("Footprint to use", {exact: true}).selectOption("family-land");
     await add.getByLabel("Component name", {exact: true}).fill("MX100-L");
@@ -262,24 +271,24 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(await panel.locator(".cat-family-packages .lib-row").count(), 3);
     const newId = await page.evaluate(() => AtriumNavHost.project().library.find(d => d.name === "MX100-L").id);
     await row(newId).click();
-    await details.getByRole("button", {name: "Edit family…", exact: true}).click();
+    await command("Edit family…");
     await manager.getByLabel("Family name", {exact: true}).fill("Bench ICs");
     await manager.getByRole("button", {name: "Save family", exact: true}).click();
     await search.fill("Bench ICs");
-    await panel.locator(".cat-family > summary", {hasText: "Bench ICs"}).waitFor();
+    await panel.locator(".lib-family-head", {hasText: "Bench ICs"}).waitFor();
     await row("family-qfn").click();
-    await details.getByRole("button", {name: "Edit family…", exact: true}).click();
+    await command("Edit family…");
     const ungroup = manager.getByRole("button", {name: "Ungroup family", exact: true});
     assert.equal(await ungroup.count(), 1, "the reopened manager has one accessible Ungroup action during the prior exit");
     await ungroup.press("Enter");
     await manager.waitFor({state: "hidden"});
     await search.fill("MX100-P");
     await row("family-qfn").waitFor();
-    assert.equal(await panel.locator(".cat-family").count(), 0);
+    assert.equal(await panel.locator(".lib-family-head").count(), 0);
     assert.equal(await page.evaluate(() => AtriumNavHost.project().documents.filter(d => d.items.some(i => i.def === "family-qfn")).length), 1);
     await page.evaluate(() => AtriumNavHost.act("undo"));
     await search.fill("Bench ICs");
-    await panel.locator(".cat-family > summary", {hasText: "Bench ICs"}).waitFor();
+    await panel.locator(".lib-family-head", {hasText: "Bench ICs"}).waitFor();
 
     // A source file can reuse a definition ID without selecting or editing the project entry.
     await page.evaluate(() => {
@@ -309,7 +318,7 @@ module.exports = async function libraryFamilies(browser) {
       return !!source && source.id !== "family-qfn" && AtriumComponentFamilies.memberships(project).get(source.id).part === "File chip"
         && project.library.some(d => d.name === "MX100-P");
     }), true);
-    await details.getByRole("button", {name: "Place on board", exact: true}).click();
+    await details.getByRole("button", {name: "Place", exact: true}).click();
     await canvas.click({position: {x: 264, y: 220}});
     await page.keyboard.press("Escape");
     await placed.click();

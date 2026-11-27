@@ -38,6 +38,7 @@ globalThis.AtriumLibraryView = (() => {
       sortKey: "name",
       sortDir: 1,
       selected: initial.select || null,
+      reveal: null, // {id, source}: a part to select once its source lists it (a folder library still loading)
       inspTab: "overview",
       lib: null,
       libraries: [],
@@ -47,7 +48,8 @@ globalThis.AtriumLibraryView = (() => {
       detailBody: null,
       lastCounts: {}
     };
-    let closed = false, intent = 0, checkTimer = 0;
+    // stale: a render skipped while the tab was hidden (it renders when shown again, as the dock does).
+    let closed = false, intent = 0, checkTimer = 0, stale = false;
 
     const project = () => ctx.currentProject();
     const documentKind = () => ctx.documentKind();
@@ -67,8 +69,10 @@ globalThis.AtriumLibraryView = (() => {
       onResize: dx => {
         sideW = Math.max(160, Math.min(340, sideW + dx));
         root.style.setProperty("--ui-split-list", Math.round(sideW) + "px");
+        ROWS().splitterValue(splitLeft, sideW, 160, 340);
       }
     });
+    ROWS().splitterValue(splitLeft, sideW, 160, 340);
 
     const inner = el("div", "ui-split lib-ws-inner");
     const main = el("div", "lib-ws-main");
@@ -79,8 +83,10 @@ globalThis.AtriumLibraryView = (() => {
       onResize: dx => {
         inspW = Math.max(240, Math.min(480, inspW - dx));
         inner.style.setProperty("--ui-split-insp", Math.round(inspW) + "px");
+        ROWS().splitterValue(splitRight, inspW, 240, 480);
       }
     });
+    ROWS().splitterValue(splitRight, inspW, 240, 480);
     const insp = el("aside", "lib-ws-insp pane-scroll");
     insp.setAttribute("aria-label", "Component inspector");
 
@@ -203,7 +209,7 @@ globalThis.AtriumLibraryView = (() => {
     root.append(side, splitLeft, inner);
     box.append(root);
 
-    function cancelIntent() { intent++; S.detailRead = null; S.detailBody = null; }
+    function cancelIntent() { intent++; S.detailRead = null; S.detailBody = null; S.reveal = null; }
     function selectSource(id) {
       cancelIntent();
       S.source = id || "project";
@@ -268,7 +274,12 @@ globalThis.AtriumLibraryView = (() => {
       const cPlaced = el("td", "is-number", entry.used ? String(entry.used) : "—");
       const cStatus = el("td");
       if (entry.issues) cStatus.append(k.badge(entry.issues + (entry.issues === 1 ? " issue" : " issues"), "warning"));
-      else if (entry.status) cStatus.append(k.badge(api.stateText(entry.status), api.STATE_TONE[entry.status.state]));
+      else if (entry.status) {
+        // A short label; the state's sentence is the badge's tooltip.
+        const badge = k.badge(api.stateLabel(entry.status), api.STATE_TONE[entry.status.state]);
+        badge.title = api.stateText(entry.status);
+        cStatus.append(badge);
+      }
       else if (def.libraryRef && !S.lib) cStatus.append(k.badge("Current", "success"));
       else if (!S.lib) cStatus.append(k.badge("Local"));
       else if (entry.inProject) cStatus.append(k.badge("In project", "success"));
@@ -293,6 +304,15 @@ globalThis.AtriumLibraryView = (() => {
       });
       tr.addEventListener("dragend", () => G.AtriumSpatialMotion?.settle?.(tr));
     }, {rowHeight: 24, overscan: 12});
+
+    // Keep row i in view below the sticky header (AtriumWindowedTable's scrollTo leaves room for one row only).
+    function scrollToRow(i) {
+      const rowH = windowed.rowHeight(), head = thead.getBoundingClientRect().height || 0, view = tableWrap.clientHeight;
+      const y = tbody.getBoundingClientRect().top - tableWrap.getBoundingClientRect().top + tableWrap.scrollTop + i * rowH;
+      if (y - head < tableWrap.scrollTop) tableWrap.scrollTop = Math.max(0, y - head);
+      else if (y + rowH > tableWrap.scrollTop + view) tableWrap.scrollTop = y + rowH - view;
+      windowed.refresh();
+    }
 
     function select(id) {
       if (S.selected === id) return;
@@ -329,7 +349,8 @@ globalThis.AtriumLibraryView = (() => {
           run: () => { cancelIntent(); S.source = "project"; S.view = v; S.selected = null; render(); }
         });
       });
-      side.append(k.section("This project", {quiet: true}, k.list(projRows, {label: "Project views"})));
+      // The sidebar's rows are toggle buttons (aria-pressed), so each list is a labelled group, not a listbox.
+      side.append(k.section("This project", {quiet: true}, k.list(projRows, {label: "Project views", role: "group"})));
 
       const addLibBtn = k.iconButton("plus", "Add library", {size: "sm"});
       G.AtriumNavCommon?.actionMenu?.(addLibBtn, addMenuCommands);
@@ -347,7 +368,7 @@ globalThis.AtriumLibraryView = (() => {
         });
       });
       side.append(k.section("Libraries", {quiet: true, actions: [addLibBtn]},
-        libRows.length ? k.list(libRows, {label: "Connected libraries"}) : k.empty({text: "No external libraries yet."})));
+        libRows.length ? k.list(libRows, {label: "Connected libraries", role: "group"}) : k.empty({text: "No external libraries yet."})));
 
       const owner = S.lib || p;
       const members = owner.search?.members || G.AtriumComponentFamilies?.memberships(owner);
@@ -361,7 +382,7 @@ globalThis.AtriumLibraryView = (() => {
             run: () => { cancelIntent(); S.view = S.view === "family:" + f.id ? "all" : "family:" + f.id; S.selected = null; render(); }
           });
         });
-        side.append(k.section("Families", {quiet: true}, k.list(famRows, {label: "Component families"})));
+        side.append(k.section("Families", {quiet: true}, k.list(famRows, {label: "Component families", role: "group"})));
       }
     }
 
@@ -385,10 +406,17 @@ globalThis.AtriumLibraryView = (() => {
 
     function render() {
       if (closed || !root.isConnected) return;
+      if (box.hidden) { stale = true; return; }
+      stale = false;
       watch();
       const p = project();
       S.libraries = allLibs();
-      if (S.source !== "project" && !S.libraries.some(l => l.id === S.source)) S.source = "project";
+      // A folder library can change its id when its first scan reads it: follow the folder, as the dock does.
+      if (S.source !== "project" && !S.libraries.some(l => l.id === S.source)) {
+        const next = S.libraries.find(l => l.folder && l.folder === S.lib?.folder)?.id || "project";
+        if (S.reveal?.source === S.source) S.reveal.source = next;
+        S.source = next;
+      }
       S.lib = S.source === "project" ? null : S.libraries.find(l => l.id === S.source) || null;
       const owner = S.lib || p;
       const placedInfo = placementCounts(p);
@@ -498,7 +526,13 @@ globalThis.AtriumLibraryView = (() => {
       S.rows = flatRows;
       S.itemIndex = new Map();
       flatRows.forEach((r, i) => { if (r.type === "item") S.itemIndex.set(r.def.id, i); });
+      // A revealed part waits while its folder library is still loading; then it is selected and scrolled to.
+      const want = S.reveal?.source === S.source ? S.reveal : null;
+      S.reveal = null;
+      if (want && S.itemIndex.has(want.id)) S.selected = want.id;
+      else if (want && (S.lib?.unopened || S.lib?.scan)) S.reveal = want;
       if (S.selected && !S.itemIndex.has(S.selected)) S.selected = null;
+      const scrollTo = want && S.selected === want.id ? S.itemIndex.get(want.id) : null;
 
       emptySlot.replaceChildren();
       if (!entries.length) {
@@ -514,6 +548,7 @@ globalThis.AtriumLibraryView = (() => {
         table.hidden = false;
         emptySlot.hidden = true;
         windowed.refresh(flatRows);
+        if (scrollTo != null) scrollToRow(scrollTo);
       }
 
       const placedTotal = entries.filter(e => e.used > 0).length;
@@ -583,13 +618,12 @@ globalThis.AtriumLibraryView = (() => {
         return;
       }
       const status = api.libraryStatus(def, S.libraries, p);
-      const older = api.similar(p, def);
       INSP().render(insp, {
         def, project: p, facts: api.facts(def), used: api.usage(p, def.id),
         validation: api.cachedValidate(def),
         family: G.AtriumComponentFamilies?.memberships(p)?.get(def.id),
-        status, statusText: status && !status.pending ? api.stateText(status.missing ? {state: "missing", ref: def.libraryRef} : status) : null,
-        statusTone: status ? api.STATE_TONE[status.state] : null,
+        status, statusText: status ? api.stateText(status.missing ? {state: "missing", ref: def.libraryRef} : status) : null,
+        statusLabel: api.stateLabel(status), statusTone: status ? api.STATE_TONE[status.state] : null,
         tabbed: true, activeTab: S.inspTab, onTab: t => { S.inspTab = t; renderInspector(); },
         currentKind: kind,
         onReviewUpdate: status?.src && !status.same ? () => reviewUpdates([{def, lib: status.lib, src: status.src}]) : null,
@@ -604,14 +638,7 @@ globalThis.AtriumLibraryView = (() => {
           } : null,
           manageFamily: G.AtriumLibraryFamiliesUI ? () => AtriumLibraryFamiliesUI.manage(ctx, {initial: def.id, done: id => { S.selected = id; render(); }}) : null,
           duplicate: () => runEdit(() => { const c = api.duplicate(project(), def); S.selected = c.id; }, "Duplicated " + def.name),
-          updateParts: () => {
-            const go = ids => runEdit(() => {
-              const r = api.updateParts(project(), def, {sources: ids});
-              ctx.info?.("Updated " + r.parts + " part(s).");
-            }, null);
-            if (!older.length) { go([]); return; }
-            api.chooseCopies(def, older, go);
-          },
+          updateParts: () => G.AtriumLibraryDockUI.updatePlaced(ctx, api, def, project, runEdit),
           reviewUpdate: () => status?.src && reviewUpdates([{def, lib: status.lib, src: status.src}]),
           saveToLibrary: () => api.saveToLibraryDialog(ctx, def, () => render()),
           saveToFolder: (G.AtriumHost?.chooseLibraryFolder || G.showDirectoryPicker)
@@ -672,7 +699,7 @@ globalThis.AtriumLibraryView = (() => {
         for (let i = idx + dir; i >= 0 && i < S.rows.length; i += dir) {
           if (S.rows[i].type === "item") {
             select(S.rows[i].def.id);
-            windowed.scrollTo(i);
+            scrollToRow(i);
             return;
           }
         }
@@ -704,17 +731,25 @@ globalThis.AtriumLibraryView = (() => {
     // Folder, KiCad and group libraries: watched once their modules load (by this tab or the dock), and
     // restored through the same loaders the dock uses, so the tab lists them when it opens first.
     let offFolders = null, offGroups = null;
+    // A scan's progress redraws only the notice of the folder shown (the dock's folderProgress).
+    const onFolders = (kind, id) => {
+      if (kind !== "progress") scheduleRender();
+      else if (S.lib?.folder === id && !box.hidden && !closed) renderNotice(project());
+    };
     function watch() {
       if (closed) return;
-      offFolders ||= G.AtriumLibrarySources?.onChange?.(scheduleRender);
+      offFolders ||= G.AtriumLibrarySources?.onChange?.(onFolders);
       offGroups ||= G.AtriumGroupLocal?.onChange?.(scheduleRender);
     }
+    const shown = new MutationObserver(() => { if (stale && !box.hidden) render(); });
+    shown.observe(box, {attributes: true, attributeFilter: ["hidden"]});
 
     render();
     api.folderUI(u => { watch(); scheduleRender(); u.restore(project().library.map(d => d.libraryRef?.library).filter(Boolean)); }, true);
     api.restoreGroups(watch);
 
     // Show a part: its source, no filter that hides it. A built-in part (starter or catalogue) has no source here.
+    // A part in a folder library that is not read yet stays requested (S.reveal) until the folder lists it.
     function reveal(def, source) {
       if (!def) return;
       const {lib, inProject} = ROWS().revealSource("workspace", def, source, {project: project(), libs: allLibs(), api});
@@ -722,11 +757,10 @@ globalThis.AtriumLibraryView = (() => {
       S.source = lib?.id || "project";
       S.view = "all";
       S.selected = def.id;
+      if (lib || inProject) S.reveal = {id: def.id, source: S.source};
       clearFilters();
       if (S.lib?.unopened) api.folderUI(u => u.restore([S.lib.folder]));
-      const idx = S.itemIndex.get(def.id);
-      if (idx != null) windowed.scrollTo(idx);
-      else if (!lib && !inProject) ctx.info?.((def.name || def.id) + " is a built-in part. Place it from Quick Place; it is listed here once placed.");
+      if (!lib && !inProject) ctx.info?.((def.name || def.id) + " is a built-in part. Place it from Quick Place; it is listed here once placed.");
     }
 
     return {
@@ -737,8 +771,9 @@ globalThis.AtriumLibraryView = (() => {
         closed = true;
         cancelIntent();
         FACETS()?.close();
-        G.AtriumCatalogue?.cancelPreview?.(insp);
+        INSP()?.cancelPreview(insp);
         clearTimeout(checkTimer);
+        shown.disconnect();
         offNav.forEach(off => off?.());
         offFolders?.();
         offGroups?.();
@@ -760,8 +795,8 @@ globalThis.AtriumLibraryView = (() => {
     return instance;
   }
 
+  // A project switch closes the tab (AtriumDocViews closes every view on the nav host's "replace").
   const close = () => G.AtriumDocViews?.close?.(ID);
-  G.addEventListener?.("atrium-host-project", close);
   G.AtriumNavCommon?.ready?.(host => {
     host.registerAction("library-workspace", () => open());
   });

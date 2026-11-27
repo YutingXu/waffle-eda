@@ -33,9 +33,12 @@ globalThis.AtriumSymbolEditor = (() => {
     const L = AtriumLibrary, ui = L.ui, el = ui.el;
     if (!globalThis.AtriumCatalogue) globalThis.AtriumLazy?.need?.("AtriumCatalogue")?.catch?.(() => {}); // unique "Use footprint of" choices
     const source = ctx.def ? clone(ctx.def) : {id: A.id(), name: L.uniqueName({library: ctx.library || []}, "New component"), prefix: "U", value: "", category: "Project components"};
+    // Edit on a part whose editor tab is open shows that tab, and builds no second editor.
+    const tabId = "symbol-editor:" + source.id, openTab = ui.showOpenTab(tabId, !!ctx.asTab);
+    if (openTab) return openTab;
     const model = source.symbol ? L.symbolModel(source.symbol) : {pins: [], shapes: [{kind: "path", style: "body", closed: true, fill: true, points: [[-5.08, -5.08], [5.08, -5.08], [5.08, 5.08], [-5.08, 5.08]]}], parts: 1, alternate: false};
     const meta = {name: source.name, prefix: source.prefix || "U", value: source.value || "", description: source.description || "", parameters: {...(source.parameters || {})}};
-    const dlg = ui.editorSurface("Symbol Editor", "se-dialog", {tabId: "symbol-editor:" + source.id, icon: "schematic", hostTab: !!ctx.asTab}), title = dlg.heading.querySelector("h2");
+    const dlg = ui.editorSurface("Symbol Editor", "se-dialog", {tabId, icon: "schematic", hostTab: !!ctx.asTab}), title = dlg.heading.querySelector("h2");
     const shortcutText = text => AtriumNavCommon.shortcutParts(text, {enter:"Enter", escape:"Escape", rotate:"Space"});
     let tool = "select", gate = 1, alt = false, selection = {pins: new Set(), shapes: new Set()}, pointer = [0, 0], screenPointer = null, drag = null, drawing = null;
     let template = {number: "1", name: "", electrical: 4, length: 2 * G, orientation: "left"}, tab = "props";
@@ -476,8 +479,9 @@ globalThis.AtriumSymbolEditor = (() => {
         checks.append(ul);
       }
     }
+    function heading() { return "Symbol Editor — " + meta.name; }
     function refresh() {
-      title.textContent = "Symbol Editor — " + meta.name;
+      title.textContent = heading();
       saveButton.textContent = state() === saved ? "Save" : "Save •";
       renderGates(); renderSide(); renderChecks(); stage.render();
     }
@@ -512,9 +516,10 @@ globalThis.AtriumSymbolEditor = (() => {
         ...(redo.length ? [{key: "cmd:symbol:redo", kind: "command", label: "Redo", detail: "Symbol Editor", run: () => doUndo(false)}] : [])
       ]
     });
+    title.textContent = heading(); // the editor tab takes its title from the heading
     ui.showSurface(dlg);
     setTool("select"); refresh(); stage.observe(); canvas.focus();
-    return {dialog: dlg, model, meta, stage, setTool, build, change, generate: rows => change(() => generate(rows)), setTab: t => { tab = t; renderSide(); }, setGate: g => { gate = g; refresh(); }};
+    return dlg.editor = {dialog: dlg, model, meta, stage, setTool, build, change, generate: rows => change(() => generate(rows)), setTab: t => { tab = t; renderSide(); }, setGate: g => { gate = g; refresh(); }};
   }
   return Object.freeze({open, arcPoints, filterGate});
 })();

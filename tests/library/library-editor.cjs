@@ -118,8 +118,12 @@ async function nativeLibraryWorkflow({window,document,openPanel}){
   const originalRow='.lib-row[data-def="'+definition.id+'"]';
   await until(()=>document.querySelector(originalRow),"load authored library entry");
   node(originalRow).click();
-  button("Duplicate",".lib-detail-actions").click();
-  button("Edit symbol",".lib-detail-actions").click();
+  // Duplicate and Edit symbol are in the detail's "More component actions" menu; the Library list's own keys
+  // (Mod+D, E) run the same commands on the selection without opening the menu.
+  const listKey=(key,ctrlKey=false)=>{const e=new window.Event("keydown",{bubbles:true,cancelable:true});Object.assign(e,{key,code:"Key"+key.toUpperCase(),ctrlKey});node(".panel-library .lib-list").dispatchEvent(e);};
+  listKey("d",true);
+  await until(()=>H.project().library.some(i=>i.name==="Sensor link copy"),"duplicate the authored entry");
+  listKey("e");
   await until(()=>document.querySelector("dialog.se-dialog[open]"),"edit the duplicate symbol");
   assert.equal(named("Name").value,"Sensor link copy");button("Pin table").click();field("Name of pin 2","SCL");
   button("Save •").click();

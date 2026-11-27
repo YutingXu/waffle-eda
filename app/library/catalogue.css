@@ -71,6 +71,8 @@
 .cat-pv-params dt {min-width:0;overflow-wrap:anywhere;color:var(--muted)}
 .cat-pv-params dd {margin:0;overflow-wrap:anywhere}
 .cat-pv-params .cat-id {font-family:var(--mono);font-size:var(--fs-11)}
+/* The sourcing notice wraps a long supplier part number, as the parameters do. */
+.cat-pv .ui-notice-text {overflow-wrap:anywhere}
 .cat-pv-desc {margin:0;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh-loose)}
 .cat-pv-pins > summary {cursor:default;color:var(--ink)}
 .cat-pv-pins > summary:focus-visible {outline:var(--focus-w) solid var(--focus)}
