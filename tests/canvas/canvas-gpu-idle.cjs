@@ -557,7 +557,7 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
 {
   const {appFile}=require("../support/app-source-paths.cjs");
   let definitions=0, orderedCopper=false;
-  const context=vm.createContext({Atrium,
+  const context=vm.createContext({Atrium,AtriumResolvedLand,
     AtriumPCBAppearance:{...AtriumPCBAppearance,readDefinition(...args){
       definitions++;return AtriumPCBAppearance.readDefinition(...args);
     },layerAlpha(layer){return orderedCopper && layer==="Top" ? .5 : 1;}},
@@ -575,8 +575,9 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   const canvas={width:W,height:H,getContext:()=>ctx};ctx.canvas=canvas;
   const I=context.AtriumCanvas.create(canvas).internals();
   I.worldToScreen=([x,y])=>[48+x*10,32+y*10];
-  const gl={bindTexture(){},createTexture:()=>({}),texStorage2D(){},texParameteri(){},pixelStorei(){},
-    texSubImage2D(){uploaded.push([...ink]);}};
+  let bound;
+  const gl={bindTexture(_,tex){bound=tex;},createTexture:()=>new Map(),texStorage2D(){},texParameteri(){},pixelStorei(){},
+    texSubImage2D(_,level,x,y){const drawn=[...ink];uploaded.push(drawn);bound.set(y,drawn);}};
   const layer=(name,text)=>({id:text,kind:"label",layer:name,text,x:0,y:0,size:1});
   const front=layer("Silk","front"), back=layer("Bottom silk","back"), hidden=layer("Hidden note","hidden");
   const part={id:"U",kind:"part",def:"fo",x:0,y:0,layer:"Top",showRef:false};
@@ -623,6 +624,41 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   near.points=far.points;
   scene.cache.boxes.set(near,scene.cache.boxes.get(far));
   assert.equal(slice().includes("near copper"),false,"the next slice reads edits from the current bounds");
+
+  orderedCopper=false;
+  const pad={kind:"pad",x:0,y:0,w:2,h:2,number:"caption",net:"VCC",layer:"Multi"};
+  V.padDetails=true; V.all=[...items,pad];
+  I.query=()=>[pad];
+  I.padText=(g,p)=>g.fillText(p.number);
+  for(const item of V.all)scene.cache.boxes.set(item, [0,-.25,1,.25]);
+  const allRows=owner=>{
+    const target={key:null};
+    uploaded.length=0;
+    if(owner)st[owner]={T:target};
+    for(let y=0;y<H;y+=8)context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,V,null,target,[0,y,W,8]);
+    if(owner)st[owner]=null;
+    const images=Array.from(target.bands,b=>Array.from({length:H/8},(_,y)=>b.tex?.get(y*8)??[]));
+    return {images,calls:uploaded.length,target};
+  };
+  const explicit=allRows(), fresh=allRows("textJob"), wide=allRows("wideText");
+  assert.deepEqual(fresh.images,explicit.images,"untouched texture rows match explicitly uploaded transparent rows");
+  assert.ok(fresh.calls<explicit.calls,"fresh slices do not submit empty band rows");
+  assert.deepEqual(wide.images,explicit.images,"the same rows match during wide preparation");
+  assert.equal(wide.calls,fresh.calls);
+  const captions=fresh.images.find(rows=>rows.some(row=>row.includes("caption")));
+  assert.ok(captions?.[3].includes("caption") && captions[4].includes("caption"),
+    "a caption-only band crosses the boundary between two slices");
+
+  for(const item of V.all){
+    item.y=9;
+    scene.cache.boxes.set(item,[0,9,1,9.5]);
+  }
+  uploaded.length=0;
+  st.textJob={T:{key:null}};
+  context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,V,null,fresh.target,[0,24,W,8]);
+  st.textJob=null;
+  assert.ok(uploaded.length && uploaded.every(row=>!row.length),"a reused band explicitly clears stale rows");
+  assert.ok(fresh.target.bands.every(b=>!b.tex?.get(32)?.length));
 }
 
 // Only a complete, single-colour coverage mask takes the direct WebKitGTK transfer.

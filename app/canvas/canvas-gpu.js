@@ -2255,17 +2255,26 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (T.w !== W || T.h !== H) { for (const b of bands) gl.deleteTexture(b.tex); bands.length = 0; T.w = W; T.h = H; }
     const g = T.ctx, o = I.worldToScreen([0, 0]);
     const textOptions = {...o3, skipPartBoxes: true, gpu: i => !twoD(i)};
+    const freshRows = area && !planning && (st.textJob?.T === T || st.wideText?.T === T);
     let prepared;
-    if (!area && !local && !exact.size && need.length > 1 && I.collectBoardLayers &&
+    if ((freshRows || !area && !local && need.length > 1) && !exact.size && I.collectBoardLayers &&
         !opts.partBoxesOnly && !opts.recordLayer && !opts.clipLayer) {
       // Each layer still paints in its original band, but all bands share one object scan.
       // Do not retain this viewport's groups in the pan-strip painter.
       const start = now();
       const {ordered, selectedParts} = I.collectBoardLayers(items,doc,defs,scale,textOptions,null,V.viewport,null);
-      prepared = new Map(need.map(next => [next,{ordered:[],selectedParts}]));
-      for (const pass of ordered) {
-        const next = nextOf(pass.layer);
-        prepared.get(own.has(next) ? next : last).ordered.push(pass);
+      prepared = new Map(need.map(next => [next,{ordered:[],selectedParts,captions:null}]));
+      const forLayer = layer => {
+        const next = nextOf(layer);
+        return prepared.get(own.has(next) ? next : last);
+      };
+      for (const pass of ordered) forLayer(pass.layer).ordered.push(pass);
+      if (freshRows) {
+        for (const [layer, list] of details || []) {
+          const captions = entries(list);
+          if (captions.length) (forLayer(layer).captions ||= new Map()).set(layer, captions);
+        }
+        entries = list => list;
       }
       st.stats.acc.board += now() - start;
     }
@@ -2293,6 +2302,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       // Linear: a gesture frame samples it moved and scaled; at rest it is sampled at pixel centres.
       const band = bands[n] ||= {tex:null};
       band.next = next;
+      const layers = prepared?.get(next), row = freshRows && layers;
+      // A fresh slice writes these rows once. Empty rows stay transparent in the new texture.
+      if (row && !row.ordered.length && !row.captions) continue;
       g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
       if (clipped) g.clearRect(sx, sy, sw, sh); else g.clearRect(0, 0, W, H);
       if (clipped) { g.save(); g.beginPath(); g.rect(sx, sy, sw, sh); g.clip(); }
@@ -2303,7 +2315,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       let ink = !READBACK || !!area || local || T.planning || !!lod;
       const painted = (item, bounds) => ink ||= inkTouches(S.cache.boxes, V.viewport, item, bounds);
       const bounds = READBACK && !area && !local && !rolled && !T.planning && !lod ? bandRectangle() : null;
-      paintBand(g, next, items, all, details, entries, V.viewport, ink ? null : painted, bounds, prepared?.get(next));
+      paintBand(g, next, items, all, row ? row.captions : details, entries, V.viewport, ink ? null : painted, bounds, layers);
       st.stats.acc.board += now() - t1;
       // Board Planning mode (key 1): regions as tinted areas, bend lines dashed with labels, under the connection lines.
       // The layer goes over every board layer then, so pad numbers and nets join it, under the tints as in canvas.js.
