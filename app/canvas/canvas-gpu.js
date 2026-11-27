@@ -2134,7 +2134,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // and tool frames reuse it as it is.
   // area: [x, y, w, h] device pixels: paint and upload only that part of T's bands (an idle slice of the
   // text for a new camera, textSlices), never answering from T's key.
-  function textLayer(I, st, doc, defs, opts, cam, V, pours, T = st.text, area = null) {
+  function textLayer(I, st, doc, defs, opts, cam, V, pours, T = st.text, area = null, timing) {
     const [cx, cy, scale, flipped, width, height, dpr] = cam, gl = st.gl, S = st.scene, W = st.canvas.width, H = st.canvas.height;
     let sig = "";
     for (const k in PCB.system) sig += PCB.system[k];
@@ -2153,7 +2153,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const key = [S.rev, S.stackEpoch, ...cam, V.active, opts.layerMode, opts.netNames, ...(opts.hidden || []), ...(goneIds(opts) || [])].join("|");
       if (S.padDetailsKey !== key) {
         S.padDetailsKey = key; S.padDetails = padDetails(V.all, defs, scale, V.o2, doc);
+        const occlusionStart = timing ? now() : 0;
         S.coveredDetails = coveredPadDetails(I, doc, defs, S.padDetails);
+        if (timing) timing.occlusion += now() - occlusionStart;
       }
       details = S.padDetails;
       for (const layer of S.coveredDetails) exact.add(layer);
@@ -2320,7 +2322,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           }
         }
         if (w > 0 && h > 0) {
-          uploadCanvas(gl,bandTexture(st,band,W,H),T.canvas,x,y,w,h);
+          const tex = bandTexture(st,band,W,H), uploadStart = timing ? now() : 0;
+          uploadCanvas(gl,tex,T.canvas,x,y,w,h,gl.RGBA,timing);
+          if (timing) timing.upload += now() - uploadStart;
           st.stats.textUpload += w * h * 4;
         }
       } else if (band.tex) {
@@ -3119,7 +3123,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       releaseOverlayCopy(st);
       const t1 = now(), V = scope(I, st, doc, defs, opts, cam, list), ta = now();
       const bandPaintBefore = stages ? st.stats.acc.board : 0;
-      const text = textLayer(I, st, doc, defs, opts, cam, V, list), tb = now();
+      const textTiming = stages ? {occlusion:0, upload:0, readback:0} : null;
+      const text = textLayer(I, st, doc, defs, opts, cam, V, list, st.text, null, textTiming), tb = now();
       const bandPaint = stages ? st.stats.acc.board - bandPaintBefore : 0;
       const coverageTiming = stages ? {paint:0, upload:0, readback:0} : null;
       const coverage = pourCoverage(I, st, doc, defs, opts, cam, V, list, text, c, coverageTiming), tc = now();
@@ -3147,6 +3152,9 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         stages.renderStage("full-text", tb - ta);
         // The existing board painter counter is nested within textLayer here.
         stages.renderStage("full-band-paint", bandPaint);
+        stages.renderStage("full-text-caption-occlusion", textTiming.occlusion);
+        stages.renderStage("full-text-upload", textTiming.upload);
+        stages.renderStage("full-text-readback", textTiming.readback);
         stages.renderStage("full-coverage", tc - tb);
         stages.renderStage("full-coverage-paint", coverageTiming.paint);
         stages.renderStage("full-coverage-upload", coverageTiming.upload);

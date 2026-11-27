@@ -1407,36 +1407,38 @@ function renderStageAttribution() {
   const leaf = {
     place: work(0), update: work(0), memory: work(3), covers: () => !failedStrip || sameScaleCopy,
     scrollText: work(2), scrollOverlay: () => { elapsed += 3; return !failedStrip; },
-    draw: work(5), moveOverlay: work(17), afterMove: work(23), scope: work(7, viewport),
+    draw: work(5), moveOverlay: work(17), afterMove: work(23),
+    scope(I) { elapsed += 7; return I.stageViewport || viewport; },
     textLayer(_I, st) { elapsed += 11; st.stats.acc.board += 9; return null; },
     // Keep the real coverage and upload routines. Charge geometry discovery and
     // backing allocation separately from the layer paint and synchronous submission.
     smallHoleEdges: work(3), texture: work(1, {}), coveragePixels: work(2, [0,0,200,80]),
     overlay: work(19), scheduleWide: work(0)
   };
-  const stubbed = Object.keys(leaf).reduce((code, name) => {
+  const stubbed = realText => Object.keys(leaf).filter(name => !realText || name !== "textLayer").reduce((code, name) => {
     const declaration = new RegExp("(function " + name + "\\([^\\n]*\\) \\{)");
     assert.match(code, declaration, "the production render leaf exists");
     return code.replace(declaration, "$1 return G.stageLeaves." + name + "(...arguments);");
-  }, gpuCode).replace(sceneExport, "{render, damage, stats, views, pourCoverage,");
+  }, gpuCode).replace(sceneExport, "{render, damage, stats, views, pourCoverage, scene, L,");
   const diagnostics = ["performance-diagnostics.js", "diagnostics.js"].map(file =>
     fs.readFileSync(path.join(__dirname, "../../app/checks", file), "utf8")).join("\n");
-  function rendererContext(userAgent) {
+  function rendererContext(userAgent, realText = false) {
     const context = vm.createContext({
-      AtriumPCBAppearance, AtriumCanvasGPUPref:{decision:() => ({use:true})}, stageLeaves:leaf,
+      AtriumPCBAppearance, AtriumResolvedLand, AtriumCanvasGPUPref:{decision:() => ({use:true})}, stageLeaves:leaf,
       navigator:{userAgent}, AtriumPCBPours:{},
       performance:{now() { clockReads++; return elapsed; }}, clearTimeout:cancel => cancel()
     });
     vm.runInContext(diagnostics, context);
-    vm.runInContext(stubbed, context);
+    vm.runInContext(stubbed(realText), context);
     return context;
   }
   const webKit = rendererContext("AppleWebKit"), chromium = rendererContext("AppleWebKit Chrome/144");
+  const webKitText = rendererContext("AppleWebKit", true), chromiumText = rendererContext("AppleWebKit Chrome/144", true);
   const list = ["Top","Bottom"].map(layer => ({layer,bounds:[-2,-2,2,2]}));
   const doc = {...board,pcbDrawing:{pours:list}}, cache = {doc,rev:1,pourSig:"fixture"};
   const defs = new Map(), frame = {pours:list};
-  function capture(kind, mode, {rejectStrip = false, cacheHit = false, direct = false, wires = true, speculative = false} = {}) {
-    const {AtriumDiagnostics:D, AtriumCanvasGPU:renderer} = direct ? chromium : webKit;
+  function capture(kind, mode, {rejectStrip = false, cacheHit = false, direct = false, wires = true, speculative = false, realText = false} = {}) {
+    const {AtriumDiagnostics:D, AtriumCanvasGPU:renderer} = realText ? (direct ? chromiumText : webKitText) : (direct ? chromium : webKit);
     const opts = {reuseBase:true, showUnrouted:wires};
     const readback = {};
     sameScaleCopy = kind === "copy";
@@ -1447,9 +1449,13 @@ function renderStageAttribution() {
       cam:() => [1,0,scale,false,200,80,1], sync:() => cache,
       ctx:{save:work(0),setTransform:work(0),clearRect:work(0),restore:work(0),getImageData:work(5, readback)},
       boardTransform:work(0), paintTop:work(17), airwireConnectivity:work(13, {airwires:[]}),
-      drawBoard(_g,_items,_doc,_defs,_scale,_opts,[region]) {
-        elapsed += region.layer === "Top" ? 3 : 7;
-        st.stats.acc.board += 29;
+      drawBoard(g, items, _doc, _defs, _scale, options, regions, _view, _lod, painted, bounds) {
+        if (regions) {
+          elapsed += regions[0].layer === "Top" ? 3 : 7;
+          st.stats.acc.board += 29;
+        } else for (const item of items) if (!options.hidden?.has(item.layer)) {
+          painted?.(item); bounds?.(g, 6, 6, 9, 9);
+        }
       }
     };
     const st = {
@@ -1457,7 +1463,7 @@ function renderStageAttribution() {
       canvas:{width:200,height:80}, parked:new Map(), alphaTextures:true,
       exact:{doc,rev:1,cx:0,cy:0,scale:1,flipped:false,width:200,height:80,dpr:1,pourList:list},
       gl:{
-        ALPHA:1, bindTexture:work(0), pixelStorei:work(0),
+        ALPHA:1, RGBA:2, bindTexture:work(0), pixelStorei:work(0),
         texSubImage2D(...args) {
           elapsed += 6;
           assert.equal(args.at(-1), direct ? I.canvas : readback, "the original texture source is submitted");
@@ -1469,6 +1475,19 @@ function renderStageAttribution() {
       },
       stats:{acc:{n:0,gesture:0,update:0,gl:0,overlay:0,board:0}, last:prior,pourBytes:0,coverageUpload:0}
     };
+    if (realText) {
+      const pad = {...F4.pad, id:"caption",kind:"pad",layer:"Top",net:"CAPTION",x:0,y:0,w:60,h:30,drill:0};
+      const items = ["Bottom","Top"].map(layer => ({id:layer,kind:"label",layer}));
+      I.ctx.canvas = I.canvas;
+      I.ctx.getTransform = () => ({a:1,b:0,c:0,d:1,e:0,f:0});
+      I.worldToScreen = p => p;
+      I.query = work(4, [pad]);
+      I.padText = work(0);
+      I.stageViewport = {...viewport,active:"Top",padDetails:true,all:[pad],items,o2:opts};
+      st.scene = renderer.scene({...cache,boxes:new Map(),byId:new Map()},null);
+      renderer.L(st.scene,"Top");
+      st.text = {};
+    }
     renderer.views.set(I, st);
     const cancelled = [];
     if (speculative) {
@@ -1504,7 +1523,8 @@ function renderStageAttribution() {
     return {reads:afterRender-readsBefore, driverReads:driverReads-driverBefore, legacy:JSON.stringify(st.stats),
       stages:Object.fromEntries(Array.from(snap.rows, row => [row.operation,row.runP95]))};
   }
-  const full = {"full-scope":7,"full-text":11,"full-band-paint":9,"full-coverage":44,
+  const full = {"full-scope":7,"full-text":11,"full-band-paint":9,
+    "full-text-caption-occlusion":0,"full-text-upload":0,"full-text-readback":0,"full-coverage":44,
     "full-coverage-paint":10,"full-coverage-upload":22,"full-coverage-readback":10,
     "full-airwires":13,"full-draw":5,"full-overlay":19};
   for (const [kind, legacyClocks, detailedClocks, stages] of [
@@ -1536,7 +1556,17 @@ function renderStageAttribution() {
   assert.deepEqual(noWires.stages, {...full,"full-airwires":0});
   assert.equal(noWires.reads, 19, "a hidden connection layer skips its lookup clock");
   assert.equal(capture("full", "ordinary", {direct:true}).reads, 7);
-  console.log("GPU stages separate airwire lookup, draw submission, coverage paint, upload and explicit readback");
+  for (const direct of [false, true]) {
+    const off = capture("full", null, {realText:true,direct}), ordinary = capture("full", "ordinary", {realText:true,direct});
+    const detailed = capture("full", "detailed", {realText:true,direct}), cached = capture("full", "detailed", {realText:true,direct,cacheHit:true});
+    const text = row => ["full-text-caption-occlusion","full-text-upload","full-text-readback"].map(key => row.stages[key]);
+    assert.deepEqual(text(detailed), [4,direct ? 12 : 22,direct ? 0 : 10], "two actual text-band uploads and a caption occlusion query");
+    assert.deepEqual(text(cached), [0,0,0], "a cached frame reports zero caption, upload and readback work");
+    assert.equal(ordinary.reads,off.reads, "ordinary recording adds no text clock reads");
+    assert.deepEqual(ordinary.stages,{});
+    assert.equal(detailed.legacy, off.legacy, "recording text stages does not alter the original draw");
+  }
+  console.log("GPU stages separate caption occlusion, text upload, explicit readback, coverage, airwires and draw");
 }
 renderStageAttribution();
 

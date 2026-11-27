@@ -251,17 +251,19 @@ function performanceRecorder(D) {
 
     const ordinary = D.startPerformance(null), renderer = D.performance;
     assert.equal(renderer.rendererStages, false);
-    assert.equal(renderer.renderStage("full-text", 9), false);
+    const textStages = [["full-text", 11], ["full-text-caption-occlusion", 4], ["full-text-upload", 9], ["full-text-readback", 0]];
+    for (const [name, elapsed] of textStages) assert.equal(renderer.renderStage(name, elapsed), false);
     renderer.begin("pcb", "draw").end("visible");
     const publicBefore = D.performanceSnapshot({shareable:true});
     const stagesClockReads = clockReads, detailed = D.startPerformance({rendererStages:true});
     assert.equal(D.performance, renderer, "the detailed lease augments the ordinary recording");
     assert.equal(renderer.rendererStages, true);
     assert.equal(renderer.renderStage("private-board-stage", 11), false, "renderer stage names are closed");
-    assert.equal(renderer.renderStage("full-text", 11), true);
-    const [drawRow, stage] = D.performanceSnapshot().rows;
+    for (const [name, elapsed] of textStages) assert.equal(renderer.renderStage(name, elapsed), true);
+    const [drawRow, ...stages] = D.performanceSnapshot().rows;
     assert.equal(drawRow.operation, "draw");
-    assert.deepEqual([stage.operation, stage.runP95, stage.counts.completed], ["full-text", 11, 1]);
+    assert.deepEqual(stages.map(row => [row.operation, row.runP95, row.counts.completed]),
+      textStages.map(([name, elapsed]) => [name, elapsed, 1]));
     assert.deepEqual(D.performanceSnapshot({shareable:true}), publicBefore);
     assert.equal(detailed.stop(), true);
     assert.equal(D.performance, renderer, "the remaining ordinary lease stays active");
