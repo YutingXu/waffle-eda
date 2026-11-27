@@ -5,10 +5,12 @@ catch { console.log("SKIP workbench spatial motion: Playwright Core is unavailab
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const efficiencyOff = require("../support/efficiency-off.cjs");
 (async () => {
   const executablePath = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   const browser = await chromium.launch({headless:true, executablePath});
   const page = await browser.newPage({viewport:{width:1400,height:900}});
+  await efficiencyOff(page);
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.setDefaultTimeout(7000);
