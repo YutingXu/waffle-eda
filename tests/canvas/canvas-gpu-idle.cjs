@@ -865,17 +865,22 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   const keepout={id:"hatch",kind:"graphic",layer:"Silk",keepout:true,fill:true,closed:true,
     points:[[-1.3,-3],[1.2,-2.9],[1,-1.2],[-1.2,-1.1]]};
   const stroke=rec.ctx.stroke;
-  let boundary;
+  let boundary, wideCap;
   try {
     rec.ctx.stroke=function(...args) {
       stroke.apply(this,args);
       // Stamp the emitted dashed path in the fake backing independently of its upload bounds.
       const op=rec.list.at(-1);
-      if (!op?.dash?.length) return;
-      const [x,y]=op.d.slice(1,3).map(Math.floor);
+      if (!op?.dash?.length && !(op?.w > 4)) return;
+      const x=Math.floor(op.d[1]-(op.dash?.length ? 0 : op.w/2-.25)), y=Math.floor(op.d[2]);
       if (x>=0 && y>=0 && x<W && y<H) {
-        boundary=y*W+x;
-        scratch[boundary]=2;
+        const pixel=y*W+x;
+        if (op.dash?.length) boundary=pixel;
+        else {
+          assert.equal(op.join,"round"); assert.equal(op.cap,"round");
+          wideCap=pixel;
+        }
+        scratch[pixel]=2;
       }
     };
     const st=state();
@@ -897,9 +902,26 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     paint(st,[label],3,true,1.5,6);
     assert.deepEqual(st.text.bands[0].tex,scratch,"deleting the keepout clears its prior ink");
     assert.ok(!scratch.includes(2));
-    const thick={...keepout,fill:false,width:2};
-    paint(state(),[thick],0,false,1,6);
-    assert.deepEqual(reads.at(-1),[0,0,W,H],"unknown thick unfilled keepout retains full transfer");
+    const thick={...keepout,fill:false,closed:false,width:2};
+    const lineState=state();
+    paint(lineState,[label,thick],0,false,1,6);
+    assert.ok(reads.at(-1)[2]*reads.at(-1)[3]<W*H/4,"the thick open keepout narrows the upload");
+    const originalCap=wideCap;
+    assert.equal(scratch[originalCap],2,"the wide round cap extends beyond its dashed spine");
+    assert.deepEqual(lineState.text.bands[0].tex,scratch,"the crop retains the outer stroke");
+    paint(lineState,[label,{...thick,closed:true}],-3,true,1.5,6);
+    assert.equal(lineState.text.bands[0].tex[originalCap],0,"the flipped move erases the old cap");
+    assert.deepEqual(lineState.text.bands[0].tex,scratch);
+    lineState.scene.rev++; lineState.scene.textRev++;
+    const empty={...thick,points:[thick.points[0]]};
+    paint(lineState,[label,empty],-3,true,1.5,6);
+    assert.ok(!scratch.includes(2),"a one-vertex path draws no keepout ink");
+    assert.deepEqual(lineState.text.bands[0].tex,scratch,"a degenerate edit clears the prior stroke");
+    const unknown={...thick,width:Infinity}, unknownState=state();
+    paint(unknownState,[label,unknown],0,false,1,6);
+    assert.deepEqual(reads.at(-1),[0,0,W,H],"an invalid pen width retains the unknown ink fallback");
+    paint(unknownState,[label,thick],1,false,1,6);
+    assert.deepEqual(reads.at(-1),[0,0,W,H],"unknown prior ink must be cleared with a full transfer");
   } finally { rec.ctx.stroke=stroke; }
   console.log("WebKit text crops preserve old/new glyph pixels and fall back for native captions and mixed label/path records");
 }
