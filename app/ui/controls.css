@@ -165,7 +165,9 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 /* Checkbox and radio: the library draws both (2026-11-27 prototype) instead of the platform's widget, so they
    share the field's line, the primary fill and the icon stroke. Inputs paint no pseudo-element in WebKit, so
    the tick is a background glyph (--glyph-check) and the radio dot a gradient; both grow in over
-   --motion-fast and appear at once with Reduced motion. Full-cell grid checkboxes keep their own face. */
+   --motion-fast and appear at once with Reduced motion. Growing them with background-size is the motion
+   contract's one input-glyph exception (docs/motion.md; tests/support/motion-css.cjs names this selector).
+   Full-cell grid checkboxes keep their own face. */
 :where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {
   --ui-check-time:calc(var(--motion-fast) * var(--motion-move));
   appearance:none;-webkit-appearance:none;flex:none;box-sizing:border-box;display:inline-block;vertical-align:middle;
@@ -444,11 +446,14 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
   & .ui-segmented > .ui-segment:is(button,label) {min-height:calc(var(--ui-control-height) - 4px);margin:0;border-color:transparent;border-radius:var(--r-md);background:transparent;color:var(--muted);font-weight:var(--fw-medium)}
   & .ui-segmented > .ui-segment:hover:not(:disabled,:has(:disabled)) {background:var(--button-face);color:var(--ink)}
   & .ui-segmented > .ui-segment:is([aria-pressed=true],[aria-checked=true],:has(input:checked)) {background:light-dark(var(--field),var(--raised));border-color:transparent;color:var(--ink)}
-  /* A change slides the raised face (ui/kit.js sets data-sliding and the thumb's x and width for one move). */
+  /* A change slides the raised face (ui/kit.js sets data-sliding and the thumb's x and width for one move).
+     The thumb spans the track and a rounded clip-path cuts the face out of it, so the slide animates the
+     clip, not left or width (docs/motion.md: no layout properties). */
   & .ui-segmented {position:relative}
-  & .ui-segmented[data-sliding]::before {content:"";position:absolute;inset-block:2px;left:var(--ui-thumb-x);width:var(--ui-thumb-w);
-    border-radius:var(--r-md);background:light-dark(var(--field),var(--raised));pointer-events:none}
-  & .ui-segmented[data-sliding=go]::before {transition:left var(--motion-toggle) var(--ease-decelerate),width var(--motion-toggle) var(--ease-decelerate)}
+  & .ui-segmented[data-sliding]::before {content:"";position:absolute;inset-block:2px;left:0;right:0;
+    clip-path:inset(0 calc(100% - var(--ui-thumb-x) - var(--ui-thumb-w)) 0 var(--ui-thumb-x) round var(--r-md));
+    background:light-dark(var(--field),var(--raised));pointer-events:none}
+  & .ui-segmented[data-sliding=go]::before {transition:clip-path var(--motion-toggle) var(--ease-decelerate)}
   & .ui-segmented[data-sliding] > .ui-segment:is(button,label) {background:transparent}
   /* Toggle chips: off is a hairline and muted text, on is a raised neutral fill with ink text. */
   & .bom-chip {font-weight:var(--fw-medium)}
