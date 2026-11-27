@@ -234,6 +234,63 @@ function run() {
     const linked = M.merge(design, ours, theirs);
     assert.equal(pcb(linked.project).items[0].ref, "R8", "a linked placement follows its schematic part");
   }
+  // 9. An item moved to another sheet is one object: moved to different sheets on each side, or moved
+  //    against a delete, is one conflict, and every merge and resolution keeps each id once.
+  {
+    const design = Atrium.project("Moves", AtriumParts.catalogue), first = sch(design);
+    first.id = "sheet-a";
+    first.items.push({id: "K", kind: "label", x: 0, y: 0, text: "Keep"}, {id: "L", kind: "label", x: 1, y: 1, text: "Note"});
+    design.documents.push({...clone(first), id: "sheet-b", name: "B", items: [{id: "P", kind: "label", x: 5, y: 5, text: "Before"}, {id: "Q", kind: "label", x: 6, y: 6, text: "After"}]},
+      {...clone(first), id: "sheet-c", name: "C", items: []});
+    const doc = (p, id) => p.documents.find(d => d.id === id);
+    const where = p => p.documents.filter(d => d.items.some(i => i.id === "L")).map(d => d.id);
+    const move = (p, to, at = doc(p, to).items.length, x) => {
+      const from = p.documents.find(d => d.items.some(i => i.id === "L")), item = from.items.find(i => i.id === "L");
+      from.items = from.items.filter(i => i !== item); if (x != null) item.x = x; doc(p, to).items.splice(at, 0, item);
+    };
+    const valid = p => Atrium.validate(M.parse(M.serialize(p), "merged"));
+    // Moved to different sheets: ours' sheet until resolved; theirs and both answers are valid too.
+    let ours = clone(design), theirs = clone(design);
+    move(ours, "sheet-b", 1); move(theirs, "sheet-c");
+    let r = M.merge(design, ours, theirs);
+    assert.deepEqual(where(r.project), ["sheet-b"], "one copy, on our sheet");
+    assert.deepEqual(doc(r.project, "sheet-b").items.map(i => i.id), ["P", "L", "Q"], "in our place on that sheet");
+    assert.equal(r.conflicts.length, 1);
+    let c = r.conflicts[0];
+    assert.deepEqual([c.objectId, c.status, c.fields, c.docId], ["L", "modified-both", ["document"], "sheet-b"]);
+    assert.deepEqual(c.documents, {base: "sheet-a", ours: "sheet-b", theirs: "sheet-c"});
+    assert.ok(!Object.keys(c.ours).some(k => k.startsWith("\u0000")) && !Object.keys(c.sides.theirs).some(k => k.startsWith("\u0000")), "no internal field leaks");
+    valid(r.project);
+    const picked = M.resolve(r, {[c.id]: "theirs"});
+    assert.deepEqual(where(picked), ["sheet-c"]); valid(picked);
+    const kept = M.resolve(r, {[c.id]: "both"});
+    assert.deepEqual(where(kept), ["sheet-b"]);
+    assert.equal(doc(kept, "sheet-c").items.length, 1, "both keeps a copy of theirs on their sheet");
+    assert.notEqual(doc(kept, "sheet-c").items[0].id, "L"); valid(kept);
+    // Deleted on one side, moved (and edited) on the other: one conflict that keeps ours, either way round.
+    ours = clone(design); theirs = clone(design);
+    doc(ours, "sheet-a").items = doc(ours, "sheet-a").items.filter(i => i.id !== "L"); move(theirs, "sheet-b", 0, 9);
+    r = M.merge(design, ours, theirs);
+    assert.deepEqual(where(r.project), [], "our delete stands until resolved");
+    assert.deepEqual(r.conflicts.map(x => [x.objectId, x.status]), [["L", "deleted-ours"]]);
+    valid(r.project);
+    const back = M.resolve(r, {[r.conflicts[0].id]: "theirs"});
+    assert.deepEqual([where(back), doc(back, "sheet-b").items.find(i => i.id === "L").x], [["sheet-b"], 9]); valid(back);
+    r = M.merge(design, theirs, ours);
+    assert.deepEqual([where(r.project), r.conflicts.map(x => x.status)], [["sheet-b"], ["deleted-theirs"]]);
+    assert.deepEqual(where(M.resolve(r, {[r.conflicts[0].id]: "theirs"})), []);
+    // Moved on one side, edited on the other: merges by itself onto the new sheet.
+    ours = clone(design); theirs = clone(design);
+    move(ours, "sheet-c"); doc(theirs, "sheet-a").items.find(i => i.id === "L").text = "Edited";
+    r = M.merge(design, ours, theirs);
+    assert.equal(r.conflicts.length, 0);
+    assert.deepEqual([where(r.project), doc(r.project, "sheet-c").items[0].text], [["sheet-c"], "Edited"]);
+    assert.ok(r.changes.some(x => x.objectId === "L" && x.docId === "sheet-c"), "listed on the sheet it now sits on");
+    // Moved to the same sheet on both sides: no conflict.
+    ours = clone(design); theirs = clone(design); move(ours, "sheet-c"); move(theirs, "sheet-c");
+    r = M.merge(design, ours, theirs);
+    assert.deepEqual([where(r.project), r.conflicts.length], [["sheet-c"], 0]);
+  }
   // 6. Speed: two sides each moving 200 parts of a 25.6k-object board.
   {
     require("../pcb/dense-board.js");

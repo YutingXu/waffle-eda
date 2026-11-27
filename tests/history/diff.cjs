@@ -167,6 +167,17 @@ for (const c of corpus) {
   assert.equal(find(D.compare(p, q), "net.renamed"), undefined);
   assert.ok(D.compare(p, q).stats.suppressed.autoNetNames >= 1);
   assert.ok(find(D.compare(p, q, {ignoreAutoNetNames: false}), "net.renamed"));
+  // Only a whole generated name is one: a named net that starts with "Net-" is still renamed.
+  for (const [from, to, hidden] of [["Net-3V3", "Net-5V", false], ["SENSE", "NET5", false], ["Net-USB-DP", "Net-USB-DM", false],
+    ["Net-(R1-Pad2)", "Net-(R2-Pad2)", true], ["NetR1_2", "NetR2_2", true], ["Net-U$1-3", "Net-U$2-3", true]]) {
+    for (const i of p.documents[0].items) if (i.kind === "netlabel" && /^Net|^SENSE$/.test(i.text)) i.text = from;
+    for (const i of q.documents[0].items) if (i.kind === "netlabel" && /^Net|^SENSE$|^NET5$/.test(i.text)) i.text = to;
+    assert.equal(!find(D.compare(p, q), "net.renamed"), hidden, from + " -> " + to + (hidden ? " is not a rename" : " is a rename"));
+  }
+  for (const name of ["Net-R1-1", "Net-U1A-B3", "Net-R?-2", "Net-7", "NetC1_2", "NetU3_A14", "Net-(R1-Pad2)", "unconnected-(U1-PA3)", "N$12", "N00012", "N_4", "$$$1234", "$1N5"])
+    assert.ok(Atrium.isAutoNetName(name), name + " is generated");
+  for (const name of ["Net-3V3", "Net-5V", "Net-USB-DP", "NetCLK_IN", "NET5", "SENSE", "Net-", "unconnected-", "N$", "VCC", "", null, 5])
+    assert.ok(!Atrium.isAutoNetName(name), String(name) + " is named");
   // Regenerated pour fill and imported caches are ignored by default.
   const f = clone(a); f.documents[1].items.find(i => i.id === "gndpour").pourIndex = 3;
   assert.equal(D.compare(a, f).changes.length, 0);

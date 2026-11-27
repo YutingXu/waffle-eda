@@ -517,6 +517,11 @@ globalThis.Atrium = (() => {
   }
   // Unnamed nets on Altium sheets get Altium's name, Net<designator>_<pin> of the lowest designator (NetC1_2), as in the PcbDoc.
   function autoNetName(doc,pins){if(doc?.netNaming!=="first-pin"&&!/\.schdoc$/i.test(doc?.sourceName||""))return "";let b=pins[0];for(const p of pins)if(p[0]<b[0]||p[0]===b[0]&&p[1]<b[1])b=p;return "Net"+b[0]+"_"+b[1];}
+  // The one test for a generated net name, matched whole: ours (Net-R1-2, Net-7, NetR1_2) and other tools'
+  // (KiCad Net-(R1-Pad2) and unconnected-(…), Eagle N$1, OrCAD N00012, EasyEDA $1N5, PADS $$$12). A designator
+  // has a digit or "?", so a named net that merely starts with "Net-" (Net-3V3, Net-USB-DP) is not one.
+  const AUTO_NET_NAME=/^(?:Net-\(.*\)|unconnected-\(.*\)|Net-?\d+|Net-[A-Za-z#][^\s()-]*[\d?][^\s()-]*-[^\s-]+|Net[A-Za-z#][^\s()_-]*[\d?][^\s()-]*_[^\s-]+|N\$\d+|N_\d+|N\d{4,}|\$\$\$\d+|\$\d\w*)$/;
+  const isAutoNetName=name=>typeof name==="string"&&AUTO_NET_NAME.test(name);
   const wireContactTolerance = 0.00011;
   // Wires connect at terminals and explicit junctions. A bare crossing joins neither net.
   function connectivity(doc, defs) {
@@ -577,7 +582,9 @@ globalThis.Atrium = (() => {
   const keepoutBits={via:1,track:2,copper:4,smdPad:8,throughPad:16};
   const keepoutBlocks=(item,kind)=>item.keepoutRestrictions==null||!!(item.keepoutRestrictions&keepoutBits[kind]);
   // An absolute drag reuses the geometry captured at its mark.
+  // An image markup has no x/y: it sits in its image's own coordinates and moves with the image.
   function moveItem(item,dx,dy,src=item) {
+    if(item.kind==="imageMarkup")return;
     if(src.points){
       const S=globalThis.AtriumBoardShape,region=S?.regionOf?.(src);
       const move=([x,y])=>[x+dx,y+dy];
@@ -1271,5 +1278,5 @@ globalThis.Atrium = (() => {
     do{step=steps.next();}while(!step.done);
     return step.value;
   }
-  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind};
+  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,AUTO_NET_NAME,isAutoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind};
 })();

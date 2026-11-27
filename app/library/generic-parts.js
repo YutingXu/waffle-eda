@@ -637,7 +637,7 @@ globalThis.AtriumGenericParts = (() => {
       if (d.kind === "schematic") {
         const net = A().connectivity(d, defs);
         const counts = new Map(); for (const v of net.byPin.values()) counts.set(v, (counts.get(v) || 0) + 1);
-        for (const n of lost) { const k = net.byPin.get(i.id + "/" + n); if (k && (!/^Net-/.test(k) || counts.get(k) > 1 || net.nets.some(x => x.name === k && x.wires))) connected.add(n); }
+        for (const n of lost) { const k = net.byPin.get(i.id + "/" + n); if (k && (!A().isAutoNetName(k) || counts.get(k) > 1 || net.nets.some(x => x.name === k && x.wires))) connected.add(n); }
       } else for (const n of lost) if (i.pinNets?.[n]) connected.add(n);
     }
     const parts = Math.max(1, next.symbol?.parts || 1);
@@ -703,7 +703,7 @@ globalThis.AtriumGenericParts = (() => {
     for (const [i, p, next] of movedPins) {
       const net = netBefore.get(i.id + "/" + p.number);
       if (!net) continue;
-      const name = /^Net-/.test(net) ? String(i.ref + "_" + p.number).replace(/[^A-Za-z0-9_+-]/g, "_") : net;
+      const name = A().isAutoNetName(net) ? String(i.ref + "_" + p.number).replace(/[^A-Za-z0-9_+-]/g, "_") : net;
       const pin = def.symbol.pins.find(q => String(q.number) === String(p.number)), dir = DIRS[pin?.orientation] || [-1, 0];
       const end = A().world([pin.x + dir[0] * G, pin.y + dir[1] * G], i).map(r6);
       d.items.push({id: A().id(), kind: "netlabel", text: name, x: r6(p.at[0]), y: r6(p.at[1])},

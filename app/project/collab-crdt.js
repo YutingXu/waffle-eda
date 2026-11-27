@@ -151,10 +151,13 @@ globalThis.AtriumCollabCRDT = (() => {
   }
 
   // ------------------------------------------------------------------ fractional index
-  // A key strictly between a ("" = start) and b (null = end). Keys never end in "0".
+  // A key strictly between a ("" = start) and b (null = end). Keys never end in "0" (validPos), so
+  // one exists whenever a < b; otherwise (a >= b, or b is a followed by zeros) this throws, never loops.
+  const validPos = v => typeof v === "string" && /^[0-9A-Za-z]{0,63}[1-9A-Za-z]$/.test(v);
   function between(a, b) {
     a = a || ""; let out = "";
     for (let i = 0; ; i++) {
+      if (b != null && i >= a.length && i >= b.length) throw RangeError("No position key lies between " + a + " and " + b + ".");
       const da = i < a.length ? DIG.indexOf(a[i]) : 0;
       const db = b != null ? (i < b.length ? DIG.indexOf(b[i]) : 0) : 62;
       if (db - da > 1) return out + DIG[(da + db) >> 1];
@@ -365,7 +368,7 @@ globalThis.AtriumCollabCRDT = (() => {
     if (["pset", "ins", "del"].includes(op.a)) checkElem(op.e);
     if (registerKinds.has(op.a)) {
       if (!isRank(op.rank, op.at) || (op.on && op.rank !== op.at)) throw Error("undo rank");
-      if (op.a === "pos" && op.rank !== null && (typeof op.v !== "string" || !/^[0-9A-Za-z]{1,64}$/.test(op.v))) throw Error("op pos");
+      if (op.a === "pos" && op.rank !== null && !validPos(op.v)) throw Error("op pos");
     } else if (op.a === "rem") {
       if (!Array.isArray(op.tags) || op.tags.length > 64) throw Error("op tags");
       op.tags.forEach(t => checkId(t, "tag"));
@@ -376,7 +379,8 @@ globalThis.AtriumCollabCRDT = (() => {
         for (const key of ["p", "pos"]) {
           const r = op.move[key];
           if (!isObj(r) || !isRank(r.at, op.at)) throw Error("undo location");
-          if (r.at !== null) checkId(r.v, "location");
+          if (r.at !== null && key === "pos" && !validPos(r.v)) throw Error("op pos");
+          if (r.at !== null && key === "p") checkId(r.v, "location");
         }
       }
     } else if (op.a !== "del") throw Error("undo kind");
@@ -399,11 +403,11 @@ globalThis.AtriumCollabCRDT = (() => {
         }
         if (op.f != null) { if (!isObj(op.f)) throw Error("op fields"); for (const k of Object.keys(op.f)) checkKey(k); }
         if (op.s != null) { if (!isObj(op.s)) throw Error("op sequences"); for (const k of Object.keys(op.s)) { checkKey(k); if (!Array.isArray(op.s[k]) || op.s[k].length > LIMITS.points) throw Error("op points"); } }
-        if (op.pos != null && (typeof op.pos !== "string" || !/^[0-9A-Za-z]{1,64}$/.test(op.pos))) throw Error("op pos");
+        if (op.pos != null && !validPos(op.pos)) throw Error("op pos");
         break;
       case "rem": checkId(op.o, "object"); if (!Array.isArray(op.tags) || op.tags.length > 64) throw Error("op tags"); op.tags.forEach(t => checkId(t, "tag")); break;
       case "set": checkId(op.o, "object"); checkKey(op.k); if (op.k === "id" || op.k === "items") throw Error("op key"); break;
-      case "pos": checkId(op.o, "object"); if (typeof op.v !== "string" || !/^[0-9A-Za-z]{1,64}$/.test(op.v)) throw Error("op pos"); break;
+      case "pos": checkId(op.o, "object"); if (!validPos(op.v)) throw Error("op pos"); break;
       case "ins": checkId(op.o, "object"); checkKey(op.k); checkElem(op.e); if (op.after != null) checkElem(op.after);
         if (op.e !== op.ts.c + "." + op.ts.r + ".0") throw Error("op element"); break;
       case "del": case "pset": checkId(op.o, "object"); checkKey(op.k); checkElem(op.e); break;
@@ -896,16 +900,21 @@ globalThis.AtriumCollabCRDT = (() => {
         fill(mid + 1, to, key, right);
       }
       let from = 0, left = "";
-      for (let i = 0; i < after.length; i++) {
-        const id = after[i].id, right = positions.get(id);
-        if (!stay.has(id)) continue;
-        // Simultaneous insertions can already be ordered by id at the same key.
-        // Keep both positions unless an actual edit needs to fit something between them.
-        if (left === right && i > from) continue;
-        fill(from, i, left, right);
-        keys[i] = right; left = right; from = i + 1;
+      try {
+        for (let i = 0; i < after.length; i++) {
+          const id = after[i].id, right = positions.get(id);
+          if (!stay.has(id)) continue;
+          // Simultaneous insertions can already be ordered by id at the same key.
+          // Keep both positions unless an actual edit needs to fit something between them.
+          if (left === right && i > from) continue;
+          fill(from, i, left, right);
+          keys[i] = right; left = right; from = i + 1;
+        }
+        fill(from, after.length, left, null);
+      } catch (e) {
+        if (!(e instanceof RangeError)) throw e;
+        return spread(after.length); // no key fits between two kept positions: renumber the list
       }
-      fill(from, after.length, left, null);
       return keys.some(key => key.length > 64) ? spread(after.length) : keys;
     }
     // Longest increasing subsequence of the surviving objects' current positions.
@@ -1355,7 +1364,11 @@ globalThis.AtriumCollabCRDT = (() => {
             const e = q.elems.get(eid); if (e) e.del = on;
           });
         }
-        if (pos && pos.ts?.c !== -1) { x.pos = joinReg(x.pos, read(pos)); legacyWitness(pos.ts); }
+        if (pos && pos.ts?.c !== -1) {
+          const r = read(pos);
+          for (const w of r.writers || [r]) if (w.at !== null && w.v !== undefined && !validPos(w.v)) throw Error("snapshot pos");
+          x.pos = joinReg(x.pos, r); legacyWitness(pos.ts);
+        }
         trackContainer(x); if (x.seqs.get("points")?.creations) trackPath(x);
       }
       view = null; verifiedTable = undefined; referencedDefs = null; verdicts.clear();

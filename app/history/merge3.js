@@ -18,6 +18,11 @@
 // one Altium design move record indexes, so a field both changed keeps ours.
 // A conflict keeps our side in `project` until resolve() applies a choice.
 //
+// Documents: an item's id is unique in the project, so an item a side moved to another sheet or
+// board is one object, merged once with its document as one more field. Moved to different
+// documents on each side, or moved on one side and deleted on the other, is one conflict (fields
+// include "document"); its `documents` {base, ours, theirs} says where each side put it.
+//
 // Net renames: a net renamed on one side (every object on net A moved to net B, and B is new) is
 // carried into objects the other side added or edited, so a part added on a branch that still
 // names the old net lands on the renamed net.
@@ -58,6 +63,24 @@ globalThis.AtriumMerge3 = (() => {
     const kind = obj.kind ? String(obj.kind) : path.length && typeof path[path.length - 2] === "string" ? String(path[path.length - 2]).replace(/s$/, "") : "object";
     const name = obj.ref || obj.name || obj.text || obj.net || obj.id;
     return kind + " " + String(name).slice(0, 80);
+  }
+  // An item's document while it merges as one object (never a real field name: JSON keys from files are not NUL).
+  const DOC = "\u0000document";
+  // id -> {doc, item, index} for every document item of one side.
+  function locations(P) {
+    const m = new Map();
+    for (const d of Array.isArray(P.documents) ? P.documents : []) if (isObj(d) && Array.isArray(d.items))
+      d.items.forEach((item, index) => { if (isObj(item) && typeof item.id === "string" && !m.has(item.id)) m.set(item.id, {doc: d.id, item, index}); });
+    return m;
+  }
+  // Where an item goes in a merged document: after its nearest predecessor on the side that put it
+  // there, else before its nearest successor, else at the end.
+  function slot(items, P, at) {
+    const source = (P.documents || []).find(d => isObj(d) && d.id === at.doc)?.items || [];
+    const find = k => { const id = source[k]?.id; return typeof id === "string" ? items.findIndex(x => x?.id === id) : -1; };
+    for (let k = at.index - 1; k >= 0; k--) { const i = find(k); if (i >= 0) return i + 1; }
+    for (let k = at.index + 1; k < source.length; k++) { const i = find(k); if (i >= 0) return i; }
+    return items.length;
   }
 
   // ------------------------------------------------------------------ net renames
@@ -268,7 +291,38 @@ globalThis.AtriumMerge3 = (() => {
         both: isObj(o) && isObj(t) && isObj(path[path.length - 1])});
     }
     const B = isObj(base) ? base : {}, O = isObj(ours) ? ours : {}, T = isObj(theirs) ? theirs : {};
-    const project = object(B, O, T, [], "ours", true);
+    // Items in different documents on different sides (see the header) leave every document and
+    // merge once, with their document as a field; then they go where the merge put them.
+    const LB = locations(B), LO = locations(O), LT = locations(T), moved = new Map();
+    for (const id of new Set([...LO.keys(), ...LT.keys(), ...LB.keys()])) {
+      const at = {b: LB.get(id), o: LO.get(id), t: LT.get(id)};
+      if (new Set([at.b, at.o, at.t].filter(Boolean).map(e => e.doc)).size > 1) moved.set(id, at);
+    }
+    const strip = P => !moved.size || !Array.isArray(P.documents) ? P : {...P, documents: P.documents.map(d =>
+      isObj(d) && Array.isArray(d.items) && d.items.some(i => moved.has(i?.id)) ? {...d, items: d.items.filter(i => !moved.has(i?.id))} : d)};
+    const project = object(strip(B), strip(O), strip(T), [], "ours", true);
+    for (const [id, at] of moved) {
+      const tag = e => e && [{...e.item, [DOC]: e.doc}];
+      const home = (at.o || at.t || at.b).doc, firstConflict = conflicts.length, firstChange = changes.length;
+      const [v] = collection(tag(at.b) || [], tag(at.o) || [], tag(at.t) || [], ["documents", {id: home}, "items"], "ours", true);
+      const docs = (project.documents || []).filter(isObj), has = d => docs.some(x => x.id === d);
+      let target = v ? v[DOC] : null;
+      if (v) { delete v[DOC]; if (!has(target)) target = [at.o, at.t, at.b].find(e => e && has(e.doc))?.doc ?? null; }
+      if (v && target != null) {
+        const items = docs.find(d => d.id === target).items ||= [];
+        const side = [at.o && [at.o, O], at.t && [at.t, T], at.b && [at.b, B]].find(s => s && s[0].doc === target);
+        items.splice(side ? slot(items, side[1], side[0]) : items.length, 0, v);
+      }
+      const where = target ?? home, path = ["documents", {id: where}, "items", {id}];
+      for (const c of changes.slice(firstChange)) Object.assign(c, {path, ...owner(path)});
+      for (const c of conflicts.slice(firstConflict)) {
+        const documents = {base: at.b?.doc, ours: c.ours?.[DOC], theirs: c.theirs?.[DOC]};
+        for (const k of ["base", "ours", "theirs"]) if (isObj(c[k])) delete c[k][DOC];
+        for (const k of ["ours", "theirs"]) if (isObj(c.sides[k])) delete c.sides[k][DOC];
+        if (c.fields) c.fields = c.fields.map(f => f === DOC ? "document" : f);
+        Object.assign(c, {path, ...owner(path), documents});
+      }
+    }
     const renumbered = opts.renumber === false ? [] : renumber(project, B, O, T);
     for (const r of renumbered) changes.push({path: ["documents", {id: r.docs[0]?.id}, "items", {id: r.ids[0]}], side: "theirs", status: "renumbered",
       label: "part " + r.from + " → " + r.to, docId: r.docs[0]?.id || null, docName: r.docs[0]?.name || null, objectId: r.ids[0], from: r.from, to: r.to});
@@ -362,17 +416,27 @@ globalThis.AtriumMerge3 = (() => {
     const project = clone(result.project);
     for (const c of result.conflicts) {
       const choice = choices[c.id] || "ours";
-      if (choice === "ours") { put(project, c.path, clone(c.ours)); continue; }
-      if (choice === "theirs") { put(project, c.path, clone(c.theirs)); continue; }
+      // An item moved between documents leaves every other one, then sits where the chosen side put it.
+      const inDoc = side => c.documents[side] == null ? null : ["documents", {id: c.documents[side]}, "items", {id: c.objectId}];
+      let path = c.path;
+      if (c.documents) {
+        path = inDoc(choice === "theirs" ? "theirs" : "ours");
+        for (const d of project.documents || []) if (isObj(d) && Array.isArray(d.items) && d.id !== path?.[1].id) d.items = d.items.filter(i => i?.id !== c.objectId);
+        if (!path) continue;
+      }
+      if (choice === "ours") { put(project, path, clone(c.ours)); continue; }
+      if (choice === "theirs") { put(project, path, clone(c.theirs)); continue; }
       if (choice === "both" && c.both) {
-        const at = locate(project, c.path);
+        const at = locate(project, path);
         if (!at) continue;
         let id = copyIds.get(c.id);
         if (!id) {
           id = globalThis.Atrium.id();
           copyIds.set(c.id, id);
         }
-        put(project, c.path, clone(c.ours), copyOf(c.theirs, Array.isArray(at.parent) ? at.parent : [], id));
+        const elsewhere = c.documents && c.documents.theirs !== c.documents.ours ? locate(project, inDoc("theirs")) : null;
+        if (elsewhere) { put(project, path, clone(c.ours)); put(project, inDoc("theirs").slice(0, -1).concat({id}), copyOf(c.theirs, Array.isArray(elsewhere.parent) ? elsewhere.parent : [], id)); }
+        else put(project, path, clone(c.ours), copyOf(c.theirs, Array.isArray(at.parent) ? at.parent : [], id));
       }
     }
     return project;
