@@ -48,16 +48,21 @@ globalThis.AtriumDesignators = (() => {
     return [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2];
   }
 
-  /** Resolved designator geometry in board coordinates, or null when the part has none. */
-  function label(part, def) {
+  function labelLayer(part) {
     const d = part.designator;
     if (!d || part.showRef === false || !part.ref || !Number.isFinite(d.x) || !Number.isFinite(d.y)) return null;
-    const height = d.height > 0 ? d.height : DEFAULTS.height, bottom = isBottom(part);
+    return isBottom(part) ? "Bottom silk" : "Silk";
+  }
+  /** Resolved designator geometry in board coordinates, or null when the part has none. */
+  function label(part, def) {
+    const layer = labelLayer(part);
+    if (!layer) return null;
+    const d = part.designator, height = d.height > 0 ? d.height : DEFAULTS.height, bottom = layer === "Bottom silk";
     const angle = readable((part.angle || 0) + (d.angle || 0), bottom);
     const center = A.world([d.x, d.y], part), m = metrics(part.ref, height);
     // Baseline centre: the anchor for centre-aligned text in canvas.js and fab-outputs.js.
     const anchor = A.world([0, m.h / 2 - m.stroke / 2 - m.desc], {x: center[0], y: center[1], angle});
-    return {text: part.ref, center, anchor, angle, height, mirror: bottom, layer: bottom ? "Bottom silk" : "Silk",
+    return {text: part.ref, center, anchor, angle, height, mirror: bottom, layer,
       stroke: m.stroke, box: textBox(center[0], center[1], m, angle)};
   }
   function textShape(l,part=null) {
@@ -133,5 +138,5 @@ globalThis.AtriumDesignators = (() => {
       (result.shrunk.length ? " (" + result.shrunk.length + " at reduced height)" : "") + " in " + result.stats.ms + " ms." + missing);
   }
 
-  return {plan, relayout, apply, placeSelection, label, textShape, paint, readable, metrics, isBottom, defaults: DEFAULTS};
+  return {plan, relayout, apply, placeSelection, label, labelLayer, textShape, paint, readable, metrics, isBottom, defaults: DEFAULTS};
 })();

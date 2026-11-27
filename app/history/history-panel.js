@@ -264,20 +264,20 @@ globalThis.AtriumHistoryPanel = (() => {
   function build() {
     const nav = document.getElementById("properties");
     if (!nav) return false;
-    panel = el("section", "panel panel-history"); panel.hidden = true; panel.setAttribute("aria-labelledby", "hist-heading");
+    panel = el("section", "panel ui-dock-panel"); panel.dataset.dock = "history"; panel.hidden = true; panel.setAttribute("aria-labelledby", "hist-heading");
     const head = el("header", "pane-heading"), h2 = el("h2", null, "History"); h2.id = "hist-heading";
     const tabs = el("div", "hist-tabs ui-tabs"); tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "History sources");
     const mk = (id, text) => { const b = btn(text, "hist-tab ui-tab", () => setTab(id)); b.setAttribute("role", "tab"); b.dataset.tab = id; return b; };
     tabs.append(mk("undo", "Undo"), mk("timeline", "Timeline"), mk("git", "Git"));
-    const close = btn("×", "ui-close hist-close", () => toggle(false), "Close History"); close.setAttribute("aria-label", "Close History");
+    const close = btn("×", "ui-close ui-dock-close", () => toggle(false), "Close History"); close.setAttribute("aria-label", "Close History");
     head.append(h2, tabs, close);
-    const list = el("div", "hist-list pane-scroll"); list.setAttribute("aria-label", "Undo steps"); list.tabIndex = 0;
+    const list = el("div", "ui-dock-list pane-scroll"); list.setAttribute("aria-label", "Undo steps"); list.tabIndex = 0;
     const branches = el("details", "hist-branches"); branches.append(el("summary", null, "Alternate branches"));
     const branchList = el("div", "hist-branch-list"); branches.append(branchList);branches.ontoggle=paintBranches;
-    const times = el("div", "hist-list hist-timeline pane-scroll"); times.setAttribute("aria-label", "Local history"); times.hidden = true;
-    const foot = el("p", "hist-foot");
+    const times = el("div", "ui-dock-list hist-timeline pane-scroll"); times.setAttribute("aria-label", "Local history"); times.hidden = true;
+    const foot = el("p", "ui-dock-foot");
     // Git tab: the commits that changed this file (file-history.js).
-    const gitBox = el("div", "hist-list hist-git pane-scroll"); gitBox.setAttribute("aria-label", "Git file history"); gitBox.hidden = true;
+    const gitBox = el("div", "ui-dock-list hist-git pane-scroll"); gitBox.setAttribute("aria-label", "Git file history"); gitBox.hidden = true;
     panel.append(head, list, branches, times, gitBox, foot);
     nav.append(panel);
     ui = {list, branches, branchList, times, gitBox, foot, tabs};
@@ -347,7 +347,7 @@ globalThis.AtriumHistoryPanel = (() => {
     ui.branchList.replaceChildren(...list.slice().reverse().map(b => {
       const tip = b.trees.at(-1), info = label(b.trees.at(-2) || b.fork, tip);
       const r = el("div", "hist-row hist-branch"); r.title = info.label + " · " + plural(b.trees.length, "step");
-      const text = el("span", "hist-text");
+      const text = el("span", "ui-dock-text");
       text.append(el("span", "hist-label", info.label), el("span", "hist-meta", plural(b.trees.length, "step") + " · " + ago(b.time)));
       r.append(el("span", "hist-dot"), text,
         ...(visual ? [btn("Preview", "hist-btn", () => visual.selectBranch(tip,info.label))] : []),
@@ -503,7 +503,7 @@ globalThis.AtriumHistoryPanel = (() => {
     timelineProject = project;
     const sameProject = () => project === host.project() && path === G.AtriumHost?.folderGitGrant && session === G.AtriumCollabLive?.session();
     const current = () => request === timelineRequest && sameProject();
-    box.replaceChildren(el("p", "empty-state hist-empty", "Reading the local history…"));
+    box.replaceChildren(el("p", "empty-state ui-dock-empty", "Reading the local history…"));
     const entries = [];
     try {
       for (const m of await (A?.recoverySnapshots?.(A) || [])) entries.push({id: m.id, ts: m.ts, snapshot: m.snapshot, title: m.title, meta: m.meta, saved: m.saved});
@@ -520,7 +520,7 @@ globalThis.AtriumHistoryPanel = (() => {
     const nodes = entries.map(e => {
       if (e.error) return el("p", "hist-note", e.error);
       const r = el("div", "hist-row hist-time" + (e.git ? " is-git" : e.saved ? " is-saved" : ""));
-      const text = el("span", "hist-text");
+      const text = el("span", "ui-dock-text");
       text.append(el("span", "hist-label", e.title), el("span", "hist-meta", (e.ts ? ago(e.ts) : "") + (e.meta ? " · " + e.meta.replace(/^[^·]*· /, "") : "")));
       const run = (fn, what) => async () => { try { if (!current()) throw Error("The project changed. Reopen Timeline."); await fn(); } catch (err) { say(what + ": " + err.message); } };
       r.append(el("span", "hist-dot"), text,
@@ -531,7 +531,7 @@ globalThis.AtriumHistoryPanel = (() => {
       }
       return r;
     });
-    if (!entries.length) nodes.push(el("p", "empty-state hist-empty", "No snapshots yet. Autosave keeps one about every minute while you edit."));
+    if (!entries.length) nodes.push(el("p", "empty-state ui-dock-empty", "No snapshots yet. Autosave keeps one about every minute while you edit."));
     if (A?.save && A.backend?.() !== "localStorage") {
       const controls = el("div", "hist-controls");
       controls.append(btn("Save checkpoint", "hist-btn", async event => {

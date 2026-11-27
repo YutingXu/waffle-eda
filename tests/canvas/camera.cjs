@@ -384,6 +384,34 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
   assert.equal(C.animate(), false, "no animation without requestAnimationFrame");
 }
 
+// ---- view history and saved views keep the view rotation ------------------------------------------
+{
+  const canvas = {isConnected: true, clientWidth: 400, clientHeight: 300, getContext: () => ({}), focus() {},
+    getBoundingClientRect: () => ({left: 0, top: 0, width: 400, height: 300})};
+  const view = AtriumCanvas.create(canvas);
+  view.resized();
+  let info = "";
+  globalThis.AtriumNavHost = {currentId: () => "rotated", docById: () => ({}), view: () => view, canvas: () => canvas,
+    selection: () => [], info: t => { info = t; }, redraw() {}};
+  const turn = () => view.camera().rotation || 0, close = (a, b) => Math.abs(a - b) < 1e-9;
+  view.restoreCamera({cx: 0, cy: 0, scale: 10, referenceScale: 10});
+  C.settle();
+  view.rotate(Math.PI / 2);
+  assert.ok(C.significant(C.historyFor("rotated").list.at(-1), view.camera()), "a quarter turn is a new step");
+  C.settle();
+  assert.equal(C.historyFor("rotated").list.length, 2);
+  C.step(-1);
+  assert.match(info, /Previous view/);
+  assert.ok(close(turn(), 0), "Back restores the previous orientation");
+  C.step(1);
+  assert.ok(close(turn(), Math.PI / 2), "Forward restores the turned view");
+  C.storeView(2);
+  view.rotate(-Math.PI / 2);
+  C.recallView(2);
+  assert.ok(close(turn(), Math.PI / 2), "a saved view keeps its rotation");
+  delete globalThis.AtriumNavHost;
+}
+
 // ---- keys ---------------------------------------------------------------------------------------
 {
   const P = {kind: "pcb", tool: "select", canvas: true}, S = {kind: "schematic", tool: "select", canvas: true}, sel = {selected: true, selectionCount: 1};

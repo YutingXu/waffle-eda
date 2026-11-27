@@ -292,7 +292,10 @@ async function run(browser) {
       save:clean, derived:{...clean,transitions:[true,false]}
     }, "History shows and announces the editor's clean state after Save and a derived refresh");
     delete edit.x;
-    const receipt = {source:execFileSync("git",["-C",root,"rev-parse","--short","HEAD"],{encoding:"utf8"}).trim(),edit,project,saved,fork,lifecycle,derivedHistory,
+    // The receipt names the tested commit when there is one; a source archive has no .git.
+    let source = null;
+    try { source = execFileSync("git",["-C",root,"rev-parse","--short","HEAD"],{encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim(); } catch { /* not a checkout */ }
+    const receipt = {source,edit,project,saved,fork,lifecycle,derivedHistory,
       git:{positiveControlQueries:positiveQueries,revisionBundleReads:positiveQueries.filter(op=>op==="folderRevisions").length,queriesDuringDraftSaveUndoRedo:saveQueries,
         filesUnderGitUnchanged:Object.keys(gitBefore).length},writtenOwners:writes};
     process.stdout.write(JSON.stringify(receipt,null,2)+"\n");

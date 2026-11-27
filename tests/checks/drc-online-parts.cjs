@@ -4,7 +4,7 @@
 // pass and as a full check of the edited board.
 // Node: node tests/checks/drc-online-parts.cjs   JSC: scripts/test-jsc.sh drc-online-parts
 const assert = require("node:assert/strict");
-for (const m of ["model", "parts", "nav-common", "spatial", "connectivity", "rules", "drc", "pcb-edit", "drc-view", "problem-marks", "drc-markers"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+for (const m of ["model", "parts", "nav-common", "spatial", "connectivity", "design-query-record", "rules", "drc", "pcb-edit", "drc-view", "problem-marks", "drc-markers"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 require("../pcb/dense-board.js");
 require("../support/drc-geometry.cjs");
 const V = globalThis.AtriumDRCView, R = globalThis.AtriumRules;
@@ -110,6 +110,35 @@ test("the first edit after opening is incremental when the first check ran befor
   o2.update(d, defs, rules, {from: null, to: 0, ids: null, items: null, outer: 0});
   d.outline = d.outline.map(([x, y]) => [x + 1, y]);
   assert.equal(o2.update(d, defs, rules, {from: 0, to: 2, ids: null, items: null, outer: "1/1/0/1", library: 1, pours: 0}).mode, "full");
+});
+
+test("a part move stays incremental when only a net-wide rule's scope reads components", () => {
+  // Matched Lengths runs in batch DRC only. Its InXSignalClass/InComponentClass scope made every component
+  // move or its Undo a whole-board check (hundreds of ms on imported Altium boards).
+  const Q = globalThis.AtriumDesignQueryRecord;
+  const d = {kind:"pcb", id:"net-wide-scope", name:"Net-wide scope", items:[], outline:[[-10, -10], [20, -10], [20, 10], [-10, 10]]};
+  const pad = {kind:"pad", number:"1", layer:"Top", x:0, y:0, w:.5, h:1, shape:"rect"};
+  const defs = new Map([["pkg", {id:"pkg", footprint:{pads:[pad], shapes:[]}}]]);
+  const part = {kind:"part", id:"u1", def:"pkg", x:0, y:0, angle:0, layer:"Top", pinNets:{"1":"A"}};
+  const track = {kind:"track", id:"t1", net:"B", width:.2, layer:"Top", points:[[3, -.25], [3, .25]]};
+  d.items = [part, track];
+  const withScope = type => {
+    const rules = R.migrate(R.defaults());
+    for (const r of rules.list) if (r.type === type) r.priority++;
+    rules.list.push({id:"scoped", type, name:"Components", comment:"", enabled:true, priority:1, scope:Q.selector("componentclass", "All Components"),
+      ...(type === "matchedLengths" ? {tolerance:.5, withinPair:false, pairTolerance:.1} : {scope2:Q.selector("all"), gap:.5})});
+    return rules;
+  };
+  for (const [type, mode] of [["matchedLengths", "incremental"], ["clearance", "full"]]) {
+    const rules = withScope(type), engine = V.online();
+    part.x = 0;
+    assert.equal(engine.update(d, defs, rules, {from:0, to:1, outer:0, ids:new Set(), items:new Map()}).mode, "full");
+    part.x = 2.6;
+    const got = engine.update(d, defs, rules, {from:1, to:2, outer:0, ids:new Set(["u1"]), items:new Map([["u1", part]])});
+    assert.equal(got.mode, mode, type + ": " + got.why);
+    assert.deepEqual(set(got.violations), set(R.drc(d, defs, rules, {types:engine.types(), limit:5000}).violations));
+    assert.ok(got.violations.some(v => v.type === "clearance"), "the moved pad is checked against the track");
+  }
 });
 
 console.log(passed + " drc-online-parts tests passed");

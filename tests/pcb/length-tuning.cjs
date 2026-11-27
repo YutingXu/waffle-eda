@@ -90,6 +90,24 @@ test("pad-to-pad path, stubs, vias, T junctions, package length and delay", () =
   assert.equal(ur.unrouted, true); assert.equal(ur.islands, 2);
 });
 
+// Altium's lengths are its routed copper: a track that enters a pad or via with a bend inside the land and
+// runs on to its end (the land's centre) counts in full, not only up to the first vertex inside the land.
+test("a track's entry into a pad or via counts to its end", () => {
+  const ends = [part("E1", "pad1", 0, 0, {"1": "E"}), part("E2", "pad1", 10, 0, {"1": "E"})];
+  // Each end bends 0.2 mm inside the 0.6 mm pad on its way to the centre.
+  const b = board([...ends, track("E", "Top", [[0, 0], [.2, .2], [9.8, .2], [10, 0]])]);
+  const full = 2 * Math.hypot(.2, .2) + 9.6;
+  close(L.netLength(b, defs, "E").length, full, 1e-9, "both pad entries counted");
+  // The same through a via: the bend inside the 0.6 mm via counts too.
+  const v = board([part("F1", "pad1", 0, 0, {"1": "F"}), part("F2", "pad1", 10, 0, {"1": "F"}, {layer: "Bottom"}),
+    track("F", "Top", [[0, 0], [4.8, .2], [5, 0]]), via("F", 5, 0), track("F", "Bottom", [[5, 0], [10, 0]])]);
+  close(L.netLength(v, defs, "F", {vias: false}).length, Math.hypot(4.8, .2) + Math.hypot(.2, .2) + 5, 1e-9, "via entry counted");
+  // A pad in the middle of a route (the track passes through it) is still reached without a detour.
+  const t = board([part("G1", "pad1", 0, 0, {"1": "G"}), part("G2", "pad1", 5, 0, {"1": "G"}), part("G3", "pad1", 10, 0, {"1": "G"}),
+    track("G", "Top", [[0, 0], [5, 0], [10, 0]])]);
+  close(L.netLength(t, defs, "G", {mode: "path", from: {ref: "G1", pin: "1"}, to: {ref: "G2", pin: "1"}}).length, 5, 1e-9, "through pad");
+});
+
 test("xSignal through a series resistor spans both nets", () => {
   const b = board([part("U1", "pad1", 0, 0, {"1": "A"}), part("R1", "r2", 10.5, 0, {"1": "A", "2": "B"}), part("U2", "pad1", 25, 3, {"1": "B"}),
     track("A", "Top", [[0, 0], [10, 0]]), track("B", "Top", [[11, 0], [14, 3], [25, 3]])]);

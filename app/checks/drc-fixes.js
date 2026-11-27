@@ -20,7 +20,10 @@ if (!globalThis.AtriumLandContours && typeof require === "function") require("..
 //
 // Extra checks (not in rules.js): netAntennae (track ends that touch nothing of their net)
 // and courtyard (placed footprints without a courtyard), both warnings. drc-view.js merges
-// them into batch and online results (augment, online).
+// them into batch and online results (augment, online). Missing Courtyard is off by default
+// (Altium has no such check and many imported footprints have no courtyard): it runs when asked
+// for by type or with Preferences › Design Checks › Report footprints without a courtyard
+// (checks.courtyard; AtriumRules.checkSelected).
 //
 // Pure API (tests): checks(doc, defs), fixesFor(doc, defs, rules, v, {project}) → [{id, label,
 // detail, run(doc, lib)}], preview(doc, defs, rules, v, fix, {project}) → {doc, defs, clears,
@@ -355,7 +358,7 @@ globalThis.AtriumDRCFixes = (() => {
     const {limit = Infinity} = options;
     const selected = Object.keys(EXTRA).filter(type =>
       !result.rules.some(r => r.id === "atrium-" + type) &&
-      (globalThis.AtriumRules?.checkSelected(doc, type, options) ?? (!options.types || options.types.includes(type))));
+      (globalThis.AtriumRules?.checkSelected(doc, type, options) ?? (options.types ? options.types.includes(type) : type !== "courtyard")));
     if (!selected.length) return result;
     const extra = checks(doc, defs, selected);
     for (const [type, info] of Object.entries(EXTRA)) {
@@ -717,14 +720,18 @@ globalThis.AtriumDRCFixes = (() => {
     globalThis.AtriumNavCommon?.toast?.(still ? "Fix applied; still violating" : "Fixed · " + (v.ruleName || v.type), {kind: still ? "warn" : "ok"});
   }
   // Messages rows: a "Fix" button on DRC rows that have one.
-  let observed = null;
+  let observed = null, decorated = {rows: null, byNo: new Map()};
   function decorate() {
     const M = globalThis.AtriumMessages, tbody = document.querySelector(".msg-panel .msg-grid tbody");
     if (!M || !tbody) return;
     if (observed !== tbody) { observed = tbody; new MutationObserver(decorate).observe(tbody, {childList: true}); }
-    const byNo = new Map(M.messages().map(m => [m.no, m]));
-    for (const tr of tbody.querySelectorAll("tr[data-no]")) {
-      if (tr.querySelector(".drc-fix-row")) continue;
+    // A row's number belongs to the view it is in (Problems numbers its own rows, not the Log's): look it up in the shown rows.
+    const rows = [...tbody.querySelectorAll("tr[data-no]")].filter(tr => !tr.querySelector(".drc-fix-row"));
+    if (!rows.length) return;
+    const shown = M.shownRows();
+    if (shown !== decorated.rows) decorated = {rows: shown, byNo: new Map(shown.map(m => [m.no, m]))};
+    const byNo = decorated.byNo;
+    for (const tr of rows) {
       const m = byNo.get(Number(tr.dataset.no));
       if (!m?.drc || !hasFix(m.drc)) continue;
       const b = el("button", "Fix", "drc-fix-row ui-button"); b.type = "button"; b.dataset.size = "sm"; b.title = "Suggested fix: " + LABEL[m.drc.type] + " (preview first)";

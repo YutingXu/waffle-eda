@@ -12,9 +12,10 @@
 // touches the DOM, storage or the network, and no argument is ever evaluated as code.
 //
 // Selection: commands that act on objects take `ids` (item IDs) and/or `designators`
-// (part references) in one document, `document_id` (default: the first document of the
-// kind the command needs). The editor's selection is replaced by these explicit lists;
-// `select` and `find_similar` return such lists.
+// (part references) in one document, `document_id` (default: the document that holds the
+// given `id` or first of `ids`, else the first document of the kind the command needs).
+// The editor's selection is replaced by these explicit lists; `select` and `find_similar`
+// return such lists.
 globalThis.AtriumCommandsHeadless = (() => {
   const A = () => globalThis.Atrium;
   const fail = m => { throw Error(m); };
@@ -23,10 +24,12 @@ globalThis.AtriumCommandsHeadless = (() => {
   const round = (v, d = 4) => typeof v === "number" && Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : v;
   const defsOf = p => new Map(p.library.map(d => [d.id, d]));
 
+  // Without document_id, the document that holds the given item (`id`, else the first of `ids`).
   function docOf(p, a, kind) {
+    const fits = x => !kind || x.kind === kind, item = typeof a.id === "string" ? a.id : Array.isArray(a.ids) ? a.ids[0] : null;
     const d = a.document_id != null
       ? p.documents.find(x => x.id === a.document_id) || p.documents.find(x => x.name === a.document_id)
-      : p.documents.find(x => !kind || x.kind === kind) || p.documents[0];
+      : item != null && p.documents.find(x => fits(x) && x.items.some(i => i.id === item)) || p.documents.find(fits) || p.documents[0];
     if (!d) fail(a.document_id != null ? "The project has no document " + a.document_id + "." : "The project has no " + (kind === "pcb" ? "PCB layout." : kind === "schematic" ? "schematic." : "documents."));
     if (kind && d.kind !== kind) fail(kind === "pcb" ? "Choose a PCB document." : "Choose a schematic document.");
     return d;
@@ -113,6 +116,7 @@ globalThis.AtriumCommandsHeadless = (() => {
       const scope = a.scope || "project", doc = scope === "project" ? null : docOf(p, a);
       const o = {query: a.query, scope, docId: doc?.id, selection: a.ids, matchCase: !!a.match_case, wholeWord: !!a.whole_word, regex: !!a.regex, fields: a.fields};
       if (o.scope === "selection" && !a.ids?.length) fail("Give ids for scope selection.");
+      if (o.scope === "selection") targets(doc, {ids: a.ids}); // every id must be on the searched document
       const hits = F.search(p, o);
       const out = {hits: hits.length, matches: hits.slice(0, 200).map(h => ({document_id: h.docId, id: h.id, kind: h.kind, field: h.field, key: h.key, text: h.text}))};
       if (a.replacement == null) return out;
@@ -134,7 +138,7 @@ globalThis.AtriumCommandsHeadless = (() => {
         if (!ids.has(i.id)) continue;
         if (i.kind !== "part") { skipped.push(i.id); continue; }
         if (i.locked === true && !a.include_locked) { skipped.push(i.id); continue; }
-        A().transformPart(doc, i, defs.get(i.def), {angle: ((((i.angle || 0) + step) % 360) + 360) % 360});
+        A().transformPart(doc, i, defs.get(i.def), {angle: ((((i.angle || 0) + step) % 360) + 360) % 360}, undefined, {defs});
         rotated.push(i.id);
       }
       if (doc.kind === "pcb" && PE?.settle && rotated.length) try { PE.settle(doc, p, defs); } catch { /* teardrops stay for DRC to report */ }

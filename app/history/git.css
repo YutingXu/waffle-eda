@@ -83,6 +83,9 @@
 
 /* ---- Blame: the quiet Properties line and the object history ---- */
 .blame-line {margin:var(--s-4) var(--s-8) 0;color:var(--muted);font-size:var(--fs-11);line-height:var(--lh);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blame-line[hidden] {display:none}
+/* The history control is the library's small quiet button; this only lays out its icon and label. */
+.blame-show {display:inline-flex;gap:var(--s-4);margin-inline-start:calc(-1 * var(--ctl-px))}
 .blame-line.is-error {white-space:normal}
 #inspector .blame-link,.blame-link {display:inline;min-height:0;height:auto;padding:0;border:0;background:none;color:var(--accent-text);font:inherit;font-family:var(--mono);cursor:pointer}
 .blame-link:hover {text-decoration:underline}

@@ -78,7 +78,7 @@ globalThis.AtriumEditorDemand = (() => {
         demand("AtriumMultichannel");
       lastDoc = view;
       lastProject = p;
-      for (const name of ["AtriumUndoStore", "AtriumCamera", "AtriumMotion", "AtriumVSKeys", "AtriumDocTabs", "AtriumGuides", "AtriumInsightsUI"]) demand(name);
+      for (const name of ["AtriumUndoStore", "AtriumCamera", "AtriumMotion", "AtriumVSKeys", "AtriumDocTabs", "AtriumTabOverflow", "AtriumGuides", "AtriumInsightsUI"]) demand(name);
     }
     function hint(event) {
       const control = event.target?.closest?.("[data-action]");

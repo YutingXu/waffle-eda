@@ -408,7 +408,7 @@ async function checkTouch(browser, root) {
 }
 
 if (require.main === module) (async () => {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   const root = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(__dirname,"../..");
   const browser = await chromium.launch({headless:true, ...(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"})});
   try {await check(browser,root); await checkTouch(browser,root);} finally {await browser.close();}

@@ -93,9 +93,12 @@
    "tests/fixtures/format-2/notebook/Notebook.wsch": "30c252f57b44e39292d9667588a5457e4346c712a26c70aac3898c63737a967f",
    "tests/fixtures/format-2/notebook/assets/3f398475326a2f4eb876a239f691a7e20eb7c308c41ff80620f0f314adcf7104": "3f398475326a2f4eb876a239f691a7e20eb7c308c41ff80620f0f314adcf7104",
    "tests/fixtures/format-2/notebook/assets/7f2f9088c8f90652a6aaa45e69623b55316b6d080c2213d29819976b71454840": "7f2f9088c8f90652a6aaa45e69623b55316b6d080c2213d29819976b71454840",
-   "tests/fixtures/format-2/projects.json": "f1ca2b8b09c36c29e47752f577c3c1843c07fc9086224138baf5cd507be86354",
+   "tests/fixtures/format-2/projects.json": "beb29b8719beb5f0b4c61dd11355a3779de5eee5004e19dcd441ea6491593275",
    "tests/fixtures/format-2/query-parameter/Board.wpcb": "185bc24573c4a6215d3d29766879f45ecd73337a374d9d3433f7db65fef73625",
    "tests/fixtures/format-2/query-parameter/Parameters.waffle": "962544db6cdeb6dfdbe884e66d7ecd44c883c74d462e4d584b76ca4c2ab86647",
+   "tests/fixtures/format-2/schematic-curves/Curves.wsch": "07577953bf8fe496c7f532b1c40afcf1523dde1be9e0bb4e0d5ac63bdff56107",
+   "tests/fixtures/format-2/schematic-curves/Schematic Curves.waffle": "2bb4fb8a2dfe07cb309ad0e113cf92376a1c9a0c4ad83ceb554e0d8631964c50",
+   "tests/fixtures/format-2/schematic-curves/libraries/Curved symbol.wlib": "941f5aacc7c5467839436ba8723a3e9b5567e8ae1ad9bd652fd86e72ff4e9bc9",
    "tests/fixtures/format-2/version-cases.json": "471d7ce5f50d753455f6a96646d670637e08d9400b9feba5feaf2551376cbf09",
    "tests/fixtures/format-2/workshop/Assembly.wdraw": "f8be028e4aac9910285c319098909cb88796ee54891307f5eec5e1a3346e14a4",
    "tests/fixtures/format-2/workshop/Board.wpcb": "68129213776ff106388e1ac75a26071a4ebf3a157287397c6dc28f5edcea2573",
@@ -106,7 +109,7 @@
    "tests/fixtures/format-2/workshop/libraries/Sense pad.wlib": "813e92a50c1bdbc256e1e4fad60dbbbd85a78404e7f5f02560e03a54314c9de8",
    "tests/fixtures/format-2/workshop/libraries/Test stub.wblock": "ad278e5a915ed92519128f2cb012a7b438a275d97fd10896fb57655e2c2e41f7"
   },
-  "schema": "c5e285219e7926aded29f936468125737aed7ce206f478b4fa6bbbf9a650d8e5",
+  "schema": "0d4a28df661b711227113dfcc7a59d5c339fafc5f64db9793852a4600261985b",
   "version": "2.0"
  },
  "folderHistory": [
@@ -184,6 +187,11 @@
    "contract": "b97dd1f21ec1e21e",
    "version": "2.0",
    "why": "Task 58 relocated the protected table-data and table-format loaders to notebook and the design-query-record loader to checks. All other guarded bytes, the native schema and the pinned fixtures were verified unchanged."
+  },
+  {
+   "contract": "b97dd1f21ec1e21e",
+   "version": "2.0",
+   "why": "optional schematic curve and directive fields; schematic-curves fixture"
   }
  ],
  "history": [

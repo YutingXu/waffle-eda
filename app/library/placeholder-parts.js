@@ -283,7 +283,7 @@ globalThis.AtriumPlaceholders = (() => {
       if (d.kind === "schematic") {
         const net = A().connectivity(d, defs), counts = new Map();
         for (const v of net.byPin.values()) counts.set(v, (counts.get(v) || 0) + 1);
-        for (const p of A().pins(i, def, "schematic")) { const n = net.byPin.get(i.id + "/" + p.number); if (n && (!/^Net-/.test(n) || counts.get(n) > 1)) out.add(String(p.number)); }
+        for (const p of A().pins(i, def, "schematic")) { const n = net.byPin.get(i.id + "/" + p.number); if (n && (!A().isAutoNetName(n, net) || counts.get(n) > 1)) out.add(String(p.number)); }
       } else for (const [k, v] of Object.entries(i.pinNets || {})) if (v) out.add(String(k));
     }
     return out;

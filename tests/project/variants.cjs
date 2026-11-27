@@ -166,8 +166,17 @@ assert.ok(boxes.every(b=>b.length===4&&b[2]>b[0]&&b[3]>b[1]));
 assert.equal(V.notFittedBoxes(p,p.documents[1],"Pro").length,0);assert.equal(V.notFittedBoxes(p,p.documents[1],null).length,1);
 const calls=[];
 const ctx2d=new Proxy({},{get:(t,k)=>k in t?t[k]:(...a)=>calls.push(k),set:(t,k,v)=>(t[k]=v,true)});
-V.paint(ctx2d,boxes,10,"pcb");
+const seen={fill:[],stroke:[],width:[],alpha:[]};
+const ctxSeen=new Proxy({},{get:(t,k)=>k in t?t[k]:(...a)=>calls.push(k),set:(t,k,v)=>{({fillStyle:seen.fill,strokeStyle:seen.stroke,lineWidth:seen.width,globalAlpha:seen.alpha})[k]?.push(v);t[k]=v;return true;}});
+V.paint(ctxSeen,boxes,10,"pcb");
 assert.equal(calls.filter(k=>k==="fillRect").length,2);assert.equal(calls.filter(k=>k==="stroke").length,2);
+// Not fitted is information, not a fault: a light veil of the canvas colour and a hairline neutral cross,
+// one screen pixel and a quarter wide at any zoom, never a dark slab or a saturated red X.
+assert.ok(seen.alpha.every(a=>a<=.5),"quiet alphas "+seen.alpha);
+assert.ok(seen.width.every(w=>Math.abs(w*10-1.25)<1e-9),"hairline "+seen.width);
+assert.ok([...seen.fill,...seen.stroke].every(c=>/^#(?:([0-9a-f])\1{5}|fffcf8)$/i.test(c)),"neutral canvas inks "+seen.fill+" "+seen.stroke);
+seen.width.length=0;V.paint(ctxSeen,boxes,200,"schematic");
+assert.ok(seen.width.every(w=>Math.abs(w*200-1.25)<1e-9),"hairline when zoomed in "+seen.width);
 
 // ------------------------------------------------------------ parameter text
 assert.deepEqual(V.parseParams("Value = 4.7k\n\n -Supplier \nNote=a=b"),{Value:"4.7k",Supplier:null,Note:"a=b"});

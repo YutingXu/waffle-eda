@@ -339,7 +339,8 @@ globalThis.AtriumCamera = (() => {
     if (itinerary) itinerary.note(location(H, v.camera()), viewSize());
     onMoved();
   }
-  const strip = c => ({cx: c.cx, cy: c.cy, scale: c.scale});
+  // History and saved views keep the view rotation; the board flip stays a separate view mode.
+  const strip = c => ({cx: c.cx, cy: c.cy, scale: c.scale, rotation: c.rotation || 0});
   const location = (H, cam) => ({...strip(cam), docId:H.currentId(), selection:H.selection(),
     occurrence:globalThis.AtriumConnectionPreview?.location?.()});
   // Stay in the current document's ordinary view history until an explicit
@@ -626,6 +627,6 @@ globalThis.AtriumCamera = (() => {
   }
   if (!registerPrefs() && globalThis.document) globalThis.AtriumLazy?.need?.("AtriumPrefs").then(registerPrefs, () => {});
 
-  return {DEFAULTS, wheelAction, wheel, wheelPacket, wheelPinch, stopWheel, ease, mix, significant, History, jump, flyTo, flightMs, land, glideTo, panBy, stopFly, takeCamera, animate, settle, prefsPage, setPref, cfg,
+  return {DEFAULTS, wheelAction, wheel, wheelPacket, wheelPinch, stopWheel, ease, mix, significant, History, jump, step, storeView, recallView, flyTo, flightMs, land, glideTo, panBy, stopFly, takeCamera, animate, settle, prefsPage, setPref, cfg,
     clickMs: () => 250, historyFor, alertTarget, onMoved: f => { moved.add(f); return () => moved.delete(f); }, edgeWanted};
 })();

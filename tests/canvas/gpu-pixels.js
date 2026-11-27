@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, emptyBandPan, drcMarkerPan, earlySettle, terminalOverlay, pourCoverageBounds};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, panStripUpload, drcMarkerPan, earlySettle, zoomOutGesture, zoomOutMemory, zoomOutFailure, terminalOverlay, pourCoverageBounds, pourCoverageLod};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -262,7 +262,7 @@ globalThis.atriumGpuPixels = async function (o = {}) {
   const startupPower = globalThis.AtriumPower;
   if (wholeSuite && H().isStarter() && H().doc()?.kind !== "pcb" && startupPower?.visible?.()) {
     const was = startupPower.state();
-    startupPower.host({battery: true});
+    startupPower.host({lowPower: true});
     await settle(650); // Idle while Home or the initial schematic is showing.
     const settings = globalThis.AtriumCanvasGPUPref;
     const idle = !GPU() && (!settings || settings.describe() === "No PCB view is using a renderer");
@@ -958,6 +958,26 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     else okLifecycle("earlySettle", "early repaint draws the marker over the retained zoom and hiding silk draws the new appearance");
   }
 
+  function zoomOutGesture() {
+    const row = gpuZoomOutGesture(GPU());
+    if (row.fullFrames || !row.builds || row.builds > row.limit || !row.exactInk || row.unmatched > .03)
+      failLifecycle("zoomOutGesture", JSON.stringify(row));
+    else okLifecycle("zoomOutGesture", `${row.frames} outward gesture frames scaled retained layers, with ${row.builds} wider builds and ${(row.unmatched * 100).toFixed(2)}% of exact pixels unmatched`);
+  }
+
+  // The same zoom out when the wider layers cannot fit under the memory cap, or their build throws:
+  // the exact frames draw it, the build is not retried on every frame, and the GPU renderer stays on.
+  function zoomOutMemory() {
+    const row = gpuZoomOutGesture(GPU(), "cap");
+    if (row.builds || row.attempts > 1 || !row.alive || !row.frames) failLifecycle("zoomOutMemory", JSON.stringify(row));
+    else okLifecycle("zoomOutMemory", `${row.frames} outward frames under a ${row.capMB} MB cap: no wider build, GPU kept`);
+  }
+  function zoomOutFailure() {
+    const row = gpuZoomOutGesture(GPU(), "throw");
+    if (row.builds || row.attempts !== 1 || !row.alive || row.fullFrames !== row.frames) failLifecycle("zoomOutFailure", JSON.stringify(row));
+    else okLifecycle("zoomOutFailure", `a failed wider build was tried once; ${row.frames} exact gesture frames on the GPU`);
+  }
+
   async function terminalOverlay() {
     const row = await gpuTerminalOverlay(GPU());
     if (!row.marker || !row.coverage || row.beforeCallback || row.beforeAfter || row.nextFresh || row.nextFreshComposite)
@@ -987,19 +1007,27 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
     const opts = {editorPane:true,noReuse:true,grid:false,origin:false,showUnrouted:false,netNames:false};
     const getImage = ctx.getImageData;
-    let bytes = 0;
+    let bytes = 0, allocated = 0;
+    const proto = globalThis.WebGL2RenderingContext.prototype;
+    const storage = ["texImage2D","texStorage2D"].map(name =>
+      [name,proto[name],Object.getOwnPropertyDescriptor(proto,name)]);
+    for (const [name,call] of storage) proto[name] = function (...args) {
+      if (new Error().stack?.includes("pourCoverage")) allocated += args[3]*args[4]*(args[2]===this.ALPHA?1:4);
+      return call.apply(this,args);
+    };
     ctx.getImageData = function (...args) {
       if (new Error().stack?.includes("pourCoverage")) bytes += args[2]*args[3]*4;
       return getImage.apply(this,args);
     };
-    const paint = (cx,cy,scale,flipped=false,highlight=undefined,moving=false) => {
+    const paint = (cx,cy,scale,flipped=false,highlight=undefined,moving=false,viewOptions={}) => {
       view.restoreCamera({cx,cy,scale,flipped,referenceScale:10});
       if (moving) view.moving();
-      bytes = 0;
-      view.render(board,defs,{...opts,highlight,noReuse:!moving});
+      bytes = allocated = 0;
+      view.render(board,defs,{...opts,...viewOptions,highlight,noReuse:!moving});
       const stats = GPU().stats(I), c = GPU().composite(I);
       if (!c || !stats) throw Error("no GPU coverage frame");
-      return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, uploaded:stats.coverageUpload, memory:stats.gpuBytes};
+      return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, allocated,
+        uploaded:stats.coverageUpload, memory:stats.gpuBytes, fanUploads:stats.pourUploads, coverageMs:stats.last.coverage};
     };
     try {
       const close = paint(0,-1,10), retreat = paint(8,-2,8), reverse = paint(0,-1,10,true,"GND");
@@ -1036,12 +1064,32 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           repeated:repeated.uploaded,memory:[settled.memory,fresh.memory]}));
       else okLifecycle("pourCoverageBounds","camera reversal and edit match fresh copper, with bounded mask readbacks");
 
+      // Hiding one copper layer should leave the other layer's exact mask ready.
+      const hiddenOptions = {hidden:new Set(["Top"])};
+      const paintHidden = () => paint(0,-1,10,false,undefined,false,hiddenOptions);
+      const hidden = paintHidden(), shownAgain = paint(0,-1,10);
+      GPU().release(I); view.invalidate();
+      const freshHidden = paintHidden(), freshShown = paint(0,-1,10);
+      const delta = (a,b) => differentBytes(a.image.data,b.image.data);
+      const visibility = rows.visibility = {
+        uploaded:[hidden.uploaded,shownAgain.uploaded,freshHidden.uploaded,freshShown.uploaded],
+        allocated:[hidden.allocated,shownAgain.allocated],
+        differences:[delta(hidden,freshHidden),delta(shownAgain,freshWithoutIsland),delta(hidden,shownAgain)],
+        layerVisible:freshHidden.uploaded>0
+      };
+      if (hidden.uploaded || hidden.allocated || !shownAgain.uploaded ||
+          shownAgain.uploaded >= freshWithoutIsland.uploaded || !visibility.layerVisible ||
+          visibility.differences[0] || visibility.differences[1] || !visibility.differences[2])
+        failLifecycle("pourCoverageVisibility",JSON.stringify(visibility));
+      else okLifecycle("pourCoverageVisibility","a visibility toggle keeps untouched copper pixels ready");
+
       // Center a 0.55-device-pixel clearance on a sample column. Its contrast
       // must survive Canvas coverage and the actual GPU composite.
       const k = 10*dpr, x = (Math.floor(width/2+6*k)+.5-width/2)/k;
-      const body = rect(4,-8,4,6), gap = rect(x-.275/k,-7,.55/k,3);
-      const otherGap = rect(7-.275/k,-7,.55/k,3);
-      const narrow = AtriumPCBPours.region([body,gap,otherGap],"Top","GND");
+      const widthPx = .55, body = rect(4,-8,4,6);
+      const gapAt = (cx,y=-7,h=3) => rect(cx-widthPx/(2*k),y,widthPx/k,h);
+      const otherGap = gapAt(7);
+      const narrow = AtriumPCBPours.region([body,gapAt(x),otherGap],"Top","GND");
       board.pcbDrawing.pours = [narrow];
       view.invalidate();
       GPU().enable(false);
@@ -1050,24 +1098,232 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       const reference = ctx.getImageData(0,0,width,height).data;
       GPU().enable(true);
       const actual = paint(0,-1,10);
-      // Leave the second clearance so the intentionally filled control stays
-      // in the same production coverage path.
-      Object.assign(narrow,AtriumPCBPours.region([body,otherGap],"Top","GND"));
-      view.invalidate();
-      const filled = paint(0,-1,10);
+      // Keep the second clearance so the fault controls use the same coverage path.
+      const repaint = holes => {
+        Object.assign(narrow,AtriumPCBPours.region([body,...holes,otherGap],"Top","GND"));
+        view.invalidate();
+        return paint(0,-1,10);
+      };
+      const filled = repaint([]), shiftX = x+1/k, shifted = repaint([gapAt(shiftX)]);
+      const interrupted = repaint([gapAt(x,-7,2),gapAt(x,-5+1/k,1-1/k)]);
       const clear = at(3,-6), copper = at(5,-6);
       const channel = [0,1,2].reduce((a,b) => Math.abs(reference[copper+b]-reference[clear+b]) >
         Math.abs(reference[copper+a]-reference[clear+a]) ? b : a);
       const start = reference[clear+channel], contrast = reference[copper+channel]-start;
-      const profile = A => [-6.5,-6,-5.5,-5,-4.5].map(y => (A[at(x,y)+channel]-start)/contrast);
+      const profile = (pixels,cx=x) => {
+        const row = width*4, ink = [];
+        for (let i = at(cx,-7)+row; i < at(cx,-4)-row; i += row) ink.push((pixels[i+channel]-start)/contrast);
+        return ink;
+      };
       const a = profile(reference), b = profile(actual.image.data), c = profile(filled.image.data);
-      const visible = row => row.every(ink => ink>=0 && ink<.5);
-      const result = rows.narrowGap = {reference:a,composite:b,filled:c,uploaded:[actual.uploaded,filled.uploaded]};
-      if (Math.abs(contrast)<16 || !visible(a) || !visible(b) || c.some(ink=>ink<.9))
+      const oldPosition = profile(shifted.image.data), newPosition = profile(shifted.image.data,shiftX);
+      // A half-covered pixel can show nearly the same gap as Canvas. Check the
+      // contrast along the entire slit so a one-pixel interruption is still detected.
+      const retainsContrast = (ink,i) => 1-ink >= .75*(1-a[i]);
+      const brokenRows = profile(interrupted.image.data).filter((ink,i) => !retainsContrast(ink,i)).length;
+      const result = rows.narrowGap = {reference:a,composite:b,filled:c,oldPosition,newPosition,brokenRows,uploaded:[actual.uploaded,filled.uploaded]};
+      if (Math.abs(contrast)<16 || !a.every(ink => 1-ink >= .75*widthPx) || !b.every(retainsContrast) ||
+          c.some(ink => ink<.9) || oldPosition.some(retainsContrast) || !newPosition.every(retainsContrast) ||
+          !brokenRows || brokenRows>3)
         failLifecycle("pourCoverageNarrowGap",JSON.stringify(result));
-      else okLifecycle("pourCoverageNarrowGap","a subpixel clearance survives the exact GPU composite");
+      else okLifecycle("pourCoverageNarrowGap","a subpixel clearance retains contrast where drawn, including after a one-pixel move");
+
+      // Offscreen admission and exact re-entry apply to both texture upload paths.
+      {
+        rows.offscreen = [];
+        board.outline = rect(-100,-100,200,200);
+        // Keep the copper layer in the draw list even when both pours leave the viewport.
+        board.items.push({id:"visible-track",kind:"track",layer:"Top",width:.4,points:[[-2,0],[2,0]]});
+        board.sourcePourSignature = AtriumPCBPours.signature(board,defs);
+        for (const [w,h,flipped] of [[360,256,false],[842,717,true]]) {
+          stage.style.width = w+"px"; stage.style.height = h+"px";
+          GPU().release(I); view.invalidate();
+          const poses = offset => paint(offset,0,10,flipped);
+          board.pcbDrawing.pours = [];
+          const enteringCamera = 3.2;
+          const empty = poses(0), emptyEnter = poses(enteringCamera);
+          const edge = w/20, north = -h/20+.3, south = h/20-7-.3;
+          const right = region(edge+.4,north,"Top"), left = region(-edge-9.5,south,"Top");
+          board.pcbDrawing.pours = [right];
+          const single = poses(0);
+          board.pcbDrawing.pours = [right,left];
+          const disjoint = poses(0), enter = poses(enteringCamera), exit = poses(0);
+          Object.assign(right,region(edge+.45,north,"Top"));
+          view.invalidate();
+          const edited = poses(0);
+          GPU().release(I); view.invalidate();
+          const fresh = poses(0);
+          const imageDelta = (a,b) => differentBytes(a.image.data,b.image.data);
+          const track = [single,disjoint,enter,exit,edited,fresh];
+          const sample = (x,y) => {
+            const {width,height,data} = enter.image, density = 10*width/w;
+            const i = Math.floor(width/2+(x-enteringCamera)*density*(flipped?-1:1));
+            const j = Math.floor(height/2+y*density);
+            return rgbDifference(emptyEnter.image.data,data,(j*width+i)*4);
+          };
+          const report = {flipped,width:empty.image.width,height:empty.image.height,
+            upload:track.map(frame=>frame.uploaded), readback:track.map(frame=>frame.bytes),
+            allocated:track.map(frame=>frame.allocated), fanUploads:track.map(frame=>frame.fanUploads),
+            noInk:[single,disjoint,exit,edited,fresh].map(frame=>imageDelta(empty,frame)),
+            entered:rasterResidual(emptyEnter.image.data,enter.image.data,enter.image.width,enter.image.height),
+            hole:sample(edge+2.4,north+2), ink:sample(edge+1.4,north+2)};
+          rows.offscreen.push(report);
+          const limit = empty.image.width * empty.image.height / 25;
+          if (report.noInk.some(Boolean) || report.hole>8 || report.ink<=16 ||
+              [single,disjoint,exit,edited,fresh].some(frame=>frame.uploaded || frame.bytes) ||
+              !enter.uploaded || (usesReadback ? enter.uploaded>=limit || !enter.bytes || enter.bytes>=limit*4 : enter.bytes!==0))
+            failLifecycle("pourCoverageOffscreen",JSON.stringify({...report,entered:undefined}));
+          if ([single,disjoint,exit,edited,fresh].some(frame=>frame.allocated) || !enter.allocated || report.fanUploads.some(Boolean))
+            failLifecycle("pourCoverageOffscreenStorage",JSON.stringify({allocated:report.allocated,fanUploads:report.fanUploads}));
+
+          // Repeated offscreen/onscreen reversals keep the existing mask, even
+          // with multiple ink colors in one RGBA layer.
+          GPU().release(I); view.invalidate();
+          const mixed = {...region(edge+.45,north+4,"Top"),net:"SIG"};
+          board.pcbDrawing.pours = [];
+          const clear = paint(0,0,10,flipped,"GND");
+          board.pcbDrawing.pours = [right,mixed];
+          const visible = paint(enteringCamera,0,10,flipped,"GND");
+          const bounces = [];
+          for (let n=0;n<3;n++) {
+            const a = paint(0,0,10,flipped,"GND"), b = paint(enteringCamera,0,10,flipped,"GND");
+            bounces.push({read:a.bytes+b.bytes,upload:a.uploaded+b.uploaded,allocated:a.allocated+b.allocated,
+              emptyDelta:imageDelta(a,clear),returnDelta:imageDelta(b,visible),exitCoverageMs:a.coverageMs});
+          }
+          report.bounces = {visibleAllocated:visible.allocated,rows:bounces};
+          if (visible.allocated!==empty.image.width*empty.image.height*4 ||
+              bounces.some(row=>row.upload || row.read || row.allocated || row.emptyDelta || row.returnDelta))
+            failLifecycle("pourCoverageOffscreenBounce",JSON.stringify(report.bounces));
+
+          const mixedAt = offset => paint(offset,0,10,flipped,"GND");
+          const dormant = mixedAt(0);
+          const backing = dormant.image.width * dormant.image.height * 4;
+          const cap = globalThis.__atriumGpuCapMB;
+          let pressured;
+          try {
+            globalThis.__atriumGpuCapMB = (dormant.memory + backing - 1) / 1048576;
+            pressured = mixedAt(0);
+          } finally {
+            if (cap === undefined) delete globalThis.__atriumGpuCapMB;
+            else globalThis.__atriumGpuCapMB = cap;
+          }
+          const returned = mixedAt(enteringCamera);
+          const emptyAgain = mixedAt(0), retainedAgain = mixedAt(enteringCamera);
+          GPU().release(I); view.invalidate();
+          const freshReturn = mixedAt(enteringCamera);
+          report.pressure = {freed: dormant.memory - pressured.memory, expected: visible.allocated,
+            whileOffscreen: imageDelta(clear,pressured), allocationOnReturn: returned.allocated,
+            uploadOnReturn: returned.uploaded, freshDelta: imageDelta(returned,freshReturn),
+            nextUpload: emptyAgain.uploaded + retainedAgain.uploaded,
+            nextAllocation: emptyAgain.allocated + retainedAgain.allocated};
+          if (report.pressure.freed !== visible.allocated || report.pressure.whileOffscreen ||
+              pressured.uploaded || pressured.allocated || returned.allocated !== visible.allocated ||
+              !returned.uploaded || report.pressure.freshDelta || report.pressure.nextUpload || report.pressure.nextAllocation)
+            failLifecycle("pourCoveragePressure",JSON.stringify(report.pressure));
+
+          mixedAt(0);
+          const otherCamera = mixedAt(enteringCamera+1);
+          GPU().release(I); view.invalidate();
+          const freshCamera = mixedAt(enteringCamera+1);
+          mixedAt(0);
+          Object.assign(right,region(edge+1.25,north,"Top")); view.invalidate();
+          mixedAt(0);
+          const changed = mixedAt(enteringCamera+1);
+          GPU().release(I); view.invalidate();
+          const freshEdit = mixedAt(enteringCamera+1);
+          if (!otherCamera.uploaded || !changed.uploaded || !imageDelta(visible,otherCamera) ||
+              !imageDelta(freshCamera,changed) || imageDelta(otherCamera,freshCamera) || imageDelta(changed,freshEdit))
+            failLifecycle("pourCoverageOffscreenReturn","a changed camera or edited contour did not restore fresh copper");
+        }
+        if (!out.failures.some(f=>f.includes("pourCoverageOffscreen")))
+          okLifecycle("pourCoverageOffscreen","empty padded pours skip allocation and repeat camera visits reuse the mask");
+      }
     } finally {
       ctx.getImageData = getImage;
+      for (const [name,,descriptor] of storage) {
+        if (descriptor) Object.defineProperty(proto,name,descriptor);
+        else delete proto[name];
+      }
+      view.dispose(); stage.remove();
+    }
+  }
+
+  async function pourCoverageLod() {
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:360px;height:256px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const view = AtriumCanvas.create(canvas), I = view.internals(), P = AtriumPCBPours, {lod} = P;
+    const board = Atrium.sheet("pcb","Coverage display detail"), defs = new Map();
+    const opacity = PCB.opacity.track, enabled = lod.enabled, dpr = Math.min(4,Math.max(1,devicePixelRatio));
+    const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+    const shape = offset => P.region([rect(-17,-12,34,24), ...Array.from({length:30},(_,n) =>
+      Array.from({length:96},(_,i)=>{
+        const a = i*Math.PI/48;
+        return [-13+(n%6)*5+offset+.45*Math.cos(a),-9+Math.floor(n/6)*4+.65*Math.sin(a)];
+      }))],"Top","GND");
+    board.outline = rect(-21,-16,42,32);
+    board.items = [{id:"lod-ordered-track",kind:"track",layer:"Top",width:.4,points:[[-16,0],[16,0]]}];
+    board.sourcePourSignature = P.signature(board,defs);
+    const rows = out.pourCoverageLod = {};
+    let region;
+    try {
+      for (const ordered of [false,true]) {
+        PCB.setOpacity("track",ordered?.5:1);
+        lod.enabled = true;
+        region = shape(0);
+        board.pcbDrawing = {annotations:{},pours:[region]};
+        board.sourcePourSignature = P.signature(board,defs);
+        view.invalidate();
+        const paint = deviceScale => {
+          view.restoreCamera({cx:0,cy:0,scale:deviceScale/dpr,referenceScale:deviceScale/dpr});
+          view.render(board,defs,{editorPane:true,noReuse:true,grid:false,origin:false,netNames:false,showUnrouted:false});
+          const work=GPU().resourceCounters(I), image=GPU().composite(I);
+          if (!work || !image) throw Error("no coverage display-detail frame");
+          return {bytes:ordered?work.textUpload:work.coverageUpload,
+            pixels:image.getContext("2d").getImageData(0,0,image.width,image.height).data};
+        };
+        const high=paint(26), firstVersion=lod.version;
+        // Let an actual idle result arrive for the same copper at another scale.
+        const waiting=P.lodRingsAt(region,4);
+        if (waiting || !await until(()=>lod.version!==firstVersion && P.lodRingsAt(region,4)))
+          throw Error("low-scale display detail did not finish");
+        const highAgain=paint(26);
+        // The low-scale view must use a real new level, even at a fixed pose.
+        P.release([region],[]);
+        const secondVersion=lod.version, low=paint(4);
+        if (!await until(()=>lod.version!==secondVersion && P.lodRingsAt(region,4)))
+          throw Error("the low-scale painter did not request its display detail");
+        const upgraded=paint(4), repeated=paint(4);
+        lod.enabled=false;
+        const disabled=paint(4);
+        lod.enabled=true;
+        const enabledAgain=paint(4);
+        const raw={...region}, moved=shape(.22);
+        Object.assign(region,moved); view.invalidate();
+        const edited=paint(26);
+        Object.assign(region,raw); view.invalidate();
+        const restored=paint(26);
+        Object.assign(region,moved); view.invalidate();
+        const redone=paint(26);
+        const report = rows[ordered?"ordered":"mask"] = {
+          initial:high.bytes, highAgain:highAgain.bytes, highDelta:differentBytes(high.pixels,highAgain.pixels),
+          upgraded:upgraded.bytes, lowDelta:differentBytes(low.pixels,upgraded.pixels), repeated:repeated.bytes,
+          disabled:disabled.bytes, enabledAgain:enabledAgain.bytes,
+          disabledDelta:differentBytes(low.pixels,disabled.pixels), enabledDelta:differentBytes(upgraded.pixels,enabledAgain.pixels),
+          editDelta:differentBytes(high.pixels,edited.pixels), restoreDelta:differentBytes(high.pixels,restored.pixels),
+          redoDelta:differentBytes(edited.pixels,redone.pixels)};
+        if (!report.initial || report.highAgain || report.highDelta || !report.upgraded || !report.lowDelta ||
+            report.repeated || !report.disabled || !report.enabledAgain || report.disabledDelta || report.enabledDelta ||
+            !report.editDelta || report.restoreDelta || report.redoDelta)
+          failLifecycle("pourCoverageLod",JSON.stringify(report));
+        P.release([region],[]);
+      }
+      if (!out.failures.some(f=>f.includes("pourCoverageLod")))
+        okLifecycle("pourCoverageLod","only applicable display detail invalidates coverage and ordered copper");
+    } finally {
+      if (region) P.release([region],[]);
+      lod.enabled=enabled; PCB.setOpacity("track",opacity);
       view.dispose(); stage.remove();
     }
   }
@@ -1139,6 +1395,198 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     } finally {
       gl.texSubImage2D = upload;
       view.dispose(); stage.remove();
+    }
+  }
+
+  function padCaptionBounds() {
+    const name = "padCaptionBounds";
+    if (!/AppleWebKit/.test(navigator.userAgent) || /Chrome\/|Chromium\//.test(navigator.userAgent)) {
+      okLifecycle(name,"skipped: caption bounds apply to WebKit readback");
+      return;
+    }
+    const stage = document.createElement("div"), canvas = document.createElement("canvas");
+    stage.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:300px;height:220px";
+    canvas.style.cssText = "display:block;width:100%;height:100%";
+    stage.append(canvas); document.body.append(stage);
+    const ctx = canvas.getContext("2d",{willReadFrequently:true}), view = AtriumCanvas.create(canvas), I = view.internals();
+    const board = Atrium.sheet("pcb","Pad caption bounds"), scale = 22;
+    board.outline = [[-15,-12],[15,-12],[15,12],[-15,12]];
+    const part = (id,x,y,angle,mirror,number,net) => ({
+      id,kind:"part",def:id,layer:mirror?"Bottom":"Top",x,y,angle,mirror,showRef:false,showValue:false,pinNets:{[number]:net}
+    });
+    board.items = [part("front",-3.6,-2.3,12,false,"Pq7","AgypΩ"), part("mirrored",1.65,2.15,97,true,"Rgj","ω_NPg"),
+      {id:"caption-via",kind:"via",layer:"Multi",x:6.79,y:-2.15,diameter:2.8,drill:.6,net:"Δgy"}];
+    const defs = new Map(board.items.slice(0,2).map(item => [item.def,{footprint:{shapes:[],pads:[
+      {number:Object.keys(item.pinNets)[0],layer:"Top",shape:"rect",x:0,y:0,w:4.6,h:3.1,angle:21}
+    ]}}]));
+    const rest = {editorPane:true,noReuse:true,grid:false,origin:false,showUnrouted:false,layer:"Top"};
+    const seed = {cx:0,cy:0,scale:2,referenceScale:scale};
+    const geometry = [
+      {id:"start",cx:0,cy:0,netNames:true},
+      {id:"shifted",cx:-1.4,cy:1.35,netNames:true},
+      {id:"numberOnly",cx:-1.4,cy:1.35,netNames:false}
+    ];
+    const poses = [false,true].flatMap(flipped=>geometry.map(pose=>({...pose,flipped})));
+    view.restoreCamera(seed); view.render(board,defs,rest);
+    const gl = canvas.previousElementSibling?.getContext("webgl2");
+    if (!gl) { view.dispose(); stage.remove(); failLifecycle(name,"no GPU drawing context"); return; }
+    const upload = gl.texSubImage2D, fillText = ctx.fillText;
+    let full = false, uploads, captions;
+    try {
+      ctx.fillText = function(text,x,y,...more) {
+        if (captions) {
+          const {a,b,c,d} = ctx.getTransform();
+          captions.push({text,upright:a>0 && d>0 && Math.abs(b)+Math.abs(c)<.001});
+        }
+        return fillText.call(this,text,x,y,...more);
+      };
+      gl.texSubImage2D = function(...args) {
+        const [target,level,x,bottom,w,h,format,type,source] = args;
+        // With no pours or other artwork in the bands, these are the caption transfers.
+        if (uploads && args.length===9 && target===gl.TEXTURE_2D && level===0 && format===gl.RGBA &&
+            type===gl.UNSIGNED_BYTE && source instanceof ImageData) {
+          const W=canvas.width, H=canvas.height, y=H-bottom-h;
+          uploads.push({rect:[x,y,w,h],cropped:w<W || h<H,edge:x===0 || x+w===W,
+            ink:source.data.some((value,index)=>index%4===3 && value!==0)});
+          // Sample the same freshly painted source before scratch reuse. Full-band upload is
+          // independent of the crop calculations and also clears all previous text pixels.
+          if (full) return upload.call(this,target,level,0,0,W,H,format,type,ctx.getImageData(0,0,W,H));
+        }
+        return upload.apply(this,args);
+      };
+      const paint = ({cx,cy,flipped,netNames}) => {
+        uploads = []; captions = [];
+        view.restoreCamera({cx,cy,scale,referenceScale:scale,flipped});
+        view.render(board,defs,{...rest,netNames});
+        const surface = GPU().composite(I);
+        if (!surface) throw Error("no GPU frame for pad captions");
+        const image = surface.getContext("2d").getImageData(0,0,surface.width,surface.height).data;
+        return {image,uploads,captions};
+      };
+      const cropped = poses.map(paint);
+      full = true;
+      const fallback = poses.map(paint);
+      const report = poses.map(({id,flipped},n) => {
+        const row=cropped[n];
+        return {id,flipped,delta:differentBytes(row.image,fallback[n].image),uploads:row.uploads,
+          referenceUploads:fallback[n].uploads.length,captions:row.captions};
+      });
+      out.padCaptionBounds = {dpr:I.cam()[6],rows:report};
+      const text = ["Pq7","Rgj","AgypΩ","ω_NPg","Δgy"];
+      const valid = report.every(({id,uploads,referenceUploads,captions,delta}) => !delta && referenceUploads>0 &&
+        uploads.some(row=>row.cropped && row.ink) && captions.every(row=>row.upright) &&
+        (id==="start" ? text.every(t=>captions.some(row=>row.text===t)) && uploads.some(row=>row.cropped && row.edge && row.ink) :
+          id==="shifted" ? text.slice(0,4).every(t=>captions.some(row=>row.text===t)) :
+            text.slice(0,2).every(t=>captions.some(row=>row.text===t)) && captions.every(row=>text.slice(0,2).includes(row.text))));
+      if (!valid || differentBytes(cropped[0].image,cropped[1].image)===0 ||
+          differentBytes(cropped[1].image,cropped[2].image)===0)
+        failLifecycle(name,JSON.stringify(out.padCaptionBounds));
+      else okLifecycle(name,"cropped captions match full source uploads through camera, edge and visibility changes");
+    } finally {
+      ctx.fillText = fillText;
+      gl.texSubImage2D = upload;
+      view.dispose(); stage.remove();
+    }
+  }
+
+  function panStripUpload() {
+    const key = "panStripUpload";
+    if (!/(?:Chrome|Chromium)\//.test(navigator.userAgent)) { okLifecycle(key,"skipped: Chromium direct strip path"); return; }
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:257px;height:183px";
+    document.body.append(canvas);
+    const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map();
+    const doc = Atrium.sheet("pcb","Pan strip upload");
+    doc.outline = [[-25,-16],[25,-16],[25,16],[-25,16]];
+    doc.items = [
+      {kind:"label",id:"east",layer:"Silk",x:10.2,y:1,size:1.4,width:.18,text:"Pgq"},
+      {kind:"label",id:"west",layer:"Silk",x:-11.8,y:-1,size:1.6,width:.19,text:"Qjy"},
+      {kind:"label",id:"north",layer:"Silk",x:-2,y:-7.6,size:1.3,width:.16,text:"Ag"},
+      {kind:"label",id:"south",layer:"Silk",x:1,y:7.4,size:1.1,width:.18,text:"dj"},
+      {kind:"label",id:"corner",layer:"Silk",x:10.4,y:7.45,size:1.9,width:.21,text:"Jq"}
+    ];
+    const opts={editorPane:true,grid:false,origin:false,showUnrouted:false,netNames:false};
+    const opacity=PCB.layerAlpha("Silk"), rows=out.panStripUpload=[];
+    try {
+      PCB.setLayerOpacity("Silk",.63);
+      for (const flipped of [false,true]) {
+        const initial={cx:0,cy:0,scale:12,referenceScale:12,flipped};
+        view.restoreCamera(initial); view.render(doc,defs,{...opts,noReuse:true});
+        const gl=canvas.previousElementSibling?.getContext("webgl2");
+        if (!gl) throw Error("no GPU strip context");
+        const texSub=gl.texSubImage2D, fb=gl.createFramebuffer(), uploads=[], frames=[];
+        const dpr=I.cam()[6];
+        const pixels=()=>{
+          const c=GPU().composite(I);
+          if (!c) throw Error("no GPU strip frame");
+          return c.getContext("2d").getImageData(0,0,c.width,c.height).data;
+        };
+        gl.texSubImage2D=function(...args) {
+          const [target,level,x,y,w,h,format,type,source]=args;
+          const direct=source instanceof HTMLCanvasElement && source!==canvas;
+          if (args.length!==9 || target!==gl.TEXTURE_2D || level!==0 || format!==gl.RGBA ||
+              type!==gl.UNSIGNED_BYTE || !(direct || source instanceof ImageData))
+            return texSub.apply(this,args);
+          const tex=gl.getParameter(gl.TEXTURE_BINDING_2D), prior=gl.getParameter(gl.FRAMEBUFFER_BINDING);
+          const skip=gl.getParameter(gl.UNPACK_SKIP_ROWS), flip=gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
+          const straight=!gl.getParameter(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL);
+          const expected=direct?source.getContext("2d").getImageData(0,0,w,h).data:source.data;
+          const out=texSub.apply(this,args), actual=new Uint8Array(w*h*4);
+          try {
+            gl.bindFramebuffer(gl.FRAMEBUFFER,fb);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+            gl.readPixels(x,y,w,h,gl.RGBA,gl.UNSIGNED_BYTE,actual);
+          } finally {
+            gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,null,0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER,prior);
+          }
+          let delta=0, max=0, alphaDelta=0, ink=0;
+          for(let i=0;i<actual.length;i++){
+            const row=Math.floor(i/(w*4)), j=(h-1-row)*w*4+i%(w*4);
+            const change=Math.abs(actual[i]-expected[j]);
+            if(change) delta++;
+            if(i%4===3) { if(change) alphaDelta++; if(expected[j]>0 && expected[j]<255) ink++; }
+            max=Math.max(max,change);
+          }
+          uploads.push({direct,rect:[x,y,w,h],source:[source.width,source.height],skip,flip,straight,delta,max,alphaDelta,ink});
+          return out;
+        };
+        try {
+          const start=GPU().resourceCounters(I).retainedFrames;
+          for(const [dx,dy] of [[13,-19],[-7,9],[3,1],[-1,-3],[-19,13]]) {
+            view.pan(dx/dpr,dy/dpr); view.moving(); view.render(doc,defs,opts);
+            frames.push({camera:view.camera(),pixels:pixels()});
+            if (gl.getParameter(gl.UNPACK_SKIP_ROWS)!==0 || gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL))
+              throw Error("strip upload did not restore unpack state");
+          }
+          const retained=GPU().resourceCounters(I).retainedFrames-start;
+          const comparisons=[];
+          gl.texSubImage2D=texSub;
+          for(const frame of frames){
+            view.restoreCamera(frame.camera); view.render(doc,defs,{...opts,noReuse:true});
+            const fresh=pixels();
+            comparisons.push({bytes:differentBytes(frame.pixels,fresh),strong:differentPixels(frame.pixels,fresh,16)});
+          }
+          rows.push({flipped,dpr,retained,uploads,comparisons});
+        } finally {
+          gl.texSubImage2D=texSub;
+          gl.deleteFramebuffer(fb);
+        }
+      }
+      const passed=rows.every(row=>row.retained===5 && row.uploads.length>0 &&
+        row.uploads.every(u=>u.direct && u.flip && u.straight && !u.delta) &&
+        row.uploads.some(u=>u.ink>0 && u.skip>0 && u.rect[1]>0) &&
+        row.uploads.some(u=>u.rect[2]%2===1 || u.rect[3]%2===1) &&
+        row.uploads.some(u=>u.source[0]>u.rect[2] || u.source[1]>u.rect[3]) &&
+        row.uploads.some(u=>u.rect[2]>u.rect[3]) && row.uploads.some(u=>u.rect[3]>u.rect[2]) &&
+        row.comparisons.every(c=>!c.bytes));
+      if (passed) okLifecycle(key,"wrapped strips match full frames and the requested source texels");
+      else failLifecycle(key,JSON.stringify(rows.map(({uploads,...row})=>({...row,uploads:uploads.length,
+        direct:uploads.filter(u=>u.direct).length,incorrect:uploads.filter(u=>u.delta||!u.flip||!u.straight).slice(0,5),
+        oversized:uploads.filter(u=>u.skip>0 && u.ink>0).length}))));
+    } finally {
+      PCB.setLayerOpacity("Silk",opacity);
+      view.dispose(); canvas.remove();
     }
   }
 
@@ -1544,7 +1992,7 @@ async function gpuPowerVisibility(host, gpu, wait, until) {
   };
   try {
     const warmFrames = frames(), warmRenders = renders;
-    setHost({occluded: true, battery: true});
+    setHost({occluded: true, lowPower: true});
     host.redraw();
     await wait(400);
     const warmPaused = covered() && frames() === warmFrames && renders === warmRenders &&
@@ -1682,6 +2130,65 @@ function gpuEarlySettle(GPU) {
       sharpening:motion.counters.slicing, retained:!early.counters.exactCamera && !differentBytes(motion.pixels, early.pixels),
       markerDrawn, appearanceExact:appearance.counters.exactCamera, appearanceMismatch:differentBytes(appearance.pixels,coldHidden.pixels),
       hiddenPixels:differentPixels(coldHidden.pixels,coldVisible.pixels,48)};
+  } finally {
+    view.dispose(); canvas.remove();
+  }
+}
+
+// A continuous zoom out (a trackpad pinch: many small steps) reveals area that no retained layer
+// holds. Each step must not redraw the exact layers for its camera. The renderer prepares twice the
+// area at once and scales it, so an 8x zoom out needs about one build per halving of the scale.
+// mode "cap": a memory cap with room for the exact frame but not for wider bands. "throw": the build fails.
+function gpuZoomOutGesture(GPU, mode = "") {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:320px;height:200px";
+  document.body.append(canvas);
+  canvas.getContext("2d", {willReadFrequently:true});
+  const view = AtriumCanvas.create(canvas), I = view.internals(), defs = new Map();
+  const doc = Atrium.sheet("pcb", "Continuous zoom out");
+  doc.outline = [[-160,-100],[160,-100],[160,100],[-160,100]];
+  for (let x = -150; x <= 150; x += 25) for (let y = -100; y <= 100; y += 20)
+    doc.items.push({kind:"label",id:`l${x},${y}`,layer:"Silk",x,y,size:4,width:.5,text:"SILK"});
+  const opts = {editorPane:true, grid:false, origin:false, showUnrouted:false};
+  const pixels = () => {
+    const image = GPU.composite(I);
+    if (!image) throw Error("zoom out needs an actual GPU frame");
+    return image.getContext("2d").getImageData(0,0,image.width,image.height).data;
+  };
+  try {
+    view.restoreCamera({cx:0,cy:0,scale:24,referenceScale:24});
+    view.render(doc, defs, {...opts, noReuse:true});
+    const before = GPU.resourceCounters(I), start = GPU.stats(I), builds = start.wideBuilds || 0, steps = 20;
+    // Only the wider build moves the camera (withCamera) on these frames.
+    const withCamera = I.withCamera;
+    let attempts = 0, capMB = null;
+    I.withCamera = function (...a) { attempts++; if (mode === "throw") throw Error("injected wide build failure"); return withCamera.apply(this, a); };
+    if (mode === "cap") globalThis.__atriumGpuCapMB = capMB = +((start.gpuBytes + start.backingBytes + canvas.width * canvas.height * 2) / 1048576).toFixed(6);
+    try { for (let i = 0; i < steps; i++) { view.zoom(.9); view.moving(); view.render(doc, defs, opts); } }
+    finally { I.withCamera = withCamera; if (mode === "cap") delete globalThis.__atriumGpuCapMB; }
+    const after = GPU.resourceCounters(I), alive = !!after && GPU.status(I).renderer === "gpu";
+    if (mode) {
+      const frames = after ? after.frames - before.frames : 0;
+      return {mode, frames, fullFrames:after ? frames - (after.retainedFrames - before.retainedFrames) : null,
+        builds:(GPU.stats(I)?.wideBuilds || 0) - builds, attempts, alive, capMB};
+    }
+    const moving = pixels();
+    view.settle(); view.render(doc, defs, {...opts, noReuse:true});
+    const exact = pixels(), w = canvas.width, h = canvas.height, background = exact.slice(0, 4);
+    // Exact pixels with no gesture pixel within one pixel and 64 levels: lettering the scaled layers lost.
+    // Resampling only softens and shifts edges by a pixel.
+    let unmatched = 0, exactInk = 0;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const k = (y * w + x) * 4;
+      if (rgbDifference(exact, background, k, 0) > 64) exactInk++;
+      let near = false;
+      for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1 && !near; dx++) near = rgbDifference(exact, moving, k, k + (dy * w + dx) * 4) <= 64;
+      if (!near) unmatched++;
+    }
+    const frames = after.frames - before.frames;
+    return {frames, fullFrames:frames - (after.retainedFrames - before.retainedFrames),
+      builds:(GPU.stats(I).wideBuilds || 0) - builds, limit:Math.ceil(Math.log2(1 / Math.pow(.9, steps))) + 1,
+      exactInk, unmatched:+(unmatched / ((w - 2) * (h - 2))).toFixed(4)};
   } finally {
     view.dispose(); canvas.remove();
   }

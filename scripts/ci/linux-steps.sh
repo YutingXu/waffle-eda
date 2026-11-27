@@ -118,7 +118,7 @@ case $step in
     run "waffle.py imports" python3 -c "import importlib.util as u; s=u.spec_from_file_location('waffle','native/linux/waffle.py'); m=u.module_from_spec(s); s.loader.exec_module(m); assert callable(m.main)"
     run "waffle.py --version" python3 native/linux/waffle.py --version
     run "standalone native member recovery" python3 native/tests/folder-transaction/linux-standalone.py
-    for t in git_head host_state project_journal source_copies external_tools lan_relay; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
+    for t in git_head host_state project_journal source_copies external_tools lan_relay power_saver; do run "native/tests/$t.py" python3 native/tests/$t.py; done ;;
   webkitgtk)
     run "WebKitGTK web view smoke" xvfb-run -a -s "-screen 0 1440x900x24" python3 scripts/ci/webkitgtk-smoke.py
     run "GTK3 native editor startup" xvfb-run -a -s "-screen 0 1440x900x24" python3 native/tests/linux-harness/gdk-startup.py

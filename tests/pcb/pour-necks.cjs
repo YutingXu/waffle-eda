@@ -100,11 +100,12 @@ const pour = (fields, extra) => { const b = necked(fields, extra); const r = PP.
   assert.throws(() => PP.validate({...p, neckWidth: 6}), /neckWidth/);
   assert.throws(() => PP.validate({...p, fillMode: "dots"}), /fillMode/);
   PP.validate({...p, neckWidth: 0, fillMode: "outline"});
-  const b = necked({neckWidth: .2}), other = PP.make(rect(5, 5, 45, 35), {id: "bottom", net: "GND", layer: "Bottom"});
-  b.d.items.push(other);
-  const st = PP.tiles.build(b.d, defs, {});
-  assert.deepEqual(st.ord, ["bottom"], "the tile tier skips the layer with the shaped pour");
-  console.log("ok - settings: absent stays absent, values validated; tiles leave a shaped layer to the exact repour");
+  const tiled = fields => { const b = necked(fields); b.d.items.push(PP.make(rect(5, 5, 45, 35), {id: "bottom", net: "GND", layer: "Bottom"})); return PP.tiles.build(b.d, defs, {}).ord; };
+  assert.deepEqual(tiled({neckWidth: .5, reliefConductorWidth: .254}), ["bottom"], "the tile tier skips the layer with the shaped pour");
+  assert.deepEqual(tiled({fillMode: "outline"}), ["bottom"], "the tile tier skips an Outlines Only layer");
+  // A neck no wider than the spokes (a KiCad zone's minimum width) keeps the live tile preview.
+  assert.deepEqual(tiled({neckWidth: .254, reliefConductorWidth: .5}), ["pour", "bottom"], "a neck at most the spoke width stays tiled");
+  console.log("ok - settings: absent stays absent, values validated; tiles leave a shaped layer to the exact repour unless its neck is at most a spoke");
 }
 // ---- Design Insights: dead copper that stays (Remove Dead Copper off) is listed with its location
 {

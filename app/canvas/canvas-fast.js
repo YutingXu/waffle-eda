@@ -23,6 +23,11 @@
 //     A batched (LOD) copy repaints with its batches while the view's object count keeps the
 //     whole-frame batching decision. A rebuilt batch can move antialiasing by a level elsewhere on
 //     its scanlines, so that copy is inexact and the exact frame follows on idle, as after a gesture.
+//   Resized panes (resize). A dock or split sash, the window or a panel shown or hidden changes only the
+//     view's size: the camera keeps its centre, so the copy's pixels move by half the change. They are
+//     drawn there and only the strips a larger view uncovers are painted. As after a pan, the frame is
+//     inexact (a fresh paint culls objects at the view's edges, a move can be half a pixel, and batching
+//     follows the number of objects in view): once the size rests, the idle frame paints in full.
 //   Parked caches (park). Switching documents keeps the last two documents' item index, batches,
 //     connectivity and pour state, so switching back neither rebuilds them nor misses the copy.
 //   Canvas size (observe). A ResizeObserver supplies the canvas size: getBoundingClientRect() in every
@@ -184,22 +189,28 @@ globalThis.AtriumCanvasFast = (() => {
   // Presentation reads independently of the cache's item revision. Changing one of these values
   // can change the whole canvas. The retained artwork's revision is tracked beside this key, and the
   // poured copper it shows beside it too (pourView: the pour engine says where that copper changed).
+  // The camera (I.cam(): cx, cy, scale, flipped, width, height, dpr) starts at CAMERA; the backing size follows it.
+  const CAMERA = 11, SIZE = new Set([CAMERA + 4, CAMERA + 5, CAMERA + 7, CAMERA + 8]);
   function keyOf(I, doc, defs, opts, v = I.cam(), frame) {
     watchLooks();
     const P = globalThis.AtriumPCBAppearance, d = globalThis.document, pcb = doc.kind === "pcb";
     const pours = pcb && !opts.hidden?.has("Source pours") && doc.pcbDrawing?.pours?.length ? frame?.state ?? I.pourState(doc, defs) : null;
     const airwires = pcb && opts.showUnrouted && !opts.transientGeometry ? I.connectivity : null;
     const labels = pcb ? globalThis.AtriumNavHost?.units?.() : new Date().toDateString();
+    const lod = pcb ? globalThis.AtriumPCBPours?.lod : null, scale = v[2] * v[6];
+    // The camera-independent gesture key still needs the global epoch. For an unrotated
+    // backing at a known camera, match the device-pixel scale of the pour painter's transform.
+    const detail = lod && Number.isFinite(scale) && scale !== 0 ? lod.keyAt?.(Math.sqrt(scale * scale)) : undefined;
     const k = [doc, doc.items, defs, airwires, pours, labels, doc.pcbDrawing, doc.outline, doc.outline?.length, doc.grid, doc.origin,
       ...v, I.canvas.width, I.canvas.height, P?.system, P?.opacity, looks, !!globalThis.AtriumStackup?.isPlanning?.(),
-      globalThis.AtriumPourAnim?.version, globalThis.AtriumPCBPours?.lod?.version, d?.scripts?.length, d?.fonts?.status];
+      globalThis.AtriumPourAnim?.version, detail ?? lod?.version, d?.scripts?.length, d?.fonts?.status];
     for (const n of Object.keys(opts).sort()) { if (TOP.has(n) || SEL.has(n)) continue; k.push(n); flatInto(k, opts[n]); }
     k.push("routeHidden"); flatInto(k, opts.routePreview?.hidden || null);
     return k;
   }
-  function sameKey(a, b) {
+  function sameKey(a, b, skip) {
     if (!a || a.length !== b.length) return false;
-    for (let n = 0; n < a.length; n++) if (!same(a[n], b[n])) return false;
+    for (let n = 0; n < a.length; n++) if (!same(a[n], b[n]) && !skip?.has(n)) return false;
     return true;
   }
   const selOf = opts => { const s = new Set(opts.selectedIds || []); if (opts.selected != null) s.add(opts.selected); return s; };
@@ -236,7 +247,8 @@ globalThis.AtriumCanvasFast = (() => {
   function reuse(I, doc, defs, opts, frame) {
     const s = stateOf(I), e = s.copies.get(doc);
     s.frame = now();
-    if (!e || opts.noReuse || e.canvas.width !== I.canvas.width || e.canvas.height !== I.canvas.height) return false;
+    if (!e || opts.noReuse) return false;
+    const resized = e.canvas.width !== I.canvas.width || e.canvas.height !== I.canvas.height;
     // A copy whose surface the GPU process dropped holds no pixels: draw the board afresh.
     if (lost(e.canvas) || e.under && lost(e.under)) { drop(s, doc, e); return false; }
     const c = I.sync(doc, defs);
@@ -244,20 +256,26 @@ globalThis.AtriumCanvasFast = (() => {
     const edited = e.rev !== c.rev;
     // The idle frame after an inexact repaint draws everything.
     if (e.inexact && I.exactNext) return false;
+    if (resized && (edited || e.pending)) return false;
     if (edited) {
       if (e.pending?.to !== c.rev || opts.transientGeometry || doc.hopOvers) return false;
       // Airwires are painted with their last completed result while the editor checks connectivity.
       // A new result may affect pixels away from the changed items and invalidates the whole copy.
       if (doc.kind === "pcb" && opts.showUnrouted) I.airwireConnectivity(doc, defs);
     }
-    const key = keyOf(I, doc, defs, opts, undefined, frame);
-    // A new airwire result alone redraws the airwires over the pixels kept beneath them.
-    const wires = !sameKey(e.key, key);
-    if (wires && !(e.under && onlyAirwires(e.key, key))) return false;
-    const sel = selOf(opts), view = pourView(doc), copper = pourDamage(e.pourView, view);
+    const key = keyOf(I, doc, defs, opts, undefined, frame), sel = selOf(opts);
+    const view = pourView(doc), copper = pourDamage(e.pourView, view);
     if (!copper) return false;
-    if ((edited || copper.length || !sameSet(sel, e.sel)) && !patch(I, s, e, c, doc, defs, opts, sel, wires, frame, copper)) return false;
-    if (wires && !redrawAirwires(I, e, doc, defs, opts)) return false;
+    if (resized) {
+      // Only the view's size changed: the camera, the presentation, the selection and the copper are the copy's.
+      if (copper.length || !sameKey(e.key, key, SIZE) || !sameSet(sel, e.sel) || !resize(I, s, e, doc, defs, opts, frame)) return false;
+    } else {
+      // A new airwire result alone redraws the airwires over the pixels kept beneath them.
+      const wires = !sameKey(e.key, key);
+      if (wires && !(e.under && onlyAirwires(e.key, key))) return false;
+      if ((edited || copper.length || !sameSet(sel, e.sel)) && !patch(I, s, e, c, doc, defs, opts, sel, wires, frame, copper)) return false;
+      if (wires && !redrawAirwires(I, e, doc, defs, opts)) return false;
+    }
     e.key = key; e.pourView = view;
     const ctx = I.ctx;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "copy"; ctx.drawImage(e.canvas, 0, 0); ctx.restore();
@@ -378,6 +396,31 @@ globalThis.AtriumCanvasFast = (() => {
         target.drawImage(tile, x, y, r - x, b - y, x, y, r - x, b - y);
       }
     } finally { I.ctx = real; I.lodForce = null; I.orderForce = null; }
+    return true;
+  }
+  // The copy for a view whose size changed: its pixels moved by half the change (the camera keeps its
+  // centre) through the view's canvas, which the caller draws over again, and the uncovered strips painted.
+  function resize(I, state, entry, doc, defs, opts, frame) {
+    const [, , , , width, height, dpr] = I.cam(), W = I.canvas.width, H = I.canvas.height, w = entry.canvas.width, h = entry.canvas.height;
+    const fx = (width - entry.key[CAMERA + 4]) * dpr / 2, fy = (height - entry.key[CAMERA + 5]) * dpr / 2, dx = Math.round(fx), dy = Math.round(fy);
+    const x0 = Math.max(0, dx), y0 = Math.max(0, dy), x1 = Math.min(W, dx + w), y1 = Math.min(H, dy + h);
+    const g = entry.canvas.getContext("2d"), ctx = I.ctx;
+    if (!g || x0 >= x1 || y0 >= y1) return false;
+    freeUnder(entry);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "copy"; ctx.drawImage(entry.canvas, dx, dy); ctx.restore();
+    globalThis.AtriumCanvas.resizeBacking(entry.canvas, W, H);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "copy"; g.drawImage(I.canvas, 0, 0); g.globalCompositeOperation = "source-over";
+    const rects = [];
+    if (y0 > 0) rects.push([0, 0, W, y0]);
+    if (y1 < H) rects.push([0, y1, W, H]);
+    if (x0 > 0) rects.push([0, y0, x0, y1]);
+    if (x1 < W) rects.push([x1, y0, W, y1]);
+    // Strips keep the copy's batching (LOD); their layers take their own order, a fresh paint's except among tied layers.
+    if (rects.length && !repaintRects(I, state, entry, doc, defs, opts, rects, null, false, frame)) return false;
+    // The number of objects in view decides batching: a later edit's patch must not assume the copy's count.
+    if (W > w || H > h) entry.maxCount = Infinity;
+    if (W < w || H < h) entry.minCount = 0;
+    entry.inexact = true;
     return true;
   }
   // ------------------------------------------------------------------ airwire frames

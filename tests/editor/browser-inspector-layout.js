@@ -83,7 +83,8 @@ async function inspectorControls(page, {touch = false} = {}) {
     .map(button => ({name:button.textContent.trim(), shared:button.classList.contains("ui-button"),
       focusable:button.disabled || button.tabIndex >= 0})));
   const actions = await ordinaryActions();
-  assert.ok(actions.some(action => action.name === "Show in schematic"), "the selected part renders its normal inspector action");
+  assert.ok(await inspector.getByRole("button", {name:"Show in schematic", exact:true}).evaluate(node => node.matches(".inspect-section-heading > .ui-icon-button")),
+    "the selected part's heading carries its action as the shared icon button");
   assert.deepEqual(actions.filter(action => !action.shared || !action.focusable), [], "selected inspector actions use the shared Button");
   await page.evaluate(() => AtriumNavHost.select([]));
   await board.waitFor();
@@ -170,7 +171,7 @@ module.exports = async function inspectorLayout(browser) {
         def.parameters = {...def.parameters, "Manufacturer Part Number": MPN, Datasheet: URL_PARAM};
         H.select([part.id]);
       }, {MPN, URL_PARAM});
-      await page.waitForFunction(() => [...document.querySelectorAll("#inspector .property-row > span")].some(n => n.textContent === "Library") && document.querySelector("#inspector details"));
+      await page.waitForFunction(() => [...document.querySelectorAll("#inspector .ui-prop-row > span")].some(n => n.textContent === "Library") && document.querySelector("#inspector details"));
       await page.evaluate(() => {
         // A selection or lazy inspector extension can redraw the panel before the toggle event.
         for (const d of document.querySelectorAll("#inspector details")) if (!d.open) d.querySelector("summary").click();
@@ -179,9 +180,11 @@ module.exports = async function inspectorLayout(browser) {
       });
       const rows = await page.evaluate(() => {
         const box = document.getElementById("inspector").getBoundingClientRect();
-        return [...document.querySelectorAll("#inspector .property-row")].filter(r => r.getClientRects().length).map(r => {
+        // Read-only rows: one line each; a value cut by an ellipsis keeps its full text in the row's tooltip.
+        return [...document.querySelectorAll("#inspector div.ui-prop-row:has(> .ui-prop-value)")].filter(r => r.getClientRects().length).map(r => {
           const [label, value] = [r.children[0], r.children[1]], a = label.getBoundingClientRect(), b = value?.getBoundingClientRect();
           return {label: label.textContent, value: value?.textContent, labelW: a.width, valueX: b?.left, valueW: b?.width, rowW: r.getBoundingClientRect().width,
+            tooltip: r.getAttribute("data-tooltip") || r.title || "", lines: value ? Math.round(b.height / parseFloat(getComputedStyle(value).lineHeight)) : 1,
             inside: (b?.right ?? 0) <= box.right + 1 && a.right <= box.right + 1, overflow: value ? value.scrollWidth > value.clientWidth + 1 : false,
             selectable: value ? getComputedStyle(value).userSelect !== "none" : true};
         });
@@ -189,7 +192,8 @@ module.exports = async function inspectorLayout(browser) {
       const lib = rows.find(r => r.label === "Library");
       assert.ok(lib, theme + ": the board inspector lists the library " + JSON.stringify(rows.map(r => r.label)));
       for (const r of rows) {
-        assert.ok(r.inside && !r.overflow, theme + ": " + r.label + " stays inside Properties");
+        assert.ok(r.inside && r.lines <= 1, theme + ": " + r.label + " stays inside Properties on one line");
+        assert.ok(!r.overflow || r.tooltip.includes(r.value), theme + ": " + r.label + "'s full value is in its tooltip " + JSON.stringify(r));
         assert.ok(r.labelW <= r.rowW * .45 && r.valueW >= r.rowW * .5, theme + ": " + r.label + " keeps the label/value grid " + JSON.stringify(r));
         assert.ok(r.selectable, theme + ": " + r.label + "'s value can be selected and copied");
       }

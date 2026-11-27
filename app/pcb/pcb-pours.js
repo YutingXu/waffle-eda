@@ -757,7 +757,7 @@ globalThis.AtriumPCBPours=(()=>{
   const LOD_BASE=.002,LOD_MIN=4,LOD_MAX=10,LOD_REGION_MIN=1500,LOD_BUDGET=1000000;
   const lodCache=new Map(),lodQueue=[];
   let lodVertices=0,lodScheduled=false;
-  const LOD={enabled:true,tolerance:.5,version:0,stats:()=>({regions:lodCache.size,vertices:lodVertices,queued:lodQueue.length,built:LOD.built,buildMs:+LOD.buildMs.toFixed(1),saved:LOD.saved}),built:0,buildMs:0,saved:0};
+  const LOD={enabled:true,tolerance:.5,version:0,keyAt,stats:()=>({regions:lodCache.size,vertices:lodVertices,queued:lodQueue.length,built:LOD.built,buildMs:+LOD.buildMs.toFixed(1),saved:LOD.saved}),built:0,buildMs:0,saved:0};
   // Vertex count from the encoded size: per ring a 4-byte count, per vertex 16 bytes.
   const verticesOf=r=>{const c=copperOf(r);return c?Math.max(0,(c.bytes-4*(r.count||0))>>4):typeof r?.data==="string"?Math.max(0,((r.data.length*3>>2)-4*(r.count||0))>>4):0;};
   function lodLevel(ctx){
@@ -772,6 +772,10 @@ globalThis.AtriumPCBPours=(()=>{
     if(!LOD.enabled||!(k>0))return -1;
     const L=Math.floor(Math.log2(LOD.tolerance/k/LOD_BASE));
     return L<LOD_MIN?-1:Math.min(L,LOD_MAX);
+  }
+  function keyAt(k){
+    const level=levelOf(k);
+    return level<0?"stored":level+":"+LOD.version;
   }
   function lodPath(ctx,region){
     const best=lodAt(lodLevel(ctx),region);
@@ -857,7 +861,11 @@ globalThis.AtriumPCBPours=(()=>{
     }
     LOD.buildMs+=clock()-p0;
     lodTrim();
-    if(finished&&!lodQueue.length){LOD.version++;try{globalThis.AtriumNavHost?.redraw?.();}catch{/* no editor */}}
+    if(finished&&!lodQueue.length){
+      LOD.version++;
+      const host=globalThis.AtriumNavHost;
+      try{if(host?.redrawPourLOD)host.redrawPourLOD();else host?.redraw?.();}catch{/* no editor */}
+    }
     if(lodQueue.length)lodSchedule();
   }
   // Past LOD_BUDGET vertices: the levels of regions no frame used for 2 s, then the levels of the runs

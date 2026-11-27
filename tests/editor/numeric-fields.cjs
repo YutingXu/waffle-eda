@@ -33,6 +33,19 @@ const N=AtriumNumericFields, mm={unit:"mm",storageUnit:"mm",nanometres:true};
   assert.deepEqual([tap.x,tap.y],[8,0]);
   assert.deepEqual(branch.points,[[8,0],[8,4]]);
 }
+{
+  // A typed rotation keeps a power port on its pin: a half turn puts pin 1 where GND sat.
+  const A=Atrium, R=AtriumParts.catalogue.find(d=>d.id==="std-r"), defs=new Map([[R.id,R]]);
+  const project=A.project("Numeric turn",[R]), doc=project.documents[0], part=A.instantiate(project,R,[0,0]);
+  const [a,b]=A.pins(part,R,"schematic").map(pin=>pin.at), gnd=AtriumSchObjects.make("power",b,{text:"GND"});
+  doc.items.push(part,{id:"in",kind:"wire",points:[a,[a[0]-10,a[1]]]},gnd,{id:"IN",kind:"netlabel",x:a[0]-10,y:a[1],text:"IN"});
+  const move=N.planGeometryMove(project,{owner:part,object:part,doc,field:"angle"},180);
+  assert.deepEqual([gnd.x,gnd.y],b,"planning leaves the sheet intact");
+  for(const {original,next,fields} of move)for(const field of fields)original[field]=next[field];
+  const nets=A.connectivity(doc,defs);
+  assert.deepEqual([1,2].map(n=>nets.byPin.get(part.id+"/"+n)),["IN","GND"]);
+  assert.ok(nets.nets.every(n=>!n.conflict));
+}
 async function main() {
   const noScan={get documents(){throw Error("A constant or local input scanned the project");}};
   const evaluate=(s,spec={})=>N.evaluate(s,spec,{project:noScan});

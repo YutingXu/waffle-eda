@@ -76,8 +76,9 @@ async function surfaces(page, sample, profile) {
   await inspector.getByRole("combobox",{name:"Component class filter"}).waitFor();
   await sample("PCB · document Properties",inspector,["Component class filter"],"properties");
   await changeDocument(page,"pcb",["part"]);
-  await inspector.getByRole("combobox",{name:"Side",exact:true}).waitFor();
-  await sample("PCB · placed component",inspector,["Designator","Side",/^Rotation/,/^3D height/]);
+  // Side is a segmented control (no text field); Height keeps its name "3D height (mm)".
+  await inspector.getByRole("group",{name:"Side",exact:true}).waitFor();
+  await sample("PCB · placed component",inspector,["Designator",/^Rotation/,/^3D height/]);
   await changeDocument(page,"pcb",["track"]);
   await sample("PCB · copper track",inspector,[/^Width/,"Layer","Net",/^Solder mask expansion/]);
   await changeDocument(page,"pcb",["track","track"]);
@@ -152,13 +153,13 @@ async function surfaces(page, sample, profile) {
     {id:"pcb-list", action:"pcb-list", selector:".pl-panel", fields:[{control:"Object kind",mode:"standalone"}]},
     {id:"navigator", action:"navigator-panel", selector:".panel-navp", fields:[{control:"Search the Navigator",mode:"standalone"}]},
     {id:"filter", action:"query-panel", selector:".panel-query", fields:[{control:"Query expression",mode:"standalone"}]},
-    {id:"comments", action:"comments-panel", selector:".panel-rc", fields:[{control:"Show comments",mode:"standalone"}]},
+    {id:"comments", action:"comments-panel", selector:'.ui-dock-panel[data-dock="comments"]', fields:[{control:"Show comments",mode:"standalone"}]},
     {id:"calculators", action:"calculators", selector:".panel-calc", fields:[{control:"Calculator",mode:"standalone"}]},
-    {id:"clipboard", action:"clipboard-panel", selector:".panel-clip"},
+    {id:"clipboard", action:"clipboard-panel", selector:'.ui-dock-panel[data-dock="clipboard"]'},
     {id:"scripting", action:"scripting-console", selector:".script-console", fields:[{control:"Script",mode:"standalone"}]},
     {id:"pours", action:"pour-manager", selector:".panel-pours", close:null},
     {id:"mcad", action:"mcad-panel", selector:".panel-mcad"},
-    {id:"history", action:"history-panel", selector:".panel-history"},
+    {id:"history", action:"history-panel", selector:'.ui-dock-panel[data-dock="history"]'},
   ]) {
     await openAction(page,action);
     const scope = page.locator(selector + ":visible");
@@ -309,7 +310,7 @@ async function run(browser) {
 module.exports = run;
 
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   (async () => {
     const browser = await chromium.launch({
       ...(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"}),

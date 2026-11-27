@@ -595,24 +595,36 @@ globalThis.AtriumPCBDraw = (() => {
   }
   /** Canvas painter for a keep-out on one copper layer: hatched area or a translucent band with a dashed spine. */
   function drawKeepout(ctx, item, o = {}) {
-    const scale = o.scale || 1, pts = item.points || []; if (pts.length < 2) return;
+    const scale = o.scale || 1, pts = item.points || []; if (pts.length < 2) return true;
     const line = (q, closed) => { ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); for (let k = 1; k < q.length; k++) ctx.lineTo(q[k][0], q[k][1]); if (closed) ctx.closePath(); };
     ctx.save(); ctx.strokeStyle = ctx.fillStyle = o.ink || "#ff0000"; ctx.lineCap = "round"; ctx.lineJoin = "round";
     const base = typeof ctx.globalAlpha === "number" ? ctx.globalAlpha : 1;
-    if (item.fill && pts.length > 2) {
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const hatched = item.fill && pts.length > 2, hairline = 1 / scale;
+    const width = hatched ? hairline : Math.max(item.width || 0, hairline);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    if (hatched || o.bandBounds) {
       for (const p of pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+    }
+    const bounded = hairline > 0 && Number.isFinite(width);
+    if (o.bandBounds && bounded) {
+      // Round joins, end caps and dash ends extend by at most half the larger pen.
+      // On a filled keepout the hatch itself is clipped to the path.
+      const pad = width / 2;
+      o.bandBounds(ctx, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
+    }
+    if (hatched) {
       ctx.save(); line(pts, true); ctx.clip();
       const step = Math.max(8 / scale, (x1 - x0 + y1 - y0) / 400);
-      ctx.lineWidth = 1 / scale; ctx.beginPath();
+      ctx.lineWidth = hairline; ctx.beginPath();
       for (let t = x0 - (y1 - y0); t <= x1; t += step) { ctx.moveTo(t, y1); ctx.lineTo(t + (y1 - y0), y0); }
       ctx.stroke(); ctx.restore();
-      ctx.lineWidth = 1 / scale; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, true); ctx.stroke();  // a boundary, not copper
+      ctx.lineWidth = hairline; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, true); ctx.stroke();  // a boundary, not copper
     } else {
-      ctx.globalAlpha = base * .35; ctx.lineWidth = Math.max(item.width || 0, 1 / scale); line(pts, item.closed); ctx.stroke();
-      ctx.globalAlpha = base; ctx.lineWidth = 1 / scale; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, item.closed); ctx.stroke();
+      ctx.globalAlpha = base * .35; ctx.lineWidth = width; line(pts, item.closed); ctx.stroke();
+      ctx.globalAlpha = base; ctx.lineWidth = hairline; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, item.closed); ctx.stroke();
     }
     ctx.restore();
+    return bounded;
   }
 
   // ------------------------------------------------------------------ vertex editing (polygons, regions, keep-outs)
@@ -1365,11 +1377,14 @@ globalThis.AtriumPCBDraw = (() => {
     return [...set].sort((a, b) => a.localeCompare(b, "en", {numeric: true}));
   }
   // One field row. f: {label, value, set, type:"length"|"number"|"text"|"select"|"check"|"net", values:[[v,label]]}
+  // In Properties a row is a property row: a check is a switch and a unit sits inside its field. The tool's
+  // properties dialog (.pcbdraw-fields) keeps its own rows.
   function field(parent, f) {
-    const l = el("label", null, "field-row" + (f.type === "check" ? " pcbdraw-check" : "")), U = A().units, u = displayUnits();
+    const prop = !parent.matches?.(".pcbdraw-fields"), check = f.type === "check";
+    const l = el("label", null, prop ? (check ? "ui-switch-row" : "ui-prop-row") : "field-row" + (check ? " pcbdraw-check" : "")), U = A().units, u = displayUnits();
     let inp;
     if (f.type === "select") { inp = el("select"); for (const [v, t] of f.values) inp.add(new Option(t, v)); inp.value = f.value ?? ""; }
-    else if (f.type === "check") { inp = el("input"); inp.type = "checkbox"; inp.checked = !!f.value; }
+    else if (check) { inp = el("input"); inp.type = "checkbox"; inp.checked = !!f.value; if (prop) inp.setAttribute("role", "switch"); }
     else {
       inp = el("input"); inp.type = "text"; inp.autocomplete = "off"; inp.spellcheck = false;
       if (f.type === "length") { inp.inputMode = "decimal";inp.dataset.unit=u; inp.value = f.value == null ? "" : String(U.value(f.value, u)); inp.title = "Value in " + u + ". Suffixes such as mil, mm or in are accepted."; }
@@ -1378,7 +1393,7 @@ globalThis.AtriumPCBDraw = (() => {
       if (f.type === "net") { const id = "pcbdraw-nets"; let dl = document.getElementById(id); if (!dl) { dl = el("datalist"); dl.id = id; document.body.append(dl); } dl.replaceChildren(...netNames().map(n => new Option(n, n))); inp.setAttribute("list", id); }
     }
     const label = f.type === "length" ? f.label + " (" + u + ")" : f.label;
-    inp.classList.add(f.type === "check" ? "ui-checkbox" : "ui-field");
+    inp.classList.add(check ? (prop ? "ui-switch" : "ui-checkbox") : "ui-field");
     inp.setAttribute("aria-label", label);
     if(f.numeric)globalThis.AtriumLazy?.numericField?.(inp,{...f.numeric,unit:f.type==="length"?u:f.numeric.unit});
     inp.onchange = () => {
@@ -1388,7 +1403,12 @@ globalThis.AtriumPCBDraw = (() => {
       if (f.type === "percent") { v = +inp.value; if (!inp.value.trim() || !Number.isFinite(v) || v<0 || v>100) { H.info("Enter a percentage from 0 to 100."); inp.value=f.value; return; } }
       f.value = v; f.set(v); H.redraw();
     };
-    if (f.type === "check") l.append(inp, el("span", label)); else l.append(el("span", label), inp);
+    if (!prop) { if (check) l.append(inp, el("span", label)); else l.append(el("span", label), inp); parent.append(l); return inp; }
+    // A property row: the caption drops a unit suffix such as "(°)" and the unit shows inside the field.
+    const m = / \(([^()]{1,4})\)$/.exec(f.label), unit = f.type === "length" ? u : f.type === "select" ? "" : m?.[1], caption = m ? f.label.slice(0, m.index) : f.label;
+    const name = AtriumNavCommon.elWithAttributes("span", caption, null, {title: caption}); // a narrow dock ellipsizes it
+    if (check) { const row = el("div", null, "ui-prop-row"); l.append(inp); row.append(name, l); parent.append(row); return inp; }
+    l.append(name, unit ? AtriumNavCommon.measure(inp, unit) : inp);
     parent.append(l);
     return inp;
   }

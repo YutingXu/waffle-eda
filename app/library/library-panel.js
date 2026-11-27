@@ -674,10 +674,17 @@ globalThis.AtriumLibrary = (() => {
   // ------------------------------------------------------------------ search
   function facts(def) {
     const pins = def.symbol?.pins?.length || 0, pads = def.footprint?.pads?.filter(p => !p.thermalVia).length || 0;
-    return {pins, pads, prefix: def.prefix || "", pkg: def.footprint?.name || "", value: def.value || "", category: def.category || "",
-      params: isObj(def.parameters) ? def.parameters : {}, height: def.footprint?.height || def.height || 0};
+    const params = isObj(def.parameters) ? def.parameters : {}, param = re => Object.entries(params).find(([k, v]) => re.test(k) && typeof v !== "object" && String(v).trim())?.[1] ?? "";
+    // The package as the catalogue reads it (a Package / Case parameter, def.package) as well as the footprint name.
+    const pkg = [param(/^(package|case|package \/ case)$/i), def.package, def.footprint?.name || def.footprintName].filter(Boolean).join(" ");
+    return {pins, pads, prefix: def.prefix || "", pkg, value: def.value || param(/^value$/i) || "", category: def.category || "",
+      params, height: def.footprint?.height || def.height || 0};
   }
   function search(library, query, o = {}) {
+    // One matcher with Place › Component and the catalogue view once the catalogue is loaded;
+    // the fallback below reads the same fields for the keys it knows.
+    const C = globalThis.AtriumCatalogue;
+    if (C?.matches) return library.filter(def => (!def.mirrorOf || o.mirrors) && C.matches(def, query));
     const terms = String(query || "").trim().split(/\s+/).filter(Boolean);
     return library.filter(def => {
       if (def.mirrorOf && !o.mirrors) return false;
@@ -697,8 +704,8 @@ globalThis.AtriumLibrary = (() => {
           const ok = m[1] === "symbol" ? !!def.symbol : m[1] === "footprint" ? !!def.footprint : !!(def.model3d || def.footprint?.model3d || def.footprint?.bodies3d?.length);
           if (!ok) return false; continue;
         }
-        if ((m = /^(prefix|pkg|package|footprint|value|category|cat):(.+)$/.exec(t))) {
-          const key = {pkg: "pkg", package: "pkg", footprint: "pkg", cat: "category"}[m[1]] || m[1];
+        if ((m = /^(prefix|pkg|package|footprint|fp|value|val|category|cat):(.+)$/.exec(t))) {
+          const key = {pkg: "pkg", package: "pkg", footprint: "pkg", fp: "pkg", val: "value", cat: "category"}[m[1]] || m[1];
           if (!fold(f[key]).includes(m[2])) return false; continue;
         }
         if ((m = /^([^:]+):(.+)$/.exec(t)) && Object.keys(f.params).length) {

@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 let chromium;
-try { ({chromium} = require("playwright-core")); }
+try { ({chromium} = require("../support/playwright.cjs")); }
 catch { console.log("SKIP surface motion: Playwright Core is unavailable."); process.exit(0); }
 const app = path.resolve(__dirname, "../../app");
 

@@ -534,6 +534,105 @@
         }
       }
     },
+    "schematicEllipse": {
+      "type": "object",
+      "required": [
+        "a",
+        "b",
+        "sweep"
+      ],
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/pointNm"
+        },
+        "b": {
+          "$ref": "#/$defs/pointNm"
+        },
+        "sweep": {
+          "allOf": [
+            {
+              "type": "integer",
+              "minimum": -360000000000,
+              "maximum": 360000000000
+            },
+            {
+              "not": {
+                "const": 0
+              }
+            }
+          ]
+        }
+      },
+      "description": "Ellipse c + a\u00b7cos t + b\u00b7sin t, t from 0 to sweep; c is the first point minus a."
+    },
+    "schematicBezier": {
+      "type": "object",
+      "required": [
+        "controlPoints"
+      ],
+      "properties": {
+        "controlPoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pointNm"
+          },
+          "minItems": 4
+        }
+      },
+      "description": "Cubic B\u00e9zier segments p0 c1 c2 p1 \u2026, offsets from the path's first point."
+    },
+    "symbolArc": {
+      "type": "object",
+      "required": [
+        "x",
+        "y",
+        "r",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/lengthNm"
+        },
+        "y": {
+          "$ref": "#/$defs/lengthNm"
+        },
+        "r": {
+          "$ref": "#/$defs/positiveLengthNm"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "$ref": "#/$defs/numberValue"
+            },
+            {
+              "$ref": "#/$defs/exactDecimal"
+            }
+          ]
+        },
+        "end": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "$ref": "#/$defs/numberValue"
+            },
+            {
+              "$ref": "#/$defs/exactDecimal"
+            }
+          ]
+        }
+      },
+      "description": "Symbol editor arc: centre, radius and degrees turning clockwise on screen from start to end."
+    },
     "contour": {
       "type": "array",
       "items": {
@@ -715,8 +814,17 @@
                 },
                 {
                   "$ref": "#/$defs/geometryArc"
+                },
+                {
+                  "$ref": "#/$defs/symbolArc"
                 }
               ]
+            },
+            "ellipse": {
+              "$ref": "#/$defs/schematicEllipse"
+            },
+            "bezier": {
+              "$ref": "#/$defs/schematicBezier"
             },
             "regionShape": {
               "$ref": "#/$defs/regionShape"
@@ -2213,6 +2321,26 @@
                   "$ref": "#/$defs/geometryArc"
                 }
               ]
+            }
+          ]
+        },
+        "ellipse": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/schematicEllipse"
+            }
+          ]
+        },
+        "bezier": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/schematicBezier"
             }
           ]
         },
@@ -4367,6 +4495,27 @@
             },
             "net": {
               "type": "string"
+            },
+            "signal": {
+              "type": "string"
+            },
+            "polarity": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "netClass": {
+              "type": "string"
+            },
+            "diffPair": {
+              "type": "string"
             }
           }
         }
@@ -4661,6 +4810,12 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "netClass": {
+                  "type": "string"
+                },
+                "diffPair": {
+                  "type": "string"
                 }
               }
             }
@@ -4821,6 +4976,12 @@
                     "minLength": 1
                   }
                 },
+                "netClass": {
+                  "type": "string"
+                },
+                "diffPair": {
+                  "type": "string"
+                },
                 "style": {
                   "type": "string",
                   "minLength": 1
@@ -4890,6 +5051,12 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "netClass": {
+                  "type": "string"
+                },
+                "diffPair": {
+                  "type": "string"
                 }
               }
             }
@@ -4940,6 +5107,12 @@
                     "type": "string",
                     "minLength": 1
                   }
+                },
+                "netClass": {
+                  "type": "string"
+                },
+                "diffPair": {
+                  "type": "string"
                 }
               }
             }

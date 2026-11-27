@@ -57,7 +57,7 @@ built-in theme.
 | Type | `--fs-10` (badges only), `--fs-11`, `--fs-12` (body), `--fs-13`, `--fs-14` (dialog titles), `--fs-16`, `--fs-20`. Each follows the UI font-size setting (`--fs-scale`). |
 | Weight | `--fw-regular` 400, `--fw-medium` 500, `--fw-semibold` 600 |
 | Line height | `--lh-tight` 1.2, `--lh` 1.35 (body), `--lh-loose` 1.5 (prose, empty states) |
-| Radius | `--r-sm` 2 px (controls, menus), `--r-md` 4 px (cards, chips), `--r-lg` 6 px (dialogs), `--r-pill` |
+| Radius | `--chrome-control-radius` 6 px (buttons, fields, selects, chips), `--r-sm` 2 px (rows inside menus and lists), `--r-md` 4 px (cards, segments, checkboxes), `--r-lg` 6 px (dialogs, popovers, menus and dropdown lists), `--r-pill` |
 | Elevation | `--elev-1` (tooltips), `--elev-2` (menus, popovers, floating panels), `--elev-3` (dialogs) |
 | Layers | `--z-sticky` 1 (table heads), `--z-float` 30, `--z-toast` 35, `--z-popover` 40, `--z-alert` 60, `--z-top` 1000. Small local values (1–9) stay literal inside a stacking context. See [Layers](#layers). |
 | Controls | `--ctl-h-sm` (20 px), `--ctl-h` (24 px), and `--ctl-h-lg` (28 px) each include `--d-row` for density and font scaling. `--ctl-px` is 8 px of horizontal padding. Touch input uses a 44 px minimum where these controls serve as individual targets. |

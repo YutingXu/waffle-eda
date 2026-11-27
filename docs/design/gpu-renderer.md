@@ -106,6 +106,13 @@ WebGPU when WebKitGTK ships it, or if GPU compute becomes useful, for example:
   positioned at the same place and device size, `pointer-events: none`; the 2D canvas gets `position: relative`.
   The context is `alpha: false`, `antialias: true` (4× MSAA), `stencil: true`, and Automatic asks
   `failIfMajorPerformanceCaveat`.
+- **Resizing panes.** Reallocating the multisampled backing took 14 ms for a 1758 × 1568 pane in Chrome on Apple
+  M5 Pro. A pane that resizes (a dock or split sash, the window, a panel shown or hidden) keeps a backing that holds
+  its view and grows one with a quarter to spare each way; the view is drawn in the backing's bottom-left corner,
+  placed and clipped (`clip-path`) to lie exactly under the 2D canvas. The frame at rest trims the backing to the
+  view. The editor marks a frame whose only change is the pane's size as camera-only, so it is drawn like a zoom
+  gesture frame: the retained text bands and world overlay, drawn for the old size, are moved to keep the centre,
+  and the exact frame follows once the size rests.
 - **Per frame** (`render(I, doc, defs, opts, gesture)`): scene update, the text layer (redrawn only if its key
   changed), GL draw with the text texture composited in layer order, then the top 2D layer.
 - **Which frames.** Editor frames only: the active pane's (`reuseBase` in opts) and the other split pane's

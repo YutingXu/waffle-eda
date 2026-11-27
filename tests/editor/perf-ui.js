@@ -177,6 +177,7 @@ globalThis.atriumUiProbe = async function(options = {}) {
   }
   const grid = document.querySelector(".msg-panel .msg-grid");
   checks.messagesRowsInDom = grid ? grid.querySelectorAll("tbody tr").length : null;
+  checks.messagesView = M.view(); checks.messagesListed = M.view() === "problems" ? M.problems().length : M.messages().length;
   if (grid) {
     for (let r = 0; r < 40 * REPS; r++) await sample("messages-scroll", () => {grid.scrollTop = (r % 20) * 1600 + (r > 19 ? 37 : 0); grid.dispatchEvent(new Event("scroll"));});
     grid.scrollTop = 0; grid.focus();

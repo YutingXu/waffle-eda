@@ -94,6 +94,50 @@ api.transaction("Clear value",tx=>tx.update(r1.id,{value:""}));
 const sr1=ref(base,sheet,"R1");
 api.transaction("Move schematic part",tx=>tx.move(sr1.id,2.54,0));
 assert.equal(api.items.get(sr1.id).x,sr1.x+2.54);
+// A scripted turn carries a power port alone on a pin (Atrium.pinTags) on a copy: drafting or
+// declining leaves the live project alone, and applying lists the move in the proposal and the
+// undo step, whose snapshot still has the port where it was.
+{
+  const had=globalThis.AtriumSchObjects;require("../../app/schematic/sch-objects.js");
+  try{
+    const scene=approve=>{
+      const p=A.clone(base),d=p.documents.find(x=>x.id===sheet.id),defs=new Map(p.library.map(x=>[x.id,x]));
+      const part=d.items.find(i=>i.ref==="R1"),at=A.pins(part,defs.get(part.def),"schematic")[0].at;
+      d.items=d.items.filter(i=>!(i.kind==="wire"&&i.points.some(q=>A.same(q,at))));
+      const port=AtriumSchObjects.make("power",at,{text:"GNDX"});d.items.push(port);
+      const h=API.headless(p,{approve}),undo=[],edit=h.host.edit;
+      h.host.edit=(fn,...rest)=>{undo.push(JSON.stringify(h.project));return edit.call(h.host,fn,...rest);};
+      const live=()=>h.project.documents.find(x=>x.id===sheet.id).items.find(i=>i.id===port.id);
+      return {h,undo,live,part,port,at,defs,angle:((part.angle||0)+180)%360};
+    };
+    {
+      const {h,live,part,at,angle}=scene(()=>true),before=JSON.stringify(h.project);
+      const d=h.api.proposals.draft("transaction",{ops:[{op:"transform",id:part.id,set:{angle}}]});
+      assert.deepEqual([live().x,live().y],at,"a drafted turn leaves the live port in place");
+      assert.equal(JSON.stringify(h.project),before,"a draft changes nothing live");assert.equal(h.steps.length,0);
+      assert.ok(d.changes.some(c=>/^GNDX/.test(c.label)),"the draft lists the port it moves");
+    }
+    {
+      let seen;
+      const {h,live,part,at,angle}=scene(({proposal})=>{seen=proposal;return false;}),before=JSON.stringify(h.project);
+      assert.equal(h.api.transaction("Turn",tx=>tx.transform(part.id,{angle})).applied,0);
+      assert.ok(seen,"the turn was offered for review");
+      assert.deepEqual([live().x,live().y],at,"a declined turn leaves the live port in place");
+      assert.equal(JSON.stringify(h.project),before);assert.equal(h.steps.length,0);
+    }
+    {
+      let seen;
+      const {h,undo,live,part,port,at,defs,angle}=scene(({proposal})=>{seen=proposal;return true;});
+      assert.ok(h.api.transaction("Turn",tx=>tx.transform(part.id,{angle})).applied>=2);
+      const turned=h.project.documents.find(x=>x.id===sheet.id).items.find(i=>i.id===part.id);
+      assert.deepEqual([live().x,live().y],A.pins(turned,defs.get(turned.def),"schematic")[0].at,"the port follows pin 1");
+      assert.ok(seen.ops.some(o=>o.id===port.id&&o.path?.[0]==="x"&&o.before===at[0]),"the proposal moves the port");
+      assert.equal(h.steps.length,1);assert.equal(undo.length,1);
+      const restored=JSON.parse(undo[0]).documents.find(x=>x.id===sheet.id).items.find(i=>i.id===port.id);
+      assert.deepEqual([restored.x,restored.y],at,"undo puts the port back");
+    }
+  }finally{if(had)globalThis.AtriumSchObjects=had;else delete globalThis.AtriumSchObjects;}
+}
 
 // ------------------------------------------------- validation rejects bad edits
 const bad=[
@@ -240,6 +284,32 @@ const done=(async()=>{
   assert.equal(out.ok,false);assert.equal(out.project,null);
   out=await S.runHeadless(base,"return new Map([[1, 2]])");
   assert.deepEqual(out.result,[[1,2]],"results become JSON data");
+  // Every result is JSON text without losing Map keys: a record value with its own key field stays a pair.
+  for(const [code,want] of [["return 1n","1"],["return new Map([['id', {key: 'real', n: 1}]])",[["id",{key:"real",n:1}]]],
+    ["return new Map([['id', {n: 1}]])",[{key:"id",n:1}]],["return new Map([[2n, {a: 1}], ['m', new Map([['a', 1]])], ['d', new Date(0)]])",[{key:"2",a:1},["m",[["a",1]]],["d","1970-01-01T00:00:00.000Z"]]],
+    ["return [new Set([1n]), new BigInt64Array([5n]), new Uint8Array([1, 2]), new Date(NaN), NaN, undefined]",[["1"],["5"],[1,2],null,null,null]],
+    ["const a = {n: 1}; a.self = a; a.again = a; return a",{n:1,self:null,again:null}]]){
+    const job=S.headlessStart(JSON.stringify({code,timeoutMs:1000}),JSON.stringify(base));
+    await new Promise(res=>setTimeout(res,0));
+    const r=JSON.parse(S.headlessTake(job,{includeProject:false}));
+    assert.equal(r.ok,true,code);assert.deepEqual(r.result,want,code);
+  }
+  // A result is bounded as JSON writes it: shared objects count once per use, so a small graph
+  // of shared objects, a shared string or a shared list fails cleanly within the time limit.
+  for(const [code,re] of [["let o = {}; for (let i = 0; i < 30; i++) o = {a: o, b: o}; return o",/time limit while preparing its result|too large/],
+    ["const s = 'x'.repeat(1e6); return Array(200).fill(s)",/too large to return/],["const a = Array(1e5).fill(0); return Array(100).fill(a)",/too large to return|time limit while preparing its result/]]){
+    const t=Date.now();out=await S.runHeadless(base,code,{timeoutMs:300});
+    assert.equal(out.ok,false,code);assert.match(out.error.message,re,code);assert.equal(out.result,null);
+    assert.ok(Date.now()-t<2000,code+" stops within its time limit");
+  }
+  {
+    const t=Date.now();out=await S.runHeadless(base,"let o = {}; for (let i = 0; i < 30; i++) o = {a: o, b: o}; console.log(o); return 1",{timeoutMs:300});
+    assert.equal(out.ok,true);assert.equal(out.result,1);assert.ok(out.log[0].text.length<=4000);assert.ok(Date.now()-t<2000,"a logged graph is bounded");
+    let o={};for(let i=0;i<30;i++)o={a:o,b:o};
+    assert.throws(()=>AtriumAPI.toPlain(o,true,{values:1e5}),/too large to return/);
+    assert.throws(()=>AtriumAPI.toPlain(o,true,{deadline:Date.now()-1,late:"late"}),/^Error: late$/);
+    const shared={n:1};assert.deepEqual(AtriumAPI.toPlain([shared,shared],true),[{n:1},{n:1}],"a shared object that is not a cycle is written each time");
+  }
 
   // Two-phase entry used through the JavaScriptCore C API.
   const job=S.headlessStart(JSON.stringify({code:"return (await api.items.count({kind: 'via'}))",timeoutMs:1000}),JSON.stringify(base));

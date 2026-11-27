@@ -126,14 +126,14 @@ globalThis.AtriumTeardrops = (() => {
         const p = t.points[end], q = t.points[end === 0 ? 1 : end - 1], len = dist(p, q);
         if (len < 1e-6) continue;
         const u = [(q[0] - p[0]) / len, (q[1] - p[1]) / len];
-        // Pads and vias whose centre is at the track end (within the land).
+        // Pads and vias whose land contains the track end.
         let best = null;
         const li = layerNo(t.layer);
         for (const a of near(p)) {
           if (a.layer !== "Multi" && a.layer !== t.layer) continue;
           if (a.span && !(li >= a.span[0] && li <= a.span[1])) continue;
           if ((a.net || "") !== (t.net || "")) continue;
-          const e = dist(a.at, p); if (e > a.r * .5) continue;
+          const e = dist(a.at, p); if (e >= a.r) continue;
           if (!best || e < dist(best.at, p)) best = a;
         }
         if (best) {

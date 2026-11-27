@@ -1,7 +1,8 @@
 #!/bin/sh
 # Packages Waffle.app into a drag-to-Applications disk image.
 # Usage: scripts/build-dmg.sh [APP] [OUT_DIR]   (defaults: dist/Waffle.app, dist)
-# Signing: ad hoc by default. Read Me First explains how to approve the app on first launch.
+# Signing: ad hoc by default, or the stable self-signed identity with WAFFLE_SIGN_IDENTITY
+# (scripts/mac-sign.sh). Read Me First explains how to approve the app on first launch.
 # With ATRIUM_SIGN_IDENTITY="Developer ID Application: NAME (TEAMID)" the app is re-signed with the
 # hardened runtime and a timestamp; with ATRIUM_NOTARY_PROFILE (a `xcrun notarytool store-credentials`
 # profile name) the image is also notarised and stapled. No credentials are read from the repo.
@@ -24,7 +25,7 @@ trap 'rm -rf "$stage"' EXIT HUP INT TERM
 mkdir "$stage/root"
 ditto "$app" "$stage/root/Waffle.app"
 if [ "$identity" = "-" ]; then
-  codesign --force --sign - --identifier org.waffle.editor "$stage/root/Waffle.app"
+  "$root/scripts/mac-sign.sh" "$stage/root/Waffle.app" --identifier org.waffle.editor
 else
   codesign --force --options runtime --timestamp --sign "$identity" --identifier org.waffle.editor "$stage/root/Waffle.app"
 fi
@@ -89,7 +90,7 @@ EOF
 dmg="$out/Waffle-$version.dmg"
 rm -f "$dmg"
 hdiutil create -quiet -volname "$volume" -srcfolder "$stage/root" -fs HFS+ -format UDZO -imagekey zlib-level=9 -ov "$dmg"
-codesign --force --sign "$identity" "$dmg"
+if [ "$identity" = "-" ]; then "$root/scripts/mac-sign.sh" "$dmg"; else codesign --force --sign "$identity" "$dmg"; fi
 if [ "$identity" != "-" ] && [ -n "$notary_profile" ]; then
   xcrun notarytool submit "$dmg" --keychain-profile "$notary_profile" --wait
   xcrun stapler staple "$dmg"

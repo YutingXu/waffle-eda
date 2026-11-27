@@ -1266,7 +1266,7 @@ globalThis.AtriumCollabPresence = (() => {
     function unfinishedEdit() {
       const field = document.activeElement;
       return S.claims.size || ["move", "resize"].includes(host.drag()?.kind) || !["select", "pan", "measure"].includes(host.tool()) ||
-        ((field?.isContentEditable || field?.matches("input,textarea,select")) && !field.closest(".collab-dialog,.panel-history,.dv"));
+        ((field?.isContentEditable || field?.matches("input,textarea,select")) && !field.closest('.collab-dialog,.ui-dock-panel[data-dock="history"],.dv'));
     }
     function releaseRestoreHold(session) {
       const hold = session.restoreHold;

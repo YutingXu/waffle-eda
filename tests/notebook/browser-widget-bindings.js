@@ -45,4 +45,4 @@ async function run(browser,{appURL}={}) {
   console.log("browser-widget-bindings: real calculation worker, stable part and sheet fields, current units and regulator warning passed");
 }
 module.exports=run;
-if(require.main===module)(async()=>{const b=await require("playwright-core").chromium.launch({channel:"chrome"});try{await run(b,{appURL:process.argv[2]});}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+if(require.main===module)(async()=>{const b=await require("../support/playwright.cjs").chromium.launch({channel:"chrome"});try{await run(b,{appURL:process.argv[2]});}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

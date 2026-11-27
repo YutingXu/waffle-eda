@@ -63,7 +63,7 @@
 .navp-row[aria-selected=true] .navp-detail,.navp-row[aria-selected=true] .navp-icon,.navp-row[aria-selected=true] .navp-twisty {color:inherit;opacity:.85}
 .navp-row.is-lit .navp-label {font-weight:600;color:var(--accent-text)}
 .navp-row[aria-selected=true].is-lit .navp-label {color:inherit}
-.navp-row[data-type=pin] .navp-label {font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-11)}
+.navp-row[data-type=pin] .navp-label {font-family:var(--mono);font-size:var(--fs-11)}
 .navp-empty {margin:8px;color:var(--muted)}
 .navp-empty[hidden] {display:none}
 
