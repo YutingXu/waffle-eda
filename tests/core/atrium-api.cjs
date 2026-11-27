@@ -250,6 +250,22 @@ const done=(async()=>{
     const r=JSON.parse(S.headlessTake(job,{includeProject:false}));
     assert.equal(r.ok,true,code);assert.deepEqual(r.result,want,code);
   }
+  // A result is bounded as JSON writes it: shared objects count once per use, so a small graph
+  // of shared objects, a shared string or a shared list fails cleanly within the time limit.
+  for(const [code,re] of [["let o = {}; for (let i = 0; i < 30; i++) o = {a: o, b: o}; return o",/time limit while preparing its result|too large/],
+    ["const s = 'x'.repeat(1e6); return Array(200).fill(s)",/too large to return/],["const a = Array(1e5).fill(0); return Array(100).fill(a)",/too large to return|time limit while preparing its result/]]){
+    const t=Date.now();out=await S.runHeadless(base,code,{timeoutMs:300});
+    assert.equal(out.ok,false,code);assert.match(out.error.message,re,code);assert.equal(out.result,null);
+    assert.ok(Date.now()-t<2000,code+" stops within its time limit");
+  }
+  {
+    const t=Date.now();out=await S.runHeadless(base,"let o = {}; for (let i = 0; i < 30; i++) o = {a: o, b: o}; console.log(o); return 1",{timeoutMs:300});
+    assert.equal(out.ok,true);assert.equal(out.result,1);assert.ok(out.log[0].text.length<=4000);assert.ok(Date.now()-t<2000,"a logged graph is bounded");
+    let o={};for(let i=0;i<30;i++)o={a:o,b:o};
+    assert.throws(()=>AtriumAPI.toPlain(o,true,{values:1e5}),/too large to return/);
+    assert.throws(()=>AtriumAPI.toPlain(o,true,{deadline:Date.now()-1,late:"late"}),/^Error: late$/);
+    const shared={n:1};assert.deepEqual(AtriumAPI.toPlain([shared,shared],true),[{n:1},{n:1}],"a shared object that is not a cycle is written each time");
+  }
 
   // Two-phase entry used through the JavaScriptCore C API.
   const job=S.headlessStart(JSON.stringify({code:"return (await api.items.count({kind: 'via'}))",timeoutMs:1000}),JSON.stringify(base));

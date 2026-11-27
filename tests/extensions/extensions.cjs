@@ -97,7 +97,51 @@ const done=(async()=>{
     assert.equal(prompts.length,asked,"reinstalling the installed version does not ask again after a cancelled update");
     assert.deepEqual(X.permissions("test.upgrade").live,{"read:project":true});
   }
+  // Queued updates each decide against the saved grant: cancelling one never lets the next
+  // install without asking, and only the answer the user accepts is saved.
+  {
+    const pending=[],upgrade=["read:project","ui:command","propose:edits"],v11=()=>pkg({id:"test.upgrade",version:"1.1.0",permissions:upgrade},"");
+    const versionOf=()=>X.list().find(e=>e.id==="test.upgrade")?.version;
+    answers.install=()=>new Promise(res=>pending.push(res));
+    const asked=prompts.length;
+    const runs=[0,1,2].map(()=>X.install(v11()).then(()=>"installed",e=>e.message));
+    for(let n=0;n<3;n++){
+      for(let t=0;t<50&&!pending.length;t++)await wait(2);
+      assert.equal(pending.length,1,"update "+(n+1)+" asks the user");
+      pending.shift()(null);
+      assert.match(await runs[n],/cancelled/);
+      assert.equal(versionOf(),"1.0.0");
+      assert.deepEqual(X.permissions("test.upgrade").live,{"read:project":true},"a cancelled update leaves the installed grant");
+    }
+    assert.equal(prompts.length,asked+3,"every queued update asks");
+    // Accepting after a cancel installs with exactly the accepted answers.
+    const two=[X.install(v11()),X.install(v11())];
+    for(let t=0;t<50&&!pending.length;t++)await wait(2);
+    pending.shift()(null);
+    await assert.rejects(two[0],/cancelled/);
+    for(let t=0;t<50&&!pending.length;t++)await wait(2);
+    pending.shift()({"read:project":true,"ui:command":true,"propose:edits":false});
+    await two[1];
+    assert.equal(versionOf(),"1.1.0");
+    assert.deepEqual(X.permissions("test.upgrade").live,{"read:project":true,"ui:command":true,"propose:edits":false});
+    // A permission without an explicit yes is not live, whether the answer or a later edit leaves it out.
+    await X.grant("test.upgrade","ui:command",null);
+    assert.deepEqual(X.permissions("test.upgrade").live,{"read:project":true,"ui:command":false,"propose:edits":false});
+    answers.install=()=>({"read:project":true});
+    await X.install(pkg({id:"test.upgrade",version:"1.2.0",permissions:[...upgrade,"ui:panel"]},""));
+    assert.deepEqual(X.permissions("test.upgrade").live,{"read:project":true,"ui:command":false,"propose:edits":false,"ui:panel":false});
+    answers.install=r=>Object.fromEntries(r.permissions.map(p=>[p,!p.startsWith("network:")]));
+  }
   await X.uninstall("test.upgrade");
+  // A fresh install always asks.
+  {
+    const id="test.leftover",asked=prompts.length;
+    await X.install(pkg({id,permissions:["read:project"]},""));await X.uninstall(id);
+    answers.install=null;
+    await assert.rejects(X.install(pkg({id,permissions:["read:project"]},"")),/cancelled/);
+    assert.equal(prompts.length,asked+2);
+    answers.install=r=>Object.fromEntries(r.permissions.map(p=>[p,!p.startsWith("network:")]));
+  }
 
   // ----------------------------------------- onCommand activation and one undo step
   const C1=refOf(board(),"C1").id,C2=refOf(board(),"C2").id;

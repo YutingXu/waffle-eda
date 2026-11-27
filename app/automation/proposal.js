@@ -181,30 +181,86 @@ globalThis.AtriumProposal = (() => {
     if (own(op, "after")) o[k] = clone(op.after); else delete o[k];
   }
   // Component field rules shared by both versions: text is at most 512 characters, a designator
-  // is never blank and geometry is finite.
+  // that is set is never blank and geometry is finite.
   function checkPartField(field, after) {
     if (V1_TEXT.has(field)) {
       if (typeof after !== "string" || after.length > 512 || (field === "ref" && !after.trim())) fail("Invalid proposed text.");
     } else if (!Number.isFinite(after) || Math.abs(after) > 1e7) fail("Invalid proposed geometry.");
   }
-  // A changed or added designator is not kept by another part on its document, except by
-  // another gate of the same multi-gate symbol. `changes` maps each document to Map(part, ref),
-  // `added` lists the document's new parts and `gone` holds removed item ids.
-  function checkDesignators(p, changes, added = new Map(), gone = new Set()) {
-    const unit = i => (Number.isInteger(i.unit) && i.unit > 0 ? i.unit : 0) || (Number.isInteger(i.part) && i.part > 0 ? i.part : 0) || 1;
-    let defs;
-    const gates = (d, a, b) => d.kind === "schematic" && a.def === b.def && unit(a) !== unit(b) &&
-      (defs ||= new Map((p.library || []).map(def => [def.id, def]))).get(a.def)?.symbol?.parts > 1;
-    for (const [d, refs] of changes) {
-      const byRef = new Map();
-      for (const j of [...d.items, ...(added.get(d) || [])]) {
-        if (j?.kind !== "part" || gone.has(j.id)) continue;
-        const r = refs.has(j) ? refs.get(j) : j.ref;
-        if (!byRef.has(r)) byRef.set(r, []);
-        byRef.get(r).push(j);
+  // An added part may be unannotated (importers leave designators blank), but its designator is text.
+  function checkAddedPart(v) {
+    if (typeof v.ref !== "string" || v.ref.length > 512) fail("Invalid proposed text.");
+  }
+  // Fields that decide a part's designator and gate, per target, as the designator check reads them.
+  const PART_KEYS = new Set(["kind", "ref", "unit", "part", "def", "link"]), GATE_KEYS = new Set(["kind", "unit", "part", "def"]);
+  const DOC_KEYS = new Set(["kind"]), LIB_KEYS = new Set(["symbol"]);
+  // `owner` as the chosen set operations leave it, for the fields in `keys` (a shallow view).
+  function finalView(owner, ops, keys) {
+    if (!owner || !ops?.some(op => keys.has(op.path[0]))) return owner;
+    const view = {...owner}, copied = new Set();
+    for (const op of ops) {
+      const k = op.path[0];
+      if (!keys.has(k)) continue;
+      if (op.path.length > 1 && !copied.has(k)) { copied.add(k); view[k] = clone(view[k]); }
+      write(view, op.path, op);
+    }
+    return view;
+  }
+  const unannotated = ref => typeof ref !== "string" || !ref.trim() || ref.includes("?");
+  const gateCount = def => Number.isInteger(def?.symbol?.parts) && def.symbol.parts > 1 ? def.symbol.parts : 1;
+  const gateOf = i => i.unit || i.part || 1; // as Atrium.gate reads it
+  const inRange = (u, n) => Number.isInteger(u) && u >= 1 && u <= n;
+  // Designators as ERC and the schematic author judge them, on the project the proposal leaves:
+  // every schematic sheet shares one set of designators and each other document has its own,
+  // compared without case or surrounding space. Unannotated designators (blank or with "?") are
+  // never compared. Gates of one multi-gate symbol share a designator when they are different
+  // gates in its range and resolve to the same footprint (equal links when both are set).
+  // Only parts the proposal adds, or whose designator, gate or kind it changes, are checked
+  // against the others, so a proposal is never refused for a duplicate it does not touch.
+  // f: {edits: Map(owner, [set op]), items: Map(document, [added item]), docs: [added document],
+  //     lib: [added library entry], gone: Set("target\0id" removed)}
+  function checkDesignators(p, f) {
+    const edits = f.edits || new Map(), gone = f.gone || new Set();
+    const relevant = op => op.target === "item" ? PART_KEYS.has(op.path[0]) : op.target === "document" && DOC_KEYS.has(op.path[0]);
+    if (!f.items?.size && !f.docs?.length && ![...edits.values()].some(ops => ops.some(relevant))) return;
+    const added = new Map((f.lib || []).map(def => [def.id, def])), defs = new Map(), live = new Map((p.library || []).map(def => [def.id, def]));
+    const defOf = id => {
+      if (!defs.has(id)) defs.set(id, added.get(id) || (gone.has("library\0" + id) ? null : finalView(live.get(id), edits.get(live.get(id)), LIB_KEYS)));
+      return defs.get(id);
+    };
+    const parts = [], byKey = new Map();
+    const take = (i, d, sch, group, isNew, moved) => {
+      if (!isNew && gone.has("item\0" + i?.id)) return;
+      const ops = isNew ? null : edits.get(i), iv = finalView(i, ops, PART_KEYS);
+      if (iv?.kind !== "part") return;
+      const entry = {i: iv, d, sch, touched: isNew || moved || !!ops?.some(op => PART_KEYS.has(op.path[0])),
+        gate: isNew || moved || !!ops?.some(op => GATE_KEYS.has(op.path[0])), key: null};
+      if (entry.touched) parts.push(entry);
+      if (unannotated(iv.ref)) return;
+      entry.key = group + "\0" + iv.ref.trim().toUpperCase();
+      const same = byKey.get(entry.key);
+      if (same) same.push(entry); else byKey.set(entry.key, [entry]);
+    };
+    const visit = (d, isNew) => {
+      const kind = isNew ? d.kind : finalView(d, edits.get(d), DOC_KEYS).kind, sch = kind === "schematic";
+      const group = sch ? "\0schematic" : "\0" + d.id, moved = !isNew && kind !== d.kind;
+      for (const i of d.items) take(i, d, sch, group, isNew, moved);
+      for (const i of f.items?.get(d) || []) take(i, d, sch, group, true, false);
+    };
+    for (const d of p.documents) if (!gone.has("document\0" + d.id)) visit(d, false);
+    for (const d of f.docs || []) visit(d, true);
+    const share = (a, b) => {
+      if (!a.sch || !b.sch || a.i.def !== b.i.def) return false;
+      const n = gateCount(defOf(a.i.def)), ua = gateOf(a.i), ub = gateOf(b.i);
+      return n > 1 && inRange(ua, n) && inRange(ub, n) && ua !== ub && (!a.i.link || !b.i.link || a.i.link === b.i.link);
+    };
+    for (const a of parts) {
+      if (a.sch && a.gate) {
+        const n = gateCount(defOf(a.i.def)), u = gateOf(a.i);
+        if (!inRange(u, n)) fail((unannotated(a.i.ref) ? "A part" : a.i.ref.trim()) + " is gate " + u + ", but its symbol has " + n + " gate" + (n === 1 ? "" : "s") + ".");
       }
-      for (const [i, ref] of refs) if (byRef.get(ref)?.some(j => j !== i && !gates(d, i, j)))
-        fail("Designator " + ref + " is already used on " + d.name + ".");
+      const clash = a.key && byKey.get(a.key).find(b => b !== a && !share(a, b));
+      if (clash) fail("Designator " + a.i.ref.trim() + " is already used on " + clash.d.name + ".");
     }
   }
   const clone = v => v == null || typeof v !== "object" ? v : JSON.parse(JSON.stringify(v));
@@ -212,17 +268,19 @@ globalThis.AtriumProposal = (() => {
   const nameOf = i => i.ref || i.name || i.text || i.net || i.id;
 
   // Check the proposal's structure and project binding. Preview checks all live
-  // guards. Apply checks live field guards for the chosen edits.
-  function check(proposal, p, limit, lookup, offset = 0, chosen = null) {
+  // guards. Apply checks live field guards for the chosen edits. `designators` false skips only
+  // the designator rules, for callers that replay the user's own editor edits (a detached tab,
+  // a reviewed Git merge), which the editor allowed and which never came from automation.
+  function check(proposal, p, limit, lookup, offset = 0, chosen = null, designators = true) {
     if (proposal?.format !== "atrium-ai" || proposal.version !== 2 || !Array.isArray(proposal.ops) || !proposal.ops.length || proposal.ops.length > MAX_OPS)
       fail("Choose a valid Waffle AI proposal.");
     if (proposal.project !== p.name) fail("This proposal belongs to another project.");
     if (proposal.document_ids && (!Array.isArray(proposal.document_ids) || proposal.document_ids.some(id => !lookup.docs.has(id))))
       fail("This proposal belongs to another document set.");
     const {docs, items, lib} = lookup, added = new Set(), seen = new Set(), removed = new Set(), parents = new Set(), rows = [];
-    // Chosen designator changes, added parts and removed items, checked together at the end.
-    const refChanges = new Map(), addedParts = new Map(), gone = new Set();
-    const inDoc = (m, d, make) => m.get(d) || (m.set(d, make()), m.get(d));
+    // What the chosen operations change, for the designator check at the end.
+    const final = {edits: new Map(), items: new Map(), docs: [], lib: [], gone: new Set()};
+    const listIn = (m, k) => m.get(k) || (m.set(k, []), m.get(k));
     for (const o of proposal.ops) if (o?.op === "remove") {
       const key = o.target + "\0" + o.id;
       if (removed.has(key)) fail("The proposal removes the same object twice.");
@@ -278,8 +336,8 @@ globalThis.AtriumProposal = (() => {
           if (o.target === "item" && owner.kind === "part" && o.path.length === 1 && V1_FIELDS.includes(o.path[0])) {
             // The project validator judges other deleted fields (a missing angle is 0). A designator is never deleted.
             if (own(o, "after") || o.path[0] === "ref") checkPartField(o.path[0], o.after);
-            if (o.path[0] === "ref") inDoc(refChanges, items.get(o.id).d, () => new Map()).set(owner, o.after);
           }
+          if (o.target !== "project") listIn(final.edits, owner).push(o);
         }
         if (show) rows.push({index: n, op: o, label: label + " · " + o.path.join("."), detail: short(o.before) + " → " + short(o.after)});
         return;
@@ -294,16 +352,15 @@ globalThis.AtriumProposal = (() => {
           if (items.has(v.id) || added.has(v.id)) fail("Item " + v.id + " already exists.");
           added.add(v.id);
           if (v.kind === "part" && (!chosen || chosen.has(n))) {
-            checkPartField("ref", v.ref);
-            inDoc(addedParts, d, () => []).push(v);
-            inDoc(refChanges, d, () => new Map()).set(v, v.ref);
+            checkAddedPart(v);
+            listIn(final.items, d).push(v);
           }
           if (show) rows.push({index: n, op: o, label: "Add " + v.kind + " " + nameOf(v), detail: d.name});
           return;
         }
         const hit = items.get(o.id);
         if (!hit || hit.d !== d || !equal(hit.i, v)) stale(d.name + " · " + nameOf(v));
-        if (!chosen || chosen.has(n)) gone.add(o.id);
+        if (!chosen || chosen.has(n)) final.gone.add("item\0" + o.id);
         if (show) rows.push({index: n, op: o, label: "Remove " + v.kind + " " + nameOf(v), detail: d.name});
         return;
       }
@@ -314,18 +371,27 @@ globalThis.AtriumProposal = (() => {
         if (o.target === "document" && (!Array.isArray(v.items) || v.items.some(i => items.has(i.id)))) fail("Operation " + (n + 1) + " is malformed.");
         if (o.target === "document" && Object.keys(v).some(k => CODE_FIELDS.has(k))) fail("Operation " + (n + 1) + " adds code to a document. Proposals cannot do that.");
         added.add(v.id);
+        if (!chosen || chosen.has(n)) {
+          if (o.target === "document") {
+            const parts = v.items.filter(i => i?.kind === "part");
+            for (const i of parts) checkAddedPart(i);
+            if (parts.length) final.docs.push(v);
+          }
+          else final.lib.push(v);
+        }
         if (show) rows.push({index: n, op: o, label: "Add " + what + " " + (v.name || v.id), detail: ""});
         return;
       }
       if (!map.has(o.id) || !equal(map.get(o.id), v)) stale("The " + what + " " + (v.name || v.id));
+      if (!chosen || chosen.has(n)) final.gone.add(o.target + "\0" + o.id);
       if (show) rows.push({index: n, op: o, label: "Remove " + what + " " + (v.name || v.id), detail: ""});
     });
-    checkDesignators(p, refChanges, addedParts, gone);
+    if (designators) checkDesignators(p, final);
     return rows;
   }
   // Every operation is checked. Only the requested preview rows are formatted.
-  function inspect(proposal, p, limit = MAX_OPS, offset = 0) {
-    return check(proposal, p, limit, index(p, proposal), offset);
+  function inspect(proposal, p, limit = MAX_OPS, offset = 0, options = {}) {
+    return check(proposal, p, limit, index(p, proposal), offset, null, options.designators !== false);
   }
 
   function memberOwner(op) {
@@ -364,7 +430,7 @@ globalThis.AtriumProposal = (() => {
   // `options.select`. Structural and chosen field guards are checked before any write.
   function apply(p, proposal, options = {}) {
     const lookup = index(p, proposal), chosen = options.select ? new Set(options.select) : null;
-    check(proposal, p, 0, lookup, 0, chosen);
+    check(proposal, p, 0, lookup, 0, chosen, options.designators !== false);
     const {docs, items, lib} = lookup;
     const after = (list, id, value) => {
       const at = id == null ? 0 : list.findIndex(x => x.id === id) + 1;
@@ -524,7 +590,7 @@ globalThis.AtriumProposal = (() => {
     const parts = new Map();
     for (const d of p.documents) for (const i of d.items) if (i.kind === "part") parts.set(i.id, [d, i]);
     const seen = new Set();
-    return proposal.changes.map(row => {
+    const checked = proposal.changes.map(row => {
       if (!plain(row)) fail("The proposal refers to an unknown or repeated field.");
       const [d, i] = parts.get(row.id) || [], {field, after} = row, key = row.id + "/" + field;
       if (!i || d.id !== row.document || !V1_FIELDS.includes(field) || seen.has(key)) fail("The proposal refers to an unknown or repeated field.");
@@ -533,12 +599,22 @@ globalThis.AtriumProposal = (() => {
       if ((i[field] ?? 0) !== row.before) fail(i.ref + " has changed since this proposal was drafted. Generate a fresh proposal.");
       return {d, i, row};
     });
+    const edits = new Map(), refs = new Map();
+    for (const {d, i, row} of checked) if (row.field === "ref") {
+      edits.set(i, [{target: "item", path: ["ref"], after: row.after}]);
+      if (!refs.has(d)) refs.set(d, new Map());
+      refs.get(d).set(i, row.after);
+    }
+    checkDesignators(p, {edits});
+    // Version 1 also keeps its original rule: no other part on the document has the exact new
+    // designator, which still refuses a repeated unannotated designator such as "R?".
+    for (const [d, changed] of refs) for (const [i, ref] of changed)
+      if (unannotated(ref) && d.items.some(j => j.kind === "part" && j !== i && (changed.has(j) ? changed.get(j) : j.ref) === ref))
+        fail("Designator " + ref + " is already used on " + d.name + ".");
+    return checked;
   }
   function applyV1(p, proposal, transform, touch) {
     const checked = inspectV1(proposal, p);
-    const refs = new Map();
-    for (const {d, i, row} of checked) if (row.field === "ref") (refs.get(d) || refs.set(d, new Map()).get(d)).set(i, row.after);
-    checkDesignators(p, refs);
     // Group geometry updates so a single proposed transform moves wire endpoints once.
     const updates = new Map();
     for (const {d, i, row} of checked) { if (!updates.has(i)) updates.set(i, {d, props: {}}); updates.get(i).props[row.field] = row.after; }
@@ -556,14 +632,14 @@ globalThis.AtriumProposal = (() => {
   // project binding and the applicable live guards are rechecked against the live project,
   // the proposal is first applied to a copy that must pass `validate`, then applied to `p`
   // inside `edit` (one undo step) and validated again.
-  // options: {select, validate(project), edit(fn), transform(doc, item, props), trial: false | copy(p)}
+  // options: {select, validate(project), edit(fn), transform(doc, item, props), trial: false | copy(p), designators: false (see check)}
   function applyChecked(p, proposal, options = {}) {
     const {select, validate, edit = fn => fn(), transform} = options;
     const v1 = proposal?.version === 1;
     if (!v1) for (const o of Array.isArray(proposal?.ops) ? proposal.ops : [])
       if ((o?.target === "project" || o?.target === "document") && Array.isArray(o.path) && CODE_FIELDS.has(String(o.path[0])))
         fail("Proposals cannot change " + o.path[0] + ": it holds code the editor runs.");
-    const once = (q, touch) => v1 ? applyV1(q, proposal, transform, touch) : apply(q, proposal, {select, touch});
+    const once = (q, touch) => v1 ? applyV1(q, proposal, transform, touch) : apply(q, proposal, {select, touch, designators: options.designators});
     let trialItems;
     if (validate && options.trial !== false) {
       const trial = typeof options.trial === "function" ? options.trial(p) : JSON.parse(JSON.stringify(p));
