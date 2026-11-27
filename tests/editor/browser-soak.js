@@ -83,7 +83,7 @@ async function soak(browser, seconds = +(process.env.SOAK_SECONDS || 20)) {
 
 module.exports = Object.assign(soak, {openSoakPage, collectHeap});
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   (async () => {
     const browser = await chromium.launch({headless: true, channel: "chrome"});
     try { await soak(browser, +(process.argv[2] || process.env.SOAK_SECONDS || 20)); } finally { await browser.close(); }

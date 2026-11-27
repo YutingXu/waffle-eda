@@ -4,7 +4,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const {createStaticServer} = require("../support/browser-app-server.cjs");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const root = path.resolve(process.argv[2] || path.join(__dirname,"../.."));
 
 function localPDF() {

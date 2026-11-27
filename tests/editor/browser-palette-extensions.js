@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const argument = key => { const at = process.argv.indexOf(key); return at < 0 ? null : process.argv[at + 1]; };
 const root = path.resolve(argument("--app") || path.resolve(__dirname, "../.."));
 const output = argument("--screenshots"), key = "command:ext:example.divider:divider", chord = "Control+Alt+Shift+G", alias = "vdivideqa";

@@ -5,6 +5,8 @@
 // default Automatic mode it follows the host's battery. Without this pin, a suite that measures
 // transitions or motion fails on a laptop running on battery: every transition reads 0s.
 // A suite that sets general.efficiency itself keeps its own value, and other stored preferences stay.
+// Every browser from tests/support/playwright.cjs already reports mains power, which keeps Automatic
+// off; this pin also holds the mode when a host reports Low Power Mode through __atriumPowerState.
 module.exports = function efficiencyOff(target) {
   return target.addInitScript(() => {
     if (window !== window.top) return;

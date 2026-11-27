@@ -7,7 +7,7 @@ const {execFile} = require("node:child_process");
 const fs = require("node:fs/promises"), os = require("node:os"), path = require("node:path");
 const {createStaticServer} = require("../support/browser-app-server.cjs");
 const {promisify} = require("node:util");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const exec = promisify(execFile), root = path.resolve(__dirname, "../..");
 
 async function run() {

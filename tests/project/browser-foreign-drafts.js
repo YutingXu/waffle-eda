@@ -135,7 +135,7 @@ module.exports=async function run(browser) {
   } finally {await context.close();}
 };
 if(require.main===module) (async()=>{
-  const browser=await require("playwright-core").chromium.launch(process.env.CHROME ?
+  const browser=await require("../support/playwright.cjs").chromium.launch(process.env.CHROME ?
     {executablePath:process.env.CHROME} : {channel:"chrome"});
   try{await module.exports(browser);console.log("PASS foreign import recovery, verified originals, two identities, restore, keep, discard and quit Save");}
   finally{await browser.close();}

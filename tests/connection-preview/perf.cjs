@@ -2,7 +2,7 @@
 // Real Chromium input and trace on a dense multi-sheet project. The compositor's
 // refresh period, renderer main-thread work and input dispatch are separate metrics.
 const assert=require("node:assert/strict"), path=require("node:path"), fs=require("node:fs/promises");
-const {pathToFileURL}=require("node:url"), {chromium}=require("playwright-core");
+const {pathToFileURL}=require("node:url"), {chromium}=require("../support/playwright.cjs");
 function stats(samples) {
   const s=samples.slice().sort((a,b)=>a-b), at=q=>+(s[Math.min(s.length-1,Math.floor(s.length*q))] || 0).toFixed(3);
   return {n:s.length,p50:at(.5),p95:at(.95),max:at(1),over16:s.filter(v=>v>16).length};

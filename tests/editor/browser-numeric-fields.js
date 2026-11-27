@@ -1,6 +1,6 @@
 "use strict";
 const assert=require("node:assert/strict"),path=require("node:path");
-const {pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const {pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 async function run() {
   const browser=await chromium.launch({channel:"chrome",headless:true});
   const themes=process.env.WAFFLE_NUMERIC_THEME?[process.env.WAFFLE_NUMERIC_THEME]:["light","dark"];

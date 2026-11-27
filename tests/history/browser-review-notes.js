@@ -138,4 +138,4 @@ async function test(browser) {
   }
 }
 module.exports=test;
-if(require.main===module)(async()=>{const b=await require("playwright-core").chromium.launch({channel:"chrome",args:["--allow-file-access-from-files"]});try{await test(b);}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
+if(require.main===module)(async()=>{const b=await require("../support/playwright.cjs").chromium.launch({channel:"chrome",args:["--allow-file-access-from-files"]});try{await test(b);}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -5,6 +5,8 @@
 root=${0:A:h:h}
 jsc=/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc
 [[ -x $jsc ]] || { print -u2 "JavaScriptCore's jsc was not found; use: node tests/run.cjs"; exit 2; }
+# JavaScriptCore reads TZ only at start, so suites cannot pin it themselves (tests/support/utc.cjs).
+export TZ=UTC
 python3 -B "$root/scripts/prepare-assets.py" || exit 2
 names=()
 while (( $# )) && [[ $1 != -- ]]; do names+=("$1"); shift; done

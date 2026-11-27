@@ -1,5 +1,5 @@
 "use strict";
-const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 const {relay,editor}=require("../project/collab-pair-browser.cjs");
 const {input,circle,line,snapped}=require("./sketch-hold-browser.cjs");
 const root=path.resolve(__dirname,"../..");

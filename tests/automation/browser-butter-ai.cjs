@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
 let chromium;
-try { ({chromium} = require("playwright-core")); }
+try { ({chromium} = require("../support/playwright.cjs")); }
 catch { console.log("SKIP Butter AI editor command proof: Playwright Core unavailable."); process.exit(0); }
 
 function folderFixture() {

@@ -82,7 +82,7 @@ async function checkDiffBlink(browser, root = path.resolve(__dirname, "../..")) 
 
 module.exports = checkDiffBlink;
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   (async () => {
     const browser = await chromium.launch({channel: "chrome"});
     try { await checkDiffBlink(browser, process.argv[2]); }

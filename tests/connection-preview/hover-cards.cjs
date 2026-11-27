@@ -5,7 +5,7 @@
 // The project is generated here and round-tripped through the Altium exporter and importer.
 const assert=require("node:assert/strict");
 const path=require("node:path"), fs=require("node:fs/promises"), {pathToFileURL}=require("node:url");
-const {chromium}=require("playwright-core");
+const {chromium}=require("../support/playwright.cjs");
 const NEAR=40; // px from the hovered object's box to the card's box
 
 async function main() {

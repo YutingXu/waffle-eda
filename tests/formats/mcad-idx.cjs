@@ -8,7 +8,8 @@ const assert = require("node:assert/strict"), fs = require("node:fs"), path = re
 for (const m of ["model", "parts", "pcb-appearance", "pcb-pours", "stackup", "board-shape", "rigid-flex", "zip", "fab-outputs", "step-export", "pcb-edit", "mcad-xml", "mcad", "mcad-idx"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 require("./mcad-board.js");
 const X = AtriumXML, MC = AtriumMCAD, I = AtriumIDX, A = Atrium;
-const DATE = "2026-11-19T12:00:00";
+// An instant, not local wall time: the header writes UTC, so a zone-less string would move with the host's TZ.
+const DATE = "2026-11-19T12:00:00Z";
 const near = (a, b, e, m) => assert.ok(Math.abs(a - b) <= e, (m ? m + ": " : "") + a + " vs " + b);
 
 // ---- the baseline: golden, structure, determinism -------------------------------------------

@@ -1,7 +1,7 @@
 "use strict";
 // Run with Playwright Core after integrating the shared palette engine and view.
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
-const {pathToFileURL} = require("node:url"), {chromium} = require("playwright-core");
+const {pathToFileURL} = require("node:url"), {chromium} = require("../support/playwright.cjs");
 const screenshotArg = process.argv.indexOf("--screenshots"), shots = screenshotArg < 0 ? null : process.argv[screenshotArg+1];
 const url = pathToFileURL(path.resolve(__dirname,"../../app/index.html")).href;
 

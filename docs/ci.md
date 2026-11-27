@@ -42,6 +42,11 @@ discover it by filename, and the filename without `.cjs` is its report ID. Keep 
 or `tests/<feature>/support/`. Specialized test trees and probes keep their dedicated runners. Node also discovers
 suites directly under `native/tests/`. [Shared discovery](../tests/support/suite-paths.py)
 
+A browser suite requires `tests/support/playwright.cjs` instead of `playwright-core`. Its contexts and pages
+then use locale en-US, time zone UTC and mains power unless the suite sets its own, so the result does not
+depend on the host's language, `TZ` or battery. A suite that compares output written in local time requires
+`tests/support/utc.cjs`. `scripts/test-jsc.sh` runs JavaScriptCore with `TZ=UTC`.
+
 ## What runs where
 
 **macOS** (`[self-hosted, macOS, ARM64, atrium]`, `scripts/ci-local.sh`):
