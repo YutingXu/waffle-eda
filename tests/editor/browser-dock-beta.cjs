@@ -6,7 +6,8 @@
 //   2. Dragging a panel to the bottom edge: the drop preview is exactly the rectangle the panel takes.
 //   3. Resizing docks and splits: every canvas is resized and redrawn in the frame of the layout change,
 //      fills its pane, and the GPU board layer stays on its own canvas inside its own pane; Properties'
-//      sections reflow with the dock. A costly pane pins during the drag and redraws on release.
+//      sections reflow with the dock. A costly pane follows a sash drag live from its retained board layer,
+//      and the GPU board layer's view stays exactly under the overlay canvas.
 //   4. Dragging a document tab to the left, top or bottom edge splits there; the preview is the pane it
 //      fills; dragover handlers stay cheap.
 // Run: node tests/editor/browser-dock-beta.cjs   (CHROME=/path/to/chrome to choose the browser)
@@ -166,6 +167,12 @@ async function dockBeta(browser) {
     await frames(4);
     await page.evaluate(() => {
       window.resizeFaults = []; window.resizeChecks = 0;
+      // The visible part of the GPU board layer: a resizing pane's backing can be larger than its view,
+      // which lies in its bottom-left corner with the rest clipped (canvas-gpu.js place).
+      window.boardLayerBox = n => {
+        const r = n.getBoundingClientRect(), m = /inset\(([\d.]+)px ([\d.]+)px/.exec(getComputedStyle(n).clipPath) || [0, 0, 0];
+        return [r.left, r.top + +m[1], r.width - m[2], r.height - m[1]];
+      };
       const fault = s => { if (resizeFaults.length < 20) resizeFaults.push(s); };
       // Created after the editor's observer, so it runs after it in the same frame, before paint.
       const check = new ResizeObserver(entries => {
@@ -177,9 +184,9 @@ async function dockBeta(browser) {
           if (r.left < s.left - .5 || r.right > s.right + .5 || r.bottom > s.bottom + .5) fault("canvas outside its pane");
           const gpu = stage.querySelector(":scope > .atrium-gpu-board");
           if (gpu && getComputedStyle(gpu).display !== "none") {
-            const g = gpu.getBoundingClientRect();
-            if (Math.abs(g.left - r.left) > .5 || Math.abs(g.top - r.top) > .5 || Math.abs(g.width - r.width) > .5 || Math.abs(g.height - r.height) > .5)
-              fault("GPU board layer at " + [g.left, g.top, g.width, g.height].map(Math.round) + ", canvas at " + [r.left, r.top, r.width, r.height].map(Math.round));
+            const g = boardLayerBox(gpu);
+            if (Math.abs(g[0] - r.left) > .5 || Math.abs(g[1] - r.top) > .5 || Math.abs(g[2] - r.width) > .5 || Math.abs(g[3] - r.height) > .5)
+              fault("GPU board layer at " + g.map(Math.round) + ", canvas at " + [r.left, r.top, r.width, r.height].map(Math.round));
           }
           // The schematic paints an opaque sheet: a cleared, undrawn bitmap reads transparent at its edge.
           const x = c.getContext("2d"), doc = AtriumNavHost.panes().find(p => p.canvas === c);
@@ -233,13 +240,16 @@ async function dockBeta(browser) {
         c.width === Math.round(rect.width * devicePixelRatio) && c.height === Math.round(rect.height * devicePixelRatio);
     });
 
-    // A slow full Canvas2D paint followed by a cached tab return used to lose its resize cost.
-    const pinnedState = () => page.evaluate(() => {
+    // A costly board follows the sash live. One full Canvas2D paint is made slow, so the renderer keeps its
+    // board layer even on the demo board; each frame of a drag then moves that layer and paints only what a
+    // larger pane uncovers, at the pane's own size. Nothing is pinned or held, and the frame after the size
+    // rests is exact. (Sash drags used to pin a costly pane's canvas at its old size until the release.)
+    const paneState = () => page.evaluate(() => {
       const c = AtriumNavHost.canvas(), dock = document.getElementById("navigator");
       const canvas = c.getBoundingClientRect(), pane = c.parentElement.getBoundingClientRect();
-      return {position:c.style.position,width:canvas.width,paneWidth:pane.width,
-        leftGap:canvas.left-pane.left,rightGap:pane.right-canvas.right,
-        dockWidth:dock.getBoundingClientRect().width,backingWidth:c.width,dpr:devicePixelRatio,paints:window.sashPaints.length};
+      return {position:c.style.position,width:canvas.width,height:canvas.height,paneWidth:pane.width,paneHeight:pane.height,
+        leftGap:canvas.left-pane.left,rightGap:pane.right-canvas.right,bottomGap:pane.bottom-canvas.bottom,
+        dockWidth:dock.getBoundingClientRect().width,backingWidth:c.width,backingHeight:c.height,dpr:devicePixelRatio,paints:window.sashPaints.length,last:window.sashPaints.at(-1)};
     });
     const tabs = await page.evaluate(async () => {
       await AtriumLazy.need(["AtriumCanvasFast","AtriumPrefs"]);
@@ -252,13 +262,16 @@ async function dockBeta(browser) {
         sashPaints.push({reused,ms:performance.now() - started,id:args[0].id,width:host.canvas().width});
         return reused;
       };
-      ctx.fillRect = function(...args) {
-        // Delay one actual base paint so the renderer retains its copy even on the small demo board.
-        ctx.fillRect = fill;
-        const end = performance.now() + 18;
-        while (performance.now() < end) {}
-        return fill.apply(this,args);
+      window.slowPaint = () => {
+        ctx.fillRect = function(...args) {
+          // Delay one actual base paint so the renderer retains its copy even on the small demo board.
+          ctx.fillRect = fill;
+          const end = performance.now() + 18;
+          while (performance.now() < end) {}
+          return fill.apply(this,args);
+        };
       };
+      slowPaint();
       window.restoreSashPaint = () => {view.render = render; ctx.fillRect = fill; AtriumPrefs.set("display.renderer",renderer || "auto");};
       view.pan(1,0); host.redraw();
       return {board:host.doc().id,sheet:host.project().documents.find(d => d.kind === "schematic").id};
@@ -276,105 +289,135 @@ async function dockBeta(browser) {
 
     const savedWidth = w => page.waitForFunction(w =>
       JSON.parse(localStorage.getItem("atrium.prefs"))?.values?.["workbench.layout"]?.sizes?.left === w,w);
-    const beforePin = await pinnedState(), dragWidths = [];
+    // Each resized frame fills its pane at its own size and reuses the board layer: no full paint.
+    const live = (state, what) => {
+      assert.notEqual(state.position,"absolute",what + ": the canvas is not pinned");
+      assert.ok(state.leftGap <= .5 && state.rightGap <= .5 && state.bottomGap <= .5 && Math.abs(state.width - state.paneWidth) <= .5,what + ": the canvas fills its pane " + JSON.stringify(state));
+      assert.equal(state.backingWidth,Math.round(state.width * state.dpr),what + ": the bitmap has the canvas's width");
+      assert.equal(state.backingHeight,Math.round(state.height * state.dpr),what + ": the bitmap has the canvas's height");
+      assert.ok(state.last.reused && state.last.ms < 12,what + ": the resized frame reused the board layer " + JSON.stringify(state.last));
+    };
+    const beforeDrag = await paneState(), dragWidths = [];
     const leftSash = page.locator(".dock-sash-left");
     const sash = await leftSash.boundingBox(), x = sash.x + sash.width / 2, y = sash.y + sash.height / 2;
     await page.mouse.move(x,y); await page.mouse.down();
     await frames(2);
-    const held = await pinnedState();
     try {
       for (const delta of [-55,14,42,65]) {
         await page.mouse.move(x + delta,y);
         await frames(2);
-        const pinned = await pinnedState();
-        dragWidths.push(pinned.dockWidth);
-        assert.equal(pinned.dockWidth,beforePin.dockWidth + delta,"the visible dock tracks every drag step");
-        assert.equal(pinned.paneWidth,beforePin.paneWidth - delta,"the pane follows the dock");
-        assert.equal(pinned.position,"absolute","a costly base stays pinned after a cached tab return");
-        assert.ok(pinned.leftGap <= 1 && pinned.rightGap <= 1, "the bitmap covers the pane when the side dock shrinks");
-        assert.equal(pinned.width,held.width);
-        assert.equal(pinned.backingWidth,held.backingWidth);
-        assert.equal(pinned.paints,held.paints,"dragging avoids repainting the pinned canvas");
+        const step = await paneState();
+        dragWidths.push(step.dockWidth);
+        assert.equal(step.dockWidth,beforeDrag.dockWidth + delta,"the visible dock tracks every drag step");
+        assert.equal(step.paneWidth,beforeDrag.paneWidth - delta,"the pane follows the dock");
+        live(step,"left sash at " + delta + " px");
       }
     } finally {
       await page.mouse.up();
     }
     await frames(2);
-    const thawed = await pinnedState();
-    assert.equal(thawed.position,beforePin.position,"release restores the canvas layout");
-    assert.equal(thawed.dockWidth,beforePin.dockWidth + 65,"release keeps the dragged width");
-    assert.equal(thawed.width,thawed.paneWidth,"the costly canvas fills its resized pane on release");
-    assert.equal(thawed.backingWidth,Math.round(thawed.paneWidth * thawed.dpr));
-    assert.ok(held.paints <= beforePin.paints + 1,"preparing coverage costs at most one paint");
-    assert.equal(thawed.paints,held.paints + 1,"release paints the new viewport once");
-    assert.ok(await page.evaluate(() => !sashPaints.at(-1).reused),"a resized canvas receives a full base paint");
-    await savedWidth(thawed.dockWidth);
+    const released = await paneState();
+    assert.equal(released.position,beforeDrag.position,"the canvas layout is unchanged");
+    assert.equal(released.dockWidth,beforeDrag.dockWidth + 65,"release keeps the dragged width");
+    live(released,"released");
+    // The resized frames painted uncovered strips: once the size rests, one exact frame paints the board whole.
+    await page.waitForFunction(n => sashPaints.length > n && !sashPaints.at(-1).reused,released.paints,{timeout:2000});
+    await savedWidth(released.dockWidth);
 
-    // The expensive board stays frozen while Messages moves in both directions.
-    await page.evaluate(() => {
-      const host = AtriumNavHost, view = host.view(), ctx = view.internals().ctx, fill = ctx.fillRect;
-      ctx.fillRect = function(...args) {
-        ctx.fillRect = fill;
-        const end = performance.now() + 18;
-        while (performance.now() < end) {}
-        return fill.apply(this,args);
-      };
-      view.pan(1,0); host.redraw();
-    });
+    // The Messages sash resizes the pane's height: the costly board follows it the same way.
+    await page.evaluate(() => {slowPaint(); AtriumNavHost.view().pan(1,0); AtriumNavHost.redraw();});
     await frames(3);
     assert.ok(await page.evaluate(() => !sashPaints.at(-1).reused && sashPaints.at(-1).ms >= 18),"the bottom resize also starts with a costly board");
-    const bottomViewport = () => page.evaluate(() => {
-      const canvas = AtriumNavHost.canvas(), stage = canvas.parentElement.getBoundingClientRect(), bounds = canvas.getBoundingClientRect();
-      return {stage:stage.height, canvas:bounds.height, topGap:bounds.top - stage.top, bottomGap:stage.bottom - bounds.bottom,
-        pixels:canvas.height / devicePixelRatio, paints:sashPaints.length};
-    });
+    const initial = await paneState();
     const bottom = await page.locator(".dock-sash-bottom").boundingBox(), bx = bottom.x + bottom.width / 2, by = bottom.y + bottom.height / 2;
-    const initial = await bottomViewport();
     await page.mouse.move(bx,by); await page.mouse.down();
     await frames(2);
-    const frozen = await bottomViewport();
     try {
       for (const delta of [64,-64]) {
         await page.mouse.move(bx,by + delta);
         await frames(2);
-        const viewport = await bottomViewport();
-        assert.equal(viewport.stage,initial.stage + delta,"the pane follows the Messages sash");
-        assert.ok(viewport.topGap <= 1 && viewport.bottomGap <= 1,"the bitmap covers the whole pane");
-        assert.equal(viewport.paints,frozen.paints,"a costly board does not repaint on each Messages drag frame");
-        assert.equal(viewport.pixels,frozen.pixels,"the costly backing store is held through the drag");
+        const step = await paneState();
+        assert.equal(step.paneHeight,initial.paneHeight + delta,"the pane follows the Messages sash");
+        live(step,"Messages sash at " + delta + " px");
       }
     } finally {
       await page.mouse.up();
     }
     await frames(2);
-    const released = await bottomViewport();
-    assert.equal(released.canvas,released.stage,"the exact viewport fills the pane on release");
-    assert.equal(released.pixels,released.stage);
-    assert.equal(released.paints,frozen.paints+1,"release paints the new viewport once");
-    assert.ok(frozen.paints <= initial.paints+1,"preparing coverage costs at most one paint");
+    live(await paneState(),"Messages sash released");
 
-    // Keyboard moves still resize immediately. A cancelled touch drag commits its last visible size.
+    // Keyboard moves resize the same way. A cancelled touch drag commits its last visible size.
     await leftSash.press("ArrowRight");
     await frames(2);
-    const keyed = await pinnedState();
-    assert.equal(keyed.dockWidth,thawed.dockWidth + 10);
+    const keyed = await paneState();
+    assert.equal(keyed.dockWidth,released.dockWidth + 10);
     assert.equal(keyed.width,keyed.paneWidth);
     const touch = await page.context().newCDPSession(page);
-    const touchX = x + keyed.dockWidth - beforePin.dockWidth;
+    const touchX = x + keyed.dockWidth - beforeDrag.dockWidth;
     await touch.send("Input.dispatchTouchEvent",{type:"touchStart",touchPoints:[{x:touchX,y}]});
     await touch.send("Input.dispatchTouchEvent",{type:"touchMove",touchPoints:[{x:touchX + 24,y}]});
     await frames(2);
-    assert.equal((await pinnedState()).dockWidth,keyed.dockWidth + 24,"touch follows its real drag delta");
+    assert.equal((await paneState()).dockWidth,keyed.dockWidth + 24,"touch follows its real drag delta");
     await touch.send("Input.dispatchTouchEvent",{type:"touchCancel",touchPoints:[]});
     await frames(2);
     await touch.detach();
-    const cancelled = await pinnedState();
+    const cancelled = await paneState();
     assert.equal(cancelled.dockWidth,keyed.dockWidth + 24);
-    assert.equal(cancelled.position,beforePin.position);
+    assert.equal(cancelled.position,beforeDrag.position);
     assert.equal(cancelled.width,cancelled.paneWidth);
     assert.equal(await page.locator("body").evaluate(body => body.classList.contains("dock-resizing")),false);
     await savedWidth(cancelled.dockWidth);
-    await page.evaluate(id => {restoreSashPaint(); AtriumNavHost.selectDocument(id);},original);
+    const layout = await page.evaluate(() => {restoreSashPaint(); return AtriumDock.current();});
+
+    // The GPU board renderer: the WebGL board layer, whose backing a resizing pane keeps with room to spare,
+    // shows its view exactly under the canvas that carries every overlay (DRC markers, DNP crosses,
+    // selection) at each step of a drag, down to the dock's minimum, and after the release, when the backing
+    // is trimmed to the view. Overlays drawn over a misplaced board slid off it.
+    await page.evaluate(async () => {
+      const renderer = AtriumPrefs.get("display.renderer");
+      window.restoreGpuSash = () => AtriumPrefs.set("display.renderer",renderer || "auto");
+      AtriumPrefs.set("display.renderer","gpu");
+      await AtriumLazy.need(["AtriumCanvasGPU"]);
+      AtriumNavHost.redraw(true);
+    });
+    await frames(4);
+    const layers = () => page.evaluate(() => {
+      const c = AtriumNavHost.canvas(), g = c.parentElement.querySelector(":scope > .atrium-gpu-board");
+      const box = n => {const r = n.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(v => Math.round(v * 2) / 2);};
+      return {position:c.style.position, canvas:box(c), board:g && getComputedStyle(g).display !== "none" ? boardLayerBox(g).map(v => Math.round(v * 2) / 2) : null,
+        backing:g ? [g.width, g.height] : null, view:[c.width, c.height]};
+    });
+    if (!(await layers()).board) console.log("browser-dock-beta: no WebGL2 board layer here, the GPU sash check is skipped");
+    else {
+      const gpuSash = await leftSash.boundingBox(), gx = gpuSash.x + gpuSash.width / 2, gy = gpuSash.y + gpuSash.height / 2;
+      await page.mouse.move(gx,gy); await page.mouse.down();
+      let slack = false;
+      try {
+        await frames(2);
+        // The pane grows (the backing grows with room to spare), shrinks inside it, and grows to the dock's minimum.
+        for (const delta of [-55,14,65,-40,-2000]) {
+          await page.mouse.move(gx + delta,gy);
+          await frames(2);
+          const step = await layers();
+          assert.notEqual(step.position,"absolute","the GPU pane is not pinned");
+          assert.deepEqual(step.board,step.canvas,"the GPU board layer's view stays under the overlay canvas at " + delta + " px");
+          slack ||= step.backing[0] > step.view[0];
+        }
+      } finally {
+        await page.mouse.up();
+      }
+      assert.ok(slack,"a growing pane keeps a larger board layer backing while it resizes");
+      await page.waitForFunction(() => {
+        const c = AtriumNavHost.canvas(), g = c.parentElement.querySelector(":scope > .atrium-gpu-board");
+        return g.width === c.width && g.height === c.height;
+      },null,{timeout:3000});
+      const settled = await layers();
+      assert.notEqual(settled.position,"absolute");
+      assert.deepEqual(settled.board,settled.canvas,"at rest the GPU board layer has the canvas's size and place");
+    }
+    await page.evaluate(layout => {restoreGpuSash(); AtriumDock.apply(layout,{quiet:true});},layout);
+    await frames(3);
+    await page.evaluate(id => AtriumNavHost.selectDocument(id),original);
 
     // ---- 4. Document tabs: left, top and bottom edges split there, and the preview is the pane it fills
     const names = () => page.evaluate(() => {const H = AtriumNavHost, docs = H.project().documents; return {down: document.getElementById("editor-panes").classList.contains("split-down"),
@@ -459,7 +502,7 @@ async function dockBeta(browser) {
     assert.deepEqual(await previousActions(),[],"replacing the project drops its previous report actions");
     assert.equal(await page.evaluate(() => AtriumMessages.messages().some(row => row.text === "Previous project result")),false);
     assert.deepEqual(errors, [], "no page errors");
-    console.log("browser-dock-beta: ok (dragover median " + cost.median.toFixed(3) + " ms, max " + cost.max.toFixed(2) + " ms; " + resize.checks + " resize checks; sash widths " + [beforePin.dockWidth,...dragWidths,thawed.dockWidth,keyed.dockWidth,cancelled.dockWidth].join(" → ") + ")");
+    console.log("browser-dock-beta: ok (dragover median " + cost.median.toFixed(3) + " ms, max " + cost.max.toFixed(2) + " ms; " + resize.checks + " resize checks; sash widths " + [beforeDrag.dockWidth,...dragWidths,released.dockWidth,keyed.dockWidth,cancelled.dockWidth].join(" → ") + ")");
   } finally {
     await page.close();
   }

@@ -283,6 +283,41 @@ globalThis.atriumCanvasDamage = async function () {
     compare(free, "Undo restores the title to its previous drawing corner", "full");
     free.canvas.remove();
 
+    // A resized view (a dock or split sash, the window, a panel shown or hidden) keeps its centre: the retained
+    // board layer moves by half the size change and only the strips a larger view uncovers are painted. Like a
+    // pan's, that frame can differ at the view's edges (a fresh paint culls objects there) and by half a pixel,
+    // and batching (LOD) follows the number of objects in view: once the size rests the idle frame paints it whole.
+    {
+      const board = makeAtriumBenchmarkBoard().d, dpr = devicePixelRatio;
+      const scene = load(board, defs, {cx:150, cy:120, scale:12, referenceScale:12, flipped:false}, {...opts, measure:null, selected:board.items[40].id});
+      const size = (w, h) => { Object.assign(scene.canvas.style, {width:w + "px", height:h + "px"}); scene.view.resized(); };
+      const pixels = () => scene.canvas.getContext("2d").getImageData(0, 0, scene.canvas.width, scene.canvas.height).data;
+      const resized = async (name, w, h, rects, shift = false) => {
+        size(w, h);
+        scene.view.render(board, defs, scene.drawing);
+        const moved = trace.get(scene.canvas), quick = pixels();
+        trace.delete(scene.canvas);
+        await new Promise(r => setTimeout(r, 200));   // the idle exact frame renders the last frame again
+        const exact = trace.get(scene.canvas), settled = pixels();
+        scene.view.render(board, defs, {...scene.drawing, noReuse:true});
+        // early: the resized frame's channels more than 64 levels from a fresh paint's (a misplaced copy shows here).
+        let early = 0, late = 0; const full = pixels();
+        for (let k = 0; k < full.length; k++) { if (Math.abs(full[k] - quick[k]) > 64) early++; if (full[k] !== settled[k]) late++; }
+        const pass = moved?.reused && moved.areas.length === rects && exact && !exact.reused && late === 0 && (shift || early < full.length / 200);
+        cases.push({name, mode:"partial", reused:moved?.reused, rects:moved?.areas.length, pixels:late, early, ...(pass ? {} : {moved, exact})});
+        if (!pass) failures.push(name);
+        scene.view.render(board, defs, scene.drawing);   // a copy for the next case
+      };
+      await resized("A shrunk view moves the board layer, then the idle frame paints it whole", 880, 600, 0);
+      await resized("A grown view paints only the four uncovered strips, then the idle frame paints it whole", 960, 680, 4);
+      await resized("A view resized by an odd device pixel moves by half a pixel, then the idle frame paints it whole", 960 - 1 / dpr, 680, 0, true);
+      scene.view.restoreCamera({cx:150, cy:120, scale:6, referenceScale:6, flipped:false});
+      size(920, 640); scene.view.render(board, defs, scene.drawing);
+      await resized("A batched view grown, then the idle frame paints it whole", 1000, 700, 4);
+      await resized("A batched view shrunk, then the idle frame paints it whole", 860, 600, 0);
+      scene.canvas.remove();
+    }
+
     // Batched footprints on the dense board. A rebuilt batch can move antialiasing by a level
     // elsewhere on its scanlines: the partial frame is marked inexact and the idle frame (as after
     // a gesture) paints in full. That frame must equal a full paint of the same view.
