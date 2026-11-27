@@ -232,7 +232,7 @@ globalThis.AtriumDRCView = (() => {
       }
       const view = dirty.size && boxes ? physical() : null;
       if (dirty.size && !view) return null;
-      const extents = delta && new Map(delta.bounds.map(box => [box.join(","),box]));
+      const extents = delta && new Map((delta.items ?? delta).bounds.map(box => [box.join(","),box]));
       for (const id of dirty) {
         const old = boxes.get(id), item = items.get(id);
         const current = item && ownerBounds(view,doc,id);
@@ -454,7 +454,7 @@ globalThis.AtriumDRCView = (() => {
         copper:left ? state.copper : deps.copper, pending:left, certs:store, revision:geometry?.revision, floor:hint?.floor};
       const ms = now() - t0;
       return {violations, mode:left ? "partial" : "incremental", ms, dirty:parts.reduce((n, p) => n + p.length, 0),
-        checked, layers:delta?.layers, overBudget:ms > budget, tracked:known, ...(left ? {pending:parts.length-k} : null)};
+        checked, layers:(delta?.items ?? delta)?.layers, overBudget:ms > budget, tracked:known, ...(left ? {pending:parts.length-k} : null)};
     }
     // Seed from a batch run so online results match it until the next edit.
     function seed(doc, defs, rules, violations, at, outer, library, pours, project, batchOptions, geometry, floor) {
