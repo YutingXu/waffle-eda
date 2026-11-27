@@ -164,15 +164,14 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 ) {align-items:baseline}
 /* Checkbox and radio: the library draws both (2026-11-27 prototype) instead of the platform's widget, so they
    share the field's line, the primary fill and the icon stroke. Inputs paint no pseudo-element in WebKit, so
-   the tick is a background glyph (--glyph-check) and the radio dot a gradient; both grow in over
-   --motion-fast and appear at once with Reduced motion. Full-cell grid checkboxes keep their own face. */
+   the tick is a background glyph (--glyph-check) and the radio dot a gradient; both appear with the
+   fill's fade over --motion-fast, at once with Reduced motion. Full-cell grid checkboxes keep their own face. */
 :where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {
   --ui-check-time:calc(var(--motion-fast) * var(--motion-move));
   appearance:none;-webkit-appearance:none;flex:none;box-sizing:border-box;display:inline-block;vertical-align:middle;
   inline-size:14px;block-size:14px;margin:0;border:1px solid var(--input-line);
   background:center/0 0 no-repeat var(--field);cursor:default;
-  transition:background-color var(--ui-check-time) var(--ease-decelerate),border-color var(--ui-check-time) var(--ease-decelerate),
-    background-size var(--ui-check-time) var(--ease-decelerate);
+  transition:background-color var(--ui-check-time) var(--ease-decelerate),border-color var(--ui-check-time) var(--ease-decelerate);
 }
 :where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)) {border-radius:var(--r-md);background-image:var(--glyph-check)}
 :where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)):checked {background-size:10px 10px}
@@ -446,9 +445,11 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
   & .ui-segmented > .ui-segment:is([aria-pressed=true],[aria-checked=true],:has(input:checked)) {background:light-dark(var(--field),var(--raised));border-color:transparent;color:var(--ink)}
   /* A change slides the raised face (ui/kit.js sets data-sliding and the thumb's x and width for one move). */
   & .ui-segmented {position:relative}
-  & .ui-segmented[data-sliding]::before {content:"";position:absolute;inset-block:2px;left:var(--ui-thumb-x);width:var(--ui-thumb-w);
+  /* It keeps the old segment's width and moves by translate and scale only (the motion contract). */
+  & .ui-segmented[data-sliding]::before {content:"";position:absolute;inset-block:2px;left:0;width:var(--ui-thumb-w);
+    translate:var(--ui-thumb-x) 0;scale:var(--ui-thumb-s) 1;transform-origin:left center;
     border-radius:var(--r-md);background:light-dark(var(--field),var(--raised));pointer-events:none}
-  & .ui-segmented[data-sliding=go]::before {transition:left var(--motion-toggle) var(--ease-decelerate),width var(--motion-toggle) var(--ease-decelerate)}
+  & .ui-segmented[data-sliding=go]::before {transition:translate calc(var(--motion-toggle) * var(--motion-move)) var(--ease-decelerate),scale calc(var(--motion-toggle) * var(--motion-move)) var(--ease-decelerate)}
   & .ui-segmented[data-sliding] > .ui-segment:is(button,label) {background:transparent}
   /* Toggle chips: off is a hairline and muted text, on is a raised neutral fill with ink text. */
   & .bom-chip {font-weight:var(--fw-medium)}

@@ -149,7 +149,7 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 ![Checkboxes](ui-library/checkbox.png)
 
 - **Markup** `<label class="ui-checkbox-row"><input class="ui-checkbox" type="checkbox"><span>Label</span></label>`, or `K.checkbox(label, {checked, indeterminate})`.
-- **Face** the library draws the box (not the platform widget): 14 px, `--r-md`, the field's `--input-line` border; checked and mixed fill with `--primary` and draw the tick (`--glyph-check`) or bar in `--on-primary`. The tick grows in over `--motion-fast` and appears at once with Reduced motion. Forced colours fall back to the platform checkbox. Full-cell grid checkboxes (`[data-checkbox-cells]`) keep their own face.
+- **Face** the library draws the box (not the platform widget): 14 px, `--r-md`, the field's `--input-line` border; checked and mixed fill with `--primary` and draw the tick (`--glyph-check`) or bar in `--on-primary`. The tick appears with the fill's fade over `--motion-fast`, at once with Reduced motion. Forced colours fall back to the platform checkbox. Full-cell grid checkboxes (`[data-checkbox-cells]`) keep their own face.
 - **States** checked, indeterminate, `disabled` (hairline border, muted well; a checked one fades its fill), keyboard focus. The row is 44 px high on touch.
 
 <a id="radio"></a>
