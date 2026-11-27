@@ -310,6 +310,25 @@ function polygonChecks(sourceCount, model) {
   return check("model.pours", pours === sourceCount, {source:sourceCount, waffle:pours});
 }
 
+// A board file read by its independent oracle, as neutral rows: {kicad, copper:{rows, parts}, nets, outline, pours}.
+function oracleBoard(file) {
+  const kicad = /\.kicad_pcb$/i.test(file.name);
+  const src = kicad ? KicadOracle.readBoard(new TextDecoder().decode(file.bytes)) : AltiumOracle.readBoard(file.bytes);
+  return {kicad, copper:kicad ? KicadOracle.copper(src) : altiumCopper(src),
+    nets:kicad ? KicadOracle.padNetGroups(src) : AltiumOracle.padNetGroups(src),
+    outline:kicad ? KicadOracle.outline(src) : altiumOutline(src),
+    // Every copper pour record, split planes included (Waffle keeps a split plane as a plane-layer pour).
+    pours:kicad ? src.zones.length : src.polygons.filter(p => /^(TOP|BOTTOM|MID\d+|PLANE\d+)$/i.test(p.layer.replace(/LAYER$/i, ""))).length};
+}
+// The Waffle model against a board read by its oracle: primitives, placement, netlist, outline, pours.
+function sourceChecks(source, model, label) {
+  const nets = compareNets(source.nets, waffleBoardNets(model));
+  return [...primitiveChecks(source.copper, waffleCopper(model), label),
+    check("model.netlist", !nets.missing.length && !nets.extra.length && !nets.renamed.length,
+      {groups:nets.groups, missing:nets.missing.length, extra:nets.extra.length, renamed:nets.renamed.length}, [...nets.diff, ...nets.renamed]),
+    outlineChecks(source.outline, model), polygonChecks(source.pours, model)];
+}
+
 // ------------------------------------------------------------------ outputs
 function generate(model, fixture, layers) {
   const F = AtriumFabOutputs, board = boardOf(model);
@@ -651,19 +670,9 @@ function run(spec) {
 
   // 2. Model against the source read independently.
   stage("model", () => {
-    const pcb = spec.sources.find(f => /\.(pcbdoc|kicad_pcb)$/i.test(f.name));
-    const isKicad = /\.kicad_pcb$/i.test(pcb.name);
-    const src = isKicad ? KicadOracle.readBoard(new TextDecoder().decode(pcb.bytes)) : AltiumOracle.readBoard(pcb.bytes);
-    const source = isKicad ? KicadOracle.copper(src) : altiumCopper(src);
-    results.push(...primitiveChecks(source, waffleCopper(model), fixture.id));
-    const nets = compareNets(isKicad ? KicadOracle.padNetGroups(src) : AltiumOracle.padNetGroups(src), waffleBoardNets(model));
-    results.push(check("model.netlist", !nets.missing.length && !nets.extra.length && !nets.renamed.length,
-      {groups:nets.groups, missing:nets.missing.length, extra:nets.extra.length, renamed:nets.renamed.length},
-      [...nets.diff, ...nets.renamed]));
-    results.push(outlineChecks(isKicad ? KicadOracle.outline(src) : altiumOutline(src), model));
-    // Every copper pour record, split planes included (Waffle keeps a split plane as a plane-layer pour).
-    results.push(polygonChecks(isKicad ? src.zones.length : src.polygons.filter(p => /^(TOP|BOTTOM|MID\d+|PLANE\d+)$/i.test(p.layer.replace(/LAYER$/i, ""))).length, model));
-    if (source.owned) results.push(check("model.pour-strokes", true, source.owned, [], false));
+    const source = oracleBoard(spec.sources.find(f => /\.(pcbdoc|kicad_pcb)$/i.test(f.name)));
+    results.push(...sourceChecks(source, model, fixture.id));
+    if (source.copper.owned) results.push(check("model.pour-strokes", true, source.copper.owned, [], false));
   });
 
   // 2b. ERC and DRC run on the imported design without crashing.
@@ -800,4 +809,5 @@ function applySourceMutation(name, readText) {
 // Model checks only, for a board read from streams (synthetic variants of real boards).
 function altiumModelChecks(src, model) { return primitiveChecks(altiumCopper(src), waffleCopper(model)); }
 
-module.exports = {newlyRed, altiumModelChecks, SOURCE_MUTATIONS, applySourceMutation, _native:{save:nativeSave, open:nativeOpen}, run, verdict, MUTATIONS, TOL, match, face, placementTable, protelGroups, expandRefs, compareNets};
+module.exports = {oracleBoard, sourceChecks, generate, check, match, describe, mod, boardOf,
+  newlyRed, altiumModelChecks, SOURCE_MUTATIONS, applySourceMutation, _native:{save:nativeSave, open:nativeOpen}, run, verdict, MUTATIONS, TOL, face, placementTable, protelGroups, expandRefs, compareNets};

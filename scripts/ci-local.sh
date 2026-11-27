@@ -10,6 +10,10 @@
 #            corpora fetched outside the checkout; import -> model vs an independent reader -> outputs vs
 #            the original tool's files -> render -> native round trip; known failures in
 #            tests/e2e/known-failures.json). Uses the pinned Node (installed like typecheck's).
+#            Then the edit flow on the vendored boards: tests/e2e/edit-flow.py --mutations (import -> edits
+#            through the MCP server -> save back as KiCad and Altium -> each saved file read by the
+#            independent reader -> outputs; known defects in tests/e2e/edit-known-failures.json).
+#            Its full tier (--tier full --fetch) runs the same corpora and is not gated yet.
 #            WAFFLE_E2E_PRIVATE=/folder adds a local private corpus (never printed or committed).
 #   mcp      tests/automation/mcp.py, mcp_runner.py, headless-parity.py, eco-e2e.py
 #            and the feature MCP suites (diff, review, MCAD, authoring, bus route, generic parts, symbol wizard, fab parity, collab relay, Git security, model types, ngspice)
@@ -67,7 +71,8 @@ e2e_full() {
     node=${ATRIUM_CI_CACHE:-$HOME/.cache/atrium-ci}/node-$ver/bin/node
     [[ -x $node ]] || PREFIX=${node:h:h} sh scripts/ci/install-node.sh >&2 || return 1
   fi
-  python3 tests/e2e/run.py --node $node --fetch --mutations
+  python3 tests/e2e/run.py --node $node --fetch --mutations || return 1
+  python3 tests/e2e/edit-flow.py --node $node --mutations
 }
 rust_build() {
   local cargo=${CARGO:-}
