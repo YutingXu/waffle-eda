@@ -854,6 +854,8 @@ globalThis.AtriumPCB = (() => {
       if(type!==12)throw Error("Unsupported binary primitive "+type);
       report("3D bodies");return null;
     }
+    // The frame is intact, so a payload too short for its kind's fixed fields drops only this record.
+    if(geom.length<{1:45,2:60,3:31,4:33,5:21,6:37}[type]){report("Truncated binary "+["","arc","pad","via","track","text","fill"][type]+" records");return null;}
     const v=view(geom),U=i=>v.getUint16(i,true),L=i=>tickMM(v.getInt32(i,true)),D=i=>v.getFloat64(i,true);
     const position=i=>[L(i),-L(i+4)];
     const l=layer(geom[0]),owner=U(7),net=U(3),polygon=U(5);

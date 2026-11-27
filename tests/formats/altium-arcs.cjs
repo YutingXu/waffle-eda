@@ -297,6 +297,32 @@ require("../../app/formats/sch-patch.js");
   const classes = readClasses(classRecord);
   assert.deepEqual(classes, readClasses(Buffer.concat([Buffer.alloc(5, 1), classRecord]).subarray(5)));
   assert.ok(classes.some(line => line.includes("\u00e9")));
+  // A well-framed record whose payload is too short for its kind drops only that record:
+  // the tracks before and after it, and the wire after a short binary pin, are still read.
+  const primitive = (type, data) => Buffer.concat([Buffer.from([type]), pack(4, data)]);
+  const fullTrack = (x2, y2) => {
+    const g = Buffer.alloc(49); g[0] = 1; g.writeUInt16LE(65535, 3); g.writeUInt16LE(65535, 5); g.writeUInt16LE(65535, 7);
+    [0, 0, x2, y2, 100000].forEach((v, k) => g.writeInt32LE(v, 13 + 4 * k));
+    return primitive(4, g);
+  };
+  const shortTracks = Buffer.concat([fullTrack(1000000, 0), primitive(4, Buffer.alloc(8)), fullTrack(0, 1000000)]);
+  const pcb = AtriumPCB.read("Short.PcbDoc", new Map([["board6/data", board], ["tracks6/data", shortTracks]]), null);
+  assert.deepEqual(pcb.documents[0].items.filter(i => i.kind === "track").map(t => t.sourceRecord), ["tracks6/data#0", "tracks6/data#2"]);
+  assert.ok(pcb.notes.includes("Truncated binary track records (1)."));
+  // A pad is its name, three auxiliary blocks, the geometry and the pad stack.
+  const shortPad = Buffer.concat([primitive(2, Buffer.from([1, 49])), ...[0, 0, 0, 0, 0].map(() => pack(4, Buffer.alloc(8)))]);
+  for (const [stream, bytes] of [["arcs6/data", primitive(1, Buffer.alloc(8))], ["pads6/data", shortPad], ["vias6/data", primitive(3, Buffer.alloc(8))],
+    ["texts6/data", primitive(5, Buffer.alloc(8))], ["fills6/data", primitive(6, Buffer.alloc(8))]]) {
+    const r = AtriumPCB.read("Short.PcbDoc", new Map([["board6/data", board], [stream, bytes]]), null);
+    assert.ok(r.notes.some(n => /^Truncated binary \w+ records \(1\)\.$/.test(n)), stream + " short record is reported, not thrown");
+  }
+  const pin = Buffer.alloc(8); pin.writeInt32LE(2, 0);
+  const schematic = Buffer.concat([pack(4, Buffer.from("HEADER=Protel for Windows - Schematic Capture Binary File Version 5.0\0")),
+    pack(4, Buffer.from("|RECORD=31\0")), pack(4, pin, 1),
+    pack(4, Buffer.from("|RECORD=27|LOCATIONCOUNT=2|X1=0|Y1=0|X2=100|Y2=0|OWNERINDEX=-1\0"))]);
+  const sch = AtriumSCH.read("Short.SchDoc", new Map([["fileheader", schematic]]));
+  assert.equal(sch.documents[0].items.filter(i => i.kind === "wire").length, 1);
+  assert.ok(sch.notes.includes("Omitted 1 \u00d7 record type damaged binary pin."));
 }
 // Altium omits zero-valued ordinates, even when both coordinates of a vertex are zero.
 {
