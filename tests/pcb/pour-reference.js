@@ -247,11 +247,11 @@ globalThis.AtriumPourReference = (() => {
     }
     return out;
   }
-  // The pour predicate (classes: 0 polygon, 1 board, 2 obstacle, 3 relief annulus, 4 spoke, 5 relief pad, 6.. earlier pours).
+  // The pour predicate (classes: 0 polygon, 1 board, 2 obstacle, 3 relief annulus, 4 spoke, 5 same-net clearance a spoke crosses, 6.. earlier pours).
   const pourPredicate = (K, hasBoard) => w => {
     if (w[0] === 0 || (hasBoard && w[1] === 0) || w[2] > 0) return false;
     for (let c = 6; c < K; c++) if (w[c] > 0) return false;
-    return w[3] === 0 || (w[4] !== 0 && w[5] === 0);
+    return w[4] !== 0 || (w[3] === 0 && w[5] === 0);
   };
 
   // Every check on one solved task. solved: {islands} (any order); base: the solution of the same

@@ -641,12 +641,12 @@ globalThis.AtriumPolygonPour=(()=>{
       return false;
     }
     // The pour predicate. Classes: 0 polygon, 1 board, 2 obstacle, 3 relief
-    // annulus, 4 spoke, 5 relief pad, 6.. earlier pours.
+    // annulus, 4 spoke, 5 same-net clearance (a spoke crosses it), 6.. earlier pours.
     function pourInside(K,hasBoard){
       return w=>{
         if(w[0]===0||(hasBoard&&w[1]===0)||w[2]>0)return false;
         for(let c=6;c<K;c++)if(w[c]>0)return false;
-        return w[3]===0||(w[4]!==0&&w[5]===0);
+        return w[4]!==0||(w[3]===0&&w[5]===0);
       };
     }
     // solve(task): the transferable part of a pour. task = {shapes:[{cls,
@@ -1535,25 +1535,29 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     return {decide,power,currentOf,ipcWidth,footprint,set,compiled};
   }
-  // Same-net pads and vias of a polygon on its layer, as decide() inputs.
-  function connectTargets(doc,defs,P,visit,items){
-    const layer=P.layer,net=P.net;if(!net)return;
+  // A same-net pad or via of a polygon on its layer as a decide() input, or null. With `reached`
+  // (the polygon outline flattened), only a pad the outline reaches (centre or a corner of the pad box).
+  function connectTarget(P,p,parent,id,slot,index,fp,def,reached){
+    const layer=P.layer,net=P.net;if(!net)return null;
     const {padLayer,onLayer}=appearance();
+    const l=padLayer(parent,p);if(!onLayer(l,layer,p))return null;
+    const itemNet=parent&&own(parent.pinNets,p.number)?parent.pinNets[p.number]:p.net||"";if(itemNet!==net)return null;
+    let pc=padOnLayer(p,parent,layer);if(!pc||p.holeOnly||pc.drill>=Math.min(pc.w,pc.h)-1e-9||(pc.drill>0&&p.plated===false))return null;
+    const kind=p.kind==="via"?"via":pc.drill>0?"th":"smd";
+    if(P.powerPlane&&pc.drill>0)pc=drilledShape(p,pc,P.powerPlane[kind==="via"?"via":"pad"]?.expansion||0);
+    if(reached){
+      const r=Math.max(pc.w,pc.h)/2,[x,y]=pc.center;
+      if(!(ringHas(reached,x,y)||ringHas(reached,x-r,y-r)||ringHas(reached,x+r,y-r)||ringHas(reached,x+r,y+r)||ringHas(reached,x-r,y+r)))return null;
+    }
+    const key=parent?parent.id+":"+(p.number!=null&&p.number!==""?p.number:"#"+index):id;
+    const label=parent?parent.ref+"-"+(p.number||"#"+index):kind==="via"?"Via":"Pad "+(p.number||"");
+    return {P,kind,net,layer,parent,pad:p,index,fp,def,pc,key,label,id,slot};
+  }
+  // Same-net pads and vias of a polygon on its layer that its outline reaches, as decide() inputs.
+  function connectTargets(doc,defs,P,visit,items){
+    if(!P.net)return;
     const outline=P.outline.flatMap(q=>[+q[0],+q[1]]);if(outline.length<6)return;
-    // Only pads the polygon outline reaches (centre or a corner of the pad box).
-    const reaches=pc=>{const r=Math.max(pc.w,pc.h)/2,[x,y]=pc.center;
-      return ringHas(outline,x,y)||ringHas(outline,x-r,y-r)||ringHas(outline,x+r,y-r)||ringHas(outline,x+r,y+r)||ringHas(outline,x-r,y+r);};
-    const take=(p,parent,id,slot,index,fp,def)=>{
-      const l=padLayer(parent,p);if(!onLayer(l,layer,p))return;
-      const itemNet=parent&&own(parent.pinNets,p.number)?parent.pinNets[p.number]:p.net||"";if(itemNet!==net)return;
-      let pc=padOnLayer(p,parent,layer);if(!pc||p.holeOnly||pc.drill>=Math.min(pc.w,pc.h)-1e-9||(pc.drill>0&&p.plated===false))return;
-      const kind=p.kind==="via"?"via":pc.drill>0?"th":"smd";
-      if(P.powerPlane&&pc.drill>0)pc=drilledShape(p,pc,P.powerPlane[kind==="via"?"via":"pad"]?.expansion||0);
-      if(!reaches(pc))return;
-      const key=parent?parent.id+":"+(p.number!=null&&p.number!==""?p.number:"#"+index):id;
-      const label=parent?parent.ref+"-"+(p.number||"#"+index):kind==="via"?"Via":"Pad "+(p.number||"");
-      visit({P,kind,net,layer,parent,pad:p,index,fp,def,pc,key,label,id,slot});
-    };
+    const take=(p,parent,id,slot,index,fp,def)=>{const o=connectTarget(P,p,parent,id,slot,index,fp,def,outline);if(o)visit(o);};
     for(const i of items||doc.items||[]){
       if(i.kind==="via")take(i,null,i.id,0);
       else if(i.kind==="pad")take(i,null,i.id,0);
@@ -1580,6 +1584,43 @@ globalThis.AtriumPolygonPour=(()=>{
   function spokeOrigin(pc,dir){
     if(!pc.slot)return pc.center;
     return pc.core.reduce((a,b)=>a[0]*dir[0]+a[1]*dir[1]>b[0]*dir[0]+b[1]*dir[1]?a:b);
+  }
+  // A rectangle (four corners, either winding) grown by d with square corners (flat), or null for
+  // any other quadrilateral.
+  function mitred(core,d){
+    if(!(d>0))return null;
+    const n=core.length,s=Math.sign(signedArea(core.flatMap(q=>[+q[0],+q[1]])));if(!s)return null;
+    const out=[];
+    for(let i=0;i<n;i++){
+      const a=core[(i+n-1)%n],p=core[i],b=core[(i+1)%n];
+      const ux=p[0]-a[0],uy=p[1]-a[1],vx=b[0]-p[0],vy=b[1]-p[1],lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
+      if(!(lu>1e-9&&lv>1e-9)||Math.abs(ux*vx+uy*vy)>1e-6*lu*lv)return null;
+      // Outward normals of the two edges (the interior is on the left of a positive ring).
+      const n1=[s*uy/lu,-s*ux/lu],n2=[s*vy/lv,-s*vx/lv];
+      out.push(p[0]+d*(n1[0]+n2[0]),p[1]+d*(n1[1]+n2[1]));
+    }
+    return out;
+  }
+  // How far a spoke of half width cw runs from origin along dir before it has left the air gap ring
+  // `gap` (flat): the farthest point of the ring within the spoke's band (the crossings of its
+  // centre line and both edges, and the ring's vertices between them); null when no line crosses it.
+  function spokeReach(gap,origin,dir,cw){
+    if(!gap||gap.length<6)return null;
+    const n=gap.length>>1,nx=-dir[1],ny=dir[0];let far=-Infinity,cross=false;
+    for(let i=0;i<n;i++){
+      const ax=gap[2*i]-origin[0],ay=gap[2*i+1]-origin[1];
+      if(Math.abs(ax*nx+ay*ny)<=cw)far=Math.max(far,ax*dir[0]+ay*dir[1]);
+    }
+    for(const s of [-cw,0,cw]){
+      const ox=origin[0]+nx*s,oy=origin[1]+ny*s;
+      for(let i=0,j=n-1;i<n;j=i++){
+        const ax=gap[2*j]-ox,ay=gap[2*j+1]-oy,ex=gap[2*i]-gap[2*j],ey=gap[2*i+1]-gap[2*j+1];
+        const den=dir[0]*ey-dir[1]*ex;if(Math.abs(den)<1e-15)continue;
+        const u=(dir[1]*ax-dir[0]*ay)/den;if(u<0||u>1)continue;
+        const t=(ax*ey-ay*ex)/den;if(t>far)far=t;cross=true;
+      }
+    }
+    return cross&&far>0?far:null;
   }
   // Relief spokes that reach the stored pour, per relief pad (starved thermals).
   function thermals(doc,defs,options={}){
@@ -1614,7 +1655,7 @@ globalThis.AtriumPolygonPour=(()=>{
     return ins;
   }
 
-  const CLS={A:0,B:1,O:2,R:3,S:4,P:5};
+  const CLS={A:0,B:1,O:2,R:3,S:4,N:5};
   const HATCH_MAX=60000,HATCH_SCAN=2000000;
   // pour(doc, defs, polygon, options) -> regions in AtriumPCBPours format,
   // each tagged with `polygon` (the source item id) and `links` (the
@@ -1724,10 +1765,12 @@ globalThis.AtriumPolygonPour=(()=>{
     // SAFE (20 nm) covers rounding to the 10 nm integer grid, so measured
     // clearance is never below the rule, and copper never rounds into a zero-gap
     // obstacle (a plane void) where the keep-out check would see it.
-    function obstacle(core,radius,c){
+    // cls CLS.N: the clearance kept from same-net copper the pour does not pour over (Altium's
+    // Don't Pour Over Same Net Objects). A relief spoke still crosses it, as Altium's spoke tracks do.
+    function obstacle(core,radius,c,cls=CLS.O){
       if(trace)return;
       const flat=rounded(core,radius+c+safe,tol,"outer",arcSink);
-      if(flat&&near(boxOf(flat)))add(CLS.O,flat);
+      if(flat&&near(boxOf(flat)))add(cls,flat);
     }
     function anchor(core,radius,link,raw){
       if(trace)return;
@@ -1743,39 +1786,49 @@ globalThis.AtriumPolygonPour=(()=>{
       const reach=arc?(radius+safe+TOUCH+Math.max(0,finite(maxRule)?maxRule:gap(item.points)))/Math.cos(Math.PI/256)+tol+TRACK_CHORD_ERROR:w+maxRule*2+1;
       for(const pts of pathRuns(item,parent,arc,clipBox(work,reach))){
         if(!arc&&!near(clipBox(Atrium.bounds(pts),reach)))continue;
-        const close=closed&&pts.length>2,filled=fill&&close,avoid=!same||!P.pourOverSameNet;
+        const close=closed&&pts.length>2,filled=fill&&close,avoid=!same||!P.pourOverSameNet,cls=same?CLS.N:CLS.O;
         const c=filled&&avoid?gap(pts):0;
         for(let i=1;i<pts.length+Number(close);i++){
           const s=[pts[i-1],pts[i%pts.length]];
           if(same&&w>0)anchor(s,w/2,link);
-          if(avoid&&(w>0||filled))obstacle(s,radius,filled?c:gap(s));
+          if(avoid&&(w>0||filled))obstacle(s,radius,filled?c:gap(s),cls);
         }
         if(!filled)continue;
         let flat=pts.flat();if(same)anchor(null,0,link,flat);
         if(!avoid)continue;
         if(signedArea(flat)<0)flat=reversed(flat);
         const ring=offsetRing(flat,radius+c+safe,tol,arcSink);
-        if(ring&&near(boxOf(ring)))put({cls:CLS.O,flat:ring,av:ring.av,oriented:true});
+        if(ring&&near(boxOf(ring)))put({cls,flat:ring,av:ring.av,oriented:true});
       }
     }
+    // A relief: the land grown by the air gap is cleared (CLS.R) except for the spokes (CLS.S).
+    // As in Altium, whose spokes are tracks from the land's centre, a spoke runs from the centre
+    // (a slot's end) across the land to 1 µm past its own air gap, and the land itself is not
+    // cleared from it: the stored fill holds the spokes over the land. A spoke stops at its own
+    // gap's edge, so it never bridges the air gap of another same-net land nearby.
+    // The land's anchors are probes 1 µm beyond each spoke's end: copper connects to the land only
+    // through a spoke that reaches the copper past the gap, and spokes that reach none (with Remove
+    // Dead Copper) go, as Altium draws no spoke there.
     function relief(pc,d,link){
-      const airGap=d.airGap,reach=Math.hypot(pc.w,pc.h)/2+airGap+Math.max(d.spokeWidth,airGap)+.05;
-      add(CLS.R,rounded(pc.core,pc.radius+airGap,tol,"outer",arcSink));
-      const pad=rounded(pc.core,pc.radius,tol,"inner");
-      if(pad){
-        if(P.powerPlane){
-          // A negative plane has no separate land flash. The inner contour of
-          // its thermal aperture is copper, including the mouth of the barrel.
-          put({cls:CLS.R,flat:signedArea(pad)>0?reversed(pad):pad,oriented:true});
-        }else add(CLS.P,pad);
+      const airGap=d.airGap,cw=d.spokeWidth/2,fallback=Math.hypot(pc.w,pc.h)/2+airGap+Math.max(d.spokeWidth,airGap)+.05;
+      // A rectangular land's air gap keeps the land's square corners, as Altium cuts it.
+      const gap=!P.powerPlane&&pc.core.length===4&&!(pc.radius>1e-9)&&mitred(pc.core,airGap)||rounded(pc.core,pc.radius+airGap,tol,"outer",arcSink);
+      add(CLS.R,gap);
+      if(P.powerPlane){
+        // A negative plane has no separate land flash. The inner contour of
+        // its thermal aperture is copper, including the mouth of the barrel.
+        const pad=rounded(pc.core,pc.radius,tol,"inner");
+        if(pad)put({cls:CLS.R,flat:signedArea(pad)>0?reversed(pad):pad,oriented:true});
       }
-      const cw=d.spokeWidth/2,base=pc.angle+(d.angle===45?45:0);
+      const base=pc.angle+(d.angle===45?45:0),probes=[];
       for(let k=0;k<4;k+=d.entries===2?2:1){
         const angle=base+k*90,dir=angle?Atrium.rotate([1,0],angle):[1,0],origin=spokeOrigin(pc,dir);
-        const frame={x:origin[0],y:origin[1],angle};
+        const frame={x:origin[0],y:origin[1],angle},far=P.powerPlane?null:spokeReach(gap,origin,dir,cw),reach=far==null?fallback:far+.001;
         add(CLS.S,[[0,-cw],[reach,-cw],[reach,cw],[0,cw]].flatMap(q=>world(q[0],q[1],frame)));
+        if(far!=null){const h=cw/2;probes.push([[far+.002,-h],[far+.003,-h],[far+.003,h],[far+.002,h]].flatMap(q=>world(q[0],q[1],frame)));}
       }
-      anchor(pc.core,pc.radius,link);
+      if(probes.length)for(const p of probes)anchor(null,0,link,p);
+      else anchor(pc.core,pc.radius,link);
     }
     function pad(p,parent,link,index){
       const {padLayer,onLayer}=appearance(),layerName=padLayer(parent,p);
@@ -1801,7 +1854,14 @@ globalThis.AtriumPolygonPour=(()=>{
       const isVia=p.kind==="via";
       if(samePolygonNet(itemNet)){
         const key=parent?parent.id+":"+(p.number!=null&&p.number!==""?p.number:"#"+index):link[0];
-        const d=decided.get(key)||{style:isVia?"direct":"relief",spokeWidth:P.reliefConductorWidth,entries:P.reliefEntries,angle:P.reliefAngle,airGap:P.reliefAirGap};
+        // A same-net land the outline does not reach (its centre and corners lie outside) can still
+        // meet the copper: it connects by its own rule too.
+        let d=decided.get(key);
+        if(!d&&connect){
+          const fp=parent?defs?.get?.(parent.def)?.footprint:null,o=connectTarget(P,p,parent,link[0],link[1],index,fp,parent?defs?.get?.(parent.def):undefined,null);
+          if(o){d=connect.decide(o);decided.set(key,d);}
+        }
+        d||={style:isVia?"direct":"relief",spokeWidth:P.reliefConductorWidth,entries:P.reliefEntries,angle:P.reliefAngle,airGap:P.reliefAirGap};
         if(d.style==="relief")relief(pc,d,link);
         else if(d.style==="none")obstacle(pc.core,pc.radius,clearance(itemNet,isVia?"via":pc.drill>0?"th":"smd",p,parent,pc.center,pc.core,pc.radius));
         else anchor(pc.core,pc.radius,link);
@@ -1869,8 +1929,9 @@ globalThis.AtriumPolygonPour=(()=>{
             if(s.kind==="path")path(s,sNet,link,keep,i);
             else if(s.kind==="circle"){
               const c=world(s.x,s.y,i),r=(+s.r||0)+(+s.width||0)/2;
-              if(samePolygonNet(sNet)){anchor([c],r,link);if(P.pourOverSameNet)return;}
-              obstacle([c],r,keep?clearance(""):clearance(sNet,s.fill?"region":"track",s,i,c));
+              const same=samePolygonNet(sNet);
+              if(same){anchor([c],r,link);if(P.pourOverSameNet)return;}
+              obstacle([c],r,keep?clearance(""):clearance(sNet,s.fill?"region":"track",s,i,c),same?CLS.N:CLS.O);
             }else if(s.kind==="text"&&!keep)text(s.x,s.y,s.angle,s.size,s.text,sNet,s,i);
           });
           break;
@@ -2480,6 +2541,22 @@ globalThis.AtriumPolygonPour=(()=>{
       const dir=sweep<0?-1:1,a0=ang(i0);sweep=Math.abs(sweep);
       if(!(sweep>1e-9&&sweep<TWO-1e-9))continue;
       const rel=a=>wrap(dir*(a-a0));
+      // The arc only moves the run's chords out to the circle: copper nearer the centre than every
+      // chord of the run (a relief spoke running in to the land's centre) cannot meet it.
+      let rIn=Infinity;
+      for(let v=i0;v<i1;v++){
+        const ax=g[2*(v%n)]-cx,ay=g[2*(v%n)+1]-cy,bx=g[2*((v+1)%n)]-cx,by=g[2*((v+1)%n)+1]-cy,ex=bx-ax,ey=by-ay,l=ex*ex+ey*ey;
+        const f=l>0?Math.max(0,Math.min(1,-(ax*ex+ay*ey)/l)):0;rIn=Math.min(rIn,Math.hypot(ax+f*ex,ay+f*ey));
+      }
+      rIn-=2;
+      // The angular stretch of the edge piece from t1 to t2 (relative to the centre) meets the sweep.
+      const meets=(px,py,dx,dy,t1,t2)=>{
+        if(t2<t1)return false;
+        const x1=px+t1*dx,y1=py+t1*dy,x2=px+t2*dx,y2=py+t2*dy;
+        const u=rel(Math.atan2(y1,x1)),dl=dir*Math.atan2(x1*y2-y1*x2,x1*x2+y1*y2);
+        const lo=Math.min(u,u+dl),hi=Math.max(u,u+dl),eps=1e-7;
+        return (hi>eps&&lo<sweep-eps)||(hi-TWO>eps&&lo-TWO<sweep-eps)||(hi+TWO>eps&&lo+TWO<sweep-eps);
+      };
       let clear=true;
       const cA=cell(cx-R,cy-R),cB=cell(cx+R,cy+R);
       for(let a=Math.floor(cA/cols);a<=Math.floor(cB/cols)&&clear;a++)for(let b=cA%cols;b<=cB%cols&&clear;b++){
@@ -2494,11 +2571,12 @@ globalThis.AtriumPolygonPour=(()=>{
           if(!(qa>0)||disc<0)continue;
           const sq=Math.sqrt(disc),t1=Math.max(0,(-qb-sq)/(2*qa)),t2=Math.min(1,(-qb+sq)/(2*qa));
           if(t1>t2)continue;
-          const x1=px+t1*dx,y1=py+t1*dy,x2=px+t2*dx,y2=py+t2*dy;
-          const u=rel(Math.atan2(y1,x1)),dl=dir*Math.atan2(x1*y2-y1*x2,x1*x2+y1*y2);
-          let lo=Math.min(u,u+dl),hi=Math.max(u,u+dl);
-          const eps=1e-7;
-          if((hi>eps&&lo<sweep-eps)||(hi-TWO>eps&&lo-TWO<sweep-eps)||(hi+TWO>eps&&lo+TWO<sweep-eps))clear=false;
+          // Leave out the piece inside the inner circle.
+          const qi=px*px+py*py-rIn*rIn,di=rIn>0?qb*qb-4*qa*qi:-1;
+          if(di>0){
+            const si=Math.sqrt(di),s1=(-qb-si)/(2*qa),s2=(-qb+si)/(2*qa);
+            if(meets(px,py,dx,dy,t1,Math.min(t2,s1))||meets(px,py,dx,dy,Math.max(t1,s2),t2))clear=false;
+          }else if(meets(px,py,dx,dy,t1,t2))clear=false;
         }
       }
       if(!clear)continue;
