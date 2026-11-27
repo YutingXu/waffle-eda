@@ -4,6 +4,8 @@
 //   A. no relay server set: the host's window is the relay; Bob pastes Alice's pairing code into
 //      Join, sends back his reply, Alice pastes it, and Bob gets the project and her edits;
 //   B. a relay server set: the same pairing carries Bob's connection to the relay through Alice.
+//      In A and B, Alice's last change (one the Undo journal missed, published by the audit before
+//      leaving) reaches Bob before her window stops carrying his connection.
 //   C. "Visible on this network": the host's window starts the Linux app's LAN relay
 //      (native/linux/lan_relay.py, on loopback here, the app's bridge stood in for), shows the session
 //      code; Bob finds the session (the mDNS list stood in for), enters the code and joins; joining by
@@ -11,7 +13,11 @@
 //   D. C again with every same-network WebSocket opened by the host, as the Windows app must (a secure
 //      page cannot open ws:// to loopback or the local network): the page side is native/bridge.js's
 //      own lanOpen and lanSocket code, the host is stood in for by real WebSockets in this script, and
-//      host start, find, join by address, a wrong code and "No Waffle session answered" all go through it.
+//      host start, find, join by address, a wrong code and "No Waffle session answered" all go through it;
+//      the listener stalls (SIGSTOP) and resumes: the keepalive finds it, every redial goes through the
+//      host's socket, and Bob is back once it resumes.
+// In C and D, Alice's last change (one the Undo journal missed, published by the audit before leaving)
+// reaches Bob before her leaving ends the session for him.
 // Also checks the Join field's recognition, keyboard-only use (Enter joins), and writes the docs'
 // screenshots in both themes (--shots DIR). Needs playwright-core and Chrome (CHROME=/path).
 //   NODE_PATH=…/node_modules node tests/project/collab-pair-browser.cjs [--shots docs/images | --edit-locks]
@@ -109,6 +115,17 @@ async function pairing(browser, port, relayUrl, label) {
   assert.match(chip, /Bob · /, label + ": Bob is listed with his connection");
   await dialog(A).locator(".collab-chip").first().press("Enter");
   assert.match(await dialog(A).locator(".collab-people + .collab-note").textContent(), /end-to-end encrypted/, label + ": choosing a chip explains it");
+  // Alice changes an item without telling the Undo journal, then leaves: the audit before leaving
+  // publishes it, and it reaches Bob (whose connection runs through her window) before she goes.
+  const quiet = await A.evaluate(() => {
+    const it = AtriumNavHost.project().documents.find(d => d.kind === "pcb").items.find(i => typeof i.x === "number");
+    it.x += 0.125;
+    return {id: it.id, x: it.x};
+  });
+  await A.evaluate(() => AtriumCollabLive.leave());
+  const repaired = await B.waitForFunction(q => AtriumNavHost.project().documents.flatMap(d => d.items).find(i => i.id === q.id)?.x === q.x, quiet, {timeout: 8000}).then(() => true, () => false);
+  assert.ok(repaired, label + ": the audit's repair reached Bob before Alice's window stopped carrying his connection");
+  await B.waitForFunction(() => !AtriumCollabLive.active(), null, {timeout: 15000});
   assert.deepEqual([...alice.errors, ...bob.errors], [], label + ": no page errors");
   await Promise.all([alice.ctx.close(), bob.ctx.close()]);
   return {viaSeen, chip};
@@ -284,10 +301,18 @@ async function hostSockets(ctx, state) {
       ws.onclose = () => { if (sockets.delete(id)) emit(page, {type: "lanSocket", socket: id, event: "close"}); };
     });
   });
+  // While the listener is stopped (state.held), sends stay unconfirmed: no drain, as when the host's
+  // socket cannot write; they drain when it resumes (release).
+  state.held = null;
+  state.release = () => { const held = state.held || []; state.held = null; for (const f of held) f(); };
   await ctx.exposeBinding("testLanPost", ({page}, text) => {
     const m = JSON.parse(text), ws = sockets.get(m.socket);
     if (!ws) return;
-    if (m.action === "lanSend") { ws.send(m.data); emit(page, {type: "lanSocket", socket: m.socket, event: "drain", bytes: m.data.length}); }
+    if (m.action === "lanSend") {
+      ws.send(m.data);
+      const drain = () => emit(page, {type: "lanSocket", socket: m.socket, event: "drain", bytes: m.data.length});
+      if (state.held) state.held.push(drain); else drain();
+    }
     else if (m.action === "lanClose") { sockets.delete(m.socket); ws.close(); }
   });
 }
@@ -295,6 +320,7 @@ const installHostSockets = page => page.evaluate(`(() => {
   const request = (action, payload) => testLanRequest(action, payload), send = text => testLanPost(text), stringify = JSON.stringify;
   ${LAN_SOCKET_CODE}
   window.__testLanEvent = lanSocketEvent;
+  window.__testLanSockets = lanSockets;
   window.AtriumHost.lanSocket = async () => ${LAN_SOCKET_CLASS};
   // Any ws:// the page opened itself is recorded: on Windows it would be blocked.
   const Plain = window.WebSocket;
@@ -368,16 +394,57 @@ async function sameNetwork(browser, port, viaHost = false) {
     const lan = "ws://127.0.0.1:" + state.started.port;
     assert.ok(state.connects.filter(u => u === lan).length >= 5, "host start, find and join (info, then the session), and the wrong code all went through the host: " + state.connects.join(" "));
     assert.ok(state.connects.includes("ws://127.0.0.1:9"), "so did the address where nothing answered");
+    // The listener stalls (SIGSTOP) and resumes: Bob finds the dead link by the keepalive while the
+    // host's socket holds his unsent bytes (bufferedAmount from drain events stays up), then redials,
+    // every time through the host's socket, and is back on the listener once it resumes.
+    const live = () => B.evaluate(() => { const t = AtriumCollabLive.session()?.t; return {joined: t?.joined?.(), stalls: t?.stats.stalls}; });
+    const buffered = () => B.evaluate(() => [...window.__testLanSockets.values()].reduce((n, s) => n + s.bufferedAmount, 0));
+    assert.equal((await live()).joined, true, "Bob is on the listener");
+    const before = {connects: state.connects.length, stalls: (await live()).stalls};
+    state.held = [];
+    state.proc.kill("SIGSTOP");
+    const stalledAt = Date.now();
+    await B.evaluate(() => { const h = AtriumNavHost, b = h.project().documents.find(d => d.kind === "pcb"); h.edit(() => b.items.push({id: "stalled-via", kind: "via", x: 7, y: 7, diameter: .7})); });
+    let pending = 0;
+    for (let k = 0; k < 150 && (await live()).joined !== false; k++) { pending = Math.max(pending, await buffered()); await new Promise(r => setTimeout(r, 100)); }
+    const detectMs = Date.now() - stalledAt;
+    assert.equal((await live()).joined, false, "the stalled listener is found (" + detectMs + " ms)");
+    assert.ok(detectMs < 10000, "within two beats: " + detectMs + " ms");
+    assert.ok((await live()).stalls > before.stalls, "found by the keepalive, not by a closed socket");
+    assert.ok(pending > 0, "the host's socket held unsent bytes meanwhile (bufferedAmount " + pending + ")");
+    for (let k = 0; k < 60 && state.connects.length === before.connects; k++) await new Promise(r => setTimeout(r, 100));
+    assert.ok(state.connects.length > before.connects, "the redial went through the host's socket");
+    state.proc.kill("SIGCONT"); state.release();
+    const resumedAt = Date.now();
+    for (let k = 0; k < 200 && (await live()).joined !== true; k++) await new Promise(r => setTimeout(r, 100));
+    assert.equal((await live()).joined, true, "back on the listener after it resumed (" + (Date.now() - resumedAt) + " ms)");
+    assert.equal(await buffered(), 0, "the live host sockets drained");
+    await A.waitForFunction(() => AtriumNavHost.project().documents.some(d => d.items.some(i => i.id === "stalled-via")), null, {timeout: 15000});
+    state.stallRound = {detectMs, rejoinMs: Date.now() - resumedAt, redials: state.connects.length - before.connects, pending};
     for (const e of [alice, bob, carol])
       assert.deepEqual((await e.page.evaluate(() => window.__plainSockets)).filter(u => !u.includes(":" + port)), [], "no same-network ws:// opened by the page itself");
   }
+  // Alice changes an item without telling the Undo journal (the audit before leaving finds it), then
+  // leaves: her window was the relay, so the session ends for Bob, with her last change in his copy.
+  const quiet = await A.evaluate(() => {
+    const it = AtriumNavHost.project().documents.find(d => d.kind === "pcb").items.find(i => typeof i.x === "number");
+    it.x += 0.125;
+    return {id: it.id, x: it.x};
+  });
   // Alice leaves: the listener stops.
   const stopped = new Promise(resolve => state.proc.once("close", resolve));
   await A.evaluate(() => AtriumCollabLive.leave());
+  await B.waitForFunction(() => !AtriumCollabLive.active() && /ended the session/.test(document.querySelector(".collab-bar:not([hidden])")?.textContent || ""), null, {timeout: 15000}).catch(() => {});
+  const ended = await B.evaluate(id => ({active: AtriumCollabLive.active(), bar: document.querySelector(".collab-bar:not([hidden])")?.textContent || "",
+    x: AtriumNavHost.project().documents.flatMap(d => d.items).find(i => i.id === id)?.x}), quiet.id);
+  assert.equal(ended.x, quiet.x, "the audit's repair reached Bob before the session ended");
+  assert.equal(ended.active, false, "Alice's leaving ended the session for Bob");
+  assert.match(ended.bar, /Alice ended the session/, "and Bob is told so: " + ended.bar);
   assert.deepEqual([await stopped, state.stopped], [0, true], "the host's leaving stops the listener cleanly");
   assert.equal(await listening(state.started.port), false, "nothing listens after the session");
   assert.deepEqual([...alice.errors, ...bob.errors, ...carol.errors], [], "same network: no page errors");
   await Promise.all([alice.ctx.close(), bob.ctx.close(), carol.ctx.close()]);
+  return state.stallRound;
 }
 
 module.exports = {relay, editor};
@@ -400,8 +467,9 @@ if (require.main === module) (async () => {
     await probe.ctx.close();
     assert.ok(b.viaSeen, "relay: Alice's edit reaches Bob");
     await sameNetwork(browser, port);
-    await sameNetwork(browser, port, true);
-    console.log("collab-pair-browser: ok (pairing through the Share dialog without a server and with a relay, Join recognition, Enter joins and connects, edits travel, people chips explain paths, Test Connection, same network: visible session, code, find, join by address, wrong code, listener stops; the same through the host's sockets (native/bridge.js lanSocket), and nothing answering" + (shots ? ", screenshots" : "") + ")");
+    const stall = await sameNetwork(browser, port, true);
+    console.log("collab-pair-browser: host sockets, listener stalled and resumed: " + JSON.stringify(stall));
+    console.log("collab-pair-browser: ok (pairing through the Share dialog without a server and with a relay, Join recognition, Enter joins and connects, edits travel, people chips explain paths, Test Connection, same network: visible session, code, find, join by address, wrong code, listener stops; the same through the host's sockets (native/bridge.js lanSocket), a stalled listener found and redialled through them, and nothing answering; the host's audit before leaving reaches its guests before the session ends" + (shots ? ", screenshots" : "") + ")");
   } finally {
     await browser.close();
     p.kill();

@@ -139,8 +139,10 @@ function run(seed, mode = "crdt") {
   const note = (k) => { counts[k] = (counts[k] || 0) + 1; };
   // The first replica publishes as the session does: from the Undo journal (AtriumUndoStore.itemEdits),
   // in-place and structural edits scoped ({updates, structure}), the rest with the full diff, and
-  // every patch it receives recorded in the journal before the next range (rememberCursor).
-  const J = R[0];
+  // every patch it receives recorded in the journal before the next range (rememberCursor). In
+  // session mode, on odd seeds that replica is a guest: its journal-published pastes, deletes and
+  // undo made while away must survive its trims (keep) and reach the host.
+  const J = session && seed % 2 ? R[1] : R[0];
   U.reset(); U.mark(J.work); J.cursor = U.itemEdits(J.work).cursor;
   const remember = x => { if (x === J) { U.record(J.work); J.cursor = U.itemEdits(J.work, null, true).cursor; } };
   const journalCommit = x => {

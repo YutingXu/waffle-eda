@@ -800,16 +800,23 @@ globalThis.AtriumCollabPresence = (() => {
       session.objectMotion?.stop();
       for (const t of session.timers) clearInterval(t);
       clearInterval(session.lockBeat);
-      for (const p of session.pairings || []) p.close();
-      session.pairing?.close(); session.hub?.close();
-      if (session.lan) G.AtriumHost?.lanStop?.()?.catch?.(() => {});   // nothing listens once the session ends
+      // Connections this window carries (pairing codes, its hub, the listener on this network) end
+      // only after its last edits (the audit above) and its bye are on their way.
+      let carried = true;
+      const unhost = () => {
+        if (!carried) return;
+        carried = false;
+        for (const p of session.pairings || []) p.close();
+        session.pairing?.close(); session.hub?.close();
+        if (session.lan) G.AtriumHost?.lanStop?.()?.catch?.(() => {});   // nothing listens once the session ends
+      };
       const t = session.t;
       if (!immediate && t?.state === "open") {
-        const stop = setTimeout(() => t.close(), 250);
+        const stop = setTimeout(() => { t.close(); unhost(); }, 250);
         // A host whose window is the relay (on this network, or pairing codes) takes the session with it.
-        t.send("bye", session.host === session.me && (session.lan || session.hub) ? {ended: true} : {}).finally(() => { clearTimeout(stop); t.close(); });
+        t.send("bye", session.host === session.me && (session.lan || session.hub) ? {ended: true} : {}).finally(() => { clearTimeout(stop); t.close(); unhost(); });
       }
-      else t?.close();
+      else { t?.close(); unhost(); }
       renderStrip(); soon(); host?.redraw?.();
     }
     function onState(state, d) {

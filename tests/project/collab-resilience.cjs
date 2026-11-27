@@ -14,12 +14,17 @@
 //   * a host whose window is the relay ends the session for its guests when it leaves: final, said
 //     so, Save As offered; while unreachable the status says it is the host's computer;
 //   * hostile peers: only the verified host can confirm edits, end the session or say it relays;
-//   * energy: the heartbeat rides the transport's beat; an unchanged heartbeat draws nothing.
+//   * energy: the heartbeat rides the transport's beat; an unchanged heartbeat draws nothing;
+//   * with the Undo journal (app/history/undo-store.js) in the editors: a guest's offline pastes,
+//     deletes and personal undo publish from the journal (itemEdits {structure}) and still reach the
+//     host past the bounded log; a copy that no longer fits the session publishes nothing through the
+//     whole-project audit at save; Use the Host's Copy starts a replica whose kept view takes scoped
+//     patches from then on.
 const assert = require("node:assert/strict");
 const vm = require("node:vm"), fs = require("node:fs"), path = require("node:path");
 const root = path.resolve(__dirname, "../..");
 const FILES = ["app/core/uuid-v7.js", "app/core/model.js", "app/formats/format-2-codec.js", "app/project/collab-crdt.js", "app/editor/nav-common.js"];
-const code = Object.fromEntries([...FILES, "app/project/collab-presence.js"].map(f => [f, fs.readFileSync(path.join(root, f), "utf8")]));
+const code = Object.fromEntries([...FILES, "app/history/undo-store.js", "app/project/collab-presence.js"].map(f => [f, fs.readFileSync(path.join(root, f), "utf8")]));
 const tick = () => new Promise(r => setImmediate(r));
 const paint = () => new Promise(r => setTimeout(r, 60));   // the bar repaints 30 ms after a change
 async function until(test, what, n = 400) { for (let i = 0; i < n; i++) { if (test()) return; await tick(); await new Promise(r => setTimeout(r, 2)); } throw Error("timed out: " + what); }
@@ -98,15 +103,17 @@ function network() {
 }
 
 // ---- one editor: the session module in its own context, with a stand-in editor host ------------
-function editor(net, name, project) {
+// o.journal: the real Undo journal, driven as editor.js drives it (mark before an edit, record after
+// it and after a derived patch, a new root for a replaced project).
+function editor(net, name, project, o = {}) {
   const id = "p" + name[0].toUpperCase().repeat(22), {document, area} = dom(), listeners = new Map(), notes = [], acts = [];
-  let current = project;
+  let current = project, U = null;
   const host = {
     project: () => current, revision: () => 1, isDirty: () => false, drag: () => null, tool: () => "select", selection: () => [], defs: () => new Map(),
     docById: id => current.documents.find(d => d.id === id), currentId: () => current.documents[0].id, selectDocument() {}, panes: () => [],
     view: () => ({camera: () => ({cx: 0, cy: 0, scale: 1, flipped: false}), worldToScreen: p => p, screenToWorld: p => p}), canvas: () => null, pointer: () => null,
-    derive(fn) { fn(); }, markUnsaved() {}, info(text) { notes.push(String(text)); }, undoSteps: () => ({history: [], future: []}), redraw() {},
-    async replaceProject(p, o) { if (o.current && !o.current()) return false; current = p; return true; },
+    derive(fn) { fn(); U?.record(current); }, markUnsaved() {}, info(text) { notes.push(String(text)); }, undoSteps: () => ({history: [], future: []}), redraw() {},
+    async replaceProject(p, o) { if (o.current && !o.current()) return false; current = p; if (U) { U.reset(); U.mark(p); } return true; },
     on(type, fn) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(fn); return () => listeners.get(type).delete(fn); },
     registerAction() {}, addRenderer: () => () => {}, act(a) { acts.push(a); }
   };
@@ -115,6 +122,7 @@ function editor(net, name, project) {
     crypto: globalThis.crypto, document, window: null, MutationObserver: class { observe() {} }, requestAnimationFrame: f => setTimeout(f, 0), cancelAnimationFrame: clearTimeout});
   ctx.window = ctx;
   for (const f of FILES) vm.runInContext(code[f], ctx, {filename: f});
+  if (o.journal) { vm.runInContext(code["app/history/undo-store.js"], ctx, {filename: "app/history/undo-store.js"}); U = ctx.AtriumUndoStore; U.mark(current); }
   const prefs = new Map([["collab.realtime", true], ["collab.displayName", name]]), stored = new Map();
   Object.assign(ctx.AtriumNavCommon, {ready: fn => fn(host), toast() {}});
   Object.assign(ctx, {
@@ -128,7 +136,8 @@ function editor(net, name, project) {
   const e = {name, id, ctx, up: true, notes, acts, counts, area, Live: ctx.AtriumCollabLive, parse: vm.runInContext("JSON.parse", ctx),
     get project() { return current; }, set project(p) { current = p; },
     session: () => ctx.AtriumCollabLive.session(),
-    edit(fn) { fn(current); for (const f of listeners.get("change") || []) f(); ctx.AtriumCollabLive.flush(); },
+    edit(fn) { U?.mark(current); fn(current); U?.record(current); for (const f of listeners.get("change") || []) f(); ctx.AtriumCollabLive.flush(); },
+    fire(type, ...args) { for (const f of listeners.get(type) || []) f(...args); },
     beat() { e.o?.onBeat?.(); },
     bar() { const b = area.find(n => n.className === "collab-bar" && !n.hidden); return b ? b.text() : ""; },
     barButton(label) { return area.find(n => n.tagName === "BUTTON" && n.textContent === label); }};
@@ -152,7 +161,7 @@ const kvCount = e => e.project.documents.find(d => d.id === "doc-pcb").items.fil
 const deleteKv = (e, n) => e.edit(p => { const d = p.documents.find(x => x.id === "doc-pcb"); let k = 0; d.items = d.items.filter(i => !(/^kv/.test(i.id) && k++ < n)); });
 
 async function pair(vias, o = {}) {
-  const net = network(), H = editor(net, "Host", fixture(vias)), G = editor(net, "Guest", globalThis.Atrium.project("Mine", []));
+  const net = network(), H = editor(net, "Host", fixture(vias), o), G = editor(net, "Guest", globalThis.Atrium.project("Mine", []), o);
   for (const [e, f] of [[H, o.hostMute], [G, o.guestMute]]) if (f) e.mute = f;
   await H.Live.start("wss://relay.test", "ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2-3456", o.start);
   await G.Live.join("wss://relay.test", "ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2-3456", {host: H.id, salt: "S".repeat(22)});
@@ -184,6 +193,45 @@ async function lossScenario(variant) {
   assert.ok(G.session().r.stats().log <= G.ctx.AtriumCollabCRDT.LIMITS.log >> 1, "trimmed once confirmed");
   await paint();
   assert.equal(G.bar(), "", "no notice");
+  H.Live.leave(); G.Live.leave();
+}
+
+// lossScenario with the Undo journal: away from the host (or into a socket that is already dead),
+// the guest pastes a block past the bounded log, deletes items and undoes that, and moves one; the
+// pastes and deletes publish from the journal ({structure}) and its personal undo from the CRDT. Its
+// heartbeat trims meanwhile. On return the host holds every one of these edits and both converge.
+async function journalScenario(variant) {
+  const {net, H, G} = await pair(200, {journal: true});
+  const S = G.session(), r = S.r, vv0 = r.vv()[G.id] || 0, paths = [];
+  const publish = r.commit;
+  r.commit = (next, options = {}) => { paths.push(options.structure?.length ? "structure" : options.updates ? "updates" : "full"); return publish(next, options); };
+  const pcb = e => e.project.documents.find(d => d.id === "doc-pcb");
+  if (variant === "inFlight") G.lossy = true; else net.online("Guest", false);
+  // A pasted block between existing items (4,300 vias: past LIMITS.log on its own).
+  G.edit(p => { const d = p.documents.find(x => x.id === "doc-pcb"); d.items.splice(50, 0, ...Array.from({length: 4300}, (_, i) => ({id: "pasted" + i, kind: "via", x: i % 90, y: 60 + Math.floor(i / 90), diameter: .4}))); });
+  if (variant === "inFlight") { await tick(); net.online("Guest", false); G.lossy = false; }
+  deleteKv(G, 30);
+  assert.ok(G.Live.undo(false), "personal undo while away");
+  deleteKv(G, 5);
+  G.edit(p => { p.documents.find(d => d.id === "doc-pcb").items.find(i => i.id === "v1").x = 4.5; });
+  // (Personal undo first flushes the journal: an empty range, "updates".)
+  assert.deepEqual(paths, ["structure", "structure", "updates", "structure", "updates"], variant + ": pastes and deletes published from the journal");
+  assert.equal(kvCount(G), 195);
+  G.beat(); G.beat();
+  assert.ok(r.stats().log >= r.ownSeq() - vv0 && r.ownSeq() - vv0 >= 4300, variant + ": its unconfirmed edits stay in its log through the trim (" + r.stats().log + ")");
+  assert.equal(pcb(H).items.length, 201, "nothing reached the host");
+  net.online("Guest", true);
+  await until(() => JSON.stringify(H.session().r.vv()) === JSON.stringify(G.session().r.vv()), variant + ": the vectors agree", 2000);
+  assert.equal(H.session().r.vv()[G.id], G.session().r.ownSeq(), "the host holds every edit the guest made");
+  const C = H.ctx.AtriumCollabCRDT;
+  assert.equal(C.canon(H.project), C.canon(G.project), variant + ": the editors converge");
+  assert.equal(C.canon(H.project), C.canon(H.session().r.project()), "the host's editor matches its replica");
+  assert.equal(pcb(H).items.filter(i => /^pasted/.test(i.id)).length, 4300);
+  assert.equal(kvCount(H), 195);
+  assert.equal(pcb(H).items.find(i => i.id === "v1").x, 4.5);
+  assert.equal(pcb(H).items.findIndex(i => i.id === "pasted0"), pcb(G).items.findIndex(i => i.id === "pasted0"), "the block sits where it was pasted");
+  H.beat(); await tick(); await tick(); G.beat();
+  assert.ok(G.session().r.stats().log <= G.ctx.AtriumCollabCRDT.LIMITS.log >> 1, "trimmed once confirmed");
   H.Live.leave(); G.Live.leave();
 }
 
@@ -226,11 +274,30 @@ async function testCap() {
   await tick(); await tick();
   assert.equal(kvCount(H), 40100, "none of the stranded edits reached the host");
   assert.equal(H.project.name, "Shared");
+  // A change the journal missed is found by the whole-project audit at save, kept in this copy and
+  // counted, and not published either.
+  G.project.name = "found by the audit";
+  G.fire("dirty", false);
+  await paint();
+  assert.equal(S.r.stats().repairs, 1, "the audit at save found the change");
+  assert.equal(H.project.name, "Shared", "a copy that no longer fits the session publishes nothing through the audit");
+  assert.ok(!net.log.some(m => m.from === "Guest" && m.kind === "ops" && JSON.stringify(m.body).includes("found by the audit")));
+  const old = S.r, oldStats = JSON.stringify(old.stats());
   G.barButton("Use the Host's Copy").onclick();
   await until(() => !G.session().diverged && kvCount(G) === 40100, "the host's copy replaced this one");
   await paint();
   assert.equal(G.bar(), "");
   assert.equal(G.project.documents.find(d => d.id === "doc-pcb").items.find(i => i.id === "v1").x, 9);
+  // A new replica with its own view: the host's next edits patch it scoped, the old one is done.
+  const fresh = G.session().r, C = G.ctx.AtriumCollabCRDT;
+  assert.notEqual(fresh, old, "Use the Host's Copy starts a new replica");
+  assert.equal(C.canon(G.project), C.canon(fresh.project()), "the editor holds the new replica's view");
+  const refreshed = fresh.stats().refreshed;
+  H.edit(p => { const d = p.documents.find(x => x.id === "doc-pcb"); d.items.find(i => i.id === "v1").x = 11; d.items.push({id: "after-reset", kind: "via", x: 1, y: 1, diameter: .5}); });
+  await until(() => G.project.documents.find(d => d.id === "doc-pcb").items.some(i => i.id === "after-reset"), "the host's edit after the reset arrives");
+  assert.ok(fresh.stats().refreshed > refreshed, "received scoped on the new replica's view (" + JSON.stringify(fresh.stats()) + ")");
+  assert.equal(C.canon(G.project), C.canon(fresh.project()), "and the editor still matches it");
+  assert.equal(JSON.stringify(old.stats()), oldStats, "the replaced replica takes nothing more");
   // Edits from here on reach the host again (its sequence continues from what the host holds).
   G.edit(p => { p.name = "after the reset"; });
   await until(() => H.project.name === "after the reset", "a new edit reaches the host");
@@ -306,11 +373,13 @@ async function testEnergy() {
   const watchdog = setTimeout(() => { console.error("collab-resilience timed out"); process.exit(1); }, 240000);
   await lossScenario("offlineKnown");
   await lossScenario("inFlight");
+  await journalScenario("offlineKnown");
+  await journalScenario("inFlight");
   await testOlderHost();
   await testHostEnds();
   await testHostile();
   await testEnergy();
   await testCap();
   clearTimeout(watchdog);
-  console.log("collab-resilience: ok (offline and in-flight edits past the bounded log reach the host, host confirmation, older host, cap notice with Save As and the host's copy, host-relayed session ends, hostile confirmations and endings, quiet heartbeat)");
+  console.log("collab-resilience: ok (offline and in-flight edits past the bounded log reach the host, host confirmation, older host, cap notice with Save As and the host's copy, host-relayed session ends, hostile confirmations and endings, quiet heartbeat; with the Undo journal: offline and in-flight pastes, deletes and undo past the bounded log reach the host; no audit publication from a copy past the cap; a scoped view after Use the Host's Copy)");
 })().catch(e => { console.error(e); process.exit(1); });
