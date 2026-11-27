@@ -510,6 +510,11 @@ globalThis.AtriumKiCad = (() => {
       const layers=d>0?["*.Cu","*.Mask"]:surf?[l,surf+"Paste",surf+"Mask"]:[l];
       if(d>0 && !npth && layer!=="Multi")addNote("Drilled pads use through plating on all copper layers. Confirm their source pad stacks.");
       const s=(o.shape||"round").toLowerCase();
+      // A slot (slotLength along slotAngle from the pad's X axis) is KiCad's oval drill, sized along the
+      // pad's axes. Off-axis slots in a round or polygon pad turn the pad and counter-turn its outline.
+      const slot=d>0&&o.slotLength>d+1e-6,across=slot?(((o.slotAngle||0)%180)+180)%180:0;
+      let turn=slot&&Math.abs(across-90)>1e-6&&across>1e-6&&180-across>1e-6?o.slotAngle:0;
+      const spin=v=>turn?A.rotate(v,-turn):v;
       let shape,extra="",size=[w,h];
       if(["rect","rectangle"].includes(s))shape="rect";
       else if(["rounded","roundedrect","roundrect"].includes(s)){shape="roundrect";extra=" (roundrect_rratio "+n(A.padCornerRatio(o))+")";}
@@ -518,7 +523,7 @@ globalThis.AtriumKiCad = (() => {
         // Custom polygon pads (footprint editor, KiCad and EasyEDA imports): one polygon primitive
         // around a minimal anchor, so the copper is exactly the stored outline.
         shape="custom";const anchor=Math.max(d,.01);size=[anchor,anchor];
-        extra=" (options (clearance outline) (anchor circle)) (primitives (gr_poly (pts "+o.poly.map(v=>"(xy "+point(v)+")").join(" ")+") (width 0) (fill yes)))";
+        extra=" (options (clearance outline) (anchor circle)) (primitives (gr_poly (pts "+o.poly.map(v=>"(xy "+point(spin(v))+")").join(" ")+") (width 0) (fill yes)))";
       }
       else if(["round","circle","oval","ellipse","octagon","octagonal"].includes(s)){
         // KiCad's oval is a capsule. Waffle displays an ellipse. A custom
@@ -528,14 +533,20 @@ globalThis.AtriumKiCad = (() => {
           const t=Math.min(w,h)*.25,x=w/2,y=h/2;vertices=[[-x+t,-y],[x-t,-y],[x,-y+t],[x,y-t],[x-t,y],[-x+t,y],[-x,y-t],[-x,-y+t]];
         }else{vertices=Array.from({length:64},(_,i)=>[w/2*Math.cos(i*Math.PI/32),h/2*Math.sin(i*Math.PI/32)]);addNote("Elliptical pads with unequal axes use 64-sided custom outlines.");}
         const anchor=Math.max(d,Math.min(w,h)*.25);size=[anchor,anchor];
-        extra=" (options (clearance outline) (anchor circle)) (primitives (gr_poly (pts "+vertices.map(v=>"(xy "+point(v)+")").join(" ")+") (width 0) (fill yes)))";
+        extra=" (options (clearance outline) (anchor circle)) (primitives (gr_poly (pts "+vertices.map(v=>"(xy "+point(spin(v))+")").join(" ")+") (width 0) (fill yes)))";
       }else{addNote("Unsupported pad shape "+s+" omitted.");return "";}
+      if(turn&&shape!=="circle"&&shape!=="custom"){turn=0;addNote("Slots at an angle to a rectangular pad's sides follow the nearest pad axis. Check their drill in KiCad.");}
+      const along=!slot||(turn?true:across<45||across>135);
+      const drill=!d?"":slot?" (drill oval "+(along?n(o.slotLength)+" "+n(d):n(d)+" "+n(o.slotLength))+")":" (drill "+n(d)+")";
       counts.pads++;
-      return "(pad "+q(npth?"":o.number??"")+" "+type+" "+shape+" "+at(p,(parent.angle||0)+(o.angle||0),source?observer?.precision?.angle(source):undefined)+" (size "+point(size)+")"+(d?" (drill "+n(d)+")":"")+" (layers "+layers.map(q).join(" ")+")"+(net?" (net "+netId.get(net)+" "+q(net)+")":"")+extra+" "+stamp(key)+")";
+      return "(pad "+q(npth?"":o.number??"")+" "+type+" "+shape+" "+at(p,(parent.angle||0)+(o.angle||0)+turn,source&&!turn?observer?.precision?.angle(source):undefined)+" (size "+point(size)+")"+drill+" (layers "+layers.map(q).join(" ")+")"+(net?" (net "+netId.get(net)+" "+q(net)+")":"")+extra+" "+stamp(key)+")";
     }
     const usedRefs=new Set(doc.items.filter(i=>i.kind==="part").map(i=>i.ref.toUpperCase()));
     let freeIndex=0;
     function footprint(item,g,wrapper=false,source){
+      // KiCad footprints have no mirror flag: a mirrored part writes its reflected footprint.
+      const mirror=item.mirror===true,{item:frame,footprint:local}=A.pcbMirror.placed(item,g),flip=p=>p&&mirror?[-p[0],p[1]]:p;
+      g=local;
       const raw=item.layer||"Top";
       if(!["Top","Bottom"].includes(raw)){addNote("Footprints with unresolved component side omitted.");return;}
       const side=raw==="Top"?"F.":"B.";
@@ -543,7 +554,7 @@ globalThis.AtriumKiCad = (() => {
       const linked=schematicLinks.get(item.link);
       if(linked&&boardLinkCounts.get(item.link)===1)lines.push("  (path "+q("/"+symbolUuid(linked.sheet,linked.part))+")");
       else if(!wrapper&&schematicLinks.has(item.link))addNote("Ambiguous schematic links omitted from footprint paths.");
-      const box=A.bounds(A.symbolPoints(g))||[0,0,0,0],localRef=item.refAt||[(box[0]+box[2])/2,box[1]-.7],localValue=item.valueAt||[(box[0]+box[2])/2,box[3]+1];
+      const box=A.bounds(A.symbolPoints(g))||[0,0,0,0],localRef=flip(item.refAt)||[(box[0]+box[2])/2,box[1]-.7],localValue=flip(item.valueAt)||[(box[0]+box[2])/2,box[3]+1];
       if(wrapper)lines.push("  (attr exclude_from_bom exclude_from_pos_files)");
       const appearance=globalThis.AtriumPCBAppearance, native=appearance?.sourceLabels(doc,item);
       const placer=globalThis.AtriumDesignators,placed=item.designator && placer?.label(item,defs.get(item.def));
@@ -558,20 +569,21 @@ globalThis.AtriumKiCad = (() => {
         const justify=[horizontal==="center"?"":horizontal,vertical==="middle"?"":vertical,appearance.textMirrored(row,row.layer)?"mirror":""].filter(Boolean).join(" ");
         const hidden=wrapper || show===false || (field==="ref" && !!placed) ||
           (item.hiddenBoardLabels?.includes(row) && show!==true);
-        return text(which,value,row.at,(item.angle||0)+row.angle,sourceLayer,row.size,key,justify,hidden,undefined,row);
+        return text(which,value,flip(row.at),(item.angle||0)+(mirror?-1:1)*row.angle,sourceLayer,row.size,key,justify,hidden,undefined,row);
       }
       lines.push("  "+componentField("ref","reference",localRef,side+"SilkS",.68,wrapper||item.showRef===false||!!native||!!placed,item.showRef),
         "  "+componentField("value","value",localValue,side+"Fab",.8,true,item.showValue));
       if(placed)for(const token of graphic(placer.textShape(placed,item),item,item.id+"/placed-ref",true))lines.push("  "+token);
       for(const [i,a] of (native||[]).entries()){
         if((fields.get(a.field)===a && fieldLayer(a.layer)) || !appearance.annotationVisible(item,a))continue;
-        for(const token of graphic(appearance.annotationText(item,a),item,item.id+"/annotation/"+i))lines.push("  "+token);
+        const t=appearance.annotationText(item,a);
+        for(const token of graphic(mirror?A.pcbMirror.shape(t,0,l=>l):t,frame,item.id+"/annotation/"+i))lines.push("  "+token);
       }
       const shapes=observer?observer.items(doc,g.shapes,()=>lines.length+boardObjects.length,"Footprint graphic",item.id):g.shapes;
       let shapeIndex=0;
       for(const s of shapes){
         const key=item.id+"/shape/"+shapeIndex++;
-        for(const token of graphic(s,item,key))lines.push("  "+token);
+        for(const token of graphic(s,frame,key))lines.push("  "+token);
       }
       // A standalone pad's synthetic footprint is only an output container. Let
       // the outer item observe the source pad and its diagnostic exactly once.
@@ -579,8 +591,8 @@ globalThis.AtriumKiCad = (() => {
       let padIndex=0;
       for(const p of pads){
         const i=padIndex++;
-        if(p.kind==="via"){via({...p,net:padNet(item,p)},A.world([p.x,p.y],item),item.id+"/via/"+i);addNote("Footprint-owned vias became board vias.");continue;}
-        const token=pad(p,item,[p.x,p.y],item.id+"/pad/"+i,source || (!item.angle ? p : undefined));
+        if(p.kind==="via"){via({...p,net:padNet(item,p)},A.world([p.x,p.y],frame),item.id+"/via/"+i);addNote("Footprint-owned vias became board vias.");continue;}
+        const token=pad(p,frame,[p.x,p.y],item.id+"/pad/"+i,source || (!item.angle && !mirror ? p : undefined));
         if(!token && wrapper)return;
         if(token)lines.push("  "+token);
       }

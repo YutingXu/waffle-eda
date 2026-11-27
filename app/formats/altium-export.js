@@ -899,14 +899,16 @@ globalThis.AtriumAltiumExport = (() => {
             textRecord({x:q[0],y:q[1],text:i[field]||"",size:1,angle:i.angle||0},layer,id,role);
           }
         }
-        const shapes = (fp.shapes || []).filter(s => !((s.kind === "text" || s.kind === "label") && (s.text === ".Designator" || s.text === ".Comment")));
+        // PcbDoc primitives have no mirror flag: a mirrored part writes its reflected footprint.
+        const {item: frame, footprint: local} = Atr.pcbMirror.placed(i, fp), place = p => Atr.world(p, frame);
+        const shapes = (local.shapes || []).filter(s => !((s.kind === "text" || s.kind === "label") && (s.text === ".Designator" || s.text === ".Comment")));
         for (const s of observer ? observer.items(doc,shapes,() => lines.length,"Footprint graphic",i.id) : shapes) {
-          graphic(s, id, world, i.angle || 0, side, !!i.mirror);
+          graphic(s, id, place, i.angle || 0, side, false);
         }
-        for (const p of observer ? observer.items(doc,fp.pads || [],() => counts.pads + counts.vias,"Footprint pad",i.id) : fp.pads || []) {
+        for (const p of observer ? observer.items(doc,local.pads || [],() => counts.pads + counts.vias,"Footprint pad",i.id) : local.pads || []) {
           const net = i.pinNets?.[p.number] ?? p.net ?? "";
-          if (p.kind === "via") { via(p, world([p.x, p.y]), net, id); continue; }
-          pad(p, id, world, i.angle || 0, side, net, !i.angle ? p : undefined);
+          if (p.kind === "via") { via(p, place([p.x, p.y]), net, id); continue; }
+          pad(p, id, place, i.angle || 0, side, net, !i.angle && !i.mirror ? p : undefined);
         }
       } else if (i.kind === "pad") pad({...i, x: 0, y: 0}, null, p => [p[0] + i.x, p[1] + i.y], 0, i.layer, i.net || "", i);
       else if (i.kind === "via") via(i, [i.x, i.y], i.net || "");

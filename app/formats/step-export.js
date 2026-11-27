@@ -636,9 +636,14 @@ globalThis.AtriumSTEP = (function createSTEP(coreFactory, {point: xform, directi
     function importedBodies(records, i, base, source = doc, sourceId = doc.id, footprint) {
       const bodyAssets = assetsOf(source);
       const owner = i || {x: 0, y: 0, angle: 0, layer: "Top"};
-      const ownerAngle = -(owner.angle || 0) * D2R, ownerBottom = owner.layer === "Bottom";
+      const ownerAngle = -(owner.angle || 0) * D2R, ownerBottom = owner.layer === "Bottom", ownerMirror = owner.mirror === true;
+      // A mirrored part (pcb-appearance.js) reflects its extruded bodies about local Y. A rigid placement cannot mirror a solid.
+      const X = p => [-p[0], p[1]];
+      if (ownerMirror && records.some(b => b.type === "step")) note("Component models of mirrored parts are placed at their mirrored position without mirroring the model.");
       const ownerPlacement = placement([owner.x, -owner.y, seatingZ(ownerBottom ? "Bottom" : "Top", i, footprint)], [0, 0, ownerBottom ? -1 : 1], [Math.cos(ownerAngle), Math.sin(ownerAngle), 0]);
-      for (const b of records) {
+      for (const raw of records) {
+        const b = ownerMirror && raw.type === "extruded" ? {...raw, rings: raw.rings?.map(r => r.map(X)), contour: raw.contour?.map(g => g.kind === "arc" ?
+          {...g, c: X(g.c), start: 180 - g.start, end: 180 - g.end, ccw: !g.ccw} : {kind: "line", a: X(g.a), b: X(g.b)})} : raw;
         const flipped = (ownerBottom ? "Bottom" : "Top") !== b.ownerSide, sign = flipped ? -1 : 1;
         const side = flipped ? (b.side === "Bottom" ? "Top" : "Bottom") : b.side;
         const bottom = side === "Bottom", originZ = seatingZ(side, i, footprint), theta = -(owner.angle || 0) * D2R;
@@ -713,6 +718,7 @@ globalThis.AtriumSTEP = (function createSTEP(coreFactory, {point: xform, directi
           if (!text && !asset) note("Some component models could not be loaded; generated bodies were used instead.");
           if (m3.scale != null && [].concat(m3.scale).some(s => Math.abs(+s - 1) > 1e-9)) note("Component model scale is not supported by STEP placement and was ignored.");
         }
+        if ((text || asset) && i.mirror === true) note("Component models of mirrored parts are placed at their mirrored position without mirroring the model.");
         if (text || asset) {
           let m = decoded?.data || models.get(text);
           if (text && m === undefined) { try { m = readModel(text); } catch (e) { m = null; note("A component model could not be read (" + e.message + "); a generated body was used."); } models.set(text, m); }
@@ -726,7 +732,7 @@ globalThis.AtriumSTEP = (function createSTEP(coreFactory, {point: xform, directi
           }
         }
         if (o.generated === false) continue;
-        const b = bodyLoop(fp);
+        const b = bodyLoop(globalThis.Atrium.pcbMirror.placed(i, fp).footprint);
         if (!b) { note("Components without pads or a body outline were omitted."); continue; }
         const h = paramHeight(i, def) ?? heightRule?.("componentHeight",{component:i.ref,layer:i.layer||"Top",at:[i.x,i.y]})?.preferred ?? packageHeight(i, def);
         const pl = placement([i.x, -i.y, seatingZ(side, i, fp)], [0, 0, 1], ref);
