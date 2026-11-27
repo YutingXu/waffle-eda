@@ -959,8 +959,8 @@ globalThis.AtriumChecks = (() => {
     P.on?.("checks.", ({key}) => {
       if (key === "checks.liveSeverity" && live.result && live.project) publishERC(live.project, live.result);
       // Live checking off: the last Compile's findings stay (at their severity); live ones go.
-      // Missing Courtyard on or off: the online DRC checks the visible boards again.
-      if (key === "checks.courtyard") G.AtriumDRCView?.recheck?.();
+      // Missing Courtyard on or off: its findings join or leave the current DRC results; nothing else is checked again.
+      if (key === "checks.courtyard") G.AtriumDRCView?.retype?.("courtyard");
       if (key === "checks.liveErc") { if (liveOn()) scheduler.plan("erc", {now: true}); else if (live.compiledResult && live.project) publishERC(live.project, live.compiledResult); else clear("project", "erc"); }
     });
   }
