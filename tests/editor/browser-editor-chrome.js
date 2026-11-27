@@ -87,7 +87,7 @@ async function measure(page,{peers = 0} = {}) {
       return getComputedStyle(colorProbe).color;
     };
     const sampleTokens = ["--accent","--focus","--selection","--selection-ink","--raised","--ink","--muted",
-      "--chrome","--bar-bg","--panel-head","--pressed","--layer-on","--line","--line-strong"];
+      "--chrome","--bar-bg","--panel-head","--pressed","--layer-on","--line","--line-strong","--button-face-hover"];
     const colors = Object.fromEntries(sampleTokens.map(prop=>[prop,rgba(resolve("var("+prop+")"))]));
     for (const selector of [".appbar",".quick-access button","#collab-share",
       ".editor-tabbar",".document-tab[aria-selected=true]","#tools","#tools .tool[aria-pressed=true]",
@@ -682,9 +682,12 @@ async function selectionAndSnap(page) {
   assert.deepEqual(geometryProblems(await measure(page)).filter(x=>x.startsWith("inactive chip")),[]);
   await off.hover();
   await off.and(page.locator(":hover")).waitFor();
-  const hover=await measure(page);
-  assert.deepEqual(hover.chips.find(chip=>!chip.pressed && chip.hovered)?.outline,hover.colors["--line-strong"],
-    "hovered inactive chip uses the stronger outline");
+  // Hover changes the fill over --motion-instant and keeps the resting border (docs/ui-library.md › Chips).
+  await off.evaluate(node=>Promise.all(node.getAnimations().map(animation=>animation.finished)));
+  const hover=await measure(page),hovered=hover.chips.find(chip=>!chip.pressed && chip.hovered);
+  assert.deepEqual(hovered?.outline,hover.colors["--line"],"hovered inactive chip keeps its resting outline");
+  assert.ok(equalPaletteColor(hovered.fill,hover.colors["--button-face-hover"]) && hovered.fill[3]>0,
+    "hovered inactive chip takes the library hover fill: "+hovered.fill);
   await off.click();
   const snap=page.locator(".statusbar .status-snap:visible");
   await snap.click();
