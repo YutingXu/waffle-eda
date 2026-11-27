@@ -953,7 +953,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     return [x, y, Math.min(w, Math.ceil(Math.max(p[0],q[0])*dpr + margin))-x,
       Math.min(h, Math.ceil(Math.max(p[1],q[1])*dpr + margin))-y];
   }
-  function coverageDamage(before, after) {
+  // Where a layer's coverage changed: the boxes the pour engine finds around the changed copper
+  // (AtriumPCBPours.viewDamage), else the bounds of every region that changed.
+  function coverageDamage(before, after, view, group) {
+    const P = G.AtriumPCBPours, boxes = view && P.viewDamage ? P.viewDamage(view, P.view(group)) : null;
+    if (boxes) { let box = null; for (const b of boxes) box = mergeBounds(box, b); return box; }
     let box = null;
     for (let n=0; n<Math.max(before.length,after.length); n++) {
       const a = before[n], b = after[n];
@@ -970,12 +974,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     let entry = coverageBounds.get(r);
     if (!entry || entry.data !== r.data || entry.count !== r.count) {
       // Stored bounds describe the outer ring. An imported even-odd path
-      // can have other contours outside it. Bound the actual fill once.
+      // can have other contours outside it. Bound the actual fill once (the pour engine's ring boxes).
       const b = [Infinity, Infinity, -Infinity, -Infinity];
       try {
-        for (const xy of G.AtriumPCBPours.contours(r)) for (let i = 0; i < xy.length; i += 2) {
-          b[0] = Math.min(b[0], xy[i]); b[1] = Math.min(b[1], xy[i+1]);
-          b[2] = Math.max(b[2], xy[i]); b[3] = Math.max(b[3], xy[i+1]);
+        const q = G.AtriumPCBPours.ringBoxes(r);
+        for (let i = 0; i < q.length; i += 4) {
+          b[0] = Math.min(b[0], q[i]); b[1] = Math.min(b[1], q[i+1]);
+          b[2] = Math.max(b[2], q[i+2]); b[3] = Math.max(b[3], q[i+3]);
         }
       } catch { b.fill(NaN); }
       entry = {data: r.data, count: r.count, box: b.every(Number.isFinite) ? b : null};
@@ -1046,8 +1051,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
       if (band.ink) band.ink = ink;
       const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
-      const sameView = band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
-      band.key = key; band.regions = next;
+      const sameView = band.key === key, dirty = sameView ? coverageDamage(band.regions,next,band.view,group) : null;
+      band.key = key; band.regions = next; band.view = G.AtriumPCBPours.view?.(group);
       if (sameView && dirty === null) continue;
       let sx=0, sy=0, sw=w, sh=h, visibleRegions=group;
       if (dirty) {

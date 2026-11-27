@@ -72,6 +72,51 @@ globalThis.AtriumPCBPours=(()=>{
   }
   // Encode imported point pairs or the solver's packed XY rings.
   function region(rings,layer,net,extra,native=false){
+    const {bytes,bounds,packed}=regionBytes(rings,native);
+    return {layer,net:packed?net:net||"",bounds,count:rings.length,data:encode(bytes),...extra};
+  }
+  // region()'s answer, or the region of `prior` (removed from it) with exactly that content: the same
+  // layer, net, rings (byte for byte) and other fields. A repour that leaves an island as it was then
+  // keeps its object, so nothing is encoded again and every cache of it holds.
+  function regionLike(prior,rings,layer,net,extra){
+    const {bytes,bounds,packed}=regionBytes(rings,false),n=packed?net:net||"";
+    let fresh=null;
+    for(let i=0;i<(prior?.length||0);i++){
+      const p=prior[i];
+      if(p.layer!==layer||(p.net||"")!==(n||"")||p.count!==rings.length||!sameFields(p,extra))continue;
+      let t;try{t=table(p);}catch{continue;}
+      if(t.bytes!==bytes.length)continue;
+      try{fresh??=tableFrom({count:rings.length,data:null},bytes);}catch{break;}
+      let same=true;for(let k=0;k<t.n&&same;k++)same=t.h1[k]===fresh.h1[k]&&t.h2[k]===fresh.h2[k];
+      if(!same)continue;
+      const old=decode(p.data);
+      for(let k=0;k<old.length&&same;k++)same=old[k]===bytes[k];
+      if(!same)continue;
+      prior.splice(i,1);
+      return p;
+    }
+    const made={layer,net:n,bounds,count:rings.length,data:encode(bytes),...extra};
+    try{fresh??=tableFrom({count:rings.length,data:null},bytes);tables.set(made,{...fresh,data:made.data});}catch{/* walk() reports it when read */}
+    return made;
+  }
+  // A region's table as the pour worker computed it from the same bytes (live-pour-client.js): the
+  // editor then decodes only the runs it has not cached. Checked against the region's size.
+  function tableOut(region){const t=table(region);return {n:t.n,h1:t.h1,h2:t.h2,at:t.at,runs:t.runs,bytes:t.bytes};}
+  function adoptTable(region,t){
+    if(!t||typeof region?.data!=="string"||t.n!==region.count||t.at?.length!==t.n+1||!Array.isArray(t.runs))return false;
+    const d=region.data,size=d.length/4*3-(d.endsWith("==")?2:d.endsWith("=")?1:0);
+    if(size!==t.bytes||t.at[t.n]!==t.bytes)return false;
+    tables.set(region,{...t,data:d,ringCount:region.count});
+    return true;
+  }
+  const BASE_FIELDS=new Set(["layer","net","bounds","count","data"]);
+  function sameFields(p,extra){
+    const keys=Object.keys(p).filter(k=>!BASE_FIELDS.has(k)&&p[k]!==undefined),more=Object.keys(extra||{}).filter(k=>extra[k]!==undefined);
+    if(keys.length!==more.length)return false;
+    for(const k of keys)if(!(k in extra)||JSON.stringify(p[k])!==JSON.stringify(extra[k]))return false;
+    return true;
+  }
+  function regionBytes(rings,native){
     const packed=typeof rings[0]?.[0]==="number",count=r=>packed?r.length>>1:r.length;
     let size=0;for(const r of rings)size+=4+count(r)*16;
     const bytes=new Uint8Array(size),v=new DataView(bytes.buffer),bounds=[Infinity,Infinity,-Infinity,-Infinity];let cursor=0;
@@ -87,7 +132,7 @@ globalThis.AtriumPCBPours=(()=>{
         }
       }
     });
-    return {layer,net:packed?net:net||"",bounds,count:rings.length,data:encode(bytes),...extra};
+    return {bytes,bounds,packed};
   }
   // ASCII Region records use the same unrounded, Y-up, 1/10000 mil coordinates as Regions6.
   function nativeContours(region){
@@ -178,26 +223,151 @@ globalThis.AtriumPCBPours=(()=>{
       delete doc.sourcePourSignature;
     }
   }
-  // Canvas paths by region, bounded: undo history keeps old regions alive, so a WeakMap kept every
-  // generation's path. Past PATH_BUDGET vertices, entries no paint used for 1 s are dropped (oldest
-  // first), and past 3x it any but the one in hand; a dropped path is rebuilt if painted again.
-  const paths=new Map(),decoded=new Map(),PATH_BUDGET=400000,CONTOUR_BUDGET=700000;
-  let pathVertices=0,contourVertices=0;
+  // ---- runs
+  // A region's stored bytes are its rings in canonical order (the outer ring, then the holes sorted by
+  // their lowest vertex), each [u32 n][n x (f64 u, f64 w)]. A run is a stretch of whole rings that ends
+  // after a ring whose content hash has its low RUN_BITS bits clear, or before a ring that would take it
+  // past RUN_MAX bytes. A boundary depends only on the ring before it, so adding, removing or changing
+  // a ring moves no boundary but its own. A run is known by a key made from its rings' content (two
+  // 32-bit hashes, its ring count and byte length), so every version of a region that shares a run
+  // shares what is cached for it: decoded rings and their boxes, canvas paths, display LOD. A small
+  // edit inside a large island then costs the runs it changed, not the island.
+  //   table(region)  -> {n, h1, h2, at, runs: [{key, k0, k1, b0, b1}]} (cached per region and data)
+  //   runsOf(region) -> the run list; contours(region) -> the decoded rings, assembled from runs.
+  // Display caches keyed by region (Undo keeps old regions alive) are bounded: past their budget, the
+  // entries no paint used recently are dropped (oldest first); a dropped entry is rebuilt if needed.
+  const RUN_BITS=5,RUN_MASK=(1<<RUN_BITS)-1,RUN_MAX=262144;
+  const tables=new WeakMap(),runCache=new Map(),RUN_BUDGET=1200000;
+  const paths=new Map(),decoded=new Map(),PATH_BUDGET=400000,RUN_PATH_BUDGET=600000,DECODED_MAX=256;
+  let pathVertices=0,runVertices=0,runPathVertices=0;
   const sameGeometry=(entry,region)=>entry.data===region.data&&entry.ringCount===region.count;
+  // Ring hashes straight from the stored words: h1 is copperChange's FNV-1a (seeded by the ring's role,
+  // 0 outer, 1 hole), h2 an independent multiply-xorshift hash.
+  function ringHash1(w,from,to,role){let h=2166136261^role;for(let i=from;i<to;i++)h=Math.imul(h^w[i],16777619);return h>>>0;}
+  function ringHash2(w,from,to,role){
+    let h=0x9747b28c^role^(to-from);
+    for(let i=from;i<to;i++){h=Math.imul(h^w[i],0x5bd1e995);h^=h>>>15;}
+    h=Math.imul(h^(h>>>13),0x85ebca6b);return (h^(h>>>16))>>>0;
+  }
+  const mixKey=(a,x)=>{a=Math.imul(a^x,0x27d4eb2d);return (a^(a>>>15))>>>0;};
+  // The table of region r from its stored bytes (validated as walk() validates them). Throws on bad data.
+  function tableFrom(r,bytes){
+    if(!Number.isInteger(r.count)||r.count<1||r.count>bytes.length/52)throw Error("Invalid pour hole count.");
+    if(bytes.byteOffset%4||bytes.byteLength%4)bytes=bytes.slice();
+    const n=r.count,w=new Uint32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength>>2),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+    const h1=new Uint32Array(n),h2=new Uint32Array(n),at=new Uint32Array(n+1),runs=[];
+    let cursor=0,k0=0,b0=0,a=0x811c9dc5,b=0x165667b1;
+    const close=k=>{if(k>k0){runs.push({key:(a>>>0).toString(36)+"."+(b>>>0).toString(36)+"."+(k-k0)+"."+(at[k]-b0),k0,k1:k,b0,b1:at[k]});}k0=k;b0=at[k];a=0x811c9dc5;b=0x165667b1;};
+    for(let k=0;k<n;k++){
+      if(cursor+4>bytes.length)throw Error("Truncated pour contour.");
+      const vertices=view.getUint32(cursor,true);
+      if(vertices<3||vertices>(bytes.length-cursor-4)/16)throw Error("Invalid pour vertex count.");
+      const size=4+16*vertices;
+      if(k>k0&&cursor+size-b0>RUN_MAX){at[k]=cursor;close(k);}
+      at[k]=cursor;
+      const from=(cursor>>2)+1,to=from+4*vertices,role=k?1:0;
+      h1[k]=ringHash1(w,from,to,role);h2[k]=ringHash2(w,from,to,role);
+      a=mixKey(a,h1[k]);b=mixKey(b,h2[k]);
+      cursor+=size;at[k+1]=cursor;
+      if((h2[k]&RUN_MASK)===0)close(k+1);
+    }
+    if(cursor!==bytes.length)throw Error("Unrecognized Regions6 contour trailer.");
+    close(n);
+    return {data:r.data,ringCount:r.count,n,h1,h2,at,runs,bytes:bytes.length};
+  }
+  function table(region,bytes){
+    const t=tables.get(region);
+    if(t&&sameGeometry(t,region))return t;
+    const made=tableFrom(region,bytes||decode(region.data));
+    tables.set(region,made);
+    return made;
+  }
+  const runsOf=region=>table(region).runs;
+  // A run's decoded rings (model mm, walk()'s arithmetic) and ring boxes, from bytes that start at
+  // byte `base` of the region's bytes.
+  function decodeRun(bytes,t,run,base=0){
+    const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),rings=[],boxes=new Float64Array(4*(run.k1-run.k0));
+    let vertices=0;
+    for(let k=run.k0;k<run.k1;k++){
+      let cursor=t.at[k]-base;const n=view.getUint32(cursor,true),xy=new Float64Array(2*n);cursor+=4;
+      if(n<3||cursor+16*n>bytes.length)throw Error("Invalid pour vertex count.");
+      let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+      for(let i=0;i<n;i++){
+        const x=view.getFloat64(cursor,true)*unit,y=-view.getFloat64(cursor+8,true)*unit;cursor+=16;
+        if(!Number.isFinite(x+y)||Math.max(Math.abs(x),Math.abs(y))>1e8)throw Error("Invalid pour vertex.");
+        xy[2*i]=x;xy[2*i+1]=y;
+        if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+      }
+      const j=4*(k-run.k0);boxes[j]=x0;boxes[j+1]=y0;boxes[j+2]=x1;boxes[j+3]=y1;
+      rings.push(xy);vertices+=n;
+    }
+    return {rings,boxes,vertices,path:null,lod:[]};
+  }
+  function runEntry(key){const e=runCache.get(key);if(e){runCache.delete(key);runCache.set(key,e);}return e||null;}
+  function keepRun(key,e){
+    runCache.set(key,e);runVertices+=e.vertices;
+    for(const [k,x] of runCache){
+      if(runVertices<=RUN_BUDGET)break;
+      if(x===e)continue;
+      dropRun(k,x);
+    }
+  }
+  function dropRun(key,e){
+    runCache.delete(key);runVertices-=e.vertices;
+    if(e.path){runPathVertices-=e.vertices;e.path=null;}
+    for(const l of e.lod)if(l)lodVertices-=l.count;
+  }
+  // Every run of a region, decoded: the cached ones as they are, the others from the region's data
+  // (only their stretch of it when they are a small part of the region).
+  function runEntries(region){
+    const known=tables.get(region),t=known&&sameGeometry(known,region)?known:null;
+    let bytes=null;
+    if(!t){bytes=decode(region.data);return runEntriesOf(region,table(region,bytes),bytes);}
+    return runEntriesOf(region,t,null);
+  }
+  function runEntriesOf(region,t,bytes){
+    const out=new Array(t.runs.length),missing=[];let size=0;
+    for(let j=0;j<t.runs.length;j++){const e=runEntry(t.runs[j].key);out[j]=e;if(!e){missing.push(j);size+=t.runs[j].b1-t.runs[j].b0;}}
+    if(!missing.length)return out;
+    if(!bytes&&size*2>t.bytes)bytes=decode(region.data);
+    for(const j of missing){
+      const run=t.runs[j];let e;
+      if(bytes)e=decodeRun(bytes,t,run);
+      else{
+        // Base64 keeps 3 bytes in 4 characters: the run's characters, from the group it starts in.
+        const g0=Math.floor(run.b0/3),g1=Math.ceil(run.b1/3);
+        e=decodeRun(decode(region.data.slice(4*g0,4*g1)),t,run,3*g0);
+      }
+      keepRun(run.key,e);out[j]=e;
+    }
+    return out;
+  }
+  // The rings a region's runs have cached now (no decoding): their share of its vertices, 0 to 1.
+  function cachedShare(region){
+    const t=tables.get(region);
+    if(!t||!sameGeometry(t,region))return 0;
+    let have=0;for(const run of t.runs)if(runCache.has(run.key))have+=run.b1-run.b0;
+    return t.bytes?have/t.bytes:1;
+  }
   function contours(region){
     const cached=decoded.get(region);
     if(cached&&sameGeometry(cached,region)){decoded.delete(region);decoded.set(region,cached);return cached.rings;}
-    if(cached)dropContours(region);
-    const rings=[];let count=0;
-    walk(decode(region.data),region.count,(r,i,n,x,y)=>{
-      if(i===0){rings.push(new Float64Array(n*2));count+=n;}
-      rings[r][i*2]=x;rings[r][i*2+1]=y;
-    });
-    if(count<=CONTOUR_BUDGET){
-      decoded.set(region,{rings,count,data:region.data,ringCount:region.count});contourVertices+=count;
-      while(contourVertices>CONTOUR_BUDGET)dropContours(decoded.keys().next().value);
-    }
+    const rings=[],boxes=[];
+    for(const e of runEntries(region)){for(const xy of e.rings)rings.push(xy);boxes.push(e.boxes);}
+    decoded.set(region,{rings,boxes,data:region.data,ringCount:region.count});
+    while(decoded.size>DECODED_MAX)decoded.delete(decoded.keys().next().value);
     return rings;
+  }
+  // Each ring's box [x0, y0, x1, y1, ...] (one for one with contours(region)).
+  function ringBoxes(region){
+    contours(region);
+    const e=decoded.get(region);
+    if(!e.allBoxes){
+      let n=0;for(const b of e.boxes)n+=b.length;
+      const all=new Float64Array(n);let o=0;for(const b of e.boxes){all.set(b,o);o+=b.length;}
+      e.allBoxes=all;
+    }
+    return e.allBoxes;
   }
   // Horizontal bands index the same stored edges for even-odd containment
   // and for the importer's bounded copper contact search. The DRC ray can
@@ -280,19 +450,36 @@ globalThis.AtriumPCBPours=(()=>{
       kind: "arc", c: g.center, r: g.radius, start: g.start, end: g.start + g.sweep, ccw: g.sweep > 0
     }));
   }
-  function dropContours(region){const e=decoded.get(region);if(e){contourVertices-=e.count;decoded.delete(region);}}
+  function dropContours(region){decoded.delete(region);}
+  // No closePath: the path is only filled, which closes each ring, and Chrome's
+  // Path2D.closePath costs time proportional to the whole path (quadratic over many holes).
+  function ringsPath(rings){
+    const p=new Path2D();
+    for(const xy of rings){p.moveTo(xy[0],xy[1]);for(let i=2;i<xy.length;i+=2)p.lineTo(xy[i],xy[i+1]);}
+    return p;
+  }
+  // A run's path, kept with the run while the run paths are within their budget.
+  function runPath(e){
+    if(e.path)return e.path;
+    const p=ringsPath(e.rings);
+    e.path=p;runPathVertices+=e.vertices;
+    if(runPathVertices>RUN_PATH_BUDGET)for(const x of runCache.values()){if(runPathVertices<=RUN_PATH_BUDGET)break;if(x.path&&x!==e){x.path=null;runPathVertices-=x.vertices;}}
+    return p;
+  }
+  // A region's path: its runs' paths joined (Path2D.addPath copies a path's verbs and points natively;
+  // the even-odd fill of the joined path is the fill of the same rings drawn one by one).
+  function joinPaths(list){
+    if(list.length===1)return list[0];
+    const p=new Path2D();for(const q of list)p.addPath(q);return p;
+  }
   function pathOf(region){
     let e=paths.get(region);
     if(e&&!sameGeometry(e,region)){paths.delete(region);pathVertices-=e.count;e=null;}
     if(!e){
-      const path=new Path2D();let count=0;
       try{
-        walk(decode(region.data),region.count,(ring,i,n,x,y)=>{count++;
-          // No closePath: the path is only filled, which closes each ring, and Chrome's
-          // Path2D.closePath costs time proportional to the whole path (quadratic over many holes).
-          if(i===0)path.moveTo(x,y);else path.lineTo(x,y);
-        });
-        e={path,count};
+        const runs=runEntries(region);let count=0;
+        for(const r of runs)count+=r.vertices;
+        e={path:typeof Path2D.prototype.addPath==="function"?joinPaths(runs.map(runPath)):ringsPath(contours(region)),count};
       }catch{e={path:null,count:0};}
       e.data=region.data;e.ringCount=region.count;
       paths.set(region,e);pathVertices+=e.count;
@@ -359,10 +546,32 @@ globalThis.AtriumPCBPours=(()=>{
   }
   function lodPath(ctx,region){
     const best=lodAt(lodLevel(ctx),region);
-    if(best&&!best.path)best.path=ringsPath(best.rings);
+    if(best&&!best.path)best.path=typeof Path2D.prototype.addPath==="function"?joinPaths(best.parts.map(lodRunPath)):ringsPath(best.rings);
     return best;
   }
-  // The coarsest built level within L (L queued for building when it is not), or null.
+  // A run's simplified rings at one level, from its decoded rings. simplify() works ring by ring, so a
+  // region's level is its runs' levels side by side, whichever version of the region built them.
+  function lodRun(e,L){
+    let l=e.lod[L];
+    if(!l){
+      const tol=LOD_BASE*2**L,rings=new Array(e.rings.length);let count=0;
+      for(let i=0;i<rings.length;i++){rings[i]=simplify(e.rings[i],tol);count+=rings[i].length>>1;}
+      l=e.lod[L]={rings,count,path:null};lodVertices+=count;LOD.built++;
+    }
+    return l;
+  }
+  const lodRunPath=l=>l.path??=ringsPath(l.rings);
+  function lodAssemble(region,e,L,runs){
+    const rings=[],parts=[];let count=0;
+    for(const r of runs){const l=r.lod[L];for(const xy of l.rings)rings.push(xy);parts.push(l);count+=l.count;}
+    LOD.saved+=verticesOf(region)-count;
+    return e.lv[L]={rings,parts,count,path:null,level:L};
+  }
+  // The coarsest built level within L (L queued for building when it is not), or null. A region some
+  // of whose runs already have level L (a new version of a region on screen) builds the runs it lacks
+  // at once, as does one with at most LOD_SYNC vertices to simplify: the frame then fills the level
+  // the frame before it filled, so an edit repaints only where the copper changed.
+  const LOD_SYNC=40000;
   function lodAt(L,region){
     if(L<0||!(region?.count>0)||verticesOf(region)<LOD_REGION_MIN)return null;
     let e=lodCache.get(region);
@@ -370,8 +579,16 @@ globalThis.AtriumPCBPours=(()=>{
     if(!e){e={lv:[],want:new Set(),used:0,data:region.data,ringCount:region.count};lodCache.set(region,e);}
     else{lodCache.delete(region);lodCache.set(region,e);}
     e.used=Date.now();
+    if(!e.lv[L]){
+      let runs=null;try{runs=runEntries(region);}catch{runs=null;}
+      if(runs){
+        let missing=0,shared=false;
+        for(const r of runs){if(r.lod[L])shared=true;else missing+=r.vertices;}
+        if(shared||missing<=LOD_SYNC){for(const r of runs)lodRun(r,L);lodAssemble(region,e,L,runs);e.want.delete(L);lodTrim();}
+      }
+    }
     let best=null;for(let l=L;l>=LOD_MIN&&!best;l--)best=e.lv[l]||null;
-    if(!e.lv[L]&&!e.want.has(L)){e.want.add(L);lodQueue.push({region,e,L,src:null,out:null,i:0,n:0});}
+    if(!e.lv[L]&&!e.want.has(L)){e.want.add(L);lodQueue.push({region,e,L,runs:null,j:0,i:0,out:null,n:0});}
     if(lodQueue.length)lodSchedule();
     return best;
   }
@@ -379,11 +596,6 @@ globalThis.AtriumPCBPours=(()=>{
   // {rings, level}, or null for the stored rings.
   function lodRingsAt(region,k){const e=lodAt(levelOf(k),region);return e?{rings:e.rings,level:e.level}:null;}
   function lodRings(ctx,region){return lodAt(lodLevel(ctx),region)?.rings||null;}
-  function ringsPath(rings){
-    const p=new Path2D();
-    for(const xy of rings){p.moveTo(xy[0],xy[1]);for(let i=2;i<xy.length;i+=2)p.lineTo(xy[i],xy[i+1]);}
-    return p;
-  }
   function lodSchedule(){
     if(lodScheduled)return;lodScheduled=true;
     const I=globalThis.AtriumIdle,run=d=>{lodScheduled=false;lodWork(d);};
@@ -391,7 +603,7 @@ globalThis.AtriumPCBPours=(()=>{
     else if(typeof requestIdleCallback==="function")requestIdleCallback(run,{timeout:1000});
     else setTimeout(run,50);
   }
-  // Build queued levels for the idle period, 3 to 6 ms; a big region resumes ring by ring.
+  // Build queued levels for the idle period, 3 to 6 ms; a big run resumes ring by ring.
   function lodWork(deadline){
     if(globalThis.AtriumPower?.visible?.()===false)return;
     const clock=()=>globalThis.performance?.now?.()??Date.now(),p0=clock();
@@ -402,31 +614,42 @@ globalThis.AtriumPCBPours=(()=>{
       const j=lodQueue[0];
       if(lodCache.get(j.region)!==j.e){lodQueue.shift();continue;}
       if(!sameGeometry(j.e,j.region)){dropLod(j.region);lodQueue.shift();continue;}
-      if(!j.src){
-        try{j.src=contours(j.region);}catch{lodQueue.shift();continue;}
-        j.out=new Array(j.src.length);
-      }
+      if(!j.runs){try{j.runs=runEntries(j.region);}catch{lodQueue.shift();continue;}}
       const tol=LOD_BASE*2**j.L;
-      while(j.i<j.src.length&&left()>.5){const r=simplify(j.src[j.i],tol);j.out[j.i++]=r;j.n+=r.length>>1;}
-      if(j.i<j.src.length)break;
+      while(j.j<j.runs.length&&left()>.5){
+        const r=j.runs[j.j];
+        if(!r.lod[j.L]){
+          j.out??=new Array(r.rings.length);
+          while(j.i<r.rings.length&&left()>.5){const x=simplify(r.rings[j.i],tol);j.out[j.i++]=x;j.n+=x.length>>1;}
+          if(j.i<r.rings.length)break;
+          r.lod[j.L]={rings:j.out,count:j.n,path:null};lodVertices+=j.n;LOD.built++;
+        }
+        j.j++;j.i=0;j.out=null;j.n=0;
+      }
+      if(j.j<j.runs.length)break;
       lodQueue.shift();
-      j.e.lv[j.L]={rings:j.out,count:j.n,path:null,level:j.L};j.e.want.delete(j.L);
-      lodVertices+=j.n;LOD.built++;LOD.saved+=verticesOf(j.region)-j.n;finished++;
+      if(j.runs.every(r=>r.lod[j.L]))lodAssemble(j.region,j.e,j.L,j.runs);
+      j.e.want.delete(j.L);finished++;
     }
     LOD.buildMs+=clock()-p0;
-    if(lodVertices>LOD_BUDGET){
-      const old=Date.now()-2000;
-      for(const [r,e] of lodCache){if(lodVertices<=LOD_BUDGET)break;if(e.used<old||lodVertices>2*LOD_BUDGET)dropLod(r);}
-    }
+    lodTrim();
     if(finished&&!lodQueue.length){LOD.version++;try{globalThis.AtriumNavHost?.redraw?.();}catch{/* no editor */}}
     if(lodQueue.length)lodSchedule();
   }
-  function dropLod(region){
-    const e=lodCache.get(region);if(!e)return;
-    for(const l of e.lv)if(l)lodVertices-=l.count;
-    lodCache.delete(region);
+  // Past LOD_BUDGET vertices: the levels of regions no frame used for 2 s, then the levels of the runs
+  // used longest ago.
+  function lodTrim(){
+    if(lodVertices<=LOD_BUDGET)return;
+    const old=Date.now()-2000;
+    for(const [r,e] of lodCache)if(e.used<old)lodCache.delete(r);
+    for(const x of runCache.values()){
+      if(lodVertices<=LOD_BUDGET)break;
+      for(let L=0;L<x.lod.length;L++)if(x.lod[L]){lodVertices-=x.lod[L].count;x.lod[L]=null;}
+    }
   }
-  // Undo retains the stored region and can rebuild these display caches if that state is shown.
+  function dropLod(region){lodCache.delete(region);}
+  // Undo retains the stored region and can rebuild these display caches if that state is shown. The
+  // runs it shares with the regions kept stay cached.
   function release(previous,current){
     if(!previous?.length)return;
     const keep=new Set(current),drop=new Set(previous.filter(region=>!keep.has(region)));
@@ -491,7 +714,20 @@ globalThis.AtriumPCBPours=(()=>{
   // directed edge. Every point where the copper of a polygon differs lies inside the box of a set of
   // changed edges that encloses it (the boundary of the difference consists of those edges and is
   // connected through their shared vertices), so a check of the copper outside every box is unchanged.
+  // The answer for the last few pairs of lists is kept (the canvas and the copper checks ask about the
+  // same commit, each with its own copy of the list): it holds while both lists hold the same regions,
+  // in the same order, with the same data.
+  const changeMemo=[];
+  const listCopy=list=>(list||[]).map(r=>({r,d:r.data,c:r.count}));
+  const sameAs=(copy,list)=>{list=list||[];if(copy.length!==list.length)return false;for(let i=0;i<list.length;i++){const x=copy[i],r=list[i];if(x.r!==r||x.d!==r.data||x.c!==r.count)return false;}return true;};
   function copperChange(before,after){
+    for(const m of changeMemo)if(sameAs(m.b,before)&&sameAs(m.a,after))return m.result;
+    const result=copperChangeOf(before,after);
+    changeMemo.unshift({b:listCopy(before),a:listCopy(after),result});
+    if(changeMemo.length>4)changeMemo.pop();
+    return result;
+  }
+  function copperChangeOf(before,after){
     const key=r=>(r.polygon??"")+"\u0000"+r.layer+"\u0000"+(r.net||""),groups=new Map();
     const kept=new Set(before||[]),group=k=>{let g=groups.get(k);if(!g)groups.set(k,g={old:[],now:[]});return g;};
     const fresh=[];
@@ -501,40 +737,34 @@ globalThis.AtriumPCBPours=(()=>{
       const g=group(key(r)),i=g.old.findIndex(o=>o.count===r.count&&o.data===r.data);
       if(i>=0)g.old.splice(i,1);else g.now.push(r);
     }
-    // Rings straight from the stored bytes ([u32 n][n x (f64 u, f64 w)] each): hashed and compared as
-    // 32-bit words; only the rings left over are read as millimetres (walk()'s arithmetic).
+    // Whole runs cancel by key, the rings of the runs left by content (their hashes, then their
+    // coordinates); only the rings left over are walked edge by edge.
     const changes=[];
-    const ringsOf=r=>{
-      const bytes=decode(r.data),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),out=[];
-      const w=bytes.byteOffset%4===0&&bytes.byteLength%4===0?new Uint32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength>>2):null;
-      if(!w||!Number.isInteger(r.count)||r.count<1)throw Error("Invalid pour region.");
-      let at=0;
-      for(let k=0;k<r.count;k++){
-        if(at+4>bytes.length)throw Error("Truncated pour contour.");
-        const n=view.getUint32(at,true);if(n<3||at+4+16*n>bytes.length)throw Error("Invalid pour vertex count.");
-        out.push({w,from:(at>>2)+1,to:(at>>2)+1+4*n,view,at:at+4,n,role:k?1:0});at+=4+16*n;
-      }
-      if(at!==bytes.length)throw Error("Unrecognized Regions6 contour trailer.");
-      return out;
-    };
-    const hash=e=>{let h=2166136261^e.role;for(let i=e.from;i<e.to;i++)h=Math.imul(h^e.w[i],16777619);return h>>>0;};
-    const same=(a,b)=>{if(a.to-a.from!==b.to-b.from)return false;for(let i=a.from,j=b.from;i<a.to;i++,j++)if(a.w[i]!==b.w[j])return false;return true;};
-    const mm=e=>{const ring=new Float64Array(2*e.n);for(let i=0;i<e.n;i++){ring[2*i]=e.view.getFloat64(e.at+16*i,true)*unit;ring[2*i+1]=-e.view.getFloat64(e.at+16*i+8,true)*unit;}return ring;};
+    const sameRing=(a,b)=>{if(a.length!==b.length)return false;for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true;};
     for(const g of groups.values()){
       if(!g.old.length&&!g.now.length)continue;
-      // Rings by content (outer or hole), cancelled pairwise.
       const rings=new Map();
       try{
-        for(const [list,side] of [[g.old,0],[g.now,1]])for(const r of list)for(const e of ringsOf(r)){
-          const h=hash(e);let l=rings.get(h);if(!l)rings.set(h,l=[]);
-          const twin=l.findIndex(x=>x.side!==side&&x.role===e.role&&same(x,e));
-          if(twin>=0)l.splice(twin,1);else{e.side=side;l.push(e);}
+        const runs=new Map();
+        for(const [list,side] of [[g.old,0],[g.now,1]])for(const r of list){
+          const t=table(r),entries=runEntries(r);
+          t.runs.forEach((run,j)=>{
+            let l=runs.get(run.key);if(!l)runs.set(run.key,l=[]);
+            const twin=l.findIndex(x=>x.side!==side);
+            if(twin>=0)l.splice(twin,1);else l.push({side,t,run,e:entries[j]});
+          });
+        }
+        for(const l of runs.values())for(const {side,t,run,e} of l)for(let k=run.k0;k<run.k1;k++){
+          const h=t.h1[k]+":"+t.h2[k],role=k?1:0,ring=e.rings[k-run.k0];
+          let b=rings.get(h);if(!b)rings.set(h,b=[]);
+          const twin=b.findIndex(x=>x.side!==side&&x.role===role&&sameRing(x.ring,ring));
+          if(twin>=0)b.splice(twin,1);else b.push({side,role,ring,n:ring.length>>1});
         }
       }catch{return null;}
       // The rings left: directed edges, cancelled pairwise; what remains is the changed boundary.
       const edges=new Map();
       for(const l of rings.values())for(const x of l){
-        const {role,side}=x,ring=mm(x),n=x.n;
+        const {role,side,ring}=x,n=x.n;
         for(let i=0;i<n;i++){
           const j=(i+1)%n,e=[ring[2*i],ring[2*i+1],ring[2*j],ring[2*j+1]],id=role+":"+e.join(","),x=edges.get(id);
           if(x&&x.side!==side&&x.n){x.n--;if(!x.n)edges.delete(id);}
@@ -564,7 +794,34 @@ globalThis.AtriumPCBPours=(()=>{
     }
     return {changes,same:!changes.length};
   }
-  const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,paintHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange};
+  // ---- what a frame shows
+  // A canvas that keeps a board layer it painted repaints only where the copper it shows changed.
+  // view(stored) -> a token for the copper a frame shows now: the stored regions and, through
+  // displayHook (polygon-pour.js), the live pour tile patches drawn over them. viewDamage(a, b) -> the
+  // boxes (model mm) outside which two frames' copper is the same ([]: nowhere differs), or null when
+  // that is unknown (repaint everything). Changed stored copper is copperChange's boxes, a patch its
+  // clip rectangles; both enclose every pixel that changes, edges and their antialiasing included.
+  function view(stored){return {list:listCopy(stored),none:!stored,hook:api.displayHook?.version?.()??null};}
+  // The boxes carry the copper layers they are on (boxes.layers).
+  function viewDamage(a,b){
+    if(!a||!b||a.none!==b.none)return null;
+    const boxes=[];boxes.layers=new Set();
+    if(a.hook!==b.hook){
+      const d=api.displayHook?.damage?.(a.hook,b.hook);if(!d)return null;
+      boxes.push(...d);for(const l of d.layers||[])boxes.layers.add(l);
+    }
+    const same=a.list.length===b.list.length&&a.list.every((x,i)=>x.r===b.list[i].r&&x.d===b.list[i].d&&x.c===b.list[i].c);
+    if(!same){
+      const c=copperChange(a.list.map(x=>x.r),b.list.map(x=>x.r));
+      if(!c)return null;
+      for(const ch of c.changes){boxes.push(...ch.boxes);boxes.layers.add(ch.layer);}
+    }
+    return boxes;
+  }
+  // The rings of a region and their boxes are cached (no decoding needed to read them).
+  const cached=region=>{const e=decoded.get(region);return !!e&&sameGeometry(e,region)||cachedShare(region)===1;};
+  const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,regionLike,paintHook:null,displayHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange,
+    table,tableOut,adoptTable,runsOf,ringBoxes,cached,view,viewDamage,runStats:()=>({runs:runCache.size,vertices:runVertices,pathVertices:runPathVertices,lodVertices,regionPaths:paths.size})};
   return api;
 })();
 if (typeof module !== "undefined") module.exports = globalThis.AtriumPCBPours;

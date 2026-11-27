@@ -51,14 +51,16 @@ globalThis.AtriumCanvasFast = (() => {
     if (!pourQueue.size) cancelPourWork();
   }
   globalThis.AtriumPower?.onChange?.(({visible, efficient}) => { if (!visible || efficient) cancelPourWork(); });
+  // The rings and ring boxes come from the pour engine (pcb-pours.js), which keeps them by run: a new
+  // version of a region that shares most of its runs with the one on screen is indexed at once.
   function pourIndexBuild(region) {
-    let rings; try { rings = globalThis.AtriumPCBPours.contours(region); } catch { rings = null; }
+    const P = globalThis.AtriumPCBPours;
+    let rings, box; try { rings = P.contours(region); box = P.ringBoxes(region); } catch { rings = null; }
     if (!rings?.length) { pourIdx.set(region, {data: region.data, count: region.count}); return; }
-    const n = rings.length, box = new Float64Array(n * 4); let total = 0, X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity;
+    const n = rings.length; let total = 0, X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity;
     for (let r = 0; r < n; r++) {
-      const xy = rings[r]; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (let i = 0; i < xy.length; i += 2) { const x = xy[i], y = xy[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-      box[r * 4] = x0; box[r * 4 + 1] = y0; box[r * 4 + 2] = x1; box[r * 4 + 3] = y1; total += xy.length >> 1;
+      total += rings[r].length >> 1;
+      const x0 = box[r * 4], y0 = box[r * 4 + 1], x1 = box[r * 4 + 2], y1 = box[r * 4 + 3];
       if (x0 < X0) X0 = x0; if (y0 < Y0) Y0 = y0; if (x1 > X1) X1 = x1; if (y1 > Y1) Y1 = y1;
     }
     // A 64 x 64 grid over the region; rings spanning more than 16 cells are kept in one list.
@@ -110,12 +112,16 @@ globalThis.AtriumCanvasFast = (() => {
   function pourRings(region, v, alt) {
     const b = region.bounds; painted = now();
     if (!(region.count >= POUR_MIN) || !b || v[0] <= b[0] && v[1] <= b[1] && v[2] >= b[2] && v[3] >= b[3]) return null;
-    const ix = pourIdx.get(region);
+    let ix = pourIdx.get(region);
     if (!ix || ix.data !== region.data || ix.count !== region.count) {
       if (ix) pourIdx.delete(region);
-      pourIndexLater(region); return null;
+      // Rings the engine holds already (a repour's new version of a region on screen) index now.
+      if (!globalThis.AtriumPCBPours?.cached?.(region)) { pourIndexLater(region); return null; }
+      pourIndexBuild(region); ix = pourIdx.get(region);
     }
     if (!ix.rings) return null;
+    // The LOD rings stand in for the stored ones only one for one (checked once the index exists).
+    if (alt && alt.length !== ix.rings.length) alt = null;
     const a = ix.col(v[0]), c = ix.col(v[2]), r0 = ix.row(v[1]), r1 = ix.row(v[3]);
     if ((c - a + 1) * (r1 - r0 + 1) > ix.G * ix.G * .4) return null;
     const mark = ix.mark = (ix.mark + 1) >>> 0 || 1, out = [], box = ix.box; let count = 0;
@@ -134,12 +140,14 @@ globalThis.AtriumCanvasFast = (() => {
   // A Repour All reveal (pour-anim.js) applies too: pcb-pours.js paintWith.
   function paintPour(ctx, region, viewport) {
     const P = globalThis.AtriumPCBPours, alt = P?.lodRings?.(ctx, region);
-    const rings = pourRings(region, viewport, alt?.length === pourIdx.get(region)?.rings?.length ? alt : null);
+    const rings = pourRings(region, viewport, alt);
     if (!rings) return false;
+    // A Path2D like the whole region's (points in model space, transformed when filled), so a ring
+    // rasterizes the same in this part as in a whole paint, antialiasing included.
     const fill = () => {
-      ctx.beginPath();
-      for (const xy of rings) { ctx.moveTo(xy[0], xy[1]); for (let i = 2; i < xy.length; i += 2) ctx.lineTo(xy[i], xy[i + 1]); }
-      ctx.fill("evenodd");
+      const path = new Path2D();
+      for (const xy of rings) { path.moveTo(xy[0], xy[1]); for (let i = 2; i < xy.length; i += 2) path.lineTo(xy[i], xy[i + 1]); }
+      ctx.fill(path, "evenodd");
     };
     if (P?.paintWith) P.paintWith(ctx, region, fill);
     else if (!P?.paintHook?.(ctx, region, fill)) fill();
@@ -174,15 +182,16 @@ globalThis.AtriumCanvasFast = (() => {
     else k.push(v);
   }
   // Presentation reads independently of the cache's item revision. Changing one of these values
-  // can change the whole canvas. The retained artwork's revision is tracked beside this key.
+  // can change the whole canvas. The retained artwork's revision is tracked beside this key, and the
+  // poured copper it shows beside it too (pourView: the pour engine says where that copper changed).
   function keyOf(I, doc, defs, opts, v = I.cam(), frame) {
     watchLooks();
     const P = globalThis.AtriumPCBAppearance, d = globalThis.document, pcb = doc.kind === "pcb";
     const pours = pcb && !opts.hidden?.has("Source pours") && doc.pcbDrawing?.pours?.length ? frame?.state ?? I.pourState(doc, defs) : null;
     const airwires = pcb && opts.showUnrouted && !opts.transientGeometry ? I.connectivity : null;
     const labels = pcb ? globalThis.AtriumNavHost?.units?.() : new Date().toDateString();
-    const k = [doc, doc.items, defs, airwires, pours, labels, doc.pcbDrawing, doc.pcbDrawing?.pours, doc.outline, doc.outline?.length, doc.grid, doc.origin,
-      ...v, I.canvas.width, I.canvas.height, P?.system, P?.opacity, looks, !!globalThis.AtriumStackup?.isPlanning?.(), globalThis.AtriumPolygonPour?.tiles?.version,
+    const k = [doc, doc.items, defs, airwires, pours, labels, doc.pcbDrawing, doc.outline, doc.outline?.length, doc.grid, doc.origin,
+      ...v, I.canvas.width, I.canvas.height, P?.system, P?.opacity, looks, !!globalThis.AtriumStackup?.isPlanning?.(),
       globalThis.AtriumPourAnim?.version, globalThis.AtriumPCBPours?.lod?.version, d?.scripts?.length, d?.fonts?.status];
     for (const n of Object.keys(opts).sort()) { if (TOP.has(n) || SEL.has(n)) continue; k.push(n); flatInto(k, opts[n]); }
     k.push("routeHidden"); flatInto(k, opts.routePreview?.hidden || null);
@@ -208,10 +217,13 @@ globalThis.AtriumCanvasFast = (() => {
   function drop(state, doc, entry) { free(entry); state.copies.delete(doc); }
   // Synchronous, including sync() calls made by hit-testing before the next frame. A newer revision
   // extends damage from the last painted revision, even if several edits precede one render.
+  // New poured copper with every changed item known keeps the copy: reuse() asks the pour engine
+  // where the copper changed (pourDamage).
   function damage(I, doc, delta) {
     const state = views.get(I), entry = state?.copies.get(doc);
     if (!entry) return;
-    if (!delta.known || delta.from !== (entry.pending?.to ?? entry.rev)) { drop(state, doc, entry); return; }
+    const known = delta.known || delta.poursChanged && delta.itemsKnown && !!entry.pourView;
+    if (!known || delta.from !== (entry.pending?.to ?? entry.rev)) { drop(state, doc, entry); return; }
     const pending = entry.pending ??= {to: entry.rev, boxes: [], ids: new Set()};
     pending.to = delta.to;
     for (const i of delta.changed) pending.ids.add(i.id);
@@ -242,10 +254,11 @@ globalThis.AtriumCanvasFast = (() => {
     // A new airwire result alone redraws the airwires over the pixels kept beneath them.
     const wires = !sameKey(e.key, key);
     if (wires && !(e.under && onlyAirwires(e.key, key))) return false;
-    const sel = selOf(opts);
-    if ((edited || !sameSet(sel, e.sel)) && !patch(I, s, e, c, doc, defs, opts, sel, wires, frame)) return false;
+    const sel = selOf(opts), view = pourView(doc), copper = pourDamage(e.pourView, view);
+    if (!copper) return false;
+    if ((edited || copper.length || !sameSet(sel, e.sel)) && !patch(I, s, e, c, doc, defs, opts, sel, wires, frame, copper)) return false;
     if (wires && !redrawAirwires(I, e, doc, defs, opts)) return false;
-    e.key = key;
+    e.key = key; e.pourView = view;
     const ctx = I.ctx;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "copy"; ctx.drawImage(e.canvas, 0, 0); ctx.restore();
     I.boardTransform();
@@ -256,6 +269,13 @@ globalThis.AtriumCanvasFast = (() => {
     return true;
   }
   const sameSet = (a, b) => { if (a.size !== b.size) return false; for (const x of a) if (!b.has(x)) return false; return true; };
+  // The poured copper a board frame shows, and the boxes where it changed since a copy (pcb-pours.js
+  // view, viewDamage); null: repaint the whole frame.
+  const pourView = doc => doc.kind === "pcb" ? globalThis.AtriumPCBPours?.view?.(doc.pcbDrawing?.pours) ?? null : null;
+  function pourDamage(a, b) {
+    if (!a && !b) return [];
+    return a && b ? globalThis.AtriumPCBPours.viewDamage(a, b) : null;
+  }
   function restoreState(ctx, entry) {
     for (const n in entry.state) ctx[n] = entry.state[n];
     ctx.setLineDash?.(entry.dash);
@@ -281,8 +301,9 @@ globalThis.AtriumCanvasFast = (() => {
     const area = rects.reduce((n, [x, y, r, b]) => n + (r - x) * (b - y), 0);
     return rects.length <= 24 && area <= width * height * .35 ? rects : null;
   }
-  function patch(I, state, entry, cache, doc, defs, opts, selected, wires, frame) {
-    const pending = entry.pending, ids = new Set(pending?.ids), boxes = pending ? [...pending.boxes] : [];
+  // copper: boxes where the poured copper shown changed (pourDamage; copper.layers their layers).
+  function patch(I, state, entry, cache, doc, defs, opts, selected, wires, frame, copper = []) {
+    const pending = entry.pending, ids = new Set(pending?.ids), boxes = pending ? [...pending.boxes, ...copper] : [...copper];
     for (const id of new Set([...selected, ...entry.sel])) {
       if (selected.has(id) === entry.sel.has(id)) continue;
       const box = cache.boxes.get(cache.byId.get(id));
@@ -306,6 +327,7 @@ globalThis.AtriumCanvasFast = (() => {
         const i = cache.byId.get(id);
         if (i) for (const layer of I.paintLayers(doc, defs, i, opts)) if (visible(layer)) layers.add(layer);
       }
+      for (const layer of copper.layers || []) if (visible(layer)) layers.add(layer);
       const ranks = new Map([...layers].map(layer => [layer, I.layerRank(layer, opts)]));
       if (new Set(ranks.values()).size === layers.size) order = [...layers].sort((a,b) => ranks.get(a)-ranks.get(b));
       else if (pending || entry.lod) {
@@ -321,7 +343,8 @@ globalThis.AtriumCanvasFast = (() => {
     }
     const rects = screenDamage(I, boxes);
     if (!rects || rects.length && !repaintRects(I, state, entry, doc, defs, opts, rects, order, wires, frame)) return false;
-    if (pending && entry.lod && rects.length) entry.inexact = true;
+    // Only a changed item rebuilds a batch: new copper alone repaints with the copy's batches as they are.
+    if (pending?.ids.size && entry.lod && rects.length) entry.inexact = true;
     entry.rev = cache.rev; entry.pending = null; entry.sel = selected; entry.maxCount = maxCount; entry.minCount = minCount; entry.order = order;
     return true;
   }
@@ -444,7 +467,7 @@ globalThis.AtriumCanvasFast = (() => {
     if (old && old.under !== under) freeUnder(old);
     for (const e of s.copies.values()) freeUnder(e);
     // The key is taken after drawing: drawing may have settled the airwires or the pour state.
-    s.copies.set(doc, {canvas: copy, key: key || keyOf(I, doc, defs, opts, undefined, frame), rev: c.rev, pending: null, maxCount: count, minCount: count, sel: selOf(opts), state,
+    s.copies.set(doc, {canvas: copy, key: key || keyOf(I, doc, defs, opts, undefined, frame), pourView: pourView(doc), rev: c.rev, pending: null, maxCount: count, minCount: count, sel: selOf(opts), state,
       dash: ctx.getLineDash?.() || [], hits: 0, at: now(), lod: I.lodUsed, order: I.orderUsed, under});
     while (s.copies.size > 2) { const k = s.copies.keys().next().value; free(s.copies.get(k)); s.copies.delete(k); }
   }
