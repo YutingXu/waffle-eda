@@ -99,10 +99,11 @@ globalThis.AtriumDXF = (() => {
   }
   const num = (r, code, def = 0) => { const i = r.codes.indexOf(code); if (i < 0) return def; const v = parseFloat(r.vals[i]); return Number.isFinite(v) ? v : def; };
   const str = (r, code, def = "") => { const i = r.codes.indexOf(code); return i < 0 ? def : r.vals[i]; };
-  // Geometry values: a missing group reads as def (NaN when the entity needs it) and a malformed
-  // value as NaN, so the entity is skipped instead of gaining a vertex at 0.
+  // Geometry values: a missing group reads as its default (0 unless the group has another), as it
+  // always has. A present but malformed value reads as NaN, so the entity is skipped instead of
+  // gaining a vertex at 0.
   const realValue = v => v === "" ? NaN : Number(v);
-  const real = (r, code, def = NaN) => { const i = r.codes.indexOf(code); return i < 0 ? def : realValue(r.vals[i]); };
+  const real = (r, code, def = 0) => { const i = r.codes.indexOf(code); return i < 0 ? def : realValue(r.vals[i]); };
   const finite = values => values.every(Number.isFinite);
 
   // ---------------------------------------------------------------------------
@@ -111,7 +112,7 @@ globalThis.AtriumDXF = (() => {
     const pts = [], bulges = [];
     for (let i = 0; i < r.codes.length; i++) {
       const c = r.codes[i];
-      if (c === 10) { pts.push([realValue(r.vals[i]), NaN]); bulges.push(0); }
+      if (c === 10) { pts.push([realValue(r.vals[i]), 0]); bulges.push(0); }
       else if (c === 20 && pts.length) pts[pts.length - 1][1] = realValue(r.vals[i]);
       else if (c === 42 && pts.length) bulges[bulges.length - 1] = realValue(r.vals[i]);
     }
@@ -147,8 +148,8 @@ globalThis.AtriumDXF = (() => {
     for (let i = 0; i < r.codes.length; i++) {
       const c = r.codes[i], v = realValue(r.vals[i]);
       if (c === 40) knots.push(v); else if (c === 41) weights.push(v);
-      else if (c === 10) ctrl.push([v, NaN]); else if (c === 20 && ctrl.length) ctrl[ctrl.length - 1][1] = v;
-      else if (c === 11) fit.push([v, NaN]); else if (c === 21 && fit.length) fit[fit.length - 1][1] = v;
+      else if (c === 10) ctrl.push([v, 0]); else if (c === 20 && ctrl.length) ctrl[ctrl.length - 1][1] = v;
+      else if (c === 11) fit.push([v, 0]); else if (c === 21 && fit.length) fit[fit.length - 1][1] = v;
     }
     if (!finite([p, ...knots, ...weights, ...ctrl.flat(), ...fit.flat()])) return null;
     const closed = (flags & 1) === 1;
@@ -196,11 +197,13 @@ globalThis.AtriumDXF = (() => {
     const NOUN = {LINE: "lines", ARC: "arcs", CIRCLE: "circles", LWPOLYLINE: "polylines", POLYLINE: "polylines", ELLIPSE: "ellipses", SPLINE: "splines"};
     function convert(r, verts) {
       const type = r.type, nz = real(r, 230, 1), flip = nz < 0;
-      const malformed = () => { warn("DXF " + NOUN[type] + " with missing or malformed coordinates were skipped"); return null; };
+      // A malformed entity is reported by this warning alone, not also in the skipped-type summary.
+      const malformed = () => { r.malformed = true; warn("DXF " + NOUN[type] + " with " + (type === "LINE" ? "missing or " : "") + "malformed coordinates were skipped"); return null; };
       let g = null;
       switch (type) {
         case "LINE": {
-          const coordinates = [10, 20, 11, 21].map(code => real(r, code));
+          // A LINE needs both end points written out: a missing coordinate skips it too.
+          const coordinates = [10, 20, 11, 21].map(code => real(r, code, NaN));
           if (!finite(coordinates)) return malformed();
           const [x, y, endX, endY] = coordinates;
           return {segs: [L([x, y], [endX, endY])], closed: false, flip: false};
@@ -266,12 +269,14 @@ globalThis.AtriumDXF = (() => {
         const at = [real(r, 10, 0), real(r, 20, 0)], sx = real(r, 41, 1), sy = real(r, 42, 1), rot = real(r, 50, 0), cs = real(r, 44, 0), rs = real(r, 45, 0), nz = real(r, 230, 1);
         if (finite([...at, sx, sy, rot, cs, rs, nz])) return {insert: true, ...(opt.entityResult ? {reference:sourceOf(r)} : {}), layer: layerOf(r), name: str(r, 2), at, sx: sx || 1, sy: sy || 1,
           rot, cols: Math.max(1, Math.min(1000, num(r, 70, 1) | 0)), rows: Math.max(1, Math.min(1000, num(r, 71, 1) | 0)), cs, rs, flip: nz < 0};
+        r.malformed = true;
         warn("DXF block inserts with malformed coordinates were skipped");
       }
       const g = r.type === "INSERT" ? null : convert(r, verts);
       if (!g) {
         if (!["ATTDEF", "ATTRIB", "SEQEND", "VERTEX", "ENDBLK", "BLOCK"].includes(r.type)) {
-          skipped.set(r.type, (skipped.get(r.type) || 0) + 1);
+          // A malformed entity already has its own warning; the summary counts the other skips.
+          if (!r.malformed) skipped.set(r.type, (skipped.get(r.type) || 0) + 1);
           opt.entityResult?.(sourceOf(r), r.type, "dropped", layerOf(r));
         }
         return null;
