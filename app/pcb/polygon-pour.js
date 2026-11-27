@@ -1395,7 +1395,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
 
   // --------------------------------------------------------------- regions
-  const {contours:rings,region:encode,regionLike:encodeLike}=AtriumPCBPours;
+  const {contours:rings,region:encode,regionLike:encodeLike,dataKey}=AtriumPCBPours;
 
   // ------------------------------------------------------------------ pour
   // ------------------------------------------------- smart connect styles
@@ -2337,7 +2337,7 @@ globalThis.AtriumPolygonPour=(()=>{
     const c=clearance(r.net||"","poly",r),b=r.bounds;
     if(!near([b[0]-c,b[1]-c,b[2]+c,b[3]+c]))return;
     const tag=r.polygon??"imported",reach=c+Math.max(SAFE,2e-4)+tol;
-    const cached=areaRegionContours.get(r),prepared=cached&&cached.data===r.data&&cached.count===r.count?cached.rings:null;
+    const cached=areaRegionContours.get(r),prepared=cached&&cached.data===dataKey(r)&&cached.count===r.count?cached.rings:null;
     (prepared||rings(r)).forEach((ring,k)=>{
       const rb=prepared?areaRingInfo(ring).box:boxOf(ring);
       if(!near([rb[0]-reach,rb[1]-reach,rb[2]+reach,rb[3]+reach]))return;
@@ -2378,7 +2378,7 @@ globalThis.AtriumPolygonPour=(()=>{
       // not encoded again, and the editor keeps its object and everything cached for it.
       if(job.areaExact){
         const mm=rs.map(r=>areaToMm(r.ring)),region=encodeLike(job.prior,mm.map(e=>e.mm),layer,net,extra);
-        areaRegionContours.set(region,{data:region.data,count:region.count,rings:mm.map(e=>e.stored)});
+        areaRegionContours.set(region,{data:dataKey(region),count:region.count,rings:mm.map(e=>e.stored)});
         regions.push(region);
       }else regions.push(encodeLike(job.prior,rs.map(r=>toMm(r.ring)),layer,net,extra));
       yield;
@@ -2631,8 +2631,8 @@ globalThis.AtriumPolygonPour=(()=>{
   // Hash of a region's edges that reach into `area` (both end points).
   function regionWords(r,area){
     let entry=regionHashes.get(r);
-    if(!entry||entry.data!==r.data||entry.count!==r.count||entry.layer!==r.layer||entry.net!==r.net){
-      entry={data:r.data,count:r.count,layer:r.layer,net:r.net,areas:new Map()};regionHashes.set(r,entry);
+    if(!entry||entry.data!==dataKey(r)||entry.count!==r.count||entry.layer!==r.layer||entry.net!==r.net){
+      entry={data:dataKey(r),count:r.count,layer:r.layer,net:r.net,areas:new Map()};regionHashes.set(r,entry);
     }
     const m=entry.areas;
     const key=area.join(",");let w=m.get(key);
@@ -2817,7 +2817,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
   function intact(e){
     const R=e.regions;
-    for(let k=0;k<R.length;k++){const r=R[k],s=e.saved[k];if(r.data!==s[0]||r.links!==s[1]||r.arcs!==s[2]||r.bounds!==s[3]||r.polygon!==e.id)return false;}
+    for(let k=0;k<R.length;k++){const r=R[k],s=e.saved[k];if(dataKey(r)!==s[0]||r.links!==s[1]||r.arcs!==s[2]||r.bounds!==s[3]||r.polygon!==e.id)return false;}
     return true;
   }
   // 96-bit hash of everything solve() and finish() read.
@@ -2880,7 +2880,7 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!rc.byId||rc.byId.n!==rc.doc.items.length){rc.byId=new Map();rc.byId.n=rc.doc.items.length;for(const i of rc.doc.items)rc.byId.set(i.id,i);}
     const lib=[];for(const cid of x.contrib){const i=rc.byId.get(cid);if(i?.kind==="part"){const def=rc.defs?.get?.(i.def);lib.push(i.def,def,def?.footprint);}}
     const e={id:p.id,doc:rc.doc,key:x.key,seq:x.seq,outer:rc.outer,contrib:x.contrib,hash1:x.hash1,job:x.job,solved1:x.solved1,earlier:x.earlier,
-      regions:x.regions,stats:x.stats,lib,saved:x.regions.map(r=>[r.data,r.links,r.arcs,r.bounds]),
+      regions:x.regions,stats:x.stats,lib,saved:x.regions.map(r=>[dataKey(r),r.links,r.arcs,r.bounds]),
       spec:spec&&x.solved?true:old?.spec&&old.regions===x.regions?old.spec:false};
     if(e.spec===true&&x.solved)SPEC.stats.poursSolved++,SPEC.stats.cpuMs+=x.stats.ms||0;
     let entries=REUSE.byDocument.get(rc.doc);
@@ -3757,10 +3757,10 @@ globalThis.AtriumPolygonPour=(()=>{
   const packedCopperHashes = new WeakMap();
   function packedCopperHash(region) {
     let cached = packedCopperHashes.get(region);
-    if (!cached || cached.data !== region.data) {
+    if (!cached || cached.data !== dataKey(region)) {
       const hash = hasher();
       hash.value(region.data);
-      cached = {data:region.data, digest:hash.hex()};
+      cached = {data:dataKey(region), digest:hash.hex()};
       packedCopperHashes.set(region, cached);
     }
     return cached.digest;
@@ -4633,8 +4633,11 @@ globalThis.AtriumPolygonPour=(()=>{
         // Keep the original objects for unchanged regions; the canvas and its GPU
         // buffers can continue to use them. All new regions arrive encoded.
         const previous=doc.pcbDrawing?.pours||[];
-        const regions=r.rows.map(row=>typeof row==="number"?previous[row]:row);
-        if(regions.some(region=>!region||typeof region.data!=="string"))throw Error("The live pour worker returned incomplete copper.");
+        // A region held as runs comes as its fields and run keys; its runs are the ones sent with it or
+        // the ones the regions here already hold (AtriumPCBPours.fromRuns, runLookup).
+        const C=AtriumPCBPours,lookup=r.rows.some(row=>row?.fields)?C.runLookup(previous):null;
+        const regions=r.rows.map(row=>typeof row==="number"?previous[row]:row?.fields?C.fromRuns(row.fields,row.runs,r.runs,lookup):row);
+        if(regions.some(region=>!region||!C.hasData(region)))throw Error("The live pour worker returned incomplete copper.");
         await new Promise(resolve=>slot(resolve));
         if(!still())return;
         const start=now();
@@ -5533,7 +5536,7 @@ globalThis.AtriumPolygonPour=(()=>{
   function pourVertices(doc){
     const pours=doc?.pcbDrawing?.pours;if(!Array.isArray(pours))return 0;
     let n=vertexCount.get(pours);
-    if(n===undefined){n=0;for(const r of pours)n+=Math.max(0,((r.data?.length||0)*3/4-4*(r.count||1))/16);vertexCount.set(pours,n);}
+    if(n===undefined){n=0;for(const r of pours)n+=Math.max(0,(AtriumPCBPours.dataLength(r)*3/4-4*(r.count||1))/16);vertexCount.set(pours,n);}
     return n;
   }
   // Start (or restart) the sessions for the host's board.

@@ -117,12 +117,31 @@ globalThis.AtriumSaveCache = (() => {
       return e;
     }
     // Lays out containers above FRONTIER; frontier nodes become placeholders (filled by fill()).
+    // The arcs of a region whose copper holds them (AtriumPCBPours.copperArcs): a segment whose text is
+    // the node text the arcs array would have here (layoutValue at depth d), made when asked (String()).
+    // One per copper and depth, so an island that did not change keeps its segment and its chunk.
+    class ArcsText {
+      constructor(copper, d) { this.copper = copper; this.d = d; this.chars = this.toString().length; }
+      toString() { return layoutValue(sorted(G.AtriumPCBPours.copperArcs(this.copper)), this.d); }
+    }
+    const arcsSegments = new WeakMap();
+    function arcsSegment(copper, d) {
+      let m = arcsSegments.get(copper);
+      if (!m) arcsSegments.set(copper, m = new Map());
+      if (!m.has(d)) m.set(d, new ArcsText(copper, d));
+      return m.get(d);
+    }
     function layout(root) {
       const segs = [], nodes = [], owners = [];
       const itemsOf = new Map();
       if (Array.isArray(root?.documents)) for (const d of root.documents) if (d && Array.isArray(d.items)) itemsOf.set(d.items, d);
       let s = "", owner = null;
-      const largeRegion = r => r && !Array.isArray(r) && typeof r.data === "string" && r.data.length > LINE && Object.prototype.propertyIsEnumerable.call(r, "data");
+      // A region the pour engine holds as runs gives its copper (AtriumPCBPours.copperOf) as the data
+      // segment: the segment's text is the copper's (String(copper)), joined only if a text is wanted.
+      // Its true arcs, when the runs hold them too, are a segment of their own (arcsSegment).
+      const copperOf = r => G.AtriumPCBPours?.copperOf?.(r) || null, held = (r, k) => G.AtriumPCBPours?.heldField?.(r, k) || null;
+      const largeRegion = r => r && !Array.isArray(r) && Object.prototype.propertyIsEnumerable.call(r, "data") &&
+        (copperOf(r)?.chars > LINE || typeof r.data === "string" && r.data.length > LINE);
       function walk(v, depth, expanded = false) {
         if (v === null || typeof v !== "object") { s += prim(v); return; }
         if (depth >= FRONTIER && !expanded) { segs.push(s); s = ""; nodes.push(v, depth, segs.length); owners.push(owner); segs.push(null); return; }
@@ -150,7 +169,7 @@ globalThis.AtriumSaveCache = (() => {
           keys = Object.keys(order);
         }
         for (const k of keys) {
-          const x = v[k];
+          const x = expanded && (k === "data" || k === "arcs") && held(v, k) || v[k];
           if (skip(x)) continue;
           s += (first ? "{\n" : ",\n") + inner + JSON.stringify(k) + ": ";
           first = false;
@@ -158,8 +177,11 @@ globalThis.AtriumSaveCache = (() => {
           // Keep the immutable encoded copper as a segment shared with the model. An edit to one
           // region then leaves the other regions' storage chunks and native patch ranges intact.
           if (expanded && k === "data") {
-            if (NEEDS_QUOTING.test(x)) { segs.push(s, JSON.stringify(x)); s = ""; }
+            if (typeof x !== "string") { segs.push(s + '"', x); s = '"'; }   // copper: base64, no quoting needed
+            else if (NEEDS_QUOTING.test(x)) { segs.push(s, JSON.stringify(x)); s = ""; }
             else { segs.push(s + '"', x); s = '"'; }
+          } else if (expanded && k === "arcs" && !Array.isArray(x) && typeof x === "object") {
+            segs.push(s, arcsSegment(x, depth + 1)); s = "";
           } else {
             const pours = depth + 1 === FRONTIER && k === "pours" && Array.isArray(x) && x.some(largeRegion);
             walk(x, depth + 1, pours);
@@ -204,7 +226,7 @@ globalThis.AtriumSaveCache = (() => {
           }
           const bytes = new Array(segs.length);
           let total = 0;
-          for (let j = 0; j < segs.length; j++) { const n = ents[j] ? ents[j].b : utf8(segs[j]); bytes[j] = n; total += n; }
+          for (let j = 0; j < segs.length; j++) { const n = ents[j] ? ents[j].b : typeof segs[j] === "string" ? utf8(segs[j]) : segs[j].chars; bytes[j] = n; total += n; }
           done = {segs, bytes, total, ents};
           spent += perf() - t;
           prune(ents, nodes.length / 3, liveLarge);
@@ -321,18 +343,58 @@ globalThis.AtriumSaveCache = (() => {
       };
       for (let i = 0; i < st.segs.length; i++) {
         // A single large payload gets its own key. Changing adjacent metadata needn't join or
-        // rewrite a megabyte string in recovery storage.
-        if (st.bytes[i] >= maxBytes && i > first) close(i);
+        // rewrite a megabyte string in recovery storage. So does a region's copper held as runs
+        // (records() writes it as its runs), whatever its size.
+        const own = st.bytes[i] >= maxBytes || typeof st.segs[i] !== "string";
+        if (own && i > first) close(i);
         size += st.bytes[i];
         const e = st.ents[i];
-        if ((e && (e.h & mask) === 0) || size >= maxBytes) close(i + 1);
+        if ((e && (e.h & mask) === 0) || size >= maxBytes || own) close(i + 1);
       }
       if (first < st.segs.length || !out.length) close(st.segs.length);
-      return {state: st, list: out};
+      return {state: st, list: out, prevRuns: prev?.runs || null};
     }
-    const chunkText = (st, c) => c.end === c.first + 1 ? st.segs[c.first] : st.segs.slice(c.first, c.end).join("");
+    const chunkText = (st, c) => c.end === c.first + 1 ? String(st.segs[c.first]) : st.segs.slice(c.first, c.end).join("");
+    // A chunk that is one region's copper (a segment the pour engine holds as runs): that copper, else null.
+    const chunkCopper = (st, c) => c.end === c.first + 1 && typeof st.segs[c.first] !== "string" ? st.segs[c.first] : null;
+    // The records a recovery snapshot writes (autosave.js) for chunks(): each chunk without a key gets
+    // one (newKey()) and is written, {id, text}, except a chunk that is one region's poured copper
+    // (chunkCopper), written as its run keys {id, runs: ["r~" + key, ...]}. Each run of copper is a
+    // record of its own {id: "r~" + key, run} (AtriumPCBPours.runRecord), written once: a run the
+    // previous snapshot of the slot refers to (its list.runs) is not written again. list.runs (also
+    // returned as runs): the run records this snapshot refers to; written: the bytes of the records.
+    function records(st, list, newKey) {
+      const C = G.AtriumPCBPours, stored = new Set(list.prevRuns || []), fresh = [], runs = new Set();
+      for (const c of list.list) {
+        const seg = C?.copperRuns ? chunkCopper(st, c) : null, arcs = seg instanceof ArcsText, copper = arcs ? seg.copper : seg;
+        const ids = copper ? C.copperRuns(copper).map(run => "r~" + run.id) : null;
+        if (copper) C.copperRuns(copper).forEach((run, i) => {
+          runs.add(ids[i]);
+          if (!stored.has(ids[i])) { stored.add(ids[i]); fresh.push({id: ids[i], run: C.runRecord(run)}); }
+        });
+        if (c.key) continue;
+        c.key = newKey();
+        fresh.push(arcs ? {id: c.key, arcs: ids, d: seg.d} : copper ? {id: c.key, runs: ids} : {id: c.key, text: chunkText(st, c)});
+      }
+      list.runs = [...runs];
+      let written = 0;
+      for (const x of fresh) written += x.text?.length ?? (x.run ? x.run.bytes.byteLength + (x.run.arcs?.byteLength || 0) : 16 * (x.runs || x.arcs).length);
+      return {fresh, runs: list.runs, written};
+    }
+    // The texts of stored chunk records (records()): a text as it is, a copper chunk joined from its
+    // run records (run(id) -> {run}) by the pour engine, a copper's arcs laid out as they were (depth
+    // d); null where a record is missing.
+    async function texts(list, run) {
+      const C = list.some(x => Array.isArray(x?.runs || x?.arcs)) ? G.AtriumPCBPours || await G.AtriumLazy?.need?.("AtriumPCBPours") : null;
+      return list.map(x => {
+        if (typeof x?.text === "string") return x.text;
+        const runs = Array.isArray(x?.runs || x?.arcs) && C ? (x.runs || x.arcs).map(id => run(id)?.run) : null;
+        if (!runs?.every(r => r?.bytes)) return null;
+        return x.arcs ? layoutValue(sorted(C.arcsText(runs)), x.d) : C.copperText(runs);
+      });
+    }
 
-    return {state, job, text, serialize, diff, chunks, chunkText, utf8, sorted,
+    return {state, job, text, serialize, diff, chunks, chunkText, chunkCopper, records, texts, utf8, sorted,
       stats: () => {
         let cacheChars = 0;
         for (const e of byText.values()) cacheChars += e.c.length + e.t.length;

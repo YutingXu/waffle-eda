@@ -54,18 +54,27 @@ globalThis.AtriumUndoStore = (() => {
   // encoded copper: the shadow keeps their fields by reference ({sh: [key, value, ...]}), which
   // shares the strings with the live region instead of copying them into JSON. A record that keeps
   // an old region counts its data (data) against the budget.
+  // A region the pour engine holds as runs shares its copper (AtriumPCBPours.copperOf: runs shared by
+  // every version of the island) in place of its data text, which is never joined here: a record that
+  // replaces a region counts only the runs the old version has and the new one does not
+  // (copperDelta), so a run is counted once however many versions of the region hold it.
+  const P = () => G.AtriumPCBPours;
+  const fieldOf = (e, k) => (k === "data" || k === "arcs") && P()?.heldField?.(e, k) || e[k];
   function shallowOf(e) {
     const sh = []; let data = 0;
-    for (const k of Object.keys(e)) { const x = e[k]; if (skip(x)) continue; sh.push(k, x); if (typeof x === "string") data += x.length; }
+    for (const k of Object.keys(e)) { const x = fieldOf(e, k); if (skip(x)) continue; sh.push(k, x); if (typeof x === "string") data += x.length; }
     return {sh, bytes: 16 + sh.length * 8, data};
   }
   function sameShallow(e, v) {
     const sh = v.sh; let i = 0;
-    for (const k of Object.keys(e)) { const x = e[k]; if (skip(x)) continue; if (sh[i] !== k || sh[i + 1] !== x) return false; i += 2; }
+    for (const k of Object.keys(e)) { const x = fieldOf(e, k); if (skip(x)) continue; if (sh[i] !== k || sh[i + 1] !== x) return false; i += 2; }
     return i === sh.length;
   }
-  const fromShallow = v => { const o = {}; for (let i = 0; i < v.sh.length; i += 2) o[v.sh[i]] = v.sh[i + 1]; return o; };
-  const held = v => v && v.sh ? 64 + v.data : size(v);
+  const copperIn = v => { if (!v?.sh) return null; for (let i = 0; i < v.sh.length; i += 2) if (v.sh[i] === "data" && P()?.isCopper?.(v.sh[i + 1])) return v.sh[i + 1]; return null; };
+  // A field back on an object: a shared copper through the pour engine (the region holds it again).
+  const setField = (o, k, x) => { if (P()?.isCopper?.(x)) P().withCopper(o, x); else o[k] = x; };
+  const fromShallow = v => { const o = {}; for (let i = 0; i < v.sh.length; i += 2) setField(o, v.sh[i], v.sh[i + 1]); return o; };
+  const held = v => v && v.sh ? 64 + v.data + (P()?.copperBytes?.(copperIn(v)) || 0) : size(v);
   const budget = () => Math.max(4, +(G.AtriumPref?.get?.("history.undoBudgetMB", 64)) || 64) * 1048576;
   const listeners = new Set(), libraryListeners = new Set(), authoredListeners = new Set();
   const emit = () => { for (const f of listeners) try { f(); } catch (e) { G.console?.error?.(e); } };
@@ -723,7 +732,9 @@ globalThis.AtriumUndoStore = (() => {
     let w = 48;
     if (r.t === "e"){
       const {before,after}=valuesOf(r);
-      w+= r.cellOffset!==undefined ? 160+144*cellHeight(after.cells)+8*CELL_CHUNK : held(before)+held(after);
+      const cb = copperIn(before), ca = copperIn(after);
+      w+= r.cellOffset!==undefined ? 160+144*cellHeight(after.cells)+8*CELL_CHUNK :
+        cb || ca ? 128 + before.data + after.data + P().copperDelta(cb, ca) : held(before)+held(after);
       w+=r.tableEdit?size(r.tableEdit.before)+size(r.tableEdit.after):0;
       const stretch = wireEdits.get(r);
       if (stretch) w += stretchSize(stretch[0]) + stretchSize(stretch[1]);
@@ -765,14 +776,14 @@ globalThis.AtriumUndoStore = (() => {
   function patch(o, text) {
     const v = typeof text === "string" ? JSON.parse(text) : text.table ? tableObject(text) : fromShallow(text);
     if (Array.isArray(o)) { o.length = v.length; for (let i = 0; i < v.length; i++) o[i] = v[i]; return; }
-    const keys = Object.keys(v);
+    const keys = Object.keys(v), put = k => text.sh ? setField(o, k, fieldOf(v, k)) : o[k] = v[k];
     for (const k of Object.keys(o)) if (!(k in v)) delete o[k];
-    for (const k of keys) o[k] = v[k];
+    for (const k of keys) put(k);
     if(text.table)liveTables.set(o,{state:o.widget.state,value:text});else liveTables.delete(o);
     const now = Object.keys(o);
     if (now.length === keys.length && now.every((k, i) => k === keys[i])) return;
     for (const k of now) delete o[k];
-    for (const k of keys) o[k] = v[k];
+    for (const k of keys) put(k);
   }
   // Restores a container's key order (and the shadow's, which mirrors it).
   function orderKeys(n, ks) {

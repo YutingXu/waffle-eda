@@ -175,7 +175,8 @@ globalThis.AtriumPCBNetLabels = (() => {
     const hw = (tw / 2 + size * 1.2) / scale, hh = size * 1.4 / scale;
     const cell = pow2(POUR_CELL / scale);
     let m = memo.get(region);
-    if (!m || m.data !== region.data) { m = {data: region.data, map: new Map()}; memo.set(region, m); }
+    const key = globalThis.AtriumPCBPours?.dataKey?.(region) ?? region.data;
+    if (!m || m.data !== key) { m = {data: key, map: new Map()}; memo.set(region, m); }
     if (m.map.size > MEMO) m.map.clear();
     const x0 = Math.max(view[0], b[0]) + hw, x1 = Math.min(view[2], b[2]) - hw, y0 = Math.max(view[1], b[1]) + hh, y1 = Math.min(view[3], b[3]) - hh;
     if (x0 > x1 || y0 > y1) return;

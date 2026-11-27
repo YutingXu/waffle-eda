@@ -77,44 +77,56 @@ globalThis.AtriumPCBPours=(()=>{
   }
   // region()'s answer, or the region of `prior` (removed from it) with exactly that content: the same
   // layer, net, rings (byte for byte) and other fields. A repour that leaves an island as it was then
-  // keeps its object, so nothing is encoded again and every cache of it holds.
+  // keeps its object, so nothing is encoded again and every cache of it holds. A new region holds its
+  // rings as runs (withCopper): the runs it shares with the pour's earlier regions are the same objects.
   function regionLike(prior,rings,layer,net,extra){
     const {bytes,bounds,packed}=regionBytes(rings,false),n=packed?net:net||"";
     let fresh=null;
-    for(let i=0;i<(prior?.length||0);i++){
+    try{fresh=tableFrom({count:rings.length,data:null},bytes);}catch{fresh=null;}
+    for(let i=0;fresh&&i<(prior?.length||0);i++){
       const p=prior[i];
-      if(p.layer!==layer||(p.net||"")!==(n||"")||p.count!==rings.length||!sameFields(p,extra))continue;
+      if(p.layer!==layer||(p.net||"")!==(n||"")||p.count!==rings.length)continue;
       let t;try{t=table(p);}catch{continue;}
-      if(t.bytes!==bytes.length)continue;
-      try{fresh??=tableFrom({count:rings.length,data:null},bytes);}catch{break;}
+      if(t.bytes!==bytes.length||t.runs.length!==fresh.runs.length)continue;
       let same=true;for(let k=0;k<t.n&&same;k++)same=t.h1[k]===fresh.h1[k]&&t.h2[k]===fresh.h2[k];
       if(!same)continue;
-      const old=decode(p.data);
-      for(let k=0;k<old.length&&same;k++)same=old[k]===bytes[k];
-      if(!same)continue;
+      const c=copperOf(p);
+      if(c)for(let j=0;j<c.runs.length&&same;j++)same=sameBytes(c.runs[j].bytes,bytes,fresh.runs[j].b0);
+      else{const old=decode(p.data);for(let k=0;k<old.length&&same;k++)same=old[k]===bytes[k];}
+      if(!same||!sameFields(p,extra))continue;
       prior.splice(i,1);
       return p;
     }
-    const made={layer,net:n,bounds,count:rings.length,data:encode(bytes),...extra};
-    try{fresh??=tableFrom({count:rings.length,data:null},bytes);tables.set(made,{...fresh,data:made.data});}catch{/* walk() reports it when read */}
-    return made;
+    const base={layer,net:n,bounds,count:rings.length,data:"",...extra};
+    if(!fresh){base.data=encode(bytes);return base;}   // walk() reports what is wrong when it is read
+    // True arcs ([ring, i0, i1, cx, cy, ...] in ring order) go with the runs of their rings.
+    const arcs=arcsByRun(extra?.arcs,fresh);
+    return withCopper(base,new Copper(fresh.runs.map((run,j)=>intern(runOf(bytes,fresh,run,arcs?.[j]))),rings.length,!!arcs));
   }
-  // A region's table as the pour worker computed it from the same bytes (live-pour-client.js): the
-  // editor then decodes only the runs it has not cached. Checked against the region's size.
-  function tableOut(region){const t=table(region);return {n:t.n,h1:t.h1,h2:t.h2,at:t.at,runs:t.runs,bytes:t.bytes};}
-  function adoptTable(region,t){
-    if(!t||typeof region?.data!=="string"||t.n!==region.count||t.at?.length!==t.n+1||!Array.isArray(t.runs))return false;
-    const d=region.data,size=d.length/4*3-(d.endsWith("==")?2:d.endsWith("=")?1:0);
-    if(size!==t.bytes||t.at[t.n]!==t.bytes)return false;
-    tables.set(region,{...t,data:d,ringCount:region.count});
-    return true;
-  }
+  const sameBytes=(a,b,at)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[at+i])return false;return true;};
   const BASE_FIELDS=new Set(["layer","net","bounds","count","data"]);
+  const sameValue=(a,b)=>a===b||Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&(a.every(x=>typeof x==="number")&&b.every(x=>typeof x==="number")?a.every((x,i)=>x===b[i]):JSON.stringify(a)===JSON.stringify(b))||
+    !Array.isArray(a)&&!Array.isArray(b)&&JSON.stringify(a)===JSON.stringify(b);
   function sameFields(p,extra){
     const keys=Object.keys(p).filter(k=>!BASE_FIELDS.has(k)&&p[k]!==undefined),more=Object.keys(extra||{}).filter(k=>extra[k]!==undefined);
     if(keys.length!==more.length)return false;
-    for(const k of keys)if(!(k in extra)||JSON.stringify(p[k])!==JSON.stringify(extra[k]))return false;
+    for(const k of keys)if(!(k in extra)||!sameValue(p[k],extra[k]))return false;
     return true;
+  }
+  // A region's arcs split by the runs of table t (each relative to its run's first ring), or null when
+  // they cannot be (not ring-ordered numbers): they then stay an ordinary field.
+  function arcsByRun(arcs,t){
+    if(!Array.isArray(arcs)||!arcs.length||arcs.length%5)return null;
+    const out=t.runs.map(()=>[]);let j=0,last=-1;
+    for(let i=0;i<arcs.length;i+=5){
+      const ring=arcs[i];
+      if(!Number.isInteger(ring)||ring<last||ring>=t.n)return null;
+      for(let k=1;k<5;k++)if(typeof arcs[i+k]!=="number")return null;
+      last=ring;
+      while(ring>=t.runs[j].k1)j++;
+      out[j].push(ring-t.runs[j].k0,arcs[i+1],arcs[i+2],arcs[i+3],arcs[i+4]);
+    }
+    return out.map(a=>a.length?Float64Array.from(a):null);
   }
   function regionBytes(rings,native){
     const packed=typeof rings[0]?.[0]==="number",count=r=>packed?r.length>>1:r.length;
@@ -240,7 +252,8 @@ globalThis.AtriumPCBPours=(()=>{
   const tables=new WeakMap(),runCache=new Map(),RUN_BUDGET=1200000;
   const paths=new Map(),decoded=new Map(),PATH_BUDGET=400000,RUN_PATH_BUDGET=600000,DECODED_MAX=256;
   let pathVertices=0,runVertices=0,runPathVertices=0;
-  const sameGeometry=(entry,region)=>entry.data===region.data&&entry.ringCount===region.count;
+  // Caches remember the data they were made from by dataKey (no text is joined to check them).
+  const sameGeometry=(entry,region)=>entry.data===dataKey(region)&&entry.ringCount===region.count;
   // Ring hashes straight from the stored words: h1 is copperChange's FNV-1a (seeded by the ring's role,
   // 0 outer, 1 hole), h2 an independent multiply-xorshift hash.
   function ringHash1(w,from,to,role){let h=2166136261^role;for(let i=from;i<to;i++)h=Math.imul(h^w[i],16777619);return h>>>0;}
@@ -278,9 +291,198 @@ globalThis.AtriumPCBPours=(()=>{
   function table(region,bytes){
     const t=tables.get(region);
     if(t&&sameGeometry(t,region))return t;
-    const made=tableFrom(region,bytes||decode(region.data));
+    const c=copperOf(region),made=c?copperTable(c):tableFrom(region,bytes||decode(region.data));
     tables.set(region,made);
     return made;
+  }
+
+  // ---- copper held as runs
+  // A region the pour engine makes (regionLike, or from the live worker's runs) holds its rings as runs:
+  // Run {key, bytes, n, h1, h2, at} (at: ring offsets within the run), interned by key, so every
+  // version of a region, and every region that has the same rings in a row, shares one object for
+  // them. Its `data` is an accessor: reading it joins the runs into the stored base64 text (kept for a
+  // while, bounded), so saving, exporting and every other reader of the text get the bytes they always
+  // did, and writing it makes an ordinary region again. Code on the edit path reads the runs instead,
+  // through this module only: dataKey(r) and sameData(a, b) (what a cache keys on), dataLength(r),
+  // contours and tables, copperOf(r) / withCopper(o, c) (the undo store's shared fields), copperRuns(c)
+  // and copperText(records) (recovery drafts), fieldsOf / fromRuns / runLookup (the live worker).
+  const copperOfRegion=new WeakMap(),runStore=new Map(),TEXT_BUDGET=1<<25;
+  const runGone=typeof FinalizationRegistry==="function"?new FinalizationRegistry(key=>{const w=runStore.get(key);if(w&&!w.deref())runStore.delete(key);}):null;
+  // arcs: the region's true arcs are held by its runs (Run.arcs) and its `arcs` field reads them too.
+  class Copper{
+    constructor(runs,count,arcs=false){
+      this.runs=runs;this.count=count;this.arcs=arcs;let b=0,s=0;for(const r of runs){b+=r.bytes.length;s+=r.size;}
+      this.bytes=b;this.size=s;this.chars=4*Math.ceil(b/3);
+    }
+    // The text of the data (Array.join and String() of a copper give it).
+    toString(){return textOf(this);}
+    // Content, not text, for hashes over values that hold a copper (the undo store's checks).
+    toJSON(){return "copper:"+this.count+":"+this.runs.map(r=>r.id).join(",");}
+  }
+  const isCopper=x=>x instanceof Copper;
+  // One run of a region's bytes (a copy), with its rings' hashes and offsets, and its true arcs. A run is
+  // found by id (key: its rings; id: its rings and arcs). Geometry caches key on key.
+  function runOf(bytes,t,run,arcs=null){
+    const at=new Uint32Array(run.k1-run.k0+1);for(let k=run.k0;k<=run.k1;k++)at[k-run.k0]=t.at[k]-run.b0;
+    return made({key:run.key,bytes:bytes.slice(run.b0,run.b1),n:run.k1-run.k0,h1:t.h1.slice(run.k0,run.k1),h2:t.h2.slice(run.k0,run.k1),at,arcs});
+  }
+  function made(run){
+    let id=run.key;
+    if(run.arcs){const w=new Uint32Array(run.arcs.buffer,run.arcs.byteOffset,run.arcs.length*2);id+=":"+ringHash1(w,0,w.length,2).toString(36)+"."+ringHash2(w,0,w.length,2).toString(36);}
+    run.id=id;run.size=run.bytes.length+(run.arcs?run.arcs.byteLength:0);
+    return run;
+  }
+  const sameArcs=(a,b)=>a===b||!!a&&!!b&&a.length===b.length&&a.every((x,i)=>Object.is(x,b[i]));
+  // The run already held under its id when it has the same bytes and arcs (a different run with the
+  // same id, which the 64-bit hashes make all but impossible, gets an id of its own).
+  function intern(run){
+    let other=false;
+    for(let k=0;;k++){
+      const id=k?run.id+"~"+k:run.id,held=runStore.get(id)?.deref();
+      if(!held){
+        run.id=id;if(other)run.key+="~"+k;   // other rings under the same key: a key of its own too
+        runStore.set(id,typeof WeakRef==="function"?new WeakRef(run):{deref:()=>run});runGone?.register(run,id);return run;
+      }
+      const sameRings=held.bytes.length===run.bytes.length&&sameBytes(held.bytes,run.bytes,0);
+      if(sameRings&&sameArcs(held.arcs,run.arcs))return held;
+      other||=!sameRings;
+    }
+  }
+  function copperTable(c){
+    let n=0;for(const r of c.runs)n+=r.n;
+    const h1=new Uint32Array(n),h2=new Uint32Array(n),at=new Uint32Array(n+1),runs=[];
+    let k=0,b=0;
+    for(const r of c.runs){
+      h1.set(r.h1,k);h2.set(r.h2,k);for(let i=0;i<r.n;i++)at[k+i]=b+r.at[i];
+      runs.push({key:r.key,k0:k,k1:k+r.n,b0:b,b1:b+r.bytes.length,run:r});k+=r.n;b+=r.bytes.length;
+    }
+    at[n]=b;
+    return {data:c,ringCount:c.count,n,h1,h2,at,runs,bytes:b};
+  }
+  // o (an ordinary region object, its other fields in place) now holds c; its data reads as c's text,
+  // and its arcs (when c holds them) as c's arcs. Writing either makes it an ordinary field again.
+  function withCopper(o,c){
+    const field=(k,read)=>{
+      if(!(k in o))o[k]=null;
+      Object.defineProperty(o,k,{enumerable:true,configurable:true,get(){return copperOfRegion.get(this)===c?read(c):undefined;},
+        set(v){if(k==="data")copperOfRegion.delete(this);Object.defineProperty(this,k,{value:v,writable:true,enumerable:true,configurable:true});}});
+    };
+    field("data",textOf);
+    if(c.arcs&&"arcs" in o)field("arcs",arcsOf);   // (an object rebuilt field by field gets its arcs when it reaches them)
+    copperOfRegion.set(o,c);
+    return o;
+  }
+  // A copper's arcs as the region's field reads: [ring, i0, i1, cx, cy, ...] (kept, as texts are).
+  const arcLists=new Map();let arcNumbers=0;
+  function arcsOf(c){
+    let a=arcLists.get(c);
+    if(a){arcLists.delete(c);arcLists.set(c,a);return a;}
+    a=[];let k=0;
+    for(const r of c.runs){if(r.arcs)for(let i=0;i<r.arcs.length;i+=5)a.push(r.arcs[i]+k,r.arcs[i+1],r.arcs[i+2],r.arcs[i+3],r.arcs[i+4]);k+=r.n;}
+    arcLists.set(c,a);arcNumbers+=a.length;
+    for(const [x,v] of arcLists){if(arcNumbers<=TEXT_BUDGET>>4||x===c)break;arcLists.delete(x);arcNumbers-=v.length;}
+    return a;
+  }
+  const copperArcs=c=>c?.arcs?arcsOf(c):null;
+  // The copper behind field k of a region, when its copper holds that field (its data; its arcs too).
+  const heldField=(region,k)=>{const c=(k==="data"||k==="arcs")&&copperOf(region);return c&&(k==="data"||c.arcs)?c:null;};
+  function copperOf(region){
+    const c=region&&typeof region==="object"?copperOfRegion.get(region):null;
+    return c&&Object.getOwnPropertyDescriptor(region,"data")?.get?c:null;
+  }
+  // What a cache of a region's data keys on: its copper, or its data text.
+  const dataKey=region=>copperOf(region)||region?.data;
+  // Whether two regions hold the same data (the same runs, or the same text), joining no text.
+  function sameData(a,b){
+    const ca=copperOf(a),cb=copperOf(b);
+    if(!ca&&!cb)return a.data===b.data;
+    if(ca&&cb)return ca===cb||ca.count===cb.count&&ca.runs.length===cb.runs.length&&ca.runs.every((r,i)=>r===cb.runs[i]);
+    let ta,tb;try{ta=table(a);tb=table(b);}catch{return false;}
+    return ta.bytes===tb.bytes&&ta.n===tb.n&&ta.runs.length===tb.runs.length&&ta.runs.every((r,i)=>r.key.split("~")[0]===tb.runs[i].key.split("~")[0])&&a.data===b.data;
+  }
+  // The length of the data text, and whether there is any.
+  const dataLength=region=>{const c=copperOf(region);return c?c.chars:typeof region?.data==="string"?region.data.length:0;};
+  const hasData=region=>!!copperOf(region)||typeof region?.data==="string";
+  // A copper's text: the runs' bytes joined and base64-encoded, kept while within TEXT_BUDGET characters.
+  const texts=new Map();let textChars=0;
+  function textOf(c){
+    let s=texts.get(c);
+    if(s!==undefined){texts.delete(c);texts.set(c,s);return s;}
+    const all=new Uint8Array(c.bytes);let o=0;for(const r of c.runs){all.set(r.bytes,o);o+=r.bytes.length;}
+    s=encode(all);texts.set(c,s);textChars+=s.length;
+    for(const [k,v] of texts){if(textChars<=TEXT_BUDGET||k===c)break;texts.delete(k);textChars-=v.length;}
+    return s;
+  }
+  // A region's own fields with the ones its copper holds left empty in place (no text joined), for a
+  // message to or from the worker: {fields, runs: ids} and fromRuns rebuild it.
+  function fieldsOf(region){
+    const c=copperOf(region),o={};
+    for(const k of Object.keys(region))o[k]=k==="data"||c?.arcs&&k==="arcs"?null:region[k];
+    return o;
+  }
+  // Runs by id from regions an editor already holds (their copper, or slices of their text), for
+  // fromRuns: the live worker sends only the runs the editor does not have.
+  function runLookup(regions){
+    const at=new Map();
+    for(const r of regions||[]){
+      const c=copperOf(r);
+      if(c){for(const run of c.runs)at.set(run.id,run);continue;}
+      if(Array.isArray(r.arcs)&&r.arcs.length)continue;   // its runs' arcs are not split out: sent whole
+      let t;try{t=table(r);}catch{continue;}
+      for(const run of t.runs)if(!at.has(run.key))at.set(run.key,{region:r,t,run});
+    }
+    return id=>{
+      const x=at.get(id);
+      if(!x||x.bytes)return x||null;
+      const g0=Math.floor(x.run.b0/3),g1=Math.ceil(x.run.b1/3),bytes=decode(x.region.data.slice(4*g0,4*g1));
+      const run=intern(runOf(bytes,{...x.t,at:x.t.at.map(v=>v-3*g0)},{...x.run,b0:x.run.b0-3*g0,b1:x.run.b1-3*g0}));
+      at.set(id,run);return run;
+    };
+  }
+  // The ids the worker may name without sending the run: the runs of regions the editor holds.
+  function runIds(regions){
+    const ids=new Set();
+    for(const r of regions||[]){
+      const c=copperOf(r);
+      if(c){for(const run of c.runs)ids.add(run.id);continue;}
+      if(Array.isArray(r.arcs)&&r.arcs.length)continue;
+      try{for(const run of table(r).runs)ids.add(run.key);}catch{/* sent whole */}
+    }
+    return ids;
+  }
+  // A region from its fields (fieldsOf) and run ids: the runs from `runs` (id -> run as sent) or from
+  // lookup. Null when a run is missing.
+  function fromRuns(fields,ids,runs,lookup){
+    const list=[];let arcs=false;
+    for(const id of ids){
+      const sent=runs?.get(id),run=sent?intern(made({key:sent.key,bytes:sent.bytes,n:sent.n,h1:sent.h1,h2:sent.h2,at:sent.at,arcs:sent.arcs||null})):lookup?.(id);
+      if(!run)return null;
+      arcs||=!!run.arcs;
+      list.push(run);
+    }
+    const o={};for(const k of Object.keys(fields))o[k]=fields[k];
+    return withCopper(o,new Copper(list,fields.count,arcs||fields.arcs===null));
+  }
+  // A run as a message or a recovery record carries it (structured clone).
+  const runRecord=run=>({id:run.id,key:run.key,bytes:run.bytes,n:run.n,h1:run.h1,h2:run.h2,at:run.at,arcs:run.arcs});
+  const copperRuns=c=>c.runs;
+  const copperBytes=c=>c?c.size:0;
+  // The bytes of a's runs that b does not hold (what an Undo record keeps alive when b replaces a).
+  function copperDelta(a,b){
+    if(!a)return 0;if(!b)return a.size;
+    const have=new Set(b.runs);let n=0;for(const r of a.runs)if(!have.has(r))n+=r.size;return n;
+  }
+  // The arcs field of runs read back from records ({n, arcs}), in order (a recovery draft).
+  function arcsText(records){
+    const a=[];let k=0;
+    for(const r of records){if(r.arcs)for(let i=0;i<r.arcs.length;i+=5)a.push(r.arcs[i]+k,r.arcs[i+1],r.arcs[i+2],r.arcs[i+3],r.arcs[i+4]);k+=r.n;}
+    return a;
+  }
+  // The data text of runs read back from records ({bytes}), in order (a recovery draft).
+  function copperText(records){
+    let n=0;for(const r of records)n+=r.bytes.length;
+    const all=new Uint8Array(n);let o=0;for(const r of records){all.set(r.bytes,o);o+=r.bytes.length;}
+    return encode(all);
   }
   const runsOf=region=>table(region).runs;
   // A run's decoded rings (model mm, walk()'s arithmetic) and ring boxes, from bytes that start at
@@ -322,17 +524,18 @@ globalThis.AtriumPCBPours=(()=>{
   function runEntries(region){
     const known=tables.get(region),t=known&&sameGeometry(known,region)?known:null;
     let bytes=null;
-    if(!t){bytes=decode(region.data);return runEntriesOf(region,table(region,bytes),bytes);}
-    return runEntriesOf(region,t,null);
+    if(!t&&!copperOf(region)){bytes=decode(region.data);return runEntriesOf(region,table(region,bytes),bytes);}
+    return runEntriesOf(region,t||table(region),null);
   }
   function runEntriesOf(region,t,bytes){
     const out=new Array(t.runs.length),missing=[];let size=0;
     for(let j=0;j<t.runs.length;j++){const e=runEntry(t.runs[j].key);out[j]=e;if(!e){missing.push(j);size+=t.runs[j].b1-t.runs[j].b0;}}
     if(!missing.length)return out;
-    if(!bytes&&size*2>t.bytes)bytes=decode(region.data);
+    if(!bytes&&!t.runs[0]?.run&&size*2>t.bytes)bytes=decode(region.data);
     for(const j of missing){
       const run=t.runs[j];let e;
-      if(bytes)e=decodeRun(bytes,t,run);
+      if(run.run)e=decodeRun(run.run.bytes,t,run,run.b0);   // a run-held region: its own bytes
+      else if(bytes)e=decodeRun(bytes,t,run);
       else{
         // Base64 keeps 3 bytes in 4 characters: the run's characters, from the group it starts in.
         const g0=Math.floor(run.b0/3),g1=Math.ceil(run.b1/3);
@@ -354,7 +557,7 @@ globalThis.AtriumPCBPours=(()=>{
     if(cached&&sameGeometry(cached,region)){decoded.delete(region);decoded.set(region,cached);return cached.rings;}
     const rings=[],boxes=[];
     for(const e of runEntries(region)){for(const xy of e.rings)rings.push(xy);boxes.push(e.boxes);}
-    decoded.set(region,{rings,boxes,data:region.data,ringCount:region.count});
+    decoded.set(region,{rings,boxes,data:dataKey(region),ringCount:region.count});
     while(decoded.size>DECODED_MAX)decoded.delete(decoded.keys().next().value);
     return rings;
   }
@@ -481,7 +684,7 @@ globalThis.AtriumPCBPours=(()=>{
         for(const r of runs)count+=r.vertices;
         e={path:typeof Path2D.prototype.addPath==="function"?joinPaths(runs.map(runPath)):ringsPath(contours(region)),count};
       }catch{e={path:null,count:0};}
-      e.data=region.data;e.ringCount=region.count;
+      e.data=dataKey(region);e.ringCount=region.count;
       paths.set(region,e);pathVertices+=e.count;
       if(pathVertices>PATH_BUDGET){
         const old=Date.now()-1000;
@@ -492,7 +695,7 @@ globalThis.AtriumPCBPours=(()=>{
     return e.path;
   }
   // Build a region's canvas path ahead of its first paint (live pours do it in an idle slice).
-  function warm(region){if(typeof Path2D==="function"&&region&&typeof region.data==="string")pathOf(region);}
+  function warm(region){if(typeof Path2D==="function"&&region&&hasData(region))pathOf(region);}
   // paintHook: live pour tile patches (polygon-pour.js).
   function paint(ctx,region){paintWith(ctx,region,()=>fill(ctx,region));}
   // How a region paints, given its fill (canvas-fast.js passes the rings in view): a Repour All reveal
@@ -530,7 +733,7 @@ globalThis.AtriumPCBPours=(()=>{
   let lodVertices=0,lodScheduled=false;
   const LOD={enabled:true,tolerance:.5,version:0,stats:()=>({regions:lodCache.size,vertices:lodVertices,queued:lodQueue.length,built:LOD.built,buildMs:+LOD.buildMs.toFixed(1),saved:LOD.saved}),built:0,buildMs:0,saved:0};
   // Vertex count from the encoded size: per ring a 4-byte count, per vertex 16 bytes.
-  const verticesOf=r=>typeof r?.data==="string"?Math.max(0,((r.data.length*3>>2)-4*(r.count||0))>>4):0;
+  const verticesOf=r=>{const c=copperOf(r);return c?Math.max(0,(c.bytes-4*(r.count||0))>>4):typeof r?.data==="string"?Math.max(0,((r.data.length*3>>2)-4*(r.count||0))>>4):0;};
   function lodLevel(ctx){
     if(!LOD.enabled||typeof ctx?.getTransform!=="function"||typeof ctx.fill!=="function")return -1;
     const C=globalThis.CanvasRenderingContext2D,O=globalThis.OffscreenCanvasRenderingContext2D;
@@ -569,23 +772,18 @@ globalThis.AtriumPCBPours=(()=>{
   }
   // The coarsest built level within L (L queued for building when it is not), or null. A region some
   // of whose runs already have level L (a new version of a region on screen) builds the runs it lacks
-  // at once, as does one with at most LOD_SYNC vertices to simplify: the frame then fills the level
-  // the frame before it filled, so an edit repaints only where the copper changed.
-  const LOD_SYNC=40000;
+  // at once: the frame then fills the level the frame before it filled, so an edit repaints only where
+  // the copper changed. A region that shares no run with one on screen waits for idle time as before.
   function lodAt(L,region){
     if(L<0||!(region?.count>0)||verticesOf(region)<LOD_REGION_MIN)return null;
     let e=lodCache.get(region);
     if(e&&!sameGeometry(e,region)){dropLod(region);e=null;}
-    if(!e){e={lv:[],want:new Set(),used:0,data:region.data,ringCount:region.count};lodCache.set(region,e);}
+    if(!e){e={lv:[],want:new Set(),used:0,data:dataKey(region),ringCount:region.count};lodCache.set(region,e);}
     else{lodCache.delete(region);lodCache.set(region,e);}
     e.used=Date.now();
     if(!e.lv[L]){
       let runs=null;try{runs=runEntries(region);}catch{runs=null;}
-      if(runs){
-        let missing=0,shared=false;
-        for(const r of runs){if(r.lod[L])shared=true;else missing+=r.vertices;}
-        if(shared||missing<=LOD_SYNC){for(const r of runs)lodRun(r,L);lodAssemble(region,e,L,runs);e.want.delete(L);lodTrim();}
-      }
+      if(runs?.some(r=>r.lod[L])){for(const r of runs)lodRun(r,L);lodAssemble(region,e,L,runs);e.want.delete(L);lodTrim();}
     }
     let best=null;for(let l=L;l>=LOD_MIN&&!best;l--)best=e.lv[l]||null;
     if(!e.lv[L]&&!e.want.has(L)){e.want.add(L);lodQueue.push({region,e,L,runs:null,j:0,i:0,out:null,n:0});}
@@ -718,8 +916,8 @@ globalThis.AtriumPCBPours=(()=>{
   // same commit, each with its own copy of the list): it holds while both lists hold the same regions,
   // in the same order, with the same data.
   const changeMemo=[];
-  const listCopy=list=>(list||[]).map(r=>({r,d:r.data,c:r.count}));
-  const sameAs=(copy,list)=>{list=list||[];if(copy.length!==list.length)return false;for(let i=0;i<list.length;i++){const x=copy[i],r=list[i];if(x.r!==r||x.d!==r.data||x.c!==r.count)return false;}return true;};
+  const listCopy=list=>(list||[]).map(r=>({r,d:dataKey(r),c:r.count}));
+  const sameAs=(copy,list)=>{list=list||[];if(copy.length!==list.length)return false;for(let i=0;i<list.length;i++){const x=copy[i],r=list[i];if(x.r!==r||x.d!==dataKey(r)||x.c!==r.count)return false;}return true;};
   function copperChange(before,after){
     for(const m of changeMemo)if(sameAs(m.b,before)&&sameAs(m.a,after))return m.result;
     const result=copperChangeOf(before,after);
@@ -734,7 +932,7 @@ globalThis.AtriumPCBPours=(()=>{
     for(const r of after||[])if(kept.has(r))kept.delete(r);else fresh.push(r);
     for(const r of kept)group(key(r)).old.push(r);
     for(const r of fresh){
-      const g=group(key(r)),i=g.old.findIndex(o=>o.count===r.count&&o.data===r.data);
+      const g=group(key(r)),i=g.old.findIndex(o=>o.count===r.count&&sameData(o,r));
       if(i>=0)g.old.splice(i,1);else g.now.push(r);
     }
     // Whole runs cancel by key, the rings of the runs left by content (their hashes, then their
@@ -821,7 +1019,8 @@ globalThis.AtriumPCBPours=(()=>{
   // The rings of a region and their boxes are cached (no decoding needed to read them).
   const cached=region=>{const e=decoded.get(region);return !!e&&sameGeometry(e,region)||cachedShare(region)===1;};
   const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,regionLike,paintHook:null,displayHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange,
-    table,tableOut,adoptTable,runsOf,ringBoxes,cached,view,viewDamage,runStats:()=>({runs:runCache.size,vertices:runVertices,pathVertices:runPathVertices,lodVertices,regionPaths:paths.size})};
+    table,runsOf,ringBoxes,cached,view,viewDamage,
+    copperOf,withCopper,isCopper,heldField,dataKey,sameData,dataLength,hasData,fieldsOf,runLookup,runIds,fromRuns,runRecord,copperRuns,copperArcs,copperBytes,copperDelta,copperText,arcsText,runStats:()=>({runs:runCache.size,vertices:runVertices,pathVertices:runPathVertices,lodVertices,regionPaths:paths.size})};
   return api;
 })();
 if (typeof module !== "undefined") module.exports = globalThis.AtriumPCBPours;

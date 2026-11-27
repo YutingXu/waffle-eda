@@ -56,7 +56,7 @@ globalThis.AtriumCanvasFast = (() => {
   function pourIndexBuild(region) {
     const P = globalThis.AtriumPCBPours;
     let rings, box; try { rings = P.contours(region); box = P.ringBoxes(region); } catch { rings = null; }
-    if (!rings?.length) { pourIdx.set(region, {data: region.data, count: region.count}); return; }
+    if (!rings?.length) { pourIdx.set(region, {data: P.dataKey(region), count: region.count}); return; }
     const n = rings.length; let total = 0, X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity;
     for (let r = 0; r < n; r++) {
       total += rings[r].length >> 1;
@@ -71,7 +71,7 @@ globalThis.AtriumCanvasFast = (() => {
       if ((c - a + 1) * (d - b + 1) > 16) { big.push(r); continue; }
       for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) (cells[y * G + x] ??= []).push(r);
     }
-    pourIdx.set(region, {data: region.data, count: region.count, rings, box, total, G, col, row, cells, big, stamp: new Uint32Array(n), mark: 0});
+    pourIdx.set(region, {data: P.dataKey(region), count: region.count, rings, box, total, G, col, row, cells, big, stamp: new Uint32Array(n), mark: 0});
   }
   function schedulePourIndex(delay = 0) {
     if (pourJob || !pourQueue.size || !canIndexPours()) return;
@@ -113,7 +113,7 @@ globalThis.AtriumCanvasFast = (() => {
     const b = region.bounds; painted = now();
     if (!(region.count >= POUR_MIN) || !b || v[0] <= b[0] && v[1] <= b[1] && v[2] >= b[2] && v[3] >= b[3]) return null;
     let ix = pourIdx.get(region);
-    if (!ix || ix.data !== region.data || ix.count !== region.count) {
+    if (!ix || ix.data !== globalThis.AtriumPCBPours?.dataKey?.(region) || ix.count !== region.count) {
       if (ix) pourIdx.delete(region);
       // Rings the engine holds already (a repour's new version of a region on screen) index now.
       if (!globalThis.AtriumPCBPours?.cached?.(region)) { pourIndexLater(region); return null; }

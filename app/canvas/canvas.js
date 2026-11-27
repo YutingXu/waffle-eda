@@ -982,7 +982,8 @@ globalThis.AtriumCanvas = (() => {
   }
   function pourPrint(doc){
     const d=doc.pcbDrawing,pours=d?.pours,out=[d,doc.sourcePourSignature,d?.pourSignatures,d?.pourSignatureVersion,globalThis.AtriumPourMarker?.read(d),d?.importedPourSignature,d?.sourceHatchSignature,pours,Array.isArray(pours)?pours.length:-1];
-    if(Array.isArray(pours))for(const r of pours)out.push(r,r?.data,r?.count,r?.polygon,r?.net,r?.layer,r?.links,...(r?.bounds||[]));
+    const k=globalThis.AtriumPCBPours?.dataKey,data=r=>k?k(r):r?.data;
+    if(Array.isArray(pours))for(const r of pours)out.push(r,data(r),r?.count,r?.polygon,r?.net,r?.layer,r?.links,...(r?.bounds||[]));
     return out;
   }
   const samePrint=(a,b)=>a.length===b.length && a.every((v,n)=>same(v,b[n]));

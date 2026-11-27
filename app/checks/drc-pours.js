@@ -61,9 +61,11 @@ globalThis.AtriumDRCPours = (() => {
       for (let k = 0; k < l.length; k += 2) { const id = l[k] * 1e7 + l[k + 1]; if (seen.has(id)) continue; seen.add(id); fn(l[k], l[k + 1]); }
     }
   };
-  // The ring boxes of a region ([x0, y0, x1, y1] per ring), kept with the region's data.
+  // The ring boxes of a region ([x0, y0, x1, y1] per ring): the pour engine's (kept per run, shared by
+  // every version of an island), else computed here and kept with the region's data.
   const ringBoxCache = new WeakMap();
   function ringBoxes(region, rings) {
+    if (P()?.ringBoxes) return P().ringBoxes(region);
     const held = ringBoxCache.get(region);
     if (held && held.data === region.data && held.count === region.count) return held.boxes;
     const boxes = new Float64Array(rings.length * 4);

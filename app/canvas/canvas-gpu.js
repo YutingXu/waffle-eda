@@ -827,7 +827,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   function pourFan(st, region, k) {
     const entry = st.pours.get(region);
     const lod = region.patch ? null : G.AtriumPCBPours.lodRingsAt?.(region, k) || null, L = lod ? lod.level : -1;
-    const same = entry && entry.data === region.data && entry.count === region.count && entry.patch === region.patch;
+    const same = entry && entry.data === dataKey(region) && entry.count === region.count && entry.patch === region.patch;
     if (same && entry.level === L) return entry.fan;
     if (entry) {
       if (same && !region.patch && !fault("pourLodReuse")) {
@@ -845,7 +845,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const t = now();
     let rings; try { rings = region.patch ? patchRings(region.patch) : lod ? lod.rings : G.AtriumPCBPours.contours(region); } catch { rings = null; }
     const f = rings?.length ? fanOf(st.gl, rings) : null;
-    st.pours.set(region, {fan: f, level: L, data: region.data, count: region.count, patch: region.patch});
+    st.pours.set(region, {fan: f, level: L, data: dataKey(region), count: region.count, patch: region.patch});
     if (f) {
       st.stats.pourBytes += f.bytes; st.stats.pourMs += now() - t;
       st.stats.pourUploads++; st.stats.pourUploadBytes += f.bytes; st.checkMemory = true;
@@ -859,11 +859,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const keep = new Set(list || []);
     for (const [r, entry] of st.pours) if (!keep.has(r)) dropPour(st, r, entry);
   }
+  // What a cached fan or bound of a region was made from (the pour engine's key for its data, no text).
+  const dataKey = r => G.AtriumPCBPours.dataKey?.(r) ?? r.data;
   const holeEdges = new WeakMap();
   function smallHoleEdges(region, scale) {
-    if (!(region.count > 1 && region.data)) return false;
+    if (!(region.count > 1 && G.AtriumPCBPours.dataLength(region))) return false;
     let e = holeEdges.get(region);
-    if (!e || e.data !== region.data || e.count !== region.count) {
+    if (!e || e.data !== dataKey(region) || e.count !== region.count) {
       const rings = G.AtriumPCBPours.contours(region);
       let shortest = Infinity;
       for (let n = 1; n < Math.min(rings.length, 9); n++) {
@@ -873,7 +875,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           if (d > 1e-6) shortest = Math.min(shortest, d);
         }
       }
-      holeEdges.set(region, e = {data: region.data, count: region.count, shortest});
+      holeEdges.set(region, e = {data: dataKey(region), count: region.count, shortest});
     }
     return e.shortest * scale < 1;
   }
@@ -972,7 +974,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   const coverageBounds = new WeakMap();
   function coverageBox(r) {
     let entry = coverageBounds.get(r);
-    if (!entry || entry.data !== r.data || entry.count !== r.count) {
+    if (!entry || entry.data !== dataKey(r) || entry.count !== r.count) {
       // Stored bounds describe the outer ring. An imported even-odd path
       // can have other contours outside it. Bound the actual fill once (the pour engine's ring boxes).
       const b = [Infinity, Infinity, -Infinity, -Infinity];
@@ -983,7 +985,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           b[2] = Math.max(b[2], q[i+2]); b[3] = Math.max(b[3], q[i+3]);
         }
       } catch { b.fill(NaN); }
-      entry = {data: r.data, count: r.count, box: b.every(Number.isFinite) ? b : null};
+      entry = {data: dataKey(r), count: r.count, box: b.every(Number.isFinite) ? b : null};
       coverageBounds.set(r, entry);
     }
     return entry.box;
@@ -1050,7 +1052,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         cover.layers.set(layer,band); st.checkMemory = true;
       }
       if (band.ink) band.ink = ink;
-      const next = group.map(r => ({data:r.data, count:r.count, net:r.net, bounds:coverageBox(r)}));
+      const next = group.map(r => ({data:dataKey(r), count:r.count, net:r.net, bounds:coverageBox(r)}));
       const sameView = band.key === key, dirty = sameView ? coverageDamage(band.regions,next,band.view,group) : null;
       band.key = key; band.regions = next; band.view = G.AtriumPCBPours.view?.(group);
       if (sameView && dirty === null) continue;

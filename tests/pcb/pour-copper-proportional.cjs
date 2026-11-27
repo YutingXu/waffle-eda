@@ -10,7 +10,7 @@
 //   (b) a region kept from before the step (AtriumPCBPours.regionLike) is content-identical to the
 //       freshly encoded island it stands for (part of (a), counted separately);
 //   (c) every cache answers what a cold one does: contours, ring boxes, run tables (computed, and as
-//       the live worker sends them: tableOut / adoptTable), display LOD at two scales, and
+//       a region held as runs rebuilt as the live worker sends it), display LOD at two scales, and
 //       copperChange against the original ring-by-ring implementation (kept below as the oracle);
 //   (d) --digest file writes a digest of the stored copper and signatures after every step, so the same
 //       sequence run with the base branch's app gives a file to compare byte for byte.
@@ -28,7 +28,7 @@ const A = Atrium, U = AtriumUndoStore, PP = AtriumPolygonPour, C = AtriumPCBPour
 const quick = process.argv.includes("--quick"), digestAt = process.argv.indexOf("--digest"), digestFile = digestAt > 0 ? process.argv[digestAt + 1] : null;
 const engine = typeof C.table === "function";   // the base branch has no runs: (c) is skipped there
 let passed = 0;
-const test = (name, fn) => { fn(); passed++; console.log("ok - " + name); };
+const test = async (name, fn) => { await fn(); passed++; console.log("ok - " + name); };
 function rng(seed) { return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const pick = (r, list) => list[Math.floor(r() * list.length)];
 let uid = 0;
@@ -144,7 +144,7 @@ const canonBoxes = c => c && JSON.stringify(c.changes.map(x => ({...x, boxes: x.
 const sameRings = (a, b) => a.length === b.length && a.every((x, i) => x.length === b[i].length && x.every((v, j) => v === b[i][j]));
 const regionJSON = r => JSON.stringify(Object.keys(r).sort().map(k => [k, r[k]]));
 
-const stats = {steps: 0, regions: 0, kept: 0, keptChecked: 0, lod: 0, changes: 0, tables: 0, digests: []};
+const stats = {steps: 0, regions: 0, kept: 0, keptChecked: 0, lod: 0, changes: 0, tables: 0, transfers: 0, sentRuns: 0, allRuns: 0, digests: []};
 function checkStep(label, ed, before, step, kind) {
   const doc = ed.project.documents[0], defs = defsOf(ed.project), pours = doc.pcbDrawing?.pours || [];
   stats.steps++;
@@ -173,9 +173,18 @@ function checkStep(label, ed, before, step, kind) {
     const clone = {...r}, t = C.table(r), t2 = C.table(clone);
     assert.deepEqual([...t.h1], [...t2.h1]); assert.deepEqual([...t.h2], [...t2.h2]); assert.deepEqual([...t.at], [...t2.at]);
     assert.deepEqual(t.runs.map(x => x.key), t2.runs.map(x => x.key), "run keys");
-    const sent = {...r};
-    assert.ok(C.adoptTable(sent, structuredClone(C.tableOut(r))), "adopt the worker's table");
-    assert.ok(sameRings(C.contours(sent), cold), "contours from an adopted table");
+    // As the live worker sends a region held as runs: its fields, its run keys, and (cloned) only the
+    // runs the regions held before the step do not have.
+    const copper = C.copperOf(r);
+    if (copper) {
+      const lookup = C.runLookup(before), keys = copper.runs.map(x => x.id);
+      const sent = new Map(copper.runs.filter(x => !lookup(x.id)).map(x => [x.id, structuredClone(C.runRecord(x))]));
+      const back = C.fromRuns(structuredClone(C.fieldsOf(r)), keys, sent, C.runLookup(before));
+      assert.ok(back && regionJSON(back) === regionJSON(r) && C.sameData(back, r), "a region rebuilt from runs");
+      assert.ok(sameRings(C.contours(back), cold), "contours of a region rebuilt from runs");
+      assert.equal(C.dataLength(r), r.data.length, "data length without the text");
+      stats.transfers++; stats.sentRuns += sent.size; stats.allRuns += keys.length;
+    }
     for (const k of [3, 12]) {
       const lod = C.lodRingsAt(r, k);
       if (!lod) continue;
@@ -192,9 +201,15 @@ function checkStep(label, ed, before, step, kind) {
   assert.equal(canonBoxes(C.copperChange(copies, now)), canonBoxes(o), "copperChange of cold copies");
   if (!c.same) stats.changes++;
 }
-function run(label, project, {seed, steps}) {
+async function run(label, project, {seed, steps}) {
   const ed = editor(project), docOf = e => e.project.documents[0], list = ops(docOf), r = rng(seed);
   refill(ed, docOf(ed));
+  // The display LOD of a region that shares no run with one shown is built in idle time: let it be,
+  // so the later versions of each island build theirs from it at once (and are compared below).
+  if (engine) {
+    for (const reg of docOf(ed).pcbDrawing.pours) for (const k of [3, 12]) C.lodRingsAt(reg, k);
+    for (let n = 0; n < 2000 && C.lod.stats().queued; n++) await new Promise(f => setTimeout(f, 1));
+  }
   checkStep(label + " seed " + seed, ed, [], 0, "open");
   for (let s = 1; s <= steps; s++) {
     const before = (docOf(ed).pcbDrawing?.pours || []).slice();
@@ -206,11 +221,12 @@ function run(label, project, {seed, steps}) {
 }
 const steps = quick ? 8 : 24;
 const more = (from, n = +(process.env.SEEDS || 0)) => Array.from({length: n}, (_, i) => from + i);
-test("kept copper and every cache equal a cold start after random edits and refills", () => {
-  for (const seed of [1, 2, 3, 4, ...more(100)]) run("board 40", board(40), {seed, steps});
+(async () => { await test("kept copper and every cache equal a cold start after random edits and refills", async () => {
+  for (const seed of [1, 2, 3, 4, ...more(100)]) await run("board 40", board(40), {seed, steps});
   assert.ok(stats.kept > 0, "some islands were kept by a refill");
-  if (engine) assert.ok(stats.changes > 0 && stats.lod > 0, "changed copper and LOD were compared");
+  if (engine) assert.ok(stats.changes > 0 && stats.lod > 0, "changed copper and LOD were compared " + JSON.stringify({...stats, digests: 0}));
 });
 console.log("  " + JSON.stringify({...stats, digests: stats.digests.length}));
 if (digestFile) fs.writeFileSync(digestFile, JSON.stringify(stats.digests, null, 0));
 console.log(passed + " pour copper tests passed" + (engine ? "" : " (no runs on this build: (c) skipped)"));
+})().catch(e => { console.error(e); process.exitCode = 1; });
