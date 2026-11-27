@@ -156,6 +156,7 @@ globalThis.AtriumCollabPair = (() => {
           const to = Array.isArray(m.to) ? m.to.slice(0, 64).filter(c => c !== id && members.has(c)) : [...members.keys()].filter(c => c !== id);
           for (const c of to) deliver(c, out);
         } else if (m.t === "sig" && typeof m.d === "string" && m.d.length <= 64 * 1024 && typeof m.to === "string" && m.to !== id) send(m.to, {t: "sig", from: id, d: m.d});
+        else if (m.t === "p") send(id, {t: "p"});   // the keepalive's answer, as the relay gives it
       };
       sock.onclose = () => {
         if (!id || !members.has(id)) return;
