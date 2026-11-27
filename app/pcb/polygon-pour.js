@@ -1395,7 +1395,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
 
   // --------------------------------------------------------------- regions
-  const {contours:rings,region:encode}=AtriumPCBPours;
+  const {contours:rings,region:encode,regionLike:encodeLike}=AtriumPCBPours;
 
   // ------------------------------------------------------------------ pour
   // ------------------------------------------------- smart connect styles
@@ -1965,7 +1965,8 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!keyed){const m=morphOf(P,S,input);if(m)final.morph=m;}
     // Tiled pours solve in one stage; untiled ones in two: this task leaves the island tests to stage 2.
     const task=keyed?{shapes:input,K,hasBoard,...final}:{shapes:input,K,hasBoard,removeDead:false,minArea:0,minSize:0,anchors:[]};
-    const job={regions,stats,task,P,layer,net,S,ox,oy,arcs:arcSink,links:anchors.map(a=>a.link),tPrepare:now()-t0};
+    const job={regions,stats,task,P,layer,net,S,ox,oy,arcs:arcSink,links:anchors.map(a=>a.link),tPrepare:now()-t0,
+      prior:options.priorCopper?options.priorCopper.filter(r=>r.polygon===P.id):null};
     if(area?.sessions)job.areaExact=true;
     if(sourceRecords){
       for(const r of sourceRecords.values()){
@@ -2373,11 +2374,13 @@ globalThis.AtriumPolygonPour=(()=>{
       /** @type {{polygon: typeof P.id, links: typeof links, hatchSkipped?: boolean, arcs?: NonNullable<typeof arcs>}} */
       const extra={polygon:P.id,links,...(stats.hatchSkipped?{hatchSkipped:true}:{})};
       if(arcs){extra.arcs=arcs;arcCount+=arcs.length/5;}
+      // An island identical to one of the pour's regions now (same rings, links and arcs) is that region:
+      // not encoded again, and the editor keeps its object and everything cached for it.
       if(job.areaExact){
-        const mm=rs.map(r=>areaToMm(r.ring)),region=encode(mm.map(e=>e.mm),layer,net,extra);
+        const mm=rs.map(r=>areaToMm(r.ring)),region=encodeLike(job.prior,mm.map(e=>e.mm),layer,net,extra);
         areaRegionContours.set(region,{data:region.data,count:region.count,rings:mm.map(e=>e.stored)});
         regions.push(region);
-      }else regions.push(encode(rs.map(r=>toMm(r.ring)),layer,net,extra));
+      }else regions.push(encodeLike(job.prior,rs.map(r=>toMm(r.ring)),layer,net,extra));
       yield;
     }
     stats.arcs=arcCount;stats.regions=regions.length;stats.tFinish=now()-t0;
@@ -3068,6 +3071,8 @@ globalThis.AtriumPolygonPour=(()=>{
     for(const k of ["active","onProgress","concurrency","onSolving","onDone"])delete options[k];
     const rc=list.length&&!options.area?.sessions?reuseRun(doc,defs,options,connect):null;
     const unavailable=new Uint8Array(list.length),previous=doc.pcbDrawing?.pours||[],unverified=globalThis.AtriumPourMarker.read(doc.pcbDrawing);
+    // A repoured island identical to one the pour has now keeps that region (finishSteps).
+    options.priorCopper=previous;
     if(options.only&&unverified?.length){
       const pending=new Set(unverified),selected=new Set(options.only);
       list.forEach((p,j)=>{if(pending.has(p.id)&&!selected.has(p.id))unavailable[j]=1;});
@@ -4657,7 +4662,8 @@ globalThis.AtriumPolygonPour=(()=>{
         if(!r.all.length&&H.doc?.()===doc)warmMirrorTiles(H);
       }
       if(r.ids.length)live.last={ids:r.ids,ms:now()-t0,main:r.transport.ms+commit,
-        longest:Math.max(r.transport.longest,r.transport.receive,commit),commit,polygons:r.stats.polygons,at:Date.now(),transport:r.transport};
+        longest:Math.max(r.transport.longest,r.transport.receive,commit),commit,polygons:r.stats.polygons,at:Date.now(),transport:r.transport,
+        received:r.bytes,regions:r.rows.length,kept:r.rows.filter(row=>typeof row==="number").length};
     }catch(e){
       if(!still()||e?.cancelled)return;
       if(e?.hung){
@@ -5357,15 +5363,17 @@ globalThis.AtriumPolygonPour=(()=>{
     // Patches already on screen that show copper newer than the stored copper (an earlier edit's, not
     // yet committed): holding them back would show older copper.
     let shown=false;for(const pt of tiles.patches.values())if(pt.doc===doc&&pt.shown.size&&!pt.exact)shown=true;
+    const before=[],after=[];
     for(const [id,o] of Object.entries(out||{})){
       let pt=tiles.patches.get(id);
+      if(pt)before.push({rects:pt.rects,grid:pt.grid});
       if(!pt||pt.grid.TS!==o.grid.TS||pt.grid.S!==o.grid.S||pt.grid.cols!==o.grid.cols){pt={id,grid:o.grid,tiles:new Map(),shown:new Set(),alpha:1};tiles.patches.set(id,pt);}
       pt.doc=doc;pt.grid=o.grid;pt.exact=false;
       for(const x of o.tiles)pt.tiles.set(x.t,x.rings);
       for(const t of o.changed)pt.shown.add(t);
-      patchRegion(pt);
+      patchRegion(pt);after.push(pt);
     }
-    tiles.version++;tiles.list=null;tiles.settle=null;
+    bumpTiles([...before,...after]);tiles.settle=null;
     if(reveal&&Object.keys(out||{}).length)fadePatches(out,doc,shown&&!tiles.hold,afterEditFrame);
   }
   function retainTileOut(st,out){
@@ -5403,7 +5411,8 @@ globalThis.AtriumPolygonPour=(()=>{
       return;
     }
     const ps=[];for(const id in out){const pt=tiles.patches.get(id);if(pt){pt.alpha=0;ps.push(pt);}}
-    tiles.fade=M.animate({duration:"fast",ease:"decelerate",step:a=>{for(const pt of ps)pt.alpha=a;tiles.version++;live.host?.redraw?.();},done:()=>{for(const pt of tiles.patches.values())pt.alpha=1;}});
+    tiles.fade=M.animate({duration:"fast",ease:"decelerate",step:a=>{for(const pt of ps)pt.alpha=a;bumpTiles(ps);live.host?.redraw?.();},
+      done:()=>{const faded=[...tiles.patches.values()].filter(pt=>pt.alpha!==1);for(const pt of faded)pt.alpha=1;if(faded.length)bumpTiles(faded);}});
   }
   // Patches are held back until the next animation frame. Frame callbacks run in the order asked: a
   // board frame already requested (the edit's or the undo's own) draws first without them and this one
@@ -5411,17 +5420,51 @@ globalThis.AtriumPolygonPour=(()=>{
   // draws the patches and no frame is spent. A page that draws no frames releases them after 150 ms.
   function holdPatches(){
     if(tiles.hold)return;
-    tiles.hold=true;tiles.version++;tiles.list=null;
-    const go=()=>{if(!tiles.hold)return;tiles.hold=false;tiles.version++;tiles.list=null;live.host?.redraw?.();};
+    tiles.hold=true;bumpTiles(tiles.patches.values());
+    const go=()=>{if(!tiles.hold)return;tiles.hold=false;bumpTiles(tiles.patches.values());live.host?.redraw?.();};
     const raf=globalThis.requestAnimationFrame;
     if(typeof raf==="function")raf(go);
     setTimeout(go,150);
   }
   function clearPatches(ids){
-    let any=false;
-    for(const id of ids||[...tiles.patches.keys()])if(tiles.patches.delete(id))any=true;
-    if(any){tiles.version++;tiles.list=null;}
-    return any;
+    const gone=[];
+    for(const id of ids||[...tiles.patches.keys()]){const pt=tiles.patches.get(id);if(pt&&tiles.patches.delete(id))gone.push(pt);}
+    if(gone.length)bumpTiles(gone);
+    return gone.length>0;
+  }
+  // What the tile patches change on screen, for the canvas's retained board (AtriumPCBPours.view and
+  // viewDamage): every display version records the clip rectangles of the patches it shows, hides,
+  // fades or replaces (null: unknown). A patch draws only inside its rectangles (paintPatch), and so
+  // does the clipping out of the stored copper under it.
+  const TILE_MARKS=64;
+  tiles.marks=[];
+  function bumpTiles(patches){
+    let boxes=null;
+    if(patches){boxes=[];boxes.layers=new Set();for(const pt of patches){if(!pt?.rects)continue;boxes.push(...pt.rects);if(pt.grid)boxes.layers.add(pt.grid.layer);}}
+    tiles.version++;tiles.list=null;
+    tiles.marks.push({v:tiles.version,boxes});
+    if(tiles.marks.length>TILE_MARKS)tiles.marks.shift();
+  }
+  // The canvas's token for what the patches show: the display version, and whether the preview shows
+  // at all (a mirror preview hides itself once the board's revision moves past it, with no new version).
+  const tileView=()=>{const doc=live.host?.doc?.();return 2*tiles.version+(!tiles.hold&&!!doc&&currentTilePreview(doc)?1:0);};
+  function tileViewDamage(a,b){
+    if(a===b)return [];
+    if(!Number.isInteger(a)||!Number.isInteger(b))return null;
+    const out=tileDamage(a>>1,b>>1);
+    if(out&&(a&1)!==(b&1))for(const pt of tiles.patches.values())if(pt.rects){out.push(...pt.rects);if(pt.grid)out.layers.add(pt.grid.layer);}
+    return out;
+  }
+  function tileDamage(from,to){
+    if(from===to)return [];
+    if(!(to>from)||!tiles.marks.length||tiles.marks[0].v>from+1)return null;
+    const out=[];out.layers=new Set();
+    for(const m of tiles.marks){
+      if(m.v<=from||m.v>to)continue;
+      if(!m.boxes)return null;
+      out.push(...m.boxes);for(const l of m.boxes.layers)out.layers.add(l);
+    }
+    return out;
   }
   // The pours the canvas paints: the stored regions plus a patch region per pour with tiles
   // shown. Stored regions of a patched pour are clipped out of its patch (pcb-pours.js paint).
@@ -5469,8 +5512,11 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     return true;
   }
-  if(globalThis.AtriumPCBPours&&Object.isExtensible?.(globalThis.AtriumPCBPours)!==false)try{globalThis.AtriumPCBPours.paintHook=paintPatch;}catch{/* frozen */}
-  function tileReset(){tiles.state=null;tiles.patches.clear();tiles.version++;tiles.list=null;tiles.busy=false;tiles.again=false;tiles.full=false;tiles.quick=false;tiles.only=null;tiles.recorded=null;tiles.building=null;tiles.warm=null;tiles.fullTimer=0;tiles.hold=false;tiles.settle=null;releaseAfterTiles();}
+  if(globalThis.AtriumPCBPours&&Object.isExtensible?.(globalThis.AtriumPCBPours)!==false)try{
+    globalThis.AtriumPCBPours.paintHook=paintPatch;
+    globalThis.AtriumPCBPours.displayHook={version:tileView,damage:tileViewDamage};
+  }catch{/* frozen */}
+  function tileReset(){tiles.state=null;tiles.patches.clear();bumpTiles(null);tiles.busy=false;tiles.again=false;tiles.full=false;tiles.quick=false;tiles.only=null;tiles.recorded=null;tiles.building=null;tiles.warm=null;tiles.fullTimer=0;tiles.hold=false;tiles.settle=null;releaseAfterTiles();}
   // ---- the fast path: diff, tile worker, patch
   function tilePref(){
     if(tiles.pref)return tiles.pref;
@@ -5545,6 +5591,18 @@ globalThis.AtriumPolygonPour=(()=>{
     const unchanged=row=>Object.keys(row).filter(k=>!fields.has(k)).sort().map(k=>[k,row[k]]);
     return JSON.stringify(unchanged(before))===JSON.stringify(unchanged(after));
   }
+  // Items added or removed (an add, a delete, a paste, the undo or redo of one) update a warm session
+  // too: tileDiff prepares the added items and removes the removed ones in every pour's tiles
+  // (PourTiles.update). Each added item is new to the session and keyed (no pour outline), each
+  // removed one is in it; a mix with in-place changes is left to the rebuild.
+  function structuralTileEdit(st,changes){
+    for(const id of changes.ids){
+      const item=changes.items.get(id),print=st.prints.get(id);
+      if(item){if(print||!keyedItem(item)||item.kind==="polygon")return false;}
+      else if(!print)return false;
+    }
+    return true;
+  }
   function forgetTilePreview(){
     tiles.state=null;tiles.building=null;tiles.recorded=null;tiles.warm=null;
     if(clearPatches())live.host?.redraw?.();
@@ -5575,7 +5633,7 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!mirrorTileBoard(H.doc?.(),H.project?.())){forgetTilePreview();return;}
     const previous=tiles.state;
     if(previous?.mirror&&previous.previewRevision!=null){
-      previous.previewRevision=null;tiles.version++;tiles.list=null;
+      previous.previewRevision=null;bumpTiles(tiles.patches.values());
     }
     const preview=current=>{
       if(!current()||H!==live.host||!liveEnabled())return;
@@ -5588,12 +5646,13 @@ globalThis.AtriumPolygonPour=(()=>{
       }
       if(!st.eligible)return;
       const changes=J?.recordedChanges?.(doc,st.at,12);
-      if(!changes?.ids||changes.ids.size>12||
-          changes.ids.size&&!J?.onlyRecordedItemUpdates?.(doc,st.at,onlyMirrorMove)){
+      const moves=!!changes?.ids?.size&&!!J?.onlyRecordedItemUpdates?.(doc,st.at,onlyMirrorMove);
+      const structural=!!changes?.ids?.size&&!moves&&structuralTileEdit(st,changes);
+      if(!changes?.ids||changes.ids.size>12||changes.ids.size&&!moves&&!structural){
         forgetTilePreview();
         return;
       }
-      tiles.recorded={st,changes,outer:st.outer,current,mirror:true};
+      tiles.recorded={st,changes,outer:st.outer,current,mirror:true,structural};
       if(tiles.busy)tiles.again=true;else tileRun();
     };
     if(H.stageEdit)H.stageEdit("pours","live-pour-tiles",preview,{short:true});
@@ -5653,7 +5712,8 @@ globalThis.AtriumPolygonPour=(()=>{
     try{
       // The quick pass starts after the edit frame. Unknown changes are verified in idle slices.
       const t0=now();let d,tScan=0;
-      if(only)d=tileDiff(doc,defs,st,record?.mirror?{...options,tileEdit:st}:options,only,record?.changes.items);
+      // Added parts and vias are not in the session's connect context: a structural edit reads this revision's.
+      if(only)d=tileDiff(doc,defs,st,record?.mirror?{...options,tileEdit:record.structural?{byPolygon:st.byPolygon}:st}:options,only,record?.changes.items);
       else if(quick){const g=tileDiffSteps(doc,defs,st,options,null,true);let r=g.next();while(!r.done)r=g.next();d=r.value;tScan=now()-t0;}
       else{
         const g=tileDiffSteps(doc,defs,st,options,null,false);let r;
@@ -5673,7 +5733,7 @@ globalThis.AtriumPolygonPour=(()=>{
         if(record){st.at=record.changes.seq;st.outer=record.outer;}
         if(H.revision()!==tiles.syncRev||record&&!record.current())return;
         if(st.mirror&&tiles.patches.size&&st.previewRevision!==tiles.syncRev){
-          st.previewRevision=tiles.syncRev;tiles.version++;tiles.list=null;H.redraw?.();
+          st.previewRevision=tiles.syncRev;bumpTiles(tiles.patches.values());H.redraw?.();
         }
         if(st.unshown?.size){
           if(st.mirror)st.previewRevision=tiles.syncRev;

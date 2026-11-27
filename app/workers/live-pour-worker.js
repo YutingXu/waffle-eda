@@ -97,21 +97,24 @@
     if (drawing) {
       const previous = new Map((doc.pcbDrawing?.pours || []).map((region, k) => [region, k]));
       const {pours} = drawing, rows = [];
-      let weight = 0;
+      let weight = 0, tables = [];
       pending = {id, drawing, stamp:result.stamp};
       result.drawing = {};
       for (const key of ["importedPourSignature", "sourceHatchSignature", "pourSignatures", "pourSignatureVersion"])
         if (Object.hasOwn(drawing, key)) result.drawing[key] = drawing[key];
       result.hasPours = !!pours;
+      // The pour engine's table of each new region goes with it, so the editor decodes only the runs
+      // it has not cached (AtriumPCBPours.adoptTable).
+      const tableOf = region => {try {return G.AtriumPCBPours.tableOut(region);} catch {return null;}};
       for (const region of pours || []) {
         const retained = previous.get(region);
         const size = retained != null ? 16 : (region.data?.length || 0) + (region.links?.length || 0) * 32 + (region.arcs?.length || 0) * 8;
         if (rows.length && (rows.length >= 64 || weight + size > 131072)) {
-          G.postMessage({type:"regions", id, rows:rows.splice(0)}); weight = 0;
+          G.postMessage({type:"regions", id, rows:rows.splice(0), tables:tables.splice(0)}); weight = 0;
         }
-        if (size <= 131072) {rows.push(retained ?? region);weight += size;continue;}
+        if (size <= 131072) {rows.push(retained ?? region);tables.push(retained == null ? tableOf(region) : null);weight += size;continue;}
         const {data, links, arcs, ...small} = region;
-        G.postMessage({type:"regions", id, rows:[small]});
+        G.postMessage({type:"regions", id, rows:[small], tables:[tableOf(region)]});
         for (const [field, value, step] of [["data",data,131072], ["links",links,4096], ["arcs",arcs,4096]]) {
           if (value == null) continue;
           if (!value.length) G.postMessage({type:"regionField",id,field,value});
@@ -119,7 +122,7 @@
             G.postMessage({type:"regionField",id,field,value:value.slice(k,k+step)});
         }
       }
-      if (rows.length) G.postMessage({type:"regions", id, rows});
+      if (rows.length) G.postMessage({type:"regions", id, rows, tables});
     }
     G.postMessage({type:"result", id, result});
   }
