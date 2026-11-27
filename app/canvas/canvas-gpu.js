@@ -2811,16 +2811,36 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return groups;
   }
+  function padDetailBox(g, parent) {
+    const {at: [x,y], angle} = G.AtriumResolvedLand.place(g,parent), quarter = Math.abs(Math.round(angle / 90)) % 2;
+    const hw = (quarter ? g.h : g.w) / 2, hh = (quarter ? g.w : g.h) / 2;
+    return [x - hw, y - hh, x + hw, y + hh];
+  }
   // Later copper on the same layer can cover a caption painted with its land.
   // Ordinary disjoint pads keep the retained GPU pass; overlapping ones use the ordered layer.
   function coveredPadDetails(I, doc, defs, groups) {
-    const layers = new Set();
+    const layers = new Set(), c = I.cache;
+    const spatial = c?.doc === doc && c.preparation && G.AtriumSpatial;
+    let queries = 0, local;
     layerPass: for (const [layer, entries] of groups) for (const {p, parent, g} of entries) {
-      const {at: [x,y], angle} = G.AtriumResolvedLand.place(g,parent), quarter = Math.abs(Math.round(angle / 90)) % 2;
-      const hw = (quarter ? g.h : g.w) / 2, hh = (quarter ? g.w : g.h) / 2;
-      const box = [x - hw, y - hh, x + hw, y + hh];
+      const box = padDetailBox(g,parent);
+      // Amortize the temporary index only when several actual caption queries were needed.
+      if (spatial && ++queries === 8) {
+        // The full pick grid is still under construction. One authoritative query includes
+        // later occluders outside the viewport or suppressed by the painter.
+        let bounds = null;
+        for (const entries of groups.values()) for (const {g,parent} of entries) {
+          const rect = padDetailBox(g,parent);
+          if (rect.every(Number.isFinite)) bounds = mergeBounds(bounds,rect);
+        }
+        if (bounds) {
+          const items = I.query(doc,defs,bounds), boxes = I.cache.boxes;
+          local = spatial.create(items,item => boxes.get(item),4);
+        }
+      }
       let after = false;
-      for (const i of I.query(doc, defs, box)) {
+      const items = local && box.every(Number.isFinite) ? local.query(box) : I.query(doc, defs, box);
+      for (const i of items) {
         if (i === (parent || p)) after = true;
         if (i.kind !== "part") {
           if (after && !parent && i !== p && boardLayer(i) === layer) { layers.add(layer); continue layerPass; }

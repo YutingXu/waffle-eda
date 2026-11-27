@@ -397,6 +397,48 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   console.log("F4 ordinary and retained GPU captions use the resolved row, with upright mirrored and flipped controls");
 }
 
+// The unfinished pick grid can answer a large batch from one temporary ordered index.
+{
+  const spatial=AtriumSpatial, defs=new Map();
+  let localItems=[];
+  const localSpatial={...spatial,create(items,getBox,pitch) {
+    localItems.push(items.map(item=>item.id));
+    return spatial.create(items,getBox,pitch);
+  }};
+  const local=vm.createContext({AtriumResolvedLand,AtriumPCBAppearance,AtriumSpatial:localSpatial});
+  vm.runInContext(gpuCode.replace(sceneExport,"{render, damage, stats, coveredPadDetails,"),local);
+  const {coveredPadDetails}=local.AtriumCanvasGPU;
+  const pads=Array.from({length:8},(_,n)=>({id:"pad"+n,kind:"pad",layer:"Top",x:n*4,y:0}));
+  const earlier={id:"earlier",kind:"track",layer:"Top"}, cover={id:"outside",kind:"track",layer:"Top"},
+    unrelated={id:"unrelated",kind:"track",layer:"Top"};
+  const edge=[28.25,-.2,28.4,.2], boxes=new Map([[earlier,edge],[cover,edge],[unrelated,[12,1.3,14,1.8]]]);
+  for (const p of pads) boxes.set(p,[p.x-.5,-.5,p.x+.5,.5]);
+  const doc={kind:"pcb",items:[earlier,...pads,unrelated,cover]}, cache={doc,boxes,rev:1};
+  const viewport=[-2,-2,28.15,2];
+  assert.equal(spatial.overlaps(boxes.get(cover),viewport),false,"the viewport misses the later copper");
+  assert.equal(spatial.overlaps(boxes.get(cover),boxes.get(pads.at(-1))),true,"the edge caption can still overlap it");
+  function check(count,pending=true) {
+    cache.preparation=pending?{}:null; localItems=[];
+    const queries=[];
+    const I={cache,query(_doc,_defs,box) {
+      queries.push(box);
+      return doc.items.filter(item=>spatial.overlaps(boxes.get(item),box));
+    }};
+    const groups=new Map([["Top",pads.slice(0,count).map(p=>({p,parent:null,g:{x:p.x,y:p.y,w:1,h:1,angle:0}}))]]);
+    return {covered:[...coveredPadDetails(I,doc,defs,groups)],queries,local:localItems};
+  }
+  const seven=check(7), eight=check(8), ready=check(8,false);
+  assert.deepEqual([seven.queries.length,seven.local],[7,[]],"seven queries stay on the ordinary path");
+  assert.deepEqual(eight.covered,["Top"],"the later occluder outside the viewport still makes copper ordered");
+  assert.equal(eight.queries.length,8);
+  assert.deepEqual(Array.from(eight.queries.at(-1)),[-.5,-.5,28.5,.5],"the eighth query covers the caption union");
+  assert.deepEqual(eight.local,[["earlier",...pads.map(item=>item.id),"outside"]],"index the authoritative items in document order");
+  assert.deepEqual([ready.covered,ready.queries.length,ready.local],[["Top"],8,[]],"the complete grid stays on the normal path");
+  boxes.set(cover,[30,3,31,4]); cache.rev++;
+  assert.deepEqual(check(8).covered,[],"after the later track moves, the preceding track cannot cover the caption");
+  console.log("Pending GPU caption queries preserve document order and outside-viewport occluders");
+}
+
 // A retained pan still collects captions for newly exposed layers. Ordered copper paints its own.
 {
   const measured=[], layers=new Set(["Top","Multi"]);
