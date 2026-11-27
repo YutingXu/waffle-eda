@@ -179,10 +179,20 @@
     if (typeof display !== "string" || !fields || typeof fields !== "object") fail("type","A typed record needs a display and fields.");
     return {kind:"record",display,copyText:display,fields};
   }
-  function sameDimension(a,b) {
+  // Only addition and subtraction combine an absolute temperature with an interval.
+  function sameScale(tags) {
+    if (tags.includes("celsius") && tags.includes("delta")) fail("unit","An absolute temperature and a temperature interval are not comparable.");
+  }
+  function sameDimension(a,b,affine) {
     scalar(a); scalar(b);
     if (!equalDims(a.dimensions,b.dimensions) || (a.tag !== b.tag && ![a.tag,b.tag].every(t=>["","celsius","delta"].includes(t))))
       fail("dimension","These quantities have incompatible units.");
+    if (!affine) sameScale([a.tag,b.tag]);
+  }
+  // A result shown in the unit all of its operands were written in, such as % or Δ°C.
+  function sharedPreferred(args) {
+    const p=args[0].preferred;
+    return p && args.every(x=>x.preferred===p && x.tag===args[0].tag) ? p : undefined;
   }
   function requireLinear(q) {
     scalar(q);
@@ -197,11 +207,14 @@
     if (q.kind === "record") return {display:q.display,unit:""};
     if (q.kind === "assertion") return {display:q.display,unit:presentation({...q,kind:"quantity"},requested).unit};
     const explicit=requested != null && requested !== "";
-    const fixed=explicit ? requested : q.preferred || (q.tag==="count" ? "ea" : "");
+    // A celsius value is stored in kelvin, so only its offset unit can label it.
+    const fixed=explicit ? requested : q.preferred || (q.tag==="count" ? "ea" : q.tag==="celsius" ? "°C" : "");
     if (explicit || fixed) {
       const magnitude=as(q,fixed);
       const exactCount=q.tag==="count" && Number.isSafeInteger(magnitude) && (!q.worst || !uncertain(q)) && !q.unknown?.length;
-      return {display:(exactCount ? String(magnitude) : formatted(magnitude))+" "+fixed,unit:fixed};
+      const number=exactCount ? String(magnitude) : formatted(magnitude);
+      // The parser reads a bare m after a number as milli, so copied length spells metre.
+      return {display:number+" "+fixed,unit:fixed,copyText:number+" "+(fixed==="m" ? "metre" : fixed)};
     }
     const std=q.tag ? names[q.tag] || (q.tag==="angle" ? names.rad : null) : standard[dimKey(q.dimensions)];
     let base=std?.symbol || compoundLabel(q.dimensions), divisor=1;
@@ -215,8 +228,11 @@
     exponent=Math.max(-10,Math.min(10,exponent));
     if (base.includes("·") || base.includes("^") || base.includes("/") || q.tag) exponent=0;
     if (exponent<10 && Number((magnitude/10**(3*exponent*power)).toPrecision(4))>=1000**power) exponent++;
-    const suffix=scales[exponent+10]+base;
-    return {display:formatted(v/10**(3*exponent*power))+(suffix ? " "+suffix : ""),unit:suffix};
+    const suffix=scales[exponent+10]+base, number=formatted(v/10**(3*exponent*power));
+    // Copied text must parse to the same quantity: a dimensionless prefix touches its
+    // number (1T, not tesla) and unprefixed length spells metre (not milli).
+    const copySuffix=!base ? suffix : suffix==="m" ? " metre" : " "+suffix;
+    return {display:number+(suffix ? " "+suffix : ""),unit:suffix,copyText:number+copySuffix};
   }
   const precedence={"&&":1,"=":2,"!=":2,">":2,">=":2,"<":2,"<=":2,"±":3,"+":4,"-":4,"||":5,"*":6,"/":6,"^":8};
   const constants={pi:Math.PI,"π":Math.PI,e:Math.E,c:299792458};
@@ -426,15 +442,18 @@
     if (op==="±") return addTolerance(a,widthOf(a,b),ctx.sourceKey+":"+n.span.join("-"));
     if (op==="^") return power(a,b);
     if (op==="+" || op==="-") {
-      if ((a.tag==="count") !== (b.tag==="count")) fail("dimension","Add or subtract counts in ea or pcs.",a.tag==="count" ? n.right.span : n.left.span);
-      sameDimension(a,b);
+      if ((a.tag==="count") !== (b.tag==="count")) fail("dimension","Add or subtract counts in ea or pcs.",(a.tag==="count" ? n?.right : n?.left)?.span);
+      sameDimension(a,b,true);
       if (a.bound && a.bound===b.bound && op==="-") return correlatedExact(a,b,0,a.dimensions,a.tag==="count" ? "count" : "");
       const sign=op==="+" ? 1 : -1;
       if (op==="+" && a.tag==="celsius" && b.tag==="celsius") fail("unit","Add a temperature interval to an absolute temperature.");
       if (op==="-" && b.tag==="celsius" && a.tag!=="celsius") fail("unit","Subtract an interval from an absolute temperature.");
-      const tag=a.tag==="celsius" && b.tag==="celsius" ? "delta" : a.tag || b.tag;
+      // An absolute temperature keeps its scale whichever operand carries it.
+      const tag=a.tag==="celsius" && b.tag==="celsius" ? "delta" : a.tag==="celsius" || b.tag==="celsius" ? "celsius" : a.tag || b.tag;
       const x=lift([a,b],{value:a.value+sign*b.value,dimensions:a.dimensions,tag,partials:[1,sign],bounds:extremes(fourCorners(a.worst,b.worst,(u,v)=>u+sign*v))});
+      const shown=a.tag===tag && sharedPreferred([a,b]);
       if (tag==="celsius") x.preferred="°C";
+      else if (shown) x.preferred=shown;
       return x;
     }
     const scaling=(op==="*" || op==="/") && (a.tag==="count" || b.tag==="count");
@@ -469,15 +488,27 @@
   function builtin(name,args) {
     if (name === "sum" || name === "average") {
       if (!args.length) { if (name === "sum") return exact(0); fail("arity","Average needs at least one quantity."); }
+      if (name === "average" && args.some(x => x?.tag === "celsius")) {
+        // A mean of absolute temperatures is an absolute temperature, although their sum is not.
+        const a=scalar(args[0]); args.forEach(b=>sameDimension(a,b)); sameScale(args.map(x=>x.tag));
+        const mean=values=>values.reduce((s,v)=>s+v,0)/args.length;
+        return lift(args,{value:mean(args.map(x=>x.value)),unit:"°C",partials:args.map(()=>1/args.length),
+          bounds:{min:mean(args.map(x=>x.worst.min)),max:mean(args.map(x=>x.worst.max))}});
+      }
       const total = args.slice(1).reduce((a,b) => arithmetic("+",a,b),scalar(args[0]));
-      return name === "sum" ? total : arithmetic("/",total,exact(args.length));
+      if (name === "sum") return total;
+      const mean=arithmetic("/",total,exact(args.length));
+      if (total.preferred) mean.preferred=total.preferred;
+      return mean;
     }
     if (name==="min" || name==="max") {
       if (!args.length) fail("arity",name+" needs at least one argument.");
-      const a=scalar(args[0]); args.forEach(b=>sameDimension(a,b));
+      const a=scalar(args[0]), tags=args.map(x=>x.tag); args.forEach(b=>sameDimension(a,b,true)); sameScale(tags);
       const f=name==="min" ? Math.min : Math.max, value=f(...args.map(x=>x.value));
       const tied=args.filter(x=>x.value===value).length>1;
-      return lift(args,{value,dimensions:a.dimensions,tag:a.tag,partials:args.map(x=>x.value===value ? 1 : 0),bounds:{min:f(...args.map(x=>x.worst.min)),max:f(...args.map(x=>x.worst.max))},rssReason:tied ? "The active extremum has a tie." : null});
+      // The extremum keeps an absolute temperature scale and a unit every argument shares.
+      const tag=tags.includes("celsius") ? "celsius" : tags.find(Boolean) || "";
+      return lift(args,{value,dimensions:a.dimensions,tag,like:{preferred:sharedPreferred(args)},partials:args.map(x=>x.value===value ? 1 : 0),bounds:{min:f(...args.map(x=>x.worst.min)),max:f(...args.map(x=>x.worst.max))},rssReason:tied ? "The active extremum has a tie." : null});
     }
     if (!unaryFunctions.includes(name)) return null;
     if (args.length!==1) fail("arity",name+" needs one argument.");
@@ -486,7 +517,7 @@
     if (name==="sqrt") return power(a,exact(.5));
     if (name==="abs") {
       if (a.tag!=="count") requireLinear(a);
-      return lift([a],{value:Math.abs(x),dimensions:a.dimensions,tag:a.tag==="count" ? "count" : "",partials:[Math.sign(x)],bounds:{min:crossesZero(a.worst) ? 0 : Math.min(Math.abs(lo),Math.abs(hi)),max:Math.max(Math.abs(lo),Math.abs(hi))},rssReason:crossesZero(a.worst) ? "Absolute value is not differentiable throughout the input range." : null});
+      return lift([a],{value:Math.abs(x),like:a,partials:[Math.sign(x)],bounds:{min:crossesZero(a.worst) ? 0 : Math.min(Math.abs(lo),Math.abs(hi)),max:Math.max(Math.abs(lo),Math.abs(hi))},rssReason:crossesZero(a.worst) ? "Absolute value is not differentiable throughout the input range." : null});
     }
     if (!equalDims(a.dimensions,zero) || (a.tag && !(["sin","cos","tan"].includes(name) && a.tag==="angle"))) fail("dimension",name+" needs a compatible dimensionless value or angle.");
     let f,df,range,tag="";
@@ -607,7 +638,7 @@
     if (q.defaults?.length) warnings.push("default tolerance: "+q.defaults.join(", "));
     if (q.rssReason && !warnings.includes(q.rssReason)) warnings.push(q.rssReason);
     const p=presentation(q,options.displayUnit);
-    return {...q,ok:true,...p,copyText:p.display,warnings,references:parsed?.references || [],...(parsed?.name ? {name:parsed.name} : {})};
+    return {...q,ok:true,copyText:p.display,...p,warnings,references:parsed?.references || [],...(parsed?.name ? {name:parsed.name} : {})};
   }
   function parseBoundValue(raw,meta={}) {
     try { return completed(bound({...meta,raw},meta.label || "field")); }

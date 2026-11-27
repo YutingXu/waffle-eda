@@ -210,4 +210,28 @@ if(process.argv.includes("--numeric-peer")){
     {type:"design",name:"R5.Value",span:[5,13],target:boardValue.references[0].target}
   ]},2200);
 }
+
+{
+  // A table cell binds a net field with the sheet's spelling, including digit-led and quoted names.
+  const project=Atrium.project("Rails"),board=Atrium.sheet("schematic","Board");project.documents=[board];
+  project.signals={version:1,tags:[],signals:[["vdd","VDD","3.3 V"],["v48","48V","48 V"],["bat","Battery +/A::sense.1","12 V"]]
+    .map(([id,name,Voltage])=>({id,name,kind:"single",legs:[{nets:[name]}],params:{Voltage}}))};
+  let table=T.create(1,2,()=>String(++id));
+  const rowId=table.rows[0].id,[columnId,unitColumn]=table.columns.map(col=>col.id);
+  table={...table,columns:table.columns.map(col=>col.id===unitColumn?{...col,unit:"°C"}:col)};
+  const engine=R.engine({project,doc:board,item:{id:"rails"}});
+  for(const [source,rail,name] of [["=net VDD.voltage","3.3 V","net VDD.voltage"],["=2*net VDD.voltage","3.3 V","net VDD.voltage"],
+    ["=net 48V.voltage + 1 V","48 V","net 48V.voltage"],['=NET "Battery +/A::sense.1".voltage',"12 V",'NET "Battery +/A::sense.1".voltage']]){
+    const content=engine.compute(table,{revision:1}).bind(source),design=content.references.filter(r=>r.type==="design");
+    assert.deepEqual(design.map(r=>[r.name,r.target?.signalId!=null]),[[name,true]],source);
+    assert.equal(R.spelling(table,content),source);
+    table=T.change(table,rowId,columnId,{content});
+    const result=engine.compute(table,{revision:1}).value(rowId,columnId);
+    assert.equal(result.value,AtriumCalculationCore.evaluate(source.slice(1),{bindings:{[name]:{raw:rail}}}).value,source+" "+JSON.stringify(result.diagnostic));
+  }
+  // A column of absolute temperatures averages in °C.
+  table=T.batch(table,[{rowId,columnId:unitColumn,content:{kind:"literal",text:"25"}},
+    {rowId,columnId,content:R.scan(table,"=AVERAGE(B1:B1)")}]);
+  assert.equal(engine.compute(table,{revision:1}).value(rowId,columnId).display,"25 °C");
+}
 console.log("Table formula bindings, quantities, shared graph and clipboard passed.");
