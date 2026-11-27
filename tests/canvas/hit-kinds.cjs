@@ -293,6 +293,16 @@ require("../../app/schematic/sch-objects.js");
   assert.equal(at([11, 0], "Bottom"), "far", "from the part's own side its pad wins");
   assert.equal(at([10, 0], "Top"), "far", "an other-side part alone is still picked");
   assert.equal(at([10, .5], "Top"), "far", "and its body");
+  // The other side's own silk or mask over its pad does not take the click from that part, from the
+  // top side or from a layer with no side; a primitive on the current layer still does.
+  const square = (id, layer, x) => ({id, kind: "graphic", layer, fill: true, closed: true, width: 0, points: [[x - .3, -.3], [x + .3, -.3], [x + .3, .3], [x - .3, .3]]});
+  s.items.push(square("bsilk", "Bottom silk", 9), square("bmask", "Bottom mask", 9));
+  view.render(s, sideDefs, {grid: false});
+  for (const layer of ["Top", "Silk", "Inner 1", "Multi"]) assert.equal(at([9, 0], layer), "far", "other-side silk and mask over its pad, " + layer);
+  s.items.push(square("tsilk", "Silk", 9));
+  view.render(s, sideDefs, {grid: false});
+  assert.equal(at([9, 0], "Silk"), "tsilk", "current-layer silk over an other-side pad");
+  assert.deepEqual(view.hits(s, sideDefs, [9, 0], {...opts, layer: "Top"}).slice(0, 2).map(i => i.id), ["far", "tsilk"], "the stack lists the other-side part first, then the silk");
   view.fit(doc, defs);
   view.render(doc, defs, {grid: false});
 }

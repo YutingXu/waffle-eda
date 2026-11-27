@@ -2149,28 +2149,34 @@ globalThis.AtriumCanvas = (() => {
       const nearby=query(doc,defs,area);
       // Single and dim modes are about the active layer: its objects win over a footprint pad there.
       const partPriority=opts.layerMode==="single"||opts.layerMode==="dim"?1.5:2;
-      // As in Altium, the current layer also picks the board side: a part on the other side falls
-      // below primitives on the current layer, and its body below the current side's bodies.
-      const side=layerSide(opts.layer||"Top",flipped);
-      let best=null,bestPriority=-1,bestDistance=Infinity;const ranked=scalar?null:[];
+      // As in Altium, the current layer also picks the board side. A part on the other side goes before
+      // every hit except a current-side part and a primitive on the current layer or Multi (so the other
+      // side's own silk, mask or paste never takes a click from it); its body ranks below the current
+      // side's bodies. It is kept apart because primitives rank by paint order, where current copper sits
+      // below silk, so no single priority could place it.
+      const current=opts.layer||"Top",side=layerSide(current,flipped);
+      let best=null,bestPriority=-1,bestDistance=Infinity,bestStrong=false;const ranked=scalar?null:[];
+      let aside=null,asideDistance=Infinity;const asides=scalar?null:[];
       for(let n=nearby.length-1;n>=0;n--){
         const i=nearby[n];
         if(kinds&&!kinds.has(i.kind)||opts.skip?.has(i.id))continue; // skip: ids already offered (touch cycling)
         if(opts.contactOnly&&!canContact(i,null,opts))continue;
-        let distance=Infinity,priority=-1;
+        let distance=Infinity,priority=-1,hitLayer=null,other=false;
         if(doc.kind==="pcb"){
           if(boardVisible(i,opts)){
             bodyHit=false;
             distance=hitDistance(i,p,defs,doc,tol,scale,opts);
             if(distance<=tol){
               const near=i.kind==="part"&&(i.layer==="Bottom"?"Bottom":"Top")===side;
-              priority=i.kind==="part"?bodyHit?(near?-.5:-.75):near?partPriority:.6:layerRank(boardLayer(i),opts,flipped)/101;
+              other=i.kind==="part"&&!near&&!bodyHit;
+              hitLayer=i.kind==="part"?null:boardLayer(i);
+              priority=i.kind==="part"?bodyHit?(near?-.5:-.75):partPriority:layerRank(hitLayer,opts,flipped)/101;
             }
           }
           if(!opts.contactOnly)for(const opening of PCB.traceOpenings(i,boardLayer(i))){
             if(!boardVisible(opening,opts))continue;
             const d=hitDistance(opening,p,defs,doc,tol,scale,opts),rank=layerRank(opening.layer,opts,flipped)/101;
-            if(d<=tol && (rank>priority || rank===priority && d<distance)){distance=d;priority=rank;}
+            if(d<=tol && !other && (rank>priority || rank===priority && d<distance)){distance=d;priority=rank;hitLayer=opening.layer;}
           }
         }else{
           if(!visible(i,opts.hidden))continue;
@@ -2179,18 +2185,30 @@ globalThis.AtriumCanvas = (() => {
           priority=entry?5:drawingOrder(i);
         }
         if(distance>tol)continue;
+        if(other){
+          if(scalar){if(distance<asideDistance){aside=i;asideDistance=distance;}}
+          else asides.push({item:i,distance});
+          continue;
+        }
+        const strong=doc.kind==="pcb"&&(i.kind==="part"?priority>0:hitLayer===current||hitLayer==="Multi");
         if(scalar){
-          if(priority>bestPriority||priority===bestPriority&&distance<bestDistance){best=i;bestPriority=priority;bestDistance=distance;}
+          if(priority>bestPriority||priority===bestPriority&&distance<bestDistance){best=i;bestPriority=priority;bestDistance=distance;bestStrong=strong;}
         }else{
           let place=ranked.length;
           for(let k=0;k<place;k++){
             const other=ranked[k];
             if(priority>other.priority||priority===other.priority&&distance<other.distance){place=k;break;}
           }
-          if(place<limit){ranked.splice(place,0,{item:i,priority,distance});if(ranked.length>limit)ranked.pop();}
+          if(place<limit){ranked.splice(place,0,{item:i,priority,distance,strong});if(ranked.length>limit)ranked.pop();}
         }
       }
-      return scalar?best:ranked.map(row=>row.item);
+      if(scalar)return aside&&!(best&&bestStrong)?aside:best;
+      if(asides.length){
+        asides.sort((a,b)=>a.distance-b.distance);
+        const at=ranked.findIndex(row=>!row.strong);
+        ranked.splice(at<0?ranked.length:at,0,...asides);
+      }
+      return ranked.slice(0,limit).map(row=>row.item);
     }
     function snapPoint(doc,defs,p,opts={}) {
       finishOpeningOverview(doc);
