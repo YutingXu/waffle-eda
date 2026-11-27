@@ -1528,10 +1528,20 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     }};
   }
 
+  const stageRows = [];
+  sliceVM.AtriumDiagnostics = {performance:{rendererStages:true, renderStage(name, ms) { stageRows.push([name,ms]); }}};
   const wide = viewForSlices("wide", true), exact = viewForSlices("exact");
   wide.start(); exact.start();
   assert.equal(tasks.size, 1, "views subscribe to one display clock");
   drain();
+  // Each 80-row paint costs 0.125 ms per row. Setup, waits and coverage have their own lifetimes.
+  for (const stage of ["stationary-text-rows", "wide-text-rows"]) {
+    const samples = stageRows.filter(([name]) => name === stage);
+    assert.ok(samples.length > 1 && samples.every(([,ms]) => ms > 0));
+    assert.equal(samples.reduce((sum,[,ms]) => sum + ms, 0), 10);
+  }
+  sliceVM.AtriumDiagnostics.performance.rendererStages = false;
+  sliceVM.AtriumDiagnostics.performance.renderStage = () => assert.fail("ordinary operation must skip detailed row recording");
   const peak = Math.max(...perFrame.values());
   const foreground=worked.filter(task=>task.exact);
   const maxTask=Math.max(...foreground.map(task=>task.ms));

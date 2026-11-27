@@ -2538,7 +2538,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       st.stats[own ? "textSliceRows" : "wideSliceRows"] += h;
       st.stats[own ? "textSliceWorkMs" : "wideSliceWorkMs"] += ms;
       // Estimate the next raster step from rows just drawn. Scope, setup and coverage have their own costs.
-      if (h) job.rows = Math.max(8, Math.min(H, Math.ceil(job.rows * 1.5), Math.round(h * SLICE_MS / Math.max(ms, .25))));
+      if (h) {
+        job.rows = Math.max(8, Math.min(H, Math.ceil(job.rows * 1.5), Math.round(h * SLICE_MS / Math.max(ms, .25))));
+        const recorder = G.AtriumDiagnostics?.performance;
+        if (recorder?.rendererStages) recorder.renderStage(own ? "stationary-text-rows" : "wide-text-rows", ms);
+      }
       job.estimate = phase === 1 ? 1 : h && job.y < H ? Math.max(.25, ms * Math.min(job.rows, H - job.y) / h) : SLICE_MS;
       if (T && (job.y < H || own && !done1)) { queue(); return; }
       st[name] = null;
