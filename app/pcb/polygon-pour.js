@@ -2139,7 +2139,7 @@ globalThis.AtriumPolygonPour=(()=>{
   // The widest ordinary split moves an input edge by less than one grid unit.
   // Four units between the patch and an omitted edge also separate the split
   // edges in the second planarity check. Global snap rounding needs a full solve.
-  const AREA_GUARD=4,AREA_LIMIT=.25,areaRingMemo=new WeakMap(),areaTagMemo=new WeakMap();
+  const AREA_GUARD=4,AREA_LIMIT=.5,areaRingMemo=new WeakMap(),areaTagMemo=new WeakMap();
   const areaCanonical=new WeakMap(),areaCanonicalIslands=new WeakMap(),areaArcRotation=new WeakMap(),areaConverted=new WeakMap(),areaRegionContours=new WeakMap();
   function areaRingInfo(ring){
     let info=areaRingMemo.get(ring);
@@ -2315,12 +2315,7 @@ globalThis.AtriumPolygonPour=(()=>{
       for(let i=0,j=ring.length-2;i<ring.length;j=i,i+=2){stats.checkedPrimitives++;if(areaEdgeTouches(ring[j],ring[j+1],ring[i],ring[i+1],x,y,X,Y))return true;}
       return false;
     }
-    let g=areaEdgeGrids.get(ring);
-    if(!g){
-      const boxes=new Array(n);
-      for(let k=0;k<n;k++){const i=2*k,j=k?i-2:ring.length-2,ax=ring[j],ay=ring[j+1],bx=ring[i],by=ring[i+1];boxes[k]=[Math.min(ax,bx),Math.min(ay,by),Math.max(ax,bx),Math.max(ay,by)];}
-      areaEdgeGrids.set(ring,g=areaBoxGrid(boxes));
-    }
+    const g=areaEdgeGrid(ring);
     let hit=false;
     areaVisit(g,b,k=>{
       if(hit)return;stats.checkedPrimitives++;
@@ -2328,6 +2323,33 @@ globalThis.AtriumPolygonPour=(()=>{
       if(areaEdgeTouches(ring[j],ring[j+1],ring[i],ring[i+1],x,y,X,Y))hit=true;
     });
     return hit;
+  }
+  // Edge k of a ring runs from vertex k-1 to vertex k.
+  function areaEdgeGrid(ring){
+    let g=areaEdgeGrids.get(ring);
+    if(!g){
+      const n=ring.length>>1,boxes=new Array(n);
+      for(let k=0;k<n;k++){const i=2*k,j=k?i-2:ring.length-2,ax=ring[j],ay=ring[j+1],bx=ring[i],by=ring[i+1];boxes[k]=[Math.min(ax,bx),Math.min(ay,by),Math.max(ax,bx),Math.max(ay,by)];}
+      areaEdgeGrids.set(ring,g=areaBoxGrid(boxes));
+    }
+    return g;
+  }
+  // CORE.pointInRing (1 inside, -1 outside, 0 on the boundary); a long ring reads only the edges whose
+  // boxes meet the ray from the point to the right, the only ones that can cross it or hold the point.
+  function areaPointInRing(x,y,ring){
+    const n=ring.length>>1;
+    if(n<=AREA_LONG)return CORE.pointInRing(x,y,ring);
+    const g=areaEdgeGrid(ring),b=areaRingInfo(ring).box;
+    if(x>b[2]||y<b[1]||y>b[3])return x>=b[0]&&x<=b[2]&&y>=b[1]&&y<=b[3]?CORE.pointInRing(x,y,ring):-1;
+    let inside=false,on=false;
+    areaVisit(g,[x,y,b[2],y],k=>{
+      if(on)return;
+      const i=2*k,j=k?i-2:ring.length-2,x1=ring[j],y1=ring[j+1],x2=ring[i],y2=ring[i+1];
+      const cr=(x2-x1)*(y-y1)-(y2-y1)*(x-x1);
+      if(cr===0&&x>=Math.min(x1,x2)&&x<=Math.max(x1,x2)&&y>=Math.min(y1,y2)&&y<=Math.max(y1,y2)){on=true;return;}
+      if((y1>y)!==(y2>y)&&(cr>0)===(y2>y1))inside=!inside;
+    });
+    return on?0:inside?1:-1;
   }
   // The winding number of a ring at a point off its boundary.
   function areaWinding(ring,x,y){
@@ -2347,30 +2369,33 @@ globalThis.AtriumPolygonPour=(()=>{
   // already is not added again. Connected boxes (within 2 AREA_GUARD) form one component; an input
   // outside the region has one winding number over a component, taken at its first box's corner.
   // Returns {boxes, components: [{shapes (in task order), winding}], shapes, area}, or the reason the
-  // region is too wide for a patch (its boxes cover more than `limit`).
+  // region is too wide for a patch: its inputs hold more than `limit` vertices, where a full solve
+  // costs about as much (exactness does not depend on the limit).
   function areaRegion(inputs,changed,K,limit,stats){
     const g=areaRecordGrid(inputs),R=inputs.records,inL=new Uint8Array(R.length),boxes=[],L=[],of=new Int32Array(R.length);
-    let total=0;
+    let total=0,vertices=0;
     const grow=b=>{boxes.push(clipBox(b,2*AREA_GUARD));total+=areaOf(boxes[boxes.length-1]);return boxes.length-1;};
     for(const c of changed){
       const own=R[c.k]===c;
       if(own&&inL[c.k])continue;
-      const q=grow(c.box);
-      if(own){inL[c.k]=1;L.push(c.k);of[c.k]=q;}
+      const q=grow(c.box),a=areaOf(c.box);
+      if(!stats.widest||a>stats.widest.a)stats.widest={a,cls:c.shape.cls,w:c.box[2]-c.box[0],h:c.box[3]-c.box[1],n:c.shape.ring.length>>1,changed:true};
+      if(own){inL[c.k]=1;L.push(c.k);of[c.k]=q;vertices+=c.shape.ring.length>>1;}
     }
     for(let q=0;q<boxes.length;q++){
-      if(total>limit)return "wide-neighbourhood";
+      if(vertices>limit)return "wide-neighbourhood";
       const b=boxes[q],near=clipBox(b,AREA_GUARD);
       areaVisit(g,near,k=>{
         if(inL[k])return;
         const rec=R[k];
         if(!areaOverlaps(rec.box,near)||!areaRingTouches(rec.shape.ring,near,stats))return;
-        inL[k]=1;L.push(k);
+        inL[k]=1;L.push(k);vertices+=rec.shape.ring.length>>1;
+        const a=areaOf(rec.box);if(!stats.widest||a>stats.widest.a)stats.widest={a,cls:rec.shape.cls,w:rec.box[2]-rec.box[0],h:rec.box[3]-rec.box[1],n:rec.shape.ring.length>>1};
         const gb=clipBox(rec.box,2*AREA_GUARD);
         of[k]=gb[0]>=b[0]&&gb[1]>=b[1]&&gb[2]<=b[2]&&gb[3]<=b[3]?q:grow(rec.box);
       });
     }
-    if(total>limit)return "wide-neighbourhood";
+    if(vertices>limit)return "wide-neighbourhood";
     // Components: boxes whose AREA_GUARD neighbourhoods meet, by a sweep in x.
     const B=boxes.length,parent=new Int32Array(B),order=[...boxes.keys()].sort((a,b)=>boxes[a][0]-boxes[b][0]);
     for(let q=0;q<B;q++)parent[q]=q;
@@ -2436,7 +2461,7 @@ globalThis.AtriumPolygonPour=(()=>{
     let best=null;const b=h.box,s=areaSpan(L,b),list=L.cells[s[2]*L.cols+s[0]];
     const test=o=>{
       if(!o.outer||o.area<=h.area||o.box[0]>b[0]||o.box[1]>b[1]||o.box[2]<b[2]||o.box[3]<b[3]||(best&&o.area>=best.area))return;
-      let side=0;for(let i=0;i<h.ring.length&&!side;i+=2)side=CORE.pointInRing(h.ring[i],h.ring[i+1],o.ring);
+      let side=0;for(let i=0;i<h.ring.length&&!side;i+=2)side=areaPointInRing(h.ring[i],h.ring[i+1],o.ring);
       if(side>=0)best=o;
     };
     for(const o of list)test(o);for(const o of L.big)test(o);
@@ -2449,7 +2474,7 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!ordinaryOverlay(prior.solved.stats))return "previous-overlay";
     let tq=now();const diff=areaDifference(prior.inputs,inputs);stats.tDiff=now()-tq;
     if(!diff)return "arc-identities";
-    const {changed,arcMap}=diff,frame=areaFrameBox(job.clear.work,job),limit=areaOf(frame)*AREA_LIMIT;
+    const {changed,arcMap}=diff,frame=areaFrameBox(job.clear.work,job),limit=inputs.primitives*AREA_LIMIT;
     const overlayStats={...prior.solved.stats,edges:0,merged:0,tPlanar:0,tMerge:0,tClassify:0,tTrace:0,tIslands:0,tSolve:0};
     const shifted=diff.shifted;
     if(!changed.length&&!shifted){
@@ -2479,6 +2504,7 @@ globalThis.AtriumPolygonPour=(()=>{
     const added=[];
     if(changed.length){
       tq=now();areaRecordGrid(inputs);stats.tGrid=now()-tq;
+      stats.frameArea=areaOf(frame);
       region=areaRegion(inputs,changed,task.K,limit,stats);
       if(typeof region==="string")return region;
       const inside=CORE.pourInside(task.K,task.hasBoard),w=new Int32Array(task.K);
