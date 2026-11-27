@@ -1652,6 +1652,130 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   assert.equal(tasks.size,0,"completion and cancellation leave no idle callback");
   assert.equal(channels,0,"closed or completed jobs leave no message ports");
   if (hz !== 60) continue;
+  for (const [ua,readback] of [["Chrome/158",false],["AppleWebKit/621",true]]) {
+    // Keep production copyCanvas/copyRows/restorePixels. Represent each opaque or
+    // transparent row with one value and emulate the corresponding Canvas draws.
+    const made = [];
+    const canvasForRows = (w,h) => {
+      let rows = new Uint8Array(h);
+      const canvas = {
+        isConnected:true,
+        ownerDocument:{createElement(){
+          const scratch=canvasForRows(300,150);made.push(scratch);return scratch;
+        }},
+        get width(){return w;},set width(n){w=n;rows.fill(0);},
+        get height(){return h;},set height(n){h=n;rows=new Uint8Array(h);},
+        get rows(){return rows;},
+        getContext(){return ctx;}
+      };
+      const ctx = {canvas,save(){},restore(){},setTransform(){},beginPath(){},rect(){},clip(){},
+        drawImage(source,...args){
+          const [sy,height,dy] = args.length===2 ? [0,source.height,0] : [args[1],args[3],args[5]];
+          rows.set(source.rows.subarray(sy,sy+height),dy);
+        }};
+      return canvas;
+    };
+    const ctx = vm.createContext({...fixture,navigator:{userAgent:ua},
+      AtriumPower:{visible:()=>!hidden},
+      AtriumCanvas:{resizeBacking(c,w,h){if(c.width!==w)c.width=w;if(c.height!==h)c.height=h;}},
+      pourCoverage(I){I.onCoverage?.();}
+    });
+    vm.runInContext(gpuCode.replace("  return Object.freeze("+sceneExport,
+      "  ({scope, textLayer, pourCoverage} = globalThis); memory = queueDriverMemoryProbe = () => true;\n" +
+      "  return Object.freeze({render, damage, stats, views, textSlices, restorePixels,"),ctx);
+    const api = ctx.AtriumCanvasGPU, canvas = canvasForRows(200,240), camera = [0,0,1,false,200,240,1];
+    const overlay = Uint8Array.from(canvas.rows,(_,i)=>i%19 ? 0 : 207);
+    let done = 0, repaints = 0;
+    const gl = {deleteTexture(){}}, st = {canvas,shown:true,scene:{rev:1},gl,commandEpoch:0,
+      stats:{textSliceRows:0,textSliceWorkMs:0}};
+    const I = {name:ua,ctx:canvas.getContext(),cache:{doc:board},cam:()=>camera,
+      withCamera(x,y,s,fn){fn();},repaint(){repaints++;},onRows(y,h){
+        canvas.rows.fill(17,readback?y:0,readback?y+h:canvas.height);
+      }};
+    I.sync = () => I.cache;
+    api.views.set(I,st);
+    const start = () => api.textSlices(I,st,board,new Map(),{},[],"textJob",camera,canvas,(T,V,foreground)=>{
+      if (st.exact) {
+        assert.ok(foreground);
+        assert.deepEqual(foreground.rows,overlay,"the final coverage stage preserves the full live overlay");
+        api.restorePixels(I.ctx,foreground);
+      }
+      done++;
+    });
+    const firstRows = () => {runNext();runNext();runNext();};
+    const twoSteps = fn => {start();runNext();runNext();fn();};
+    const identical = () => assert.deepEqual(canvas.rows,overlay,ua+" restores all live overlay rows");
+    const size = c => [c.width,c.height];
+    const released = c => assert.deepEqual(size(c),[1,1],ua+" discards the abandoned backing");
+    let rows = I.onRows;
+    canvas.rows.set(overlay);
+    start();firstRows();
+    let scratch=made.at(-1);
+    assert.deepEqual(size(scratch),[200,readback?150:240],ua+" allocates the production scratch size");
+    identical();
+    api.pause(I);
+    released(scratch);
+    assert.equal(tasks.size,0);
+    assert.equal(done,0);
+    identical();
+
+    I.onRows=(y,h)=>{
+      rows(y,h);
+      api.pause(I);
+      scratch=made.at(-1);
+      assert.ok(scratch.width>1,"a mid-row pause cannot release pixels needed by finally");
+    };
+    twoSteps(runNext);
+    released(scratch);
+    assert.equal(tasks.size,0);
+    assert.equal(done,0);
+    identical();
+
+    I.onRows=(y,h)=>{rows(y,h);throw new Error("after a destructive row");};
+    twoSteps(runNext);
+    released(made.at(-1));
+    assert.equal(repaints,1,"a failing row still asks for the normal repaint");
+    assert.equal(tasks.size,0);
+    identical();
+
+    I.onRows=rows;
+    start();firstRows();scratch=made.at(-1);
+    const allocated=made.length;
+    start();firstRows();
+    assert.equal(made.length,allocated,"a direct replacement reuses its idle snapshot");
+    drain();
+    released(scratch);
+    assert.equal(done,1);
+    identical();
+
+    I.onRows=(y,h)=>{rows(y,h);I.onRows=rows;start();};
+    twoSteps(runNext);
+    scratch=made.at(-1);released(scratch);
+    assert.equal(tasks.size,1,"a synchronous replacement owns the only successor");
+    firstRows();
+    const replacement=made.at(-1);
+    assert.notEqual(replacement,scratch);
+    assert.ok(replacement.width>1);
+    drain();
+    released(replacement);
+    assert.equal(done,2);
+    assert.equal(tasks.size,0);
+    identical();
+
+    st.exact = {};
+    I.onCoverage=()=>{canvas.rows.fill(93);api.pause(I);};
+    start();drain();
+    released(made.at(-1));
+    assert.equal(done,2,"cancelled final coverage never publishes");
+    identical();
+
+    I.onCoverage=()=>canvas.rows.fill(93);
+    start();drain();
+    released(made.at(-1));
+    assert.equal(done,3,"ordinary coverage publishes and releases the overlay snapshot");
+    identical();
+  }
+  console.log("Foreground slice scratch restores Chromium and WebKit overlay rows and releases on cancel, failure and publication");
   // Drive the LOD publisher through the editor's draw/settle route. The prior
   // generic redraw scheduled a stationary frame during a retained camera move.
   const appFile = name => path.join(__dirname,"../../app",name);

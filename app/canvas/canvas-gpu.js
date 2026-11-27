@@ -66,6 +66,7 @@ globalThis.AtriumCanvasGPU = (() => {
     const job = st[name];
     if (!job) return;
     st[name] = null; job.cancel?.();
+    if (!job.painting) releaseCanvas(job, "copy");
     if (job.T !== st.text && job.T !== st.wide?.text) for (const b of job.T.bands || []) st.gl.deleteTexture(b.tex);
   }
   // The preference changed (canvas-gpu-pref.js calls this): hide every view the GPU no longer draws.
@@ -1418,7 +1419,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     st.text = {key: null};
     freeCoverage(st);
     if (st.union) { st.gl.deleteTexture(st.union.tex); st.gl.deleteFramebuffer(st.union.fb); st.union = null; }
-    for (const key of ["overlayCopy", "overlayWorld", "wideCanvas", "sliceCopy", "stripWide", "stripTall", "stripLarge"]) releaseCanvas(st,key);
+    for (const key of ["overlayCopy", "overlayWorld", "wideCanvas", "stripWide", "stripTall", "stripLarge"]) releaseCanvas(st,key);
     st.emptyStrip = null;
     st.exact = st.overlayV = st.ovAt = null;
   }
@@ -2480,10 +2481,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // target: the canvas the slices are drawn on: the view's own (whose pixels each slice puts back: the
   // overlay drawn for this camera) or the wide copy's; cam: the camera to draw for (I.withCamera).
   function textSlices(I, st, doc, defs, opts, list, name, cam, target, done) {
+    const own = target === I.ctx.canvas, prior = st[name];
+    // A replacement can reuse idle scratch, but an active paint must restore its own pixels first.
+    const copy = own && !prior?.painting ? prior?.copy : null;
+    if (copy) prior.copy = null;
     cancelSlices(st, name);
     const W = st.canvas.width, H = st.canvas.height, rev = st.scene?.rev, at = I.cam().join();
-    const job = st[name] = {at, T: {key: null}, y: 0, rows: 16, V: null, step, estimate: 1, cancel: null};
-    const own = target === I.ctx.canvas;
+    const job = st[name] = {at, T: {key: null}, y: 0, rows: 16, V: null, step, estimate: 1, cancel: null, copy};
     const queue = () => queueTextSlice(job, own);
     function step() {
       job.cancel = null;
@@ -2501,12 +2505,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       const t0 = now(), keep = I.ctx, phase = job.phase = (job.phase || 0) + 1, h = phase < 3 ? 0 : Math.min(job.rows, H - job.y);
       if (phase > 1) st.commandEpoch++;
       let T = job.T, foreground;
+      if (own) job.painting = true;
       try {
         // Only the slice's rows are drawn where the drawing is clipped (WebKit): only they are kept and put back.
-        if (own && h) st.sliceCopy = READBACK ? copyRows(target, st.sliceCopy, job.y, h) : copyCanvas(target, st.sliceCopy);
+        if (own && h) job.copy = READBACK ? copyRows(target, job.copy, job.y, h) : copyCanvas(target, job.copy);
         // The final coverage paint can clear the view despite having no text rows.
         // Save the visible overlay before it runs and reuse that copy when publishing.
-        else if (own && job.y >= H && st.exact) foreground = st.sliceCopy = copyCanvas(target, st.sliceCopy);
+        else if (own && job.y >= H && st.exact) foreground = job.copy = copyCanvas(target, job.copy);
         I.ctx = target.getContext("2d");
         I.withCamera(cam[0], cam[1], cam[2], () => {
           const c2 = I.cam();
@@ -2522,10 +2527,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
       finally {
         I.ctx = keep;
-        if (own && h && st.sliceCopy) restorePixels(keep, st.sliceCopy, W, job.y, h);
-        if (foreground && (st[name] !== job || st.driverOutOfMemory)) {
-          restorePixels(keep, foreground);
-          releaseCanvas(st, "sliceCopy");
+        if (own) {
+          try {
+            if (h && job.copy) restorePixels(keep, job.copy, W, job.y, h);
+            if (foreground && (st[name] !== job || st.driverOutOfMemory)) restorePixels(keep, foreground);
+          } finally {
+            job.painting = false;
+            if (st[name] !== job || st.driverOutOfMemory) releaseCanvas(job, "copy");
+          }
         }
       }
       if (st[name] !== job) return;
@@ -2546,8 +2555,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       job.estimate = phase === 1 ? 1 : h && job.y < H ? Math.max(.25, ms * Math.min(job.rows, H - job.y) / h) : SLICE_MS;
       if (T && (job.y < H || own && !done1)) { queue(); return; }
       st[name] = null;
-      if (own && !foreground) releaseCanvas(st, "sliceCopy");
-      done(T ? job.T : null, job.V, foreground);
+      try { done(T ? job.T : null, job.V, foreground); }
+      finally { releaseCanvas(job, "copy"); }
       if (!memory(I, st, doc)) repaint(I);
       else queueDriverMemoryProbe(I, st, doc);
     }
@@ -2799,11 +2808,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       st.text = T || {key: null}; st.checkMemory = true;
       // The layers are this camera's from here: the next gesture starts from them, not the previous exact frame's.
       if (st.exact) {
-        const keep = foreground || (st.sliceCopy = copyCanvas(I.canvas, st.sliceCopy));
+        const keep = foreground || copyCanvas(I.canvas);
         try { overlayWorld(I, st, doc, defs, opts, cam, V); }
         finally {
           restorePixels(I.ctx, keep);
-          releaseCanvas(st, "sliceCopy");
+          if (!foreground) keep.width = keep.height = 1;
         }
         st.exact = {...st.exact, cx: cam[0], cy: cam[1], scale: cam[2]}; st.ovAt = null; releaseOverlayCopy(st);
       }
