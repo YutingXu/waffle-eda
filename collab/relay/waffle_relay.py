@@ -94,6 +94,7 @@ class Limits:
     turn_per_room = 40               # TURN credentials per room per hour
     turn_per_address = 60            # TURN credentials per address per hour
     room_idle = 2 * 3600.0           # seconds without a forwarded message before a room is closed
+    sweep = 60.0                     # seconds between checks for idle rooms
     room_joins = 20                  # joins into one room per address per 10 minutes (new identities)
     reading = 160 * 1024 * 1024      # bytes reserved by messages being read and forwarded, all connections
     read_cost = 8                    # reserved per received byte: the frame, its unmasked copy, text, JSON, the frame out
@@ -335,6 +336,10 @@ class Relay:
         # {"room", "salt", "name", "host"}. Only that room may be joined, and before joining anyone may
         # ask {"t": "info"} for its public facts (the session salt, its display name, the host's peer
         # id): a guest who found it on the network or typed its address then needs only the short code.
+        # On the local network there are no HTTP pages, at most four connections per place in the room,
+        # and the room's owner is the first joiner with an owner token for as long as it is shared (the
+        # host's own window), not whoever joins first after everyone left. The macOS and Windows
+        # listeners (LanRelay.swift, LanRelay.cs) do the same; native/tests/lan_relay.py checks all three.
         self.lan = lan
         self.hosts = {}
         self.turn_log = collections.defaultdict(collections.deque)   # address -> times of TURN credentials
@@ -400,6 +405,8 @@ class Relay:
 
     def http(self, writer, path):
         path = path.split("?", 1)[0]
+        if self.lan:
+            return self.respond(writer, "404 Not Found", b"")
         if path == "/healthz":
             body = json.dumps({"ok": True, "version": VERSION, "turn": self.turn_on(), "mode": "private" if self.private else "open"}).encode()
             # Public facts only; Preferences › Test Connection reads them from the editor's own origin.
@@ -482,7 +489,7 @@ class Relay:
 
     # ---- the relay -----------------------------------------------------------------------------------
     async def serve(self, reader, writer):
-        if self.connections >= Limits.connections:
+        if self.connections >= (4 * Limits.peers if self.lan else Limits.connections):
             writer.close()
             return
         self.connections += 1
@@ -590,8 +597,11 @@ class Relay:
             await peer.close(1013)
             return
         if members is None:
-            members = self.rooms[room] = {"peers": {}, "owner": owner, "by": peer.address, "turn": collections.deque(), "active": time.monotonic()}
-            is_owner = owner is not None
+            if self.lan is not None and self.lan.get("owner") is None:
+                self.lan["owner"] = owner
+            first = self.lan["owner"] if self.lan is not None else owner
+            members = self.rooms[room] = {"peers": {}, "owner": first, "by": peer.address, "turn": collections.deque(), "active": time.monotonic()}
+            is_owner = owner is not None and owner == first
         peer.owner = peer.attested = is_owner
         others = list(members["peers"].values())
         members["peers"][peer.id] = peer
@@ -683,7 +693,7 @@ class Relay:
     async def sweep(self):
         """Close rooms with no forwarded message for Limits.room_idle (keepalives alone don't count)."""
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(Limits.sweep)
             now = time.monotonic()
             for room, members in list(self.rooms.items()):
                 if now - members["active"] > Limits.room_idle:
