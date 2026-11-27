@@ -679,6 +679,8 @@ async function selectionAndSnap(page) {
   // The click rebuilds the filter, and the pointer can hover the replacement chip.
   await page.mouse.move(1,1);
   await page.locator("#inspector .pcb-edit-filter .ui-chip:hover").waitFor({state:"hidden"});
+  // The fill eases back over --motion-instant; under load a measure can land inside that fade.
+  await page.locator("#inspector .pcb-edit-filter .ui-chip").evaluateAll(nodes=>Promise.all(nodes.flatMap(node=>node.getAnimations()).map(animation=>animation.finished)));
   assert.deepEqual(geometryProblems(await measure(page)).filter(x=>x.startsWith("inactive chip")),[]);
   await off.hover();
   await off.and(page.locator(":hover")).waitFor();
