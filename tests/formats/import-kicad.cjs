@@ -179,6 +179,17 @@ const worldPads = (part, def) => A.pins(part, def, "pcb").map(p => ({n: p.number
   console.log("PASS project-specific nested KiCad references, standalone, repeated and ambiguous child placements");
 }
 
+// A datasheet parameter in any spelling (an Altium or Eagle import keeps "Datasheet" as written)
+// fills KiCad's Datasheet field, in the embedded library symbol and on the placed symbol.
+{
+  const project = AtriumParts.example(), sheet = project.documents.find(d => d.kind === "schematic");
+  const part = sheet.items.find(i => i.kind === "part"), def = project.library.find(d => d.id === part.def);
+  def.parameters = {...def.parameters, "Data Sheet": "https://example.com/part.pdf"};
+  delete def.parameters.DATASHEET;
+  const text = AtriumKiCadSchematic.exportSheet(project, sheet).content;
+  assert.equal(text.split('(property "Datasheet" "https://example.com/part.pdf"').length - 1, 1 + sheet.items.filter(i => i.def === def.id).length);
+}
+
 // ------------------------------------------------------------------ 1. round trip
 {
   const project = AtriumParts.example(), board = project.documents.find(d => d.kind === "pcb"), sheet = project.documents.find(d => d.kind === "schematic");

@@ -32,6 +32,17 @@ assert.equal(pcb.sourceRuleChecks.kinds.length,pcb.sourceRules.length);
 assert.ok(pcb.sourceRuleChecks.batch.includes(2)&&!pcb.sourceRuleChecks.batch.includes(11));
 assert.ok(pcb.sourceRuleChecks.online.includes(11));
 assert.equal(pcb.ruleCheckSelection,undefined,"reading a source board retains its check selection for adoption");
+// Component parameters keep Altium's names as written, so Properties, the BOM and an export back
+// to Altium show "Manufacturer Part Number", not "MANUFACTURER PART NUMBER".
+{
+  const u2 = sch.items.find(i => i.kind === "part" && i.ref === "U2"), params = defs.get(u2.def).parameters;
+  assert.equal(params["Manufacturer Part Number"], "MCP23016-I/SO");
+  assert.equal(params["Supplier Part Number 1"], "MCP23016-I/SO-ND");
+  assert.equal(params["Case Code"], "SOIC-28");
+  assert.ok(!Object.keys(params).some(k => k !== "" && k === k.toUpperCase() && /[A-Z]{2}/.test(k) && k.includes(" ")), "no name is upper-cased on import");
+  const r4 = sch.items.find(i => i.kind === "part" && i.ref === "R4");
+  assert.equal(r4.value, defs.get(r4.def).parameters.Value, "=Value still resolves through the renamed key");
+}
 
 // ---------------------------------------------------------------- report
 const count = (d, k) => d.items.filter(i => i.kind === k).length;

@@ -327,7 +327,7 @@ globalThis.AtriumSCH = (() => {
           const defName=r.LIBREFERENCE||r.DESIGNITEMID||"Symbol";
           const c={origin:at(r),activePart:numeric(r.CURRENTPARTID,1)||1,partCount:numeric(r.PARTCOUNT),mode:numeric(r.DISPLAYMODE),
             angle:libraryStream?0:((4-numeric(r.ORIENTATION,0)%4)%4)*90,
-            symbol:{shapes:[],pins:[]},params:Object.create(null),prefix:"U",ref:"",value:"",name:defName,
+            symbol:{shapes:[],pins:[]},params:Object.create(null),paramNames:Object.create(null),prefix:"U",ref:"",value:"",name:defName,
             footprintName:"",desc:r.COMPONENTDESCRIPTION||"",index:idx,pinText:[],captions:[],kind:numeric(r.COMPONENTKIND,0)};
           kept();ancestors[idx]=c;components.set(idx,c);activeLibraryRoot=idx;recognized++;continue;
         }
@@ -376,12 +376,13 @@ globalThis.AtriumSCH = (() => {
           if(t===41 && ownerRecord===48 && /^Available Preview Images$/i.test(r.NAME||""))inapplicable("Altium's list of preview images for this model.");
           if(c && (libraryStream || owner===c.index)){
             kept();
-            const field=(r.NAME||"").toUpperCase();
+            // Names keep Altium's spelling ("Manufacturer Part Number"); lookups match them in any case.
+            const field=(r.NAME||"").toUpperCase(),key=c.paramNames[field]??=r.NAME||"";
             if(t===34){c.ref=r.TEXT||"";c.prefix=c.ref.match(/^[^0-9?]+/)?.[0]||"U";c.refAt=local(position);c.showRef=!isTrue(r.ISHIDDEN);if(appearance)c.refPaint=textPaint(r,fonts,"#000080",c.angle);}
             else {
-              c.params[field]=r.TEXT||"";
+              c.params[key]=r.TEXT||"";
               if(appearance && textPlacement && doc && !isTrue(r.ISHIDDEN) && r.NAME && r.TEXT)
-                c.captions.push({name:r.NAME,field,text:r.TEXT,at:local(position),paint:textPaint(r,fonts,"#000080",c.angle),showName:isTrue(r.SHOWNAME)});
+                c.captions.push({name:r.NAME,field,key,text:r.TEXT,at:local(position),paint:textPaint(r,fonts,"#000080",c.angle),showName:isTrue(r.SHOWNAME)});
               if(field==="VALUE"||field==="COMMENT"){
                 const visible=!isTrue(r.ISHIDDEN);
                 if(visible || !c.valueAt){c.valueAt=local(position);if(appearance)c.valuePaint=textPaint(r,fonts,"#000080",c.angle);}
@@ -540,11 +541,11 @@ globalThis.AtriumSCH = (() => {
       tag();tagging=null;
       const symbolDefs=new Map(),footprints=new Map(),kinds=new Map();
       for(const c of components.values()){
-        const params=c.params;
+        const params=c.params,param=name=>params[c.paramNames[name.toUpperCase()]];
         // Gates of a multi-part library symbol: Altium counts part 0 (shared) in PARTCOUNT.
         if(libraryStream && c.partCount>2){const top=Math.max(c.partCount-1,...c.symbol.pins.map(p=>p.part||0),...c.symbol.shapes.map(s=>s.part||0));if(top>1)c.symbol.parts=top;}
-        let value=params.VALUE||params.COMMENT||params["PART NUMBER"]||c.name;
-        if(value.startsWith("="))value=params[value.slice(1).toUpperCase()]||params["PART NUMBER"]||c.name;
+        let value=param("Value")||param("Comment")||param("Part Number")||c.name;
+        if(value.startsWith("="))value=param(value.slice(1))||param("Part Number")||c.name;
         // Undo the placed instance rotation before sharing its library geometry.
         // Rounding removes harmless binary float differences after translation.
         const normalize=p=>A.rotate(p,-c.angle).map(v=>Math.round(v*1e8)/1e8);
@@ -581,7 +582,7 @@ globalThis.AtriumSCH = (() => {
           if(c.refAt)item.refAt=normalize(c.refAt);if(c.valueAt)item.valueAt=normalize(c.valueAt);
           if(c.showRef!==undefined)item.showRef=c.showRef;if(c.showValue!==undefined)item.showValue=c.showValue;
           if(c.captions.length){
-            const resolved=caption=>caption.text.startsWith("=")?params[caption.text.slice(1).toUpperCase()]||caption.text:caption.text;
+            const resolved=caption=>caption.text.startsWith("=")?param(caption.text.slice(1))||caption.text:caption.text;
             const valueFields=c.captions.filter(p=>p.field==="VALUE"||p.field==="COMMENT");
             const primary=valueFields.find(p=>!p.showName && resolved(p)===value);
             if(primary){
@@ -589,8 +590,8 @@ globalThis.AtriumSCH = (() => {
             }else if(valueFields.length)item.showValue=false;
             const custom=c.captions.filter(p=>p!==primary);
             if(custom.length){
-              item.paramShow=Object.fromEntries(custom.map(p=>[p.field,true]));
-              (item.schPaint||={}).parameters=Object.fromEntries(custom.map(p=>[p.field,{...p.paint,at:normalize(p.at),text:resolved(p),...(p.showName?{caption:p.name}:{})}]));
+              item.paramShow=Object.fromEntries(custom.map(p=>[p.key,true]));
+              (item.schPaint||={}).parameters=Object.fromEntries(custom.map(p=>[p.key,{...p.paint,at:normalize(p.at),text:resolved(p),...(p.showName?{caption:p.name}:{})}]));
             }
           }
           addItem(item,c.index);

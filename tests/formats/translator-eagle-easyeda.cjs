@@ -74,3 +74,43 @@ for (const name of ["demo-eagle.brd", "demo-eagle.sch", "demo-easyeda-pcb.json",
   io.scrub(actual);
   assert.equal(actual.library[0].footprint.pads.length, 0);
 }
+
+// Part parameters survive import: every Eagle technology attribute becomes a device parameter and a
+// part's own attribute rows become its placement values; every EasyEDA c_para attribute that is not
+// the prefix, value, footprint or symbol name becomes a parameter. Names keep their source spelling.
+{
+  const sch = decode(source("demo-eagle.sch"))
+    // The first technology list is the R deviceset's 0603 device.
+    .replace('<technologies><technology name=""/></technologies>',
+      '<technologies><technology name=""><attribute name="MPN" value="RC0603FR-0710KL"/><attribute name="Manufacturer" value="Yageo"/><attribute name="Tolerance" value="1%" constant="no"/></technology></technologies>')
+    .replace('<part name="R2" library="atrium-test" deviceset="R" device="0603" value="1k"/>',
+      '<part name="R2" library="atrium-test" deviceset="R" device="0603" value="1k"><attribute name="Tolerance" value="0.1%"/><attribute name="DNP" value="yes"/><attribute name="NAME" value="R2"/></part>');
+  const {records, actual} = run("demo-eagle.sch", encode(sch), E);
+  const part = ref => actual.documents[0].items.find(i => i.kind === "part" && i.ref === ref);
+  const def = ref => actual.library.find(d => d.id === part(ref).def);
+  assert.deepEqual(def("R1").parameters, {MPN: "RC0603FR-0710KL", Manufacturer: "Yageo", Tolerance: "1%"});
+  assert.equal(part("R1").parameters, undefined, "a part with no attribute rows inherits the device's values");
+  assert.deepEqual(part("R2").parameters, {Tolerance: "0.1%", DNP: "yes"}, "part rows override, placeholders stay out");
+  assert.equal(def("R2"), def("R1"));
+  assert.ok(!records.some(r => r.kind === "attribute" && r.status === "dropped"), "imported attributes are not reported as dropped");
+}
+// Two technologies of one device are two definitions, told apart by name and parameters.
+{
+  const sch = decode(source("demo-eagle.sch"))
+    .replace('<technologies><technology name=""/></technologies>',
+      '<technologies><technology name=""><attribute name="Power" value="0.1W"/></technology><technology name="HP"><attribute name="Power" value="0.25W"/></technology></technologies>')
+    .replace('<part name="R3" library="atrium-test" deviceset="R" device="0603" value="22k"/>', '<part name="R3" library="atrium-test" deviceset="R" device="0603" technology="HP" value="22k"/>');
+  const {actual} = run("demo-eagle.sch", encode(sch), E);
+  const def = ref => actual.library.find(d => d.id === actual.documents.flatMap(doc => doc.items).find(i => i.kind === "part" && i.ref === ref).def);
+  assert.notEqual(def("R3"), def("R1"));
+  assert.deepEqual([def("R1").name, def("R1").parameters], ["R0603", {Power: "0.1W"}]);
+  assert.deepEqual([def("R3").name, def("R3").parameters], ["R0603 HP", {Power: "0.25W"}]);
+}
+{
+  const sch = decode(source("demo-easyeda-sch.json")).replace("value`10k`Manufacturer`Acme`",
+    "value`10k`Manufacturer`Acme`Manufacturer Part`RC0603FR-0710KL`Supplier`LCSC`Supplier Part`C25804`Tolerance`1%`Power`0.1W`nameAlias`Res`Contributor`LCSC`");
+  const {actual} = run("demo-easyeda-sch.json", encode(sch), Q);
+  const r1 = actual.documents[0].items.find(i => i.kind === "part" && i.ref === "R1");
+  assert.deepEqual(r1.parameters, {Manufacturer: "Acme", "Manufacturer Part": "RC0603FR-0710KL", Supplier: "LCSC", "Supplier Part": "C25804", Tolerance: "1%", Power: "0.1W"},
+    "the library author (Contributor) and the structural fields are not part parameters");
+}
