@@ -217,7 +217,11 @@ for (const [side, axis] of [["top", "x"], ["bottom", "x"], ["left", "x"], ["righ
   // fixtures a half turn or X mirror lands R1 pin 1 on the label and wire pin 2 left behind.
   const fs = require("node:fs"), path = require("node:path"), dir = path.join(__dirname, "../fixtures/compat/projects");
   const projects = [["example", AtriumParts.example()], ["ddr4", JSON.parse(fs.readFileSync(path.join(__dirname, "../fixtures/bus/ddr4-byte-lane.atrium"), "utf8"))],
-    ...fs.readdirSync(dir).filter(f => f.endsWith(".waffle")).sort().map(f => [f, JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"))])];
+    // Listed by name: the JavaScriptCore shim cannot enumerate fixture directories.
+    ...["v1.4-calculation-frame", "v1.4-frame-channel-net-hyphen", "v1.4-frame-channel-net-underscore", "v1.4-notebook",
+      "v1.4-schematic-canvas", "v1.5-altium-geometry", "v1.5-altium-source-metadata", "v1.5-imported-rule-ledger",
+      "v1.5-replaced-source-rules", "v1.6-newer-frame-channel-net", "v1.6-newer-schematic-canvas"]
+      .map(n => n + ".waffle").map(f => [f, JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"))])];
   const expected = ["example U1 r180", "example U1 my",
     ...["v1.4-frame-channel-net-hyphen", "v1.4-frame-channel-net-underscore", "v1.6-newer-frame-channel-net"].flatMap(f => [f + ".waffle R1 r180", f + ".waffle R1 mx"])];
   const changed = [];
