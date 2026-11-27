@@ -221,7 +221,7 @@ globalThis.AtriumLazy = (() => {
     AtriumVariants: {scripts: ["project/variants.js"], css: ["project/variants.css"]},
     // PDF writer and printing (pdf.js, print.js). The Path2D recorder stays eager (path-record.js).
     AtriumPDF: {scripts: ["formats/pdf.js"], deps: ["AtriumPCBText"]},
-    AtriumPrint: {scripts: ["formats/print.js"], css: ["formats/print.css"], deps: ["AtriumPDF", "AtriumPDFFonts", "AtriumFabOutputs"]},
+    AtriumPrint: {scripts: ["formats/print.js"], css: ["formats/print.css"], deps: ["AtriumPDF", "AtriumPDFFonts", "AtriumFabOutputs", "AtriumSchCurves"]},
     // Reports (BOM, Messages, comparisons) as PDF pages for the same print path and dialog.
     AtriumPrintReport: {scripts: ["formats/print-report.js"], deps: ["AtriumPrint"]},
     AtriumNotebookOutput: {scripts:["formats/notebook-output.js"]},
@@ -285,7 +285,7 @@ globalThis.AtriumLazy = (() => {
     AtriumWindowWorkspace: {scripts: ["native-bridge/window-workspace.js"]},
     AtriumProjectWindowClient: {scripts: ["native-bridge/project-window-client.js"], deps:["AtriumWindowWorkspace"]},
     AtriumAI: {scripts: ["automation/ai.js"], deps: ["AtriumProposal"]},
-    AtriumSchematicOutput: {scripts: ["formats/schematic-output.js"]},
+    AtriumSchematicOutput: {scripts: ["formats/schematic-output.js"], deps: ["AtriumSchCurves"]},
     AtriumKiCad: {scripts: ["formats/kicad-export.js", "formats/kicad-schematic.js"], deps: ["AtriumSchematicOutput", "AtriumRules", "AtriumPCBDraw", "AtriumZip", "AtriumVariants", "AtriumPCBTextRich"]},
     AtriumRevisionReview: {scripts: ["history/revision-review.js", "history/revision-present.js", "history/revision-geometry.js", "history/revision-panel.js"], deps: ["AtriumDiff", "AtriumLandContours"]},
     AtriumDesignReview: {scripts: ["history/design-review.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput"]},
@@ -436,7 +436,7 @@ globalThis.AtriumLazy = (() => {
   // so the schematic module loads only for the action on a sheet).
   register("AtriumImportReports", {scripts: ["formats/import-reports.js"], css: ["formats/import-reports.css"], deps: ["AtriumDocViews","AtriumTranslatorRegistry"]}, ["import-report"]);
   register("AtriumAltiumBridge", {scripts: ["formats/altium-bridge.js"], deps:["AtriumTranslatorRegistry"]}, ["import-altium"]);
-  register("AtriumAltiumExport", {scripts: ["formats/sexpr.js", "formats/altium-export.js"], deps: ["AtriumSchematicOutput", "AtriumZip", "AtriumRules", "AtriumPCBDraw"]});
+  register("AtriumAltiumExport", {scripts: ["formats/sexpr.js", "formats/altium-export.js"], deps: ["AtriumSchematicOutput", "AtriumSchCurves", "AtriumZip", "AtriumRules", "AtriumPCBDraw"]});
   register("AtriumAltiumProjectExport", {scripts: ["formats/altium-project-export.js"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput"]}, ["export-altium"]);
   // Design review comments (review-comments.js).
   register("AtriumSchNoteInk", {scripts:["notebook/sch-note-ink.js"]});
@@ -840,7 +840,7 @@ globalThis.AtriumLazy = (() => {
     if (project?.rules != null || documents.some(d => d?.kind === "pcb" || d?.rules != null)) out.push("AtriumRules");
     if (AtriumRuleScopeDemand(project?.rules) || documents.some(d=>AtriumRuleScopeDemand(d?.rules))) out.push("AtriumDesignQuery");
     if (project?.signals != null) out.push("AtriumSignals");
-    if (documents.some(d => d.items?.some(i => i.url))) out.push("AtriumSchObjectInspector");
+    if (documents.some(d => d?.items?.some?.(i => i?.url))) out.push("AtriumSchObjectInspector");
     if (notebook) {
       if (documents.some(d => d?.kind === "schematic" && d.items?.some?.(i => i?.kind === "textframe" && i.math === true))) out.push("AtriumMath");
       if (documents.some(d => d.items?.some(i => i.richText))) out.push("AtriumNotebook");
@@ -1066,7 +1066,11 @@ globalThis.AtriumLazy = (() => {
     host.on?.("replace", lockFile);
     d.addEventListener("visibilitychange", () => { if (visible()) lockFile(); });
     lockFile();
-    requestAnimationFrame(() => idle(() => need(["AtriumHistoryEntry", "AtriumSchCurves"]).catch(() => {})));
+    requestAnimationFrame(() => idle(() => {
+      need("AtriumHistoryEntry").catch(() => {});
+      // Exact schematic curves: sheets drawn before it loaded show their points until this redraw.
+      need("AtriumSchCurves").then(() => globalThis.AtriumNavHost?.redraw?.(true), () => {});
+    }));
     if (/^#atrium(-host)?=1&/.test(globalThis.location?.hash || "")) need("AtriumCollabPresence").catch(() => {}); // invitation link
     start();
     power();

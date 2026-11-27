@@ -62,10 +62,29 @@ globalThis.AtriumSchCurves = (() => {
     }
     return {x: g.x, y: g.y, r: g.r, start: g.start, end: g.start + sweep};
   }
-  function trace(ctx, s) {
-    if (!s.ellipse && !s.bezier && !s.arc) return false;
+  // The curve a shape draws, checked against its points once and then reused while the points stay the
+  // same: a symbol shape is shared by every placement, and every frame draws it again. A vertex edit may
+  // change a point in place, so the points are compared value by value (no trigonometry, no allocation).
+  const memo = new WeakMap();
+  function samePoints(flat, points) {
+    if (flat.length !== points.length * 2) return false;
+    for (let k = 0; k < points.length; k++) { const p = points[k]; if (!p || flat[2 * k] !== p[0] || flat[2 * k + 1] !== p[1]) return false; }
+    return true;
+  }
+  function exact(s) {
+    const m = memo.get(s);
+    if (m && m.points === s.points && m.ellipse === s.ellipse && m.bezier === s.bezier && m.arc === s.arc && samePoints(m.flat, s.points)) return m.curve;
     const e = ellipse(s), cp = !e && bezier(s), g = !e && !cp && arc(s);
-    if (!e && !cp && !g) return false;
+    const curve = e ? {e: {...e, a: e.a.slice(), b: e.b.slice()}} : cp ? {cp} : g ? {g} : null, flat = new Float64Array((s.points?.length || 0) * 2);
+    (s.points || []).forEach((p, k) => { flat[2 * k] = p?.[0]; flat[2 * k + 1] = p?.[1]; });
+    memo.set(s, {points: s.points, ellipse: s.ellipse, bezier: s.bezier, arc: s.arc, flat, curve});
+    return curve;
+  }
+  function trace(ctx, s) {
+    if (!s || !s.ellipse && !s.bezier && !s.arc || !Array.isArray(s.points)) return false;
+    const curve = exact(s);
+    if (!curve) return false;
+    const {e, cp, g} = curve;
     ctx.beginPath();
     if (e) {
       // A transformed unit circle; the caller strokes with its own pen after the restore.
