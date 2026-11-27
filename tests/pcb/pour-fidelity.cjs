@@ -116,7 +116,9 @@ function exact(p){
     stackMode:"full",padStack:{Top:{diameter:2,shape:"rect"},Bottom:{diameter:.4,shape:"octagon"}}};
   const {p,b,o,lib}=example([top,bottom,via]);P.apply(b,lib,o);
   const model=F.analyse(p,b),topCopper=b.pcbDrawing.pours.filter(r=>r.layer==="Top"),botCopper=b.pcbDrawing.pours.filter(r=>r.layer==="Bottom");
-  assert.ok(!ink(topCopper,10.95,10.95));assert.ok(!ink(topCopper,11.12,11.12));assert.ok(ink(topCopper,11.18,11.18));
+  assert.ok(!ink(topCopper,10.95,10.95));assert.ok(!ink(topCopper,11.12,11.12));
+  // The square land's clearance keeps square corners (Altium's cut): clear to 11.2 on the diagonal.
+  assert.ok(!ink(topCopper,11.18,11.18));assert.ok(ink(topCopper,11.22,11.22));
   assert.ok(ink(botCopper,10.43,10));assert.ok(!ink(botCopper,10.37,10));assert.deepEqual(model.pourClearance,[]);
   assert.equal(model.layers.get("Top").find(f=>f.use==="via").pad.shape,"rect");
   assert.equal(model.layers.get("Bottom").find(f=>f.use==="via").pad.shape,"octagon");

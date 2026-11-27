@@ -95,17 +95,21 @@ const track=(pts,net,width=.25,layer="Top")=>({id:id(),kind:"track",points:pts,w
   const c=Math.cos(Math.PI/6),sn=Math.sin(Math.PI/6),corners=[[-1,-.5],[1,-.5],[1,.5],[-1,.5]].map(([x,y])=>[25+x*c-y*sn,20+x*sn+y*c]);
   const d=minDist(r4,corners.map((q,i)=>[q,corners[(i+1)%4]]));
   ok(d>=.2-1e-5&&d<=.2+.0127+1e-4,"rect pad clearance "+d);
-  near(totalArea(r4),2000-(2*1+2*(2+1)*.2+Math.PI*.04),.01,"rect pad cut area");
+  // As Altium cuts it, a rectangular land's clearance keeps square corners (the land grown by .2 on each side).
+  near(totalArea(r4),2000-(2+.4)*(1+.4),.01,"rect pad cut area");
 }
 // 3b. relief shapes as Altium cuts them
 {
   const smd=(x,y,w,h,net="GND",o={})=>({id:id(),kind:"pad",x,y,w,h,shape:"rect",layer:"Top",net,number:"1",...o});
   const gnd=o=>PP.make(rect(0,0,50,40),{net:"GND",reliefAirGap:.3,reliefConductorWidth:.25,...o});
-  // A spoke stops at its own air gap: the long land's spoke does not fill its neighbour's gap.
+  // A spoke stops at its own air gap: the long land's spoke does not fill its neighbour's gap. (Its
+  // edge meets the copper below that gap; a spoke whose end lies wholly in it meets none and is not drawn.)
   {
-    const p=gnd(),long=smd(10,10,4,.6),small=smd(12.9,10.45,.6,.6),regs=PP.pour(board([long,small,via(30,30,"GND"),p]),null,p,{});
-    ok(inRegions(12.2,10,regs),"relief: the long land's spoke crosses its own gap");
-    ok(!inRegions(12.45,10,regs),"relief: no spoke in the neighbouring land's air gap");
+    const p=gnd(),long=smd(10,10,4,.6),small=smd(12.9,10.6,.6,.6),regs=PP.pour(board([long,small,via(30,30,"GND"),p]),null,p,{});
+    ok(inRegions(12.2,9.94,regs),"relief: the long land's spoke crosses its own gap");
+    ok(!inRegions(12.45,10.05,regs),"relief: no spoke in the neighbouring land's air gap");
+    const lone=smd(12.9,10.45,.6,.6),r2=PP.pour(board([long,lone,via(30,30,"GND"),p]),null,p,{});
+    ok(!inRegions(12.2,10,r2)&&!inRegions(11.5,10,r2),"relief: a spoke ending in a neighbour's air gap is not drawn");
   }
   // A rectangular land's air gap keeps square corners.
   {
@@ -133,6 +137,19 @@ const track=(pts,net,width=.25,layer="Top")=>({id:id(),kind:"track",points:pts,w
     const regs=PP.pour(board([smd(10,10,1,1),loop,via(30,30,"GND"),p]),null,p,{});
     ok(!inRegions(10,10,regs)&&!inRegions(10.6,10,regs),"relief: no spokes where none reaches copper");
     ok(regs.length===1,"relief: only the main island ("+regs.length+")");
+  }
+  // Spokes join the copper after the island tests, as Altium adds its spoke tracks: a pocket that
+  // only a spoke ties to the pour is an island of its own (here under the area limit), and a spoke
+  // that meets no copper is not drawn, with Remove Dead Copper off too (seen on public Altium boards).
+  for(const removeDeadCopper of [false,true]){
+    const p=gnd({removeDeadCopper,islandAreaThreshold:2}),pad=smd(10,10,.6,.6);
+    const walls=[track([[9.7,10.8],[12,10.8]],"SIG"),track([[9.7,9.2],[12,9.2]],"SIG"),track([[12,9.2],[12,10.8]],"SIG")];
+    const regs=PP.pour(board([pad,...walls,via(30,30,"GND"),p]),null,p,{}),tag=" (dead copper "+(removeDeadCopper?"on":"off")+")";
+    ok(inRegions(9.5,10,regs)&&inRegions(9.9,10,regs),"relief: the spoke to the pour is drawn"+tag);
+    ok(!inRegions(11.1,10,regs),"relief: the pocket reached only through the land goes with the area limit"+tag);
+    ok(!inRegions(10.45,10,regs),"relief: no spoke into the removed pocket"+tag);
+    ok(!inRegions(10,10.4,regs)&&!inRegions(10,9.6,regs),"relief: no spoke into the other net's clearance"+tag);
+    ok(regs.length===1&&regs[0].links.length===2,"relief: one island, linked to the via and the land"+tag);
   }
 }
 // 4. nested islands and dead copper
