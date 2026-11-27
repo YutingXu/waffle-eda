@@ -41,14 +41,15 @@ const sch = "|HEADER=Protel for Windows - Schematic Capture Ascii File Version 5
   {RECORD: 226, TEXT: "Hyperlink object", URL: HYPER_URL, "LOCATION.X": 300, "LOCATION.Y": 100, FONTID: 1, UNIQUEID: "TEXTCCCC"},
   {RECORD: 226, URL: BARE_URL, "LOCATION.X": 300, "LOCATION.Y": 50, FONTID: 1, UNIQUEID: "TEXTDDDD"}
 ].map(line).join("\r\n") + "\r\n";
-const LINKS = [{name: "COMPONENTLINK1URL", url: VENDOR, title: "Vendor page"}, {name: "HELPURL", url: HELP, title: "Help"},
-  {name: "DATASHEET URL", url: DATASHEET, title: "DATASHEET URL"}];
+// Names keep the source's spelling, so a link without a ComponentLink title reads as Altium shows it.
+const LINKS = [{name: "ComponentLink1URL", url: VENDOR, title: "Vendor page"}, {name: "HelpURL", url: HELP, title: "Help"},
+  {name: "Datasheet URL", url: DATASHEET, title: "Datasheet URL"}];
 function check(p, label) {
   const doc = p.documents.find(d => d.kind === "schematic" && d.items.some(i => i.ref === "R1")), defs = new Map(p.library.map(d => [d.id, d]));
   const part = doc.items.find(i => i.kind === "part"), texts = doc.items.filter(i => i.kind === "label");
   assert.deepEqual(texts.map(t => [t.text, t.url ?? null]), [["Power notes", TEXT_URL], ["Plain text", null], ["Hyperlink object", HYPER_URL], [BARE_URL, BARE_URL]],
     label + ": the hyperlinked texts keep their URLs");
-  const links = linksOf(part.parameters, defs.get(part.def).parameters).map(l => ({...l, name: l.name.toUpperCase()}));
+  const links = linksOf(part.parameters, defs.get(part.def).parameters);
   assert.deepEqual(links, LINKS, label + ": the part's links");
   return {doc, part};
 }
