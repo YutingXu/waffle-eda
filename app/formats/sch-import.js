@@ -161,7 +161,7 @@ globalThis.AtriumSCH = (() => {
     9:"Pie chart", 10:"Rounded rectangle", 11:"Elliptical arc", 12:"Arc", 13:"Line", 14:"Rectangle", 15:"Sheet symbol", 16:"Sheet entry",
     17:"Power port", 18:"Port", 22:"No ERC marker", 25:"Net label", 26:"Bus", 27:"Wire", 28:"Text frame", 29:"Junction",
     30:"Image", 31:"Sheet settings", 32:"Sheet name", 33:"Sheet filename", 34:"Designator", 37:"Bus entry", 39:"Sheet template", 41:"Parameter",
-    43:"Parameter set", 44:"Implementation list", 45:"Implementation", 46:"Implementation map", 47:"Map definition", 48:"Parameter map"};
+    43:"Parameter set", 44:"Implementation list", 45:"Implementation", 46:"Implementation map", 47:"Map definition", 48:"Parameter map", 226:"Hyperlink"};
   function read(name,streams,ascii,{appearance=true,textPlacement=2,fidelity=null,selectedImage=null}={}) {
     if(textPlacement && textPlacement!==1)textPlacement=2;
     const library=[],documents=[],notes=[], skipped=new Map(), simplified=new Set();
@@ -483,14 +483,17 @@ globalThis.AtriumSCH = (() => {
             recognized++;continue;
           }
         }
-        if([4,17,25].includes(t)){
+        // Text (4) and hyperlinks (226) carry an optional URL: an Altium hyperlink is a text that opens it.
+        if([4,17,25,226].includes(t)){
+          const hyper=t===226,linked=(t===4||hyper)&&typeof r.URL==="string"&&r.URL.trim()?r.URL.trim():"";
+          if(hyper&&!r.TEXT&&linked)r.TEXT=linked;
           if(!isTrue(r.ISHIDDEN) && r.TEXT){
             const paint=appearance?textPaint(r,fonts,"#000080",c?.angle||0):null;
             if(c){c.symbol.shapes.push({kind:"text",...xy(local(position)),text:r.TEXT,size:1.8,style:"body",...(paint?{schPaint:paint}:{})});kept(c.symbol.shapes.at(-1));}
             else if(doc){
               if(paint&&t===17)Object.assign(paint,{type:"power",style:numeric(r.STYLE),direction:numeric(r.ORIENTATION),showName:isTrue(r.SHOWNETNAME)});
-              const item={id:A.id(),kind:t===4?"label":"netlabel",...xy(position),text:r.TEXT,...(t===4&&r.URL?{url:r.URL}:{}),...(paint?{schPaint:paint}:{})};
-              const rich=t===4 && liveString(r.TEXT);
+              const item={id:A.id(),kind:t===4||hyper?"label":"netlabel",...xy(position),text:r.TEXT,...(linked?{url:linked}:{}),...(paint?{schPaint:paint}:{})};
+              const rich=(t===4||hyper) && liveString(r.TEXT);
               if(rich) {item.kind="textframe";Object.assign(item,{w:Math.max(22,String(r.TEXT).length*2),h:5,border:false,richText:rich});}
               addItem(item,idx);
               if(t===17 && paint && textPlacement===2 && isTrue(r.ISCROSSSHEETCONNECTOR)){

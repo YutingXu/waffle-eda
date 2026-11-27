@@ -307,6 +307,11 @@ globalThis.AtriumAltiumExport = (() => {
             push([["RECORD",4],...at("LOCATION",[i.x,i.y+3*n]),["FONTID",1],["TEXT",text(line)]]);
           counts.graphics++; fidelity.push(projected.fidelity); report(projected.message); continue;
         }
+        // A hyperlinked one-line text (an Altium text with a field, read as a text frame) stays a linked text.
+        if (i.url && !i.widget && !i.sticky && !i.callout && !String(i.text ?? "").includes("\n")) {
+          push([["RECORD", 4], ...at("LOCATION", [i.x, i.y]), ["COLOR", 8388608], ["FONTID", 1], ["TEXT", text(i.text || "")], ["URL", text(i.url)], ["UNIQUEID", uniqueId(i.id)]]);
+          counts.graphics++; continue;
+        }
         const rich=i.richText || i.math || i.widget || i.calculation || i.sticky || i.callout;
         const note=rich && globalThis.AtriumNotebook?.describe(project,doc,i);
         const value=note?.text ?? i.text ?? "",x0=Math.min(i.x,i.x+i.w),x1=Math.max(i.x,i.x+i.w),y0=Math.min(i.y,i.y+i.h),y1=Math.max(i.y,i.y+i.h);

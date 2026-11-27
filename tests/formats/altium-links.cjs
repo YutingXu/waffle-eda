@@ -23,7 +23,7 @@ const imported = p => p.documents.filter(d => d.sourceName);
 
 // ---------------------------------------------------------------- 1. schematic import
 const DATASHEET = "https://example.com/parts/res-0603.pdf", HELP = "https://example.org/help/res", VENDOR = "http://vendor.example.net/item?id=42";
-const TEXT_URL = "https://example.com/notes/power";
+const TEXT_URL = "https://example.com/notes/power", HYPER_URL = "https://example.org/hyper", BARE_URL = "https://example.net/bare";
 const line = f => "|" + Object.entries(f).map(([k, v]) => k + "=" + v).join("|");
 const sch = "|HEADER=Protel for Windows - Schematic Capture Ascii File Version 5.0|WEIGHT=10\r\n" + [
   {RECORD: 31},
@@ -35,14 +35,19 @@ const sch = "|HEADER=Protel for Windows - Schematic Capture Ascii File Version 5
   {RECORD: 41, OWNERINDEX: 1, OWNERPARTID: -1, NAME: "ComponentLink1Description", TEXT: "Vendor page", ISHIDDEN: "T", "LOCATION.X": 100, "LOCATION.Y": 480},
   {RECORD: 41, OWNERINDEX: 1, OWNERPARTID: -1, NAME: "HelpURL", TEXT: HELP, ISHIDDEN: "T", "LOCATION.X": 100, "LOCATION.Y": 480},
   {RECORD: 4, TEXT: "Power notes", URL: TEXT_URL, "LOCATION.X": 300, "LOCATION.Y": 300, UNIQUEID: "TEXTAAAA"},
-  {RECORD: 4, TEXT: "Plain text", "LOCATION.X": 300, "LOCATION.Y": 200, UNIQUEID: "TEXTBBBB"}
+  {RECORD: 4, TEXT: "Plain text", "LOCATION.X": 300, "LOCATION.Y": 200, UNIQUEID: "TEXTBBBB"},
+  // A Hyperlink object (record 226), as KiCad's Altium reader knows it: a text with a URL, the URL shown
+  // when it has no text. Neither the public corpus nor the user designs checked contain one.
+  {RECORD: 226, TEXT: "Hyperlink object", URL: HYPER_URL, "LOCATION.X": 300, "LOCATION.Y": 100, FONTID: 1, UNIQUEID: "TEXTCCCC"},
+  {RECORD: 226, URL: BARE_URL, "LOCATION.X": 300, "LOCATION.Y": 50, FONTID: 1, UNIQUEID: "TEXTDDDD"}
 ].map(line).join("\r\n") + "\r\n";
 const LINKS = [{name: "COMPONENTLINK1URL", url: VENDOR, title: "Vendor page"}, {name: "HELPURL", url: HELP, title: "Help"},
   {name: "DATASHEET URL", url: DATASHEET, title: "DATASHEET URL"}];
 function check(p, label) {
   const doc = p.documents.find(d => d.kind === "schematic" && d.items.some(i => i.ref === "R1")), defs = new Map(p.library.map(d => [d.id, d]));
   const part = doc.items.find(i => i.kind === "part"), texts = doc.items.filter(i => i.kind === "label");
-  assert.deepEqual(texts.map(t => [t.text, t.url ?? null]), [["Power notes", TEXT_URL], ["Plain text", null]], label + ": the hyperlinked text keeps its URL");
+  assert.deepEqual(texts.map(t => [t.text, t.url ?? null]), [["Power notes", TEXT_URL], ["Plain text", null], ["Hyperlink object", HYPER_URL], [BARE_URL, BARE_URL]],
+    label + ": the hyperlinked texts keep their URLs");
   const links = linksOf(part.parameters, defs.get(part.def).parameters).map(l => ({...l, name: l.name.toUpperCase()}));
   assert.deepEqual(links, LINKS, label + ": the part's links");
   return {doc, part};
@@ -66,6 +71,7 @@ check(A.validate(nativeRoundTrip(first)), "native save and reopen");
 const out = AtriumAltiumExport.exportProject(first);
 const sheet = out.files.find(f => /\.SchDoc$/i.test(f.name)), content = new TextDecoder().decode(sheet.bytes);
 assert.match(content, /\|RECORD=4\|[^\r\n]*\|TEXT=Power notes\|URL=https:\/\/example\.com\/notes\/power/, "Altium text record carries URL");
+assert.match(content, /\|TEXT=Hyperlink object\|URL=https:\/\/example\.org\/hyper/, "a Hyperlink object exports as a text with its URL");
 assert.match(content, /\|NAME=ComponentLink1URL(\||\r)/, "ComponentLink1URL in Altium's spelling");
 assert.match(content, /\|NAME=ComponentLink1Description(\||\r)/);
 assert.match(content, /\|NAME=HelpURL(\||\r)/);
