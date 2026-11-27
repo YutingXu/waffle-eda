@@ -172,7 +172,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 - **Use** for two to five exclusive modes or filters.
 - **Markup** `.ui-segmented` around `.ui-segment` buttons with `aria-pressed`, or around labels that wrap native radio buttons. `K.segmented(options, {value, onChange, size})`. Arrow keys, Home and End move through the segments (`ui/dialog.js`).
 - **States** a soft track with the chosen segment raised (`light-dark(--field, --raised)`), hover, disabled, keyboard focus. High contrast keeps outlined segments.
-- **Motion** a pointer change slides the raised face from the old segment to the new one over `--motion-toggle`, like the switch knob (`ui/kit.js` adopts every `.ui-segmented`, built by the kit or in feature markup). Keyboard changes, Reduced motion, Off and high contrast change at once.
+- **Motion** a pointer change slides the raised face from the old segment to the new one over `--motion-toggle`, like the switch knob. `ui/kit.js` adopts every `.ui-segmented`, built by the kit or in feature markup, once the kit has loaded (lazy.js prefetches it at idle); before that a change applies at once. Keyboard changes, Reduced motion, Off and high contrast change at once.
 
 <a id="tabs"></a>
 ### Tabs
