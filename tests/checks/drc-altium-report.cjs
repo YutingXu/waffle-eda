@@ -51,8 +51,11 @@ const KNOWN = {
     NetAntennae: "source-only in Waffle; the editor's Net Antennae warning (atrium-netAntennae) is compared instead",
     PlaneConnect: "no plane layers on this board; Waffle keeps plane connect styles with the plane geometry",
   },
-  // Checks Waffle's editor DRC adds that Altium has no rule for: allowed only while they find nothing here.
-  waffleOnly: {"atrium-courtyard": "Missing Courtyard (Waffle only)"},
+  // Checks Waffle's editor DRC adds by default that Altium has no rule for: allowed only while they find
+  // nothing here. Missing Courtyard is opt-in (checks.courtyard, off) and is checked separately below.
+  waffleOnly: {},
+  // Waffle-only checks a user can opt in to: each must still find nothing on this board.
+  optIn: {courtyard: "Missing Courtyard (Waffle only, Preferences › Design Checks)"},
   // Altium saved 15 waivers (the WaivedViolations stream); the importer does not read them.
   waiversImported: 0,
 };
@@ -133,6 +136,12 @@ const extra = result.rules.filter(r => !matchedIds.has(r.id));
 assert.deepEqual(extra.map(r => r.id).sort(), Object.keys(KNOWN.waffleOnly).sort(),
   "Waffle ran rules Altium's DRC report does not list: " + JSON.stringify(extra.map(r => [r.type, r.name, r.count])));
 for (const r of extra) assert.equal(r.count, 0, KNOWN.waffleOnly[r.id] + " finds nothing Altium would flag: " + r.count);
+for (const [type, title] of Object.entries(KNOWN.optIn)) {
+  const asked = {rules: [], violations: [], total: 0, stats: {ms: 0}};
+  AtriumDRCFixes.augment(asked, pcb, defs, {types: [type], limit: 5000});
+  assert.ok(asked.rules.some(r => r.id === "atrium-" + type), title + " runs when asked for");
+  assert.equal(asked.violations.length, 0, title + " finds nothing Altium would flag: " + JSON.stringify(asked.violations.map(v => v.title)));
+}
 const knownExtra = Object.values(KNOWN.counts).reduce((n, k) => n + k.waffle - k.altium, 0);
 assert.equal(result.violations.length - knownExtra, ref.drc.violations, "total violations, known differences aside");
 
