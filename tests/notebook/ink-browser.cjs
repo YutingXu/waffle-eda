@@ -18,7 +18,7 @@ async function run() {
     await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
     await page.locator("#document-tabs [data-kind=schematic]").first().click();
     await page.waitForFunction(() => globalThis.AtriumNavHost?.doc().kind === "schematic");
-    await page.evaluate(() => AtriumLazy.need("AtriumCamera").then(() => true));
+    await page.evaluate(() => AtriumLazy.need(["AtriumCamera", "AtriumCanvasInput"]).then(() => true));
     await page.evaluate(fs.readFileSync(path.join(__dirname, "../../app/notebook/sch-note-ink.js"), "utf8"));
     const proof = await page.evaluate(() => {
       const canvas = AtriumNavHost.canvas(), box = canvas.getBoundingClientRect();

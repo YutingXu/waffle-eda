@@ -221,7 +221,7 @@ async function run(browser) {
     await branch.waitFor({state:"detached"});
     const refs=await git("refs");
     assert.equal(refs.head,log.head);assert.ok(refs.refs.some(r=>r.name==="refs/heads/session-review"&&r.revision===merge.revision));
-    await panel.getByRole("button",{name:"Close History"}).click();
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
     assert.deepEqual(errors, []);
     console.log("Project History: 500 commits, metadata " + metadataMs.toFixed(1) + " ms, first summary " + firstMs.toFixed(1) +
       " ms, row update max " + paintMax.toFixed(1) + " ms, frame interval p95 " + frameP95 + " ms across " + frames.length +
