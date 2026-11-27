@@ -100,7 +100,9 @@
       }
     }
   }
-  function thawPanes(){if(!sashFrozen)return;for(const [n,css] of sashFrozen)n.style.cssText=css;sashFrozen=null;}
+  // The GPU board layer keeps the canvas's pin: its old size would stretch the board under the overlays when
+  // the released canvas keeps the pinned size (no repaint follows); canvas-gpu.js places it again on the next frame.
+  function thawPanes(){if(!sashFrozen)return;for(const [n,css] of sashFrozen)if(!n.classList.contains("atrium-gpu-board"))n.style.cssText=css;sashFrozen=null;}
   document.addEventListener("pointerdown",e=>{
     const sash=e.button===0&&e.target.closest?.(".dock-sash,#canvas-sash");
     if(!sash)return;

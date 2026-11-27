@@ -1299,10 +1299,15 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (st.gl.drawingBufferWidth !== c.width || st.gl.drawingBufferHeight !== c.height) return false;
       st.backingValid = true;
     }
-    const key = c.width + "x" + c.height + "/" + width + "x" + height + "/" + c.offsetLeft + "," + c.offsetTop;
+    // The board layer sits exactly under the canvas that carries every overlay (DRC markers, DNP crosses,
+    // selection, net names). A canvas pinned by its own left/top (editor.js holds a costly pane centred in
+    // its pane during a sash drag) moves with the pane without a frame: the layer takes the same rule, so
+    // the board moves with it. A pixel offset taken from the canvas would leave the overlays sliding off it.
+    const pinned = c.style.position === "absolute", left = pinned && c.style.left || c.offsetLeft + "px", top = pinned && c.style.top || c.offsetTop + "px";
+    const key = c.width + "x" + c.height + "/" + width + "x" + height + "/" + left + "," + top;
     if (st.place !== key) {
       st.place = key;
-      g.style.left = c.offsetLeft + "px"; g.style.top = c.offsetTop + "px"; g.style.width = width + "px"; g.style.height = height + "px";
+      g.style.left = left; g.style.top = top; g.style.width = width + "px"; g.style.height = height + "px";
     }
     if (!st.shown) { g.style.display = "block"; I.canvas.style.position = "relative"; st.shown = true; }
     return true;

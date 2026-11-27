@@ -374,7 +374,59 @@ async function dockBeta(browser) {
     assert.equal(cancelled.width,cancelled.paneWidth);
     assert.equal(await page.locator("body").evaluate(body => body.classList.contains("dock-resizing")),false);
     await savedWidth(cancelled.dockWidth);
-    await page.evaluate(id => {restoreSashPaint(); AtriumNavHost.selectDocument(id);},original);
+    await page.evaluate(() => restoreSashPaint());
+
+    // A costly board drawn by the GPU renderer: the WebGL board layer stays exactly under the canvas that
+    // carries the overlays (DRC markers, DNP crosses, selection) while the pinned pane is dragged, and after a
+    // release that keeps the pinned size (no repaint follows it).
+    const gpuLayout = await page.evaluate(async id => {
+      await AtriumLazy.need(["AtriumCanvasGPU"]);
+      const host = AtriumNavHost, layout = AtriumDock.current(), renderer = AtriumPrefs.get("display.renderer");
+      host.selectDocument(id);
+      AtriumPrefs.set("display.renderer","gpu");
+      const view = host.view(), render = view.render;
+      view.render = function(...args) {
+        const reused = render.apply(this,args), end = performance.now() + 18;
+        while (performance.now() < end) {}
+        return reused;
+      };
+      window.restoreGpuSash = () => {view.render = render; AtriumPrefs.set("display.renderer",renderer || "auto"); AtriumDock.apply(layout,{quiet:true});};
+      view.pan(1,0); host.redraw();
+      return layout;
+    },tabs.board);
+    await frames(4);
+    const layers = () => page.evaluate(() => {
+      const c = AtriumNavHost.canvas(), g = c.parentElement.querySelector(":scope > .atrium-gpu-board");
+      const box = n => {const r = n.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(v => Math.round(v * 2) / 2);};
+      return {position:c.style.position, canvas:box(c), board:g && getComputedStyle(g).display !== "none" ? box(g) : null};
+    });
+    if (!(await layers()).board) console.log("browser-dock-beta: no WebGL2 board layer here, the GPU sash check is skipped");
+    else {
+      const gpuSash = await leftSash.boundingBox(), gx = gpuSash.x + gpuSash.width / 2, gy = gpuSash.y + gpuSash.height / 2;
+      await page.mouse.move(gx,gy); await page.mouse.down();
+      try {
+        await frames(2);
+        // The last step reaches the dock's minimum: the pane grows to exactly the size the drag pinned.
+        for (const delta of [-55,14,65,-40,-2000]) {
+          await page.mouse.move(gx + delta,gy);
+          await frames(2);
+          const step = await layers();
+          assert.equal(step.position,"absolute","the costly GPU pane is pinned during the drag");
+          assert.deepEqual(step.board,step.canvas,"the GPU board layer stays under the overlay canvas at " + delta + " px");
+        }
+      } finally {
+        await page.mouse.up();
+      }
+      await frames(3);
+      await page.waitForTimeout(200);
+      const settled = await layers();
+      assert.equal(settled.position,"relative");
+      assert.deepEqual(settled.board,settled.canvas,"after release the GPU board layer has the canvas's size and place");
+    }
+    await page.evaluate(() => restoreGpuSash());
+    await frames(3);
+    assert.deepEqual(await page.evaluate(() => AtriumDock.current().sizes),gpuLayout.sizes);
+    await page.evaluate(id => AtriumNavHost.selectDocument(id),original);
 
     // ---- 4. Document tabs: left, top and bottom edges split there, and the preview is the pane it fills
     const names = () => page.evaluate(() => {const H = AtriumNavHost, docs = H.project().documents; return {down: document.getElementById("editor-panes").classList.contains("split-down"),
