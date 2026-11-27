@@ -118,7 +118,7 @@ globalThis.AtriumDRCMarkers = (() => {
     if (eligibility && !cached) eligibility.set(entry, cached = []);
     for (let i = 0; i < entry.rows.length; i++) {
       const r = entry.rows[i];
-      if (!r || !reaches(r.box, view) && !members?.(r.v)) continue;
+      if (!r || !(members ? members(r, i) : reaches(r.box, view))) continue;
       let row = cached?.[i];
       if (row === undefined) {
         row = rowView(r, hidden, selectable, !!publication);
@@ -279,7 +279,7 @@ globalThis.AtriumDRCMarkers = (() => {
     if (!canvas || !stamp) return null;
     const old = paneEligibility.get(canvas);
     if (old?.stamp.length === stamp.length && stamp.every((v, i) => v === old.stamp[i])) return old;
-    const state = {stamp, rows: new WeakMap(), allowed: new Map()};
+    const state = {stamp, rows: new WeakMap(), allowed: new Map(), cells: new WeakMap()};
     paneEligibility.set(canvas, state);
     return state;
   }
@@ -302,7 +302,7 @@ globalThis.AtriumDRCMarkers = (() => {
       }
       const cell = P.pcbCell(frame);
       const z = P.size(frame.scale, "pcb");
-      if (cell) return coarsePlan(doc, defs, list, q, frame, z, cell, eligibility?.rows);
+      if (cell) return coarsePlan(doc, defs, list, q, frame, z, cell, eligibility);
       const rows = visibleList(doc, defs, list, q, eligibility?.rows);
       const waived = visibleList(doc, defs, o.waived, q, eligibility?.rows);
       const overview = rows.length + waived.length > LOD_ROWS && !!frame.worldToScreen;
@@ -451,23 +451,53 @@ globalThis.AtriumDRCMarkers = (() => {
   // Close markers merged (problem-marks.js cluster): errors outrank warnings, warnings waived ones.
   const RANK_OF = {error: 0, warning: 1, waived: 2}, atOf = r => r.v.at || r.v.otherAt;
   const scoreOf = r => r.score;
+  function coarseKey(v, cell) {
+    const at = v.at || v.otherAt;
+    return at && Math.floor(at[0] / cell) + "," + Math.floor(at[1] / cell);
+  }
+  function cellKeys(cache, entry, cell) {
+    const old = cache.get(entry);
+    if (old?.cell === cell) return old.keys;
+    const columns = new Map();
+    const keys = entry.rows.map(r => {
+      const at = r && (r.v.at || r.v.otherAt);
+      if (!at) return at;
+      const x = Math.floor(at[0] / cell), y = Math.floor(at[1] / cell);
+      let column = columns.get(x);
+      if (!column) columns.set(x, column = new Map());
+      let key = column.get(y);
+      if (key === undefined) column.set(y, key = x + "," + y);
+      return key;
+    });
+    cache.set(entry, {cell, keys});
+    return keys;
+  }
   function coarsePlan(doc, defs, list, o, frame, z, cell, eligibility) {
     const entry = rowsOf(doc, defs, list, o.rev, o.preview, o.publication);
     const exceptions = rowsOf(doc, defs, o.waived, o.rev, o.preview, o.publication);
-    const cellKey = v => {
-      const at = v.at || v.otherAt;
-      return at && Math.floor(at[0] / cell) + "," + Math.floor(at[1] / cell);
-    };
-    // Select whole cells where their artwork reaches the padded view. A long track can make a cell
-    // relevant even when the marker's anchor is far away. Take every eligible member of that cell.
-    const relevant = new Set();
-    if (o.view) for (const e of [entry, exceptions]) for (const r of e?.rows || []) {
-      if (!r || !reaches(r.box, o.view)) continue;
-      const key = cellKey(r.v);
-      if (key) relevant.add(key);
+    // The world cells stay fixed across camera motion in a scale band. Keep only
+    // one set of keys per stable pane/row snapshot, and still cull bounds and
+    // pick the current visible winner in list order at every camera.
+    const cache = (entry?.rows.length || 0) + (exceptions?.rows.length || 0) > LOD_ROWS && eligibility?.cells;
+    const relevant = new Set(), view = o.view;
+    function membersOf(e) {
+      if (!view || !e) return null;
+      const keys = cache && cellKeys(cache, e, cell);
+      for (let i = 0; i < e.rows.length; i++) {
+        const r = e.rows[i];
+        if (!r || keys && relevant.has(keys[i]) || !reaches(r.box, view)) continue;
+        const key = keys ? keys[i] : coarseKey(r.v, cell);
+        if (key) relevant.add(key);
+      }
+      // Bounds of one long track can admit a distant anchor's entire cell.
+      return (r, i) => {
+        if (!keys) return reaches(r.box, view) || relevant.has(coarseKey(r.v, cell));
+        const key = keys[i];
+        return key ? relevant.has(key) : reaches(r.box, view);
+      };
     }
-    const members = o.view && (v => relevant.has(cellKey(v)));
-    const rows = rowViews(entry, o, eligibility, members), waived = rowViews(exceptions, o, eligibility, members);
+    const members = membersOf(entry), waivedMembers = membersOf(exceptions);
+    const rows = rowViews(entry, o, eligibility?.rows, members), waived = rowViews(exceptions, o, eligibility?.rows, waivedMembers);
     const groups = P.cells([...rows, ...waived], atOf, 1, cell, scoreOf);
     const ordinary = [], single = [], inspected = [], outlines = rows.filter(r => !atOf(r));
     const inspect = [], clustered = [], reach = P.hit(z.screen * 1.2);

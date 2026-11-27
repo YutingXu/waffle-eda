@@ -333,6 +333,51 @@ test("camera moves reuse world eligibility and leave the exact projected glyphs 
   } finally { U.reset(); }
 });
 
+test("dense published cameras reuse world cell keys but recalculate the visible winners", () => {
+  const U = AtriumUndoStore, line = track("long", "A", [[-20, 1], [42, 1]]), b = board([line]);
+  const err = {type:"clearance", id:line.id, at:[-3,1]}, warn = {type:"width", at:[-1,2], warning:true};
+  const list = [err, warn, ...Array.from({length:360}, (_, i) =>
+    ({type:"width", at:[3+(i%36)*.12, (i%19)*.2], warning:i%2===0}))];
+  const waived = [{...warn, waived:{id:"W"}}], host = {doc:()=>b, defs:()=>defs, revision:()=>1};
+  const canvas = {}, options = {hidden:new Set(), layer:"Top", layerMode:"all"}, width=96, height=48;
+  let publication = {}, scales = [7,6], start=0, hover=null, focused=null;
+  const redraw = (scale, retain, area=null) => {
+    const rec = AtriumPDF.recorder(width,height), left=-start*scale, top=12;
+    const worldToScreen = ([x,y]) => [left+x*scale,top+y*scale];
+    const worldViewport = (area,pad=0) => {
+      const [x,y,r,h] = area || [0,0,width,height];
+      return [(x-left-pad)/scale,(y-top-pad)/scale,(r-left+pad)/scale,(h-top+pad)/scale];
+    };
+    const frame = {width,height,scale,area,canvas,options,worldToScreen,worldViewport,selectable:()=>true};
+    const o = {focused,hover,waived,publication:retain?publication:null};
+    rec.ctx.setTransform(scale,0,0,scale,left,top);
+    M.renderFor(host,b,list,o).overlay(rec.ctx,frame);
+    return rec.list;
+  };
+  const floor = Math.floor;
+  U.reset(); U.record({library:[],documents:[b]});
+  try {
+    redraw(scales[0],true);
+    let floors = 0;
+    Math.floor = n => {floors++;return floor(n);};
+    const retained = redraw(scales[1],true);
+    Math.floor = floor;
+    assert.ok(floors < 3*list.length, "same world band skips rekeying published markers at the next zoom");
+    assert.deepEqual(retained,redraw(scales[1],false));
+    assert.ok(retained.length,"a long outline admits its distant marker cell");
+    start=-1.5; hover=warn; focused=err;
+    assert.deepEqual(redraw(5,true),redraw(5,false),"pan and under-pointer promotion repaint the same ordered ink");
+    assert.deepEqual(redraw(5,true,[0,0,30,height]),redraw(5,false,[0,0,30,height]),"damage strip uses the same complete cells");
+    assert.deepEqual(redraw(3.9,true),redraw(3.9,false),"changing the scale band rebuilds keys");
+    assert.deepEqual(redraw(37,true),redraw(37,false),"close detail keeps its independent path");
+    warn.at = [1,1]; list.reverse(); publication = {};
+    assert.deepEqual(redraw(6,true),redraw(6,false),"republishing mutable source coordinates and order invalidates keys");
+    line.points = [[80,1],[81,1]];
+    U.record({library:[],documents:[b]},{doc:b,items:[line]});
+    assert.deepEqual(redraw(6,true),redraw(6,false),"a journal geometry change invalidates the old bounds");
+  } finally { Math.floor=floor; U.reset(); }
+});
+
 test("each pane paints and picks using its own hidden layers", () => {
   const top = track("t", "A", [[0, 0], [2, 0]]);
   const b = board([top]), v = {type: "width", id: top.id, at: [1, 0]}, list = [v];
