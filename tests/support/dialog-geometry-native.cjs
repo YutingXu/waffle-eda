@@ -83,6 +83,9 @@ function cases(page) {
           indexBlob:"8".repeat(40),conflicted:true,conflictVersion:"fixture-index-version",
           conflicts:[{path:sidePath,stages:stageNames}]};
         if (op === "folderRevisions" && exact) return {revisions,objects};
+        // A folder project (folderGitGrant) reads a commit's preview through folderRevisions, not
+        // projectBlobs. Like projectBlobs below, the fixture commit holds no project.
+        if (op === "folderRevisions") return {revisions:[{revision,blob:null}],objects:{}};
         if (op === "refs") return {ref:"refs/heads/main",head:revision,refs};
         if (op === "projectBlobs") return {blobs:{[revision]:null}};
         if (op === "log" || op === "fileLog" || op === "projectLog") return {commits:[
@@ -313,6 +316,14 @@ function cases(page) {
       await target.getByRole("textbox",{name:"Branch name",exact:true}).waitFor();
     },async finish() {
       await page.evaluate(() => AtriumPrefs.set("butter.visualHistory",false));
+    }},
+    {name:"Create a branch at a commit in the History view",async open() {
+      await setGit(); await run("project-history");
+      const view = page.locator(".hv-view");
+      await view.locator('.hv-row[data-key^="1234567890"]').click();
+      await button(view.locator(".hv-details"),"More actions").click();
+      await page.getByRole("menuitem",{name:"Create branch here…",exact:true}).click();
+      await modal("Create Git branch").getByRole("textbox",{name:"Branch name",exact:true}).waitFor();
     }},
     {name:"Git merge driver consent with a preview",async open() {
       await run("git-merge-driver");

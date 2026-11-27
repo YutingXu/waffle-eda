@@ -19,7 +19,7 @@ const profiles = [
 ];
 const surfaces = '[data-geometry-surface]';
 const modal = 'dialog[open]:visible';
-const fixtureGroups = ["core", "native", "library", "canvas", "extensions", "review", "pcb-tools", "notebook"];
+const fixtureGroups = ["core", "native", "library", "canvas", "extensions", "review", "pcb-tools", "notebook", "automation", "workflows"];
 const platformPanels = [
   {platform:"macOS", source:"native/macos/main.swift", flow:"Native save confirmation, imported first Save, stale member decision and system file/directory pickers"},
   {platform:"Linux", source:"native/linux/waffle.py", flow:"GTK confirmation and system file/directory pickers"},
@@ -504,7 +504,9 @@ async function shortcuts(page, session, profile, report) {
   await saveDescription.scrollIntoViewIfNeeded();
   samples.push(await renderedShortcut(saveDescription.locator("xpath=following-sibling::dd[1]").locator(shortcut).first(), "Shortcut reference"));
   await auditDialogs(page, session, report, "Shortcut reference", "shortcuts", new Set());
-  await reference.getByRole("button", {name:"Done", exact:true}).click();
+  // The cheat sheet has no action footer, so it closes with its heading's Close button (docs/ui-library.md#close).
+  await reference.getByRole("button", {name:"Close keyboard shortcuts", exact:true}).click();
+  await reference.waitFor({state:"hidden"});
 
   await page.evaluate(() => AtriumNavHost.act("keyboard-shortcuts"));
   const editor = page.getByRole("dialog", {name:"Keyboard shortcuts editor"});
