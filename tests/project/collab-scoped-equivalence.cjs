@@ -16,6 +16,11 @@
 //     structural: AtriumUndoStore.itemEdits {updates, structure}) against a copy of its replica
 //     that publishes the same edit with the complete diff: the same project, and the same
 //     operations (stamps included) apart from moves, whose keys may differ.
+//     A step is compared only while the author's replica and editor agree. They disagree for one
+//     known reason: a commit that makes the whole valid again brings back objects that were set
+//     aside, and presence patches the editor only with the commit's `related`, so the editor gets
+//     them with a later patch (seed 276, steps 78-79). Each such step is counted under that reason
+//     (returnedSetAside); a disagreement of any other shape fails.
 //   node tests/project/collab-scoped-equivalence.cjs [--seeds 1-200] [--steps 160] [--verbose]
 const assert = require("node:assert/strict");
 require("../../app/core/model.js");
@@ -142,7 +147,12 @@ function hostile(b) {
   return h;
 }
 
-const totals = {refreshed: 0, rebuilt: 0, notAgreed: 0, batches: 0, rejected: 0, scopedCommits: 0, structural: 0, sameOps: 0, differentOps: 0, hiddenStates: 0, fallbackCommits: 0};
+// Ids of the library definitions, documents and items a project shows.
+const shownIds = p => new Set([...(p.library || []), ...(p.documents || []).flatMap(d => [d, ...(d.items || [])])].map(o => o.id));
+// The project without the given objects (and a document's items with it).
+const without = (p, ids) => ({...p, library: (p.library || []).filter(d => !ids.has(d.id)),
+  documents: (p.documents || []).filter(d => !ids.has(d.id)).map(d => ({...d, items: (d.items || []).filter(i => !ids.has(i.id))}))});
+const totals = {refreshed: 0, rebuilt: 0, returnedSetAside: 0, batches: 0, rejected: 0, scopedCommits: 0, structural: 0, sameOps: 0, differentOps: 0, hiddenStates: 0, fallbackCommits: 0};
 function run(seed) {
   rand = rng(seed); uid = 0;
   const base = fixture();
@@ -152,6 +162,8 @@ function run(seed) {
   U.reset(); U.mark(editor);
   let cursor = U.itemEdits(editor).cursor;
   const sent = [], trace = [];
+  // Objects an author commit brought back from set-aside that its editor did not hold.
+  const returned = new Set();
   const fail = msg => assert.fail(msg + " (seed " + seed + ")\n  reproduce: node tests/project/collab-scoped-equivalence.cjs --seeds " + seed + " --verbose" +
     (verbose ? "\n" + trace.slice(-25).join("\n") : ""));
   function deliver(b, author) {
@@ -178,6 +190,13 @@ function run(seed) {
       // A commit that makes the whole valid can bring back objects the editor never received
       // (presence patches only `related`); compare with the complete diff while the two agree.
       const agreed = C.canon(author.project()) === C.canon(editor);
+      if (!agreed) {
+        // The one known reason: the editor lacks only objects an author commit brought back from
+        // set-aside, and holds everything else exactly as the replica does.
+        const view = author.project(), held = shownIds(editor), missing = new Set([...shownIds(view)].filter(id => !held.has(id)));
+        const known = missing.size && [...missing].every(id => returned.has(id)) && C.canon(without(view, missing)) === C.canon(editor);
+        if (!known) fail("the author's replica and editor disagree for no known reason (missing " + JSON.stringify([...missing].slice(0, 8)) + ")");
+      }
       const kind = editorEdit(editor);
       if (!kind) continue;
       // (The forger can leave the shared project invalid as a whole; the author edits it anyway.)
@@ -188,7 +207,9 @@ function run(seed) {
       if (C.canon(reference.project()) !== C.canon(author.project())) fail("a replica's snapshot materialises differently from the replica");
       const full = reference.commit(clone(editor));
       const setAside = author.hiddenCount();   // a valid whole can bring set-aside objects back; the editor learns of them later
+      const shownBefore = setAside ? shownIds(author.project()) : null;
       const b = author.commit(editor, {updates: range.updates, structure: range.structure});
+      if (shownBefore) { const held = shownIds(editor); for (const id of shownIds(author.project())) if (!shownBefore.has(id) && !held.has(id)) returned.add(id); }
       cursor = U.itemEdits(editor, null, true).cursor;
       if (range.updates) totals.scopedCommits++; else totals.fallbackCommits++;
       if (range.structure?.length) totals.structural++;
@@ -197,7 +218,7 @@ function run(seed) {
         const x = author.project(), keys = new Set([...Object.keys(x), ...Object.keys(editor)]);
         fail("the author's replica differs from its editor after " + kind + ": " + [...keys].filter(k => C.canon(x[k]) !== C.canon(editor[k])).join(", "));
       }
-      if (!agreed) totals.notAgreed++;
+      if (!agreed) totals.returnedSetAside++;
       else if (C.canon(b) === C.canon(full)) totals.sameOps++; else {
         totals.differentOps++;
         if (!["reorder", "move-doc", "mixed"].includes(kind)) fail("a scoped " + kind + " stamps other operations than the complete diff");
