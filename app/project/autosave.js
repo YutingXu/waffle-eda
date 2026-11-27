@@ -102,13 +102,13 @@ globalThis.AtriumAutosave = (() => {
       try { return G.AtriumIO?.serializer ? await G.AtriumIO.serializer() : null; } catch { return null; }
     }
 
-    // ---- session index (small, synchronous)
+    // ---- session index (small, synchronous) -------------------------------------------------
     const readIndex = () => { try { const v = JSON.parse(ls?.getItem(INDEX) || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
     const writeIndex = v => { try { ls?.setItem(INDEX, JSON.stringify(v)); } catch { /* reported by saves */ } };
     const previous = readIndex();
     function touch(fields) { const v = readIndex(); v.sessions ||= {}; v.sessions[SESSION] = {...(v.sessions[SESSION] || {started: now()}), beat: now(), ...fields}; writeIndex(v); return v; }
 
-    // ---- storage
+    // ---- storage --------------------------------------------------------------------------
     let dbp = null;
     function db() {
       if (!idbFactory) return Promise.reject(Error("IndexedDB is unavailable."));
@@ -230,7 +230,7 @@ globalThis.AtriumAutosave = (() => {
       return recentCache;
     }
 
-    // ---- saving
+    // ---- saving -------------------------------------------------------------------------------
     function slotFor(p) {
       if (slot && p.documents.some(d => d.id === anchor)) return slot;
       const first = p.documents[0]?.id || null;
@@ -422,7 +422,7 @@ globalThis.AtriumAutosave = (() => {
     const flush = (reason = host?.isDirty?.() ? "exit" : "saved") => save(reason, true);
     function closed() { clearTimeout(timer); timer = 0; const v = touch({slot: null}); delete v.last; writeIndex(v); } // Close Project
 
-    // ---- restoring
+    // ---- restoring ------------------------------------------------------------------------------
     async function projectFrom(json) {
       const invalid = () => Object.assign(Error("This snapshot could not be read as a Waffle project. Choose another snapshot if available."), {invalidSnapshot: true});
       let p;
@@ -535,7 +535,7 @@ globalThis.AtriumAutosave = (() => {
       return plan;
     }
 
-    // ---- user interface (recover.js, loaded on first use)
+    // ---- user interface (recover.js, loaded on first use) -------------------------------------
     const ui = options => G.AtriumRecover ? Promise.resolve(G.AtriumRecover) : G.AtriumLazy ? G.AtriumLazy.need("AtriumRecover",options) : Promise.reject(Error("The recovery dialogs are not loaded."));
     const shown = p => p.catch(e => { host?.info?.(e.message); return null; });
     const openRecovery = plan => G.document ? shown(ui().then(U => plan ? U.prompt(self, host, plan) : U.browser(self, host))) : Promise.resolve(null);
@@ -567,7 +567,7 @@ globalThis.AtriumAutosave = (() => {
       delete v.dismissed;
       writeIndex(v);
     }
-    // ---- editor wiring
+    // ---- editor wiring --------------------------------------------------------------------------
     function attach(h) {
       if (host) return;
       host = h;

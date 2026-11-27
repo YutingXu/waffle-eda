@@ -97,9 +97,9 @@ async function pourDamage({efficiency, gpu, quick, debug}) {
         box = box ? [Math.min(box[0], x), Math.min(box[1], y), Math.max(box[2], x), Math.max(box[3], y)] : [x, y, x, y];
       }
       const row = {label, reused, inexact: frame, pixels: n, max, box};
-      // ATRIUM_DEBUG_DAMAGE: both pictures of the first frames that differ, as data URLs.
+      // ATRIUM_DEBUG_DAMAGE: both pictures of the first frames that differ by more than the noise, as data URLs.
       if (debug) { row.damage = damageLog.splice(0); row.tiles = AtriumPolygonPour.tiles.version; }
-      if (n && debug && shots.length < 6 && !(frame && max <= 2)) row.shots = [canvas.toDataURL(), ref.toDataURL()], shots.push(row);
+      if (n && debug && shots.length < 6 && max > NOISE) row.shots = [canvas.toDataURL(), ref.toDataURL()], shots.push(row);
       frames.push(row);
     } finally { I.ctx = real; globalThis.AtriumCanvasFast = wrapped; checking = false; }
   }
