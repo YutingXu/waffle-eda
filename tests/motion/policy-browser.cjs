@@ -13,7 +13,7 @@ function within(ms, promise, what) {
 async function checkColdFlags(browser) {
   const app = await serveApp();
   const page = await browser.newPage();
-  let release, motionRequested;
+  let release, motionRequested, prefsWaited = false;
   const held = new Promise(resolve => {release = resolve;});
   const motionAsked = new Promise(resolve => {motionRequested = resolve;});
   try {
@@ -23,7 +23,7 @@ async function checkColdFlags(browser) {
     // on), so hold prefs.js until AtriumMotion's script has been requested: the broker then always queues
     // behind AtriumMotion and can never block it.
     page.on("request", request => {if (request.url().endsWith("/editor/editor-motion.js")) motionRequested();});
-    await page.route("**/editor/prefs.js", async route => {await within(10000, motionAsked, "the AtriumMotion request").catch(() => {}); await route.continue();});
+    await page.route("**/editor/prefs.js", async route => {await within(10000, motionAsked, "the AtriumMotion request").catch(() => {prefsWaited = true;}); await route.continue();});
     await page.route("**/automation/command-broker.js", async route => {await held; await route.continue();});
     await page.addInitScript(() => {
       localStorage.setItem("atrium.prefs", JSON.stringify({format:"atrium-prefs", version:1, values:{
@@ -40,6 +40,7 @@ async function checkColdFlags(browser) {
       return {flags:earlyButterFlags, motion:motion.butterEnabled(), broker:!!globalThis.AtriumButter};
     }), "loading AtriumMotion while the command broker is held");
     assert.deepEqual(cold, {flags:[true,false,false,false], motion:true, broker:false});
+    assert.equal(prefsWaited, false, "editor/prefs.js waited 10 s for AtriumMotion's script to be requested: if AtriumMotion now loads after prefs.js, this test must hold the broker another way");
     release();
     await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
     await page.waitForFunction(() => AtriumNavHost.project().name === "Sensor interface" &&
