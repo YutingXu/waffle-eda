@@ -76,8 +76,9 @@ async function surfaces(page, sample, profile) {
   await inspector.getByRole("combobox",{name:"Component class filter"}).waitFor();
   await sample("PCB · document Properties",inspector,["Component class filter"],"properties");
   await changeDocument(page,"pcb",["part"]);
-  await inspector.getByRole("combobox",{name:"Side",exact:true}).waitFor();
-  await sample("PCB · placed component",inspector,["Designator","Side",/^Rotation/,/^3D height/]);
+  // Side is a segmented control (no text field); Height keeps its name "3D height (mm)".
+  await inspector.getByRole("group",{name:"Side",exact:true}).waitFor();
+  await sample("PCB · placed component",inspector,["Designator",/^Rotation/,/^3D height/]);
   await changeDocument(page,"pcb",["track"]);
   await sample("PCB · copper track",inspector,[/^Width/,"Layer","Net",/^Solder mask expansion/]);
   await changeDocument(page,"pcb",["track","track"]);

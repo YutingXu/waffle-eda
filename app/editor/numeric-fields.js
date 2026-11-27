@@ -670,7 +670,8 @@ globalThis.AtriumNumericFields = (() => {
       if(state.clearAfterClick){input.removeAttribute("aria-invalid");return;}
       if (!status && line) {
         status=doc.createElement("span"); status.className="numeric-field-preview"; status.id="numeric-preview-"+(++eventId);
-        status.setAttribute("role","status"); status.setAttribute("aria-live","polite"); input.after(status);
+        // In a property row the unit shares the field's box (ui-library.md › Property rows): the preview goes under the box.
+        status.setAttribute("role","status"); status.setAttribute("aria-live","polite"); (input.closest(".ui-prop-row > .ui-field-measure") || input).after(status);
         const before=input.getAttribute("aria-describedby"); input.setAttribute("aria-describedby",[before,status.id].filter(Boolean).join(" "));
       }
       if (status) {status.textContent=line || "";status.hidden=!line;status.classList.toggle("is-error",bad);}

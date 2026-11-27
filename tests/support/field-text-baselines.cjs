@@ -79,7 +79,7 @@ function collect(root, {selector, source}) {
     const explicit = [...(node.labels || [])].map(label => [label, "HTML label"]);
     const ids = node.getAttribute("aria-labelledby")?.trim().split(/\s+/) || [];
     explicit.push(...ids.map(id => [doc.getElementById(id), "ARIA label"]));
-    const row = node.closest(".prf-row,.field-row,.ui-field-row,.thp-field,.fw-row");
+    const row = node.closest(".prf-row,.field-row,.ui-field-row,.ui-prop-row,.thp-field,.fw-row");
     if (row) explicit.push([row.querySelector(".prf-label,label,.field-label,.thp-label,.fw-label") || row.firstElementChild, "field row caption"]);
     const cell = node.closest("td,th");
     if (cell) {

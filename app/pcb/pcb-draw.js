@@ -1377,11 +1377,14 @@ globalThis.AtriumPCBDraw = (() => {
     return [...set].sort((a, b) => a.localeCompare(b, "en", {numeric: true}));
   }
   // One field row. f: {label, value, set, type:"length"|"number"|"text"|"select"|"check"|"net", values:[[v,label]]}
+  // In Properties a row is a property row: a check is a switch and a unit sits inside its field. The tool's
+  // properties dialog (.pcbdraw-fields) keeps its own rows.
   function field(parent, f) {
-    const l = el("label", null, "field-row" + (f.type === "check" ? " pcbdraw-check" : "")), U = A().units, u = displayUnits();
+    const prop = !parent.matches?.(".pcbdraw-fields"), check = f.type === "check";
+    const l = el("label", null, prop ? (check ? "ui-switch-row" : "ui-prop-row") : "field-row" + (check ? " pcbdraw-check" : "")), U = A().units, u = displayUnits();
     let inp;
     if (f.type === "select") { inp = el("select"); for (const [v, t] of f.values) inp.add(new Option(t, v)); inp.value = f.value ?? ""; }
-    else if (f.type === "check") { inp = el("input"); inp.type = "checkbox"; inp.checked = !!f.value; }
+    else if (check) { inp = el("input"); inp.type = "checkbox"; inp.checked = !!f.value; if (prop) inp.setAttribute("role", "switch"); }
     else {
       inp = el("input"); inp.type = "text"; inp.autocomplete = "off"; inp.spellcheck = false;
       if (f.type === "length") { inp.inputMode = "decimal";inp.dataset.unit=u; inp.value = f.value == null ? "" : String(U.value(f.value, u)); inp.title = "Value in " + u + ". Suffixes such as mil, mm or in are accepted."; }
@@ -1390,7 +1393,7 @@ globalThis.AtriumPCBDraw = (() => {
       if (f.type === "net") { const id = "pcbdraw-nets"; let dl = document.getElementById(id); if (!dl) { dl = el("datalist"); dl.id = id; document.body.append(dl); } dl.replaceChildren(...netNames().map(n => new Option(n, n))); inp.setAttribute("list", id); }
     }
     const label = f.type === "length" ? f.label + " (" + u + ")" : f.label;
-    inp.classList.add(f.type === "check" ? "ui-checkbox" : "ui-field");
+    inp.classList.add(check ? (prop ? "ui-switch" : "ui-checkbox") : "ui-field");
     inp.setAttribute("aria-label", label);
     if(f.numeric)globalThis.AtriumLazy?.numericField?.(inp,{...f.numeric,unit:f.type==="length"?u:f.numeric.unit});
     inp.onchange = () => {
@@ -1400,7 +1403,12 @@ globalThis.AtriumPCBDraw = (() => {
       if (f.type === "percent") { v = +inp.value; if (!inp.value.trim() || !Number.isFinite(v) || v<0 || v>100) { H.info("Enter a percentage from 0 to 100."); inp.value=f.value; return; } }
       f.value = v; f.set(v); H.redraw();
     };
-    if (f.type === "check") l.append(inp, el("span", label)); else l.append(el("span", label), inp);
+    if (!prop) { if (check) l.append(inp, el("span", label)); else l.append(el("span", label), inp); parent.append(l); return inp; }
+    // A property row: the caption drops a unit suffix such as "(°)" and the unit shows inside the field.
+    const m = / \(([^()]{1,4})\)$/.exec(f.label), unit = f.type === "length" ? u : f.type === "select" ? "" : m?.[1], caption = m ? f.label.slice(0, m.index) : f.label;
+    const name = AtriumNavCommon.elWithAttributes("span", caption, null, {title: caption}); // a narrow dock ellipsizes it
+    if (check) { const row = el("div", null, "ui-prop-row"); l.append(inp); row.append(name, l); parent.append(row); return inp; }
+    l.append(name, unit ? AtriumNavCommon.measure(inp, unit) : inp);
     parent.append(l);
     return inp;
   }

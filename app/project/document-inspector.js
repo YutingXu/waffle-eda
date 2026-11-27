@@ -28,11 +28,8 @@ globalThis.AtriumDocumentInspector = (() => {
       if(pcb&&d.outline.length)s.append(btn("Edit perimeter",()=>outlineDialog(d)));
       if(!pcb&&globalThis.AtriumSchAppearance?.sheetSettings)AtriumSchAppearance.sheetSettings(s,d,edit,project);
       if(!pcb){
-        const label=el("label",null,"field-row"),hops=el("input");
         const name=t?t("props.hop_over_wire_crossings"):"Hop-over wire crossings";
-        hops.type="checkbox";hops.checked=!!d.hopOvers;hops.setAttribute("aria-label",name);
-        hops.onchange=()=>edit(()=>{if(hops.checked)d.hopOvers=true;else delete d.hopOvers;});
-        label.append(el("span",name),hops);s.append(label);
+        AtriumNavCommon.appendSwitchRow(s,name,!!d.hopOvers,on=>edit(()=>{if(on)d.hopOvers=true;else delete d.hopOvers;}));
       }
   }
   function netList(s,{d,pcb,nets,highlight,setHighlight,field,row}){

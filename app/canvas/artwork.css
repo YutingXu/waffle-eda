@@ -3,14 +3,8 @@
 
 /* Inspector: Altium String properties */
 #inspector .pcbtext-inspector textarea {height:auto;min-height:var(--ctl-h);resize:vertical;font:var(--fs-12)/1.4 var(--mono);white-space:pre}
-#inspector .pcbtext-text {align-items:flex-start}
-#inspector .pcbtext-text > span {padding-top:4px}
-.pcbtext-kind,.pcbtext-justify-row {display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;margin:1px 0;color:var(--muted)}
-.pcbtext-kind {flex-wrap:wrap;gap:4px 8px;margin-bottom:4px}
-.pcbtext-segment {flex:1 0 100%}
 .pcbtext-segment .ui-segment {flex:1 1 0;padding-inline:0}
-.pcbtext-justify {display:grid;grid-template-columns:repeat(3,20px);gap:4px;width:58%}
-#inspector .pcbtext-check input {margin-right:auto;margin-left:calc(42% - 8px)}
+.pcbtext-justify {display:grid;grid-template-columns:repeat(3,20px);gap:4px}
 #inspector .pcbtext-inspector > .pcbtext-font-load {margin:2px 0 4px auto;display:block}
 #inspector .pcbtext-note {margin:6px 0 0;font-size:var(--fs-11);line-height:1.45}
 

@@ -686,8 +686,9 @@ globalThis.AtriumPCBEdit = (() => {
       if (globalThis.AtriumPCBSelectionInspector) render(globalThis.AtriumPCBSelectionInspector, parent);
       else globalThis.AtriumLazy?.appendOnLoad("AtriumPCBSelectionInspector", parent, render, ctx.info);
     }
-    function inspectItem(section, item) {
-      addProperties(section, (ui, target) => ui.inspectItem(target, item));
+    // group(key): the named Properties group (editor.js inspectBody) for rows that belong elsewhere than the object's section.
+    function inspectItem(section, item, group) {
+      addProperties(section, (ui, target) => ui.inspectItem(target, item, group));
     }
     function inspectMulti(panel, section) {
       addProperties(panel, (ui, target) => ui.inspectMulti(target, section));

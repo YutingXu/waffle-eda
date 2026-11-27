@@ -5,7 +5,7 @@
   let canvas=$("canvas"), view=AtriumCanvas.create(canvas);
   if(matchMedia("(max-width:620px)").matches)document.body.classList.add("hide-left","hide-right");
   const uid=A.id;
-  const {el, appendPropertyRow: row} = AtriumNavCommon;
+  const {el, appendPropertyRow: row, measure, button: navButton, icon} = AtriumNavCommon;
   function btn(text,act,cls) {const n=el("button",text,cls);n.type="button";if(typeof act==="function")n.onclick=act;else n.dataset.action=act;return n;}
   function inspectorButton(text,act,cls) {const n=btn(text,act,cls);return globalThis.AtriumUI?.button(n,"secondary")??n;}
   function info(text) {const node=$("status");if(node&&node.textContent!==text)node.textContent=text;}
@@ -792,9 +792,10 @@
     parent.append(details);
   }
   function section(parent,title){const s=el("section",null,"inspect-section");s.append(el("h3",title));parent.append(s);return s;}
+  // The label names the field; a unit suffix, "X (mm)", moves into the field.
   function field(parent,label,value,update,opt={}) {
-    const l=el("label",null,"field-row"), inp=el(opt.values?"select":"input",null,"ui-field");
-    l.append(el("span",label));if(opt.values){for(const entry of opt.values){const [v,t]=Array.isArray(entry)?entry:[entry,entry];inp.add(new Option(t,v));}}
+    const m=/ \(([^()]{1,4})\)$/.exec(label),u=opt.values?"":opt.length?unit():m?.[1],l=el("label",null,"ui-prop-row"), inp=el(opt.values?"select":"input",null,"ui-field");
+    const c=el("span",m?label.slice(0,m.index):label);c.title=c.textContent;l.append(c);if(opt.values){for(const entry of opt.values){const [v,t]=Array.isArray(entry)?entry:[entry,entry];inp.add(new Option(t,v));}}
     else if(opt.length){inp.type="text";inp.inputMode="decimal";inp.autocomplete="off";inp.spellcheck=false;inp.dataset.unit=unit();inp.title="Value in "+unit()+". Suffixes such as mil, mm or in are accepted.";value=value==null?"":String(U.value(value,unit()));}
     else {inp.type=opt.number?"number":"text";if(opt.number)inp.step=String(opt.step||"any");if(opt.min!=null)inp.min=String(opt.min);}
     inp.value=value??"";inp.setAttribute("aria-label",label);
@@ -818,7 +819,7 @@
         update(v);return;
       }
       const v=opt.number?Number(inp.value):opt.values?inp.value:inp.value.trim();if((opt.number&&(!inp.value||!Number.isFinite(v)||Math.abs(v)>1e7||v<(opt.min??-Infinity)))||(!opt.number&&!v&&!opt.allowEmpty)){inp.value=value;return;}update(v);};
-    l.append(inp);parent.append(l);return inp;
+    l.append(u?measure(inp,u):inp);parent.append(l);return inp;
   }
   function amend(fn,label,touched,scope){
     if(globalThis.AtriumRevisions?.guard?.(project))return false;
@@ -940,23 +941,31 @@
       if(routing())field(s,unitLabel("Width"),routeWidth,v=>{routeWidth=v;routeWidthSet=true;routeSession?.setWidth?.(v);routePointer=null;draw();},{length:true,min:.001});
       field(s,"Net",routeNet,v=>{routeNet=v;},{allowEmpty:true});}
     if(item){
-      const def=defs.get(item.def),editItem=fn=>edit(fn,undefined,[item]);const s=section(panel,item.kind==="part"?item.ref:globalThis.AtriumSchObjects?.isFrame(item)?"Frame":item.calculation?"Calculation":propLabel[item.kind]||"Object");
+      const def=defs.get(item.def),editItem=fn=>edit(fn,undefined,[item]),board=pcb()&&item.kind==="part";const s=section(panel,item.kind==="part"?item.ref:globalThis.AtriumSchObjects?.isFrame(item)?"Frame":item.calculation?"Calculation":propLabel[item.kind]||"Object");
+      // group(key): a named section in a fixed order, whoever asks first; another key is s. A module that
+      // loads after shell.js has made the section collapsible gets its body, so its rows collapse too.
+      const order=board?["Placement","Show on board","3D body","Parameters"]:pcb()&&item.kind==="track"?["Mask expansion"]:[],at={};
+      const group=(key,node)=>{if(!order.includes(key))return s;const g=at[key]||=((order.slice(0,order.indexOf(key)).reverse().map(k=>at[k]).find(Boolean)||s).after(node||=section(document.createDocumentFragment(),key)),node);
+        return g.querySelector(":scope > .ui-collapse > .ui-collapse-content")||g;};
       if(item.kind==="part"){
         if(pcb()&&!globalThis.AtriumSupportPlace)globalThis.AtriumLazy?.need?.("AtriumSupportPlace").catch(()=>{});
-        row(s,pcb()?"Footprint":"Symbol",pcb()?def.footprint.name||def.name:def.name);
-        
+        const lib=board?["Footprint",def.footprint.name||def.name]:["Symbol",def.name];
+        if(!board)row(s,...lib);
         field(s,"Designator",item.ref,v=>{if(doc().items.some(i=>i!==item&&i.kind==="part"&&i.ref===v)){info("This designator is already in use.");inspect();return;}editItem(()=>{item.ref=v;});});
         field(s,"Comment",item.value,v=>editItem(()=>{item.value=v;}),{allowEmpty:true,key:"value",valueUnit:true,
           numericUnit:({R:"Ω",C:"F",L:"H"})[String(defs.get(item.def)?.prefix || item.ref || "").charAt(0).toUpperCase()]});
+        if(board)row(s,...lib);
         const otherDocs=project.documents.filter(x=>x.kind!==d.kind);
         const matches=otherDocs.flatMap(x=>x.items.filter(y=>item.link&&y.link===item.link).map(y=>[x,y]));
-        if(matches.length)s.append(inspectorButton(pcb()?"Show in schematic":"Show on board",async()=>{
+        const go=async()=>{
           const owner=doc(), version=selectionVersion;
           let probe=globalThis.AtriumCrossProbe;
           try{probe??=await globalThis.AtriumLazy?.need("AtriumCrossProbe");}catch{/* use the existing matched component */}
           if(doc()!==owner||selectionVersion!==version||probe?.probeSelection())return;
           const [od,oi]=matches[0];selectDocument(od.id);choose(oi.id,true);
-        }));
+        };
+        if(matches.length&&board){const h=el("div",null,"inspect-section-heading"),b=navButton("",go,"ui-icon-button","Show in schematic");b.append(icon("schematic"));h.append(s.firstChild,b);s.prepend(h);}
+        else if(matches.length)s.append(inspectorButton("Show on board",go));
         else if(!pcb()){s.append(inspectorButton("Place footprint on board",()=>{focusedPart=item;if(def.footprint)placeLinked(def);else {swapFootprint=item;showLibrary("pcb");}}));}
       }
       if(!pcb()&&globalThis.AtriumSchObjects){if(item.kind==="part")AtriumSchObjects.partParameters(panel,item,def,schCtx(editItem));else if(AtriumSchObjects.KINDS.has(item.kind))AtriumSchObjects.inspector(s,item,schCtx(editItem));}
@@ -964,15 +973,15 @@
       else if(item.kind==="label"||item.kind==="netlabel")field(s,"Text",item.text,v=>editItem(()=>{item.text=v;if(item.autoName)delete item.autoName;}));
       if(!pcb())globalThis.AtriumSchObjects?.directives?.(s,item,schCtx(editItem));
       if("x" in item){
-        for(const k of ["x","y"])field(s,unitLabel(k.toUpperCase()),item[k],v=>item.kind==="part"?editTransform(item,{[k]:v}):globalThis.AtriumSchObjects?.isFrame(item)?nudgeSelection(k==="x"?v-item.x:0,k==="y"?v-item.y:0):editItem(()=>{item[k]=v;}),{length:true,key:k});
-        if(item.kind==="part")field(s,"Rotation (°)",item.angle||0,v=>editTransform(item,{angle:v%360}),{number:true,numericUnit:"deg",key:"angle",period:360});
+        const p=group("Placement");
+        for(const k of ["x","y"])field(p,unitLabel(k.toUpperCase()),item[k],v=>item.kind==="part"?editTransform(item,{[k]:v}):globalThis.AtriumSchObjects?.isFrame(item)?nudgeSelection(k==="x"?v-item.x:0,k==="y"?v-item.y:0):editItem(()=>{item[k]=v;}),{length:true,key:k});
+        if(item.kind==="part")field(p,"Rotation (°)",item.angle||0,v=>editTransform(item,{angle:v%360}),{number:true,numericUnit:"deg",key:"angle",period:360});
       }
       if(pcb())globalThis.AtriumPCBDraw?.inspectItem(s,item);
-      pcbEdit?.inspectItem(s,item);
+      pcbEdit?.inspectItem(s,item,group);
       if(item.kind==="part"){
-        const extend=inspector=>inspector.extend(s,item,def,{pcb:pcb(),unit:unit(),edit:editItem,info});
-        if(globalThis.AtriumPartInspector)extend(AtriumPartInspector);
-        else globalThis.AtriumLazy?.need("AtriumPartInspector").then(inspector=>{if(s.isConnected)extend(inspector);},e=>info(e.message));
+        const extend=(inspector,target)=>inspector.extend(target,item,def,{pcb:pcb(),unit:unit(),edit:editItem,info,group});
+        if(globalThis.AtriumPartInspector)extend(AtriumPartInspector,s);else globalThis.AtriumLazy?.appendOnLoad("AtriumPartInspector",s,extend,info);
       }
       if(item.kind==="wire"&&nets().byWire.has(item.id))row(s,"Connected net",nets().byWire.get(item.id));
       if(item.points && ["wire","track"].includes(item.kind) && !A.pathArc(item)){

@@ -54,7 +54,7 @@ FAMILIES = [
     ("progress", "Progress and spinners", "`.ui-progress`, `.ui-spinner`, `.ui-skeleton`", r"ui-(?:progress|spinner|skeleton)", r"[a-z0-9]+-(?:progress|meter|spinner|busy)"),
     ("keycap", "Keycaps", "`AtriumShortcut.render`", r"AtriumShortcut\.render|ui-shortcut", r"[a-z0-9]+-(?:kbd|keycap|keys)"),
     ("section", "Section headers", "`.ui-section-head`, `AtriumUIKit.section`", r"ui-section", r"[a-z0-9]+-(?:head|heading|section-title|group-title)"),
-    ("prop-row", "Property rows", "`.ui-prop-row`; `#inspector .field-row`; `.ui-field-row`", r"ui-prop-row|field-row", r"[a-z0-9]+-(?:prop|kv|field-row|form-row)"),
+    ("prop-row", "Property rows", "`.ui-prop-row` (Properties included); `.ui-field-row`", r"ui-prop-row|field-row", r"[a-z0-9]+-(?:prop|kv|field-row|form-row)"),
     ("panel", "Splitters and panels", "`.ui-panel`, `.ui-splitter`; dock sashes `dock.css`", r"ui-(?:panel|splitter)|pane-heading", r"[a-z0-9]+-(?:sash|splitter|resizer|gutter|panel-head)"),
     ("drag", "Drag handles and drop targets", "`.ui-drag-handle`, `.ui-drop-target[data-drop]`, `ui/spatial-motion` lift", r"ui-(?:drag|drop)", r"[a-z0-9]+-(?:grip|handle|drop|dropzone)"),
 ]
