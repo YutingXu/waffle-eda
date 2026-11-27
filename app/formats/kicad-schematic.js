@@ -1,10 +1,10 @@
 "use strict";
 globalThis.AtriumKiCadSchematic = (() => {
   const A = Atrium, K = AtriumKiCad, q = K.quote;
-  // KiCad's Datasheet field, from a parameter of that name in any spelling (KiCad imports store
+  // KiCad's Datasheet field, from a Datasheet or Datasheet URL parameter in any spelling (KiCad imports store
   // DATASHEET; Altium and Eagle imports keep "Datasheet" as written).
   const datasheet = def => {
-    for (const [k, v] of Object.entries(def?.parameters || {})) if (/^data[\s_]*sheet$/i.test(k.trim()) && typeof v === "string" && v) return v;
+    for (const [k, v] of Object.entries(def?.parameters || {})) if (/^data[\s_]*sheet(?:[\s_]*url)?$/i.test(k.trim()) && typeof v === "string" && v) return v;
     return "";
   };
   const rounded = value => Math.round(value * 10000) / 10000;

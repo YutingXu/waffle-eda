@@ -12,17 +12,13 @@ globalThis.AtriumComponentMatch = (() => {
   };
   // Parameter names as imported keep their source spelling ("Dielectric", "DIELECTRIC MATERIAL",
   // "Temperature_Characteristic"); this view reads them by one upper-case, single-spaced key.
-  const keyed = new WeakMap();
+  // Built per call, not cached: definitions are edited in place, and a few keys cost little.
   function keyedParameters(parameters) {
-    if (!parameters || typeof parameters !== "object") return {};
-    let out = keyed.get(parameters);
-    if (!out) {
-      out = Object.create(null);
-      for (const [k, v] of Object.entries(parameters)) {
-        const key = norm(k).replace(/[_\s]+/g, " ");
-        if (key && !(key in out) && typeof v !== "object") out[key] = v;
-      }
-      keyed.set(parameters, out);
+    const out = Object.create(null);
+    if (!parameters || typeof parameters !== "object") return out;
+    for (const [k, v] of Object.entries(parameters)) {
+      const key = norm(k).replace(/[_\s]+/g, " ");
+      if (key && !(key in out) && typeof v !== "object") out[key] = v;
     }
     return out;
   }
