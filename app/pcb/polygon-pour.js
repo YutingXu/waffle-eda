@@ -2506,6 +2506,7 @@ globalThis.AtriumPolygonPour=(()=>{
       tq=now();areaRecordGrid(inputs);stats.tGrid=now()-tq;
       stats.frameArea=areaOf(frame);
       region=areaRegion(inputs,changed,task.K,limit,stats);
+      stats.tRegion=now()-tq;
       if(typeof region==="string")return region;
       const inside=CORE.pourInside(task.K,task.hasBoard),w=new Int32Array(task.K);
       for(const c of region.components){
@@ -2565,7 +2566,7 @@ globalThis.AtriumPolygonPour=(()=>{
     overlayStats.tIslands=now()-t1;overlayStats.tSolve+=overlayStats.tIslands;
     Object.assign(stats,{mode:region?"local":"unchanged",bounds:region?areaBoundsMm(region.boxes,job):null,mm2:region?region.area/(job.S*job.S):0,
       shapes:region?region.shapes:0,primitives:region?region.components.reduce((n,c)=>n+c.shapes.reduce((m,s)=>m+s.ring.length/2,0),0):0,
-      boxes:region?region.boxes.length:0,removedRings:removed.size,addedRings:added.length,rehomedHoles:orphans.length,layout:prior.solved.layout&&!shifted?"kept":"built"});
+      boxes:region?region.boxes.length:0,removedRings:removed.size,addedRings:added.length,rehomedHoles:orphans.length,layout:prior.solved.layout&&!shifted?"kept":"built",tIslands:overlayStats.tIslands,tOverlay:overlayStats.tSolve-overlayStats.tIslands});
     return {islands:[...E.islands.values()],stats:overlayStats,layout:E};
   }
   // keep() of a patched solution: the anchors each island touches (links), dead copper, area and size,
