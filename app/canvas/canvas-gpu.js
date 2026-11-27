@@ -2226,7 +2226,23 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const ord = layer => passOrder(plan, order, layer);
     const gpuOrders = bandOrders(st, plan, order, doc, opts, S.cache.pourSig, V.liveLayers, V.liveSignature);
     const nextOf = l => { const t = ord(l); for (const o of gpuOrders) if (o > t) return o; return Infinity; };
-    const textOrders = [...textLayers(doc, defs, V.items)].filter(l => !(V.top && l === V.active));
+    const job = area && !planning &&
+      (st.textJob?.T === T ? st.textJob : st.wideText?.T === T ? st.wideText : null);
+    const owner = job?.V === V ? job : null;
+    // A slice job reuses its viewport, but a draft or a newly loaded designator module can change its layers.
+    const store = G.AtriumUndoStore, version = owner && store?.documentVersions?.(doc), labelLayer = G.AtriumDesignators?.labelLayer;
+    const cached = version && owner.layerScan, prior = cached?.version;
+    let textLayersInView;
+    if (prior && prior.floor === version.floor && prior.seq === version.seq && prior.items === version.items &&
+        prior.outer === version.outer && prior.library === version.library && prior.project === version.project &&
+        cached.store === store && cached.doc === doc && cached.defs === defs && cached.items === V.items && cached.labelLayer === labelLayer) {
+      textLayersInView = cached.layers;
+    } else {
+      textLayersInView = textLayers(doc, defs, V.items);
+      if (owner) owner.layerScan = version ? {version, store, doc, defs, items: V.items,
+        labelLayer, layers: textLayersInView} : null;
+    }
+    const textOrders = [...textLayersInView].filter(l => !(V.top && l === V.active));
     const need = [...new Set([...textOrders, ...(details?.keys() || []), ...exact].map(nextOf))].sort((x, y) => x - y);
     // Board Planning's tints (and the pad text under them) go over every layer: a band above all passes.
     if (!need.length || planning && need[need.length - 1] !== Infinity) need.push(Infinity);
@@ -2264,7 +2280,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (T.w !== W || T.h !== H) { for (const b of bands) gl.deleteTexture(b.tex); bands.length = 0; T.w = W; T.h = H; }
     const g = T.ctx, o = I.worldToScreen([0, 0]);
     const textOptions = {...o3, skipPartBoxes: true, gpu: i => !twoD(i)};
-    const freshRows = area && !planning && (st.textJob?.T === T || st.wideText?.T === T);
+    const freshRows = !!job;
     let prepared;
     if ((freshRows || !area && !local && need.length > 1) && !exact.size && I.collectBoardLayers &&
         !opts.partBoxesOnly && !opts.recordLayer && !opts.clipLayer) {

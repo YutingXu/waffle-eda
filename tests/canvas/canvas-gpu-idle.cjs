@@ -633,13 +633,17 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
 // Cold text bands visit each part once and preserve the same glyphs and late fallback artwork.
 {
   const {appFile}=require("../support/app-source-paths.cjs");
-  let definitions=0, orderedCopper=false;
-  const context=vm.createContext({Atrium,AtriumResolvedLand,
-    AtriumPCBAppearance:{...AtriumPCBAppearance,readDefinition(...args){
-      definitions++;return AtriumPCBAppearance.readDefinition(...args);
-    },layerAlpha(layer){return orderedCopper && layer==="Top" ? .5 : 1;}},
-    AtriumPCBText:{draw(g,shape){g.fillText(shape.text);}}
-  });
+  let definitions=0, layerReads=0, orderedCopper=false;
+  const context=vm.createContext({AtriumUUID,AtriumResolvedLand,AtriumPCBText:{draw(g,shape){g.fillText(shape.text);}}});
+  vm.runInContext(fs.readFileSync(appFile("model.js"),"utf8"),context);
+  vm.runInContext(fs.readFileSync(appFile("undo-store.js"),"utf8"),context);
+  vm.runInContext(fs.readFileSync(appFile("pcb-appearance.js"),"utf8"),context);
+  const appearance=context.AtriumPCBAppearance;
+  context.AtriumPCBAppearance={...appearance,readDefinition(...args){
+    definitions++;return appearance.readDefinition(...args);
+  },partTextLayers(...args){
+    layerReads++;return appearance.partTextLayers(...args);
+  },layerAlpha(layer){return orderedCopper && layer==="Top" ? .5 : 1;}};
   vm.runInContext(fs.readFileSync(appFile("canvas.js"),"utf8"),context);
   vm.runInContext(gpuCode.replace(sceneExport,"{textLayer, render, damage, stats,"),context);
   const ink=[], uploaded=[], W=96, H=64;
@@ -653,12 +657,14 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   const I=context.AtriumCanvas.create(canvas).internals();
   I.worldToScreen=([x,y])=>[48+x*10,32+y*10];
   let bound;
-  const gl={bindTexture(_,tex){bound=tex;},createTexture:()=>new Map(),texStorage2D(){},texParameteri(){},pixelStorei(){},
+  const gl={bindTexture(_,tex){bound=tex;},createTexture:()=>new Map(),deleteTexture(){},texStorage2D(){},texParameteri(){},pixelStorei(){},
     texSubImage2D(_,level,x,y){const drawn=[...ink];uploaded.push(drawn);bound.set(y,drawn);}};
   const layer=(name,text)=>({id:text,kind:"label",layer:name,text,x:0,y:0,size:1});
   const front=layer("Silk","front"), back=layer("Bottom silk","back"), hidden=layer("Hidden note","hidden");
   const part={id:"U",kind:"part",def:"fo",x:0,y:0,layer:"Top",showRef:false};
-  const items=[front,part,back,hidden], doc={kind:"pcb",items};
+  const items=[front,part,back,hidden], doc=context.Atrium.sheet("pcb","Layer plan");
+  doc.items=items;
+  doc.pcbDrawing=vm.runInContext("({annotations:{}})",context);
   const shapes=[{kind:"path",points:[[9.5,0],[10,0],[9.5,1]],layer:"Mechanical 2",cutout:true}];
   const defs=new Map([["fo",{footprint:{shapes,pads:[]}}]]);
   const names=["Mechanical 2","Mechanical 3","Silk","Multi","Bottom silk","Top"];
@@ -725,6 +731,87 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   const captions=fresh.images.find(rows=>rows.some(row=>row.includes("caption")));
   assert.ok(captions?.[3].includes("caption") && captions[4].includes("caption"),
     "a caption-only band crosses the boundary between two slices");
+
+  // The active slice may reuse the viewport's layer scan, but not across drafts,
+  // library replacement, late designator loading or a different viewport list.
+  const U=context.AtriumUndoStore, project=context.Atrium.project("Layer scan test"), history=[], future=[];
+  project.documents=[doc];
+  project.library=[{...defs.get("fo"),id:"fo"}];
+  defs.set("fo",project.library[0]);
+  const mark=U.mark(project);
+  assert.ok(U.documentVersions(doc),"the slice starts with an actual committed board");
+  const target={key:null};
+  st.textJob={T:target,V};
+  const render=(scope=V,T=target)=>{
+    context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,scope,null,T,area);
+    return Array.from(T.bands,b=>b.next);
+  };
+  const beforeScan=layerReads;
+  render(); render();
+  assert.equal(layerReads-beforeScan,1,"two committed rows on the same job resolve the part layers once");
+  const beforeLibrary=layerReads;
+  project.library[0].footprint.shapes=[...shapes,{kind:"text",layer:"Mechanical 3",text:"new footprint glyph",x:0,y:0,size:1}];
+  U.checkpoint(history,future,mark,"Add footprint text");
+  U.record(project,[{library:true}]);
+  uploaded.length=0;
+  const editedBands=render();
+  assert.equal(layerReads-beforeLibrary,1,"new definitions invalidate the previous band scan");
+  assert.ok(uploaded.flat().includes("new footprint glyph"),"a new library revision paints its authored glyph");
+  assert.deepEqual(editedBands,render(V,{key:null}),"the edited band order matches a fresh read");
+  U.jump(history,future,U.mark(project),-1);
+  uploaded.length=0; render();
+  assert.ok(!uploaded.flat().includes("new footprint glyph"),"Undo restores the pre-edit band content");
+  U.jump(history,future,U.mark(project),1);
+  uploaded.length=0; render();
+  assert.ok(uploaded.flat().includes("new footprint glyph"),"Redo restores the authored footprint text");
+  const beforeRevision=U.documentVersions(doc);
+  const beforeItemEdit=layerReads;
+  part.designator={x:0,y:0}; part.showRef=true; part.ref="U1";
+  U.record(project,[{doc,items:[part]}]);
+  assert.ok(U.documentVersions(doc).items>beforeRevision.items,"the journal records the authored item edit");
+  render();
+  assert.equal(layerReads-beforeItemEdit,1,"a committed item edit invalidates the scan before the viewport list changes");
+  const oldItems=V.items; V.items=V.items.filter(item=>item!==front);
+  const withoutDesignators=render(), beforeDesignators=layerReads;
+  vm.runInContext(fs.readFileSync(appFile("designator-place.js"),"utf8"),context);
+  uploaded.length=0;
+  const withDesignators=render();
+  assert.equal(layerReads-beforeDesignators,1,"late designator availability invalidates a committed layer scan");
+  assert.notDeepEqual(withDesignators,withoutDesignators,"the new silk designator adds its layer to the band plan");
+  assert.ok(uploaded.flat().includes("U1"),"the new band paints the authored designator");
+  assert.deepEqual(withDesignators,render(V,{key:null}),"the loaded designator uses the fresh band order");
+  delete part.designator;
+  part.sourceRecord="components6/data#0";
+  U.record(project,{doc,items:[part]});
+  render();
+  const beforeAnnotations=U.documentVersions(doc), beforeAnnotationScan=layerReads;
+  doc.pcbDrawing.annotations={"components6/data#0":[{field:"ref",at:[0,0],angle:0,size:1,layer:"Silk"}]};
+  U.record(project,{doc});
+  assert.equal(U.documentVersions(doc).seq,beforeAnnotations.seq,"annotation metadata does not advance the item journal");
+  assert.ok(U.documentVersions(doc).outer>beforeAnnotations.outer);
+  uploaded.length=0; render();
+  assert.equal(layerReads-beforeAnnotationScan,1,"imported annotation metadata invalidates the owned scan");
+  assert.ok(uploaded.flat().includes("U1"),"the updated imported annotation is painted");
+  const replacement=context.Atrium.project("Same document in a replacement project");
+  replacement.documents=[doc]; replacement.library=project.library;
+  const beforeReplacement=U.documentVersions(doc), beforeReplacementScan=layerReads;
+  U.mark(replacement);
+  assert.ok(U.documentVersions(doc).floor>beforeReplacement.floor,"project replacement moves the journal floor");
+  render();
+  assert.equal(layerReads-beforeReplacementScan,1,"the same doc and definitions may not retain a scan across project replacement");
+  const beforeList=layerReads;
+  V.items=V.items.slice();
+  render();
+  assert.equal(layerReads-beforeList,1,"a different viewport list cannot borrow the scan");
+  V.items=oldItems;
+  const beforeDraft=layerReads;
+  U.duringEdit(()=>{
+    assert.equal(U.documentVersions(doc),null);
+    render(); render();
+  });
+  assert.equal(layerReads-beforeDraft,2,"uncommitted rows always resolve live part layers");
+  U.reset();
+  st.textJob=null;
 
   for(const item of V.all){
     item.y=9;
