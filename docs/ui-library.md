@@ -300,7 +300,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 - **Compact actions** `.ui-toolbar-actions` shares the 20 px action face for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
 - **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` gives the existing Nets and PCB List fields their settled native face. The shorter search uses `.ui-search[data-size=compact]`.
 - **Layer controls** `.ui-layer-action` uses the menu button’s `aria-expanded` or the layer’s `aria-pressed` to draw the state. A non-copper drawing layer uses `aria-current` for the inset mark. The menu can supply its own arrow with `data-menu-indicator=custom`.
-- The canvas Active Bar (`.active-bar .tool`) is a settled surface with its own 28 px tools. Do not copy it into panels.
+- The canvas Active Bar (`.active-bar .tool`) is a settled surface with its own 28 px tools. Do not copy it into panels. Its buttons are customisable (`app/editor/bars.js`): a command without an icon shows the two-letter text face extension buttons use (`.tool-text`), and tools that do not fit move into a "⋯" flyout.
 - **Floating** (proposed component, 2026-11-23) `data-floating` (`K.toolbar(items, {floating:true})`) lifts the toolbar onto `--overlay` with `--elev-2` and `--r-lg`, for the presentation bar over the canvas. `data-idle` fades it out over `--motion-base` (no slide under Reduced motion) until the pointer moves, a key is pressed or focus enters it. `.ui-toolbar-title` holds one line of title text. Use it only for a mode the user started, never for chrome that appears on its own.
 
 <a id="menu"></a>
@@ -462,6 +462,7 @@ Print and report previews share `.ui-page-art`. Page tiles keep their lighter pa
 
 - **Handles** `.ui-drag-handle` shows six dots and keeps the arrow cursor. Do not use a grab hand on chrome. Lifted rows use `ui/spatial-motion` (`.ui-drag-lift`).
 - **Targets** `.ui-drop-target[data-drop=ready|over|denied|busy]` (`K.dropState(node, state)`) draws an inset ring and a tint above the content. Cells and geometry stay readable. Put a denied target's reason in the status line. `.ui-drop-line` marks an insertion point.
+- **Reorderable lists** (proposed, 2026-11-27; Preferences → Toolbars) `K.reorderable(list, {onMove, canMove})` gives a `.ui-list` of rows a drag handle each (`.ui-list[data-reorder]`, a handle column before a tree row's columns) and moves rows by keyboard (Alt+↑/↓ moves the focused row, ↑/↓ move focus), mouse, pen and touch (the handle has a 44 px hit area on touch). The lifted row uses `.ui-drag-lift`, the target an insertion line, and a refused target `data-drop=denied`. `onMove(from, to)` redraws the rows in the same list. Also offer Move Up and Move Down in the row's menu.
 
 <a id="panel"></a>
 ### Panels and list-detail

@@ -22,7 +22,8 @@ globalThis.AtriumBars = (() => {
     "bars.more_tools": "More tools",
     "bars.customise": "Customise Active Bar…",
     "bars.power_port": "{net} power port",
-    "bars.unavailable": "{name} is not available here."
+    "bars.unavailable": "{name} is not available here.",
+    "bars.toolbars": "Toolbars"
   }) || ((k, p) => k);
   const object = v => !!v && typeof v === "object" && !Array.isArray(v);
   const isId = v => typeof v === "string" && v !== SEP && /^[^\s"'<>`\\]{1,160}$/.test(v);
@@ -100,7 +101,9 @@ globalThis.AtriumBars = (() => {
 
   // ------------------------------------------------------------------ the markup
   const bar = D.getElementById("tools");
-  const pristine = bar ? [...bar.children].filter(n => !n.classList.contains("ext-tool")) : [];
+  // The markup with its whitespace, so the default draws byte for byte what index.html has.
+  const layout = bar ? [...bar.childNodes].filter(n => n.nodeType !== 1 || !n.classList.contains("ext-tool")) : [];
+  const pristine = layout.filter(n => n.nodeType === 1);
   for (const n of pristine) delete n.dataset.overflow;
   const parked = D.createDocumentFragment(), made = new WeakSet(), slots = new WeakMap(), groups = new Map(), known = new Map();
   let more = null, rendering = false, availableIds = null;
@@ -108,7 +111,14 @@ globalThis.AtriumBars = (() => {
   const idOf = n => n.dataset.powerNet ? "power:" + n.dataset.powerNet : n.dataset.command || n.dataset.action || "";
   const entries = () => pristine.map(n => isDivider(n) ? {sep:true} : {id:idOf(n), scope:n.dataset.scope || ""});
   const template = id => pristine.find(n => !isDivider(n) && idOf(n) === id) || null;
-  const extNodes = () => bar ? [...bar.querySelectorAll(":scope > .ext-tool"), ...parked.querySelectorAll(".ext-tool")] : [];
+  // Extension buttons in the order they arrived, wherever they are now (on the bar or parked).
+  const arrived = [];
+  const extNodes = () => {
+    if (!bar) return [];
+    for (const n of bar.querySelectorAll(":scope > .ext-tool")) if (!arrived.includes(n)) arrived.push(n);
+    for (let i = arrived.length - 1; i >= 0; i--) if (arrived[i].parentNode !== bar && arrived[i].parentNode !== parked) arrived.splice(i, 1);
+    return arrived.slice();
+  };
   const assume = k => ({kind:k, tool:"select", interactive:false, selected:true, selectionCount:1, canvas:true, __assume:true});
   function allows(when, k) {
     if (!when) return true;
@@ -211,8 +221,8 @@ globalThis.AtriumBars = (() => {
     };
     if (!list) {
       // The markup in order (other kinds' buttons stay hidden by their scope), extension buttons last.
-      for (const n of pristine) {
-        if (isDivider(n)) { out.push(n); continue; }
+      for (const n of layout) {
+        if (n.nodeType !== 1 || isDivider(n)) { out.push(n); continue; }
         used.add(n); slots.set(n, idOf(n));
         out.push(n.dataset.toolGroup ? face(idOf(n), n.dataset.toolGroup, n) : n);
       }
@@ -240,10 +250,10 @@ globalThis.AtriumBars = (() => {
         used.add(n); out.push(n);
       }
     }
-    const shown = tidy(out, n => isDivider(n));
-    for (const n of shown) if (n.dataset.scope && !n.classList.contains("ext-tool")) n.hidden = n.dataset.scope !== k;
+    const shown = list ? tidy(out, n => isDivider(n)) : out;
+    for (const n of shown) if (n.nodeType === 1 && n.dataset.scope && !n.classList.contains("ext-tool")) n.hidden = n.dataset.scope !== k;
     for (const n of [...bar.children, ...pristine]) if (!shown.includes(n) && n !== more && !made.has(n) && n.parentNode !== parked) parked.append(n);
-    const current = [...bar.children].filter(n => n !== more);
+    const current = [...bar.childNodes].filter(n => n !== more);
     if (current.length !== shown.length || current.some((n, i) => n !== shown[i])) bar.replaceChildren(...shown);
     watcher?.takeRecords();
     rendering = false;
@@ -380,11 +390,12 @@ globalThis.AtriumBars = (() => {
     new MutationObserver(() => render()).observe(D.body, {attributes:true, attributeFilter:["data-kind"]});
     let frame = 0;
     new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(fit); }).observe(bar.parentElement || bar);
-    const prefs = P => P?.on?.(PREF, () => render());
+    // A microtask later, so an imported settings file's flyout faces (written after its preferences) apply too.
+    const prefs = P => P?.on?.(PREF, () => queueMicrotask(() => render()));
     if (G.AtriumPrefs) prefs(G.AtriumPrefs); else G.AtriumLazy?.need?.("AtriumPrefs").then(prefs, () => {});
     G.addEventListener?.("storage", e => { if (e.key === FACES) render(); });
     G.AtriumLazy?.register?.("AtriumToolbarsPage", {scripts:["editor/toolbars-page.js"], deps:["AtriumUIKit"]});
-    const page = P => P?.registerPage?.({id:"toolbars", title:"Toolbars", order:4.2, keywords:"toolbars active bar customise customize buttons tools flyout overflow macros",
+    const page = P => P?.registerPage?.({id:"toolbars", title:t("bars.toolbars"), order:4.2, keywords:"toolbars active bar customise customize buttons tools flyout overflow macros",
       resetKeys:[PREF], reset:clearFaces,
       render(c, api) { G.AtriumLazy.appendOnLoad("AtriumToolbarsPage", c, (ui, into) => ui.render(into, api), m => api.el && c.append(api.el("p", "prf-note", m))); }});
     if (G.AtriumPrefs) page(G.AtriumPrefs); else G.AtriumLazy?.need?.("AtriumPrefs").then(page, () => {});

@@ -494,7 +494,7 @@ globalThis.AtriumUIKit = (() => {
       const handle = /** @type {HTMLElement} */ (e.target).closest?.(".ui-drag-handle"), row = handle?.closest(".ui-row");
       if (!row || row.parentElement !== list || e.button !== 0) return;
       e.preventDefault();
-      handle.setPointerCapture?.(e.pointerId);
+      try { handle.setPointerCapture(e.pointerId); } catch {}
       const all = rows(), from = all.indexOf(row), line = el("div", "ui-drop-line");
       let to = from, ok = true, denied = null;
       row.classList.add("ui-drag-lift");

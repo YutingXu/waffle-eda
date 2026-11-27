@@ -283,7 +283,16 @@ globalThis.AtriumUIGallery = (() => {
       family("drag", "Drag handles and drop targets", "Handles keep the arrow cursor; targets say ready, over, denied or busy.",
         specimen("Handle", (() => { const r = k.row({title: "Step 2", detail: "Drag to reorder"}); r.prepend(k.dragHandle()); r.style.gridTemplateColumns = "auto auto minmax(0,1fr)"; return r; })()),
         specimen("Targets", ...["ready", "over", "denied", "busy"].map(state => k.dropState(k.el("div", "ui-gallery-drop", state), state))),
-        specimen("Insertion line", k.el("div", "ui-drop-line"))),
+        specimen("Insertion line", k.el("div", "ui-drop-line")),
+        specimen("Reorderable list", (() => {
+          // K.reorderable (proposed): Alt+↑/↓ or a handle (mouse, pen, touch) moves a row; the caller redraws.
+          const names = ["Select", "Route track", "Separator", "Measure distance"];
+          const list = k.list([], {label: "Reorderable rows", role: "tree"});
+          const draw = () => list.replaceChildren(...names.map((title, i) => k.row({title, depth: 0, icon: ["select", "route", null, "measure"][i] || undefined,
+            actions: [k.iconButton("close", "Remove " + title, {size: "sm"})], role: "treeitem"})));
+          draw();
+          return k.reorderable(list, {onMove: (from, to) => { names.splice(to, 0, ...names.splice(from, 1)); draw(); }});
+        })())),
       family("panel", "Panels and list-detail", "A panel: heading with actions, scrolling body, footer. Detail panes reuse sections and property rows.",
         specimen("Inspector", detailPane()),
         specimen("Overlay drawers", ...["workspace", "sheet"].map(edge => Object.assign(k.el("aside", "ui-drawer ui-gallery-static", edge === "sheet" ? "Columns" : "Workspace"), {style: `--ui-drawer-shadow:var(--elev-${edge}-drawer);background:var(--surface);padding:var(--s-8)`})))),
