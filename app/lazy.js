@@ -797,9 +797,11 @@ globalThis.AtriumLazy = (() => {
     const out = [];
     // Reference-only board rows need no geometry. Materialized owners can inspect
     // copper synchronously on their first frame, including after a folder reload.
-    if (!globalThis.AtriumGeometryCurves && project?.documents?.some?.(d => d?.kind === "pcb" &&
-      (Array.isArray(d.items) || d.boardShape?.cutouts?.length)))
-      out.push("AtriumGeometryCurves");
+    if ((!globalThis.AtriumGeometryCurves || !globalThis.AtriumConnectivity) && project?.documents?.some?.(d =>
+      d?.kind === "pcb" && (Array.isArray(d.items) || d.boardShape?.cutouts?.length))) {
+      if (!globalThis.AtriumGeometryCurves) out.push("AtriumGeometryCurves");
+      if (!globalThis.AtriumConnectivity) out.push("AtriumConnectivity");
+    }
     if (!globalThis.AtriumNetsPanel && project?.documents?.some?.(d => d.kind === "pcb" && Object.keys(d.netColors || {}).length))
       out.push("AtriumNetsPanel");
     if (!globalThis.AtriumPCBPours && project?.documents?.some?.(d => d.kind === "pcb" && d.pcbDrawing?.pours?.length))

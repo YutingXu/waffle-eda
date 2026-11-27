@@ -53,7 +53,7 @@ function loadDOM() {
   return domModule ? import(pathToFileURL(domModule).href) : require("linkedom");
 }
 
-async function setup({demo=true}={}) {
+async function setup({demo=true,coldScripts=[]}={}) {
   const {parseHTML}=await loadDOM();
   const app = path.join(__dirname,"../../app");
   const {window,document} = parseHTML(fs.readFileSync(path.join(app,"index.html"),"utf8"));
@@ -185,7 +185,7 @@ async function setup({demo=true}={}) {
   // Keep opt-in features and their dependents out of the ordinary editor preload.
   // Real first-use requests still load the complete dependency graph.
   const lazy = globalThis.AtriumLazy;
-  const optedIn = new Set(lazy.files("AtriumButterEditor"));
+  const optedIn = new Set([...lazy.files("AtriumButterEditor"), ...coldScripts]);
   const ordinary = lazy.modules().filter(name => !lazy.files(name).some(file => optedIn.has(file)));
   for (const file of lazy.files(ordinary)) readScript(file);
   require("../support/folder-worker.cjs")();
