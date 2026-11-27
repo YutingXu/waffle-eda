@@ -66,7 +66,7 @@
   --glyph-lock:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23606060' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='10.5' width='13' height='10' rx='2'/%3E%3Cpath d='M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3'/%3E%3C/svg%3E");
   --sidebar:clamp(196px,16vw,250px);--properties:clamp(256px,23vw,344px);
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-  --font-ui:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Inter,sans-serif;
+  --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Inter,sans-serif;
   font:calc(12px*var(--fs-scale))/1.35 var(--font-ui);
   color:var(--ink);background:var(--app);-webkit-font-smoothing:antialiased;
 }

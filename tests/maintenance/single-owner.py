@@ -305,9 +305,9 @@ ADAPTERS.update({
     },
     "UI06": {
         **adapter_sites("ui/history-panels.css", r'ui/history-close\.css', "app/lazy.js"),
-        **adapter_sites(".clip-item", r'\.panel-clip\s*\{\s*display\s*:\s*flex', "app/history/clip-history.css"),
-        **adapter_sites(".hist-row", r'\.panel-history\s*\{\s*display\s*:\s*flex', "app/history/history-panel.css"),
-        **adapter_sites(".rc-thread", r'\.panel-rc\s*\{\s*display\s*:\s*flex', "app/history/review.css"),
+        **adapter_sites(".clip-item", r'\.ui-dock-panel\b[^{}]*\{\s*display\s*:\s*flex', "app/history/clip-history.css"),
+        **adapter_sites(".hist-row", r'\.ui-dock-panel\b[^{}]*\{\s*display\s*:\s*flex', "app/history/history-panel.css"),
+        **adapter_sites(".rc-thread", r'\.ui-dock-panel\b[^{}]*\{\s*display\s*:\s*flex', "app/history/review.css"),
     },
     "XF02": {
         **adapter_sites("AtriumAltiumRecords.frame(", r'\bconst (?:kind = data\.getUint16|n=view\(bytes\)|header=view\.getUint32|frame=view\.getUint32|size=data\.getUint32\(pos,true\)&0xffffff)',
