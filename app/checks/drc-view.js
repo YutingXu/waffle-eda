@@ -758,7 +758,14 @@ globalThis.AtriumDRCView = (() => {
         return needsPourCheck(d) && stateFor(d).poursAt !== stamp(d);
       },
       start(d) {
-        const revision = stamp(d), it = AtriumDRCPours.steps(d, host.defs(), rulesOf(d, host.project()), {project:host.project()});
+        // One session per board (drc-pours.js session()): from the undo journal's changed items since
+        // its last completed run, it re-checks what the edit and the refill changed.
+        const revision = stamp(d), project = host.project(), first = stateFor(d), U = globalThis.AtriumUndoStore, v = boardVersion(d);
+        const session = AtriumDRCPours.session ? (first.poursSession ??= AtriumDRCPours.session()) : null;
+        const ch = session && v && U?.changed ? U.changed(d, session.since()) : null;
+        const it = session ? session.steps(d, host.defs(), rulesOf(d, project), {project, changes:ch?.ids ? ch : null, seq:ch?.seq,
+          key:v ? [v.floor, v.outer, v.project, v.parameters, v.library].join("/") : null, current:() => stamp(d) === revision}) :
+          AtriumDRCPours.steps(d, host.defs(), rulesOf(d, project), {project});
         return (function* () {
           let r = it.next();
           while (!r.done) {yield; r = it.next();}

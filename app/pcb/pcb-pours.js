@@ -482,7 +482,89 @@ globalThis.AtriumPCBPours=(()=>{
     idx.forEach((i,k)=>{out[2*k]=xy[2*i];out[2*k+1]=xy[2*i+1];});
     return out;
   }
-  const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,paintHook:null,lod:LOD,lodRings,lodRingsAt,simplify};
+  // Where poured copper changed between two region lists (a refill, an undo, a collaborator's copper):
+  // {changes:[{polygon, layer, net, boxes}], same} with one box per connected set of changed edges,
+  // or null when a region cannot be read. Regions are compared by polygon, layer and net (the stored
+  // polyline, contours(); true-arc metadata is not compared). A region kept (the same object or the
+  // same data) costs nothing; a changed one is compared ring by ring (rings are canonical: one that
+  // did not change has the same vertices in the same order), then the rings left over edge by
+  // directed edge. Every point where the copper of a polygon differs lies inside the box of a set of
+  // changed edges that encloses it (the boundary of the difference consists of those edges and is
+  // connected through their shared vertices), so a check of the copper outside every box is unchanged.
+  function copperChange(before,after){
+    const key=r=>(r.polygon??"")+"\u0000"+r.layer+"\u0000"+(r.net||""),groups=new Map();
+    const kept=new Set(before||[]),group=k=>{let g=groups.get(k);if(!g)groups.set(k,g={old:[],now:[]});return g;};
+    const fresh=[];
+    for(const r of after||[])if(kept.has(r))kept.delete(r);else fresh.push(r);
+    for(const r of kept)group(key(r)).old.push(r);
+    for(const r of fresh){
+      const g=group(key(r)),i=g.old.findIndex(o=>o.count===r.count&&o.data===r.data);
+      if(i>=0)g.old.splice(i,1);else g.now.push(r);
+    }
+    // Rings straight from the stored bytes ([u32 n][n x (f64 u, f64 w)] each): hashed and compared as
+    // 32-bit words; only the rings left over are read as millimetres (walk()'s arithmetic).
+    const changes=[];
+    const ringsOf=r=>{
+      const bytes=decode(r.data),view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),out=[];
+      const w=bytes.byteOffset%4===0&&bytes.byteLength%4===0?new Uint32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength>>2):null;
+      if(!w||!Number.isInteger(r.count)||r.count<1)throw Error("Invalid pour region.");
+      let at=0;
+      for(let k=0;k<r.count;k++){
+        if(at+4>bytes.length)throw Error("Truncated pour contour.");
+        const n=view.getUint32(at,true);if(n<3||at+4+16*n>bytes.length)throw Error("Invalid pour vertex count.");
+        out.push({w,from:(at>>2)+1,to:(at>>2)+1+4*n,view,at:at+4,n,role:k?1:0});at+=4+16*n;
+      }
+      if(at!==bytes.length)throw Error("Unrecognized Regions6 contour trailer.");
+      return out;
+    };
+    const hash=e=>{let h=2166136261^e.role;for(let i=e.from;i<e.to;i++)h=Math.imul(h^e.w[i],16777619);return h>>>0;};
+    const same=(a,b)=>{if(a.to-a.from!==b.to-b.from)return false;for(let i=a.from,j=b.from;i<a.to;i++,j++)if(a.w[i]!==b.w[j])return false;return true;};
+    const mm=e=>{const ring=new Float64Array(2*e.n);for(let i=0;i<e.n;i++){ring[2*i]=e.view.getFloat64(e.at+16*i,true)*unit;ring[2*i+1]=-e.view.getFloat64(e.at+16*i+8,true)*unit;}return ring;};
+    for(const g of groups.values()){
+      if(!g.old.length&&!g.now.length)continue;
+      // Rings by content (outer or hole), cancelled pairwise.
+      const rings=new Map();
+      try{
+        for(const [list,side] of [[g.old,0],[g.now,1]])for(const r of list)for(const e of ringsOf(r)){
+          const h=hash(e);let l=rings.get(h);if(!l)rings.set(h,l=[]);
+          const twin=l.findIndex(x=>x.side!==side&&x.role===e.role&&same(x,e));
+          if(twin>=0)l.splice(twin,1);else{e.side=side;l.push(e);}
+        }
+      }catch{return null;}
+      // The rings left: directed edges, cancelled pairwise; what remains is the changed boundary.
+      const edges=new Map();
+      for(const l of rings.values())for(const x of l){
+        const {role,side}=x,ring=mm(x),n=x.n;
+        for(let i=0;i<n;i++){
+          const j=(i+1)%n,e=[ring[2*i],ring[2*i+1],ring[2*j],ring[2*j+1]],id=role+":"+e.join(","),x=edges.get(id);
+          if(x&&x.side!==side&&x.n){x.n--;if(!x.n)edges.delete(id);}
+          else if(x&&x.side===side)x.n++;
+          else edges.set(id,{e,side,n:1});
+        }
+      }
+      if(!edges.size)continue;
+      const sample=g.now[0]||g.old[0],out={polygon:sample.polygon??null,layer:sample.layer,net:sample.net||"",boxes:[]};
+      changes.push(out);
+      // Many changed edges (a new island, a large outline): one box around them all.
+      if(edges.size>20000){
+        const b=[Infinity,Infinity,-Infinity,-Infinity];
+        for(const {e} of edges.values()){b[0]=Math.min(b[0],e[0],e[2]);b[1]=Math.min(b[1],e[1],e[3]);b[2]=Math.max(b[2],e[0],e[2]);b[3]=Math.max(b[3],e[1],e[3]);}
+        out.boxes.push(b);continue;
+      }
+      // Connected sets of changed edges (shared vertices), one box each.
+      const parent=new Map(),find=v=>{let r=v;while(parent.get(r)!==r)r=parent.get(r);while(parent.get(v)!==r){const n=parent.get(v);parent.set(v,r);v=n;}return r;};
+      const vertex=(x,y)=>{const id=x+","+y;if(!parent.has(id))parent.set(id,id);return id;};
+      const list=[...edges.values()].map(({e})=>{const a=vertex(e[0],e[1]),b=vertex(e[2],e[3]),ra=find(a),rb=find(b);if(ra!==rb)parent.set(ra,rb);return {e,a};});
+      const boxes=new Map();
+      for(const {e,a} of list){
+        const r=find(a),b=boxes.get(r)||[Infinity,Infinity,-Infinity,-Infinity];
+        b[0]=Math.min(b[0],e[0],e[2]);b[1]=Math.min(b[1],e[1],e[3]);b[2]=Math.max(b[2],e[0],e[2]);b[3]=Math.max(b[3],e[1],e[3]);boxes.set(r,b);
+      }
+      out.boxes.push(...boxes.values());
+    }
+    return {changes,same:!changes.length};
+  }
+  const api={read,signalScope,signature,signatureSteps,matchesSignature,storeSignature,contours,edgeBands,contourEdges,contourSegments,nativeContours,paint,paintWith,warm,release,region,paintHook:null,lod:LOD,lodRings,lodRingsAt,simplify,copperChange};
   return api;
 })();
 if (typeof module !== "undefined") module.exports = globalThis.AtriumPCBPours;
