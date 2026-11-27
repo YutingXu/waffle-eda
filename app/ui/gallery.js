@@ -30,6 +30,19 @@ globalThis.AtriumUIGallery = (() => {
     const modifier = AtriumNavCommon.elWithAttributes("button", "Add", "ui-choice ui-choice-tinted", {type:"button", "data-size":"touch", "aria-pressed":"true"});
     const textarea = () => { const t = k.el("textarea", "ui-field"); t.rows = 2; t.value = "Pin 1 is VDD.\nPin 2 is GND."; t.setAttribute("aria-label", "Notes"); return t; };
     const keycap = (binding, variant) => sc.render(binding, {variant});
+    // Shortcut editor faces (keymap-editor.js): a binding chip, a conflicting one and the recorder.
+    const shortcutChip = (binding, conflict) => {
+      const c = k.el("span", "ui-chip ui-shortcut-chip"), edit = k.el("button", "ui-shortcut-edit"), remove = k.el("button", "ui-chip-remove", "×");
+      edit.type = "button"; remove.type = "button"; remove.setAttribute("aria-label", "Remove " + binding);
+      edit.append(keycap(binding, "inline")); edit.title = (conflict ? conflict + "\n" : "") + "Click to record a new key.";
+      if (conflict) c.dataset.invalid = "true";
+      c.append(edit, remove); return c;
+    };
+    const recorder = () => {
+      const r = k.el("span", "ui-shortcut-recorder"), help = k.el("small");
+      help.append("Press keys · ", keycap("Enter", "keycap"), " to finish · ", keycap("Escape", "keycap"), " to cancel");
+      r.append(keycap("Mod+K", "inline"), help); return r;
+    };
     const menu = () => {
       const m = k.el("div", "nav-menu ui-gallery-static"); m.setAttribute("role", "menu"); m.setAttribute("aria-label", "Specimen menu");
       const item = (label, key, dis) => {
@@ -52,7 +65,7 @@ globalThis.AtriumUIGallery = (() => {
     const tooltip = card => {
       const t = k.el("div", "ui-tooltip ui-gallery-static" + (card ? " is-card" : ""));
       if (card) { t.append(k.el("div", null, "R12 · 10 kΩ"), k.el("div", "ui-tooltip-detail", "0402 · Net VREF")); }
-      else { t.append("Rotate selection "); t.append(keycap("Space", "inline")); }
+      else { t.append("Rotate selection "); t.append(keycap("Space", "keycap")); } // as AtriumTooltip draws data-tooltip-shortcut
       return t;
     };
     const toast = kind => { const t = k.el("div", "ui-toast ui-gallery-static is-shown", kind === "ok" ? "Saved Sensor board" : kind === "warn" ? "3 nets have no copper" : "Copied 4 parts"); t.dataset.kind = kind; return t; };
@@ -103,10 +116,27 @@ globalThis.AtriumUIGallery = (() => {
     orbit.dataset.interaction = "orbit"; orbit.setAttribute("aria-label", "3D orbit surface");
     const gridEditor = k.field({value: "10 kΩ", label: "Edit value"}); gridEditor.dataset.gridEditing = "";
     const underlinedTabs = k.tabs([["pins", "Pins"], ["body", "Body"]], {value: "pins", label: "Symbol views"}); underlinedTabs.dataset.underline = "";
-    const matrixFields = ["inherited", "authored", "override"].map(source =>
-      AtriumNavCommon.elWithAttributes("input", null, "ui-field ui-field-number", {
-        "data-value-source": source, "aria-label": source + " clearance", placeholder: "0.20", value: source === "inherited" ? "" : "0.25"
-      }));
+    // A lower-triangular clearance matrix: empty cells inherit the minimum clearance (faint placeholder).
+    const matrixTable = (() => {
+      const kinds = ["Track", "Pad", "Via"], cells = {"Pad|Track": ["authored", "0.25"], "Via|Pad": ["override", "0.30"]};
+      const t = k.el("table", "ui-matrix"), head = k.el("tr");
+      head.append(k.el("th"), ...kinds.map(kind => { const th = k.el("th", null, kind); th.scope = "col"; return th; }));
+      t.append(k.el("thead"), k.el("tbody")); t.tHead.append(head);
+      kinds.forEach((row, r) => {
+        const tr = k.el("tr"), th = k.el("th", null, row); th.scope = "row"; tr.append(th);
+        kinds.forEach((col, c) => {
+          const td = k.el("td");
+          if (c <= r) {
+            const [source, value] = cells[row + "|" + col] || ["inherited", ""];
+            td.append(AtriumNavCommon.elWithAttributes("input", null, "ui-field ui-field-number", {
+              "data-value-source": source, "aria-label": "Clearance " + row + " to " + col, placeholder: "0.20", value}));
+          }
+          tr.append(td);
+        });
+        t.tBodies[0].append(tr);
+      });
+      return t;
+    })();
     const severityCell = b("W", {title: "Warning"});
     severityCell.classList.add("ui-severity-cell"); severityCell.dataset.severity = "warning";
     const art = ratio => { const a = k.el("span", "ui-gallery-art"); a.style.aspectRatio = ratio; return a; };
@@ -115,7 +145,7 @@ globalThis.AtriumUIGallery = (() => {
     pageArt.style.maxWidth = "120px"; pageZoom.style.width = "160px";
     const detailPane = () => {
       const p = k.panel({title: "R12", actions: [k.iconButton("close", "Close", {size: "sm"})]});
-      const matrix = k.section("Clearance matrix", {}, ...matrixFields); matrix.querySelector(".ui-section-head").dataset.bleed = "";
+      const matrix = k.section("Clearance matrix", {note: "Empty cells use the minimum clearance. Bold is set on this rule; an accent line overrides it for this part."}, matrixTable); matrix.querySelector(".ui-section-head").dataset.bleed = "";
       p.body.append(underlinedTabs,
         k.section("Component", {quiet: true}, k.propRow("Designator", k.field({value: "R12", label: "Designator"})),
           k.propRow("Value", k.field({value: "10", unit: "kΩ", type: "number", label: "Value"})), k.propRow("Footprint", "0402")),
@@ -134,13 +164,14 @@ globalThis.AtriumUIGallery = (() => {
         specimen("States", b("Pressed", {pressed: true}), b("Disabled", {disabled: true}), b("Primary disabled", {variant: "primary", disabled: true}), focusDemo(b("Keyboard focus")))),
       family("icon-button", "Icon buttons", "A square button around one icon; its label is the tooltip and accessible name.",
         specimen("Sizes", k.iconButton("search", "Search", {size: "sm"}), k.iconButton("settings", "Settings"), k.iconButton("layers", "Layers", {size: "lg"})),
-        specimen("States", k.iconButton("grid", "Grid", {pressed: true}), k.iconButton("delete", "Delete", {disabled: true}), focusDemo(k.iconButton("plus", "Add")))),
+        specimen("States", k.iconButton("grid", "Grid", {pressed: true}), k.iconButton("delete", "Delete", {disabled: true}), focusDemo(k.iconButton("plus", "Add"))),
+        specimen("Icon set", ...[...document.querySelectorAll("symbol[id^=i-]")].map(symbol => k.iconButton(symbol.id.slice(2), symbol.id.slice(2))))),
       family("close", "Close button", "Dialogs and panels close with the shared close icon.",
         specimen("Default", k.closeButton(null)), specimen("Tab dismiss", tabDismiss), specimen("Disabled", disabled(k.closeButton(null)))),
       family("field", "Text and number fields", "28 px, 8 px text inset; numbers use the 80 px width with the unit beside them.",
         specimen("Text", k.field({value: "Sensor board", label: "Name"}), k.field({placeholder: "Placeholder", label: "Empty"})),
         specimen("Number with unit", k.field({type: "number", value: "0.15", unit: "mm", label: "Clearance"}), k.field({type: "number", value: "25", unit: "°C", label: "Ambient"})),
-        specimen("States", k.field({value: "1.2.3", invalid: true, label: "Invalid"}), k.field({value: "Read only", disabled: true, label: "Disabled"}), focusDemo(k.field({value: "Focused", label: "Focused"})), AtriumNavCommon.elWithAttributes("input", null, "ui-field", {value: "Invalid length", "aria-label": "Rejected edit", "data-edit-rejected": "ink"})),
+        specimen("States", k.field({value: "1.2.3", invalid: true, label: "Invalid"}), k.field({value: "Disabled", disabled: true, label: "Disabled"}), k.field({value: "U3 · SOT-23-5", readOnly: true, label: "Read only"}), focusDemo(k.field({value: "Focused", label: "Focused"})), AtriumNavCommon.elWithAttributes("input", null, "ui-field", {value: "Invalid length", "aria-label": "Rejected edit", "data-edit-rejected": "ink"})),
         specimen("Multiline", textarea())),
       family("select", "Selects", "A native single-line select; AtriumSelectPopup opens its list.",
         specimen("Default", k.select([["mm", "Millimetres"], ["mil", "Mils"], ["in", "Inches"]], {value: "mm", label: "Units"})),
@@ -162,9 +193,10 @@ globalThis.AtriumUIGallery = (() => {
         })())),
       family("switch", "Switches", "An immediate on/off setting. The knob slides over --motion-toggle.",
         specimen("Off and on", k.switchRow("Snap to grid"), k.switchRow("Show pad numbers", {checked: true})),
-        specimen("Disabled", k.switchRow("Locked", {disabled: true}), k.switchRow("Locked on", {checked: true, disabled: true}))),
+        specimen("Disabled", k.switchRow("Unavailable", {disabled: true}), k.switchRow("Unavailable on", {checked: true, disabled: true})),
+        specimen("Locked", k.switchRow("Snap to board grid", {checked: true, locked: "Set by the board's design rules"}), k.switchRow("Auto-save", {locked: "Turned off by your organisation"}))),
       family("checkbox", "Checkboxes", "A choice that applies with the form, or one of several.",
-        specimen("States", k.checkbox("Unchecked"), k.checkbox("Checked", {checked: true}), k.checkbox("Mixed", {indeterminate: true}), k.checkbox("Disabled", {disabled: true}))),
+        specimen("States", k.checkbox("Unchecked"), k.checkbox("Checked", {checked: true}), k.checkbox("Mixed", {indeterminate: true}), k.checkbox("Disabled", {disabled: true}), k.checkbox("Disabled on", {checked: true, disabled: true}))),
       family("radio", "Radio buttons", "One of a few exclusive options, all visible.",
         specimen("Group", k.radioGroup([["top", "Top side"], ["bottom", "Bottom side"], ["both", "Both sides", true]], {value: "top", label: "Side"})),
         specimen("Canvas choices", marks, modifier),
@@ -194,15 +226,33 @@ globalThis.AtriumUIGallery = (() => {
         onArtwork("On artwork", k.overlayLabel("4L + flex"), AtriumNavCommon.elWithAttributes("button", "×", "ui-close", {type: "button", "aria-label": "Hide minimap", "data-fill": "overlay"}))),
       family("search", "Search fields", "A magnifier, the query, an optional match count and a clear button.",
         specimen("Empty", k.search({placeholder: "Search parts"})), specimen("With matches", k.search({value: "net:GND", count: "12 of 40", label: "Find"}))),
-      family("keycap", "Keycaps and shortcuts", "AtriumShortcut renders bindings: keycaps for keys, inline for hints. Mac shows \"esc\".",
-        specimen("Keycaps", keycap("Mod+Shift+P", "keycap"), keycap("Escape", "keycap")), specimen("Inline", keycap("Mod+S", "inline"))),
+      family("keycap", "Keycaps and shortcuts", "AtriumShortcut renders every binding from the key map: keycaps for keys, inline for menus and hints. Mac shows glyphs and \"esc\".",
+        specimen("Keycaps", keycap("Mod+Shift+P", "keycap"), keycap("Escape", "keycap"), keycap("Delete", "keycap")),
+        specimen("Sequence", keycap("Mod+K Mod+S", "keycap")),
+        specimen("Inline", keycap("Mod+S", "inline"), keycap("Mod+Shift+Z", "inline")),
+        specimen("In a sentence", (() => { const p = k.el("p", "ui-gallery-filler"); p.append("Press ", keycap("Mod+K", "inline-keycap"), " to search commands."); return p; })()),
+        specimen("Menu and tooltip", menu(), tooltip(false)),
+        specimen("Command palette", k.list([
+          k.row({title: "Route Interactively", detail: "PCB", icon: "route", meta: keycap("Mod+Shift+R", "keycap"), selected: true}),
+          k.row({title: "Place Via", detail: "PCB", icon: "via", meta: keycap("V", "keycap")})], {label: "Commands"})),
+        specimen("Shortcut editor", shortcutChip("Mod+D"), shortcutChip("Mod+C", "Mod+C is also Copy here."),
+          k.el("span", "ui-shortcut-none", "Not set"), recorder())),
       family("section", "Section headers", "A heading with its actions on the same row and a hairline under it; no boxes.",
         specimen("With actions", k.section("Net Classes", {actions: [k.iconButton("plus", "Add class", {size: "sm"}), k.iconButton("settings", "Class options", {size: "sm"})]}, k.el("p", "ui-gallery-filler", "Content follows the hairline."))),
         specimen("With note", k.section("Clearance", {note: "Applies to every copper object on the board."})),
         specimen("Disclosure marker", k.el("div", "ui-section-head ui-disclosure-marker", "Clearance"))),
       family("prop-row", "Property rows", "Caption and value side by side; Properties, inspectors and settings.",
         specimen("Rows", k.propRow("Designator", k.field({value: "U3", label: "Designator"})), k.propRow("Width", k.field({type: "number", value: "0.2", unit: "mm", label: "Width"})),
-          k.propRow("Locked", k.switchRow("", {checked: true})), k.propRow("Package", "SOT-23-5"), k.propRow("Value", AtriumNavCommon.elWithAttributes("input", null, "ui-field", {value:"1k2k", "aria-label":"Value", "data-edit-rejected":""}), {error: "Not a resistance"}))),
+          k.propRow("Locked", k.switchRow("", {checked: true})), k.propRow("Package", "SOT-23-5"), k.propRow("Value", AtriumNavCommon.elWithAttributes("input", null, "ui-field", {value:"1k2k", "aria-label":"Value", "data-edit-rejected":""}), {error: "Not a resistance"})),
+        specimen("Unit inside the field", k.propRow("X", k.field({value: "18.5", unit: "mm", label: "X (mm)"})), k.propRow("Rotation", k.field({value: "90", unit: "°", label: "Rotation (°)"})),
+          k.propRow("Height", k.field({placeholder: "Library", unit: "mm", label: "3D height (mm)"})), k.propRow("Width", k.field({value: "0", unit: "mm", invalid: true, label: "Width (mm)"})),
+          k.propRow("Gap", k.field({value: "0.2", unit: "mm", disabled: true, label: "Gap (mm)"}))),
+        specimen("Segmented", k.propRow("Side", k.segmented(["Top", "Bottom"], {value: "Top", label: "Side"}))),
+        specimen("Switch at column start", ...[["Designator", true], ["Comment", false]].map(([caption, checked]) => {
+          const row = k.switchRow("", {checked}); row.querySelector("input").setAttribute("aria-label", "Show " + caption.toLowerCase()); row.firstElementChild.remove();
+          return k.propRow(caption, row);
+        })),
+        specimen("Truncated value", k.propRow("Library", "Waffle standard parts · passive components · thick-film chip resistors, 0402", {clip: true}))),
       family("row", "List and tree rows", "One row shape for lists and trees: icon, title, detail, meta, actions on hover.",
         specimen("List", k.list([
           k.row({title: "Sensor board", icon: "board", detail: "PCB · Saved 2 min ago", meta: "v12"}),

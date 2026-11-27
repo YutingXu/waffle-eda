@@ -1623,26 +1623,29 @@ globalThis.AtriumBusRoute = (() => {
     sec.dataset.sig = sig;
     sec.className = "inspect-section bus-route-props";
     const h = document.createElement("h3"); h.textContent = "Bus · " + b.nets.length + " nets"; sec.append(h);
-    const field = (label, input) => { const l = document.createElement("label"); l.className = "property-row"; const t = document.createElement("span"); t.textContent = label; l.append(t, input); sec.append(l); return input; };
+    // Property rows (docs/ui-library.md › Property rows): the unit sits inside its field; the label stays the field's name.
+    const C = globalThis.AtriumNavCommon;
+    const field = (label, input, unit) => { const l = C.el("label", null, "ui-prop-row"); input.classList.add("ui-field"); input.setAttribute("aria-label", label);
+      l.append(C.el("span", unit ? label.slice(0, -unit.length - 3) : label), unit ? C.measure(input, unit) : input); sec.append(l); return input; };
     const num = (label, value, fn, disabled) => { const i = document.createElement("input"); i.type = "number"; i.step = "0.005"; i.min = "0"; i.dataset.numericUnit = "mm"; i.value = String(+value.toFixed(3)); i.disabled = !!disabled;
-      i.onchange = () => { const v = parseFloat(i.value); if (Number.isFinite(v) && v >= 0) { fn(v); s.refresh(); host.redraw?.(); panelSync(true); } }; return field(label, i); };
+      i.onchange = () => { const v = parseFloat(i.value); if (Number.isFinite(v) && v >= 0) { fn(v); s.refresh(); host.redraw?.(); panelSync(true); } }; return field(label, i, "mm"); };
     const fixed = b.orderFixed;
-    const C = globalThis.AtriumNavCommon, neckKey = busShortcut("neck");
+    const neckKey = busShortcut("neck");
     const withKey = (input, label, key) => {
-      if (key) {const badge = AtriumShortcut.render(key, {variant:"inline"});badge.setAttribute("aria-hidden", "true");input.previousElementSibling.append(" ", badge);}
+      if (key) {const badge = AtriumShortcut.render(key, {variant:"inline"});badge.setAttribute("aria-hidden", "true");input.closest(".ui-prop-row").firstElementChild.append(" ", badge);}
       C.shortcutTitle(input, label, key);
     };
     const width = num("Member width (mm)", b.width, v => s.setWidth(v), fixed);
     if (fixed) C.shortcutTitle(width, "Set before the first click. Then use Neck down", neckKey);
     else width.title = "Width of every member (pairs keep their pair width)";
     num("Gap (mm)", b.gap, v => s.setGap(v), fixed).title = "Edge-to-edge gap between neighbours; never below the clearance rule";
-    const neck = document.createElement("input"); neck.type = "checkbox"; neck.checked = !!b.neck; neck.onchange = () => busKey("neck");
-    withKey(field("Neck down", neck), "Neck down", neckKey);
+    const neck = C.appendSwitchRow(sec, "Neck down", !!b.neck, () => busKey("neck"));
+    withKey(neck, "Neck down", neckKey);
     const pat = document.createElement("select");
     for (const pp of PATTERNS) { const op = document.createElement("option"); op.value = pp; op.textContent = PATTERN_NAMES[pp]; op.selected = pp === b.pattern; pat.append(op); }
     pat.onchange = () => { s.setPattern(pat.value); host.info(PATTERN_NAMES[pat.value] + " for the next layer change"); };
     withKey(field("Via array", pat), "Via array", busShortcut("via-pattern"));
-    if (b.flyBy) { const sp = document.createElement("strong"); sp.textContent = "hop " + b.hop + (b.next ? " → " + b.next : " (last)") + " · stub 0 mm"; field("Fly-by", sp); }
+    if (b.flyBy) C.appendPropertyRow(sec, "Fly-by", "hop " + b.hop + (b.next ? " → " + b.next : " (last)") + " · stub 0 mm");
     const ol = document.createElement("ol"); ol.className = "bus-route-order ui-dialog-body";
     const order = b.order.slice(), can = s.canReorder();
     order.forEach((n, i) => {

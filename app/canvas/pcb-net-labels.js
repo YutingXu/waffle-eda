@@ -55,7 +55,7 @@ globalThis.AtriumPCBNetLabels = (() => {
   // ---------------------------------------------------------------- tracks
   const trackSize = (width, scale) => width * scale * TRACK_FONT;
   // Each view provides its own scene cache. Parked/rebuilt scenes never share bounds.
-  const trackWidths=new WeakMap();
+  const trackWidths=new WeakMap(), SPARSE_TRACKS=32;
   function netTrackWidths(c,layer){
     let e=trackWidths.get(c);
     if(!e||e.rev!==c.rev){
@@ -72,25 +72,45 @@ globalThis.AtriumPCBNetLabels = (() => {
       if(i.kind!=="track"||i.layer!==layer||!i.net||!(i.width>0))continue;
       max=Math.max(max,i.width);
       if(!bounds)continue;
-      const box=c.boxes.get(i), prior=bounds.get(i.width);
-      // Bounds can prove a whole width group is offscreen. Imported custom
-      // widths can be unbounded, so fall back to the ordinary item query.
-      if(!box||!prior&&bounds.size>=64){bounds=null;continue;}
-      if(prior){
-        prior[0]=Math.min(prior[0],box[0]);prior[1]=Math.min(prior[1],box[1]);
-        prior[2]=Math.max(prior[2],box[2]);prior[3]=Math.max(prior[3],box[3]);
-      }else bounds.set(i.width,box.slice());
+      const box=c.boxes.get(i), group=bounds.get(i.width);
+      // An offscreen group does not need a query. Keep only small groups in
+      // document order so a few wide tracks can bypass the whole-scene query.
+      if(!box||!group&&bounds.size>=64){bounds=null;continue;}
+      if(group){
+        const b=group.box;
+        b[0]=Math.min(b[0],box[0]);b[1]=Math.min(b[1],box[1]);
+        b[2]=Math.max(b[2],box[2]);b[3]=Math.max(b[3],box[3]);
+        if(group.tracks){
+          if(group.tracks.length===SPARSE_TRACKS)group.tracks=null;
+          else group.tracks.push(i);
+        }
+      }else bounds.set(i.width,{box:box.slice(),tracks:typeof i.width==="number"?[i]:null});
     }
     const result={max,bounds:bounds&&[...bounds]};
     e.by.set(layer,result);return result;
   }
-  // A conservative upper width bound, or zero if no legible track can reach the view.
-  function trackWidthLimit(scene,layer,scale,view){
-    const {max,bounds}=netTrackWidths(scene,layer);
-    if(!(trackSize(max,scale)>=MIN_PX))return 0;
-    return !bounds || !globalThis.AtriumSpatial ||
-      bounds.some(([width,box])=>trackSize(width,scale)>=MIN_PX&&AtriumSpatial.overlaps(box,view)) ? max : 0;
+  const noTracks=Object.freeze({maxWidth:0,tracks:null});
+  // A null track list asks the caller for its ordinary viewport items.
+  function trackCandidates(scene,layer,scale,view,reuseArtwork){
+    const {max,bounds}=netTrackWidths(scene,layer), spatial=globalThis.AtriumSpatial;
+    if(!(trackSize(max,scale)>=MIN_PX))return noTracks;
+    if(!bounds||!spatial)return {maxWidth:max,tracks:null};
+    let found=false, tracks=reuseArtwork?null:[], count=0;
+    for(const [width,group] of bounds){
+      if(!(trackSize(width,scale)>=MIN_PX)||!spatial.overlaps(group.box,view))continue;
+      found=true;
+      if(!tracks)break;
+      if(!group.tracks||(count+=group.tracks.length)>SPARSE_TRACKS){tracks=null;break;}
+      // The scene removes a box with its object, even when an in-memory
+      // board has absent or duplicate IDs. Kind changes can leave an old group.
+      for(const item of group.tracks){
+        const box=scene.boxes.get(item);
+        if(item.kind==="track"&&box&&spatial.overlaps(box,view))tracks.push(item);
+      }
+    }
+    return found?{maxWidth:max,tracks}:noTracks;
   }
+  const trackWidthLimit=(scene,layer,scale,view)=>trackCandidates(scene,layer,scale,view,true).maxWidth;
   function trackLabels(out, placed, i, v) {
     const {scale, toScreen, screen, PCB, opts} = v;
     const w = i.width || 0, size = Math.min(MAX_PX, trackSize(w, scale));
@@ -264,5 +284,5 @@ globalThis.AtriumPCBNetLabels = (() => {
     }
     ctx.restore();
   }
-  return Object.freeze({place, draw, clip, upright, MIN_PX, trackWidthLimit});
+  return Object.freeze({place, draw, clip, upright, MIN_PX, trackWidthLimit, trackCandidates});
 })();

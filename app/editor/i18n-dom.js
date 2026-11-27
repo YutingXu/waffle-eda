@@ -26,7 +26,7 @@ globalThis.AtriumI18nDOM = (() => {
     {selector: ".prf-dialog", namespaces: ["prefs"]},
     // Dialogs and panels of the preview wave (scripts/i18n-extract.py SOURCES: "preview polish").
     {selector: ".fps-dialog", namespaces: ["fab", "dfm"]},
-    {selector: ".thm-dialog", namespaces: ["thermal"]},
+    {selector: '.ui-tool-panel[data-tool="thermal"]', namespaces: ["thermal"]},
     {selector: ".si-dialog, [data-extension=\"waffle.si\"]", namespaces: ["si"]},
     {selector: ".gp-dialog, .gp-bind, .gp-finalise, .gp-addpart", namespaces: ["generic"]},
     {selector: ".cmdbar", namespaces: ["cmdbar"]},

@@ -18,12 +18,12 @@
   "app/formats/bom.css": [
     [".bom-column.drop-after", "box-shadow", "inset 0 -2px var(--focus)"],
     [".bom-column.drop-before", "box-shadow", "inset 0 2px var(--focus)"],
-    [".bom-grid tbody tr.bom-part td.bom-lead", "box-shadow", "inset -2px 0 var(--line-strong)"],
-    [".bom-grid tbody tr.hint-keep td.bom-lead", "box-shadow", "inset 3px 0 var(--ok-ink)"],
-    [".bom-grid tbody tr.hint-partner td.bom-lead", "box-shadow", "inset 3px 0 var(--focus)"],
-    [".bom-grid td.active", "box-shadow", "inset 0 0 0 2px var(--focus)"],
-    [".bom-grid th.drop-after", "box-shadow", "inset -2px 0 var(--focus)"],
-    [".bom-grid th.drop-before", "box-shadow", "inset 2px 0 var(--focus)"],
+    [".bom-dialog .ui-sheet-grid tbody tr.bom-part td.bom-lead", "box-shadow", "inset -2px 0 var(--line-strong)"],
+    [".bom-dialog .ui-sheet-grid tbody tr.hint-keep td.bom-lead", "box-shadow", "inset 3px 0 var(--ok-ink)"],
+    [".bom-dialog .ui-sheet-grid tbody tr.hint-partner td.bom-lead", "box-shadow", "inset 3px 0 var(--focus)"],
+    [".bom-dialog .ui-sheet-grid td.active", "box-shadow", "inset 0 0 0 2px var(--focus)"],
+    [".bom-dialog .ui-sheet-grid th.drop-after", "box-shadow", "inset -2px 0 var(--focus)"],
+    [".bom-dialog .ui-sheet-grid th.drop-before", "box-shadow", "inset 2px 0 var(--focus)"],
     [".bom-hint-mark::before", "border-radius", "1px"],
     [".bom-mark", "border-radius", "50%"]
   ],
@@ -40,9 +40,9 @@
   "app/checks/constraints.css": [
     [".cm-colitem.drop-after", "box-shadow", "inset 0 -2px var(--focus)"],
     [".cm-colitem.drop-before", "box-shadow", "inset 0 2px var(--focus)"],
-    [".cm-grid th.drop-after", "box-shadow", "inset -2px 0 var(--focus)"],
-    [".cm-grid th.drop-before", "box-shadow", "inset 2px 0 var(--focus)"],
-    [".cm-grid th.editable", "box-shadow", "inset 0 2px var(--primary)"]
+    [".cm-dialog .ui-sheet-grid th.drop-after", "box-shadow", "inset -2px 0 var(--focus)"],
+    [".cm-dialog .ui-sheet-grid th.drop-before", "box-shadow", "inset 2px 0 var(--focus)"],
+    [".cm-dialog .ui-sheet-grid th.editable", "box-shadow", "inset 0 2px var(--primary)"]
   ],
   "app/formats/diff-export.js": [
     ["JS stylesheet / .card", "border", "1px solid #8885"],

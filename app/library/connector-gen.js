@@ -174,7 +174,9 @@ globalThis.AtriumConnectorGen = (() => {
       if (s.mount === "smd") {
         const along = s.orientation === "right-angle";
         const off = along ? r6((body[2] - body[0]) / 2 - .5) : r6((body[3] - body[1]) / 2 + .6);
-        for (const sg of [-1, 1]) pads.push(along ? W.smd("MP", sg * r6(off + .7), r6(p * .8), 1.2, 1.8, "rect") : W.smd("MP", 0, sg * r6(off + .9), 2, 1.4, "rect"));
+        // Unnumbered, as the through-hole pegs are: a retention tab is copper with no pin, so it
+        // pairs with no symbol pin and library health does not report it.
+        for (const sg of [-1, 1]) pads.push(along ? W.smd("", sg * r6(off + .7), r6(p * .8), 1.2, 1.8, "rect") : W.smd("", 0, sg * r6(off + .9), 2, 1.4, "rect"));
       } else {
         const off = r6((body[3] - body[1]) / 2 + 1.2), d = s.pitch >= 2 ? 1.6 : 1.1;
         const cx = r6((body[0] + body[2]) / 2);
@@ -190,7 +192,7 @@ globalThis.AtriumConnectorGen = (() => {
         shapes.push(W.silk([[r6(x), r6(mid - kw / 2)], [r6(x + .9), r6(mid - kw / 2)], [r6(x + .9), r6(mid + kw / 2)], [r6(x), r6(mid + kw / 2)]]));
         shapes.push({kind: "path", layer: "Mechanical 13", width: .1, points: [[r6(body[0]), r6(mid - kw / 2)], [r6(body[0] + .9), r6(mid - kw / 2)], [r6(body[0] + .9), r6(mid + kw / 2)], [r6(body[0]), r6(mid + kw / 2)]]});
       }
-    } else shapes.push(...W.silkAround(body, pads.filter(q => q.number !== "")));
+    } else shapes.push(...W.silkAround(body, pads.filter(q => q.plated !== false)));
     // Pin-1 marker: a silk triangle outside the body, beside pin 1.
     const p1 = pads.find(q => q.number === "1"), mx = r6(Math.min(body[0], p1.x - p1.w / 2) - 1.05);
     shapes.push({kind: "path", style: "silk", width: W.SILK_W || .18, closed: true, points: [[mx, r6(p1.y - .4)], [r6(mx + .55), r6(p1.y)], [mx, r6(p1.y + .4)]]});

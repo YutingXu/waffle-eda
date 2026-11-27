@@ -77,6 +77,23 @@ test("stale fill under other copper is reported", () => {
   assert.ok(v, "the via sits in the poured copper"); assert.equal(v.actual, 0);
 });
 
+test("a pour keeps the DRC's gap to an unplated land of another net, and clear of its own net's", () => {
+  // The land keeps its pad's net (connectivity.js, rules.js extract): the pour clears it by the rule for that net.
+  const set = R.create(), scope = AtriumDesignQueryRecord.selector;
+  set.list.unshift({id: "mh-gap", type: "clearance", name: "MH", comment: "", enabled: true, priority: 1, scope: scope("net", "MH"), scope2: scope("all"), gap: .6});
+  R.validate(set);
+  const mh = net => ({id: "mh", kind: "pad", number: "1", net, x: 15, y: 15, w: 4, h: 4, shape: "round", layer: "Multi", drill: 2, plated: false});
+  const make = net => { const d = board(); d.items.push(mh(net)); d.rules = set; d.pcbDrawing = {pours: PP.repourAll(d, new Map(), {reuse: false}).regions}; return d; };
+  let d = make("MH");
+  assert.deepEqual(P.verify(d, new Map(), set).violations.map(v => v.otherId + " " + v.actual), [], "0.6 mm from the MH land");
+  assert.ok(R.kit.extract(d, new Map(), {nettedCopperOnly: true}).copper.some(f => f.id === "mh" && f.net === "MH"), "the land is checked");
+  d = make("GND");
+  assert.deepEqual(P.verify(d, new Map(), set).violations, []);
+  require(require("../support/app-source-paths.cjs").appFile("connectivity.js"));
+  const C = AtriumConnectivity.inspect(d, new Map());
+  assert.deepEqual([C.shorts.length, C.airwires.length], [0, 0], "the pour keeps clear of its own net's land, which the ratsnest does not ask for");
+});
+
 test("pour extraction matches full DRC for persisted footprint nets, ties, and stack order", () => {
   const d = pour(board(), .2), tie = AtriumParts.catalogue.find(def => def.id === "std-nettie-2");
   const land = {x:0, y:0, w:.9, h:.9, shape:"round", layer:"Multi", drill:.25};

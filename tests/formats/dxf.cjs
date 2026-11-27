@@ -194,5 +194,61 @@ for(const mode of ["polyline","primitives"])for(const units of ["mm","in"]){
   assert.deepEqual(drawing.entities[0].segs[0].a, [0, -5]);
   assert.ok(drawing.warnings.some(warning => /malformed coordinates/.test(warning)));
 }
+// Every entity reads its geometry like LINE: a malformed value skips the entity (with a warning)
+// instead of becoming NaN or 0.
+{
+  const good = [[0,"LINE"],[8,"Good"],[10,0],[20,5],[11,10],[21,5]];
+  const cases = {
+    "polylines": [[0,"LWPOLYLINE"],[8,"Bad"],[90,2],[70,0],[10,0],[20,0],[10,"oops"],[20,5]],
+    "polylines bulge": [[0,"LWPOLYLINE"],[8,"Bad"],[90,2],[70,0],[10,0],[20,0],[42,"x"],[10,5],[20,5]],
+    "arcs": [[0,"ARC"],[8,"Bad"],[10,"nope"],[20,1],[40,2],[50,0],[51,90]],
+    "arcs angle": [[0,"ARC"],[8,"Bad"],[10,0],[20,1],[40,2],[50,"?"],[51,90]],
+    "circles": [[0,"CIRCLE"],[8,"Bad"],[10,0],[20,"y"],[40,2]],
+    "ellipses": [[0,"ELLIPSE"],[8,"Bad"],[10,0],[20,0],[11,"a"],[21,0],[40,.5]],
+    "splines": [[0,"SPLINE"],[8,"Bad"],[70,0],[71,1],[11,0],[21,0],[11,"b"],[21,1]],
+    "polylines vertex": [[0,"POLYLINE"],[8,"Bad"],[66,1],[70,0],[0,"VERTEX"],[8,"Bad"],[10,0],[20,0],[0,"VERTEX"],[8,"Bad"],[10,"c"],[20,4],[0,"SEQEND"]],
+    "block inserts": [[0,"INSERT"],[8,"Bad"],[2,"B"],[10,"d"],[20,0]],
+  };
+  const block = sec("BLOCKS",[[0,"BLOCK"],[8,"0"],[2,"B"],[10,0],[20,0],[0,"LINE"],[8,"0"],[10,0],[20,0],[11,1],[21,0],[0,"ENDBLK"]]);
+  for (const [name, entity] of Object.entries(cases)) {
+    const drawing = X.read(dxf(header(4), block, sec("ENTITIES", entity, good)));
+    assert.deepEqual(drawing.entities.map(e => e.layer), ["Good"], name);
+    assert.ok(drawing.entities.every(e => e.segs.every(g => JSON.stringify(g).indexOf("null") < 0)), name);
+    assert.ok(drawing.warnings.some(w => w.startsWith("DXF " + name.split(" ")[0]) && /malformed coordinates were skipped/.test(w)), name + ": " + drawing.warnings);
+  }
+  // A block whose base point is malformed is not defined, so its inserts are skipped.
+  const badBase = X.read(dxf(header(4), sec("BLOCKS",[[0,"BLOCK"],[8,"0"],[2,"B"],[10,"e"],[20,0],[0,"LINE"],[8,"0"],[10,0],[20,0],[11,1],[21,0],[0,"ENDBLK"]]),
+    sec("ENTITIES",[[0,"INSERT"],[8,"Ins"],[2,"B"],[10,0],[20,0]], good)));
+  assert.deepEqual(badBase.entities.map(e => e.layer), ["Good"]);
+  assert.ok(badBase.warnings.some(w => /malformed base point/.test(w)));
+  // A malformed entity is reported once, by its own warning, not again in the skipped-type summary.
+  for (const [type, entity] of [["INSERT", cases["block inserts"]], ["CIRCLE", cases.circles]]) {
+    const drawing = X.read(dxf(header(4), block, sec("ENTITIES", entity, good)));
+    assert.equal(drawing.warnings.filter(w => /malformed/.test(w)).length, 1, type + ": " + drawing.warnings);
+    assert.ok(!drawing.warnings.some(w => w.startsWith(type + " entities were skipped")), type + ": " + drawing.warnings);
+  }
+}
+// A missing coordinate group reads as 0, as DXF has always read it; only a present but malformed
+// value skips the entity. A LINE still needs all four end-point coordinates.
+{
+  const cases = {
+    circle: [[0,"CIRCLE"],[8,"A"],[10,5],[40,2]],
+    arc: [[0,"ARC"],[8,"A"],[20,5],[40,2],[50,0],[51,90]],
+    polyline: [[0,"LWPOLYLINE"],[8,"A"],[90,2],[70,0],[10,0],[10,5],[20,5]],
+    "polyline vertex": [[0,"POLYLINE"],[8,"A"],[66,1],[70,0],[0,"VERTEX"],[8,"A"],[20,1],[0,"VERTEX"],[8,"A"],[10,4],[20,1],[0,"SEQEND"]],
+    spline: [[0,"SPLINE"],[8,"A"],[70,0],[71,1],[11,0],[11,4],[21,1]],
+  };
+  const first = {circle: g => g.c, arc: g => g.c, polyline: g => g.a, "polyline vertex": g => g.a, spline: g => g.a};
+  const at = {circle: [5, 0], arc: [0, -5], polyline: [0, 0], "polyline vertex": [0, -1], spline: [0, 0]};
+  for (const [name, entity] of Object.entries(cases)) {
+    const drawing = X.read(dxf(header(4), sec("ENTITIES", entity)));
+    assert.equal(drawing.entities.length, 1, name + ": " + drawing.warnings);
+    assert.deepEqual(first[name](drawing.entities[0].segs[0]).map(v => v + 0), at[name], name);
+    assert.ok(!drawing.warnings.some(w => /malformed/.test(w)), name + ": " + drawing.warnings);
+  }
+  const line = X.read(dxf(header(4), sec("ENTITIES", [[0,"LINE"],[8,"A"],[10,0],[20,5],[11,10]])));
+  assert.equal(line.entities.length, 0);
+  assert.ok(line.warnings.some(w => /missing or malformed coordinates/.test(w)));
+}
 
 console.log("dxf tests passed");

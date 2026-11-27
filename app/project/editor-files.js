@@ -119,12 +119,17 @@ globalThis.AtriumEditorFiles = (() => {
     return true;
   }
   function addDocument(kind,host,accept) {
-    const board = kind === "pcb", base = board ? "PCB layout" : "Schematic";
+    const board = kind === "pcb", base = board ? "PCB layout" : "Schematic", owner = host.project();
     const names = new Set(host.documentRefs().map(d => d.name.trim().toLowerCase()));
     let next = 1;
     while (names.has((base + " " + next).toLowerCase())) next++;
-    promptValue(board ? "Add PCB layout" : "Add schematic sheet",base + " " + next,name => {
-      if (!validName(host,name,kind)) return;
+    promptValue(board ? "Add PCB layout" : "Add schematic sheet",base + " " + next,async name => {
+      if (host.project() !== owner) return;
+      if (board && !globalThis.AtriumConnectivity) {
+        try { await globalThis.AtriumLazy.need("AtriumConnectivity"); }
+        catch (error) { if (host.project() === owner) host.info(error.message); return; }
+      }
+      if (host.project() !== owner || !validName(host,name,kind)) return;
       const offered = globalThis.Atrium.sheet(kind,name);
       globalThis.AtriumPrefs?.sheetDefaults?.(offered);
       accept(offered);

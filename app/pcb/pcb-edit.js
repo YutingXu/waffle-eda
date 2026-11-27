@@ -338,7 +338,7 @@ globalThis.AtriumPCBEdit = (() => {
     for (const i of items) {
       value = o.values?.has(i.id) ? o.values.get(i.id) : base;
       if (key === "locked") { if (value) i.locked = true; else delete i.locked; n++; continue; }
-      if (key === "angle" && i.kind === "part") { const moved = A().transformPart(doc, i, defs.get(i.def), {angle: norm(value)}); if (o.touched) for (const obj of moved) o.touched.add(obj); n++; continue; }
+      if (key === "angle" && i.kind === "part") { const moved = A().transformPart(doc, i, defs.get(i.def), {angle: norm(value)}, undefined, {defs}); if (o.touched) for (const obj of moved) o.touched.add(obj); n++; continue; }
       if ((key === "diameter" && !(value > (i.drill || 0))) || (key === "drill" && !(value < i.diameter))) continue;
       if (key === "net" && !value) { delete i.net; n++; continue; }
       i[key] = value; n++;
@@ -686,8 +686,9 @@ globalThis.AtriumPCBEdit = (() => {
       if (globalThis.AtriumPCBSelectionInspector) render(globalThis.AtriumPCBSelectionInspector, parent);
       else globalThis.AtriumLazy?.appendOnLoad("AtriumPCBSelectionInspector", parent, render, ctx.info);
     }
-    function inspectItem(section, item) {
-      addProperties(section, (ui, target) => ui.inspectItem(target, item));
+    // group(key): the named Properties group (editor.js inspectBody) for rows that belong elsewhere than the object's section.
+    function inspectItem(section, item, group) {
+      addProperties(section, (ui, target) => ui.inspectItem(target, item, group));
     }
     function inspectMulti(panel, section) {
       addProperties(panel, (ui, target) => ui.inspectMulti(target, section));

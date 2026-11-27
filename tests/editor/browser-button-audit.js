@@ -39,7 +39,7 @@ function audit(scope = "dialog[open], #properties, .dock-panel, .panel") {
   const exempt = b => b.closest('[role="menu"], [role="menubar"], [role="tablist"], [role="listbox"], [role="tree"], [role="grid"], [role="toolbar"], nav, .nav-rows, .menu-items, summary, th, li, .se-tabs') ||
     b.hasAttribute("aria-expanded") || b.hasAttribute("aria-pressed") && b.parentElement.querySelectorAll(":scope > button").length > 1 ||
     /^(menuitem|tab|option|treeitem|row|gridcell|switch|radio)$/.test(b.getAttribute("role") || "") ||
-    b.matches(".icon-button, .ui-icon-button, [class*=close], [class*=-row], [class*=row-], .lib-row, .library-row, .cat-row, .fe-tool, .lib-chip, .chip, [class*=swatch], [class*=-tab], [class*=card], .km-keys") || !b.textContent.trim() ||
+    b.matches(".icon-button, .ui-icon-button, [class*=close], [class*=-row], [class*=row-], .lib-row, .library-row, .cat-row, .fe-tool, .lib-chip, .chip, [class*=swatch], [class*=-tab], [class*=card], .ui-shortcut-edit") || !b.textContent.trim() ||
     b.querySelector("svg, canvas, img") && b.textContent.trim().length <= 2;
   const out = [];
   for (const root of document.querySelectorAll(scope)) for (const b of root.querySelectorAll("button")) {

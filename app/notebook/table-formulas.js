@@ -5,8 +5,9 @@
 globalThis.AtriumTableFormulas = (() => {
   const G=globalThis,T=G.AtriumTableData,graph=()=>G.AtriumCalculationGraph;
   const address=/^(\$?)([A-Za-z]{1,3})(\$?)([1-9]\d{0,5})$/;
-  // Consume quoted text and qualified design names before considering an A1 token.
-  const tokens=/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:(?:[\p{L}_][\p{L}\p{N}_]*\.)*[\p{L}_][\p{L}\p{N}_]*::)?[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)+|\$?[A-Za-z_][A-Za-z_0-9]*\$?\d*|<>/gu;
+  // Consume a net field (the calculation lexer's spelling, including quoted and
+  // digit-led net names), quoted text and qualified design names before an A1 token.
+  const tokens=new RegExp("(?:"+G.AtriumCalculationIntent.netField+")|"+/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:(?:[\p{L}_][\p{L}\p{N}_]*\.)*[\p{L}_][\p{L}\p{N}_]*::)?[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)+|\$?[A-Za-z_][A-Za-z_0-9]*\$?\d*|<>/u.source,"giu");
   const failed=(code,message,span)=>({ok:false,diagnostic:{code,message,span}});
   function axis(s,token) {
     const m=address.exec(token);

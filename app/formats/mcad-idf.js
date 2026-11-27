@@ -8,7 +8,7 @@
 // The .emn has HEADER, BOARD_OUTLINE (thickness; loop 0 counter-clockwise, cutouts clockwise, each
 // loop closed by repeating its first point; an arc is the included angle on its end point, a
 // circle a centre then a point with 360), DRILLED_HOLES, PLACE_KEEPOUT / ROUTE_KEEPOUT /
-// VIA_KEEPOUT / PLACE_REGION and PLACEMENT. Units are MM. Y is up (Waffle's Y negated). IDF has
+// VIA_KEEPOUT / PLACE_REGION and PLACEMENT. Slotted holes are cutout loops (IDF 3.0 holes are round). Units are MM. Y is up (Waffle's Y negated). IDF has
 // no object identifiers: components match by designator, holes by position and diameter.
 // Imported text is untrusted: size, line and loop caps; nothing is evaluated or fetched.
 globalThis.AtriumIDF = (() => {
@@ -50,8 +50,12 @@ globalThis.AtriumIDF = (() => {
     L.push(...loopRecords(0, b.contour, b.outline, true));
     const cuts = b.cutoutContours?.length ? b.cutoutContours : b.cutouts;
     cuts.forEach((c, i) => L.push(...loopRecords(i + 1, b.cutoutContours?.length ? c : null, b.cutoutContours?.length ? null : c, false)));
+    // IDF 3.0 drilled holes are round: a slot is a cutout loop on its outline (AtriumMCAD.compare reads it back as the hole).
+    const slots = snap.holes.filter(h => h.slot);
+    slots.forEach((h, i) => L.push(...loopRecords(cuts.length + i + 1, MC.slotContour(h.slot[0], h.slot[1], h.d), null, false)));
     L.push(".END_BOARD_OUTLINE", ".DRILLED_HOLES");
     for (const h of snap.holes) {
+      if (h.slot) continue;
       const owner = h.owner ? snap.index.get(h.owner) : null;
       L.push(n6(h.d) + " " + n6(h.x) + " " + n6(-h.y) + " " + (h.plated ? "PTH" : "NPTH") + " " + (owner ? q(owner.ref) : "BOARD") + " " + (owner ? (h.plated ? "PIN" : "MTG") : h.via ? "VIA" : "MTG") + " ECAD");
     }
@@ -70,7 +74,8 @@ globalThis.AtriumIDF = (() => {
     L.push(".PLACEMENT");
     const packages = new Map();
     for (const p of snap.parts) {
-      const geom = p.package, part = p.def + (p.height ? "_" + n6(p.height) : "");
+      // A mirrored part (pcb-appearance.js) has its own, reflected package outline.
+      const geom = p.package, part = p.def + (p.height ? "_" + n6(p.height) : "") + (p.mirror ? "_mirrored" : "");
       L.push(q(geom) + " " + q(part) + " " + q(p.ref), n6(p.x) + " " + n6(-p.y) + " 0 " + n6(MC.norm(-p.angle)) + " " + (p.side === "Bottom" ? "BOTTOM" : "TOP") + " " + (p.locked ? "ECAD" : "PLACED"));
       if (!packages.has(geom + "|" + part)) packages.set(geom + "|" + part, {geom, part, p});
     }
@@ -201,12 +206,17 @@ globalThis.AtriumIDF = (() => {
           if (curved?.has(l.label)) trace.approximate(item, "The keep-out's curved edges were sampled into a polygon.");
         }
       } else if (s.tag === "PLACEMENT") {
-        for (let i = 0; i + 1 < s.rows.length; i += 2) {
+        // Each component is a name record followed by a placement record (x y z rotation side ...).
+        // A line that does not start such a pair is skipped alone, so it cannot shift the pairing.
+        let stray = 0;
+        for (let i = 0; i < s.rows.length; i++) {
           const a = s.rows[i], b = s.rows[i + 1];
-          if (a.length < 3 || b.length < 5) continue;
+          if (a.length < 3 || !(b?.length >= 5)) { stray++; trace?.omitted("Component placement", s.tag + "/" + (i + 1), "The placement record is incomplete."); continue; }
+          i++;
           design.parts.push({ident: null, ref: a[2], x: num(b[0], "x") * scale, y: -num(b[1], "y") * scale, angle: M().norm(-num(b[3], "rotation")),
             side: /^BOTTOM$/i.test(b[4]) ? "Bottom" : "Top", height: heights.get(a[0] + "|" + a[1]) ?? null});
         }
+        if (stray) design.notes.push(stray + " incomplete .PLACEMENT line(s) were skipped.");
       } else if (s.tag !== "HEADER") trace?.omitted("IDF section", s.tag, "This section has no mechanical change proposal.");
     }
     // Footprint holes of placed parts are part of the footprint, not proposals: only free holes compare.

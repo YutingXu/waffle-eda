@@ -167,6 +167,40 @@ for (const c of corpus) {
   assert.equal(find(D.compare(p, q), "net.renamed"), undefined);
   assert.ok(D.compare(p, q).stats.suppressed.autoNetNames >= 1);
   assert.ok(find(D.compare(p, q, {ignoreAutoNetNames: false}), "net.renamed"));
+  // Only a whole generated name is one: a named net that starts with "Net-" is still renamed.
+  for (const [from, to, hidden] of [["Net-3V3", "Net-5V", false], ["SENSE", "NET5", false], ["Net-USB-DP", "Net-USB-DM", false],
+    ["Net-(R1-Pad2)", "Net-(R2-Pad2)", true], ["NetR1_2", "NetR2_2", true], ["Net-U$1-3", "Net-U$2-3", true]]) {
+    for (const i of p.documents[0].items) if (i.kind === "netlabel" && /^Net|^SENSE$/.test(i.text)) i.text = from;
+    for (const i of q.documents[0].items) if (i.kind === "netlabel" && /^Net|^SENSE$|^NET5$/.test(i.text)) i.text = to;
+    assert.equal(!find(D.compare(p, q), "net.renamed"), hidden, from + " -> " + to + (hidden ? " is not a rename" : " is a rename"));
+  }
+  for (const name of ["Net-R1-1", "Net-U1A-B3", "Net-R?-2", "Net-7", "NetC1_2", "NetU3_A14", "Net-(R1-Pad2)", "unconnected-(U1-PA3)", "N$12", "N00012", "N_4", "$$$1234", "$1N5"])
+    assert.ok(Atrium.isAutoNetName(name), name + " is generated");
+  for (const name of ["Net-3V3", "Net-5V", "Net-USB-DP", "NetCLK_IN", "NET5", "SENSE", "Net-", "unconnected-", "N$", "VCC", "", null, 5])
+    assert.ok(!Atrium.isAutoNetName(name), String(name) + " is named");
+  // Every name Waffle generates: designators without a number (J, TP) or none, pins with hyphens, the
+  // hierarchy's suffix for a name two nets share; and a name spelled as one of the net's own pins.
+  for (const name of ["Net-J-1", "Net-TP-1", "Net--1", "Net-R1-PAD-1", "Net-U1_CH1-1", "Net-U1-~RESET", "Net-Q1-S/D", "Net-Ω1-1", "NetJ_1", "NetU1_CH1_1", "Net-R1-2_Sheet_2", "Net-J-1_2", "Net-7_2"])
+    assert.ok(Atrium.isAutoNetName(name), name + " is generated");
+  for (const name of ["Net-VCC-3V3", "Net-LED", "Net-USB-DP_N", "NetVCC_IN"]) assert.ok(!Atrium.isAutoNetName(name), name + " is named");
+  assert.ok(!Atrium.isAutoNetName("Net-U1-1 2") && Atrium.isAutoNetName("Net-U1-1 2", [["U1", "1 2"]]) && Atrium.isAutoNetName("Net-USB-DP", [["R1", "1"], ["USB", "DP"]]));
+  assert.ok(!Atrium.isAutoNetName("Net-USB-DP", [["R1", "1"]]) && !Atrium.isAutoNetName("Net-USB-DP", {autoNames: new Set(["Net-USB-DM"])}));
+  {
+    // The unlabelled example sheet under odd designators and pin numbers: connectivity names every net, and every name counts as generated.
+    const ex = AtriumParts.example(), sheet = ex.documents.find(d => d.kind === "schematic"), defs = new Map(ex.library.map(d => [d.id, d]));
+    sheet.items = sheet.items.filter(i => i.kind !== "netlabel");
+    const refs = sheet.items.filter(i => i.kind === "part"), numbers = ex.library.flatMap(d => d.symbol?.pins || []);
+    for (const [ref, pin] of [[(r, k) => r.ref.replace(/\d+$/, ""), n => n], [() => "", n => n], [r => r.ref, n => "PAD-" + n], [r => r.ref, n => n + " B"], [r => r.ref.replace(/\d+$/, ""), n => "P" + n]]) {
+      const P = clone({refs: refs.map(r => r.ref), numbers: numbers.map(p => p.number)});
+      refs.forEach((r, k) => { r.ref = ref(r, k); }); numbers.forEach(p => { p.number = pin(String(p.number)); });
+      const conn = Atrium.connectivity(sheet, defs);
+      assert.ok(conn.nets.length > 2 && conn.nets.every(n => Atrium.isAutoNetName(n.name, conn)), conn.nets.map(n => n.name).join());
+      refs.forEach((r, k) => { r.ref = P.refs[k]; }); numbers.forEach((p, k) => { p.number = P.numbers[k]; });
+    }
+    sheet.items.push({id: "named", kind: "netlabel", text: "Net-USB-DP", x: 0, y: 0});
+    const named = Atrium.connectivity(sheet, defs);
+    assert.ok(!named.autoNames.has("Net-USB-DP") && !Atrium.isAutoNetName("Net-USB-DP", named), "a label nowhere near a pin's name stays named");
+  }
   // Regenerated pour fill and imported caches are ignored by default.
   const f = clone(a); f.documents[1].items.find(i => i.id === "gndpour").pourIndex = 3;
   assert.equal(D.compare(a, f).changes.length, 0);

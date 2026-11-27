@@ -99,7 +99,7 @@ globalThis.AtriumSchObjectTools = (() => {
         if (!parent) {c.info("This sheet is at the top of the hierarchy."); return;}
         c.selectDocument(parent.doc.id); c.choose?.(parent.symbol.id, true);
         const port = target?.port;
-        c.info("Up to " + parent.doc.name + (port ? (parent.symbol.entries.some(e => e.name === port.text) ? " · entry " : " · no entry named ") + port.text : ""));
+        c.info("Up to " + parent.doc.name + (port ? (parent.symbol.entries.some(e => S.entryPort(e.name) === port.text) ? " · entry " : " · no entry named ") + port.text : ""));
         return;
       }
       case "sch-hierarchy-down": {
@@ -109,7 +109,7 @@ globalThis.AtriumSchObjectTools = (() => {
         if (!child) {c.info("The child sheet of " + s.name + " is missing. Choose it in Properties."); return;}
         c.selectDocument(child.id);
         if (target?.entry) {
-          const port = child.items.find(i => (i.kind === "port" || i.kind === "netlabel" && i.schPaint?.type === "port") && i.text === target.entry.name);
+          const port = child.items.find(i => (i.kind === "port" || i.kind === "netlabel" && i.schPaint?.type === "port") && i.text === S.entryPort(target.entry.name));
           if (port) c.choose?.(port.id, true);
         }
         c.info("Down to " + child.name + (S.repeatOf(s) ? " (channel 1 of " + s.name + ")" : "")); return;

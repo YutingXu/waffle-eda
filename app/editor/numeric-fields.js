@@ -367,6 +367,8 @@ globalThis.AtriumNumericFields = (() => {
           junctionCopies.set(i.id,{...i}); originals.set(i.id,i);
         }
       }
+      // A turn carries a power port or label sitting alone on a pin (Atrium.pinTags).
+      if(field==="angle")for(const tag of A.pinTags(doc,defs,owner)){wires.push({...tag});originals.set(tag.id,tag);}
       const [part,...changed]=A.transformPart(doc,{...owner},definition,{[field]:value},wires,{defs,junctionCopies});
       return [{original:owner,next:part,fields:[field]},...changed.flatMap(next=>{
         const original=originals.get(next.id);
@@ -668,7 +670,8 @@ globalThis.AtriumNumericFields = (() => {
       if(state.clearAfterClick){input.removeAttribute("aria-invalid");return;}
       if (!status && line) {
         status=doc.createElement("span"); status.className="numeric-field-preview"; status.id="numeric-preview-"+(++eventId);
-        status.setAttribute("role","status"); status.setAttribute("aria-live","polite"); input.after(status);
+        // In a property row the unit shares the field's box (ui-library.md › Property rows): the preview goes under the box.
+        status.setAttribute("role","status"); status.setAttribute("aria-live","polite"); (input.closest(".ui-prop-row > .ui-field-measure") || input).after(status);
         const before=input.getAttribute("aria-describedby"); input.setAttribute("aria-describedby",[before,status.id].filter(Boolean).join(" "));
       }
       if (status) {status.textContent=line || "";status.hidden=!line;status.classList.toggle("is-error",bad);}

@@ -16,24 +16,26 @@ globalThis.AtriumSchObjectInspector = (() => {
     }), {options:IO.map(v => [v, v[0].toUpperCase() + v.slice(1)])});
   }
   const el=(...args)=>globalThis.AtriumSchObjects.toolHost.el(...args);
+  // A property row (docs/ui-library.md › Property rows). A check is a switch; a unit suffix in the label,
+  // as in "Width (mm)", moves from the caption into the field. The label stays the field's name.
   function defaultField(parent, label, value, update, opt = {}) {
-    const l = el("label", null, "field-row"); l.append(el("span", label));
+    if (opt.check) return AtriumNavCommon.appendSwitchRow(parent, label, !!value, update);
+    const m = / \(([^()]{1,4})\)$/.exec(label), l = el("label", null, "ui-prop-row"); l.append(el("span", m ? label.slice(0, m.index) : label));
     let input;
-    if (opt.options) {input = el("select"); for (const [v, t] of opt.options) input.add(new Option(t, v)); input.value = value;}
-    else if (opt.check) {input = el("input"); input.type = "checkbox"; input.checked = !!value;}
-    else if (opt.area) {input = el("textarea"); input.rows = 4; input.value = value ?? "";}
-    else {input = el("input"); input.type = "text"; input.value = value ?? "";}
+    if (opt.options) {input = el("select", null, "ui-field"); for (const [v, t] of opt.options) input.add(new Option(t, v)); input.value = value;}
+    else if (opt.area) {input = el("textarea", null, "ui-field"); input.rows = 4; input.value = value ?? "";}
+    else {input = el("input", null, "ui-field"); input.type = "text"; input.value = value ?? "";}
     input.setAttribute("aria-label", label);
-    input.onchange = () => update(opt.check ? input.checked : input.value);
-    l.append(input); parent.append(l); return input;
+    input.onchange = () => update(input.value);
+    l.append(m && !opt.options ? AtriumNavCommon.measure(input, m[1]) : input); parent.append(l); return input;
   }
   // c: {edit, info, project(), doc(), units:{parse,value,unit}, selectDocument, choose}
   function inspector(s, item, c, {el, button, field = defaultField, descend, grid}) {
     const A = globalThis.Atrium;
-    const {POWER_TITLES, IO, SIDES, reflow, repeatOf, command, fitSymbol, make} = globalThis.AtriumSchObjects;
+    const {POWER_TITLES, IO, SIDES, reflow, repeatOf, command, fitSymbol, make, entryWires} = globalThis.AtriumSchObjects;
     const edit = fn => c.edit(fn), project = c.project();
     const len = (label, key, obj = item, min = 0) => {const input=field(s, label + " (" + c.unit() + ")", A.units.value(obj[key], c.unit()), v => {
-      const n = A.units.parse(v, c.unit()); if (!(n > min)) {c.info("Enter a length such as 0.25mm or 10mil."); return;} edit(() => {if (obj.widget && globalThis.AtriumSheetWidgets) {const [w,h]=AtriumSheetWidgets.size(obj.widget.type,key==="w"?n:obj.w,key==="h"?n:obj.h);obj.w=w;obj.h=h;} else obj[key]=n; if (obj.kind === "sheetsymbol") reflow(obj);});
+      const n = A.units.parse(v, c.unit()); if (!(n > min)) {c.info("Enter a length such as 0.25mm or 10mil."); return;} edit(() => {if (obj.widget && globalThis.AtriumSheetWidgets) {const [w,h]=AtriumSheetWidgets.size(obj.widget.type,key==="w"?n:obj.w,key==="h"?n:obj.h);obj.w=w;obj.h=h;} else if (obj.kind === "sheetsymbol") {const wires = entryWires(c.doc(), c.defs?.(), obj); obj[key]=n; reflow(obj); wires.apply(); wires.finish();} else obj[key]=n;});
     });
       globalThis.AtriumLazy?.numericField?.(input,{unit:c.unit(),storageUnit:"mm",nanometres:true,min:min+1e-6,
         locals:()=>globalThis.AtriumNumericFields.geometryLocals(item,c.doc().id),
@@ -47,7 +49,7 @@ globalThis.AtriumSchObjectInspector = (() => {
           if (now && now !== item.style && item.style === was) {const down = x => ["gnd", "signal", "earth"].includes(x) ? 3 : 1; if (item.direction === down(was)) item.direction = down(now); item.style = now;}
         })), "power", c);
         field(s, "Style", item.style, v => edit(() => {item.style = v;}), {options:Object.entries(POWER_TITLES)});
-        field(s, "Rotation (°)", String(item.direction), v => edit(() => {item.direction = +v;}), {options:[["0", "0 · Right"], ["1", "90 · Up"], ["2", "180 · Left"], ["3", "270 · Down"]]});
+        field(s, "Rotation (°)", String(item.direction), v => edit(() => {item.direction = +v;}), {options:[["0", "0° · Right"], ["1", "90° · Up"], ["2", "180° · Left"], ["3", "270° · Down"]]});
         field(s, "Show net name", item.showName !== false, v => edit(() => {item.showName = v;}), {check:true});
         break;
       case "port": case "offsheet":
@@ -56,7 +58,7 @@ globalThis.AtriumSchObjectInspector = (() => {
         if (item.kind === "port") {
           field(s, "Width (" + c.unit() + ")", item.width ? A.units.value(item.width, c.unit()) : "", v => edit(() => {const n = A.units.parse(v, c.unit()); if (n > 0) item.width = n; else delete item.width;}));
         }
-        field(s, "Rotation (°)", String((A.offsheetAngle(item) % 360 + 360) % 360), v => edit(() => {item.angle = +v + (item.schPaint?.offSheet ? (item.schPaint.direction || 0) * 90 : 0);}), {options:[["0", "0"], ["90", "90"], ["180", "180"], ["270", "270"]]});
+        field(s, "Rotation (°)", String((A.offsheetAngle(item) % 360 + 360) % 360), v => edit(() => {item.angle = +v + (item.schPaint?.offSheet ? (item.schPaint.direction || 0) * 90 : 0);}), {options:["0", "90", "180", "270"].map(a => [a, a + "°"])});
         break;
       case "sheetsymbol": {
         field(s, "Designator", item.name, v => v.trim() && edit(() => {item.name = v.trim();}));
@@ -68,7 +70,7 @@ globalThis.AtriumSchObjectInspector = (() => {
         const child = project.documents.find(d => d.id === item.sheet);
         const actions = el("div", null, "inspect-actions");
         if (child) actions.append(button("Open " + child.name, () => descend(item, null, c)), button("Sync entries", () => command("sch-sync-entries", {...c, selected:() => item})));
-        if (item.entries.length) actions.append(button("Fit to entries", () => edit(() => fitSymbol(item, {snug:true}))));
+        if (item.entries.length) actions.append(button("Fit to entries", () => edit(() => fitSymbol(item, {snug:true, doc:c.doc(), defs:c.defs?.()}))));
         else actions.append(button("Create child sheet", () => {
           const d = A.sheet("schematic", item.name.replace(/^U_/, "") || "Sheet");
           item.entries.forEach((e, n) => d.items.push(make("port", [0, n * grid * 2], {text:e.name, io:e.io})));

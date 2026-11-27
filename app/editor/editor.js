@@ -5,7 +5,7 @@
   let canvas=$("canvas"), view=AtriumCanvas.create(canvas);
   if(matchMedia("(max-width:620px)").matches)document.body.classList.add("hide-left","hide-right");
   const uid=A.id;
-  const {el, appendPropertyRow: row} = AtriumNavCommon;
+  const {el, appendPropertyRow: row, measure, button: navButton, icon} = AtriumNavCommon;
   function btn(text,act,cls) {const n=el("button",text,cls);n.type="button";if(typeof act==="function")n.onclick=act;else n.dataset.action=act;return n;}
   function inspectorButton(text,act,cls) {const n=btn(text,act,cls);return globalThis.AtriumUI?.button(n,"secondary")??n;}
   function info(text) {const node=$("status");if(node&&node.textContent!==text)node.textContent=text;}
@@ -54,8 +54,13 @@
   // pane keeps a copy of its state and re-renders only when its inputs change.
   const panes=[{canvas,stage:$("canvas-stage"),view,docId:null,state:null,version:0,sig:""}];
   // A view asks for an exact frame after a pan or zoom gesture and after deferred airwires (canvas.js).
-  function paneRepaint(p){if(!p.view)return;p.version++;if(p.covered)return;if(p===activePane)draw();else schedule();}
-  view.onRepaint?.(()=>paneRepaint(panes[0]));
+  function paneRepaint(p, cameraMoving=false){
+    if(!p.view)return;
+    // A superseded GPU text job must not settle the camera before its queued gesture draws.
+    if(cameraMoving&&p===activePane&&activeDirty&&frame&&viewportVisible&&!homeFit&&!p.covered&&!in3D(p))return;
+    p.version++;if(p.covered)return;if(p===activePane)draw();else schedule();
+  }
+  view.onRepaint?.(cameraMoving=>paneRepaint(panes[0],cameraMoving));
   let activePane=panes[0],splitState=null;
   function paneCoverage(c,covered){
     const p=panes.find(p=>p.canvas===c);
@@ -69,50 +74,16 @@
     p.view.pausePaint?.();
   }
   const splitKey="atrium-split-v1";
-  // Sash drags (dock or split). A pane whose full repaint is cheap follows the sash live: paneObserver redraws
-  // it in the frame of each layout change. A pane whose repaint costs more than PIN_MS (a dense board)
-  // would drop frames doing that, so it is pinned instead: its canvas, and the GPU board layer over it,
-  // keep their size with their centre where it was in the pane (the camera keeps the centre too), the pane
-  // clips them, and the sash's release unpins them for one exact repaint.
-  const PIN_MS=12;let sashFrozen=null;
-  function recordPaintCost(p,d,cost,reused){
-    // A resize invalidates the retained base. Keep the cost of rebuilding it across cached paints
-    // and tab switches, while a cheap full paint of another document can still resize live.
-    const costs=p.resizeCosts??=new WeakMap();
-    costs.set(d,reused?Math.max(cost,costs.get(d)||0):cost);
-  }
-  function freezePanes(extraWidth=0,extraHeight=0){
-    if(sashFrozen)return;
-    sashFrozen=[];
-    for(const p of panes){
-      const c=p.canvas,stage=c?.parentElement;
-      const d=p===activePane?doc():docById(p.docId);
-      if(!c?.isConnected||p.covered||!stage||!(p.resizeCosts?.get(d)>PIN_MS))continue;
-      const s=stage.getBoundingClientRect();
-      for(const n of [c,stage.querySelector(":scope>.atrium-gpu-board")]){
-        if(!n||getComputedStyle(n).display==="none")continue;
-        const r=n.getBoundingClientRect();if(!r.width||!r.height)continue;
-        sashFrozen.push([n,n.style.cssText]);
-        const x=`calc(50% + ${r.left-s.left-(s.width+extraWidth)/2}px)`;
-        const y=`calc(50% + ${r.top-s.top-(s.height+extraHeight)/2}px)`;
-        n.style.cssText+=`;position:absolute;margin:0;width:${r.width+extraWidth}px;height:${r.height+extraHeight}px;left:${x};top:${y}`+
-          `;left:round(nearest,${x},1px);top:round(nearest,${y},1px)`;
-      }
-    }
-  }
-  function thawPanes(){if(!sashFrozen)return;for(const [n,css] of sashFrozen)n.style.cssText=css;sashFrozen=null;}
-  document.addEventListener("pointerdown",e=>{
-    const sash=e.button===0&&e.target.closest?.(".dock-sash,#canvas-sash");
-    if(!sash)return;
-    // Reserve the largest pane the dock can reveal, then hold that paint.
-    const kind=sash.dataset.sash, bounds=sash.parentElement.getBoundingClientRect();
-    const min=Number(sash.getAttribute("aria-valuemin"));
-    const extraWidth=kind==="left"||kind==="right" ? Math.max(0,bounds.width-min) : 0;
-    const extraHeight=kind==="bottom" ? Math.max(0,bounds.height-min) : 0;
-    freezePanes(extraWidth,extraHeight);
-  },true);
-  addEventListener("resize",thawPanes);
   let homeFit=null,openFit=null;
+  // A pane whose size changed with nothing else (a dock or split sash, the window, a panel shown or hidden)
+  // draws a retained frame: the view keeps its centre, so the renderers move the pixels they hold, paint
+  // what a larger pane uncovers, and draw the exact frame once the size has rested (as after a pan).
+  function paneResized(p,rect){
+    const quiet=p.size?.[0]&&p.size[1]&&(p===activePane?!activeDirty:p.sig===otherSig(p));
+    p.size=[rect.width,rect.height];p.view?.resized?.(rect);
+    if(quiet)p.view?.moving?.();
+    p.version++;if(p===activePane)activeDirty=true;
+  }
   // A pane that changes size (a dock or split sash, a panel opening, the window) is redrawn in this
   // same frame: the observer runs after layout and before paint, so the canvas never shows a stretched,
   // cleared or stale bitmap, or a void beside it, for one frame.
@@ -122,7 +93,7 @@
       const p=panes.find(q=>q.canvas===e.target);if(!p)continue;
       const w=e.contentRect.width,h=e.contentRect.height;
       if(p.size&&p.size[0]===w&&p.size[1]===h)continue; // this frame's paint already measured and drew it
-      p.size=[w,h];p.view?.resized?.(e.contentRect);p.version++;if(p===activePane)activeDirty=true;
+      paneResized(p,e.contentRect);
       if(homeFit&&p===panes[0]&&e.contentRect.width&&e.contentRect.height){
         const target=homeFit;homeFit=null;
         if(p===activePane&&doc()===target&&starter)fit(e.contentRect);
@@ -141,20 +112,20 @@
     const base=l=>l.split("@")[0],links=new Set();for(const i of source.items)if(i.link&&ids.has(i.id))links.add(base(i.link));
     return links.size?target.items.filter(i=>i.link&&links.has(base(i.link))).map(i=>i.id):[];
   }
+  const otherSig=p=>[revision,p.docId,highlight,showUnrouted,grid,selectionVersion,p.version,navVersion].join("|");
   function renderOther(trace){
     const p=otherPane(),d=p&&!p.covered&&docById(p.docId);if(!d)return;
-    const same=d===doc(),sig=[revision,d.id,highlight,showUnrouted,grid,selectionVersion,p.version,navVersion].join("|");
+    const same=d===doc(),sig=otherSig(p);
     if(!same&&sig===p.sig)return;
-    p.sig=sig;const t=performance.now();
+    p.sig=sig;
     const st=p.state,ids=same?selectedIds:new Set(linkedIds(d,doc(),selectedIds));
     const schematicHighlightIds=schematicHighlight(d)?.ids;
     const netByWire=d.kind!=="pcb"&&highlight&&!schematicHighlightIds?nets(d).byWire:undefined;
     const opts={hidden:st.hidden,layer:st.layer,layerMode:st.layerMode,grid,selected:same?selected:ids.values().next().value??null,selectedIds:ids,highlight,showUnrouted,
       transientGeometry:same&&!!drag?.before,routing:false,width:routeWidth,netByWire,schematicHighlightIds,...navRender(d,{active:false,same}),editorPane:true};
     const started=trace?performance.now():0;
-    const reused=p.view.render(d,defs,opts);
-    const end=performance.now();recordPaintCost(p,d,end-t,reused);
-    if(trace&&p.size?.[0]&&p.size[1])trace.draw(p.canvas,started,end);
+    p.view.render(d,defs,opts);
+    if(trace&&p.size?.[0]&&p.size[1])trace.draw(p.canvas,started,performance.now());
   }
   function activatePane(p){
     if(!p?.view||p===activePane)return;
@@ -210,7 +181,7 @@
       };
       // One layout per frame; the panes then redraw in that frame (paneObserver).
       const follow=ev=>{last={clientX:ev.clientX,clientY:ev.clientY};if(!raf)raf=requestAnimationFrame(apply);};
-      const done=()=>{if(raf)cancelAnimationFrame(raf);apply();thawPanes();sash.classList.remove("is-dragging");sash.removeEventListener("pointermove",follow);sash.removeEventListener("pointerup",done);sash.removeEventListener("pointercancel",done);saveSplit();};
+      const done=()=>{if(raf)cancelAnimationFrame(raf);apply();sash.classList.remove("is-dragging");sash.removeEventListener("pointermove",follow);sash.removeEventListener("pointerup",done);sash.removeEventListener("pointercancel",done);saveSplit();};
       sash.addEventListener("pointermove",follow);sash.addEventListener("pointerup",done);sash.addEventListener("pointercancel",done);
     });
     sash.addEventListener("dblclick",()=>{splitState.ratio=.5;applySplitLayout();saveSplit();});
@@ -242,7 +213,7 @@
     const saved=documentViews.get(id);
     const p={canvas:c,stage,view:AtriumCanvas.create(c),docId:id,version:0,sig:"",
       state:saved?{refScale:saved.refScale,hidden:new Set(saved.hidden),layer:saved.layer,layerMode:saved.layerMode}:{refScale:1,hidden:new Set(),layer:"Top",layerMode:"all"}};
-    panes.push(p);p.view.saveWritePending?.(folderPending||folderSaving);p.view.onRepaint?.(()=>paneRepaint(p));splitState={orientation,ratio:clampRatio(ratio)};applySplitLayout();
+    panes.push(p);p.view.saveWritePending?.(folderPending||folderSaving);p.view.onRepaint?.(cameraMoving=>paneRepaint(p,cameraMoving));splitState={orientation,ratio:clampRatio(ratio)};applySplitLayout();
     bindCanvas(c);bindSash(sash);paneObserver.observe(c);
     // The new pane is narrower than the canvas any saved camera came from: fit it.
     p.view.fit(d,defs);p.state.refScale=p.view.scale()||1;
@@ -612,6 +583,11 @@
   }
   function draw(){activeDirty=true;pointerOnly=false;for(const p of panes)p.view?.settle?.();schedule();}
   function redraw(all=false){if(all===true)for(const p of panes)p.version++;draw();}
+  function redrawPourLOD(){
+    const d=viewportVisible&&panes.length===1&&visibleBoardForPaint(activePane);
+    // An already queued same-pane GPU settle also publishes the new display contours.
+    if(d?.kind!=="pcb"||!globalThis.AtriumCanvasGPU?.canDeferPourLODRedraw?.(view.internals(),d))redraw();
+  }
   // perf1: a frame asked for only because the pointer moved (no other draw() before it) may reuse the board layer.
   var pointerOnly=false;
   function drawPointer(){const fresh=!activeDirty||pointerOnly;draw();if(fresh)pointerOnly=true;}
@@ -624,7 +600,7 @@
       const c=p.canvas;if(!p.view||!c?.isConnected)continue;
       const r=c.getBoundingClientRect(),w=r.width,h=r.height;
       if(p.size&&p.size[0]===w&&p.size[1]===h)continue;
-      p.size=[w,h];p.view.resized?.(r);p.version++;if(p===activePane)activeDirty=true;
+      paneResized(p,r);
     }
   }
   function paintFrame(launch=false){
@@ -633,10 +609,7 @@
     measurePanes();fitRevealed();globalThis.Atrium3D?.refresh?.();
     if(activeDirty&&!activePane.covered){
       activeDirty=false;
-      if(!in3D(activePane)){
-        const p=activePane,d=doc(),t=performance.now(),reused=renderActive(trace);
-        recordPaintCost(p,d,performance.now()-t,reused);
-      }
+      if(!in3D(activePane))renderActive(trace);
     }
     if(!in3D(otherPane()))renderOther(trace);
     if(viewportVisible){requestBoardRenderer();navEmit("frame");}
@@ -819,9 +792,10 @@
     parent.append(details);
   }
   function section(parent,title){const s=el("section",null,"inspect-section");s.append(el("h3",title));parent.append(s);return s;}
+  // The label names the field; a unit suffix, "X (mm)", moves into the field.
   function field(parent,label,value,update,opt={}) {
-    const l=el("label",null,"field-row"), inp=el(opt.values?"select":"input",null,"ui-field");
-    l.append(el("span",label));if(opt.values){for(const entry of opt.values){const [v,t]=Array.isArray(entry)?entry:[entry,entry];inp.add(new Option(t,v));}}
+    const m=/ \(([^()]{1,4})\)$/.exec(label),u=opt.values?"":opt.length?unit():m?.[1],l=el("label",null,"ui-prop-row"), inp=el(opt.values?"select":"input",null,"ui-field");
+    const c=el("span",m?label.slice(0,m.index):label);c.title=c.textContent;l.append(c);if(opt.values){for(const entry of opt.values){const [v,t]=Array.isArray(entry)?entry:[entry,entry];inp.add(new Option(t,v));}}
     else if(opt.length){inp.type="text";inp.inputMode="decimal";inp.autocomplete="off";inp.spellcheck=false;inp.dataset.unit=unit();inp.title="Value in "+unit()+". Suffixes such as mil, mm or in are accepted.";value=value==null?"":String(U.value(value,unit()));}
     else {inp.type=opt.number?"number":"text";if(opt.number)inp.step=String(opt.step||"any");if(opt.min!=null)inp.min=String(opt.min);}
     inp.value=value??"";inp.setAttribute("aria-label",label);
@@ -845,7 +819,7 @@
         update(v);return;
       }
       const v=opt.number?Number(inp.value):opt.values?inp.value:inp.value.trim();if((opt.number&&(!inp.value||!Number.isFinite(v)||Math.abs(v)>1e7||v<(opt.min??-Infinity)))||(!opt.number&&!v&&!opt.allowEmpty)){inp.value=value;return;}update(v);};
-    l.append(inp);parent.append(l);return inp;
+    l.append(u?measure(inp,u):inp);parent.append(l);return inp;
   }
   function amend(fn,label,touched,scope){
     if(globalThis.AtriumRevisions?.guard?.(project))return false;
@@ -967,23 +941,31 @@
       if(routing())field(s,unitLabel("Width"),routeWidth,v=>{routeWidth=v;routeWidthSet=true;routeSession?.setWidth?.(v);routePointer=null;draw();},{length:true,min:.001});
       field(s,"Net",routeNet,v=>{routeNet=v;},{allowEmpty:true});}
     if(item){
-      const def=defs.get(item.def),editItem=fn=>edit(fn,undefined,[item]);const s=section(panel,item.kind==="part"?item.ref:globalThis.AtriumSchObjects?.isFrame(item)?"Frame":item.calculation?"Calculation":propLabel[item.kind]||"Object");
+      const def=defs.get(item.def),editItem=fn=>edit(fn,undefined,[item]),board=pcb()&&item.kind==="part";const s=section(panel,item.kind==="part"?item.ref:globalThis.AtriumSchObjects?.isFrame(item)?"Frame":item.calculation?"Calculation":propLabel[item.kind]||"Object");
+      // group(key): a named section in a fixed order, whoever asks first; another key is s. A module that
+      // loads after shell.js has made the section collapsible gets its body, so its rows collapse too.
+      const order=board?["Placement","Show on board","3D body","Parameters"]:pcb()&&item.kind==="track"?["Mask expansion"]:[],at={};
+      const group=(key,node)=>{if(!order.includes(key))return s;const g=at[key]||=((order.slice(0,order.indexOf(key)).reverse().map(k=>at[k]).find(Boolean)||s).after(node||=section(document.createDocumentFragment(),key)),node);
+        return g.querySelector(":scope > .ui-collapse > .ui-collapse-content")||g;};
       if(item.kind==="part"){
         if(pcb()&&!globalThis.AtriumSupportPlace)globalThis.AtriumLazy?.need?.("AtriumSupportPlace").catch(()=>{});
-        row(s,pcb()?"Footprint":"Symbol",pcb()?def.footprint.name||def.name:def.name);
-        
+        const lib=board?["Footprint",def.footprint.name||def.name]:["Symbol",def.name];
+        if(!board)row(s,...lib);
         field(s,"Designator",item.ref,v=>{if(doc().items.some(i=>i!==item&&i.kind==="part"&&i.ref===v)){info("This designator is already in use.");inspect();return;}editItem(()=>{item.ref=v;});});
         field(s,"Comment",item.value,v=>editItem(()=>{item.value=v;}),{allowEmpty:true,key:"value",valueUnit:true,
           numericUnit:({R:"Ω",C:"F",L:"H"})[String(defs.get(item.def)?.prefix || item.ref || "").charAt(0).toUpperCase()]});
+        if(board)row(s,...lib);
         const otherDocs=project.documents.filter(x=>x.kind!==d.kind);
         const matches=otherDocs.flatMap(x=>x.items.filter(y=>item.link&&y.link===item.link).map(y=>[x,y]));
-        if(matches.length)s.append(inspectorButton(pcb()?"Show in schematic":"Show on board",async()=>{
+        const go=async()=>{
           const owner=doc(), version=selectionVersion;
           let probe=globalThis.AtriumCrossProbe;
           try{probe??=await globalThis.AtriumLazy?.need("AtriumCrossProbe");}catch{/* use the existing matched component */}
           if(doc()!==owner||selectionVersion!==version||probe?.probeSelection())return;
           const [od,oi]=matches[0];selectDocument(od.id);choose(oi.id,true);
-        }));
+        };
+        if(matches.length&&board){const h=el("div",null,"inspect-section-heading"),b=navButton("",go,"ui-icon-button","Show in schematic");b.append(icon("schematic"));h.append(s.firstChild,b);s.prepend(h);}
+        else if(matches.length)s.append(inspectorButton("Show on board",go));
         else if(!pcb()){s.append(inspectorButton("Place footprint on board",()=>{focusedPart=item;if(def.footprint)placeLinked(def);else {swapFootprint=item;showLibrary("pcb");}}));}
       }
       if(!pcb()&&globalThis.AtriumSchObjects){if(item.kind==="part")AtriumSchObjects.partParameters(panel,item,def,schCtx(editItem));else if(AtriumSchObjects.KINDS.has(item.kind))AtriumSchObjects.inspector(s,item,schCtx(editItem));}
@@ -991,15 +973,15 @@
       else if(item.kind==="label"||item.kind==="netlabel")field(s,"Text",item.text,v=>editItem(()=>{item.text=v;if(item.autoName)delete item.autoName;}));
       if(!pcb())globalThis.AtriumSchObjects?.directives?.(s,item,schCtx(editItem));
       if("x" in item){
-        for(const k of ["x","y"])field(s,unitLabel(k.toUpperCase()),item[k],v=>item.kind==="part"?editTransform(item,{[k]:v}):globalThis.AtriumSchObjects?.isFrame(item)?nudgeSelection(k==="x"?v-item.x:0,k==="y"?v-item.y:0):editItem(()=>{item[k]=v;}),{length:true,key:k});
-        if(item.kind==="part")field(s,"Rotation (°)",item.angle||0,v=>editTransform(item,{angle:v%360}),{number:true,numericUnit:"deg",key:"angle",period:360});
+        const p=group("Placement");
+        for(const k of ["x","y"])field(p,unitLabel(k.toUpperCase()),item[k],v=>item.kind==="part"?editTransform(item,{[k]:v}):globalThis.AtriumSchObjects?.isFrame(item)?nudgeSelection(k==="x"?v-item.x:0,k==="y"?v-item.y:0):editItem(()=>{item[k]=v;}),{length:true,key:k});
+        if(item.kind==="part")field(p,"Rotation (°)",item.angle||0,v=>editTransform(item,{angle:v%360}),{number:true,numericUnit:"deg",key:"angle",period:360});
       }
       if(pcb())globalThis.AtriumPCBDraw?.inspectItem(s,item);
-      pcbEdit?.inspectItem(s,item);
+      pcbEdit?.inspectItem(s,item,group);
       if(item.kind==="part"){
-        const extend=inspector=>inspector.extend(s,item,def,{pcb:pcb(),unit:unit(),edit:editItem,info});
-        if(globalThis.AtriumPartInspector)extend(AtriumPartInspector);
-        else globalThis.AtriumLazy?.need("AtriumPartInspector").then(inspector=>{if(s.isConnected)extend(inspector);},e=>info(e.message));
+        const extend=(inspector,target)=>inspector.extend(target,item,def,{pcb:pcb(),unit:unit(),edit:editItem,info,group});
+        if(globalThis.AtriumPartInspector)extend(AtriumPartInspector,s);else globalThis.AtriumLazy?.appendOnLoad("AtriumPartInspector",s,extend,info);
       }
       if(item.kind==="wire"&&nets().byWire.has(item.id))row(s,"Connected net",nets().byWire.get(item.id));
       if(item.points && ["wire","track"].includes(item.kind) && !A.pathArc(item)){
@@ -1069,6 +1051,23 @@
     }
     tool="place";canvas.focus();pending=def;focusedPart=other;single(null);syncTools();inspect();info("Click to place "+(other?.ref||def.name)+". Space rotates.");draw();
   }
+  function placeDefinition(def,kind=doc().kind,close=false){
+    if(!def&&!close)return false;
+    if(!A.geometries(def,kind)){info("This component has no "+(kind==="pcb"?"footprint":"symbol")+".");return false;}
+    if(doc().kind!==kind){
+      const target=A.preferredDocument(project,kind,current);
+      if(!target){info("Add a "+(kind==="pcb"?"board layout":"schematic sheet")+" first.");return false;}
+      selectDocument(target.id);
+    }
+    if(close&&dialog.open)dialog.close();
+    beginPlace(defs.get(def.id)||def);
+    return true;
+  }
+  function locateDocumentItem(id){
+    const owner=project.documents.find(d=>d.items.some(i=>i.id===id));
+    if(owner&&owner.id!==current)selectDocument(owner.id);
+    choose(id,true);
+  }
   // New component: the symbol editor (schematic) or the IPC wizard (board); library-editor.js is the fallback.
   function newComponent(){const L=globalThis.AtriumLazy,ready=globalThis.AtriumSymbolEditor&&globalThis.AtriumLibrary?Promise.resolve():L?.modules?.().includes("AtriumLibrary")?L.need("AtriumLibrary"):null;if(!ready)return false;const board=libraryTarget==="pcb";dialog.close();ready.then(()=>workflow(board?"footprint-wizard":"component-new"),e=>info(e.message));return true;}
   function showLibrary(kind=null){
@@ -1115,7 +1114,7 @@
   function newProject(){return fileDialog("newProject",[{async before(){
     if(!await mayReplace())return false;
     const previous=project, stamp=authoredRevision;
-    await prepareWorkbench(previous,{starterView:false});
+    await Promise.all([prepareWorkbench(previous,{starterView:false}),AtriumLazy.need("AtriumConnectivity")]);
     if(previous!==project || stamp!==authoredRevision)return false;
     if(drag)endDrag(true);checkpoint();leaveFolder();setFileSession({});globalThis.AtriumHost?.clearProjectPath?.();importSessionChanged();return true;
   },units:()=>globalThis.AtriumPref?.get("general.units",project.units)||project.units,fab:newFab,show:showProject,info}]);}
@@ -1147,25 +1146,10 @@
     return AtriumDesignators.apply(doc(),AtriumDesignators.relayout(doc(),defs,ids,{project}))||[];
   }
   function alignCommand(a){
-    const G=globalThis.AtriumGuides;
-    if(!G){info("This feature is unavailable in this build.");return;}
-    const ids=doc().items.filter(i=>selectedIds.has(i.id) && !notebookLocked(i)).map(i=>i.id),grid=a==="align-grid";
-    const run=plan=>{if(pcbEdit&&plan.locked?.length&&!pcbEdit.guardLocked(plan.locked,"Move",()=>run(plan)))return;
-      if(!plan.moves.length){info("Nothing to move.");return;}
-      const touched=new Set();
-      edit(()=>{G.applyPlan(doc(),defs,plan,part=>view.connectedWires(doc(),defs,part),touched);for(const obj of followDesignators(plan.moves.map(m=>m.id)))touched.add(obj);},undefined,touched);
-      info(plan.moves.length+(plan.moves.length===1?" object moved":" objects moved"));
-    };
-    if(ids.length<(grid?1:2)){info(grid?"Select the objects to align to the grid.":"Select two or more objects.");return;}
-    if(a==="make-row"||a==="make-column"){
-      promptValue(a==="make-row"?"Row pitch":"Column pitch",U.format(doc().grid*8,unit()),text=>{
-        const pitch=U.parse(text,unit());
-        if(!(pitch>0)){info("Enter a pitch greater than zero.");return;}
-        run(G.array(doc(),defs,ids,a==="make-row"?"x":"y",pitch));
-      },"Apply",{unit:unit(),storageUnit:"mm",nanometres:true,min:.000001});
-      return;
-    }
-    run(grid?G.alignToGrid(doc(),defs,ids):a.startsWith("distribute")?G.distribute(doc(),defs,ids,a==="distribute-h"?"x":"y"):G.align(doc(),defs,ids,a.slice(6)));
+    const guides=globalThis.AtriumGuides;
+    if(!guides){info("This feature is unavailable in this build.");return;}
+    guides.command(a,{doc,defs:()=>defs,selection:selectedIds,excluded:notebookLocked,unit,info,promptValue,edit,
+      guard:(ids,retry)=>!pcbEdit||pcbEdit.guardLocked(ids,"Move",retry),wires:part=>view.connectedWires(doc(),defs,part),followDesignators});
   }
   function deleteSelection(){
     if(!selectedIds.size)return;
@@ -1541,10 +1525,11 @@
     return {project,doc:doc(),defs,edit:apply,info,refresh,revision:()=>revision,folderProject:session,
       exportBinaryCopy:AtriumIO.exportBinaryCopy,connections:()=>view.boardConnectivity(doc(),defs),
       showUnrouted:()=>showUnrouted,toggleUnrouted:()=>{showUnrouted=!showUnrouted;inspect();draw();navEmit("unrouted");},
-      locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();},select:(id,other)=>{
-      const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);
-    },selection:()=>[...selectedIds],currentProject:()=>project,showCatalogue:k=>{swapFootprint=null;showLibrary(k);},exportFile:AtriumIO.exportFile,pickFile:AtriumIO.pickFile,
-      units:unit(),documentKind:()=>doc().kind,placeDef:(def,k=doc().kind)=>{if(!A.geometries(def,k)){info("This component has no "+(k==="pcb"?"footprint":"symbol")+".");return;}if(doc().kind!==k){const t=A.preferredDocument(project,k,current);if(!t){info("Add a "+(k==="pcb"?"board layout":"schematic sheet")+" first.");return;}selectDocument(t.id);}if(dialog.open)dialog.close();beginPlace(defs.get(def.id)||def);},place:items=>beginPaste({kind:"pcb",doc:current,cut:false,origin:[0,0],items,library:[]}),fit,pickPoint};
+      locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();},
+      select:locateDocumentItem,selection:()=>[...selectedIds],currentProject:()=>project,
+      showCatalogue:k=>{swapFootprint=null;showLibrary(k);},exportFile:AtriumIO.exportFile,pickFile:AtriumIO.pickFile,
+      units:unit(),documentKind:()=>doc().kind,placeDef:(def,k)=>{placeDefinition(def,k,true);},
+      place:items=>beginPaste({kind:"pcb",doc:current,cut:false,origin:[0,0],items,library:[]}),fit,pickPoint};
   }
   function boardCommand(action,name,run){
     const feature=globalThis[name];
@@ -1610,20 +1595,10 @@
   // Mirror X / Y, the Tab placement popover (sch-place.js) and checked toggle menu items.
   function placeCtx(){return {tool:()=>tool,pending:()=>pending,project:()=>project,doc,defs:()=>defs,draw,info,canvas};}
   function mirrorCommand(a){
-    const S=globalThis.AtriumSchPlace,axis=a==="mirror-x"?"x":"y",word=axis==="x"?"horizontally":"vertically";
+    const S=globalThis.AtriumSchPlace;
     if(!S){if(lazyRetry(a,"AtriumSchPlace",()=>mirrorCommand(a)))return;info("This feature is unavailable in this build.");return;}
-    if(pcb()){info("Mirror X/Y is for schematics. On boards, L flips a component to the other side.");return;}
-    if(tool==="place"&&pending){ghostAngle=S.mirrorGhost(axis,ghostAngle);info("Mirrored "+word+".");draw();return;}
-    if(tool==="sch-place"){info(S.mirrorFloating(axis)?"Mirrored "+word+".":"This object does not mirror.");draw();return;}
-    if(tool==="paste"&&paste){S.mirrorItems({kind:"schematic",grid:doc().grid,items:paste.items},paste.defs,new Set(paste.items.map(i=>i.id)),axis,[0,0]);paste.bounds=A.docBounds({...doc(),outline:[],items:paste.items},paste.defs);draw();return;}
-    if(drag?.kind==="move"&&drag.before&&!drag.segment){
-      const touched=drag.mirrorItems??=new Set();for(const item of drag.translation.affected)touched.add(item);
-      drag.translation.apply(0,0);drag.translation.finish();S.mirrorItems(doc(),defs,selectedIds,axis,drag.anchor,touched,{avoidPinShorts:true});invalidateViews(doc());
-      drag.lastDelta=null;drag.translation=makeTranslation(drag.frameOnly);if(pointer)drag.translation.apply(...drag.anchor.map((v,k)=>A.snap(v+pointer[k]-drag.origin[k],doc().grid)-v));
-      invalidateViews(doc());info("Mirrored "+word+".");draw();return;}
-    const ids=tool==="move-object"&&movingObject?new Set([movingObject.item.id]):selectedIds;
-    if(!ids.size){info("Select parts, wires or graphics to mirror. While placing or dragging, press X or Y.");return;}
-    const touched=new Set();let n=0;edit(()=>{n=S.mirrorItems(doc(),defs,ids,axis,undefined,touched,{avoidPinShorts:true});},undefined,touched);info(n?n+(n===1?" object":" objects")+" mirrored "+word+".":"Nothing in the selection mirrors.");
+    S.mirrorCommand(a,{doc,defs:()=>defs,pcb,tool,pending,paste,drag,movingObject,pointer,selection:selectedIds,ghostAngle,
+      setGhostAngle:angle=>{ghostAngle=angle;},edit,invalidateViews,makeTranslation,draw,info});
   }
   const prefOut=(k,v)=>{if(k)globalThis.AtriumPref?.set(k,v);}; // menu toggles -> Preferences
   function syncChecks(){try{
@@ -1815,7 +1790,7 @@
     const frameOnly=(e.ctrlKey||e.metaKey)&&globalThis.AtriumSchObjects?.isFrame(hit);
     if(frameOnly && selectedIds.size>1)choose(hit.id);
     // Schematic: a grip of the selected rectangle resizes it.
-    const resize=!pcb()&&selectedIds.size===1&&selectedIds.has(hit.id)&&globalThis.AtriumSchObjects?.resizeAt?.(hit,p,6/view.scale());
+    const resize=!pcb()&&selectedIds.size===1&&selectedIds.has(hit.id)&&globalThis.AtriumSchObjects?.resizeAt?.(hit,p,6/view.scale(),doc(),defs);
     const copy=e.pointerType==="touch"&&e.ctrlKey&&globalThis.AtriumLabs?.notebookEnabled()!==false&&globalThis.AtriumTouchPrecision;
     if(resize&&!e.shiftKey&&!copy&&!frameOnly){drag={kind:"resize",id:e.pointerId,item:hit,start:s,resize,before:null};info("Drag to size. Escape cancels.");return;}
     if(e.shiftKey){
@@ -1892,7 +1867,7 @@
     if(drag?.kind==="copy"&&(drag.copy.plan||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3))drag.copy.move(p);
     if(drag?.kind==="resize"&&(drag.before||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3)){
       if(!drag.before)drag.before=snapshot();
-      drag.resize.move(p,touchFree()?0:doc().grid);invalidateViews(doc(),[drag.item]);
+      drag.resize.move(p,touchFree()?0:doc().grid);invalidateViews(doc(),drag.resize.changed===undefined?[drag.item]:drag.resize.changed);
       info("Size "+len(drag.item.w)+" × "+len(drag.item.h));
     }
     if(drag?.kind==="text"&&(drag.before||Math.hypot(s[0]-drag.start[0],s[1]-drag.start[1])>3)){
@@ -1949,7 +1924,7 @@
   // Include earlier mirror positions and their attached wires, even after the translation was restarted.
   function dragHint(plan,follow,r){
     if(pcbEdit&&!r||!drag.resize&&!drag.segment&&!drag.translation)return;
-    const items=drag.resize?[drag.item]:drag.segment?[drag.item,...(drag.segment.followers||[]).map(f=>f.wire)]:[...drag.translation.affected];
+    const items=drag.resize?drag.resize.affected||[drag.item]:drag.segment?[drag.item,...(drag.segment.followers||[]).map(f=>f.wire)]:[...drag.translation.affected];
     return {doc:doc(),items:[...items,...(drag.mirrorItems||[]),...planItems(plan),...follow],library:!!(drag.flipLibrary||r?.mirrors?.length)};
   }
   function planItems(plan){const ids=new Set((plan?.modify||[]).map(m=>m.id));return ids.size?doc().items.filter(i=>ids.has(i.id)):[];}
@@ -1978,6 +1953,7 @@
       }else{
         let routed=null,follow=[];
         if(drag.reroute){try{const plan=drag.reroute.commit();if(plan.modify.length||plan.add.length||plan.remove.length){AtriumRouter.apply(doc(),plan);routed=plan;}if(plan.message)info(plan.message);}catch(error){info(error.message);routed=false;}}
+        if(drag.resize?.finish?.())invalidateViews(doc());
         if(!drag.segment&&drag.translation){
           if(drag.translation.finish())invalidateViews(doc());
           follow=followDesignators(drag.translation.affected.filter(i=>i.kind==="part").map(i=>i.id));
@@ -2392,6 +2368,8 @@
   }
   function prepareWorkbench(p=project,{starterView=starter}={}){
     const modules=["AtriumPCBEdit","AtriumDock","AtriumWireEdit","AtriumTabDrop","AtriumTooltip","AtriumSurfaceMotion","AtriumExtensions"];
+    // A PCB can be activated synchronously from another document or a split pane.
+    if(p.documents.some(d=>d.kind==="pcb"))modules.push("AtriumConnectivity");
     if(!starterView)modules.push("AtriumProjectTree");
     if(p.documents.some(d=>d.items.some(i=>i.kind==="part")))modules.push("AtriumSchFields");
     const install=()=>{installPCBEdit();installTabDrop();attachExtensions();};
@@ -2504,7 +2482,7 @@
     messageContext:()=>({project,currentProject:()=>project,info,exportFile:AtriumIO.exportFile,
       select:id=>{const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);},
       locate:(id,point)=>{choose(id);const at=view.worldToScreen(point);glide(()=>view.pan(canvas.clientWidth/2-at[0],canvas.clientHeight/2-at[1]));canvas.focus();draw();}}),
-    redraw,invalidate({overlay=false}={}){navVersion++;if(overlay)drawPointer();else draw();},
+    redraw,redrawPourLOD,invalidate({overlay=false}={}){navVersion++;if(overlay)drawPointer();else draw();},
     invalidateDocument(id,artwork=false){
       for(const p of panes)if((p===activePane?current:p.docId)===id){
         if(artwork)p.view?.invalidate?.(docById(id));
@@ -2557,7 +2535,7 @@
     // Draw tools (pcb-draw.js): tool state, snapping, active layer, cursor and amend for repours.
     setTool,snapAt,netAt,
     // search: place a library part from the palette's search box (palette.js).
-    placeDef(def,k=doc().kind){/* search placeDef */if(!def)return false;if(!A.geometries(def,k)){info("This component has no "+(k==="pcb"?"footprint":"symbol")+".");return false;}if(doc().kind!==k){const t=A.preferredDocument(project,k,current);if(!t){info("Add a "+(k==="pcb"?"board layout":"schematic sheet")+" first.");return false;}selectDocument(t.id);}beginPlace(defs.get(def.id)||def);return true;},
+    placeDef:(def,kind)=>placeDefinition(def,kind),
     // Paste Special / rubber stamp (paste-special.js): the clipboard and a ready paste plan on the cursor.
     clipboard:()=>clipboard,placePlan(plan){if(!plan)return;const at=pointer;resetTools();single(null);paste=plan;pointer=at;tool="paste";canvas.focus();syncTools();inspect();draw();},activeLayer:()=>layer,copperLayers:()=>currentLayers(),pointer:()=>pointer,amend
   };
@@ -2607,7 +2585,7 @@
     project:()=>project,documentId:()=>current,defs:()=>defs,revision:()=>revision,selection:()=>[...selectedIds],
     select:ids=>{const have=new Set(doc().items.map(i=>i.id));assignSelection(ids.filter(id=>have.has(id)));inspect();syncTools();draw();},
     edit,amend,editInProgress:()=>!!drag,info,units:unit,activate:id=>selectDocument(id),
-    locate:id=>{const owner=project.documents.find(d=>d.items.some(i=>i.id===id));if(owner&&owner.id!==current)selectDocument(owner.id);choose(id,true);},
+    locate:locateDocumentItem,
     runAction:a=>executeKey(a),exportFile:AtriumIO.exportFile,pickFile:AtriumIO.pickFile
   });attachExtensions();
   // Installed extensions can declare startup activation or a command available on Home.

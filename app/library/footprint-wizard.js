@@ -437,8 +437,11 @@ globalThis.AtriumFootprintWizard = (() => {
         const r = lands({L: spec.L, W: spec.W, T: spec.T, S: spec.S}, g, opts);
         fp.pads.push(pad(1, -r.padCentre, 0, r.padLength, r.X, shape), pad(2, r.padCentre, 0, r.padLength, r.X, shape));
         const body = [-L.nom / 2, -W.nom / 2, L.nom / 2, W.nom / 2];
-        dressing(fp, [-L.max / 2, -W.max / 2, L.max / 2, W.max / 2], g, {chamfer: false, silkBody: body});
         const kind = ["RES", "CAP", "IND", "DIO", "LED", "FUS"].includes(spec.kind) ? spec.kind : "RES";
+        // Diodes and LEDs (pin 1 cathode) and polarised capacitors (spec.polar, pin 1 +) mark pad 1, as MELF and SOD do.
+        const polar = kind === "DIO" || kind === "LED" || spec.polar === true;
+        dressing(fp, [-L.max / 2, -W.max / 2, L.max / 2, W.max / 2], g, {chamfer: false, silkBody: body, pin1: polar ? pin1Dot(fp.pads[0]) : null});
+        if (polar) fp.shapes.push({kind: "path", layer: "Mechanical 13", width: .1, points: [[r6(-L.nom / 2 + L.nom * .2), r6(-W.nom / 2)], [r6(-L.nom / 2 + L.nom * .2), r6(W.nom / 2)]]});
         prefix = {RES: "R", CAP: "C", IND: "L", DIO: "D", LED: "D", FUS: "F"}[kind];
         name = kind + "C" + n2(L.nom, 10).padStart(2, "0") + n2(W.nom, 10).padStart(2, "0") + "X" + heightCode(height ?? .5) + density;
         ipc = {...ipc, ...r, goal: g};

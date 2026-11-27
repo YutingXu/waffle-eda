@@ -43,7 +43,7 @@ FAMILIES = [
     ("badge", "Badges, counts and dots", "`.ui-badge`, `.ui-count`, `.ui-dot`", r"ui-(?:badge|count|dot)\b", r"[a-z0-9]+-(?:badge|count|dot)"),
     ("search", "Search fields", "`.ui-search`, `AtriumUIKit.search`", r"ui-search", r"[a-z0-9]+-search(?:-box|-wrap)?"),
     ("row", "List rows and tree rows", "`.ui-row`, `.ui-tree-row`, `.ui-list`", r"ui-(?:row|tree-row|list)\b", r"[a-z0-9]+-(?:row|item|entry|twisty)"),
-    ("table", "Tables and grids", "`.ui-table`; editable grids `ui/spreadsheet.css`", r"ui-table|bom-grid|cm-grid|AtriumWindowedTable", r"[a-z0-9]+-(?:table|grid)"),
+    ("table", "Tables and grids", "`.ui-table`; editable grids `ui/spreadsheet.css`", r"ui-table|ui-sheet-grid|AtriumWindowedTable", r"[a-z0-9]+-(?:table|grid)"),
     ("toolbar", "Toolbars", "`.ui-toolbar`, `.ui-toolbar-sep`", r"ui-toolbar", r"[a-z0-9]+-(?:toolbar|bar)"),
     ("menu", "Menus and context menus", "`AtriumContextMenu` (`.nav-menu`), menu bar `.menu-items`", r"AtriumContextMenu|actionMenu\(|nav-menu", r"[a-z0-9]+-menu"),
     ("popover", "Popovers and hover cards", "`.ui-popover`; tooltips and hover cards `AtriumTooltip`", r"ui-popover|AtriumTooltip|data-tooltip", r"[a-z0-9]+-(?:pop|popover|card|peek)"),
@@ -54,7 +54,7 @@ FAMILIES = [
     ("progress", "Progress and spinners", "`.ui-progress`, `.ui-spinner`, `.ui-skeleton`", r"ui-(?:progress|spinner|skeleton)", r"[a-z0-9]+-(?:progress|meter|spinner|busy)"),
     ("keycap", "Keycaps", "`AtriumShortcut.render`", r"AtriumShortcut\.render|ui-shortcut", r"[a-z0-9]+-(?:kbd|keycap|keys)"),
     ("section", "Section headers", "`.ui-section-head`, `AtriumUIKit.section`", r"ui-section", r"[a-z0-9]+-(?:head|heading|section-title|group-title)"),
-    ("prop-row", "Property rows", "`.ui-prop-row`; `#inspector .field-row`; `.ui-field-row`", r"ui-prop-row|field-row", r"[a-z0-9]+-(?:prop|kv|field-row|form-row)"),
+    ("prop-row", "Property rows", "`.ui-prop-row` (Properties included); `.ui-field-row`", r"ui-prop-row|field-row", r"[a-z0-9]+-(?:prop|kv|field-row|form-row)"),
     ("panel", "Splitters and panels", "`.ui-panel`, `.ui-splitter`; dock sashes `dock.css`", r"ui-(?:panel|splitter)|pane-heading", r"[a-z0-9]+-(?:sash|splitter|resizer|gutter|panel-head)"),
     ("drag", "Drag handles and drop targets", "`.ui-drag-handle`, `.ui-drop-target[data-drop]`, `ui/spatial-motion` lift", r"ui-(?:drag|drop)", r"[a-z0-9]+-(?:grip|handle|drop|dropzone)"),
 ]

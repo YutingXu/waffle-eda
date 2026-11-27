@@ -1,5 +1,5 @@
 /* Drawing documents (app/drawing.js): the Add Drawing / Add View dialogs and the Properties panel
-   sections for a drawing. Extends .work-dialog, .work-form and the inspector's .field-row. */
+   sections for a drawing. Extends .work-dialog and .work-form; Properties rows are the library's .ui-prop-row. */
 .drawing-dialog {width:min(460px,calc(100vw - 32px))}
 .drawing-form {display:grid;gap:var(--s-6)}
 .drawing-row {display:grid;grid-template-columns:minmax(96px,120px) minmax(0,1fr);align-items:center;gap:var(--s-2) var(--s-8);min-height:var(--ctl-h)}

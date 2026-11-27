@@ -1025,16 +1025,19 @@ globalThis.AtriumRules = (() => {
     return core.map((p,n)=>[p,core[(n+1)%core.length]]);
   }
   const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  // Copper wholly inside a drill is measured to the hole wall: bore is the drill radius around
+  // boreAxis (the drill centre, or a slot's two centres as A.drillCore gives them; connectivity.js inBore).
   function boreGap(owner,other){
     if(!owner.bore)return null;
-    let far=null,distance=-Infinity;
+    const axis=owner.boreAxis||[owner.at],a=axis[0],b=axis.at(-1);
+    let far=null,foot=a,distance=-Infinity;
     for(const p of other.core){
-      const d=dist(owner.at,p);
-      if(d>distance){distance=d;far=p;}
+      const q=project(p,a,b),d=dist(q,p);
+      if(d>distance){distance=d;far=p;foot=q;}
     }
     const extent=distance+other.radius,d=owner.bore-extent;
     if(d<=0)return null;
-    const c=owner.at, direction=distance?[ (far[0]-c[0])/distance, (far[1]-c[1])/distance ]:[1,0];
+    const c=foot, direction=distance>EPS?[ (far[0]-c[0])/distance, (far[1]-c[1])/distance ]:[1,0];
     const offset=(owner.bore+extent)/2;
     return {d,at:[c[0]+offset*direction[0],c[1]+offset*direction[1]]};
   }
@@ -1297,6 +1300,10 @@ globalThis.AtriumRules = (() => {
         if(!net&&widths.some(w=>!i.drill||i.drill<w-EPS))geo.unassigned++;
       }
       if(holesOnly)return;
+      // The drill (round or slotted) is void in every land, as for a via's bore. An unplated land is
+      // copper of the pad's net (none when the pad has none), as connectivity.js sees it, so a track of
+      // another net is a clearance hit and a short; its lands are not joined by a barrel there.
+      const bored=i.drill>0?{bore:i.drill/2,boreAxis:PCB.padDrillCore(i,parent,center)}:null;
       for(const land of lands){
         const face=land===i?base:{...base,layer:land.layer,span:sideSpan(land.layer)};
         if(land.holeOnly||!(land.w>0&&land.h>0)){
@@ -1314,7 +1321,7 @@ globalThis.AtriumRules = (() => {
         }
         if(!f){geo.excluded++;continue;}
         if(!nettedCopperOnly)geo.pads.push(f);
-        if(net||physical)geo.copper.push(f.pieces?f:feature({...face,at},shape.core,shape.radius));
+        if(net||physical)geo.copper.push(f.pieces?bored?compound(f,f.pieces.map(q=>({...q,...bored}))):f:feature({...face,at,...bored},shape.core,shape.radius));
       }
     }
     function silk(item,layer,owner,parent,label){
@@ -2882,7 +2889,7 @@ globalThis.AtriumRules = (() => {
     const SHORT={track:"Track",arc:"Arc",smd:"SMD",th:"TH",via:"Via",fill:"Fill",poly:"Poly",region:"Region",text:"Text",hole:"Hole"};
     function clearanceMatrix(r,f){
       const box=el("div",null,"rules-matrix-box"),mode=el("div",null,"rules-units rules-matrix-mode"),note=el("small",null,"rules-note");
-      const wrap=el("div",null,"rules-table-wrap rules-matrix-wrap"),table=el("table",null,"rules-table rules-matrix");
+      const wrap=el("div",null,"rules-table-wrap rules-matrix-wrap"),table=el("table",null,"rules-matrix ui-matrix");
       mode.setAttribute("role","group");mode.setAttribute("aria-label",f.label);wrap.append(table);
       let stash=r.objects?{...r.objects}:{};
       const single=button("Single value for all",()=>use(false)),perKind=button("Per object kind",()=>use(true));
@@ -3423,7 +3430,7 @@ globalThis.AtriumRules = (() => {
 
   // The DRC feature kit (as AtriumConnectivity.kit): feature extraction, the broad phase, exact gaps and
   // rule resolution, for checks outside drc() (drc-pours.js, the certificate store) without source patches.
-  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,compile,migrate,clearanceGap,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
+  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
   return {kit,defaults,validate,setAside,check,open,rulesFor,scopeCopy,presetRuleKey,materializePresetRules,
     create,migrate,normalize,effective,drc,netLengths,staleTeardrops,fillPieces,
     query,resolver,sizeVia:A.preferredViaSize,netClasses,diffPairs,matchedGroups,detectDiffPairs,stored,store,neckLength,NECK_DEFAULT,

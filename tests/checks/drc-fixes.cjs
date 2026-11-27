@@ -36,6 +36,15 @@ test("net antennae: dangling track ends and unconnected tracks are reported", ()
   assert.ok(v.every(x => x.warning && x.ruleName === "Net Antennae"));
 });
 
+test("net antennae: a track ending on an unplated land of its net reaches it (land-contours, as connectivity)", () => {
+  const mh = {kind: "pad", id: "mh", net: "GND", number: "1", x: 0, y: 0, w: 6, h: 6, shape: "round", layer: "Multi", drill: 3.2, plated: false};
+  const ends = items => F.checks(board(items), defs, ["netAntennae"]).filter(x => x.type === "netAntennae").map(x => [x.id, x.end]).sort();
+  const items = net => [mh, pad("p", "GND", 10, 0), track("top", net, [[10, 0], [2.5, 0]]), track("bottom", "GND", [[0, -2.5], [0, -10], [10, -10]], .25, "Bottom")];
+  assert.deepEqual(ends(items("GND")), [["bottom", 1]], "both ends on the land are reached, on each side");
+  assert.deepEqual(ends(items("VCC")).map(x => x[0]), ["bottom", "top"], "another net's track does not end on it");
+  assert.deepEqual(ends([{...mh, w: 3.2, h: 3.2}, pad("p", "GND", 10, 0), track("top", "GND", [[10, 0], [1.4, 0]])]), [["top", 1]], "no land around the drill");
+});
+
 test("dangling contacts follow the placed land through preview, commit and Undo", () => {
   const {F4,F5,mirroredLandPoint,mirroredTopRow}=require("../support/a1-geometry.cjs");
   require("../../app/pcb/stackup.js");

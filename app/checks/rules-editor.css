@@ -102,9 +102,7 @@ td .rules-query { display: inline; }
 .rules-matrix-box .rules-note { grid-column: auto; max-width: 72ch; }
 .rules-editor .rules-matrix-mode button { min-height: var(--ctl-h); }
 .rules-matrix { width: auto; }
-.rules-matrix th, .rules-matrix td { padding: 2px 4px; border-bottom: 0; }
 .rules-matrix thead th { text-align: center; min-width: 52px; }
-.rules-matrix tbody th { position: static; background: none; text-align: right; font-weight: var(--fw-medium); padding-right: 8px; }
 .rules-matrix td.is-blank { background: none; }
 
 /* Scopes that match no object: the rule checks nothing. */

@@ -50,15 +50,15 @@ globalThis.AtriumPDNView = (() => {
     }
     if (dlg?.open) { dlg.querySelector("select, input, button")?.focus(); return dlg; }
     load(doc);
-    const d = el("dialog", null, "work-dialog ui-dialog ui-sheet pdn-dialog", {"aria-labelledby": "pdn-heading"});
+    const d = el("dialog", null, "work-dialog ui-dialog ui-sheet ui-tool-panel", {"aria-labelledby": "pdn-heading", "data-tool": "pdn"});
     dlg = d;
-    const head = el("div", null, "pdn-head");
-    const status = el("p", null, "pdn-status", {role: "status", "aria-live": "polite"});
+    const head = el("div", null, "ui-tool-head");
+    const status = el("p", null, "ui-tool-status", {role: "status", "aria-live": "polite"});
     const title = el("h2", "PDN Analyzer", null, {id: "pdn-heading"});
-    head.append(title, button("", () => d.close(), "pdn-close", "Close the PDN Analyzer"));
+    head.append(title, button("", () => d.close(), "ui-tool-close", "Close the PDN Analyzer"));
     head.lastChild.setAttribute("aria-label", "Close");
-    const setupBox = el("section", null, "pdn-setup", {"aria-label": "Setup"});
-    const actions = el("div", null, "work-actions ui-dialog-actions pdn-actions");
+    const setupBox = el("section", null, "ui-tool-body", {"aria-label": "Setup"});
+    const actions = el("div", null, "work-actions ui-dialog-actions ui-tool-actions");
     const resultBox = el("section", null, "pdn-results", {"aria-label": "Results"});
     const run = button("Analyse", () => analyse(), "is-primary", "Solve the power net and its return net");
     const msgs = button("Send to Messages", () => toMessages(true), "", "List the PDN findings in the Messages panel");
@@ -81,15 +81,15 @@ globalThis.AtriumPDNView = (() => {
   }
   const say = (t, kind) => { if (!ui) return; ui.status.textContent = t; ui.status.dataset.kind = kind || ""; };
 
-  const field = (label, input, unit, cls) => globalThis.AtriumUIKit.analysisField(label, input, unit, cls, "pdn");
+  const field = (label, input, unit, cls) => globalThis.AtriumUIKit.analysisField(label, input, unit, cls);
   const numInput = (value, onValue, opts) => globalThis.AtriumUIKit.nullableNumber(value, onValue, opts);
   function paintSetup() {
     const box = ui.setupBox, doc = board(), defs = H.defs(), S = setup, N = netSetup();
     box.replaceChildren();
-    if (!doc) { box.append(el("p", "Open a board layout.", "pdn-empty")); return; }
+    if (!doc) { box.append(el("p", "Open a board layout.", "ui-tool-empty")); return; }
     const nets = P().nets(doc, defs);
     // Net setups.
-    const bar = el("div", null, "pdn-bar");
+    const bar = el("div", null, "ui-tool-bar");
     const pick = el("select", null, "ui-field", {"aria-label": "Net setup"});
     S.nets.forEach((n, i) => option(pick, String(i), (n.net || "(no net)") + (n.voltage != null ? " · " + n.voltage + " V" : ""), i === cur));
     pick.onchange = () => { cur = +pick.value; paintSetup(); paintResults(); H.invalidate(); };
@@ -103,7 +103,7 @@ globalThis.AtriumPDNView = (() => {
     box.append(bar);
     if (!N) return;
     // Net, voltage, source, return.
-    const grid = el("div", null, "pdn-grid");
+    const grid = el("div", null, "ui-tool-grid");
     const netSel = el("select", null, "ui-field", {"aria-label": "Power net"});
     if (!nets.includes(N.net)) option(netSel, N.net, N.net || "Choose…", true);
     for (const n of nets) option(netSel, n, n, n === N.net);
@@ -125,10 +125,10 @@ globalThis.AtriumPDNView = (() => {
     option(retSel, "", "None (supply only)", !N.returnNet);
     for (const n of nets) if (n !== N.net) option(retSel, n, n, n === N.returnNet);
     retSel.onchange = () => { N.returnNet = retSel.value; };
-    grid.append(field("Power net", netSel), field("Voltage", volt, "V"), field("Source", srcSel), field("Source pins", srcPins), field("Return net", retSel, null, "pdn-wide"));
+    grid.append(field("Power net", netSel), field("Voltage", volt, "V"), field("Source", srcSel), field("Source pins", srcPins), field("Return net", retSel, null, "ui-tool-wide"));
     box.append(grid);
     // Loads.
-    const lt = el("table", null, "pdn-table pdn-loads"), th = el("thead"), hr = el("tr"), tb = el("tbody");
+    const lt = el("table", null, "ui-tool-table pdn-loads"), th = el("thead"), hr = el("tr"), tb = el("tbody");
     for (const c of ["Load", "Pins", "Current", "Per", ""]) hr.append(el("th", c, null, {scope: "col"}));
     th.append(hr); lt.append(th, tb);
     N.loads.forEach((ld, i) => {
@@ -143,13 +143,13 @@ globalThis.AtriumPDNView = (() => {
       const mode = el("select", null, "ui-field", {"aria-label": "Load " + (i + 1) + " current applies to"});
       option(mode, "total", "total", ld.mode !== "per-pin"); option(mode, "per-pin", "each pin", ld.mode === "per-pin");
       mode.onchange = () => { ld.mode = mode.value; };
-      const x = button("", () => { N.loads.splice(i, 1); paintSetup(); }, "pdn-remove", "Remove this load"); x.setAttribute("aria-label", "Remove load " + (ld.ref || i + 1));
-      const tdA = el("td"); tdA.append(amps, el("span", "A", "pdn-unit"));
+      const x = button("", () => { N.loads.splice(i, 1); paintSetup(); }, "ui-tool-close pdn-remove", "Remove this load"); x.setAttribute("aria-label", "Remove load " + (ld.ref || i + 1));
+      const tdA = el("td"); tdA.append(amps, el("span", "A", "ui-tool-unit"));
       for (const n of [ref, pin, tdA, mode, x]) { if (n.tagName === "TD") tr.append(n); else { const td = el("td"); td.append(n); tr.append(td); } }
       tb.append(tr);
     });
-    if (!N.loads.length) { const tr = el("tr"), td = el("td", "No loads: add the parts that draw current.", "pdn-empty", {colspan: "5"}); tr.append(td); tb.append(tr); }
-    const loadBar = el("div", null, "pdn-bar");
+    if (!N.loads.length) { const tr = el("tr"), td = el("td", "No loads: add the parts that draw current.", "ui-tool-empty", {colspan: "5"}); tr.append(td); tb.append(tr); }
+    const loadBar = el("div", null, "ui-tool-bar");
     loadBar.append(button("Add load", () => { const p = parts.find(q => q.ref !== N.source.ref && !N.loads.some(l => l.ref === q.ref)); N.loads.push({ref: p?.ref || "", pins: [], current: .1, mode: "total"}); paintSetup(); }),
       button("Add selected", () => {
         const ids = new Set(H.selection()), refs = doc.items.filter(i => ids.has(i.id) && i.kind === "part" && parts.some(p => p.ref === i.ref) && i.ref !== N.source.ref && !N.loads.some(l => l.ref === i.ref)).map(i => i.ref);
@@ -159,9 +159,9 @@ globalThis.AtriumPDNView = (() => {
       }, "", "Add the selected components as loads"));
     box.append(el("h3", "Loads", "pdn-sub"), lt, loadBar);
     // Limits and model.
-    const more = el("details", null, "pdn-more");
+    const more = el("details", null, "ui-tool-more");
     more.append(el("summary", "Limits and model"));
-    const lim = el("div", null, "pdn-grid");
+    const lim = el("div", null, "ui-tool-grid");
     lim.append(field("Max drop", numInput(N.maxDropPct, v => { N.maxDropPct = v ?? 5; }, {min: "0", label: "Maximum drop (%)"}), "%"),
       field("Max density", numInput(N.maxDensity, v => { N.maxDensity = v ?? 100; }, {min: "0", label: "Maximum current density (A/mm²)"}), "A/mm²"),
       field("Via limit", numInput(N.viaCurrent, v => { N.viaCurrent = v; }, {min: "0", label: "Via current limit (A)", placeholder: "IPC-2221"}), "A"),
@@ -234,10 +234,10 @@ globalThis.AtriumPDNView = (() => {
     const focusGroup = box.contains(activeGroup) ? activeGroup.classList.contains("pdn-tabs") ? "tab" : "radio" : null;
     box.replaceChildren();
     const N = netSetup(), res = N && results.get(N.id);
-    if (!res) { box.append(el("p", "No result yet. Analyse to see the voltage and current density on the board.", "pdn-empty")); return; }
+    if (!res) { box.append(el("p", "No result yet. Analyse to see the voltage and current density on the board.", "ui-tool-empty")); return; }
     const R = res.report;
     // View controls.
-    const ctl = el("div", null, "pdn-bar pdn-view");
+    const ctl = el("div", null, "ui-tool-bar pdn-view");
     const show = el("div", null, "pdn-seg ui-segmented", {role: "radiogroup", "aria-label": "Heat map"});
     for (const [k, t] of [["voltage", "Voltage"], ["density", "Current density"], ["off", "Off"]]) {
       const b = button(t, () => { view.show = k; paintResults(); H.invalidate(); }, "pdn-seg-b ui-segment");
@@ -257,12 +257,12 @@ globalThis.AtriumPDNView = (() => {
     box.append(ctl);
     // Legend.
     const scale = scaleFor(res);
-    const legend = el("div", null, "pdn-legend", {role: "img", "aria-label": (view.show === "density" ? "Current density " : "Voltage ") + scale.label(scale.lo) + " to " + scale.label(scale.hi)});
-    const bar = el("div", null, "pdn-ramp");
+    const legend = el("div", null, "ui-tool-legend", {role: "img", "aria-label": (view.show === "density" ? "Current density " : "Voltage ") + scale.label(scale.lo) + " to " + scale.label(scale.hi)});
+    const bar = el("div", null, "ui-tool-ramp");
     bar.style.backgroundImage = P().gradient();
-    legend.append(el("span", scale.label(scale.lo), "pdn-tick"), bar, el("span", (scale.clipped ? "≥ " : "") + scale.label(scale.hi), "pdn-tick"));
+    legend.append(el("span", scale.label(scale.lo), "ui-tool-tick"), bar, el("span", (scale.clipped ? "≥ " : "") + scale.label(scale.hi), "ui-tool-tick"));
     if (view.show !== "off") box.append(legend);
-    ui.readout = el("p", "Hover over the board for a reading.", "pdn-readout", {"aria-live": "off"});
+    ui.readout = el("p", "Hover over the board for a reading.", "ui-tool-readout", {"aria-live": "off"});
     box.append(ui.readout);
     // Tabs.
     const tabs = el("div", null, "pdn-tabs ui-tabs", {role: "tablist", "aria-label": "Analysis results", "data-underline": ""}), body = el("div", null, "pdn-body");
@@ -288,7 +288,7 @@ globalThis.AtriumPDNView = (() => {
     if (view.tab === "vias") body.append(table(["Net", "Via at", "Current", "Limit", "Status"], R.vias.slice(0, 500).map(v => ({status: v.status, at: v.at, id: v.id,
       cells: [v.net, v.at[0].toFixed(2) + ", " + v.at[1].toFixed(2), fmtA(v.current), fmtA(v.limit), st(v.status)]}))));
     if (view.tab === "model") {
-      const s = R.stats.supply, list = el("ul", null, "pdn-notes");
+      const s = R.stats.supply, list = el("ul", null, "ui-tool-notes");
       list.append(el("li", "Grid " + R.pitch + " mm, " + s.cells.toLocaleString() + " cells → " + s.nodes.toLocaleString() + " nodes (quadtree), " + s.iterations + " CG iterations (MIC(0)), residual " + s.residual.toExponential(1) + ", " + Math.round(res.ms) + " ms."));
       list.append(el("li", "Power: " + (R.power.supply * 1000).toFixed(1) + " mW in " + R.net + (R.power.ret != null ? ", " + (R.power.ret * 1000).toFixed(1) + " mW in " + R.returnNet : "") + "."));
       list.append(el("li", "Via limit: " + (R.limits.viaCurrent != null ? R.limits.viaCurrent + " A" : R.limits.viaRule) + "."));
@@ -299,7 +299,7 @@ globalThis.AtriumPDNView = (() => {
   }
   function table(cols, rows) {
     return AtriumUIKit.analysisTable(cols, rows, row => {
-      const tr = el("tr", null, "pdn-row pdn-" + (row.status || "ok"));
+      const tr = el("tr", null, "ui-tool-row is-" + (row.status || "ok"));
       tr.tabIndex = 0;
       for (const c of row.cells) tr.append(el("td", c));
       const go = () => {
@@ -310,7 +310,7 @@ globalThis.AtriumPDNView = (() => {
       };
       tr.onclick = go; tr.onkeydown = e => { if (e.key === "Enter") go(); };
       return tr;
-    }, {wrapClass: "pdn-table-wrap", tableClass: "pdn-table", emptyClass: "pdn-empty"});
+    }, {wrapClass: "ui-tool-table-wrap", tableClass: "ui-tool-table", emptyClass: "ui-tool-empty"});
   }
 
   // ---------------------------------------------------------------- heat map
