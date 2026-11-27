@@ -22,22 +22,15 @@ globalThis.AtriumOverlayScroll = (() => {
     const o = getComputedStyle(el)[axis === "v" ? "overflowY" : "overflowX"];
     return o === "auto" || o === "scroll";
   }
-  // The thumb lives where the scroller is drawn: in the open modal dialog or popover (the top layer),
-  // in the app bar (a title-bar row: its menus may draw in the caption band), else in the body. Inside
-  // that, it joins the scroller's own layer, the nearest ancestor with a z-index (a floating dock, a
-  // popover card), so whatever draws over the scroller also covers its thumb.
-  const stacks = n => {const cs = getComputedStyle(n); return cs.position !== "static" && cs.zIndex !== "auto";};
-  function hostOf(el) {
-    const top = el.closest?.("dialog[open], :popover-open, .appbar") || doc.body;
-    if (top === el) return el; // the scroller is the dialog or popover: its thumb stays in the top layer
-    for (let n = el.parentElement; n && n !== top; n = n.parentElement) if (stacks(n)) return n;
-    return top;
-  }
-  // The thumb only has to clear what its scroller draws at that edge: its sticky headers and pinned
-  // columns. It takes one more than the highest of their z-indexes (the app uses raw values up to about 8
-  // there), so anything else in its layer at a higher z-index (the app bar's menus, drawers, document
-  // views, floats) still covers it. A scroller that is itself a layer (a fixed card) shares its z-index,
-  // and the thumb, appended after it, paints over it. Sticky rows sit near the top: the scan is capped.
+  // The thumb joins its scroller's own layer (ui/owner-layer.js): the nearest ancestor that stacks, in
+  // the scroller's dialog, popover or app bar, else the body; a scrolling dialog or popover hosts its own
+  // thumb. Whatever draws over the scroller (a menu, a floating panel) then also covers the thumb.
+  const L = () => globalThis.AtriumLayer;
+  // In that layer the thumb only has to clear what its scroller draws at that edge: its sticky headers
+  // and pinned columns. It takes one more than the highest of their z-indexes, so everything else in the
+  // layer at a higher z-index still covers it. A scroller that is itself a layer shares its z-index, and
+  // the thumb, appended after it, paints over it. Sticky rows sit near the top: the scan is capped, and
+  // runs on each full placement (shown, hovered, resized), never per scroll.
   const SCAN = 600;
   function stickyTop(el) {
     let z = 0, n = 0;
@@ -49,7 +42,7 @@ globalThis.AtriumOverlayScroll = (() => {
     return z;
   }
   function layerOf(el, host) {
-    if (el !== host && el !== rootScroller() && stacks(el)) return getComputedStyle(el).zIndex;
+    if (el !== host && el !== rootScroller() && L().stacks(el)) return String(parseInt(getComputedStyle(el).zIndex, 10) || 0);
     return String(stickyTop(el) + 1);
   }
   const stale = b => [b.v, b.h].some(t => t && !t.isConnected);
@@ -69,11 +62,12 @@ globalThis.AtriumOverlayScroll = (() => {
   // A full placement measures the scroller once (rects, sizes) and parks each thumb at the start of its
   // track. A scroll then only moves the thumb with a transform from scrollTop/scrollLeft, which reads no
   // rects and writes nothing that needs layout, so scrolling a long list stays layout-free.
-  function place(el, b) {
+  function place(el, b, show = true) {
     if (!el.isConnected) {drop(el); return;}
-    const host = hostOf(el), fixed = host === doc.body, r = el === rootScroller() ? {left:0, top:0, right:innerWidth, bottom:innerHeight, width:innerWidth, height:innerHeight} : el.getBoundingClientRect();
-    const hr = fixed ? {left:0, top:0} : host.getBoundingClientRect();
-    const ox = fixed ? 0 : -hr.left - host.clientLeft + host.scrollLeft, oy = fixed ? 0 : -hr.top - host.clientTop + host.scrollTop;
+    const host = L().layer(el, {own:true}), r = el === rootScroller() ? {left:0, top:0, right:innerWidth, bottom:innerHeight, width:innerWidth, height:innerHeight} : el.getBoundingClientRect();
+    const o = L().origin(host), ox = -o.x, oy = -o.y;
+    // A follow placement (the layer moved under a fixed thumb) reuses the z-index found last time.
+    let z = show || b.z == null ? null : b.z;
     b.geo = {};
     for (const axis of ["v", "h"]) {
       if (axis === "h" && el.matches?.(SKIP)) continue;
@@ -81,8 +75,8 @@ globalThis.AtriumOverlayScroll = (() => {
       let t = b[axis];
       if (!show) {t?.remove(); b[axis] = null; continue;}
       if (!t || t.parentElement !== host) {t?.remove(); t = b[axis] = thumb(el, axis); host.append(t);}
-      t.style.position = fixed ? "fixed" : "absolute";
-      t.style.zIndex = b.z ??= layerOf(el, host);
+      t.style.position = o.position;
+      t.style.zIndex = b.z = z ??= layerOf(el, host);
       if (axis === "v") {
         const track = r.height - 2 * INSET, size = Math.max(MIN, track * el.clientHeight / el.scrollHeight);
         b.geo.v = {free:track - size, range:Math.max(1, el.scrollHeight - el.clientHeight)};
@@ -96,16 +90,17 @@ globalThis.AtriumOverlayScroll = (() => {
       }
       t.toggleAttribute("data-hot", b.hot || drag?.thumb === t);
     }
-    move(el, b);
+    move(el, b, show);
   }
-  function move(el, b) {
+  function move(el, b, show = true) {
     for (const axis of ["v", "h"]) {
       const t = b[axis], g = b.geo?.[axis];
       if (!t || !g) continue;
       const at = Math.round(g.free * (axis === "v" ? el.scrollTop : el.scrollLeft) / g.range);
       t.style.transform = axis === "v" ? `translateY(${at}px)` : `translateX(${at}px)`;
-      t.toggleAttribute("data-shown", true);
+      if (show) t.toggleAttribute("data-shown", true);
     }
+    if (!show) return;
     clearTimeout(b.timer);
     if (!b.hot && !drag) b.timer = setTimeout(() => fade(el), HIDE_MS);
   }
@@ -118,22 +113,30 @@ globalThis.AtriumOverlayScroll = (() => {
     clearTimeout(b.timer); b.v?.remove(); b.h?.remove(); bars.delete(el);
   }
   // full: measure again (shown, resized, hot or dragged); otherwise only the scroll position moved.
-  const measure = new Set();
-  function schedule(el, full = true) {
+  const measure = new Set(), quiet = new Set();
+  // follow: re-place without showing (its layer moved under it, the scroller itself did not scroll).
+  function schedule(el, full = true, follow = false) {
+    if (follow) {if (!pending.has(el)) quiet.add(el);} else quiet.delete(el);
     pending.add(el);
     const b = bars.get(el);
     if (full || !b?.geo || stale(b)) measure.add(el);
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      for (const p of pending) {const b = entry(p); if (measure.has(p)) place(p, b); else if (p.isConnected) move(p, b); else drop(p);}
-      pending.clear(); measure.clear();
+      for (const p of pending) {const b = entry(p); if (measure.has(p)) place(p, b, !quiet.has(p)); else if (p.isConnected) move(p, b); else drop(p);}
+      pending.clear(); measure.clear(); quiet.clear();
     });
   }
   function scrolled(e) {
     const el = e.target === doc ? rootScroller() : e.target;
     if (el?.nodeType !== 1 || el.matches?.(SKIP) && !overflows(el, "v")) return;
     schedule(el, false);
+    // Scrollers inside it moved: a shown thumb follows with a full placement (without showing it again);
+    // a hidden one forgets its geometry, so it is measured afresh when it next shows.
+    for (const [inner, b] of bars) {
+      if (inner === el || !el.contains(inner)) continue;
+      if ([b.v, b.h].some(t => t?.hasAttribute("data-shown"))) schedule(inner, true, true); else b.geo = null;
+    }
   }
   // A mouse or pen near a scroller's edge shows its thumb, wide enough to grab.
   function scrollerAt(node) {
@@ -172,6 +175,6 @@ globalThis.AtriumOverlayScroll = (() => {
   doc.addEventListener("scroll", scrolled, {capture:true, passive:true});
   doc.addEventListener("pointermove", moved, {capture:true, passive:true});
   // A scroller that leaves (a closed panel or dialog) takes its thumbs with it.
-  globalThis.addEventListener("resize", () => {for (const [el, b] of bars) {b.z = undefined; schedule(el);}});
+  globalThis.addEventListener("resize", () => {for (const el of bars.keys()) schedule(el);});
   return Object.freeze({show:el => schedule(el), thumbs:() => [...bars.values()].flatMap(b => [b.v, b.h].filter(Boolean))});
 })();

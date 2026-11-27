@@ -52,7 +52,6 @@
 .bom-columns.collapsed .bom-panel-title {order:1;writing-mode:vertical-rl;padding-top:4px;color:var(--muted);font-weight:500}
 .bom-panel-body {flex:1;min-height:0;overflow:auto;padding:8px 8px 12px}
 .bom-panel-edge {position:absolute;z-index:3;top:0;bottom:0;left:-3px;width:6px;cursor:col-resize;outline:none}
-.bom-panel-edge:is(:hover,.dragging,:focus-visible) {background:color-mix(in srgb,var(--focus) 45%,transparent)}
 .bom-columns-head,.bom-column {display:grid;grid-template-columns:minmax(0,1fr) 34px 38px 24px 24px;align-items:center;gap:2px}
 .bom-columns-head {font-size:var(--fs-10);color:var(--muted);padding:2px 0 6px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .bom-columns-head strong {font-size:var(--fs-12);color:var(--ink)}

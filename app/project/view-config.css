@@ -1,6 +1,6 @@
 /* View Configuration panel (Altium's Ctrl+L panel) for the 2D board view. */
 .vc-panel{
-  position:fixed;top:84px;right:calc(var(--properties) + 34px);z-index:var(--z-alert);
+  position:fixed;top:84px;right:calc(var(--properties) + 34px);z-index:var(--z-float);
   width:300px;max-height:calc(100vh - 140px);display:flex;flex-direction:column;
   font-size:var(--fs-12);line-height:var(--lh);
 }

@@ -14,7 +14,6 @@
 .work-dialog.bom-dialog .bom-sort,.work-dialog.cm-dialog .cm-sort {width:100%;border:0;border-radius:0;background:transparent;font-weight:600;font-size:var(--fs-11);text-align:left;overflow:hidden;text-overflow:ellipsis;cursor:default}
 .bom-sort[data-dir]::after,.cm-sort[data-dir]::after {color:var(--muted);font-size:var(--fs-10)}
 .bom-resize,.cm-resize {position:absolute;top:0;right:-3px;width:7px;height:100%;cursor:col-resize;z-index:1}
-.bom-resize:hover,.cm-resize:hover {background:color-mix(in srgb,var(--focus) 45%,transparent)}
 .work-dialog.bom-dialog input.bom-filter,.work-dialog.cm-dialog input.cm-filter {width:100%}
 .bom-grid td,.cm-grid td {border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--paper)}
 .bom-grid tbody tr,.cm-grid tbody tr {cursor:default}
