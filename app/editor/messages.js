@@ -872,8 +872,12 @@ globalThis.AtriumMessages = (() => {
   function revealProblem(v, ctx = null, o = {}) {
     if (!v) return false;
     if (unifiedProblem(v)) return reveal(m => m.problem === v || m.problem?.key === v.key, {...o, ctx});
-    const k = drcKey(v);
-    return reveal(m => m.drc === v || m.problem?.raw === v, {...o, ctx}) || !!k && reveal(m => !!m.drc && drcKey(m.drc) === k, {...o, ctx});
+    // Problems first: the same object, then the same rule and objects after a re-check. A batch DRC Log
+    // row holding the old object would otherwise answer first and open Problems with nothing chosen.
+    const k = drcKey(v), raw = m => m.drc || m.problem?.raw, o2 = {...o, ctx};
+    return reveal(m => !!m.problem && raw(m) === v, o2) ||
+      !!k && reveal(m => !!m.problem && drcKey(raw(m)) === k, o2) ||
+      reveal(m => m.drc === v || !!k && !!m.drc && drcKey(m.drc) === k, o2);
   }
   // open(ctx, {view, domain}): the panel, optionally on Problems filtered to a domain.
   function open(ctx, o = {}) {
