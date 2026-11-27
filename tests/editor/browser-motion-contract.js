@@ -35,6 +35,8 @@ async function inputPolicy(page) {
   },{once:true}));
   await file.click();
   const [entrance] = await page.evaluate(()=>window.menuOpenEffects);
+  if (!entrance) assert.fail("a pointer-opened menu plays its entrance with Full motion and Efficiency mode off; root " +
+    JSON.stringify(await page.evaluate(()=>({...document.documentElement.dataset}))));
   assert.equal(entrance.ms,120);
   assert.equal(entrance.first.transform,"scale(0.97)");
   const edit = page.locator(".work-menu[data-menu=edit]");
@@ -51,8 +53,9 @@ async function cameraPolicy(page) {
     const raf = window.requestAnimationFrame, cancel = window.cancelAnimationFrame;
     let next = -1;
     const steps = new Map();
+    // Step only the shared AtriumMotion loop (app/editor/editor-motion.js) by hand; other frames run normally.
     window.requestAnimationFrame = callback => {
-      if ((new Error().stack.split("\n")[2] || "").includes("/motion.js:")) {
+      if ((new Error().stack.split("\n")[2] || "").includes("/editor/editor-motion.js:")) {
         const id = next--;
         steps.set(id,callback);
         return id;

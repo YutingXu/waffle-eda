@@ -124,6 +124,15 @@ assert.ok(styles.has("style.css") && styles.has("ui/controls.css"), "scan includ
   ]) assert.match(inspect(bad), diagnostic, bad);
   assert.deepEqual(motionProblems(new Map([["style.css", ".ui-collapse {transition: grid-template-rows 200ms ease, opacity 200ms ease}"]])),
     [], "section disclosure is the one structural layout transition");
+  // The library's checkbox tick and radio dot may grow with background-size (an input has no pseudo-element
+  // to scale); nothing else may, and the segmented thumb and the switch knob move with clip-path and transform.
+  const glyphRule = ":where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio)";
+  assert.deepEqual(motionProblems(new Map([["ui/controls.css", `${glyphRule} {transition:background-color 140ms,background-size 140ms}`]])),
+    [], "the library's input glyphs grow with background-size");
+  for (const [file, css] of [["ui/controls.css", ".ui-chip {transition:background-size 140ms}"], ["feature.css", `${glyphRule} {transition:background-size 140ms}`],
+    ["ui/controls.css", `${glyphRule} {transition:background-position 140ms}`], ["ui/controls.css", ".ui-segmented::before {transition:left 160ms,width 160ms}"]]) {
+    assert.match(motionProblems(new Map([[file, css]])).join("\n"), /transition property (background-size|background-position|left) is forbidden/, file + " " + css);
+  }
   assert.match(motionProblems(new Map([["ungated.css", "@keyframes move {from {translate:0 calc(5% * var(--motion-move, 1))}}"]])).join("\n"),
     /moving keyframe move/, "the movement token needs both preference paths to turn it off");
 

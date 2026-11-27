@@ -149,6 +149,9 @@ const transitionProperties = new Set([...frameProperties, "none", "color", "back
 // Decision 1 (2026-11-23): loading indicators may loop past 300 ms. Only these library selectors, and
 // only when Reduced and the system setting both hold them still (Off stops every animation).
 const loaders = new Set([":is(.ui-spinner)", ":is(.ui-progress)[data-indeterminate]::before"]);
+// The library's checkbox tick and radio dot grow in with background-size (docs/motion.md › Which properties):
+// WebKit paints no pseudo-element on an input, so there is no layer to scale. Only this ui/controls.css rule.
+const inputGlyphs = new Set([":where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio)"]);
 const looping = value => split(value, ",").some(item => split(item, " ").some(word => /^infinite$/i.test(word) || /^(?:\d+\.?\d*|\.\d+)$/.test(word) && Number(word) > 1));
 const timingKeywords = /^(?:ease(?:-in|-out|-in-out)?|linear|step-start|step-end|normal|allow-discrete|inherit|initial|unset|revert|revert-layer)$/i;
 
@@ -283,8 +286,9 @@ function motionProblems(styles) {
         if (property === "transition" || property === "transition-property") {
           const target = words.find(word => /^[a-z-]+$/i.test(word) && !timingKeywords.test(word))?.toLowerCase();
           const disclosure = target === "grid-template-rows" && rule.file === "style.css" && selectors(rule).join(",") === ".ui-collapse";
+          const glyph = target === "background-size" && rule.file === "ui/controls.css" && selectors(rule).every(part => inputGlyphs.has(part));
           if (target === "all") report(rule, "transition: all is forbidden");
-          else if (target && !transitionProperties.has(target) && !disclosure) report(rule, `transition property ${target} is forbidden`);
+          else if (target && !transitionProperties.has(target) && !disclosure && !glyph) report(rule, `transition property ${target} is forbidden`);
           else if (!target && property === "transition" && words.some(word => time.test(word))) {
             report(rule, "name the transition properties instead of defaulting to all");
           }

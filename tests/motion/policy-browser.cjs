@@ -3,12 +3,27 @@ const assert = require("node:assert/strict"), path = require("node:path"), {path
 const {chromium} = require("../support/playwright.cjs");
 const serveApp = require("../support/browser-app-server.cjs");
 
+// A page.evaluate has no timeout of its own: fail with a message instead of stalling the run.
+function within(ms, promise, what) {
+  let timer;
+  const late = new Promise((_, reject) => {timer = setTimeout(() => reject(Error(`${what} did not finish within ${ms} ms`)), ms);});
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
 async function checkColdFlags(browser) {
   const app = await serveApp();
   const page = await browser.newPage();
-  let release;
+  let release, motionRequested, prefsWaited = false;
   const held = new Promise(resolve => {release = resolve;});
+  const motionAsked = new Promise(resolve => {motionRequested = resolve;});
   try {
+    // Hold the command broker so AtriumMotion must read the early Butter flags without it. Lazy scripts
+    // are injected with async=false and run in insertion order, so a held script also holds every lazy
+    // script injected after it. editor/prefs.js injects the broker as soon as it runs (a butter.* flag is
+    // on), so hold prefs.js until AtriumMotion's script has been requested: the broker then always queues
+    // behind AtriumMotion and can never block it.
+    page.on("request", request => {if (request.url().endsWith("/editor/editor-motion.js")) motionRequested();});
+    await page.route("**/editor/prefs.js", async route => {await within(10000, motionAsked, "the AtriumMotion request").catch(() => {prefsWaited = true;}); await route.continue();});
     await page.route("**/automation/command-broker.js", async route => {await held; await route.continue();});
     await page.addInitScript(() => {
       localStorage.setItem("atrium.prefs", JSON.stringify({format:"atrium-prefs", version:1, values:{
@@ -20,11 +35,12 @@ async function checkColdFlags(browser) {
       }});
     });
     await page.goto(app.url, {waitUntil:"domcontentloaded"});
-    const cold = await page.evaluate(async () => {
+    const cold = await within(15000, page.evaluate(async () => {
       const motion = await AtriumLazy.need("AtriumMotion");
       return {flags:earlyButterFlags, motion:motion.butterEnabled(), broker:!!globalThis.AtriumButter};
-    });
+    }), "loading AtriumMotion while the command broker is held");
     assert.deepEqual(cold, {flags:[true,false,false,false], motion:true, broker:false});
+    assert.equal(prefsWaited, false, "editor/prefs.js waited 10 s for AtriumMotion's script to be requested: if AtriumMotion now loads after prefs.js, this test must hold the broker another way");
     release();
     await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
     await page.waitForFunction(() => AtriumNavHost.project().name === "Sensor interface" &&
@@ -49,6 +65,9 @@ async function checkColdFlags(browser) {
 }
 
 (async () => {
+  // A whole run takes about 10 s; a stalled browser call fails the suite instead of hanging it.
+  const watchdog = setTimeout(() => {console.error("FAIL browser motion policy: no result within 180 s"); process.exit(1);}, 180000);
+  watchdog.unref();
   const browser = await chromium.launch({channel:"chrome",args:["--allow-file-access-from-files"]});
   try {
     await checkColdFlags(browser);

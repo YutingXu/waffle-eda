@@ -56,7 +56,11 @@ later. Older Linux WebKitGTK versions show the entrance instantly, which is acce
 
 - **Animate only `transform` and `opacity`.** Use `clip-path` for reveals. Height is allowed only for
   expanding and collapsing a section: use the `grid-template-rows: 0fr → 1fr` technique or FLIP.
-  Never animate width, margin, padding, top or left.
+  Never animate width, margin, padding, top or left. A thumb that changes both place and size, such as the
+  segmented control's raised face, spans its track and moves a rounded `clip-path: inset()`.
+- **One exception for input glyphs:** the library's checkbox tick and radio dot grow in with
+  `background-size` (`ui/controls.css`). WebKit paints no pseudo-element on an `<input>`, so there is no
+  layer to scale, and the change repaints only the 14 px box. No other rule may transition a background.
 - **Never start from `scale(0)`.** Start at 0.95–0.97 with opacity 0.
 - **Popovers, menus and tooltips grow from their trigger** (`transform-origin` at the anchor).
   Dialogs stay centred.
@@ -172,6 +176,8 @@ This keeps your view continuous; it isn't decoration.
 `tests/motion.cjs` enforces the tokens and these rules across `app/**/*.css`:
 
 - no `transition: all`;
+- transitions only on `transform`, `opacity`, `clip-path`, colours and the discrete `display`, `overlay` and
+  `visibility`, plus the section disclosure and the library's input glyphs (`background-size`);
 - no `scale(0)`;
 - no ease-in curves;
 - every UI duration under 300 ms (camera tokens and the library's looping loaders excepted);
