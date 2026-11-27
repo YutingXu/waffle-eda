@@ -262,7 +262,9 @@ globalThis.AtriumPinSwap = (() => {
   function applyPlans(project, board, defs, plans, o = {}) {
     let unrouted = 0, renetted = 0;
     const affected = new Set();
-    for (const p of plans) { const part = board.items.find(i => i.id === p.partId); for (const n of p.pairs.flat()) if (A().isAutoNetName(part?.pinNets?.[n])) affected.add(part.pinNets[n]); }
+    // A net's own pins on the board, for names spelled as one of them (Net-U1-1 2).
+    const pinsOn = name => board.items.flatMap(i => i?.kind === "part" && i.pinNets ? Object.keys(i.pinNets).filter(k => i.pinNets[k] === name).map(k => [i.ref, k]) : []);
+    for (const p of plans) { const part = board.items.find(i => i.id === p.partId); for (const n of p.pairs.flat()) { const net = part?.pinNets?.[n]; if (A().isAutoNetName(net) || typeof net === "string" && net.startsWith("Net") && A().isAutoNetName(net, pinsOn(net))) affected.add(net); } }
     for (const p of plans) {
       // Pin plans are transpositions; each is applied on the current nets.
       if (p.kind === "pin") for (const pair of p.pairs) { const r = applyBoard(board, defs, {...p, pairs: [pair]}); unrouted += r.unrouted; renetted += r.renetted; }
@@ -352,7 +354,7 @@ globalThis.AtriumPinSwap = (() => {
       if (!px || !py) fail("Pins " + x + " and " + y + " are not on the same gate of " + part.ref + ".");
       const kx = part.id + "/" + x, ky = part.id + "/" + y;
       // What each pin is connected to (other pins, and the net name unless it is automatic).
-      const peersOf = (g, k) => { const n = g.byPin.get(k); if (n == null) return ""; const o = [...g.byPin].filter(([q, m]) => m === n && q !== kx && q !== ky).map(([q]) => q).sort(); return (A().isAutoNetName(n) ? "" : n) + "|" + o.join(","); };
+      const peersOf = (g, k) => { const n = g.byPin.get(k); if (n == null) return ""; const o = [...g.byPin].filter(([q, m]) => m === n && q !== kx && q !== ky).map(([q]) => q).sort(); return (A().isAutoNetName(n, g) ? "" : n) + "|" + o.join(","); };
       const before = A().connectivity(sheet, env.lib), bx = peersOf(before, kx), by = peersOf(before, ky);
       const saved = sheet.items;
       const moved = rewire(sheet, part, px, py);

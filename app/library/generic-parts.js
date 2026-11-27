@@ -637,7 +637,7 @@ globalThis.AtriumGenericParts = (() => {
       if (d.kind === "schematic") {
         const net = A().connectivity(d, defs);
         const counts = new Map(); for (const v of net.byPin.values()) counts.set(v, (counts.get(v) || 0) + 1);
-        for (const n of lost) { const k = net.byPin.get(i.id + "/" + n); if (k && (!A().isAutoNetName(k) || counts.get(k) > 1 || net.nets.some(x => x.name === k && x.wires))) connected.add(n); }
+        for (const n of lost) { const k = net.byPin.get(i.id + "/" + n); if (k && (!A().isAutoNetName(k, net) || counts.get(k) > 1 || net.nets.some(x => x.name === k && x.wires))) connected.add(n); }
       } else for (const n of lost) if (i.pinNets?.[n]) connected.add(n);
     }
     const parts = Math.max(1, next.symbol?.parts || 1);
@@ -657,7 +657,7 @@ globalThis.AtriumGenericParts = (() => {
     for (const [d, i] of members) { if (!byDoc.has(d)) byDoc.set(d, []); byDoc.get(d).push(i); }
     for (const [d, list] of byDoc) {
       const moved = new Map(), froms = new Map(), touched = new Set(), movedPins = [];
-      const sch = d.kind === "schematic", netBefore = sch ? A().connectivity(d, beforeDefs).byPin : null;
+      const sch = d.kind === "schematic", connBefore = sch ? A().connectivity(d, beforeDefs) : null, netBefore = connBefore?.byPin || null;
       const wiresBefore = sch ? d.items.filter(i => i.kind === "wire").map(w => [w, w.points.map(q => q.slice())]) : [];
       for (const i of list) {
         if (d.kind === "schematic" && (i.unit || i.part || 1) > parts) { d.items.splice(d.items.indexOf(i), 1); report.removedGates++; continue; }
@@ -679,7 +679,7 @@ globalThis.AtriumGenericParts = (() => {
           const kept = new Set(wiresBefore.map(([w]) => w));
           d.items = d.items.filter(i => i.kind !== "wire" || kept.has(i));
           for (const [w, pts] of wiresBefore) w.points = pts;
-          report.labelled = (report.labelled || 0) + labelMoved(d, movedPins, netBefore, def);
+          report.labelled = (report.labelled || 0) + labelMoved(d, movedPins, connBefore, def);
         }
       }
     }
@@ -698,12 +698,12 @@ globalThis.AtriumGenericParts = (() => {
     return true;
   }
   const DIRS = {left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1]};
-  function labelMoved(d, movedPins, netBefore, def) {
+  function labelMoved(d, movedPins, connBefore, def) {
     let n = 0;
     for (const [i, p, next] of movedPins) {
-      const net = netBefore.get(i.id + "/" + p.number);
+      const net = connBefore.byPin.get(i.id + "/" + p.number);
       if (!net) continue;
-      const name = A().isAutoNetName(net) ? String(i.ref + "_" + p.number).replace(/[^A-Za-z0-9_+-]/g, "_") : net;
+      const name = A().isAutoNetName(net, connBefore) ? String(i.ref + "_" + p.number).replace(/[^A-Za-z0-9_+-]/g, "_") : net;
       const pin = def.symbol.pins.find(q => String(q.number) === String(p.number)), dir = DIRS[pin?.orientation] || [-1, 0];
       const end = A().world([pin.x + dir[0] * G, pin.y + dir[1] * G], i).map(r6);
       d.items.push({id: A().id(), kind: "netlabel", text: name, x: r6(p.at[0]), y: r6(p.at[1])},

@@ -517,11 +517,17 @@ globalThis.Atrium = (() => {
   }
   // Unnamed nets on Altium sheets get Altium's name, Net<designator>_<pin> of the lowest designator (NetC1_2), as in the PcbDoc.
   function autoNetName(doc,pins){if(doc?.netNaming!=="first-pin"&&!/\.schdoc$/i.test(doc?.sourceName||""))return "";let b=pins[0];for(const p of pins)if(p[0]<b[0]||p[0]===b[0]&&p[1]<b[1])b=p;return "Net"+b[0]+"_"+b[1];}
-  // The one test for a generated net name, matched whole: ours (Net-R1-2, Net-7, NetR1_2) and other tools'
-  // (KiCad Net-(R1-Pad2) and unconnected-(…), Eagle N$1, OrCAD N00012, EasyEDA $1N5, PADS $$$12). A designator
-  // has a digit or "?", so a named net that merely starts with "Net-" (Net-3V3, Net-USB-DP) is not one.
-  const AUTO_NET_NAME=/^(?:Net-\(.*\)|unconnected-\(.*\)|Net-?\d+|Net-[A-Za-z#][^\s()-]*[\d?][^\s()-]*-[^\s-]+|Net[A-Za-z#][^\s()_-]*[\d?][^\s()-]*_[^\s-]+|N\$\d+|N_\d+|N\d{4,}|\$\$\$\d+|\$\d\w*)$/;
-  const isAutoNetName=name=>typeof name==="string"&&AUTO_NET_NAME.test(name);
+  // The one test for a generated net name, matched whole. Ours: an unnamed net is Net-<designator>-<pin>
+  // of its first pin (connectivity, ERC, hierarchy), Net<designator>_<pin> on Altium sheets (autoNetName),
+  // Net-<n> without pins, and the hierarchy adds _<sheet> or _<n> to a name two nets share. Other tools':
+  // KiCad Net-(R1-Pad2) and unconnected-(…), Eagle N$1, OrCAD N00012, EasyEDA $1N5, PADS $$$12.
+  // A designator has a digit or "?" (R1, U1_CH1, R?) and then any pin (Net-R1-PAD-1); a bare prefix (J, TP)
+  // or none takes a numbered pin (Net-J-1, Net--1), so Net-3V3, Net-USB-DP and Net-VCC-3V3 stay named.
+  const AUTO_NET_NAME=/^(?:Net-\(.*\)|unconnected-\(.*\)|Net-?\d+(?:_\S+)?|Net-[^\s\d()-][^\s()-]*[\d?][^\s()-]*-\S+|Net-[^\s\d()-]*-\d+(?:_\S+)?|Net[^\s\d()_-][^\s()_-]*[\d?][^\s()-]*_\S+|Net[A-Za-z#]+_\d+(?:_\S+)?|N\$\d+|N_\d+|N\d{4,}|\$\$\$\d+|\$\d\w*)$/;
+  // pins: what the net connects, when known: a connectivity() result (its autoNames) or [designator, pin]
+  // pairs. A name spelled exactly as one of its own pins' generated names is generated too (Net-U1-1 2).
+  const isAutoNetName=(name,pins)=>typeof name==="string"&&(AUTO_NET_NAME.test(name)||(pins?.autoNames instanceof Set?pins.autoNames.has(name):
+    Array.isArray(pins)&&/^Net/.test(name)&&pins.some(p=>Array.isArray(p)&&(name==="Net-"+p[0]+"-"+p[1]||name==="Net"+p[0]+"_"+p[1]))));
   const wireContactTolerance = 0.00011;
   // Wires connect at terminals and explicit junctions. A bare crossing joins neither net.
   function connectivity(doc, defs) {
@@ -559,16 +565,18 @@ globalThis.Atrium = (() => {
     for(const [k,name] of names)group(k).names.add(name);
     for(const c of contacts)group(c.key).pins.push(c);
     for(const [w,k] of wires)group(k).wires.push(w);
-    const byPin=new Map(),byWire=new Map(),nets=[];
+    const byPin=new Map(),byWire=new Map(),nets=[],autoNames=new Set();
     for(const g of groups.values()){
       if(g.pins.length<2 && !g.wires.length && !g.names.size)continue;
       const first=g.pins[0];
       const name=[...g.names][0] || (first ? autoNetName(doc,g.pins.map(c=>[c.i.ref,c.pin.number]))||"Net-"+first.i.ref+"-"+first.pin.number : "Net-"+(nets.length+1));
+      // Generated here, or a label spelled as one of the net's own pins' generated names (isAutoNetName).
+      if(!g.names.size||name.startsWith("Net")&&isAutoNetName(name,g.pins.map(c=>[c.i.ref,c.pin.number])))autoNames.add(name);
       for(const c of g.pins)byPin.set(c.i.id+"/"+c.pin.number,name);
       for(const w of g.wires)byWire.set(w.id,name);
       nets.push({name,pins:g.pins.length,wires:g.wires.length,conflict:g.names.size>1});
     }
-    return {byPin,byWire,nets};
+    return {byPin,byWire,nets,autoNames};
   }
   function sheetEntry(project, doc, defs, host) {
     return globalThis.AtriumUndoStore?.sheetEntry?.(project, doc, defs, host);
