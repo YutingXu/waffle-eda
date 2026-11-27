@@ -288,9 +288,9 @@ globalThis.AtriumUIGallery = (() => {
         specimen("Reorderable list", (() => {
           // K.reorderable: Alt+↑/↓ or a handle (mouse, pen, touch) moves a row; the caller redraws.
           const names = [["Select", "select"], ["Route track", "route"], ["Separator"], ["Measure distance", "measure"]];
-          const list = k.list([], {label: "Reorderable rows", role: "tree"});
-          const draw = () => list.replaceChildren(...names.map(([title, icon]) => k.row({title, depth: 0, icon,
-            actions: [k.iconButton("close", "Remove " + title, {size: "sm"})], role: "treeitem"})));
+          const list = k.list([], {label: "Reorderable rows"});
+          const draw = () => list.replaceChildren(...names.map(([title, icon]) => k.row({title, icon,
+            actions: [k.iconButton("close", "Remove " + title, {size: "sm"})]})));
           draw();
           return k.reorderable(list, {onMove: (from, to) => { names.splice(to, 0, ...names.splice(from, 1)); draw(); }});
         })())),
