@@ -312,6 +312,9 @@ async def check_routing(t):
         await host.send({"t": "m", "d": "to-g2", "to": [j2["id"], "c0000000000000000", hj["id"]]})
         assert await g2.recv() == {"t": "m", "d": "to-g2", "from": hj["id"]}
         assert await g1.nothing() is None and await host.nothing() is None, "an addressed message reaches only its recipients"
+        await host.send({"t": "m", "d": "once", "to": [j2["id"], j2["id"], {"x": 1}, j2["id"]]})
+        assert await g2.recv() == {"t": "m", "d": "once", "from": hj["id"]}
+        assert await g2.nothing() is None, "each named recipient gets one copy"
         # Signalling to one peer, marked with its sender; at most 64 KiB; never to oneself.
         await g2.send({"t": "sig", "to": hj["id"], "d": "sealed-offer"})
         assert await host.recv() == {"t": "sig", "from": j2["id"], "d": "sealed-offer"}
@@ -737,6 +740,8 @@ def swift_build(tmp, driver_source, name):
 def windows_build(tmp):
     """The Windows test program (native/windows/tests), whose --lan-relay mode is the C# listener's driver."""
     dotnet = os.environ.get("DOTNET") or shutil.which("dotnet")
+    if not dotnet:
+        raise SystemExit("--target windows needs the .NET SDK 8 or later: dotnet on PATH, or DOTNET=/path/to/dotnet")
     out = Path(tmp) / "windows"
     subprocess.run([dotnet, "build", str(ROOT / "native" / "windows" / "tests"), "-c", "Release", "-o", str(out), "-nologo", "-v:quiet"], check=True,
                    env=dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1"))

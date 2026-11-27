@@ -635,7 +635,8 @@ class Relay:
                 out = {"t": "m", "d": msg["d"], "from": peer.id}
                 peers = members["peers"]
                 if isinstance(to, list):
-                    targets = [peers[c] for c in to[:64] if isinstance(c, str) and c in peers and c != peer.id]
+                    named = dict.fromkeys(c for c in to[:64] if isinstance(c, str))   # each recipient once
+                    targets = [peers[c] for c in named if c in peers and c != peer.id]
                 else:
                     targets = [p for p in peers.values() if p is not peer]
                 members["active"] = time.monotonic()
