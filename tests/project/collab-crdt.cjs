@@ -729,5 +729,45 @@ const nextMinor = version => {
   host.receive(clone(next), {author: "pR"});
   assert.equal(host.project().name, "mine again");
 }
+{
+  // A guest never trims away its own edits before the host has them (trim(keep)), so the host gets
+  // every one when the guest returns: since(vv, author) sends that guest's edits alone. The session
+  // bounds what is kept with unsent(). Measured: the scenario of scripts/perf-collab.cjs (trim),
+  // a guest deleting more objects while away than the bounded log holds.
+  const base = fixture();
+  for (let i = 0; i < 4300; i++) base.documents[1].items.push({id: "kv" + i, kind: "via", x: i % 50, y: 20 + Math.floor(i / 50), diameter: .5});
+  const host = C.create({replica: "pH", project: clone(base)}), guest = C.create({replica: "pG", snapshot: clone(host.snapshot())});
+  // Online: a few edits reach the host (it confirms them), then the host edits too.
+  const g0 = clone(guest.project()); g0.name = "seen by host"; host.receive(clone(guest.commit(g0)), {author: "pG"});
+  const acked = host.vv().pG;
+  const h0 = clone(host.project()); h0.documents[1].items.find(i => i.id === "v1").x = 7; guest.receive(clone(host.commit(h0)), {author: "pH"});
+  // Away: the guest deletes 4,300 objects, past LIMITS.log, and the heartbeat trims.
+  const twin = C.create({replica: "pG", snapshot: clone(guest.snapshot()), resume: true});   // the same guest, for the earlier behaviour
+  const g1 = clone(guest.project()); g1.documents[1].items = g1.documents[1].items.filter(i => !/^kv/.test(i.id));
+  const away = guest.commit(g1);
+  assert.ok(away.ops.length > C.LIMITS.log, "more operations than the log holds");
+  assert.equal(guest.unsent(acked).ops, away.ops.length);
+  assert.ok(guest.unsent(acked).bytes > away.ops.length * 20, "and their size");
+  const before = guest.stats().log;
+  assert.ok(guest.trim(acked), "older operations go: the host's, and the guest's that the host holds");
+  assert.equal(guest.stats().log, away.ops.length, "the guest's unconfirmed operations stay, however old");
+  assert.equal(guest.since({pH: 0}), null, "a peer that far behind the host's edits needs a snapshot");
+  assert.ok(before > guest.stats().log);
+  // The host returns: it asks for the guest's own edits past what it holds, and gets all of them.
+  const mine = guest.since({pG: acked}, "pG");
+  assert.equal(mine.length, away.ops.length);
+  assert.ok(mine.every(op => op.ts.r === "pG"));
+  host.receive({from: "pG", ops: clone(mine)}, {author: "pG"});
+  assert.equal(host.vv().pG, guest.vv().pG, "the host holds every one of the guest's edits");
+  assert.equal(C.canon(host.project()), C.canon(guest.project()), "and the same project");
+  // Confirmed, they may go: the log is bounded again.
+  assert.ok(guest.trim(host.vv().pG));
+  assert.ok(guest.stats().log <= C.LIMITS.log >> 1);
+  assert.equal(guest.unsent(host.vv().pG).ops, 0);
+  // Without keep (the earlier behaviour, and the host's own log) the same edits would have gone.
+  const g2 = clone(twin.project()); g2.documents[1].items = g2.documents[1].items.filter(i => !/^kv/.test(i.id));
+  assert.ok(twin.commit(g2) && twin.trim());
+  assert.equal(twin.since({pG: acked}, "pG"), null, "trim() without keep drops unconfirmed edits: what keep prevents");
+}
 
 console.log("collab-crdt: ok");

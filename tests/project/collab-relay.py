@@ -184,6 +184,9 @@ async def main():
     # Only well-formed messages are forwarded; anything else is dropped.
     await a.send({"t": "m", "d": 5}); await a.send({"t": "join", "room": other_room, "auth": other_auth}); await a.send({"t": "x"}); await a.send({"t": "p"})
     assert await b.nothing() is None
+    # The keepalive is answered to its sender alone (the editor's liveness check), never forwarded.
+    assert await a.next("p") == {"t": "p"}
+    assert await a.nothing() is None and await c.nothing() is None
 
     # Close the third peer before reusing its client variable later in this scenario.
     c.writer.close()
