@@ -1,6 +1,7 @@
 # Poured copper that costs what an edit touched
 
-Status: all three stages approved by the owner on 2026-11-27 and being built; no results yet.
+Status: all three stages approved by the owner on 2026-11-27. Stage 1 is built and measured (results
+below); stage 2 is being built.
 Stages 1 and 2 are on `perf/pour-copper-proportional`, stage 3 on `perf/pour-solve-local`. The
 owner asked for stage 2 to be built whatever stage 1 measures. It follows the measurements on the
 local branch `perf/pcb-edit-proportional` and a read-only map of the pour code made the same day.
@@ -35,6 +36,15 @@ tile pieces instead would change what a region means and need a stitch for every
 What changes is everything around the island: what is repainted, what is encoded, what is written
 and what Undo keeps. Each already has a mechanism that works on parts of a region.
 
+The pour engine owns copper. `polygon-pour.js`, `pcb-pours.js` (`AtriumPCBPours`), `PourCore`,
+`PourTiles` and the live pour worker decide what changed, how rings are hashed and ordered, how a
+region is encoded and decoded, what a run is, and how a region's data is read. This work reuses
+what the engine already provides; anything missing is added to the engine and exposed there. The
+canvas, autosave (`save-cache.js`), the undo store and every other reader consume that API and keep
+no pour knowledge of their own: no second ring hash, no second notion of a run, no pour key list,
+and no decoding of region data outside the engine's accessor. Nothing pour-specific goes into
+collaboration code (`app/project/collab-*`).
+
 | Need | Reused |
 | --- | --- |
 | Where copper changed | `AtriumPCBPours.copperChange(before, after)`: boxes around changed rings, matched by content hash |
@@ -63,6 +73,55 @@ No change to the model or the file.
 
 Expected: the canvas cost falls towards the board without pours, about 2 MB less garbage per edit,
 and the 150 ms rebuild goes. Autosave and Undo still handle 4 MB for the changed island.
+
+#### Stage 1 as built
+
+- Runs (`pcb-pours.js`). A region's rings are cut into runs: a run ends after a ring whose content
+  hash has its five low bits clear (32 rings on average, about 15 KB on the benchmark island), or
+  before 256 KB. A run's key is two 32-bit hashes of its rings, its ring count and its byte length.
+  Decoded rings and ring boxes, run paths (joined with `Path2D.addPath`, which costs 1.2 ms for 180,000
+  vertices against 9.4 ms for `lineTo`, with identical pixels) and display LOD are kept by run, so a
+  new version of an island finds all but its changed runs cached. A table per region (ring hashes,
+  offsets, runs) is kept by region; the base64 of a run alone is decoded when the rest is cached.
+- `copperChange` cancels whole runs by key, then rings by hash and exact coordinates; the answer for
+  the last four pairs of lists is kept (the canvas and the clearance session ask about one commit).
+- `view(stored)` and `viewDamage(a, b)` (engine) give the canvas the boxes where shown copper
+  changed: `copperChange` for stored copper, and through `displayHook` the clip rectangles of tile
+  patches shown, faded, held or cleared (`bumpTiles` records them per display version; the token
+  also carries whether the preview shows, since a mirror preview hides itself when the revision moves).
+- `canvas-fast.js` takes those boxes as damage; the pours array and the tile version left its key. A
+  copper-only patch is exact (batches are not rebuilt). A new region is indexed at once when its runs
+  are cached. A part fill now uses a `Path2D` like the whole region, and the LOD rings are checked
+  against the index after it is built (a first repaint drew stored rings before).
+- `finishSteps` encodes through `regionLike`: an island identical to one the pour has (bytes, links,
+  arcs) is that region object, so the worker returns it as an index and nothing is encoded again.
+- `canvas-gpu.js`: coverage damage is the changed boxes; bounds come from the engine's ring boxes.
+  GPU fans are still one buffer per region (see Not verified).
+- Tile preview: adds, deletes, paste and their undo update a warm session through `tileDiff`.
+  Efficiency mode has no tile preview, so there it changes nothing.
+
+#### Stage 1 results
+
+Benchmark board with pours, `scripts/perf-sch.sh --board pours`, 3 runs per side alternating base
+(`cb612f8`) and branch, headless Chrome with CPU raster, MacBook on battery (75–79 %). Medians, range.
+
+| | Efficiency always: base | stage 1 | Efficiency off: base | stage 1 |
+| --- | --- | --- | --- | --- |
+| Longest task after an edit (`editTaskMax`) | 83 ms [81–83] | 0 [0–56] | 73 [70–75] | 57 [57–63] |
+| Longest canvas frame | 83 ms | 34 ms | 73 ms | 43 ms |
+| Canvas time per edit (move part) | 214 ms | 94 ms | 232 ms | 128 ms |
+| CPU per edit, worst | 562 ms | 360 ms | 568 ms | 404 ms |
+| Worker transfer per edit | 4.1–6.1 MB (earlier map) | 5.0 MB (1 of 65 regions) | | |
+| Autosave written per edit | 6.3 MB | 6.3 MB | | |
+| Undo held per edit | 8.0–11.9 MB | 8.0 MB | | |
+
+Every edit's own tasks now stay under 50 ms; the tasks left over 50 ms are Undo and Redo, and they
+are not canvas work: the online DRC re-checks copper after Undo restores older copper and asks
+`inspectCopper` for a board-wide signature pass (45–60 ms). The same board without pours spends
+40–52 ms of canvas per edit; with pours stage 1 spends 70–128 ms: the exact idle frame after a
+batched item patch still repaints the whole board (about 35 ms, the pours' share about 10 ms), and the
+Insights and DRC markers are planned again when the copper changes (about 20 ms in a frame).
+Autosave and Undo still carry the whole island, as expected.
 
 ### 2. Region data in content-addressed runs
 
