@@ -57,7 +57,7 @@ Compare your download’s SHA-256 with the checksum supplied beside it.
 - **Imports.** Eagle `mil` sizes, STEP files in decimetres, feet or mils, short Altium track and pin records, EasyEDA nets listed before their part, and malformed numbers in EasyEDA, IDF and DXF files are read correctly or skipped with a note, without losing the rest of the file.
 - **Outputs.** Mirrored parts are exported where the board draws them in IPC-2581, KiCad, STEP, EasyEDA Pro, EasyEDA Standard and Altium. KiCad writes slots as oval drills. Flex through holes are no longer labelled blind. IDX and IDF keep slots, Eagle keeps unnetted vias, and the drill report states the drill origin.
 - **Library.** Chip LEDs and tantalum capacitors get pin-1 and polarity marks, and pin-1 marks follow pad number 1. SMD connector pegs pass library health. The Symbol Wizard keeps hidden pins, and library search finds `pkg:qfn`.
-- **Calculations.** Absolute temperatures stay in °C through `min`, `max`, `average` and sums, and °C and Δ°C no longer mix. Table cells can read net fields such as `net VDD.voltage`. Copied results paste back as the same value (`1e12` no longer copies as `1 T`).
+- **Calculations.** Absolute temperatures stay in °C through `min`, `max`, `average` and sums, and °C and Δ°C no longer convert into each other. Table cells can read net fields such as `net VDD.voltage`. Copied results paste back as the same value (`1e12` no longer copies as `1 T`).
 - **Scripts and MCP.** Script results now carry BigInt (as text), Map and Date values correctly, and no longer fail on self-referencing values. Find and replace on a selection finds its document. Cancelling an extension update keeps the permissions it already had.
 
 ## Changed behaviour
