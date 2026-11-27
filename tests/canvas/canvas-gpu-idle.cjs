@@ -987,6 +987,108 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     paint(state(),[pad],0,false,1,19);
     assert.deepEqual(reads.at(-1),[0,0,W,H],"incomplete native metrics retain the full transfer");
   } finally {rec.ctx.measureText=measure;}
+  // The clipped WebKit slice uses real padText with a raster oracle for the platform glyph bounds.
+  {
+    const U=AtriumUndoStore, project=Atrium.project("Caption slices");
+    project.documents=[doc];
+    const parent={id:"P",kind:"part",def:"slices",x:0,y:0,angle:180,mirror:true,layer:"Bottom",showRef:false};
+    defs.set(parent.def,{id:parent.def,footprint:{shapes:[],pads:[
+      {...pad,number:"short",net:"N",x:1,y:1.5,w:3,h:1.4,angle:90},
+      {...pad,number:"tall",net:"",x:-1,y:0,w:3,h:1.4,angle:90},
+      {...pad,number:"µ?",net:"",x:0,y:-1,w:3,h:1.4,angle:90}
+    ]}});
+    project.library=[...defs.values()];
+    doc.items=[parent];
+    U.reset(project);
+    webKit.AtriumUndoStore=U;
+    const fonts={status:"loaded",ready:{},size:1};
+    rec.canvas.ownerDocument={fonts};
+    const previousPaint=rec.ctx.fillText;
+    let fills=[], metrics=[], flipped=true, tall=17;
+    const glyph=text=>({actualBoundingBoxLeft:3,actualBoundingBoxRight:4,
+      actualBoundingBoxAscent:text==="tall"?tall:3,actualBoundingBoxDescent:2});
+    rec.ctx.measureText=text=>{metrics.push(text);return text==="µ?"?null:glyph(text);};
+    rec.ctx.fillText=(text,x,y)=>{
+      fills.push(text);
+      const m=glyph(text), {a,b,c,d,e,f}=rec.ctx.getTransform();
+      const corners=[];
+      for(const px of [x-m.actualBoundingBoxLeft,x+m.actualBoundingBoxRight])
+        for(const py of [y-m.actualBoundingBoxAscent,y+m.actualBoundingBoxDescent])corners.push([a*px+c*py+e,b*px+d*py+f]);
+      const xs=corners.map(q=>q[0]),ys=corners.map(q=>q[1]);
+      const x0=Math.max(0,Math.floor(Math.min(...xs))),x1=Math.min(W,Math.ceil(Math.max(...xs)));
+      if(x0>=x1)return;
+      for(let row=Math.max(0,Math.floor(Math.min(...ys)));row<Math.min(H,Math.ceil(Math.max(...ys)));row++)
+        scratch.fill(1,row*W+x0,row*W+x1);
+    };
+    try {
+      function rows(owned) {
+        const st=state(), T={}, dpr=2, scale=18, opts={layer:"Bottom",flipped,selected:parent.id};
+        const V={items:[parent],all:[parent],active:opts.layer,o2:opts,padDetails:true,viewport:[-8,-8,8,8]};
+        const I={...view.internals(),ctx:rec.ctx,worldToScreen:([x,y])=>[W/4+(flipped?-x:x)*scale,H/4+y*scale],query:()=>[]};
+        if(owned) st.textJob={T,V};
+        return {st,T,draw(y){textLayer(I,st,doc,defs,opts,[0,0,scale,flipped,W/dpr,H/dpr,dpr],V,null,T,[0,y,W,8]);}};
+      }
+      for(const mirrorView of [true,false]){
+        flipped=mirrorView;
+        const expected=rows(false), sliced=rows(true);
+        const render=job=>{
+          fills=[];metrics=[];
+          job.draw(0);
+          assert.equal(metrics.length,0,"the first slice does not measure captions");
+          for(let y=8;y<H;y+=8)job.draw(y);
+          return {fills:[...fills],metrics:[...metrics],ink:Array.from(job.T.bands,b=>b.tex)};
+        };
+        const control=render(expected), result=render(sliced);
+        assert.deepEqual(result.ink,control.ink,"exact captured glyph coverage keeps mirrored, selected, dual and oversized caption pixels");
+        assert.ok(result.ink.some(pixels=>pixels?.some(Boolean)),"the caption tiles include real overlapping rows");
+        assert.ok(result.fills.length<control.fills.length,"owned clipped rows skip captions using their measured ink");
+        assert.equal(result.fills.filter(text=>text==="µ?").length,12,"missing font metrics retain every draw");
+        assert.ok(result.metrics.length>0 && new Set(result.metrics).size===result.metrics.length,"measure each glyph once");
+      }
+
+      tall=8;
+      const changing=rows(true);
+      fills=[];metrics=[];
+      changing.draw(0);changing.draw(8);
+      fills=[];metrics=[];
+      changing.draw(16);
+      assert.ok(!fills.includes("tall"));
+      fonts.status="loading";
+      fills=[];metrics=[];
+      changing.draw(24);
+      assert.ok(fills.includes("tall") && !metrics.length,"loading fonts bypass the measurements");
+      fonts.status="loaded";fonts.ready={};changing.draw(32);
+      fonts.ready={};tall=40;
+      fills=[];metrics=[];
+      changing.draw(40);
+      assert.ok(metrics.includes("tall"),"new font readiness discards all previously measured bounds");
+      fonts.size++;
+      fills=[];metrics=[];
+      changing.draw(48);
+      assert.ok(metrics.includes("tall"),"adding an already loaded face invalidates the prior bounds");
+      rec.canvas.ownerDocument.fonts={...fonts};
+      fills=[];metrics=[];
+      changing.draw(56);
+      assert.ok(metrics.includes("tall"),"a new font set cannot inherit the previous bounds");
+      fills=[];metrics=[];
+      U.duringEdit(()=>changing.draw(64));
+      assert.ok(fills.includes("tall") && !metrics.length,"a live draft draws with no retained metrics");
+      fills=[];metrics=[];
+      changing.draw(72);
+      assert.ok(metrics.includes("tall"),"the verified job resolves again after draft invalidation");
+      delete changing.st.textJob;
+      fills=[];metrics=[];
+      changing.draw(80);
+      assert.ok(fills.includes("short")&&!metrics.length,"a retired job cannot expose its caption map to direct or strip paint");
+    } finally {
+      U.reset();
+      delete webKit.AtriumUndoStore;
+      delete rec.canvas.ownerDocument;
+      rec.ctx.fillText=previousPaint;
+      rec.ctx.measureText=measure;
+      defs.delete(parent.def);
+    }
+  }
   paint(state(),[label,line],0,false,1,9);
   assert.equal(pathY,-4,"a label record with points took the path painter");
   assert.deepEqual(reads.at(-1),[0,0,W,H],"artwork from the path branch falls back despite the label kind");
@@ -1565,6 +1667,28 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   const e = slices.resourceCounters(exact.I), w = slices.resourceCounters(wide.I);
   assert.deepEqual([e.slicing, e.textSliceRows, e.textSliceWorkMs, e.wideSliceRows], [false, 80, 12.25, 0]);
   assert.deepEqual([w.slicing, w.wideSliceRows, w.wideSliceWorkMs, w.textSliceRows], [false, 80, 11.5, 0]);
+
+  // A dense foreground job respects the clip height it measured before culling.
+  function heights(name, wide, count, culled) {
+    const fixture=viewForSlices(name,wide), rows=[];
+    fixture.I.onRows=(y,h)=>{
+      rows.push(h);
+      fixture.I.workPerRow=y===0?1.25:.01;
+      if(y>=16 && count) {
+        const job=fixture.st[wide?"wideText":"textJob"];
+        job.captionBoxes={culled,bounds:new Map(Array.from({length:count},(_,i)=>[i,null]))};
+      }
+    };
+    fixture.start(); drain();
+    return rows;
+  }
+  assert.deepEqual(heights("dense verified",false,64,true),[16,...Array(8).fill(8)],
+    "a measured dense foreground job keeps its observed 8-pixel floor");
+  for(const [name,wide,count,culled] of [
+    ["sparse verified",false,8,true],["no witness",false,0,false],["unculled",false,64,false],
+    ["speculative dense",true,64,true]
+  ]) assert.ok(heights(name,wide,count,culled).slice(2).some(h=>h>8),
+    name+" keeps the normal growth policy");
 
   // A new camera invalidates partial artwork, including its footprint on the GPU.
   exact.start(); runNext(); runNext();

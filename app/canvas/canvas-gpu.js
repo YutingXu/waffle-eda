@@ -937,7 +937,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // Collect the device-pixel bounds of the paths the PCB text painter actually draws.
   // Null means a fresh/empty texture, undefined means the previous contents are unknown.
   function bandRectangle() {
-    let box = null;
+    let box = null, hasGlyph = false;
     const include = (ctx, x0, y0, x1, y1) => {
       if (box === undefined) return;
       if (!ctx?.getTransform) { box = undefined; return; }
@@ -957,6 +957,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     // The caption painter supplies the real font, alignment, baseline and transform from fillText.
     const glyph = (ctx, text, x, y) => {
+      hasGlyph = true;
       if (box === undefined) return;
       const m = ctx.measureText?.(text);
       if (!(m && m.actualBoundingBoxLeft + m.actualBoundingBoxRight > 0 && m.actualBoundingBoxAscent + m.actualBoundingBoxDescent > 0)) {
@@ -964,7 +965,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       }
       include(ctx, x - m.actualBoundingBoxLeft, y - m.actualBoundingBoxAscent, x + m.actualBoundingBoxRight, y + m.actualBoundingBoxDescent);
     };
-    return {include, rect, glyph};
+    return {include, rect, glyph, get hasGlyph() { return hasGlyph; }};
   }
   function damagePixels(I, box, dpr, margin, w, h) {
     const p = I.worldToScreen([box[0],box[1]]), q = I.worldToScreen([box[2],box[3]]);
@@ -2278,7 +2279,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       // Only what reaches the uploaded area is drawn: the layer's text, its ordered copper and pad captions.
       items = V.items.filter(near);
       if (all && exact.size) all = all.filter(near);
-      entries = list => list.filter(x => near(x.parent || x.p));
+      entries = (list, captions) => list.filter(entry => {
+        if (!near(entry.parent || entry.p)) return false;
+        const box = captions?.bounds.get(entry);
+        if (box === undefined || box && box[0] < sx + sw && box[1] < sy + sh && box[2] > sx && box[3] > sy) return true;
+        captions.culled = true;
+        return false;
+      });
       // WebKit rasterizes the long copper that crosses the area only where it is uploaded. (A clip changes
       // Chromium's antialiasing, so there the layer stays byte for byte what a whole repaint gives.)
       clipped = READBACK;
@@ -2294,22 +2301,34 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       // Each layer still paints in its original band, but all bands share one object scan.
       // Do not retain this viewport's groups in the pan-strip painter.
       const start = now();
+      const canMeasure = clipped && owner?.layerScan && details?.size;
+      const fonts = canMeasure ? I.ctx.canvas.ownerDocument?.fonts : null;
+      let captionBoxes;
+      if (canMeasure && fonts?.status !== "loading") {
+        const ready = fonts?.ready, fontCount = fonts?.size, old = owner.captionBoxes;
+        if (old?.scope === owner.layerScan && old.key === key && old.details === details &&
+            old.fonts === fonts && old.ready === ready && old.fontCount === fontCount) captionBoxes = old;
+        else owner.captionBoxes = captionBoxes = {scope:owner.layerScan,key,details,fonts,ready,fontCount,bounds:new Map(),W,H};
+        // Measure a few captions only as their ordinary draw reaches a slice, after the first row.
+        captionBoxes.remaining = sy === 0 ? 0 : 64;
+      } else if (owner) owner.captionBoxes = null;
       const {ordered, selectedParts} = I.collectBoardLayers(items,doc,defs,scale,textOptions,null,V.viewport,null);
-      prepared = new Map(need.map(next => [next,{ordered:[],selectedParts,captions:null}]));
+      const grouped = new Map(need.map(next => [next,{ordered:[],selectedParts,captions:null,captionBoxes}]));
       const forLayer = layer => {
         const next = nextOf(layer);
-        return prepared.get(own.has(next) ? next : last);
+        return grouped.get(own.has(next) ? next : last);
       };
       for (const pass of ordered) forLayer(pass.layer).ordered.push(pass);
       if (freshRows) {
         for (const [layer, list] of details || []) {
-          const captions = entries(list);
+          const captions = entries(list, captionBoxes);
           if (captions.length) (forLayer(layer).captions ||= new Map()).set(layer, captions);
         }
         entries = list => list;
       }
+      prepared = grouped;
       st.stats.acc.board += now() - start;
-    }
+    } else if (owner) owner.captionBoxes = null;
     // One band's content for its pass (in g's current transform), from these objects: also how a pan draws
     // the strips it uncovers (scrollText), with the objects there.
     function paintBand(g, next, items, all, details, entries, viewport, painted, bounds, layers) {
@@ -2319,7 +2338,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       for (const [layer, list] of details || []) if (!exact.has(layer) && mine(layer)) {
         const captions = entries(list);
         if (painted) for (const {parent,p} of captions) painted(parent || p);
-        paintPadDetails(I, g, captions, layer, scale, V.o2, bounds?.glyph);
+        paintPadDetails(I, g, captions, layer, scale, V.o2, bounds?.glyph, layers?.captionBoxes);
       }
       // Each glyph is drawn once in its layer. Component selection rectangles go over all layers.
       const options = exact.size || need.length > 1 ?
@@ -2548,7 +2567,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       st.stats[own ? "textSliceWorkMs" : "wideSliceWorkMs"] += ms;
       // Estimate the next raster step from rows just drawn. Scope, setup and coverage have their own costs.
       if (h) {
-        job.rows = Math.max(8, Math.min(H, Math.ceil(job.rows * 1.5), Math.round(h * SLICE_MS / Math.max(ms, .25))));
+        // A dense foreground caption pass that already reached the floor can
+        // have cold glyphs later in the view. Keep its established small clips.
+        const boxes = job.captionBoxes;
+        const limit = own && job.rows === 8 && boxes?.culled && boxes.bounds.size >= 64 ? 8 : H;
+        job.rows = Math.max(8, Math.min(limit, H, Math.ceil(job.rows * 1.5), Math.round(h * SLICE_MS / Math.max(ms, .25))));
         const recorder = G.AtriumDiagnostics?.performance;
         if (recorder?.rendererStages) recorder.renderStage(own ? "stationary-text-rows" : "wide-text-rows", ms);
       }
@@ -3009,11 +3032,18 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     return layers;
   }
-  function paintPadDetails(I, ctx, entries, layer, scale, opts, glyphBounds) {
-    for (const {p, parent, g} of entries) {
+  function paintPadDetails(I, ctx, entries, layer, scale, opts, glyphBounds, captionBoxes) {
+    const boxes = captionBoxes?.bounds;
+    for (const entry of entries) {
+      const {p, parent, g} = entry;
+      // Measure the actual platform glyphs on their first draw. An unknown ink
+      // rectangle retains every later draw for that caption.
+      const measure = captionBoxes?.remaining > 0 && boxes.size < 4096 && !boxes.has(entry) ? bandRectangle() : null;
+      if (measure) captionBoxes.remaining--;
       ctx.save();
-      I.padText(ctx, p, g, scale, opts, parent, undefined, layer, glyphBounds);
+      I.padText(ctx, p, g, scale, opts, parent, undefined, layer, measure?.glyph || glyphBounds);
       ctx.restore();
+      if (measure) boxes.set(entry, measure.hasGlyph ? measure.rect(captionBoxes.W,captionBoxes.H) : undefined);
     }
   }
 
