@@ -122,13 +122,13 @@ globalThis.AtriumUIKit = (() => {
     input.onchange = () => onValue(input.value === "" ? null : +input.value);
     return input;
   }
-  /** Tool-panel label and visible unit. Defaults to the shared "ui-tool" prefix. A preset numericUnit is left in place. */
-  function analysisField(label, input, unit, cls, prefix = "ui-tool") {
-    const row = el("label", prefix + "-field" + (cls ? " " + cls : ""));
-    row.append(el("span", prefix + "-label", label), input);
+  /** Tool-panel (.ui-tool-*) label and visible unit. A preset numericUnit is left in place. */
+  function analysisField(label, input, unit, cls) {
+    const row = el("label", "ui-tool-field" + (cls ? " " + cls : ""));
+    row.append(el("span", "ui-tool-label", label), input);
     if (input.type === "number" && unit && input.dataset.numericUnit == null)
       input.dataset.numericUnit = ({"W/m²K":"W/m²/K","W/m·K":"W/m/K","°C rise":"Δ°C","k":"","M":""})[unit] ?? unit;
-    if (unit) row.append(el("span", prefix + "-unit", unit));
+    if (unit) row.append(el("span", "ui-tool-unit", unit));
     return row;
   }
   /** A dropdown: a native single-line <select>; AtriumSelectPopup opens its list. */

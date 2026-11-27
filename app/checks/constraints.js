@@ -766,7 +766,7 @@ globalThis.AtriumConstraints = (() => {
     for (const [k, label] of TABS) { const b = button(label, () => switchTab(k), "cm-tab ui-tab"); b.setAttribute("role", "tab"); b.dataset.tab = k; tabs.append(b); }
     const close = button("×", () => d.close(), "ui-close cm-close", "Close"); close.setAttribute("aria-label", "Close");
     head.append(titles, tabs, close);
-    const tools = el("div", null, "cm-toolbar");
+    const tools = el("div", null, "ui-sheet-toolbar");
     const search = el("input", null, "cm-search ui-field"); search.type = "search"; search.placeholder = "Filter rows"; search.setAttribute("aria-label", "Filter rows");
     const failing = button("Failing only", () => { state.failing = !state.failing; failing.setAttribute("aria-pressed", String(state.failing)); repaint(); }, "cm-toggle", "Show only rows that fail a constraint");
     failing.setAttribute("aria-pressed", "false"); failing.dataset.variant = "secondary"; // the library's pressed toggle face
