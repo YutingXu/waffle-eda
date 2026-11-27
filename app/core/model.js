@@ -619,8 +619,12 @@ globalThis.Atrium = (() => {
     function lead(p, q, target, stop) {
       const bend = elbow(p, q, target, stop);
       // A turn can put another pin between the moved end and the fixed span.
-      if (!turn || !same(bend, stop) || !turn.pins.some(pin =>
-        !same(pin, start) && !same(pin, end) && !same(pin, stop) && onWireSpan(pin, target, stop))) return [bend];
+      const crosses = c => turn.pins.some(pin => !same(pin, start) && !same(pin, end) && !same(pin, stop) &&
+        (onWireSpan(pin, target, c) || onWireSpan(pin, c, stop)));
+      if (!turn || !crosses(bend)) return [bend];
+      // An L-shaped lead turns at its other corner instead.
+      const other = [target[0] + stop[0] - bend[0], target[1] + stop[1] - bend[1]];
+      if (!same(bend, stop)) return [crosses(other) ? bend : other];
       const across = Math.abs(p[1] - q[1]) < .0001 ? 1 : 0, along = 1 - across;
       const offset = Math.sign(stop[along] - p[along]) * turn.step;
       const departure = target.slice(), arrival = stop.slice();
@@ -781,15 +785,29 @@ globalThis.Atrium = (() => {
       return !!collapsed.size;
     }};
   }
+  // Power ports, ports, off sheet connectors and net labels alone on a part's pin turn with it.
+  const tagKinds = new Set(["power", "port", "offsheet", "netlabel"]);
+  function pinTags(doc, defs, item, selected = new Set([item.id]), query) {
+    const ε = wireContactTolerance, out = [];
+    for (const {at} of pins(item, defs.get(item.def), "schematic")) {
+      const near = query ? query([at[0] - ε, at[1] - ε, at[0] + ε, at[1] + ε]) : doc.items;
+      const on = o => o.kind === "wire" ? onWirePath(at, o.points) : terminalContacts(o, defs).some(p => same(p, at));
+      for (const t of near) if (tagKinds.has(t.kind) && !t.locked && !selected.has(t.id) && !out.includes(t) && on(t) && !near.some(o => o !== t && o !== item && on(o))) out.push(t);
+    }
+    return out;
+  }
+  // avoidPinShorts keeps pin nets through a turn: leads avoid other pins and pin tags follow
+  // (callers passing `wires` list the tags there).
   /** @param {{defs?: Map<string, Definition>, query?: (box: Box) => Item[], junctionCopies?: Map<string, JunctionItem>, avoidPinShorts?: boolean}} [options] */
   function transformPart(doc, item, def, change, wires, options = {}) {
-    const {defs = new Map([[item.def, def]]), query, junctionCopies, avoidPinShorts = false} = options;
+    const {defs = new Map([[item.def, def]]), query, junctionCopies, avoidPinShorts = true} = options;
     const before = pins(item, def, doc.kind);
     if (doc.kind !== "schematic") {Object.assign(item, change); return [item];}
+    const tags = avoidPinShorts && !wires && ("angle" in change || "mirror" in change) ? pinTags(doc, defs, item, undefined, query) : [];
     const dotted = junctionCopies && new Set([...junctionCopies.values()].map(dot => pointKey([dot.x, dot.y])));
     const terminals = before.map(p => p.at).filter(at => !dotted || dotted.has(pointKey(at)));
     const edges = !wires || dotted?.size
-      ? schematicAttachments(doc, defs, terminals, new Set([item.id]), {query, existingOnly:!!wires, junctionCopies})
+      ? schematicAttachments(doc, defs, terminals, new Set([item.id, ...tags.map(t => t.id)]), {query, existingOnly:!!wires, junctionCopies})
       : null;
     const angle = item.angle || 0, mirror = !!item.mirror;
     Object.assign(item, change);
@@ -797,15 +815,18 @@ globalThis.Atrium = (() => {
     const moved = new Map(before.map((p, i) => [pointKey(p.at), after[i].at]));
     const turn = avoidPinShorts && (!!item.mirror !== mirror || (item.angle || 0) !== angle)
       ? {pins: [...moved.values()], step: Math.max(doc.grid || 1.27, 1.27) * 2} : undefined;
+    const carry = t => {const to = moved.get(pointKey([t.x, t.y])); return to && !same(to, [t.x, t.y]) && ([t.x, t.y] = to);};
+    tags.forEach(carry);
     if (edges) {
       edges.apply(p => moved.get(pointKey(p)), turn);
       edges.finish();
-      if (!wires) return [item, ...edges.affected];
+      if (!wires) return [item, ...edges.affected, ...tags];
     }
     // Some callers supply detached wire copies or an explicit subset, e.g. a mirror
     // operation that transforms the selection's own wires separately.
     const changed = [item, ...(edges?.affected || [])];
     for (const wire of wires) {
+      if (tagKinds.has(wire.kind)) {if (carry(wire)) changed.push(wire); continue;}
       if (wire.kind !== "wire") continue;
       const old = wire.points, first = moved.get(pointKey(old[0])), last = moved.get(pointKey(old.at(-1)));
       const start = first && !same(first, old[0]) ? first : null;
@@ -1271,5 +1292,5 @@ globalThis.Atrium = (() => {
     do{step=steps.next();}while(!step.done);
     return step.value;
   }
-  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind};
+  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,pinTags,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind};
 })();

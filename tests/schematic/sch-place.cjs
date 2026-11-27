@@ -127,10 +127,10 @@ const near = (a, b, msg) => assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-
   };
   assert.deepEqual(pinNets(), ["IN", "GND"]);
   const scripted = A.clone(sch);
-  P.mirrorItems(scripted, defs, [r.id], "x");
+  P.mirrorItems(scripted, defs, [r.id], "x", undefined, undefined, {avoidPinShorts:false});
   const originalPower = scripted.items.find(i => i.id === power.id);
-  assert.deepEqual([originalPower.x, originalPower.y], p2, "a programmatic mirror leaves an unselected port in place");
-  const touched = new Set(), options = {avoidPinShorts:true};
+  assert.deepEqual([originalPower.x, originalPower.y], p2, "avoidPinShorts:false leaves an unselected port in place");
+  const touched = new Set(), options = {};
   assert.equal(P.mirrorItems(sch, defs, [r.id], "x", undefined, touched, options), 1);
   assert.equal(r.mirror, true);
   assert.deepEqual(pinNets(), ["IN", "GND"]);
@@ -141,6 +141,55 @@ const near = (a, b, msg) => assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-
   assert.deepEqual(pinNets(), ["IN", "GND"]);
   assert.deepEqual(w.points, [p1, tail]);
   assert.deepEqual([power.x, power.y], p2);
+}
+
+// 4c. A scripted mirror (headless mirror command) keeps pin nets too: a power port or net label
+// alone on a pin goes with it, whichever way the other pin's lead leaves.
+for (const [kind, lead, axis] of [["power", [-10, 0], "x"], ["power", [0, -10], "x"], ["netlabel", [0, -10], "x"], ["power", [0, -10], "y"]]) {
+  const {p, sch} = blank(), defs = defsFor(p);
+  const r = A.instantiate(p, R, [0, 0]);
+  const p1 = pinAt(r, R, 1), p2 = pinAt(r, R, 2), tail = [p1[0] + lead[0], p1[1] + lead[1]];
+  const tag = kind === "power" ? S.make("power", p2, {text:"GND", style:"gnd"}) : {id:A.id(), kind:"netlabel", x:p2[0], y:p2[1], text:"GND"};
+  sch.items.push(r, {id:A.id(), kind:"wire", points:[p1, tail]}, tag, {id:A.id(), kind:"netlabel", x:tail[0], y:tail[1], text:"IN"});
+  P.mirrorItems(sch, defs, [r.id], axis);
+  const c = A.connectivity(sch, defs), what = kind + " with lead " + lead + " mirrored " + axis;
+  assert.deepEqual([1, 2].map(n => c.byPin.get(r.id + "/" + n)), ["IN", "GND"], what + " keeps both pin nets");
+  assert.ok(c.nets.every(n => !n.conflict), what + " joins no nets");
+  near([tag.x, tag.y], pinAt(r, R, 2), what + ": the tag stays on pin 2");
+}
+
+// 4d. Mirroring a sheet symbol keeps the parent's wires on its entries.
+for (const [side, axis] of [["top", "x"], ["bottom", "x"], ["left", "x"], ["right", "y"], ["left", "y"]]) {
+  const {p, sch} = blank(), defs = defsFor(p), child = A.sheet("schematic", "Child");
+  p.documents.push(child);
+  const r = A.instantiate(p, R, [5.08, 0]); child.items.push(r, S.make("port", pinAt(r, R, 1), {text:"EN", io:"input"}));
+  const ss = S.make("sheetsymbol", [0, 0], {w:40.64, h:20.32, name:"U_Child", sheet:child.id, entries:[{id:"e", name:"EN", side, offset:10.16, io:"input"}]});
+  const at = S.entryPoint(ss, ss.entries[0]), out = {left:[-10, 0], right:[10, 0], top:[0, -10], bottom:[0, 10]}[side], end = [at[0] + out[0], at[1] + out[1]];
+  const wire = {id:A.id(), kind:"wire", points:[at, end]};
+  sch.items.push(ss, wire, {id:A.id(), kind:"netlabel", x:end[0], y:end[1], text:"EN_PARENT"});
+  const net = () => AtriumHierarchy.compile(p, {defs, scope:"hierarchical"}).netOf(child.id, r.id, "1");
+  assert.equal(net(), "EN_PARENT");
+  const touched = new Set();
+  P.mirrorItems(sch, defs, [ss.id], axis, undefined, touched);
+  assert.ok(wire.points.some(q => A.same(q, S.entryPoint(ss, ss.entries[0]))), side + " entry mirrored " + axis + " keeps its wire");
+  assert.equal(net(), "EN_PARENT", side + " entry mirrored " + axis + " keeps the parent net");
+  assert.ok(touched.has(ss));
+}
+// Entries whose followed wires would cross into one net keep their wires where they were.
+{
+  const {p, sch} = blank(), defs = defsFor(p);
+  const ss = S.make("sheetsymbol", [0, 0], {w:40.64, h:20.32, name:"U", sheet:"", entries:[10.16, 30.48].map((o, n) => ({id:"e" + n, name:"E" + n, side:"top", offset:o, io:"input"}))});
+  sch.items.push(ss);
+  const wires = ss.entries.map((e, n) => {
+    const at = S.entryPoint(ss, e), w = {id:"w" + n, kind:"wire", points:[at, [at[0], -10]]};
+    sch.items.push(w, {id:A.id(), kind:"netlabel", x:at[0], y:-10, text:"N" + n});
+    return w;
+  });
+  const authored = wires.map(w => w.points), count = sch.items.length;
+  P.mirrorItems(sch, defs, [ss.id], "x");
+  const c = A.connectivity(sch, defs);
+  assert.deepEqual(wires.map(w => c.byWire.get(w.id)), ["N0", "N1"], "the two entry nets stay apart");
+  assert.deepEqual(wires.map(w => w.points), authored); assert.equal(sch.items.length, count);
 }
 
 // 5. Mirror Y on a rotated part flips on screen; X then Y equals a half turn.

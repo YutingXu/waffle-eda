@@ -84,19 +84,44 @@ const expected = ["LEAF", "BRANCH"];
     {id: "OUT", kind: "netlabel", x: right[0], y: right[1], text: "OUT"});
   const authored = A.clone([first.points, second.points]);
   const scripted=A.clone(doc), scriptedPart=scripted.items[0];
-  for(const angle of [90,180]) A.transformPart(scripted,scriptedPart,def,{angle},undefined,{defs});
+  for(const angle of [90,180]) A.transformPart(scripted,scriptedPart,def,{angle},undefined,{defs,avoidPinShorts:false});
   const scriptedRoute=scripted.items[1].points;
-  assert.equal(scriptedRoute.length,2,"programmatic transforms keep their original straight route");
+  assert.equal(scriptedRoute.length,2,"avoidPinShorts:false keeps the original straight route");
   assert.ok(A.same(scriptedRoute[0],A.pins(scriptedPart,def,doc.kind)[0].at));
   assert.ok(A.same(scriptedRoute[1],left));
   for (const angle of [90, 180, 270, 0]) {
-    A.transformPart(doc, part, def, {angle}, undefined, {defs,avoidPinShorts:true});
+    A.transformPart(doc, part, def, {angle}, undefined, {defs});
     assert.equal(part.angle, angle);
     const nets = A.connectivity(doc, defs);
     assert.deepEqual([1, 2].map(n => nets.byPin.get(part.id + "/" + n)), ["IN", "OUT"], `turn to ${angle}° preserves pin nets`);
     assert.ok(nets.nets.every(n => !n.conflict));
   }
   assert.deepEqual([first.points, second.points], authored, "a full turn restores the original routes");
+}
+{
+  // A power port placed on a pin turns with it: a half turn puts pin 1 where GND sat.
+  const def = AtriumParts.catalogue.find(d => d.id === "std-r");
+  for (const lead of [[-10, 0], [0, -10]]) for (const angle of [90, 180, 270]) {
+    const project = A.project("Rotation", [def]), doc = project.documents[0], defs = new Map([[def.id, def]]);
+    const part = A.instantiate(project, def, [0, 0]);
+    const [a, b] = A.pins(part, def, doc.kind).map(pin => pin.at), tail = [a[0] + lead[0], a[1] + lead[1]];
+    const gnd = AtriumSchObjects.make("power", b, {text: "GND"});
+    doc.items.push(part, {id: "input", kind: "wire", points: [a, tail]}, gnd, {id: "IN", kind: "netlabel", x: tail[0], y: tail[1], text: "IN"});
+    const moved = A.transformPart(doc, part, def, {angle}, undefined, {defs});
+    const nets = A.connectivity(doc, defs), where = `${angle}° with the lead ${lead}`;
+    assert.deepEqual([1, 2].map(n => nets.byPin.get(part.id + "/" + n)), ["IN", "GND"], `turn to ${where} keeps both pin nets`);
+    assert.ok(nets.nets.every(n => !n.conflict), `turn to ${where} joins no nets`);
+    assert.deepEqual([gnd.x, gnd.y], A.pins(part, def, doc.kind)[1].at, "GND stays on pin 2");
+    assert.ok(moved.includes(gnd), "the transform reports the moved port");
+  }
+  // A port that also meets a wire stays, and a lead joins it to the moved pin.
+  const project = A.project("Rotation", [def]), doc = project.documents[0], defs = new Map([[def.id, def]]);
+  const part = A.instantiate(project, def, [0, 0]), b = A.pins(part, def, doc.kind)[1].at;
+  const gnd = AtriumSchObjects.make("power", b, {text: "GND"});
+  doc.items.push(part, gnd, {id: "spur", kind: "wire", points: [b, [b[0], b[1] + 10]]});
+  A.transformPart(doc, part, def, {angle: 90}, undefined, {defs});
+  assert.deepEqual([gnd.x, gnd.y], b, "a shared port stays");
+  assert.equal(A.connectivity(doc, defs).byPin.get(part.id + "/2"), "GND");
 }
 {
   // A group gesture on a dense sheet keeps its captured contacts through every pointer frame.

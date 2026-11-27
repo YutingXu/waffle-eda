@@ -279,7 +279,10 @@ interface AtriumModelAPI {
   wireStretchState(wire: WireItem): WireStretchState | undefined;
   restoreWireStretch(wire: WireItem, state?: WireStretchState): void;
   schematicAttachments(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, terminals: Point[], selected: Set<string>, options?: SchematicAttachmentOptions): SchematicAttachmentSession;
-  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: WireItem[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem)[];
+  /** `wires` may also list pin tags (pinTags) to carry with their pins. avoidPinShorts defaults to true. */
+  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: (WireItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
+  /** Power ports, ports, off sheet connectors and net labels placed on one of a part's pins alone. */
+  pinTags(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, item: PartItem, selected?: Set<string>, query?: (box: Box) => Item[]): (PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
   validOutline(pts: unknown): boolean;
   /** Throws Error("This file is not a supported Waffle project.") or a module's own message. */
   validate(p: unknown): Project;

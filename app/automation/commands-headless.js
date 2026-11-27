@@ -134,7 +134,7 @@ globalThis.AtriumCommandsHeadless = (() => {
         if (!ids.has(i.id)) continue;
         if (i.kind !== "part") { skipped.push(i.id); continue; }
         if (i.locked === true && !a.include_locked) { skipped.push(i.id); continue; }
-        A().transformPart(doc, i, defs.get(i.def), {angle: ((((i.angle || 0) + step) % 360) + 360) % 360});
+        A().transformPart(doc, i, defs.get(i.def), {angle: ((((i.angle || 0) + step) % 360) + 360) % 360}, undefined, {defs});
         rotated.push(i.id);
       }
       if (doc.kind === "pcb" && PE?.settle && rotated.length) try { PE.settle(doc, p, defs); } catch { /* teardrops stay for DRC to report */ }
