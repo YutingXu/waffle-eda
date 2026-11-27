@@ -92,11 +92,11 @@ globalThis.AtriumPCBList = (() => {
           else i.size = num;
           break;
         case "x": case "y":
-          if (i.kind === "part") moved = A().transformPart(doc, i, def, {[field]:num});
+          if (i.kind === "part") moved = A().transformPart(doc, i, def, {[field]:num}, undefined, {defs});
           else i[field] = num;
           break;
         case "rotation":
-          if (i.kind === "part") moved = A().transformPart(doc, i, def, {angle:num}); else i.angle = num;
+          if (i.kind === "part") moved = A().transformPart(doc, i, def, {angle:num}, undefined, {defs}); else i.angle = num;
           break;
         default: res.skipped++; continue;
       }

@@ -74,6 +74,7 @@ globalThis.AtriumLazy = (() => {
     AtriumFolderProjectUI: {scripts: ["project/folder-project.js", "project/folder-project-ui.js"], deps: ["AtriumFolderDrafts", "AtriumUndoStore", "AtriumWorkerPool"]},
     AtriumEditorWorkflows: {scripts: ["editor/editor-workflows.js"]},
     AtriumEditorDemand: {scripts: ["editor/editor-demand.js"]},
+    AtriumConnectivity: {scripts: ["checks/connectivity.js"], deps: ["AtriumGeometryCurves"]},
     AtriumNetsPanel: {scripts: ["editor/nets-panel.js"]},
     AtriumCrossProbe: {scripts: ["editor/crossprobe.js"], deps:["AtriumNetsPanel"]},
     AtriumContextMenu: {scripts: ["editor/context-menu.js"]},
@@ -87,7 +88,7 @@ globalThis.AtriumLazy = (() => {
     AtriumTableData: {scripts:["notebook/table-data.js"],deps:["AtriumSourceFile"]},
     AtriumTableFormat: {scripts:["notebook/table-format.js"],deps:["AtriumTableData","AtriumFormat2Closure"]},
     AtriumTableExchange: {scripts:["notebook/table-exchange.js"],deps:["AtriumTableData"]},
-    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationDesign","AtriumTableData"]},
+    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationIntent","AtriumCalculationDesign","AtriumTableData"]},
     AtriumTableVisual: {scripts:["notebook/table-visual.js"],deps:["AtriumTableFormulas","AtriumTableExchange","AtriumSheetWidgets"]},
     AtriumTableQuery: {scripts:["notebook/table-query.js"],deps:["AtriumTableData","AtriumDesignQuery"]},
     AtriumTableEditor: {scripts:["notebook/table-editor.js"],css:["notebook/table-editor.css"],deps:["AtriumTableVisual","AtriumNotebook"]},
@@ -192,7 +193,7 @@ globalThis.AtriumLazy = (() => {
     AtriumEngine: {scripts: ["engine-core.js"]}, // Rust/WebAssembly kernels; callers fall back to JS
     // Altium muscle memory (altium-keys.js): net highlight, pick tools, Un-Route, layer keys.
     AtriumAltiumKeys: {scripts: ["editor/altium-keys.js"], deps: ["AtriumCrossProbe"]},
-    AtriumPinSwap: {scripts: ["pcb/pin-swap.js"], css: ["pcb/pin-swap.css"], deps: ["AtriumLayer","AtriumECO"]},
+    AtriumPinSwap: {scripts: ["pcb/pin-swap.js"], css: ["pcb/pin-swap.css"], deps: ["AtriumLayer","AtriumECO","AtriumConnectivity"]},
     // Board core (lazy pass 2): the stack-up, via stacks, polygon pours and the rule engine are
     // engines plus large dialogs. Eager code only reaches them through optional lookups, and they
     // are prefetched once a board layout is open (see BOARD below), so editing a board has them
@@ -262,13 +263,13 @@ globalThis.AtriumLazy = (() => {
     AtriumSupportPlace: {scripts: ["editor/support-placement.js"], css: ["editor/support-placement.css"], deps: ["AtriumNetIntent"]},
     AtriumArrange: {scripts: ["pcb/arrange.js"]},
     AtriumAnnotate: {scripts: ["notebook/annotate.js"], css: ["notebook/annotate.css"], deps: ["AtriumECO"]},
-    AtriumAutorouter: {scripts: ["pcb/autorouter.js", "pcb/fanout.js"], css: ["pcb/autorouter.css"], deps: ["AtriumRules"]},
+    AtriumAutorouter: {scripts: ["pcb/autorouter.js", "pcb/fanout.js"], css: ["pcb/autorouter.css"], deps: ["AtriumRules", "AtriumConnectivity"]},
     AtriumFabProfiles: {scripts: ["formats/fab-profiles.js"], deps: ["AtriumRules", "AtriumFabPresetsJLCPCB"]},
     AtriumViaStubs: {scripts: ["pcb/via-stubs.js"], css: ["pcb/via-stubs.css"], deps: ["AtriumRules"]},
     AtriumRuleSets: {scripts: ["checks/rule-sets.js"], css: ["checks/rule-sets.css"], deps: ["AtriumFabProfiles", "AtriumRuleGroups"]},
     AtriumRuleGroups: {scripts: ["checks/rule-groups.js"], css: ["ui/rule-set-lists.css", "checks/rule-groups.css"], deps: ["AtriumRules"]},
     AtriumZClearance: {scripts: ["checks/z-clearance.js"], deps: ["AtriumRules", "AtriumStackup"]},
-    AtriumDRC: {scripts: ["checks/drc.js"], deps: ["AtriumImpedance", "AtriumRules", "AtriumPCBDraw", "AtriumZClearance", "AtriumFlexDRC", "AtriumPCBTextRich", "AtriumMaskOpenings"]},
+    AtriumDRC: {scripts: ["checks/drc.js"], deps: ["AtriumConnectivity", "AtriumImpedance", "AtriumRules", "AtriumPCBDraw", "AtriumZClearance", "AtriumFlexDRC", "AtriumPCBTextRich", "AtriumMaskOpenings"]},
     // DFA spacing matrix (dfa.js): the dfaSpacing DRC rule and the live placement overlay.
     AtriumDFA: {scripts: ["checks/dfa.js"], deps: ["AtriumRules"]},
     AtriumViaFence: {scripts: ["pcb/via-fence.js"], css: ["pcb/via-fence.css"], deps: ["AtriumRouter", "AtriumBoardShapeAuthoring"]},
@@ -467,7 +468,7 @@ globalThis.AtriumLazy = (() => {
   register("AtriumClipHistory", {scripts: ["history/clip-history.js"], css: ["ui/history-panels.css", "history/clip-history.css"], deps:["AtriumHistoryArtwork"]}, ["clipboard-panel", "clipboard-picker"]);
   // History panel (history-panel.js): undo steps, branches and the local history timeline.
   register("AtriumUndoStore", {scripts: ["history/undo-store.js"]});
-  register("AtriumConnectivityLive", {scripts: ["checks/connectivity-live.js"]});
+  register("AtriumConnectivityLive", {scripts: ["checks/connectivity-live.js"], deps: ["AtriumConnectivity"]});
   register("AtriumHistoryPanel", {scripts:["history/history-panel.js"], css:["ui/history-panels.css", "history/history-panel.css"], deps:["AtriumUndoStore"]}, ["history-panel"]);
   register("AtriumVisualHistory", {scripts:["history/history-edits.js","history/visual-history.js"], deps:["AtriumHistoryArtwork"]});
   register("AtriumHistorySession", {scripts:["history/history-session.js"], deps:["AtriumHistoryPanel","AtriumVisualHistory","AtriumClipHistory","AtriumPastePlan","AtriumProposal"]});
@@ -536,7 +537,7 @@ globalThis.AtriumLazy = (() => {
   register("AtriumMultiRoute", {scripts: ["pcb/multi-route.js", "pcb/bus-route.js"], css: ["pcb/bus-route.css"], deps: ["AtriumRouter"]}, ["route-multi", "route-bus", "bus-tune-group"]);
   // Help › Your First Board Tutorial (tutorial.js): the docked coach card.
   /* perf-ui: design authoring (sch-author.js) is lazy; only the tutorial uses it in the app */ register("AtriumSchAuthor", {scripts: ["schematic/sch-author.js"]});
-  register("AtriumTutorial", {scripts: ["editor/tutorial.js"], css: ["editor/tutorial.css"], deps: ["AtriumSchAuthor"]}, ["tutorial"]);
+  register("AtriumTutorial", {scripts: ["editor/tutorial.js"], css: ["editor/tutorial.css"], deps: ["AtriumSchAuthor", "AtriumConnectivity"]}, ["tutorial"]);
   // Get set up (welcome.js): the first-launch walkthrough.
   register("AtriumWelcome", {scripts: ["editor/welcome.js"], css: ["editor/welcome.css"]}, ["customise-waffle"]);
   // Camera and mouse (camera.js; Preferences › Mouse): wheel presets, view history, saved views, fly-to, arrow/WASD pan,
@@ -796,9 +797,11 @@ globalThis.AtriumLazy = (() => {
     const out = [];
     // Reference-only board rows need no geometry. Materialized owners can inspect
     // copper synchronously on their first frame, including after a folder reload.
-    if (!globalThis.AtriumGeometryCurves && project?.documents?.some?.(d => d?.kind === "pcb" &&
-      (Array.isArray(d.items) || d.boardShape?.cutouts?.length)))
-      out.push("AtriumGeometryCurves");
+    if ((!globalThis.AtriumGeometryCurves || !globalThis.AtriumConnectivity) && project?.documents?.some?.(d =>
+      d?.kind === "pcb" && (Array.isArray(d.items) || d.boardShape?.cutouts?.length))) {
+      if (!globalThis.AtriumGeometryCurves) out.push("AtriumGeometryCurves");
+      if (!globalThis.AtriumConnectivity) out.push("AtriumConnectivity");
+    }
     if (!globalThis.AtriumNetsPanel && project?.documents?.some?.(d => d.kind === "pcb" && Object.keys(d.netColors || {}).length))
       out.push("AtriumNetsPanel");
     if (!globalThis.AtriumPCBPours && project?.documents?.some?.(d => d.kind === "pcb" && d.pcbDrawing?.pours?.length))
@@ -1078,6 +1081,7 @@ globalThis.AtriumLazy = (() => {
         need("AtriumUIKit").then(() => surface.removeEventListener("focusin", searchFocus, true), () => {});
       };
       surface.addEventListener("focusin", searchFocus, true);
+      prefetch(["AtriumUIKit", "AtriumMotionUI"]); // the kit adopts .ui-search and slides .ui-segmented
       const hintEvents = ["pointerover","pointerout","pointerdown","pointerup","pointercancel","focusin","focusout"];
       let firstHint, loadingHint = false;
       const loadHint = () => {

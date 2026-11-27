@@ -321,15 +321,18 @@ globalThis.AtriumProjectWindowClient = (() => {
         throw Error("A detached tab can only change its own document and project library.");
       const proposal = {format:"atrium-ai", version:2, tool:"workspace-edit", project:project.name,
         document_ids:project.documents.map(row => row.id).sort(), source_sha256:null, ops:data.ops};
-      try { P.inspect(proposal, project); }
+      // The tab's own editor already applied these edits, so the designator rules for automation
+      // proposals do not apply; every guard and the validator still do.
+      const replayed = {designators:false};
+      try { P.inspect(proposal, project, undefined, 0, replayed); }
       catch (error) {
         if (!replay) throw error;
         const original = inverse(data.ops);
         if (!recoveredStructure(P,project,data.ops)) throw error;
-        if (original.length) P.inspect({...proposal, ops:original}, project);
+        if (original.length) P.inspect({...proposal, ops:original}, project, undefined, 0, replayed);
         return;
       }
-      const accepted = P.applyChecked(project, proposal, {validate:p => G.Atrium.validate(p, {normalize:false}),
+      const accepted = P.applyChecked(project, proposal, {...replayed, validate:p => G.Atrium.validate(p, {normalize:false}),
         edit:(change, _, touched, scope) => editor.edit(change, typeof data.label === "string" ? data.label.slice(0,120) : "Edit in another window", touched, scope)});
       if (!accepted) throw Error("The project writer declined this edit.");
     });

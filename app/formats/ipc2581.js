@@ -212,9 +212,11 @@ globalThis.AtriumIPC2581 = (() => {
     // ---- packages and components
     const A = globalThis.Atrium, packages = new Map(), pkgNames = new Set(), refNames = new Map();
     function packageOf(part) {
-      if (packages.has(part.def.id)) return packages.get(part.def.id);
-      const fp = part.fp;
-      let name = ident(fp.name || part.def.footprintName || part.def.name || part.def.id);
+      // A part's mirror flag reflects its footprint (pcb-appearance.js); the reflected footprint is its own package.
+      const mirror = part.item.mirror === true, key = part.def.id + (mirror ? "/mirror" : "");
+      if (packages.has(key)) return packages.get(key);
+      const fp = A.pcbMirror.placed(part.item, part.fp).footprint;
+      let name = ident(fp.name || part.def.footprintName || part.def.name || part.def.id) + (mirror ? "_MIRRORED" : "");
       while (pkgNames.has(name)) name += "_" + (pkgNames.size + 1);
       pkgNames.add(name);
       const pins = [], seen = new Set(), pts = [];
@@ -238,7 +240,7 @@ globalThis.AtriumIPC2581 = (() => {
       const pkg = {name, pins, thru: pins.some(p => p.thru), pinOne: pins[0]?.number,
         outline: "<Polygon>" + tag("PolyBegin", outline[0]) + outline.slice(1).map(p => tag("PolyStepSegment", p)).join("") + tag("PolyStepSegment", outline[0]) + "</Polygon>",
         local};
-      packages.set(part.def.id, pkg);
+      packages.set(key, pkg);
       return pkg;
     }
     const comps = [];

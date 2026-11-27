@@ -178,7 +178,7 @@ globalThis.AtriumLibraryStore = (() => {
       const pins = pinNumbers(def), pads = padNumbers(def), {noPad, noPin} = globalThis.AtriumLibraryPairing.difference(pins, pads);
       if (pins.length !== pads.length) add("warning", "count", pins.length + " pins but " + pads.length + " pads.");
       if (noPad.length) add("error", "unmapped-pin", "Pins without a pad: " + noPad.slice(0, 12).join(", ") + (noPad.length > 12 ? "…" : "") + ".");
-      if (noPin.length) add(noPin.every(n => /^(EP|PAD|TAB|MH|M\d*|0)$/i.test(n)) ? "warning" : "error", "unmapped-pad", "Pads without a pin: " + noPin.slice(0, 12).join(", ") + (noPin.length > 12 ? "…" : "") + ".");
+      if (noPin.length) add(noPin.every(n => /^(EP|PAD|TAB|MH|MP|M\d*|0)$/i.test(n)) ? "warning" : "error", "unmapped-pad", "Pads without a pin: " + noPin.slice(0, 12).join(", ") + (noPin.length > 12 ? "…" : "") + ".");
     }
     if (sym) {
       const seen = new Set();

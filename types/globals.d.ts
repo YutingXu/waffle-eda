@@ -151,6 +151,8 @@ interface SchematicAttachmentOptions {
 }
 interface SchematicAttachmentSession {
   affected: Item[];
+  /** How many wires, dots and stationary branches the moving terminals meet. */
+  readonly linked: number;
   apply(targetFor: (point: Point) => Point | null | undefined): Item[] | null;
   finish(): boolean;
 }
@@ -192,6 +194,8 @@ interface AtriumModelAPI {
     rotatedSlot(pad: {drill?: number; slotLength?: number; slotAngle?: number}): boolean;
     shape<T extends object>(shape: T, inner?: number): T;
     footprint<T>(footprint: T, inner?: number, legacy?: boolean): T;
+    placed<I extends {mirror?: boolean}, F>(item: I, footprint: F): {item: I | (Omit<I, "mirror"> & {mirror: false}); footprint: F};
+    placedShape<T extends object>(shape: T): T;
   };
   footprintPadKeys(definition: string, pad: PadDef, index: number, count: number): {padKey: string; padFallback?: string};
   padCornerRatio(pad?: {roundrectRadiusRatio?: number} | null): number;
@@ -274,12 +278,23 @@ interface AtriumModelAPI {
   sheetNets(project: Project, doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, host?: any): SheetConnectivity;
   /** An Altium sheet's name for an unnamed net from its [designator, pin] pairs (NetC1_2), or "" for other sheets. */
   autoNetName(doc: {sourceName?: string} | null | undefined, pins: [string, string | number][]): string;
+  readonly AUTO_NET_NAME: RegExp;
+  isAutoNetName(name: unknown, pins?: SheetConnectivity | ReadonlyArray<readonly [string | undefined, string | number | undefined]>): boolean;
   moveItem(item: Item, dx: number, dy: number, source?: {x?: number; y?: number; points?: Point[]; arc?: boolean | CircularArc; regionShape?: PcbRegionShape}): void;
   wireStretch(wire: WireItem, anchors?: Point[], options?: {spur?: boolean}): WireStretchSession;
   wireStretchState(wire: WireItem): WireStretchState | undefined;
   restoreWireStretch(wire: WireItem, state?: WireStretchState): void;
   schematicAttachments(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, terminals: Point[], selected: Set<string>, options?: SchematicAttachmentOptions): SchematicAttachmentSession;
-  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: WireItem[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem)[];
+  /** `wires` may also list pin tags (pinTags) to carry with their pins. avoidPinShorts defaults to true. */
+  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: (WireItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
+  /** Power ports, ports, off sheet connectors and net labels placed on one of a part's pins alone. */
+  pinTags(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, item: PartItem, selected?: Set<string>, query?: (box: Box) => Item[]): (PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
+  /** Each schematic pin ("part id/number") mapped to the first pin of its net. */
+  pinGroups(items: Item[], defs: Map<string, Definition>): Map<string, string>;
+  /** True when two pinGroups results put the same pins together (a missing pin stands alone). */
+  sameGroups(a: Map<string, string>, b: Map<string, string>): boolean;
+  /** Points along a wire, other than its ends, where objects not in `moving` touch it. */
+  wireTaps(items: Item[], defs: Map<string, Definition>, wire: {id: string; points: Point[]}, moving: Set<string>): Point[];
   validOutline(pts: unknown): boolean;
   /** Throws Error("This file is not a supported Waffle project.") or a module's own message. */
   validate(p: unknown): Project;

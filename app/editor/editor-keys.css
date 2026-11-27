@@ -20,19 +20,16 @@
 .km-name small {color:var(--faint);font:var(--fs-10) var(--mono)}
 .km-table tr:hover td {background:var(--soft)}
 .km-table tr.km-active td {background:var(--selection)}
-.keymap-dialog .km-keys,.keymap-dialog .km-when-edit {--ui-button-fill:transparent;--ui-button-border:transparent;--ui-button-hover:var(--hover);
+.keymap-dialog .km-when-edit {--ui-button-fill:transparent;--ui-button-border:transparent;--ui-button-hover:var(--hover);
   padding:2px 4px;text-align:left;min-width:90px}
 .keymap-dialog .km-when-edit {font:var(--fs-11) var(--mono);color:var(--muted)}
 .keymap-dialog .km-when-edit:disabled {opacity:1;color:var(--faint)}
 .km-when input {width:100%;font:var(--fs-11) var(--mono)}
-.km-unbound {color:var(--faint)}
-.km-warn {margin-left:4px;color:var(--km-warn);cursor:help}
 .km-src {color:var(--muted);white-space:nowrap}
 .km-user {color:var(--accent-text)}
 .km-actions {white-space:nowrap;text-align:right}
-.keymap-dialog .km-actions button {min-width:24px;padding:1px 6px;margin-left:4px}
-.km-recording {display:inline-flex;align-items:center;gap:8px;outline:1px dashed var(--accent);padding:2px 6px;border-radius:var(--r-sm)}
-.km-recording small {display:inline;color:var(--muted)}
+.keymap-dialog .km-actions > .ui-icon-button {display:inline-grid;vertical-align:middle}
+.keymap-dialog .km-actions > .ui-icon-button + .ui-icon-button {margin-inline-start:var(--s-4)}
 .km-empty {color:var(--faint);padding:16px 8px}
 /* Swap pickers */
 .swap-pick {width:min(420px,calc(100vw - 32px))}

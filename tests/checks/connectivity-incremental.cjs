@@ -243,6 +243,33 @@ for (const direct of [true,false]) {
   assert.equal(pick(result.value), pick(C.inspectFull(d, defs)), "latest staged contact work includes the earlier unpainted edit");
   U.reset();
 }
+// ---- unplated lands: one node per layer with the pad's net, one ratsnest terminal per pad ----------------
+{
+  const U = AtriumUndoStore, defs = new Map([["MH", {id:"MH", footprint:{pads:[{number:"1", x:0, y:0, w:6, h:6, shape:"round", layer:"Multi", drill:3.2, plated:false}], shapes:[]}}]]);
+  const d = {...Atrium.sheet("pcb", "Unplated"), items:[
+    {id:"H1", kind:"part", def:"MH", ref:"H1", x:0, y:0, pinNets:{"1":"GND"}},
+    {id:"mh", kind:"pad", number:"1", net:"GND", x:30, y:0, w:6, h:6, shape:"round", layer:"Multi", drill:3.2, plated:false},
+    {id:"bare", kind:"pad", number:"1", net:"", x:60, y:0, w:6, h:6, shape:"round", layer:"Multi", drill:3.2, plated:false},
+    {id:"p1", kind:"pad", number:"1", net:"GND", x:-10, y:0, w:1, h:1, shape:"round", layer:"Multi", drill:.5},
+    {id:"p2", kind:"pad", number:"1", net:"GND", x:10, y:0, w:1, h:1, shape:"round", layer:"Multi", drill:.5},
+    {id:"a", kind:"track", net:"GND", layer:"Top", width:.2, points:[[-10, 0], [-2.5, 0]]},
+    {id:"b", kind:"track", net:"GND", layer:"Bottom", width:.2, points:[[2.5, 0], [10, 0]]},
+    {id:"v", kind:"track", net:"VCC", layer:"Top", width:.2, points:[[25, 5], [35, 5]]}]};
+  const project = {documents:[d], library:[...defs.values()]}, history = [], future = [];
+  const mark = () => U.mark(project, {current:d.id}), byId = id => d.items.find(i => i.id === id);
+  const edit = (name, fn) => {const before = mark(); fn(); U.checkpoint(history, future, before, name); U.touch(project); return check(d, defs, name, U);};
+  U.reset(); mark(); check(d, defs, "unplated seed", U);
+  assert.equal(C.inspect(d, defs, U).airwires.length, 0, "the footprint's lands are one terminal");
+  edit("unplated: a track of another net crosses a land", () => {byId("v").points = [[25, 2.5], [35, 2.5]];});
+  assert.deepEqual(C.inspect(d, defs, U).shorts.map(s => s.nets), [["GND", "VCC"]]);
+  edit("unplated: the bottom track leaves the land", () => {byId("b").points = [[4, 0], [10, 0]];});
+  edit("unplated: it moves along, with the same neighbours", () => {byId("b").points = [[4.5, 0], [10, 0]];});
+  edit("unplated: the land bridges two nets", () => {byId("v").net = "B"; d.items.push({id:"c", kind:"track", net:"C", layer:"Bottom", width:.2, points:[[60, -5], [60, -2.5]]}, {id:"e", kind:"track", net:"B", layer:"Bottom", width:.2, points:[[55, 2.5], [65, 2.5]]});});
+  assert.deepEqual(C.inspect(d, defs, U).shorts.map(s => s.nets), [["B", "C"], ["B", "GND"]]);
+  edit("unplated: the footprint's pin changes net", () => {byId("H1").pinNets = {"1":"N2"};});
+  for (const direction of [-1, -1, 1, 1]) {U.jump(history, future, mark(), direction); U.touch(project); check(d, defs, "unplated undo/redo", U);}
+  U.reset();
+}
 // ---- the 25.6k board: cost of a local edit ------------------------------------------------------------
 {
   const {d, defs} = makeAtriumBenchmarkBoard(160);

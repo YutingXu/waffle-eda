@@ -24,6 +24,82 @@ assert.ok(index);
 assert.deepEqual(view.query(doc, defs, [6,6,7,7]), []);
 assert.equal(view.internals().cache.index, index);
 
+// A dense partial view switches to the ordered bounds without changing hit or paint order.
+{
+  const items = Array.from({length:1600}, (_, id) => {
+    const cell = id * 619 % 1600, x = (cell % 40 - 20) * 2, y = ((cell / 40 | 0) - 20) * 2;
+    return {id:"dense-" + id,kind:"track",points:[[x,y],[x+.5,y]],width:.2};
+  });
+  const moved = items[17], long = {id:"long",kind:"track",points:[[-262,3],[290,3]],width:.2};
+  const missing = {id:"missing",kind:"imageMarkup"};
+  const board = {id:"dense",kind:"pcb",items:[...items,missing,long]};
+  const pane = AtriumCanvas.create({getContext:() => ({})});
+  const viewport = [-33,-36,31,34], point = [0,0,0,0], strip = [-32,0,30,.9];
+  const oracle = box => board.items.filter(item => {
+    const bounds = pane.internals().cache.boxes.get(item);
+    return bounds && AtriumSpatial.overlaps(bounds, box);
+  });
+  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
+  const c = pane.internals().cache, index = c.index;
+  assert.ok(index);
+  assert.equal(c.boxes.has(missing), false);
+  let scans = 0;
+  c.all = new Proxy(c.all, {get(target, key) {
+    if (key === Symbol.iterator) scans++;
+    return target[key];
+  }});
+  for (const area of [point,strip]) assert.deepEqual(pane.query(board, defs, area), oracle(area));
+  assert.equal(scans, 0, "point and strip queries keep using the grid");
+  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
+  assert.equal(scans, 1, "a dense partial query stops walking the grid and scans the ordered bounds");
+  const original = c.all.slice(), staleOrder = original.slice();
+  const other = {id:"unindexed"};
+  staleOrder[staleOrder.length - 1] = other;
+  const repeated = original.slice();
+  repeated[repeated.length - 1] = repeated[repeated.length - 2];
+  const reversed = original.slice().reverse();
+  for (const stale of [staleOrder,repeated,reversed]) {
+    assert.deepEqual(index.query(viewport,stale), oracle(viewport), "a stale ordered list falls back to the index");
+  }
+  const reordered = AtriumSpatial.create(board.items, item => c.boxes.get(item));
+  reordered.reorder(reversed);
+  const reverseHits = oracle(viewport).reverse();
+  assert.deepEqual(reordered.query(viewport,original), reverseHits, "the old list cannot override new ranks");
+  assert.deepEqual(reordered.query(viewport,reversed), reverseHits, "the new list follows the new ranks");
+  const duplicateIndex = AtriumSpatial.create(board.items, item => c.boxes.get(item));
+  const example = oracle(viewport)[0];
+  duplicateIndex.insert(example,-1);
+  assert.deepEqual(duplicateIndex.query(viewport,c.all), [example,...oracle(viewport)], "a duplicate insertion keeps both results");
+  duplicateIndex.remove(example);
+  assert.deepEqual(duplicateIndex.query(viewport,c.all), oracle(viewport), "removing the last insertion leaves the earlier result");
+  const withoutOrphan = original.filter(item => item !== example);
+  assert.deepEqual(duplicateIndex.query(viewport,withoutOrphan), oracle(viewport), "the ordered list cannot lose the orphaned entry");
+  assert.equal(scans, 1, "duplicate grid entries exclude an otherwise eligible ordered scan");
+  moved.points = [[800,7],[810,7]];
+  pane.invalidate(board, [moved]);
+  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
+  assert.equal(pane.internals().cache.index, index, "an in-place edit keeps the index");
+  assert.equal(pane.query(board, defs, viewport).includes(moved), false);
+  assert.deepEqual(pane.query(board, defs, [805,7,805,7]), [moved]);
+  board.items = [long,...board.items.slice(0,-1).reverse().filter(item => item !== items[22])];
+  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
+  assert.equal(pane.query(board, defs, viewport)[0], long, "the new order starts with the multilevel object");
+  assert.equal(pane.query(board, defs, viewport).includes(items[22]), false);
+}
+
+// Generic indexes preserve repeated inserts and encounter order for equal ranks.
+{
+  const a = {id:"a",box:[-1,-1,1,1]}, b = {id:"b",box:[-1,-1,1,1]}, c = {id:"c",box:[-1,-1,1,1]};
+  const index = AtriumSpatial.create([], item => item.box);
+  index.insert(a, 4); index.insert(b, 4); index.insert(a, 2); index.insert(c, 4);
+  const bounds = [-.5,-.5,.5,.5];
+  assert.deepEqual(index.query(bounds), [a,a,b,c]);
+  assert.equal(index.remove(a), 2);
+  assert.deepEqual(index.query(bounds), [a,b,c]);
+  index.reorder([c,b]);
+  assert.deepEqual(index.query(bounds), [c,b,a]);
+}
+
 // A foreground viewport can draw and pick the whole project while its grid is prepared.
 const work = new Map();
 let workId = 0;
@@ -251,6 +327,19 @@ require("../../app/canvas/canvas-board-batches.js");
       assert.equal(I.lodUsed,batched,name+" uses the expected draw path");
     }
     check("tied custom layers",{},["Source plane",first.layer,second.layer,...retained,...copper]);
+    const world=Atrium.world;
+    let labelTransforms=0;
+    Atrium.world=(point,frame)=>{
+      if(frame===part && point[0]===0 && point[1]===2)labelTransforms++;
+      return world(point,frame);
+    };
+    try {
+      assert.ok(I.paintOrder(board,layout,opts).includes("Placed legend"));
+      assert.ok(I.paintLayers(board,layout,part).includes("Placed legend"));
+      assert.equal(labelTransforms,0,"ordering layers and finding changed layers do not place board lettering");
+      I.paint(board,layout,opts,null,true);
+      assert.ok(labelTransforms>0,"the full painter still positions the same label");
+    } finally {Atrium.world=world;}
     check("route hides the first occurrence",{routePreview:{hidden:[first.id]}},
       ["Source plane",second.layer,first.layer,...retained,...copper]);
     check("hidden layers and source pours",{hidden:new Set([first.layer,"Source pours","Top mask"])},

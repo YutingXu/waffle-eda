@@ -93,6 +93,7 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 - **Use** for a toolbar, heading or row action with a well-known icon from the `index.html` icon bank.
 - **Markup** `<button class="ui-icon-button" aria-label="Add" title="Add"><svg class="icon"><use href="#i-plus"/></svg></button>`, or `K.iconButton(name, label, {size, run, pressed})`.
 - **States** hover (soft fill, mouse and pen only), `aria-pressed`/`aria-expanded` (selection fill), `disabled`, keyboard focus. Sizes are `sm` 20, `md` 24 and `lg` 28 px. The icon stays 16 px.
+- **Keyline** every icon in the bank draws with the same 1.6 stroke on the 24-unit grid and fits one optical size: about 16 units for square shapes (the geometry inside 4–20), at most 18 along the long side of a wide or tall shape, and 14 for open strokes such as plus, grid and the chevron (close stays 12). Scale a new icon to the keyline by its coordinates, never with a transform, so the stroke stays 1.6. The gallery's Icon set shows them side by side.
 - **Tokens** `--ink` (one icon ink, as in the Projects panel), `--button-face-hover`, `--button-face-pressed`, `--selection`, `--chrome-control-radius`.
 - **Do** give every icon button a label. The label also supplies the tooltip. **Don't** use a text glyph (×, ⋯, ▸) as the icon. Close buttons use `.ui-close`.
 - The older `.tool` class (extension tools and other canvas chrome) has the same 24 px size and 6 px radius and the same hover fill, `--button-face-hover`. The canvas Active Bar keeps its own 28 px tools and takes that hover fill too.
@@ -115,9 +116,9 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 
 - **Use** for typed values. Numbers use the 80 px number width and show their unit beside the field.
 - **Markup** `<input class="ui-field">`, `<textarea class="ui-field">`, number with unit: `<span class="ui-field-measure"><input class="ui-field" type="number"><span class="ui-field-unit">mm</span></span>`. `K.field({type, value, unit, invalid, disabled, onInput})`. Inside adopted dialogs, popovers and the inspector, plain inputs get the same face.
-- **States** placeholder, `disabled`, `aria-invalid=true` or `:user-invalid` (`--error` border), focus (fields always show their ring, as native fields do). The field stays 28 px on touch. A Link URL on editing artwork uses the native paper field face, `data-field-face="paper"`. The row label is the hit target. A rejected edit uses `data-edit-rejected` for its error border, or `data-edit-rejected="ink"` for the border and value ink used in the Library. The field’s numeric validation keeps its own `aria-invalid` state.
+- **States** placeholder, `disabled` (hairline `--line` border, a muted well and `--muted` text), `readonly` (`K.field({readOnly})`: no box line, ink text on a quiet well, still selectable), `aria-invalid=true` or `:user-invalid` (`--error` border), focus (fields always show their ring, as native fields do). The field stays 28 px on touch. A Link URL on editing artwork uses the native paper field face, `data-field-face="paper"`. The row label is the hit target. A rejected edit uses `data-edit-rejected` for its error border, or `data-edit-rejected="ink"` for the border and value ink used in the Library. The field’s numeric validation keeps its own `aria-invalid` state.
 - **Stepper commands** use `.ui-stepper-button` with the quiet button face. The square leading hairline separates the command from its number field in either text direction.
-- **Matrix values** use `.ui-field-number[data-value-source]` for compact clearance cells. `inherited` shows the faint fallback, `authored` marks a stored constraint, and `override` marks a per-object rule override.
+- **Matrix values** use `.ui-field-number[data-value-source]` for compact clearance cells. `inherited` shows the faint fallback, `authored` marks a stored constraint, and `override` marks a per-object rule override. Lay the cells out in `table.ui-matrix`: muted column heads (`th[scope=col]`), end-aligned row heads (`th[scope=row]`) and 8 px by 6 px between cells; a lower-triangular matrix leaves the upper cells empty. The Rules dialog's clearance matrix uses it.
 - **Tokens** `--field`, `--input-line`, `--field-height`, `--field-number-width`, `--fs-12`.
 - **Do** use a native `<label>` or `aria-label`, and keep the caption, value and unit on one baseline. **Don't** turn on spelling or autocorrect in single-line fields. `shell.js` turns them off.
 
@@ -129,7 +130,8 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 - **Use** to choose one of six or more options, or options whose labels are long. Use a segmented control for two to five short modes.
 - **Markup** a native single-line `<select class="ui-field">`, or `K.select(options, {value, onChange})`. `ui/dialog.js` routes presses and keys to `AtriumSelectPopup`, which draws `.ui-select-list` with `.ui-select-option` rows. Do not build your own option list. A completion list, such as query, math or rich-text suggestions, reuses `.ui-select-list[data-completion]` and `.ui-select-option`. In a completion list, `aria-selected` marks the active suggestion. It takes the active fill and shows no ✓.
 - **States** `disabled`, the open list (`.active` row, ✓ on the chosen row), RTL chevron.
-- **Tokens** `--menu-bg`, `--selection`, `--elev-2`.
+- **Shape** the list, like every menu (`.nav-menu`, `.menu-items`), has the popover radius `--r-lg`; its rows keep `--r-sm`, which nests inside the 4 px padding.
+- **Tokens** `--menu-bg`, `--selection`, `--elev-2`, `--r-lg`.
 
 <a id="switch"></a>
 ### Switches
@@ -137,8 +139,8 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 ![Switches](ui-library/switch.png)
 
 - **Use** for a setting that applies immediately. Use a checkbox for a choice that is applied with a form.
-- **Markup** `<label class="ui-switch-row"><span>Snap to grid</span><input class="ui-switch" type="checkbox" role="switch"></label>`, or `K.switchRow(label, {checked, onChange})`.
-- **States** off, on (`--primary` track), `disabled`. The knob slides over `--motion-toggle`. With Reduced or Off, the switch changes at once.
+- **Markup** `<label class="ui-switch-row"><span>Snap to grid</span><input class="ui-switch" type="checkbox" role="switch"></label>`, or `K.switchRow(label, {checked, onChange, disabled, locked})`.
+- **States** off, on (`--primary` track), `disabled` (the track fades toward the field, the knob loses its lift, the caption mutes), locked (`data-locked` on the row, `K.switchRow({locked: reason})`: disabled plus a lock on the knob, with the reason as the row's tooltip and accessible description). Use locked only when something else controls the setting. The knob slides over `--motion-toggle`. With Reduced or Off, the switch changes at once.
 
 <a id="checkbox"></a>
 ### Checkboxes
@@ -146,7 +148,8 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 ![Checkboxes](ui-library/checkbox.png)
 
 - **Markup** `<label class="ui-checkbox-row"><input class="ui-checkbox" type="checkbox"><span>Label</span></label>`, or `K.checkbox(label, {checked, indeterminate})`.
-- **States** checked, indeterminate, `disabled`, keyboard focus. The row is 44 px high on touch.
+- **Face** the library draws the box (not the platform widget): 14 px, `--r-md`, the field's `--input-line` border; checked and mixed fill with `--primary` and draw the tick (`--glyph-check`) or bar in `--on-primary`. The tick grows in over `--motion-fast` and appears at once with Reduced motion. Forced colours fall back to the platform checkbox. Full-cell grid checkboxes (`[data-checkbox-cells]`) keep their own face.
+- **States** checked, indeterminate, `disabled` (hairline border, muted well; a checked one fades its fill), keyboard focus. The row is 44 px high on touch.
 
 <a id="radio"></a>
 ### Radio buttons
@@ -157,6 +160,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Use** for two to five exclusive options that need a sentence each. Use a segmented control when the labels are short.
 - **Markup** `<fieldset class="ui-radio-group"><label class="ui-radio-row"><input class="ui-radio" type="radio" name="side"><span>Top side</span></label>…</fieldset>`, or `K.radioGroup(options, {value, onChange})`.
+- **Face** drawn with the checkbox: a 14 px circle with the field line; checked fills with `--primary` and grows an `--on-primary` dot.
 
 - **Canvas choices** use `.ui-choice.ui-choice-tinted` on a native button. Markers add `.ui-choice-marker` and use `role=radio` and `aria-checked`. Touch modifiers use `data-size=touch` and `aria-pressed`. Their caller owns selection and grouping.
 
@@ -168,6 +172,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 - **Use** for two to five exclusive modes or filters.
 - **Markup** `.ui-segmented` around `.ui-segment` buttons with `aria-pressed`, or around labels that wrap native radio buttons. `K.segmented(options, {value, onChange, size})`. Arrow keys, Home and End move through the segments (`ui/dialog.js`).
 - **States** a soft track with the chosen segment raised (`light-dark(--field, --raised)`), hover, disabled, keyboard focus. High contrast keeps outlined segments.
+- **Motion** a pointer change slides the raised face from the old segment to the new one over `--motion-toggle`, like the switch knob. `ui/kit.js` adopts every `.ui-segmented`, built by the kit or in feature markup, once the kit has loaded (lazy.js prefetches it at idle); before that a change applies at once. Keyboard changes, Reduced motion, Off and high contrast change at once.
 
 <a id="tabs"></a>
 ### Tabs
@@ -239,7 +244,9 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Keycaps](ui-library/keycap.png)
 
-- **Markup** `AtriumShortcut.render(binding, {variant:"keycap"|"inline"})`. Take the binding from the keyboard map. Do not type it out. The Mac shows "esc", ⌘ and ⇧ glyphs, and other platforms show words. The style check rejects raw keycap markup.
+- **Markup** `AtriumShortcut.render(binding, {variant:"keycap"|"inline"|"inline-keycap"})`. Take the binding from the keyboard map. Do not type it out. The Mac shows "esc", ⌘ and ⇧ glyphs, and other platforms show words. The style check rejects raw keycap markup.
+- **Where** keycaps for a key on its own, a sequence (`"Mod+K Mod+S"`, one keycap per key) and command palette rows; inline (muted, no caps) at the end of menu rows and in tooltips (`data-tooltip-shortcut`); inline keycaps in running prose. The gallery shows each.
+- **Shortcut editor** (Preferences › Keyboard Shortcuts) a binding is `.ui-chip.ui-shortcut-chip` holding a `button.ui-shortcut-edit` with the inline shortcut, then `.ui-chip-remove`. A conflict sets `data-invalid=true` on the chip (error border and ink) and puts the reason in the key button's title and accessible description. While recording, `.ui-shortcut-recorder` shows the keys so far and how to finish or cancel. A command with no key shows `.ui-shortcut-none` "Not set". Add and reset are small icon buttons (`plus`, `undo`), never text glyphs.
 
 <a id="section"></a>
 ### Section headers
@@ -258,7 +265,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Use** for a caption and a value or control in Properties, inspectors and compact settings.
 - **Markup** `<label class="ui-prop-row"><span>Width</span><input class="ui-field"></label>`. Read-only values use `<span class="ui-prop-value ui-selectable">`, and an error uses `.ui-prop-error`. `K.propRow(caption, control|text, {error, stacked})`. The caption takes 42 % (`--ui-prop-label`). In `data-stacked` rows the caption sits above the value.
-- **States** read-only text, editable, invalid (with its message under the value), and a switch or checkbox aligned to the end. Rows are 44 px high on touch.
+- **States** read-only text, editable, invalid (with its message under the value), and a switch or checkbox aligned to the end. Every row is as tall as a field row (28 px plus 2 px above and below), so read-only text keeps the same rhythm as editable values. Rows are 44 px high on touch.
 - The PCB and schematic Properties panel uses its existing `#inspector .field-row` rows, which follow the same rules.
 
 <a id="row"></a>
@@ -297,8 +304,8 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 - **Markup** `.ui-toolbar[role=toolbar]` with icon buttons, quiet buttons, `.ui-toolbar-sep`, `.ui-toolbar-spacer` and a search field. `K.toolbar(items)`, where `"|"` is a separator and `"->"` is a spacer.
 - **Note formatting** `K.toolbar(items, {floating:"editing"})` uses the editing palette face. The text editor positions its palette next to the note. Formatting selects use `K.select(options, {native:true})`.
-- **Compact actions** `.ui-toolbar-actions` shares the 20 px action face for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
-- **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` gives the existing Nets and PCB List fields their settled native face. The shorter search uses `.ui-search[data-size=compact]`.
+- **Compact actions** `.ui-toolbar-actions` shares the 20 px action face: the small soft-fill button (`--button-face`, `--chrome-control-radius`, medium weight) for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
+- **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` is the 20 px field for the Nets and PCB List headers: the control radius, a 6 px text inset and, on a select, the library chevron. The shorter search uses `.ui-search[data-size=compact]`.
 - **Layer controls** `.ui-layer-action` uses the menu button’s `aria-expanded` or the layer’s `aria-pressed` to draw the state. A non-copper drawing layer uses `aria-current` for the inset mark. The menu can supply its own arrow with `data-menu-indicator=custom`.
 - The canvas Active Bar (`.active-bar .tool`) is a settled surface with its own 28 px tools. Do not copy it into panels.
 - **Floating** (proposed component, 2026-11-23) `data-floating` (`K.toolbar(items, {floating:true})`) lifts the toolbar onto `--overlay` with `--elev-2` and `--r-lg`, for the presentation bar over the canvas. `data-idle` fades it out over `--motion-base` (no slide under Reduced motion) until the pointer moves, a key is pressed or focus enters it. `.ui-toolbar-title` holds one line of title text. Use it only for a mode the user started, never for chrome that appears on its own.
@@ -319,7 +326,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Popovers](ui-library/popover.png)
 
-- **Tooltips** set `title` or `data-tooltip`, with `data-tooltip-shortcut` for a key. The tooltip does not appear while the control's own label is fully visible.
+- **Tooltips** set `title` or `data-tooltip`, with `data-tooltip-shortcut` for a key. The tooltip does not appear while the control's own label is fully visible. Tooltips, hover cards and problem cards share the popover radius, `--r-lg`.
 - **Hover cards** (canvas objects) are `AtriumTooltip` cards. They are small, they never block the object under the pointer, they close when the camera moves and they never appear on touch.
 - **Problem cards** (problem markers on sheets and boards, `app/problem-hover.js`) are the same `.ui-tooltip.is-card` face with a heading (`.ui-tooltip-head`: a severity `.ui-dot`, the title in `strong`, the severity in `.ui-tooltip-meta`), a detail line, a short `.ui-tooltip-list` for a marker that stands for several problems (`data-wide` lets it grow to 380 px; each row keeps its title and `.ui-tooltip-value` whole on line 1 and wraps the rest to two lines at most), and `.ui-tooltip-actions` with small quiet buttons. `data-interactive` lets the pointer reach the buttons; the card still never takes the focus. They show after a 350 ms rest, sit beside the marker and its objects (never over them) and close on pointer leave, camera change, Escape, a press elsewhere, an edit, and during drags, routes and placement. On touch a tap on a marker shows the card.
 - **Popovers** are `.ui-popover`, a small floating form anchored to a button with `--overlay`, `--r-lg` and `--elev-2`. Close it with Escape and with a click outside it.

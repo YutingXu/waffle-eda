@@ -30,6 +30,8 @@ Open **Tools › Extensions**, select the named extension and open **Permissions
 
 A saved-target grant belongs to the extension and the exact project path. A browser project or unsaved design keeps its grant only while that project is open. A new target asks again. Older direct-write grants had no target and now ask on first use. **Deny** or **Reset permissions** revokes direct access. Existing trust checks for bundled, installed, project and developer extensions still apply. File export, network and program execution have their own grants.
 
+An installed extension has only the permissions you ticked. An update that asks for different permissions shows the prompt again, and **Cancel** keeps the installed version with its current answers.
+
 The built-in AI Assistant declares **propose:edits**. Its card holds the exact edit and generated object IDs first previewed. Choosing **Review proposal** opens the editor's selection dialog. A changed planning input, replaced project or expired draft requires another proposal. The host also checks guards, the current grant, document locks and revision state at Apply. Extensions can use the same workflow with `api.proposals.draft` and `api.proposals.review`.
 
 ## 1. Create the package

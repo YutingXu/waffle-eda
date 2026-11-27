@@ -4,7 +4,7 @@
 const assert = require("node:assert/strict");
 const store = new Map();
 Object.defineProperty(globalThis, "localStorage", {value: {getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k)}, configurable: true, writable: true});
-for (const m of ["model", "spatial", "connectivity", "pcb-appearance", "pcb-pours", "canvas", "pcb-net-labels"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
+for (const m of ["model", "spatial", "connectivity", "pcb-appearance", "pcb-pours", "canvas-input", "canvas", "pcb-net-labels"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const N = AtriumPCBNetLabels, PCB = AtriumPCBAppearance;
 
 function recorder() {
@@ -186,7 +186,7 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
     long.points=[[185,200],[215,200]];
     view.invalidate(board,[long]);
     assert.ok(overlay().some(label=>label.text==="VBUS"),"a geometry edit updates cached track extents");
-    assert.equal(walks,1,"an intersecting width group retains the exact item query");
+    assert.equal(walks,0,"a small intersecting width group bypasses the viewport query");
     assert.equal(scans,warmed+1,"a track move rebuilds the width summary");
     short.kind="part";short.x=0;short.y=5;short.def="fixture";
     const shortPoints=short.points;
@@ -203,7 +203,7 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
     long.points=points;
     view.invalidate(board,[long]);
     assert.deepEqual(overlay(),[]);
-    assert.equal(walks,2,"moving the track back retires the changed extents");
+    assert.equal(walks,0,"moving the track back retires the changed extents without querying");
     assert.equal(scans,warmed+2,"the unseen revision is incorporated on the new walk");
   } finally {
     long.points=points;
@@ -211,6 +211,64 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
     view.invalidate(board,[long,via]);
     delete items[Symbol.iterator];
     grid.query=query;
+  }
+}
+{
+  // The sparse route must place and paint the same visible labels as spatial query order.
+  const doc=Atrium.sheet("pcb","Sparse track net captions"), defs=new Map(), I=view.internals();
+  const a={...long,id:"a",net:"FIRST",points:[[-35,0],[35,0]]};
+  const b={...a,id:"b",net:"OTHER"};
+  const arc={...a,id:"arc",net:"ARC",width:2,points:[[30,0],[-30,0]],
+    arc:{kind:"arc",c:[0,0],r:30,start:0,end:180,ccw:true}};
+  assert.ok(Atrium.pathArc(arc));
+  doc.items=[a,b,arc];
+  const frame={pours:[]}, opts={layer:"Top"};
+  const paint=(more={})=>{
+    texts.length=0;
+    I.paintTop(doc,defs,{...opts,...more},null,true,true,undefined,null,frame);
+    return {labels:I.netLabels(),ink:texts.slice()};
+  };
+  const forcedQuery={...N,trackCandidates(...args){
+    return {...N.trackCandidates(...args),tracks:null};
+  }};
+  for(const [flipped,rotation] of [[false,0],[true,0],[false,.4],[true,-.4]]){
+    cam({cx:0,cy:0,flipped,rotation,scale:30});
+    const sparse=paint();
+    assert.deepEqual([...new Set(sparse.labels.map(l=>l.text))],["FIRST"]);
+    assert.deepEqual([...new Set(paint({hide:new Set([a])}).labels.map(l=>l.text))],["OTHER"]);
+    assert.deepEqual([...new Set(paint({routePreview:{hidden:[a.id]}}).labels.map(l=>l.text))],["OTHER"]);
+    try {
+      globalThis.AtriumPCBNetLabels=forcedQuery;
+      assert.deepEqual(paint(),sparse,"same ordered labels, angles, fonts, ink and positions as the ordinary query");
+    } finally { globalThis.AtriumPCBNetLabels=N; }
+  }
+  cam({cx:0,cy:0,flipped:false,rotation:0,scale:30});
+  doc.items=[b,a,arc];
+  assert.deepEqual([...new Set(paint().labels.map(l=>l.text))],["OTHER"],"reordering tied widths preserves document paint order");
+  doc.items=[a,b,arc];
+  assert.deepEqual([...new Set(paint().labels.map(l=>l.text))],["FIRST"]);
+  a.kind="part"; a.x=0; a.y=0;
+  view.invalidate(doc,[a]);
+  assert.deepEqual([...new Set(paint().labels.map(l=>l.text))],["OTHER"],"an in-place kind change cannot reintroduce a cached track");
+
+  for(const id of ["duplicate",undefined]){
+    doc.items=[{...b,id,net:"FIRST"},{...b,id}];
+    const sparse=paint();
+    assert.deepEqual([...new Set(sparse.labels.map(l=>l.text))],["FIRST"],"IDs do not define the geometry membership or tie order");
+    try {
+      globalThis.AtriumPCBNetLabels=forcedQuery;
+      assert.deepEqual(paint(),sparse);
+    } finally { globalThis.AtriumPCBNetLabels=N; }
+  }
+
+  const makeTracks=(n,width,offset)=>Array.from({length:n},(_,k)=>({...b,id:"dense"+(offset+k),width,
+    points:[[-38,(offset+k)/2-8],[38,(offset+k)/2-8]]}));
+  for(const dense of [makeTracks(33,.5,0),[...makeTracks(17,.5,0),...makeTracks(16,.6,17)]]){
+    doc.items=dense;
+    const scene=I.sync(doc,defs);
+    assert.equal(N.trackCandidates(scene,"Top",30,[-15,-12,15,12]).tracks,null,
+      "more than 32 candidates in one or several widths use the ordinary query");
+    assert.ok(paint().labels.length>0);
   }
 }
 {

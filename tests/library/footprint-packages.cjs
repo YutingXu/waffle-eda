@@ -246,6 +246,16 @@ const KICAD = [
   assert.ok(desc.fields.some(x => x.key === "pins")); assert.match(desc.spec.pins, /^1 /);
   const custom = W.generate({family: "pingrid", pins: "1 0 0; 2 5 0; 3 2.5 4", lead: {min: .5, max: .6}, BL: 8, BW: 7, H: 5});
   assert.equal(custom.footprint.pads.length, 3);
+  // Pin 1 follows its number, not the list order: pin 2 listed first keeps the square land and the dot on pin 1.
+  for (const pins of ["1 0 0; 2 5 0", "2 5 0; 1 0 0"]) {
+    const fp = W.generate({family: "pingrid", pins, lead: {min: .5, max: .6}, BL: 8, BW: 7, H: 5}).footprint;
+    const dot = fp.shapes.find(s => s.style === "silk" && s.kind === "circle" && s.fill), nearest = fp.pads.slice().sort((a, b) => Math.hypot(a.x - dot.x, a.y - dot.y) - Math.hypot(b.x - dot.x, b.y - dot.y))[0];
+    assert.equal(nearest.number, "1", "pin-1 dot beside pin 1 for " + pins);
+    assert.deepEqual(fp.pads.filter(p => p.shape === "rect").map(p => p.number), ["1"], "square land on pin 1 for " + pins);
+  }
+  // Chip LEDs and diodes mark pad 1 (the cathode), as MELF and SOD do; resistors and capacitors stay unmarked.
+  const chipDot = kind => W.generate({family: "chip", preset: "0603", kind, id: "x"}).footprint.shapes.some(s => s.style === "silk" && s.kind === "circle" && s.fill);
+  assert.deepEqual(["LED", "DIO", "RES", "CAP"].map(chipDot), [true, true, false, false]);
   assert.throws(() => W.generate({family: "pingrid", pins: "1 0 0; 1 5 0"}), /unique/);
   assert.throws(() => W.headless({action: "nope"}), /action/);
   console.log("PASS CSV batch (ranges, ±, dotted keys, comments), headless list / describe / generate");

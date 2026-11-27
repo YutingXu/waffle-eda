@@ -144,7 +144,7 @@ globalThis.AtriumDynamicSymbol = (() => {
         for (const pin of def.dynamic.pins) {
           // A pin of another part (on another sheet) has no net here: keep its name.
           if (!pin.auto || (def.dynamic.parts > 1 && (pin.part || 1) !== (part.unit || part.part || 1))) continue;
-          const n = net.byPin.get(part.id + "/" + pin.number), name = n && !/^Net-/.test(n) ? n : pin.number;
+          const n = net.byPin.get(part.id + "/" + pin.number), name = n && !A().isAutoNetName(n, net) ? n : pin.number;
           if (name !== pin.name) { pin.name = name; renamed = true; }
         }
         if (renamed) { rebuild(def); changes++; }

@@ -566,6 +566,28 @@ function item(p, id) { return p.documents.flatMap(d => d.items).find(i => i.id =
   for (let i = 0; i < 200; i++) { const k = C.between(lo, hi); assert.ok(k > lo && (hi == null || k < hi), "between"); if (i % 2) lo = k; else hi = k; }
   const keys = C.spread(1000);
   for (let i = 1; i < keys.length; i++) assert.ok(keys[i] > keys[i - 1], "spread is increasing");
+  // No key lies between "1" and "10" (or between equal or reversed keys): an error, never a hang.
+  for (const [lo, hi] of [["1", "10"], ["1", "100"], ["1", "1"], ["2", "1"], ["", "0"]]) assert.throws(() => C.between(lo, hi), RangeError, lo + " … " + hi);
+}
+{
+  // A remote position that ends in "0" is rejected, so a later local insert beside it always finishes.
+  const base = fixture(), via = id => ({id, kind: "via", x: 4, y: 5, diameter: .8});
+  const pair = (lo, hi) => {
+    const a = C.create({replica: "alice", project: base}), b = C.create({replica: "bob", project: base});
+    const p = b.project(); p.documents[1].items.push(via("lo"), via("hi"));
+    const batch = clone(b.commit(p)), adds = batch.ops.filter(o => o.t === "add");
+    adds[0].pos = lo; adds[1].pos = hi;
+    return {a, batch};
+  };
+  for (const bad of ["10", "0", "V0"]) { const {a, batch} = pair("1", bad); assert.throws(() => a.receive(batch), /op pos/, "position " + bad); }
+  const {a, batch} = pair("1", "2");
+  a.receive(batch);
+  const p = a.project(), items = p.documents[1].items;
+  items.splice(items.findIndex(v => v.id === "hi"), 0, via("between"));
+  assert.ok(a.commit(p).ops.some(o => o.t === "add" && o.o === "between" && o.pos > "1" && o.pos < "2"), "an insert between 1 and 2");
+  const snap = clone(a.snapshot()), row = snap.objs.find(o => o[0] === "hi");
+  row[6] = {...row[6], v: "10", ...(row[6].writers && {writers: row[6].writers.map(w => ({...w, v: "10"}))})};
+  assert.throws(() => C.create({replica: "carol", snapshot: snap}), /snapshot pos/, "a snapshot position that ends in 0");
 }
 
 // ---- authorship and counters (security review) ----------------------------------------------------

@@ -99,13 +99,14 @@ globalThis.AtriumUIKit = (() => {
   /** A short label over artwork; put it inside the positioned artwork box. */
   const overlayLabel = text => el("span", "ui-overlay-label", text);
   /** A text field. type "number" gets the number width; unit adds the unit after it. */
-  function field({type = "text", value = "", placeholder, label, unit, invalid, disabled, onInput} = {}) {
+  function field({type = "text", value = "", placeholder, label, unit, invalid, disabled, readOnly, onInput} = {}) {
     const input = /** @type {HTMLInputElement} */ (el("input", "ui-field"));
     input.type = type; input.value = String(value);
     if (placeholder) input.placeholder = placeholder;
     if (label) input.setAttribute("aria-label", label);
     if (invalid) input.setAttribute("aria-invalid", "true");
     if (disabled) input.disabled = true;
+    if (readOnly) input.readOnly = true;
     if (onInput) input.addEventListener("input", () => onInput(input.value, input));
     if (!unit) return input;
     const row = el("span", "ui-field-measure");
@@ -144,10 +145,12 @@ globalThis.AtriumUIKit = (() => {
     return s;
   }
   /** label.ui-switch-row > input.ui-switch[role=switch]. The knob animates over --motion-toggle. */
-  function switchRow(label, {checked, onChange, disabled} = {}) {
+  function switchRow(label, {checked, onChange, disabled, locked} = {}) {
     const row = el("label", "ui-switch-row"), input = /** @type {HTMLInputElement} */ (el("input", "ui-switch"));
     input.type = "checkbox"; input.setAttribute("role", "switch"); input.checked = !!checked;
-    if (disabled) input.disabled = true;
+    if (disabled || locked) input.disabled = true;
+    // locked: a reason string (or true) for a setting something else controls; the knob shows a lock.
+    if (locked) { row.dataset.locked = ""; if (typeof locked === "string") { row.title = locked; input.setAttribute("aria-description", locked); } }
     if (onChange) input.addEventListener("change", () => onChange(input.checked, input));
     row.append(el("span", null, label), input);
     return row;
@@ -489,6 +492,44 @@ globalThis.AtriumUIKit = (() => {
   const adoptFocused = (/** @type {any} */ t) => { if (t?.matches?.(".ui-search > input")) adoptSearch(t); };
   doc?.addEventListener?.("focusin", event => adoptFocused(event.target), true);
   adoptFocused(doc?.activeElement); // focused before the kit arrived
+
+  // Segmented controls slide the raised face from the old choice to the new one, for every .ui-segmented
+  // (built here or in feature markup). The pointer or key that starts a change records the old choice; the
+  // click or change that follows slides a ::before thumb between them, then the new segment's own face takes
+  // over. AtriumMotionUI decides whether travel is allowed (Reduced, Off, efficiency, keyboard intent).
+  // The high-contrast themes keep outlined segments and never slide.
+  const SEGMENT_ON = ".ui-segment:is([aria-pressed=true],[aria-checked=true],:has(input:checked))";
+  const segmentOn = g => [...g.children].find(n => n.matches?.(SEGMENT_ON)) || null;
+  const segmentFrom = new WeakMap();
+  const segmentPrime = event => {
+    const g = event.target?.closest?.(".ui-segmented");
+    if (g) segmentFrom.set(g, segmentOn(g));
+  };
+  function segmentSlide(event) {
+    const g = event.target?.closest?.(".ui-segmented");
+    if (!g || !segmentFrom.has(g)) return;
+    const from = segmentFrom.get(g), to = segmentOn(g);
+    if (to === from) return; // a label's click comes before its radio's change
+    segmentFrom.delete(g);
+    const root = doc.documentElement;
+    if (!from || !to || !from.isConnected || root.matches("[data-theme=hc],[data-theme-id=hc-light]") ||
+      !globalThis.AtriumMotionUI?.moves?.(event)) return;
+    const box = g.getBoundingClientRect(), a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+    const place = r => { g.style.setProperty("--ui-thumb-x", (r.left - box.left - g.clientLeft) + "px"); g.style.setProperty("--ui-thumb-w", r.width + "px"); };
+    clearTimeout(segmentTimers.get(g));
+    place(a); g.dataset.sliding = "";
+    void g.offsetWidth; // the thumb starts on the old choice
+    place(b); g.dataset.sliding = "go";
+    const done = () => { delete g.dataset.sliding; g.style.removeProperty("--ui-thumb-x"); g.style.removeProperty("--ui-thumb-w"); };
+    const ms = parseFloat(globalThis.getComputedStyle(root).getPropertyValue("--motion-toggle")) || 0;
+    segmentTimers.set(g, setTimeout(done, ms + 40));
+  }
+  const segmentTimers = new WeakMap();
+  doc?.addEventListener?.("pointerdown", segmentPrime, true);
+  doc?.addEventListener?.("keydown", segmentPrime, true);
+  doc?.addEventListener?.("click", segmentSlide);
+  doc?.addEventListener?.("change", segmentSlide);
+  globalThis.AtriumLazy?.need?.("AtriumMotionUI")?.catch?.(() => {});
 
   return {el, icon, button, iconButton, closeButton, chip, chips, badge, count, dot, field, nullableNumber, analysisField, select, switchRow, checkbox, radioGroup,
     segmented, tabs, search, adoptSearch, section, propRow, row, list, analysisTable, toolbar, notice, empty, progress, spinner, statusLine, thumb, pager, steps, diff,
