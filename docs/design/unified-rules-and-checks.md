@@ -572,6 +572,44 @@ about 95 starts a second at 99 % of one core, and the same on a 10k-item schemat
 holds the incremental engine to a from-scratch pass after random edits from every source (local edits, Undo,
 Redo, a collaboration peer's `derive`, paste, delete, rule edits), in both modes.
 
+**Edits on a board with poured copper.** Every small edit inside a pour is followed by a live refill, and
+the refill used to make three readers start over on the whole board: the pour clearance check
+(`drc-pours.js`) re-measured every poured region against every copper object (about 0.5 s of CPU per edit on
+the benchmark board), the resolved geometry serialised all poured copper twice to clone and compare it
+(about 0.4 s), and online DRC re-extracted the board for Polygon Connect. Now one change set drives them:
+the undo journal's changed items, and `AtriumPCBPours.copperChange(before, after)`, which says where the
+copper of each polygon changed (a box per connected set of changed directed edges; canonical rings that did
+not change are cancelled word for word). The pour clearance check is a session per board
+(`AtriumDRCPours.session()`, the `pour-drc` client) that re-checks the changed items' copper, the objects
+within the rule's reach of changed copper and the findings of polygons whose regions were replaced, on an
+edge grid built only around them; it gives `verify()`'s violations in `verify()`'s order. The resolved
+geometry copies each poured region once and keeps it while the region lives, compares refilled copper by
+region, and reads a live board's copper report only when something reads its copper (online DRC reads item
+extents, `delta.items`). `drc-copper-incremental.cjs` holds online DRC and the pour session to full checks
+after random edits from every source with a refill after each. `scripts/perf-sch.sh --board pours` times
+the edits (`editTaskMax`, `editSeriesCpuMs`); `--board nets` is the same board without pours.
+
+Measured on an M-series Mac on AC power, three alternating launches per side, per small edit (move a part,
+bend, add or delete a track, paste 4, undo, redo): the longest task after the edit went from 325–677 ms to
+50–88 ms and the CPU until quiet from 1.0–1.7 s to 0.24–0.64 s, in both Efficiency modes. The checks
+themselves now cost about 30–100 ms of that (online DRC 8–25 ms for a bend, the pour session about 10 ms,
+the copper change and the geometry delta about 10–30 ms). The rest is not checking: the repaint of
+poured copper (the longest tasks left, 50–88 ms canvas frames in CPU raster), garbage collection, the
+autosave of the refilled region and the airwires. The same edits without pours cost 0.09–0.16 s and no
+long task. What keeps the pours board above that is the copper model: one region per island, and the
+board's top ground island is one region of 6,540 rings and 190,000 vertices (4 MB stored), so any edit inside it
+rewrites, saves, decodes and repaints that whole region. A refill that changes copper only near the edit
+needs regions bounded in size (pours stored and painted in tiles, the tiles a refill touches replaced),
+with the canvas repainting only the copperChange boxes.
+
+| Budget (`--board pours`) | Limit | Measured |
+|---|---|---|
+| `editTaskMax` (longest task after any edit) | 100 ms | 50–88 ms (before: 325–677 ms) |
+| `editSeriesCpuMs` (most CPU of one edit) | 0.9 s | 0.46–0.64 s (before: 1.27–1.69 s) |
+| `editWindowCpuMs` (the first edit after open, which runs the first pour check) | 1.4 s | 0.90–1.13 s (before: 1.33–1.58 s) |
+| `openSettleCpuMs` (open, including pouring ten polygons) | 2 s | 1.16–1.50 s |
+| `--board nets`: `editTaskMax`, `editSeriesCpuMs` | 50 ms, 0.4 s | 0 ms, 0.15–0.16 s |
+
 ## 3. Cohesion
 
 ### 3.1 Principles

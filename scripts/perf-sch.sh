@@ -163,6 +163,12 @@ if sheets >= 100 or files: B = {k: v * 2 for k, v in B.items()}
 # docs/design/unified-rules-and-checks.md (Idle).
 if board: B = {"idleWakeupsPerSec": 0.2, "idleWakeupsAfterPerSec": 0.2, "idleCpuPct": 2, "openQuietAfterMs": 10000, "lastEditQuietAfterMs": 12000,
                "openSettleCpuMs": 1500, "editWindowCpuMs": 400, "editFrame": 100}
+# The edit series (--board nets, --board pours): the longest task until quiet after any one edit and the
+# most CPU one edit costs. With pours, the open pours ten polygons and the first edit after open runs the
+# first pour clearance check, and each edit's refill repaints poured copper (the longest tasks left:
+# 50-88 ms canvas frames; see docs/design/unified-rules-and-checks.md, Edits on a board with poured copper).
+if board == "nets": B.update({"editTaskMax": 50, "editSeriesCpuMs": 400})
+if board == "pours": B.update({"editTaskMax": 100, "editSeriesCpuMs": 900, "editWindowCpuMs": 1400, "openSettleCpuMs": 2000})
 B = {k: float(os.environ.get("BUDGET_" + k.upper(), v)) for k, v in B.items()}
 fail = []
 if not nobudget:
