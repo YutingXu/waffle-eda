@@ -32,6 +32,16 @@ assert.deepEqual(find("10k ohm"), ["Resistor 0402", "Resistor 0603", "Resistor 0
 assert.deepEqual(find("10kΩ 0603"), ["Resistor 0603"], "spaces between number and unit don't matter");
 assert.ok(names(L.search(lib, "10k")).includes("Resistor 0603"));
 assert.ok(names(L.search(lib, "1 uH")).includes("Inductor 0603"));
+// One matcher: with the catalogue loaded, AtriumLibrary.search gives the catalogue's answer for every field term.
+{
+  const fp = {name: "MCU_FP", pads: [{number: "1", x: 0, y: 0, w: .3, h: .8}], shapes: []};
+  const extra = [{id: "x-qfn", name: "MCU", prefix: "U", value: "", package: "QFN-32", footprint: fp}, {id: "x-mirror", name: "MCU mirror", prefix: "U", value: "", package: "QFN-32", footprint: fp, mirrorOf: "x-qfn"}];
+  const all = [...lib, ...extra];
+  const qfn = L.search(all, "pkg:qfn").map(d => d.id);
+  assert.ok(qfn.includes("x-qfn") && !qfn.includes("x-mirror"), "pkg: reads the package, not only the footprint name; mirrors stay out");
+  for (const q of ["pkg:qfn", "package:0603", "fp:sot-23", "value:10k", "val:10k", "tol:1%", "v:50", "pins:3", "pins>8", "mount:smd", "cat:diode", "prefix:j", "id:starter", "has:footprint", "D-", "10k ohm"])
+    assert.deepEqual(L.search(all, q).map(d => d.id), all.filter(d => !d.mirrorOf && C.matches(d, q)).map(d => d.id), q);
+}
 assert.ok(find("sot-23").length >= 6);
 assert.deepEqual(find("nothing-like-this"), []);
 for (const d of lib) assert.equal(C.matches(d, ""), true);

@@ -50,22 +50,26 @@ globalThis.AtriumViaStubs = (() => {
         return closed && pts.length > 2 && nearSegment(p, pts.at(-1), pts[0]) <= r + w + EPS;
       });
     };
-    const pad = (net, layers, c, p) => {
-      const half = Math.hypot(p.w || p.diameter || 0, p.h || p.diameter || 0) / 2, small = Math.min(p.w || p.diameter || 0, p.h || p.diameter || 0) / 2;
-      for (const l of layers) add(net, l, (q, r) => { const d = Math.hypot(q[0] - c[0], q[1] - c[1]); return d <= r + small + EPS || d <= half && d <= r + half; });
+    // The via land touches the pad's real land on that layer (shape, size, rotation and mirror).
+    const pad = (net, layers, p, parent) => {
+      const L = globalThis.AtriumResolvedLand, {at, angle, mirror} = L.place(p, parent);
+      for (const l of layers) {
+        const g = L.geometry(p, l, keys);
+        if (g) add(net, l, (q, r) => L.distance(g, q, at, angle, mirror) <= r + EPS);
+      }
     };
     const keys = layerKeys(doc, defs);
     for (const i of doc.items || []) {
       if (i.kind === "track" || i.kind === "graphic" && i.net) path(i.net, i.layer, i.points, i.width, i.fill, i.closed ?? !!i.fill);
-      else if (i.kind === "polygon" && i.net && !i.cutout && !i.shelved && Array.isArray(i.points)) add(i.net, i.layer, p => inside(p, i.points));
-      else if (i.kind === "pad" && i.net) pad(i.net, i.drill > 0 || i.layer === "Multi" ? keys : [i.layer || "Top"], [i.x, i.y], i);
+      else if (i.kind === "polygon" && i.net && !i.cutout && !i.shelved && Array.isArray(i.points)) path(i.net, i.layer, i.points, 0, true, true);
+      else if (i.kind === "pad" && i.net) pad(i.net, i.drill > 0 || i.layer === "Multi" ? keys : [i.layer || "Top"], i);
       else if (i.kind === "part") {
         const fp = defs?.get?.(i.def)?.footprint;
         for (const p of fp?.pads || []) {
           const net = own(i.pinNets, p.number) ? i.pinNets[p.number] : p.net || "";
           if (!net) continue;
-          const c = A().world([p.x, p.y], i), side = AtriumPCBAppearance.padLayer(i, p);
-          pad(net, p.drill > 0 || p.layer === "Multi" ? keys : [side], c, p);
+          const side = AtriumPCBAppearance.padLayer(i, p);
+          pad(net, p.drill > 0 || p.layer === "Multi" ? keys : [side], p, i);
         }
         for (const s of fp?.shapes || []) if (s.net && s.kind === "path") path(s.net, s.layer, s.points.map(q => A().world(q, i)), s.width, s.fill, s.closed);
       }

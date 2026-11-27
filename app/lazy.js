@@ -87,7 +87,7 @@ globalThis.AtriumLazy = (() => {
     AtriumTableData: {scripts:["notebook/table-data.js"],deps:["AtriumSourceFile"]},
     AtriumTableFormat: {scripts:["notebook/table-format.js"],deps:["AtriumTableData","AtriumFormat2Closure"]},
     AtriumTableExchange: {scripts:["notebook/table-exchange.js"],deps:["AtriumTableData"]},
-    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationDesign","AtriumTableData"]},
+    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationIntent","AtriumCalculationDesign","AtriumTableData"]},
     AtriumTableVisual: {scripts:["notebook/table-visual.js"],deps:["AtriumTableFormulas","AtriumTableExchange","AtriumSheetWidgets"]},
     AtriumTableQuery: {scripts:["notebook/table-query.js"],deps:["AtriumTableData","AtriumDesignQuery"]},
     AtriumTableEditor: {scripts:["notebook/table-editor.js"],css:["notebook/table-editor.css"],deps:["AtriumTableVisual","AtriumNotebook"]},

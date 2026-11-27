@@ -102,9 +102,10 @@ globalThis.AtriumEasyEDAProWriter = (() => {
       else rows.push(["POLY",id(),0,String(sh.net || ""),layer,mil(sh.width || .15),[...p[0],"L",...p.slice(1).flat()],0]);
       return true;
     }
-    function footprint(def,bottom=false) {
-      const fp=def?.footprint;if(!fp)return null;
-      const name=fp.name || def.name || def.id, key=def.id+"/"+bottom;
+    function footprint(def,bottom=false,mirror=false) {
+      // Pro board components have no mirror flag: a mirrored part uses its reflected footprint.
+      const fp=Atrium.pcbMirror.placed({mirror},def?.footprint).footprint;if(!fp)return null;
+      const name=(fp.name || def.name || def.id)+(mirror?" (mirrored)":""), key=def.id+"/"+bottom+(mirror?"/mirror":"");
       if(fpIds.has(key))return fpIds.get(key);
       const fid=uuid("footprint/"+key), pads=new Map(), defaultNets=new Map();
       const rows=header("FOOTPRINT","1.8",{editorVersion:"2.2",title:name});
@@ -125,10 +126,10 @@ globalThis.AtriumEasyEDAProWriter = (() => {
       if(!meta.devices[did])meta.devices[did]={title:def.name || def.id,attributes:{...def.parameters,...(sid?{Symbol:sid}:{}),...(fp?{Footprint:fp.fid}:{}),Value:String(def.value || "")},description:""};
       return did;
     }
-    function placement(i,def,side) {
+    function placement(i,def,side,mirror=false) {
       const p=links.get(i.id), matched=p && !p.ambiguous && p.sym?.symbol && p.fp?.footprint;
       const symbolDef=matched?p.sym:def, footprintDef=matched?p.fp:def;
-      const sid=symbolDef?.symbol?symbol(symbolDef):null, fp=footprint(footprintDef,matched?p.pcb.layer==="Bottom":side==="Bottom");
+      const sid=symbolDef?.symbol?symbol(symbolDef):null, fp=footprint(footprintDef,matched?p.pcb.layer==="Bottom":side==="Bottom",matched?p.pcb.mirror===true:mirror);
       const key=matched?p.key:uuid("instance/"+i.id);
       return {sid,fp,key,did:device(symbolDef,sid,fp),part:(symbolDef.name || symbolDef.id)+"."+(i.unit || 1)};
     }
@@ -201,7 +202,7 @@ globalThis.AtriumEasyEDAProWriter = (() => {
         if(i.kind==="part"){
           const def=c.defs.get(i.def);if(!def?.footprint)ok=false;
           else{
-            const placed=placement(i,def,i.layer),fp=placed.fp,k=id(),silk=i.layer==="Bottom"?4:3;
+            const placed=placement(i,def,i.layer,i.mirror===true),fp=placed.fp,k=id(),silk=i.layer==="Bottom"?4:3;
             out.push(["COMPONENT",k,0,l,...bp(loc(i)),-(i.angle||0),{"Unique ID":placed.key},0,null],pcbAttr(k,"Device",placed.did),pcbAttr(k,"Footprint",fp.fid),
               pcbAttr(k,"Designator",i.ref,silk,...bp(Atrium.world(i.refAt || [-2,-2],i)),i.showRef!==false),pcbAttr(k,"Value",i.value ?? def.value ?? "",silk,...bp(Atrium.world(i.valueAt || [-2,2],i)),i.showValue!==false));
             for(const [number,pids] of fp.pads){const value=i.pinNets?.[number] || fp.defaultNets.get(number);if(value){nets.add(value);for(const pid of pids)out.push(["PAD_NET",k,number,String(value),pid]);}}

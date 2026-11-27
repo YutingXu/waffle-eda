@@ -99,17 +99,24 @@ globalThis.AtriumDXF = (() => {
   }
   const num = (r, code, def = 0) => { const i = r.codes.indexOf(code); if (i < 0) return def; const v = parseFloat(r.vals[i]); return Number.isFinite(v) ? v : def; };
   const str = (r, code, def = "") => { const i = r.codes.indexOf(code); return i < 0 ? def : r.vals[i]; };
+  // Geometry values: a missing group reads as its default (0 unless the group has another), as it
+  // always has. A present but malformed value reads as NaN, so the entity is skipped instead of
+  // gaining a vertex at 0.
+  const realValue = v => v === "" ? NaN : Number(v);
+  const real = (r, code, def = 0) => { const i = r.codes.indexOf(code); return i < 0 ? def : realValue(r.vals[i]); };
+  const finite = values => values.every(Number.isFinite);
 
   // ---------------------------------------------------------------------------
   // Entity conversion (DXF axes, own units).
   function lwpolyline(r) {
     const pts = [], bulges = [];
     for (let i = 0; i < r.codes.length; i++) {
-      const c = r.codes[i], v = parseFloat(r.vals[i]);
-      if (c === 10) { pts.push([v, 0]); bulges.push(0); }
-      else if (c === 20 && pts.length) pts[pts.length - 1][1] = v;
-      else if (c === 42 && pts.length) bulges[bulges.length - 1] = v || 0;
+      const c = r.codes[i];
+      if (c === 10) { pts.push([realValue(r.vals[i]), 0]); bulges.push(0); }
+      else if (c === 20 && pts.length) pts[pts.length - 1][1] = realValue(r.vals[i]);
+      else if (c === 42 && pts.length) bulges[bulges.length - 1] = realValue(r.vals[i]);
     }
+    if (!finite(pts.flat()) || !finite(bulges)) return null;
     return polyFrom(pts, bulges, (num(r, 70) & 1) === 1);
   }
   function polyFrom(pts, bulges, closed) {
@@ -119,8 +126,9 @@ globalThis.AtriumDXF = (() => {
     return {segs: segs.filter(g => g.kind === "arc" || g.a[0] !== g.b[0] || g.a[1] !== g.b[1]), closed};
   }
   function ellipse(r, warn) {
-    const c = [num(r, 10), num(r, 20)], m = [num(r, 11), num(r, 21)], k = num(r, 40, 1), nz = num(r, 230, 1);
-    let t0 = num(r, 41, 0), t1 = num(r, 42, 2 * Math.PI);
+    const c = [real(r, 10), real(r, 20)], m = [real(r, 11), real(r, 21)], k = real(r, 40, 1), nz = real(r, 230, 1);
+    let t0 = real(r, 41, 0), t1 = real(r, 42, 2 * Math.PI);
+    if (!finite([...c, ...m, k, nz, t0, t1])) return null;
     const minor = nz >= 0 ? [-m[1] * k, m[0] * k] : [m[1] * k, -m[0] * k];
     const at = t => [c[0] + m[0] * Math.cos(t) + minor[0] * Math.sin(t), c[1] + m[1] * Math.cos(t) + minor[1] * Math.sin(t)];
     let span = t1 - t0; while (span <= 1e-12) span += 2 * Math.PI; if (span > 2 * Math.PI) span = 2 * Math.PI;
@@ -136,13 +144,14 @@ globalThis.AtriumDXF = (() => {
       sweep: full ? 360 : span / D2R}], closed: full};
   }
   function spline(r, tol, warn) {
-    const p = Math.round(num(r, 71, 3)), flags = num(r, 70), knots = [], weights = [], ctrl = [], fit = [];
+    const p = Math.round(real(r, 71, 3)), flags = num(r, 70), knots = [], weights = [], ctrl = [], fit = [];
     for (let i = 0; i < r.codes.length; i++) {
-      const c = r.codes[i], v = parseFloat(r.vals[i]);
+      const c = r.codes[i], v = realValue(r.vals[i]);
       if (c === 40) knots.push(v); else if (c === 41) weights.push(v);
       else if (c === 10) ctrl.push([v, 0]); else if (c === 20 && ctrl.length) ctrl[ctrl.length - 1][1] = v;
       else if (c === 11) fit.push([v, 0]); else if (c === 21 && fit.length) fit[fit.length - 1][1] = v;
     }
+    if (!finite([p, ...knots, ...weights, ...ctrl.flat(), ...fit.flat()])) return null;
     const closed = (flags & 1) === 1;
     warn("Splines were approximated by line segments");
     const n = ctrl.length;
@@ -185,22 +194,29 @@ globalThis.AtriumDXF = (() => {
     let tol = .005, scaleHint = 1, sawSection = false;
     const tolFor = () => tol / scaleHint;
     // Convert one gathered entity (or a POLYLINE with its vertices).
+    const NOUN = {LINE: "lines", ARC: "arcs", CIRCLE: "circles", LWPOLYLINE: "polylines", POLYLINE: "polylines", ELLIPSE: "ellipses", SPLINE: "splines"};
     function convert(r, verts) {
-      const type = r.type, nz = num(r, 230, 1), flip = nz < 0;
+      const type = r.type, nz = real(r, 230, 1), flip = nz < 0;
+      // A malformed entity is reported by this warning alone, not also in the skipped-type summary.
+      const malformed = () => { r.malformed = true; warn("DXF " + NOUN[type] + " with " + (type === "LINE" ? "missing or " : "") + "malformed coordinates were skipped"); return null; };
       let g = null;
       switch (type) {
         case "LINE": {
-          const coordinates = [10, 20, 11, 21].map(code => {
-            const value = str(r, code);
-            return value ? Number(value) : NaN;
-          });
-          if (!coordinates.every(Number.isFinite)) { warn("DXF lines with missing or malformed coordinates were skipped"); return null; }
+          // A LINE needs both end points written out: a missing coordinate skips it too.
+          const coordinates = [10, 20, 11, 21].map(code => real(r, code, NaN));
+          if (!finite(coordinates)) return malformed();
           const [x, y, endX, endY] = coordinates;
           return {segs: [L([x, y], [endX, endY])], closed: false, flip: false};
         }
-        case "ARC": g = {segs: [C([num(r, 10), num(r, 20)], num(r, 40), num(r, 50), num(r, 51))]}; if (!(num(r, 40) > 0)) g = null; break;
+        case "ARC": {
+          const c = [real(r, 10), real(r, 20)], rr = real(r, 40), start = real(r, 50, 0), end = real(r, 51, 0);
+          if (!finite([...c, rr, start, end, nz])) return malformed();
+          if (rr > 0) g = {segs: [C(c, rr, start, end)]};
+          break;
+        }
         case "CIRCLE": {
-          const c = [num(r, 10), num(r, 20)], rr = num(r, 40);
+          const c = [real(r, 10), real(r, 20)], rr = real(r, 40);
+          if (!finite([...c, rr, nz])) return malformed();
           // A CIRCLE has an extrusion axis but no start vertex. Optional application data
           // remembers where an editable full-turn path began in its object coordinates.
           const i = r.codes.findIndex((code,k) => code === 1001 && r.vals[k] === "WAFFLE" && r.codes[k+1] === 1000 && r.vals[k+1] === "ARC_START" && r.codes[k+2] === 1040);
@@ -208,19 +224,20 @@ globalThis.AtriumDXF = (() => {
           if (rr > 0) g = {segs:[C(c,rr,start,start+180), C(c,rr,start+180,start+360)], closed:true};
           break;
         }
-        case "LWPOLYLINE": g = lwpolyline(r); break;
+        case "LWPOLYLINE": g = lwpolyline(r); if (!g || !Number.isFinite(nz)) return malformed(); break;
         case "POLYLINE": {
           const f = num(r, 70);
           if (f & 80) { warn("3D meshes and polyface meshes were skipped"); return null; }
           const pts = [], bulges = [];
-          for (const v of verts) { if (num(v, 70) & 16) continue; pts.push([num(v, 10), num(v, 20)]); bulges.push(num(v, 42)); }
+          for (const v of verts) { if (num(v, 70) & 16) continue; pts.push([real(v, 10), real(v, 20)]); bulges.push(real(v, 42, 0)); }
+          if (!finite([...pts.flat(), ...bulges, nz])) return malformed();
           if (f & 8) { bulges.fill(0); if (nz !== 1) warn("3D polylines were projected onto the XY plane"); }
           g = polyFrom(pts, bulges, (f & 1) === 1);
           if (f & 8) return g.segs.length ? {segs: g.segs, closed: g.closed, flip: false} : null;
           break;
         }
-        case "ELLIPSE": g = ellipse(r, warn); return g.segs.length ? {...g, flip: false} : null;
-        case "SPLINE": g = spline(r, tolFor(), warn); return g.segs.length ? {...g, flip: false} : null;
+        case "ELLIPSE": g = ellipse(r, warn); if (!g) return malformed(); return g.segs.length ? {...g, flip: false} : null;
+        case "SPLINE": g = spline(r, tolFor(), warn); if (!g) return malformed(); return g.segs.length ? {...g, flip: false} : null;
         default: return null;
       }
       if (!g || !g.segs.length) return null;
@@ -248,12 +265,18 @@ globalThis.AtriumDXF = (() => {
     const layerOf = r => str(r, 8, "0") || "0";
     const sourceOf = r => str(r, 5) || "line " + r.line;
     function prim(r, verts) {
-      if (r.type === "INSERT") return {insert: true, ...(opt.entityResult ? {reference:sourceOf(r)} : {}), layer: layerOf(r), name: str(r, 2), at: [num(r, 10), num(r, 20)], sx: num(r, 41, 1) || 1, sy: num(r, 42, 1) || 1,
-        rot: num(r, 50), cols: Math.max(1, Math.min(1000, num(r, 70, 1) | 0)), rows: Math.max(1, Math.min(1000, num(r, 71, 1) | 0)), cs: num(r, 44), rs: num(r, 45), flip: num(r, 230, 1) < 0};
-      const g = convert(r, verts);
+      if (r.type === "INSERT") {
+        const at = [real(r, 10, 0), real(r, 20, 0)], sx = real(r, 41, 1), sy = real(r, 42, 1), rot = real(r, 50, 0), cs = real(r, 44, 0), rs = real(r, 45, 0), nz = real(r, 230, 1);
+        if (finite([...at, sx, sy, rot, cs, rs, nz])) return {insert: true, ...(opt.entityResult ? {reference:sourceOf(r)} : {}), layer: layerOf(r), name: str(r, 2), at, sx: sx || 1, sy: sy || 1,
+          rot, cols: Math.max(1, Math.min(1000, num(r, 70, 1) | 0)), rows: Math.max(1, Math.min(1000, num(r, 71, 1) | 0)), cs, rs, flip: nz < 0};
+        r.malformed = true;
+        warn("DXF block inserts with malformed coordinates were skipped");
+      }
+      const g = r.type === "INSERT" ? null : convert(r, verts);
       if (!g) {
         if (!["ATTDEF", "ATTRIB", "SEQEND", "VERTEX", "ENDBLK", "BLOCK"].includes(r.type)) {
-          skipped.set(r.type, (skipped.get(r.type) || 0) + 1);
+          // A malformed entity already has its own warning; the summary counts the other skips.
+          if (!r.malformed) skipped.set(r.type, (skipped.get(r.type) || 0) + 1);
           opt.entityResult?.(sourceOf(r), r.type, "dropped", layerOf(r));
         }
         return null;
@@ -333,10 +356,12 @@ globalThis.AtriumDXF = (() => {
       } else if (name === "BLOCKS") {
         while (!t.done && !(t.code === 0 && t.value === "ENDSEC")) {
           if (!(t.code === 0 && t.value === "BLOCK")) { t.next(); continue; }
-          const h = gather(t), bname = str(h, 2), block = {base: [num(h, 10), num(h, 20)], items: []};
+          const h = gather(t), bname = str(h, 2), block = {base: [real(h, 10, 0), real(h, 20, 0)], items: []};
           readList(new Set(["ENDBLK", "ENDSEC"]), (r, verts) => { const p = prim(r, verts); if (p) block.items.push(p); });
           if (t.code === 0 && t.value === "ENDBLK") gather(t);
-          if (bname) blocks.set(bname, block);
+          // A block without a readable base point is left undefined: its inserts are skipped with a warning.
+          if (bname && !finite(block.base)) warn("DXF blocks with a malformed base point were skipped");
+          else if (bname) blocks.set(bname, block);
         }
       } else if (name === "ENTITIES") {
         readList(new Set(["ENDSEC"]), topSink);

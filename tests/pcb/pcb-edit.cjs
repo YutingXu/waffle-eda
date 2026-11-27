@@ -422,6 +422,18 @@ const tdBoard = (R, w) => {
   assert.ok(inPoly([1.0, .38], td.points), "the track centreline runs inside the teardrop");
   assert.ok(td.points.every(p => Math.hypot(p[0], p[1]) <= .8 + 1e-6 || p[0] > 0), "the flanks start inside the land");
 }
+// 4b. A track that ends anywhere inside a via land gets a teardrop, not only near its centre:
+// 0.3 mm short of or beside the centre of a 1 mm via, and the result is not stale.
+for (const [end, from] of [[[9.7, 10], [5, 10]], [[10, 10.3], [5, 10.3]]]) {
+  const d = A.sheet("pcb", "o"); d.outline = [[0, 0], [20, 0], [20, 20], [0, 20]];
+  d.items.push({id: "v", kind: "via", x: 10, y: 10, diameter: 1, drill: .5, layer: "Multi", net: "A"},
+    {id: "t", kind: "track", points: [from, end], width: .15, layer: "Top", net: "A"});
+  const p = T.plan(d, new Map(), {});
+  assert.equal(p.add.length, 1, "a track end 0.3 mm from the via centre gets a teardrop " + end);
+  assert.ok(p.add[0].points.every(q => Math.hypot(q[0] - 10, q[1] - 10) <= .5 + 1e-6 || q[0] < 10 - 1e-9), "the flanks start inside the land");
+  T.apply(d, p);
+  assert.deepEqual(AtriumRules.staleTeardrops(d, new Map()), [], "the teardrop is current");
+}
 // 5. Teardrop lifecycle: stale teardrops are found, flagged by DRC and removed by settle.
 {
   const fresh = () => {

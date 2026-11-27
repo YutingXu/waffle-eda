@@ -367,6 +367,8 @@ globalThis.AtriumNumericFields = (() => {
           junctionCopies.set(i.id,{...i}); originals.set(i.id,i);
         }
       }
+      // A turn carries a power port or label sitting alone on a pin (Atrium.pinTags).
+      if(field==="angle")for(const tag of A.pinTags(doc,defs,owner)){wires.push({...tag});originals.set(tag.id,tag);}
       const [part,...changed]=A.transformPart(doc,{...owner},definition,{[field]:value},wires,{defs,junctionCopies});
       return [{original:owner,next:part,fields:[field]},...changed.flatMap(next=>{
         const original=originals.get(next.id);

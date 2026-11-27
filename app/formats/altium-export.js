@@ -821,9 +821,11 @@ globalThis.AtriumAltiumExport = (() => {
       const asset = catalogues.get(source).get(b.modelId);
       const flipped = (i?.layer === "Bottom" ? "Bottom" : "Top") !== b.ownerSide, sign = flipped ? -1 : 1;
       const side = flipped ? (b.side === "Bottom" ? "Top" : "Bottom") : b.side;
-      const world = q => i ? Atr.world([q[0], sign * q[1]], i) : q;
+      // world() reflects a mirrored part's local X (pcb-appearance.js); its arcs turn to 180 - angle with it.
+      const world = q => i ? Atr.world([q[0], sign * q[1]], i) : q, mirror = i?.mirror === true;
+      const turn = v => (mirror ? 180 - sign * v : sign * v) - (i?.angle || 0);
       const outer = b.contour?.length ? b.contour.map(g => g.kind === "line" ? {kind: "line", a: world(g.a)} :
-        {...g, c: world(g.c), start: sign * g.start - (i?.angle || 0), end: sign * g.end - (i?.angle || 0), ccw: flipped ? !g.ccw : g.ccw}) :
+        {...g, c: world(g.c), start: turn(g.start), end: turn(g.end), ccw: flipped !== mirror ? !g.ccw : g.ccw}) :
         (b.rings?.[0] || []).map(q => ({kind: "line", a: world(q)}));
       const holes = (b.rings || []).slice(1);
       const fields = [["RECORD", "ComponentBody"], ["COMPONENT", owner], ["LAYER", layerOf(b.layer) || b.layer],
@@ -899,14 +901,16 @@ globalThis.AtriumAltiumExport = (() => {
             textRecord({x:q[0],y:q[1],text:i[field]||"",size:1,angle:i.angle||0},layer,id,role);
           }
         }
-        const shapes = (fp.shapes || []).filter(s => !((s.kind === "text" || s.kind === "label") && (s.text === ".Designator" || s.text === ".Comment")));
+        // PcbDoc primitives have no mirror flag: a mirrored part writes its reflected footprint.
+        const {item: frame, footprint: local} = Atr.pcbMirror.placed(i, fp), place = p => Atr.world(p, frame);
+        const shapes = (local.shapes || []).filter(s => !((s.kind === "text" || s.kind === "label") && (s.text === ".Designator" || s.text === ".Comment")));
         for (const s of observer ? observer.items(doc,shapes,() => lines.length,"Footprint graphic",i.id) : shapes) {
-          graphic(s, id, world, i.angle || 0, side, !!i.mirror);
+          graphic(s, id, place, i.angle || 0, side, false);
         }
-        for (const p of observer ? observer.items(doc,fp.pads || [],() => counts.pads + counts.vias,"Footprint pad",i.id) : fp.pads || []) {
+        for (const p of observer ? observer.items(doc,local.pads || [],() => counts.pads + counts.vias,"Footprint pad",i.id) : local.pads || []) {
           const net = i.pinNets?.[p.number] ?? p.net ?? "";
-          if (p.kind === "via") { via(p, world([p.x, p.y]), net, id); continue; }
-          pad(p, id, world, i.angle || 0, side, net, !i.angle ? p : undefined);
+          if (p.kind === "via") { via(p, place([p.x, p.y]), net, id); continue; }
+          pad(p, id, place, i.angle || 0, side, net, !i.angle && !i.mirror ? p : undefined);
         }
       } else if (i.kind === "pad") pad({...i, x: 0, y: 0}, null, p => [p[0] + i.x, p[1] + i.y], 0, i.layer, i.net || "", i);
       else if (i.kind === "via") via(i, [i.x, i.y], i.net || "");

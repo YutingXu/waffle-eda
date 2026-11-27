@@ -210,5 +210,24 @@ let saved;
   assert.equal(I.read(golden).board.outline[0][0], 0);
   assert.throws(() => I.read(duplicate), /Duplicate IDX id CP_1/);
 }
+// A slot is its stadium outline (two semicircles), not a circle of its width, and reads back as the slot.
+{
+  const p = mcadBoard(), d = p.documents[0];
+  d.items.push({id: "s1", kind: "pad", number: "", x: 10, y: 30, w: 4, h: .8, drill: .8, slotLength: 4, shape: "round", layer: "Multi", net: "", plated: false},
+    {id: "s2", kind: "pad", number: "", x: 50, y: 20, w: 4, h: .8, drill: .8, slotLength: 4, slotAngle: 30, shape: "round", layer: "Multi", net: "", plated: false});
+  const r = I.baseline(p, d, {date: DATE, record: false});
+  assert.deepEqual(r.problems, []);
+  assert.doesNotMatch(r.text, /<d2:Diameter>\s*<property:Value>0\.8</, "no 0.8 mm circle");
+  assert.match(r.text, /<foundation:Name>NPTH 0\.8 x 4<\/foundation:Name>/);
+  const read = I.read(r.text), holes = read.holes.filter(h => h.slot);
+  assert.equal(holes.length, 2); assert.ok(!read.notes.length, read.notes.join("\n"));
+  for (const h of holes) {
+    near(h.d, .8, 1e-6, "slot width"); near(Math.hypot(h.slot[1][0] - h.slot[0][0], h.slot[1][1] - h.slot[0][1]) + h.d, 4, 1e-4, "slot length");
+  }
+  const turned = holes.find(h => Math.abs(h.x - 50) < 1e-6), dx = turned.slot[1][0] - turned.slot[0][0], dy = turned.slot[1][1] - turned.slot[0][1];
+  near(Math.abs(dy / dx), Math.tan(30 * Math.PI / 180), 1e-4, "slot axis");
+  near(turned.y, 20, 1e-6);
+  assert.deepEqual(MC.compare(p, d, read), []);
+}
 
 console.log("SHIM-OK");

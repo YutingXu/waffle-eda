@@ -75,10 +75,17 @@ globalThis.AtriumMCAD = (() => {
   function holeOf(pad, parent, datum) {
     const M = G.AtriumGeometryMaterial;
     let hit;
-    M.visitPad(pad, parent, [...datum.copper.keys()], datum.copper, [], null, (member, bore, {at}) => {
-      if (bore.operation === "primary") hit = {x: r4(at[0]), y: r4(at[1]), d: r4(bore.cutter.diameter), plated: bore.plated};
+    M.visitPad(pad, parent, [...datum.copper.keys()], datum.copper, [], null, (member, bore, {at, endpoints}) => {
+      if (bore.operation === "primary") hit = {x: r4(at[0]), y: r4(at[1]), d: r4(bore.cutter.diameter), plated: bore.plated,
+        ...(endpoints && {slot: endpoints.map(q => [r4(q[0]), r4(q[1])])})};
     }, () => {});
     return hit;
+  }
+  // A slotted hole (slot: its drill centreline [a, b], Y down) has no IDF 3.0 or IDX primitive: it is
+  // written as its outline, a stadium of width d, as board-shape segments counter-clockwise from the top.
+  function slotContour(a, b, d) {
+    const B = BS(), r = d / 2, t = B.angleOf(a, b), at = (c, k) => B.pointAt(c, r, k);
+    return [B.line(at(a, t - 90), at(b, t - 90)), B.arc(b, r, t - 90, t + 90, true), B.line(at(b, t + 90), at(a, t + 90)), B.arc(a, r, t + 90, t + 270, true)];
   }
   function heightOf(item, def, project) {
     const S = G.AtriumSTEP;
@@ -112,7 +119,7 @@ globalThis.AtriumMCAD = (() => {
         if (!def?.footprint) continue;
         parts.push({key: i.id, id: i.id, ref: String(i.ref || ""), value: String(i.value ?? ""), x: r4(i.x), y: r4(i.y), angle: norm(i.angle || 0),
           side: i.layer === "Bottom" ? "Bottom" : "Top", height: heightOf(i, def, project), package: String(def.footprint.name || def.name || def.id), def: def.id,
-          model: modelName(i, def), locked: i.locked === true});
+          model: modelName(i, def), locked: i.locked === true, ...(i.mirror === true && {mirror: true})});
         for (const p of def.footprint.pads || []) {
           const h = holeOf(p, i, datum);
           if (h) opts.mechanicalHole?.(p, i, !h.plated || !!opts.pinHoles);
@@ -147,9 +154,9 @@ globalThis.AtriumMCAD = (() => {
   // A stable 32-bit FNV-1a digest of what MCAD cares about for one object.
   function hashOf(o) {
     const pick = o.key === "board" ? {o: o.outline, c: o.cutouts, t: o.thickness, k: o.constraints}
-      : o.ref != null ? {x: o.x, y: o.y, a: o.angle, s: o.side, h: o.height, m: o.model, l: o.locked, p: o.package}
+      : o.ref != null ? {x: o.x, y: o.y, a: o.angle, s: o.side, h: o.height, m: o.model, l: o.locked, p: o.package, r: o.mirror}
       : o.points ? {p: o.points, k: o.kind, z: [o.z0, o.z1], l: o.layer}
-      : o.d != null ? {x: o.x, y: o.y, d: o.d, p: o.plated}
+      : o.d != null ? {x: o.x, y: o.y, d: o.d, p: o.plated, s: o.slot}
       : {a: o.a, b: o.b, w: o.width, g: o.angle, r: o.radius};
     const s = JSON.stringify(pick);
     let h = 0x811c9dc5;
@@ -209,6 +216,16 @@ globalThis.AtriumMCAD = (() => {
       const what = [moved && "moved", turned && "rotated", flipped && "flipped to " + c.side].filter(Boolean).join(", ");
       add("place", key, c.ident, cur.ref + " " + what + (cur.locked ? " (locked in Waffle)" : ""),
         {x: cur.x, y: cur.y, angle: cur.angle, side: cur.side}, {x: r4(c.x), y: r4(c.y), angle: norm(c.angle), side: c.side || "Top"}, {ref: cur.ref});
+    }
+    // IDF 3.0 carries a slotted hole as a board cutout: a cutout on a slot's outline is that hole.
+    if (design.board?.cutouts?.length && snap.holes.some(h => h.slot)) {
+      const slots = snap.holes.filter(h => h.slot).map(h => ({h, ring: BS().flattenContour(slotContour(h.slot[0], h.slot[1], h.d), .005)}));
+      const cutouts = design.board.cutouts.filter(c => {
+        const hit = slots.find(s => !seen.has(s.h.key) && samePoly(c, s.ring, tol));
+        if (hit) seen.add(hit.h.key);
+        return !hit;
+      });
+      design = {...design, board: {...design.board, cutouts}};
     }
     // Board outline and cutouts.
     if (design.board?.outline?.length >= 3) {
@@ -413,6 +430,6 @@ globalThis.AtriumMCAD = (() => {
     return AtriumGeometryCurves.project([{kind: "arc", center, radius, start: -start, sweep: -sweep}],
       0.005 * Math.min(1, radius / 0.01), {minSegments, maxSegments, maxStep: 360});
   }
-  return Object.freeze({VERSION, SCOPE, KINDS, projectArc, validate, store, peek, identOf, keyOf, remember, snapshot, exportSnapshot, hashOf, hashes, recordSent, changesSince,
+  return Object.freeze({VERSION, SCOPE, KINDS, projectArc, slotContour, validate, store, peek, identOf, keyOf, remember, snapshot, exportSnapshot, hashOf, hashes, recordSent, changesSince,
     compare, receive, find, pending, apply, accept, reject, preview, status, pcbOf, samePoly, keepoutOf, norm, r4});
 })();
