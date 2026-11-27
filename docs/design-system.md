@@ -8,7 +8,7 @@ these tokens. `tests/maintenance/css-tokens.py` checks authored stylesheets and 
 
 - **Colour tokens.** `app/theme.js` (`AtriumTheme.PRESETS`) is the source of truth. Dark
   is the `:root` block in `app/style.css`; Light, High Contrast and Classic are the blocks
-  in `app/theme.css`. `tests/editor/theme.cjs` checks that the three files agree.
+  in `app/editor/theme.css`. `tests/editor/theme.cjs` checks that the three files agree.
   `app/vscode-theme.js` maps VS Code workbench colours onto the same tokens (its `MAP`,
   `derived()` and `TEXT` tables). The other built-in themes (Ember, Fjord, Obsidian,
   Clearview, Soldermask, Haze, Vellum, High Contrast Light), user themes and extension

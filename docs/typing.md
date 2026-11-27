@@ -10,7 +10,7 @@ ships is byte-for-byte the code that was checked.
 scripts/typecheck.sh            # check; fails on any error types/baseline.json does not allow
 scripts/typecheck.sh --update   # record the current error counts (read every new error first)
 python3 types/gen-globals.py --add   # declare new module globals in types/globals.d.ts
-python3 tests/maintenance/types-model.py    # model.d.ts vs app/model.js and the VS Code JSON schema
+python3 tests/maintenance/types-model.py    # model.d.ts vs app/core/model.js and the VS Code JSON schema
 ```
 
 CI runs `scripts/typecheck.sh` in the `static` step on macOS (`scripts/ci-local.sh static`) and
@@ -42,7 +42,7 @@ on Linux (`scripts/ci-linux.sh static`). A check takes about 3 seconds.
 | `types/gen-globals.py` | Reads each module's exported member names; writes them to a temporary `.d.ts` on every check |
 | `types/typecheck.py` | Runs tsc and judges the output against the baseline |
 | `scripts/typecheck.sh` | Finds or installs Node and TypeScript, then runs `types/typecheck.py` |
-| `tests/maintenance/types-model.py` | `model.d.ts` agrees with `app/model.js` and `integrations/vscode/schema/waffle.schema.json` |
+| `tests/maintenance/types-model.py` | `model.d.ts` agrees with `app/core/model.js` and `integrations/vscode/schema/waffle.schema.json` |
 | `tests/maintenance/typing-regressions.cjs` | Tests for the bugs the type check found |
 
 ## How the globals are typed
