@@ -107,7 +107,9 @@ function cases(page) {
     }},
     {name:"Forget a hosted AI provider key", async open() {
       await page.evaluate(async pkg => {
-        globalThis.AtriumHost = Object.assign(globalThis.AtriumHost ?? {}, {
+        // The browser build has no desktop host: lend one for the key, and take it back in finish.
+        if (!globalThis.AtriumHost) globalThis.geometryLentHost = globalThis.AtriumHost = {};
+        Object.assign(globalThis.AtriumHost, {
           async aiCredential() { return {available:true, configured:true, maxBytes:4096}; },
         });
         await AtriumLazy.need("AtriumExtensions");
@@ -125,6 +127,8 @@ function cases(page) {
     }, async finish() {
       await page.evaluate(async () => {
         delete globalThis.AtriumHost?.aiCredential;
+        if (globalThis.geometryLentHost && globalThis.AtriumHost === globalThis.geometryLentHost) delete globalThis.AtriumHost;
+        delete globalThis.geometryLentHost;
         await AtriumExtensions.uninstall("waffle.hosted-ai-example");
       });
     }},
