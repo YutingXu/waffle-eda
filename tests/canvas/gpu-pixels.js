@@ -246,7 +246,7 @@ function probeGpuStrokes(GPU, PCB, doc) {
 
 globalThis.atriumGpuPixels = async function (o = {}) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, panStripUpload, drcMarkerPan, earlySettle, zoomOutGesture, terminalOverlay, pourCoverageBounds, pourCoverageLod};
+  const lifecycle = {contextLost, powerVisibility, memoryCap, viewportResources, hidden, parked, splitPane, layoutResize, gridCapacity, emptyTextBands, padCaptionBounds, emptyBandPan, panStripUpload, drcMarkerPan, earlySettle, zoomOutGesture, zoomOutMemory, zoomOutFailure, terminalOverlay, pourCoverageBounds, pourCoverageLod};
   const selected = o.robustness && new Set(o.robustness);
   if (selected) for (const name of selected) {
     if (!Object.hasOwn(lifecycle,name)) throw new Error("Unknown GPU robustness check: " + name);
@@ -963,6 +963,19 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     if (row.fullFrames || !row.builds || row.builds > row.limit || !row.exactInk || row.unmatched > .03)
       failLifecycle("zoomOutGesture", JSON.stringify(row));
     else okLifecycle("zoomOutGesture", `${row.frames} outward gesture frames scaled retained layers, with ${row.builds} wider builds and ${(row.unmatched * 100).toFixed(2)}% of exact pixels unmatched`);
+  }
+
+  // The same zoom out when the wider layers cannot fit under the memory cap, or their build throws:
+  // the exact frames draw it, the build is not retried on every frame, and the GPU renderer stays on.
+  function zoomOutMemory() {
+    const row = gpuZoomOutGesture(GPU(), "cap");
+    if (row.builds || row.attempts > 1 || !row.alive || !row.frames) failLifecycle("zoomOutMemory", JSON.stringify(row));
+    else okLifecycle("zoomOutMemory", `${row.frames} outward frames under a ${row.capMB} MB cap: no wider build, GPU kept`);
+  }
+  function zoomOutFailure() {
+    const row = gpuZoomOutGesture(GPU(), "throw");
+    if (row.builds || row.attempts !== 1 || !row.alive || row.fullFrames !== row.frames) failLifecycle("zoomOutFailure", JSON.stringify(row));
+    else okLifecycle("zoomOutFailure", `a failed wider build was tried once; ${row.frames} exact gesture frames on the GPU`);
   }
 
   async function terminalOverlay() {
@@ -2125,7 +2138,8 @@ function gpuEarlySettle(GPU) {
 // A continuous zoom out (a trackpad pinch: many small steps) reveals area that no retained layer
 // holds. Each step must not redraw the exact layers for its camera. The renderer prepares twice the
 // area at once and scales it, so an 8x zoom out needs about one build per halving of the scale.
-function gpuZoomOutGesture(GPU) {
+// mode "cap": a memory cap with room for the exact frame but not for wider bands. "throw": the build fails.
+function gpuZoomOutGesture(GPU, mode = "") {
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "position:fixed;left:0;top:0;visibility:hidden;width:320px;height:200px";
   document.body.append(canvas);
@@ -2144,9 +2158,21 @@ function gpuZoomOutGesture(GPU) {
   try {
     view.restoreCamera({cx:0,cy:0,scale:24,referenceScale:24});
     view.render(doc, defs, {...opts, noReuse:true});
-    const before = GPU.resourceCounters(I), builds = GPU.stats(I).wideBuilds || 0, steps = 20;
-    for (let i = 0; i < steps; i++) { view.zoom(.9); view.moving(); view.render(doc, defs, opts); }
-    const after = GPU.resourceCounters(I), moving = pixels();
+    const before = GPU.resourceCounters(I), start = GPU.stats(I), builds = start.wideBuilds || 0, steps = 20;
+    // Only the wider build moves the camera (withCamera) on these frames.
+    const withCamera = I.withCamera;
+    let attempts = 0, capMB = null;
+    I.withCamera = function (...a) { attempts++; if (mode === "throw") throw Error("injected wide build failure"); return withCamera.apply(this, a); };
+    if (mode === "cap") globalThis.__atriumGpuCapMB = capMB = +((start.gpuBytes + start.backingBytes + canvas.width * canvas.height * 2) / 1048576).toFixed(6);
+    try { for (let i = 0; i < steps; i++) { view.zoom(.9); view.moving(); view.render(doc, defs, opts); } }
+    finally { I.withCamera = withCamera; if (mode === "cap") delete globalThis.__atriumGpuCapMB; }
+    const after = GPU.resourceCounters(I), alive = !!after && GPU.status(I).renderer === "gpu";
+    if (mode) {
+      const frames = after ? after.frames - before.frames : 0;
+      return {mode, frames, fullFrames:after ? frames - (after.retainedFrames - before.retainedFrames) : null,
+        builds:(GPU.stats(I)?.wideBuilds || 0) - builds, attempts, alive, capMB};
+    }
+    const moving = pixels();
     view.settle(); view.render(doc, defs, {...opts, noReuse:true});
     const exact = pixels(), w = canvas.width, h = canvas.height, background = exact.slice(0, 4);
     // Exact pixels with no gesture pixel within one pixel and 64 levels: lettering the scaled layers lost.

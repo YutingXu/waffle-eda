@@ -1462,7 +1462,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (st.union) { st.gl.deleteTexture(st.union.tex); st.gl.deleteFramebuffer(st.union.fb); st.union = null; }
     for (const key of ["overlayCopy", "overlayWorld", "wideCanvas", "stripWide", "stripTall", "stripLarge"]) releaseCanvas(st,key);
     st.emptyStrip = null;
-    st.exact = st.overlayV = st.ovAt = null;
+    st.exact = st.overlayV = st.ovAt = null; st.wideNowOff = false;
   }
   function freeBoard(st) {
     const gl = st.gl;
@@ -2187,7 +2187,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // and tool frames reuse it as it is.
   // area: [x, y, w, h] device pixels: paint and upload only that part of T's bands (an idle slice of the
   // text for a new camera, textSlices), never answering from T's key.
-  function textLayer(I, st, doc, defs, opts, cam, V, pours, T = st.text, area = null, timing) {
+  // fresh: T's bands are new for this camera (wideNow): bands without art stay without a texture.
+  function textLayer(I, st, doc, defs, opts, cam, V, pours, T = st.text, area = null, timing, fresh = false) {
     const [cx, cy, scale, flipped, width, height, dpr] = cam, gl = st.gl, S = st.scene, W = I.canvas.width, H = I.canvas.height;
     let sig = "";
     for (const k in PCB.system) sig += PCB.system[k];
@@ -2336,7 +2337,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     if (T.w !== W || T.h !== H) { for (const b of bands) gl.deleteTexture(b.tex); bands.length = 0; T.w = W; T.h = H; }
     const g = T.ctx, o = I.worldToScreen([0, 0]);
     const textOptions = {...o3, skipPartBoxes: true, gpu: i => !twoD(i)};
-    const freshRows = !!job;
+    const freshRows = !!job || fresh && !planning;
     let prepared;
     if ((freshRows || !area && !local && need.length > 1) && !exact.size && I.collectBoardLayers &&
         !opts.partBoxesOnly && !opts.recordLayer && !opts.clipLayer) {
@@ -2943,24 +2944,40 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   // only that camera, so each following outward step would need another; prepare the layers for twice
   // the area at once instead, as the idle wide copy does. Later outward steps scale them until they are
   // exhausted: one build per halving of the scale rather than one per gesture frame.
+  // Painted whole like an exact frame (one shared object scan, empty bands skipped, WebKit uploads only the
+  // ink), but into new bands. False when it failed: its bands are freed and the caller draws the exact frame.
   function wideNow(I, st, doc, defs, opts, list, cx, cy, scale) {
-    const E = st.exact, forKey = st.text.key, forOverlay = !!st.overlayWorld, c = wideCanvas(I, st);
-    const W = c.width, H = c.height, keep = I.ctx, T = {key: null};
-    cancelWide(st);
-    let painted = null, V = null;
+    const T = {key: null};
     try {
-      I.ctx = c.getContext("2d");
-      I.withCamera(cx, cy, scale, () => {
-        const cam = I.cam();
-        V = scope(I, st, doc, defs, opts, cam, list, false);
-        painted = textLayer(I, st, doc, defs, opts, cam, V, list, T, [0, 0, W, H]);
-      });
+      const E = st.exact, forKey = st.text.key, forOverlay = !!st.overlayWorld, c = wideCanvas(I, st), keep = I.ctx;
+      cancelWide(st);
+      let painted = null, V = null;
+      try {
+        I.ctx = c.getContext("2d");
+        I.withCamera(cx, cy, scale, () => {
+          const cam = I.cam();
+          V = scope(I, st, doc, defs, opts, cam, list, false);
+          painted = textLayer(I, st, doc, defs, opts, cam, V, list, T, null, null, true);
+        });
+      } finally { I.ctx = keep; }
+      if (!painted) { for (const b of T.bands || []) st.gl.deleteTexture(b.tex); T.bands = []; }
+      publishWide(I, st, doc, defs, opts, c, E, forKey, forOverlay, cx, cy, scale, painted ? T : null, V);
+      return true;
     } catch (e) {
-      for (const b of T.bands || []) st.gl.deleteTexture(b.tex);
-      throw e;
-    } finally { I.ctx = keep; }
-    if (!painted) for (const b of T.bands || []) st.gl.deleteTexture(b.tex);
-    publishWide(I, st, doc, defs, opts, c, E, forKey, forOverlay, cx, cy, scale, painted ? T : null, V);
+      // Only the wide copy is lost: the gesture frame is drawn exactly, as without one.
+      if (st.wide?.text !== T) for (const b of T.bands || []) st.gl.deleteTexture(b.tex);
+      st.checkMemory = true;
+      G.console?.warn?.("GPU board renderer: wider zoom layers not built:", e);
+      return false;
+    }
+  }
+  // Whether wideNow's layers (as many full-view bands as the exact frame's) fit under the cap. publishWide
+  // frees the current wide copy, and memory() trims dormant coverage and pour alternates before a wide copy.
+  function wideNowFits(I, st, doc) {
+    const cap = capBytes(), view = I.canvas.width * I.canvas.height * 4, old = st.wide?.text;
+    let used = bytesOf(st) + backingBytes(st) + Math.max(1, st.text.bands?.length || 0) * view - (st.stats.pourCacheBytes || 0);
+    if (old) for (const b of old.bands || []) if (b.tex) used -= old.w * old.h * 4;
+    return trimOffscreenCoverage(I, st, doc, used, cap) <= cap;
   }
   // After an exact frame, once the view has been still for 250 ms (never during a drag or gesture).
   function scheduleWide(I, st, doc, defs, opts, list) {
@@ -3256,6 +3273,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (settling && E && E.cx === cx && E.cy === cy && E.scale === scale && E.width === width && E.height === height && !(T.valid && (T.valid[0] || T.valid[1]))) settling = false;
       // An overlay-only repaint can reuse the pending camera. Artwork or visibility changes need a fresh draw.
       const pending = !gesture && !settling && opts.reuseBase && st.textJob?.at === cam.join() && !opts.noReuse;
+      // Each exact gesture frame is a new st.exact: a refused wider build stays off until the gesture ends.
+      if (settling || !gesture && !pending) st.wideNowOff = false;
       // A moving or settling camera owns these refreshes. Its last completed wide copy is still usable.
       if ((gesture || settling || pending) && (st.wideJob || st.wideText)) cancelWide(st);
       // A resized pane is such a frame too (the editor's camera-only frame): the view's size can differ from E's.
@@ -3299,12 +3318,14 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           if (wide && (!L || Math.abs(wide.scale - scale) < Math.abs(E.scale - scale)) &&
               wideFits(st, E, doc, c.rev, list) &&
               covers(wide, cx, cy, scale, flipped, width, height, !wide.text.pours && artworkBounds)) L = wide;
-          // A gesture frame, not the settling one: that frame is exact for its camera anyway.
-          if (!L && gesture && !settling && sized && scale < E.scale && I.canvas?.isConnected && !opts.transientGeometry) {
-            wideNow(I, st, doc, defs, opts, list, cx, cy, scale * .5);
+          // A gesture frame, not the settling one: that frame is exact for its camera anyway. A build that
+          // would not fit, failed, or that memory() gave back is not tried again in this gesture.
+          if (!L && gesture && !settling && sized && scale < E.scale && !st.wideNowOff && I.canvas?.isConnected && !opts.transientGeometry) {
+            const built = wideNowFits(I, st, doc) && wideNow(I, st, doc, defs, opts, list, cx, cy, scale * .5);
             if (!memory(I, st, doc)) return false;
             const w = st.wide;
-            if (wideFits(st, E, doc, c.rev, list) && covers(w, cx, cy, scale, flipped, width, height, !w.text.pours && artworkBounds)) L = w;
+            if (built && wideFits(st, E, doc, c.rev, list) && covers(w, cx, cy, scale, flipped, width, height, !w.text.pours && artworkBounds)) L = w;
+            else st.wideNowOff = true;
           }
         }
         if (L) {
