@@ -58,6 +58,7 @@ globalThis.AtriumEasyEDAImport = (() => {
     for (let i = 0; i < n.length; i += 2) out.push([n[i], n[i + 1]]);
     return out;
   }
+  const STANDARD_FIELDS = new Set(["pre", "package", "name", "nameAlias", "value", "Value", "spicePre", "spiceSymbolName"]);
   const para = s => { const p = String(s || "").split("`"), o = Object.create(null); for (let i = 0; i + 1 < p.length; i += 2) o[p[i]] = p[i + 1]; return o; };
   const has = (o, k) => o != null && Object.hasOwn(o, k);
   const pick = (o, k, d) => has(o, k) ? o[k] : d;
@@ -295,8 +296,10 @@ globalThis.AtriumEasyEDAImport = (() => {
       }
     });
     if (!valueAt) value=p.value ?? p.Value ?? p.name ?? "";
+    // Every c_para attribute the symbol carries is a part parameter, apart from the ones this
+    // importer reads as the designator prefix, value, footprint and symbol name.
     const params = {};
-    for (const k of ["Manufacturer", "Manufacturer Part", "Supplier Part", "LCSC Part Name"]) if (p[k]) params[k] = p[k];
+    for (const [k, v] of Object.entries(p)) if (k && v && !STANDARD_FIELDS.has(k)) params[k] = v;
     return {p, ref, value, refAt, valueAt, showRef, showValue, shapes, pins, at: mm(origin), angle, params, source, record};
   }
   // Placed symbols -> definitions. Sub-parts of one package ("U1.1", "U1.2", from a

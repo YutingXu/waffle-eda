@@ -21,6 +21,7 @@ globalThis.AtriumEagleImport = (() => {
   // A source element can supply several placements. Collect its outcome once, even
   // for unused library records, and leave file data out of the editable model.
   const containers = new Set("eagle drawing schematic settings layers libraries library packages symbols devicesets gates devices connects technologies parts sheets instances plain nets segments busses elements signals classes designrules".split(" "));
+  const PLACEHOLDERS = new Set(["NAME", "VALUE", "PART", "GATE"]);
   const objectKinds = new Set("board sheet part instance symbol pin gate device deviceset connect package element wire text frame rectangle circle polygon vertex junction label net signal bus segment pinref contactref attribute param class clearance smd pad hole via dimension layer grid setting description technology".split(" "));
   function sourceEvidence(file, sink) {
     const records = [];
@@ -304,7 +305,13 @@ globalThis.AtriumEagleImport = (() => {
         // in the gate's own frame; the placed instance names its gate with item.unit.
         const gateList = kids(kid(set, "gates"), "gate"), gates = gateList.length, unit = Math.max(1, gateList.findIndex(g => g.attrs.name === a.gate) + 1);
         const ref = a.part, value = part.value ?? (yesno(set.attrs.uservalue) ? "" : part.deviceset + (part.device || ""));
-        const key = JSON.stringify([part.library, part.library_urn || "", part.deviceset, part.device || "", device?.attrs.package || ""]);
+        // The chosen technology's attributes are the device's parameters; the part's own attribute
+        // rows set or override values for this placement. NAME, VALUE, PART and GATE are placeholders.
+        const technology = kids(kid(device, "technologies"), "technology").find(t => (t.attrs.name || "") === (part.technology || ""));
+        const attributes = node => Object.fromEntries(kids(node, "attribute").filter(at => at.attrs.name && at.attrs.value != null && !PLACEHOLDERS.has(at.attrs.name.toUpperCase())).map(at => [at.attrs.name, at.attrs.value]));
+        const deviceParameters = attributes(technology), partParameters = attributes(sourcePart);
+        for (const k of Object.keys(partParameters)) if (deviceParameters[k] === partParameters[k]) delete partParameters[k];
+        const key = JSON.stringify([part.library, part.library_urn || "", part.deviceset, part.device || "", device?.attrs.package || "", part.technology || ""]);
         let entry = gateDefs.get(key);
         if (!entry) {
           const symbol = {shapes: [], pins: []}, fields = [];
@@ -325,12 +332,13 @@ globalThis.AtriumEagleImport = (() => {
           });
           if (gates > 1) symbol.parts = gates;
           const def = defs.add({id: A.id(), name: part.deviceset + (part.device || ""), category: "Eagle symbols",
-            prefix: set.attrs.prefix || ref.replace(/\d+$/, "") || "U", value, symbol, footprintName: device?.attrs.package || "", parameters: {}, sourceName: name}, key);
+            prefix: set.attrs.prefix || ref.replace(/\d+$/, "") || "U", value, symbol, footprintName: device?.attrs.package || "", parameters: deviceParameters, sourceName: name}, key);
           const ties = copperTies(library.packages.get(device?.attrs.package), new Set([...padLists.values()].flat()), [part.deviceset], [...padLists.values()]);
           if (ties.length && !symbol.netTie) { symbol.netTie = true; symbol.netTieGroups = ties.map(g => g.slice()); notes.add("Normally closed solder jumpers import as net ties"); }
           gateDefs.set(key, entry = {def, fields});
         }
         const item = {id: A.id(), kind: "part", def: entry.def.id, ref, value, link: "eagle-" + ref, pinNets: {}, x: r4(x), y: r4(y), angle};
+        if (Object.keys(partParameters).length) item.parameters = partParameters;
         if (rot.mirror) item.mirror = true;
         for (const pin of symPins) pinAt.set(a.part + "\u001f" + a.gate + "\u001f" + pin.attrs.name, A.world([num(pin.attrs.x), -num(pin.attrs.y)], item).map(r4));
         if (gates > 1) item.unit = unit;
@@ -345,7 +353,8 @@ globalThis.AtriumEagleImport = (() => {
         doc.items.push(item);
         if (evidence) {
           evidence.produced(inst, doc, doc.items.length - 1);
-          for (const record of [inst, sourcePart, gate, set, device]) evidence.use(record, item);
+          for (const record of [inst, sourcePart, gate, set, device, technology]) if (record) evidence.use(record, item);
+          for (const at of [...kids(technology, "attribute"), ...kids(sourcePart, "attribute")]) evidence.use(at, item);
           for (const at of kids(inst, "attribute")) if (at.attrs.name === "NAME" || at.attrs.name === "VALUE") evidence.use(at, item);
         }
       });
