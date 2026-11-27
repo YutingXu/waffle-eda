@@ -51,7 +51,7 @@ function journalEdit(id,change){
 }
 function localWork(result,id,stage){
   const s=result.stats.polygons[id].area[stage];
-  assert.equal(s.mode,"local",id+" "+stage+" should solve a bounded neighbourhood");
+  assert.equal(s.mode,"local",id+" "+stage+" should solve a bounded neighbourhood ("+(s.reason||s.mode)+")");
   assert.ok(s.mm2<s.fullMm2/10&&s.primitives<s.fullPrimitives/10,s);
   return s;
 }
