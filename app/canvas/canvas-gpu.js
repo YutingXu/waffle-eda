@@ -1067,8 +1067,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     }
     if (list !== doc.pcbDrawing?.pours || opts.transientGeometry || G.AtriumPourAnim?.active?.(doc)) return null;
     const [,,scale,,,,dpr] = cam, gl = st.gl, w = st.canvas.width, h = st.canvas.height;
-    const key = [appearanceVersion, ...cam, w, h, opts.highlight, opts.layer, opts.layerMode, ...(opts.hidden || []),
-      ...(text?.exact || []), pourLodKey(scale,dpr)].join("|");
+    const paintKey = [appearanceVersion, ...cam, w, h, opts.highlight, opts.layer, opts.layerMode, pourLodKey(scale,dpr)].join("|");
+    const key = JSON.stringify([paintKey,[...(opts.hidden || [])],[...(text?.exact || [])]]);
+    // Visibility chooses the layer and its regions; surviving masks still use the same paint.
+    // An external layer-paint hook can depend on those view options.
+    const bandKey = V.o2.clipLayer || V.o2.recordLayer ? key : paintKey;
     let cover = st.coverage;
     if (cover?.list === list && cover.sig === c.pourSig && cover.key === key) return cover.layers;
     if (cover && (w !== cover.w || h !== cover.h)) { freeCoverage(st); cover = null; }
@@ -1095,7 +1098,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (band?.tex && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
       const needsTexture = !band?.tex;
       const next = group.map(coverageRegion);
-      const sameView = !needsTexture && band.key === key, dirty = sameView ? coverageDamage(band.regions,next) : null;
+      const sameView = !needsTexture && band.key === bandKey, dirty = sameView ? coverageDamage(band.regions,next) : null;
       if (band?.ink) band.ink = ink;
       if (sameView && dirty === null) { band.offscreen = false; continue; }
       const pixels = coveragePixels(I,next,dpr,w,h,!READBACK);
@@ -1126,7 +1129,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         }
         cover.layers.set(layer,band); st.checkMemory = true;
       }
-      band.offscreen = false; band.key = key; band.regions = next;
+      band.offscreen = false; band.key = bandKey; band.regions = next;
       let sx=0, sy=0, sw=w, sh=h, visibleRegions=group;
       if (dirty) {
         [sx,sy,sw,sh] = damagePixels(I,dirty,dpr,2,w,h);

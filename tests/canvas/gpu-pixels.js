@@ -999,11 +999,11 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       if (new Error().stack?.includes("pourCoverage")) bytes += args[2]*args[3]*4;
       return getImage.apply(this,args);
     };
-    const paint = (cx,cy,scale,flipped=false,highlight=undefined,moving=false) => {
+    const paint = (cx,cy,scale,flipped=false,highlight=undefined,moving=false,viewOptions={}) => {
       view.restoreCamera({cx,cy,scale,flipped,referenceScale:10});
       if (moving) view.moving();
       bytes = allocated = 0;
-      view.render(board,defs,{...opts,highlight,noReuse:!moving});
+      view.render(board,defs,{...opts,...viewOptions,highlight,noReuse:!moving});
       const stats = GPU().stats(I), c = GPU().composite(I);
       if (!c || !stats) throw Error("no GPU coverage frame");
       return {image:c.getContext("2d").getImageData(0,0,c.width,c.height), bytes, allocated,
@@ -1043,6 +1043,25 @@ globalThis.atriumGpuPixels = async function (o = {}) {
         failLifecycle("pourCoverageBounds", JSON.stringify({changes,stale,restoredDiff,islandRemoved,islandStale,thinHole,escapedInk,frameBytes,reads:Object.values(rows).map(r=>r.bytes),
           repeated:repeated.uploaded,memory:[settled.memory,fresh.memory]}));
       else okLifecycle("pourCoverageBounds","camera reversal and edit match fresh copper, with bounded mask readbacks");
+
+      // Hiding one copper layer should leave the other layer's exact mask ready.
+      const hiddenOptions = {hidden:new Set(["Top"])};
+      const paintHidden = () => paint(0,-1,10,false,undefined,false,hiddenOptions);
+      const hidden = paintHidden(), shownAgain = paint(0,-1,10);
+      GPU().release(I); view.invalidate();
+      const freshHidden = paintHidden(), freshShown = paint(0,-1,10);
+      const delta = (a,b) => differentBytes(a.image.data,b.image.data);
+      const visibility = rows.visibility = {
+        uploaded:[hidden.uploaded,shownAgain.uploaded,freshHidden.uploaded,freshShown.uploaded],
+        allocated:[hidden.allocated,shownAgain.allocated],
+        differences:[delta(hidden,freshHidden),delta(shownAgain,freshWithoutIsland),delta(hidden,shownAgain)],
+        layerVisible:freshHidden.uploaded>0
+      };
+      if (hidden.uploaded || hidden.allocated || !shownAgain.uploaded ||
+          shownAgain.uploaded >= freshWithoutIsland.uploaded || !visibility.layerVisible ||
+          visibility.differences[0] || visibility.differences[1] || !visibility.differences[2])
+        failLifecycle("pourCoverageVisibility",JSON.stringify(visibility));
+      else okLifecycle("pourCoverageVisibility","a visibility toggle keeps untouched copper pixels ready");
 
       // Center a 0.55-device-pixel clearance on a sample column. Its contrast
       // must survive Canvas coverage and the actual GPU composite.
