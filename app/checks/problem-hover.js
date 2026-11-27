@@ -170,8 +170,10 @@ globalThis.AtriumProblemHover = (() => {
     return {...out, at:group.at, radius:group.reach, entries, get boxes() { resolve(); return boxes; }};
   }
   // A check pass that finishes during the hover pause replaces its finding objects: an insight or a
-  // check-store finding is the same one while its key is.
-  const sameEntry = (a, b) => a.raw === b.raw || a.kind === b.kind && a.raw?.key != null && a.raw.key === b.raw?.key;
+  // check-store finding is the same one while its key and its wording are (a key names the objects, not
+  // the measured value, so a finding whose value changed shows its new text).
+  const sameEntry = (a, b) => a.raw === b.raw || a.kind === b.kind && a.raw?.key != null && a.raw.key === b.raw?.key &&
+    a.title === b.title && a.text === b.text && a.value === b.value;
   const same = (a, b) => !!a && !!b && a.pane.canvas === b.pane.canvas && a.d === b.d &&
     a.entries.length === b.entries.length && a.entries.every((e, i) => sameEntry(e, b.entries[i]));
 
