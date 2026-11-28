@@ -227,7 +227,10 @@ globalThis.AtriumTouchPrecision = (() => {
   function reveal() {
     focusFrame = 0;
     const vv = window.visualViewport;
-    if (!vv || !field?.isConnected || document.activeElement !== field) return;
+    if (!vv || !field) return;
+    // A focused field that is removed (an inspector rebuilt on Return) sends no focusout: the keyboard
+    // closing is the notice, and the viewport is let go.
+    if (!field.isConnected || document.activeElement !== field) { unwatch(); return; }
     const r = caretRect(field), kb = navigator.virtualKeyboard?.boundingRect;
     // Windows can overlay the layout viewport. A floating keyboard affects only its own columns.
     const covered = kb?.height > 0 && kb.right >= r.left && kb.left <= r.right;

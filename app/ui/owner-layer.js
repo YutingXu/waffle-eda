@@ -35,9 +35,31 @@ globalThis.AtriumLayer = (() => {
     for (let n = owner.parentElement; n && n !== top; n = n.parentElement) if (stacks(n)) return n;
     return top;
   }
+  // A layer can outlive the owner of a decoration in it: a context menu in a body portal closes, a row
+  // is replaced, a dialog closes with its thumb and its drag. Nothing then tells the decoration, and a
+  // later pointer or scroll event is no notice: Escape closes a menu without one. watch(node, owner,
+  // leave) calls leave() as soon as the owner has left the document (on the removal itself, whether or
+  // not the node left with it) and forgets the pair once the node has left on its own. One observer
+  // serves every pair, and only while there are pairs. attach(node, owner, {leave}) watches as well.
+  const watched = new Map();
+  let watcher = null;
+  function sweep(records) {
+    if (records && !records.some(r => r.removedNodes.length)) return;
+    for (const [node, w] of watched) {
+      if (!w.owner.isConnected) {watched.delete(node); try {w.leave();} catch (e) {globalThis.console?.error?.(e);}}
+      else if (!node.isConnected) watched.delete(node);
+    }
+    if (!watched.size) {watcher?.disconnect(); watcher = null;}
+  }
+  function watch(node, owner, leave) {
+    if (typeof MutationObserver !== "function") return;
+    watched.set(node, {owner, leave});
+    if (!watcher) {watcher = new MutationObserver(sweep); watcher.observe(doc.documentElement, {childList:true, subtree:true});}
+  }
   function attach(node, owner, options) {
     const host = layer(owner, options);
     if (node.parentElement !== host) host.append(node);
+    if (options?.leave) watch(node, owner, options.leave);
     return host;
   }
   // A fixed-position node is placed in viewport coordinates unless an ancestor (a transform, a filter,
@@ -100,5 +122,5 @@ globalThis.AtriumLayer = (() => {
     node.style.clipPath = i.some(n => n > 0) ? `inset(${i.map(n => n + "px").join(" ")})` : "";
     return true;
   }
-  return Object.freeze({stacks, layer, attach, origin, at, visible, clip});
+  return Object.freeze({stacks, layer, attach, watch, origin, at, visible, clip});
 })();

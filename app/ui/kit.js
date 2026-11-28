@@ -444,8 +444,10 @@ globalThis.AtriumUIKit = (() => {
       event.preventDefault(); s.setPointerCapture(event.pointerId); s.classList.add("is-dragging");
       let last = event[along];
       const move = e => { const d = e[along] - last; last = e[along]; if (d) onResize?.(d); };
-      const up = () => { s.classList.remove("is-dragging"); s.removeEventListener("pointermove", move); s.removeEventListener("pointerup", up); s.removeEventListener("pointercancel", up); };
-      s.addEventListener("pointermove", move); s.addEventListener("pointerup", up); s.addEventListener("pointercancel", up);
+      // The drag ends with its capture (released, cancelled or taken), never on a later hover.
+      const ends = ["pointerup", "pointercancel", "lostpointercapture"];
+      const up = () => { s.classList.remove("is-dragging"); s.removeEventListener("pointermove", move); for (const t of ends) s.removeEventListener(t, up); };
+      s.addEventListener("pointermove", move); for (const t of ends) s.addEventListener(t, up);
     });
     s.addEventListener("keydown", event => {
       const keys = orientation === "vertical" ? {ArrowLeft: -1, ArrowRight: 1} : {ArrowUp: -1, ArrowDown: 1};

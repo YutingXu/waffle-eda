@@ -13,7 +13,9 @@ globalThis.AtriumOverlayScroll = (() => {
   const SKIP = ".ui-tabs,#document-tabs,.pane-tabs,.active-bar,.layer-tabs,.msg-head,.dock-tabs,.ui-select-list";
   // scroller -> {v, h, timer, hot, ref}. A scroller is held only weakly: a closed dialog or panel must not
   // stay in memory, with its whole subtree, because the pointer once crossed it. tracked lists the
-  // scrollers for the sweeps below, which also drop one that has left the document, with its thumbs.
+  // scrollers for the sweeps below. A scroller that leaves the document (a menu closed with Escape, a
+  // dialog closed mid-drag) takes its thumbs and its drag with it at once: the owner layer watches each
+  // thumb's scroller (ui/owner-layer.js), since its next pointer move may never come.
   const bars = new WeakMap(), tracked = new Set();
   const weak = el => typeof WeakRef === "function" ? new WeakRef(el) : {deref:() => el};
   function scrollers() {
@@ -88,7 +90,7 @@ globalThis.AtriumOverlayScroll = (() => {
       const show = overflows(el, axis);
       let t = b[axis];
       if (!show) {t?.remove(); b[axis] = null; continue;}
-      if (!t || t.parentElement !== host) {t?.remove(); t = b[axis] = thumb(el, axis); host.append(t);}
+      if (!t || t.parentElement !== host) {t?.remove(); t = b[axis] = thumb(el, axis); host.append(t); L().watch(t, el, () => drop(el));}
       t.style.position = o.position;
       t.style.zIndex = b.z = z ??= layerOf(el, host);
       if (axis === "v") {
@@ -125,6 +127,7 @@ globalThis.AtriumOverlayScroll = (() => {
     for (const axis of ["v", "h"]) b[axis]?.removeAttribute("data-shown");
   }
   function drop(el) {
+    if (drag?.el === el) drag.end();
     const b = bars.get(el); if (!b) return;
     clearTimeout(b.timer); b.v?.remove(); b.h?.remove(); bars.delete(el); tracked.delete(b.ref);
   }
@@ -175,17 +178,23 @@ globalThis.AtriumOverlayScroll = (() => {
     const r = el.getBoundingClientRect(), v = axis === "v";
     const track = (v ? r.height : r.width) - 2 * INSET, size = v ? t.offsetHeight : t.offsetWidth;
     const range = v ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
-    drag = {el, axis, thumb:t, from:v ? e.clientY : e.clientX, start:v ? el.scrollTop : el.scrollLeft, ratio:range / Math.max(1, track - size)};
-    t.setPointerCapture?.(e.pointerId);
-    const move = ev => {
-      const d = (v ? ev.clientY : ev.clientX) - drag.from;
-      el[v ? "scrollTop" : "scrollLeft"] = drag.start + d * drag.ratio;
-    };
+    drag?.end();
+    const id = e.pointerId, from = v ? e.clientY : e.clientX, start = v ? el.scrollTop : el.scrollLeft, ratio = range / Math.max(1, track - size);
+    const move = ev => { if (ev.pointerId === id) el[v ? "scrollTop" : "scrollLeft"] = start + ((v ? ev.clientY : ev.clientX) - from) * ratio; };
+    // The drag ends however its capture ends: a release, a cancel or the capture lost. A thumb removed
+    // mid-drag (Escape closed its dialog) gets none of them: Chromium sends the loss to the document and
+    // the release to whatever is under the pointer. So the document listens, and drop() ends it at once.
+    const ends = ["pointerup", "pointercancel", "lostpointercapture"];
+    const stop = ev => { if (ev.pointerId === id) end(); };
     const end = () => {
-      t.removeEventListener("pointermove", move); t.removeEventListener("pointerup", end); t.removeEventListener("pointercancel", end);
-      drag = null; schedule(el);
+      if (drag !== state) return;
+      t.removeEventListener("pointermove", move); for (const type of ends) doc.removeEventListener(type, stop, true);
+      drag = null;
+      if (el.isConnected) schedule(el);
     };
-    t.addEventListener("pointermove", move); t.addEventListener("pointerup", end); t.addEventListener("pointercancel", end);
+    const state = drag = {el, thumb:t, end};
+    t.addEventListener("pointermove", move); for (const type of ends) doc.addEventListener(type, stop, true);
+    t.setPointerCapture?.(id);
     schedule(el);
   }
   doc.addEventListener("scroll", scrolled, {capture:true, passive:true});

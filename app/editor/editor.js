@@ -181,8 +181,10 @@
       };
       // One layout per frame; the panes then redraw in that frame (paneObserver).
       const follow=ev=>{last={clientX:ev.clientX,clientY:ev.clientY};if(!raf)raf=requestAnimationFrame(apply);};
-      const done=()=>{if(raf)cancelAnimationFrame(raf);apply();sash.classList.remove("is-dragging");sash.removeEventListener("pointermove",follow);sash.removeEventListener("pointerup",done);sash.removeEventListener("pointercancel",done);saveSplit();};
-      sash.addEventListener("pointermove",follow);sash.addEventListener("pointerup",done);sash.addEventListener("pointercancel",done);
+      // It ends with its capture (released, cancelled or taken), never on a later hover.
+      const ends=["pointerup","pointercancel","lostpointercapture"];
+      const done=()=>{if(raf)cancelAnimationFrame(raf);apply();sash.classList.remove("is-dragging");sash.removeEventListener("pointermove",follow);for(const t of ends)sash.removeEventListener(t,done);saveSplit();};
+      sash.addEventListener("pointermove",follow);for(const t of ends)sash.addEventListener(t,done);
     });
     sash.addEventListener("dblclick",()=>{splitState.ratio=.5;applySplitLayout();saveSplit();});
     sash.addEventListener("keydown",e=>{
