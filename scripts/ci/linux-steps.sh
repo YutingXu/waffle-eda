@@ -69,7 +69,7 @@ case $step in
     run "Rust kernels: cargo test + reproducible engine-core.js" python3 scripts/build-engine.py --check ;;
   node)
     node --version
-    SKIP="integration-browser palette-actions.browser collab-pair-browser browser-format-2-git browser-apricot-readonly browser-apricot-native-query browser-import-export-target browser-dialog-geometry browser-dialog-safe-area browser-titlebar-safe-area browser-surface-motion browser-workbench-spatial browser-dock-beta ${NODE_SKIP:-}" scripts/ci/node-suites.sh > /work/node.log; cat /work/node.log
+    SKIP="integration-browser palette-actions.browser collab-pair-browser browser-format-2-git browser-apricot-readonly browser-apricot-native-query browser-import-export-target browser-dialog-geometry browser-dialog-safe-area browser-titlebar-safe-area browser-surface-motion browser-workbench-spatial browser-dock-beta browser-active-bar ${NODE_SKIP:-}" scripts/ci/node-suites.sh > /work/node.log; cat /work/node.log
     run "node suites vs tests/known-failures.txt" python3 scripts/ci/check-results.py node /work/node.log ;;
   mcp)
     run "tests/automation/mcp.py" python3 tests/automation/mcp.py
