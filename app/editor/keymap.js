@@ -360,7 +360,7 @@ globalThis.AtriumKeymap = (() => {
   function addCommand(spec,builtin){
     const cmd={id:spec.id,title:String(spec.title||spec.id),category:spec.category||"Extensions",when:spec.when||"",
       action:spec.action??spec.id,param:spec.param,repeatable:!!spec.repeatable,inForms:!!spec.inForms,short:spec.short,
-      titles:spec.titles||null,nativeKey:spec.nativeKey||"",run:typeof spec.run==="function"?spec.run:null,priority:!!spec.priority,notebook:!!spec.notebook,palette:builtin?spec.palette:undefined,builtin,order:commandOrder++};
+      titles:spec.titles||null,icon:spec.icon,nativeKey:spec.nativeKey||"",run:typeof spec.run==="function"?spec.run:null,priority:!!spec.priority,notebook:!!spec.notebook,palette:builtin?spec.palette:undefined,builtin,order:commandOrder++};
     cmd.whenTest=compileWhen(cmd.when);
     commands.set(cmd.id,cmd);return cmd;
   }

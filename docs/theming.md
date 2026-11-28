@@ -58,10 +58,11 @@ The Mac interface uses the same modifier symbols as System Settings. For example
 
 ## Everything at once
 
-**Preferences → General → Settings sync** offers **Export all settings…** and **Import all settings…**. The bundle includes preferences, theme, key map and panel layout. Waffle filters recognised secret fields. Review the export for private settings or paths before sharing it.
+**Preferences → General → Settings sync** offers **Export all settings…** and **Import all settings…**. The bundle includes preferences (among them the customised Active Bars, `workbench.bars`), theme, key map and panel layout (among them the remembered Active Bar flyout choices, `atrium.bar-faces`). Waffle filters recognised secret fields. Review the export for private settings or paths before sharing it.
 
 ## Further customisation
 
 - **Project templates:** `AtriumTemplates.register(spec)` adds an entry to the start page and File → New from Template (see `app/templates.js`).
-- **Extensions** can add commands, menus, Active Bar buttons, panels and status items ([extensions.md](extensions.md)).
+- **Active Bar:** **View → Customise Active Bar…** opens **Preferences → Toolbars**, where each document kind's bar can be rearranged, grouped into flyouts and extended with any command or macro ([design note](design/customisable-bars.md)).
+- **Extensions** can add commands, menus, Active Bar buttons, panels and status items ([extensions.md](extensions.md)). An extension's Active Bar button is an ordinary bar item: it is added to the default bar and can be moved, grouped or removed on the Toolbars page.
 - **Panels:** dock sections collapse and remember their state. **Window → Panels** shows or hides each panel (a check marks the open ones), and a dock's tab header ends in a menu of the tabs that do not fit.

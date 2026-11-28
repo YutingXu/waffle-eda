@@ -4,14 +4,14 @@
 :root:is([data-motion=off],[data-efficient]) {--motion-drag-highlight:0ms;--motion-drag-elevation:0ms}
 .ui-spatial-ghost {position:fixed!important;margin:0!important;box-sizing:border-box;z-index:var(--z-popover);
   pointer-events:none!important;transform-origin:center}
-:is(.document-tab,.lib-row).ui-drag-lift {position:relative;z-index:2;transform:scale(1.02)}
-:root:is([data-motion=off],[data-motion=reduce],[data-efficient]) :is(.document-tab,.lib-row).ui-drag-lift {transform:none}
+:is(.document-tab,.lib-row,.ui-list[data-reorder] > .ui-row).ui-drag-lift {position:relative;z-index:2;transform:scale(1.02)}
+:root:is([data-motion=off],[data-motion=reduce],[data-efficient]) :is(.document-tab,.lib-row,.ui-list[data-reorder] > .ui-row).ui-drag-lift {transform:none}
 @media (prefers-reduced-motion:reduce) {
-  :is(.document-tab,.lib-row).ui-drag-lift {transform:none}
+  :is(.document-tab,.lib-row,.ui-list[data-reorder] > .ui-row).ui-drag-lift {transform:none}
 }
-:is(.document-tab,.lib-row)::before {content:"";position:absolute;inset:0;border-radius:inherit;
+:is(.document-tab,.lib-row,.ui-list[data-reorder] > .ui-row)::before {content:"";position:absolute;inset:0;border-radius:inherit;
   box-shadow:var(--elev-2);opacity:0;transition:opacity var(--motion-drag-elevation) var(--ease-decelerate);pointer-events:none}
-:is(.document-tab,.lib-row).ui-drag-lift::before {opacity:1}
+:is(.document-tab,.lib-row,.ui-list[data-reorder] > .ui-row).ui-drag-lift::before {opacity:1}
 #document-tabs {position:relative}
 #document-tabs::after,.pane-tabs::after,.ui-drop-layer {
   content:"";position:absolute;inset:0;pointer-events:none;z-index:5;

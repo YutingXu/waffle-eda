@@ -84,6 +84,9 @@ globalThis.AtriumWidgetCatalogue=(()=>{
       });
     });
   }
+  // Flyouts the notebook provides to the Active Bar, as AtriumDrawing.toolGroups does for drawings:
+  // Widgets is the "/" palette's Notes and Widgets insert rows (sheet widgets and extension widgets).
+  const toolGroups=Object.freeze({widgets:()=>{attach();return G.AtriumPalette?.toolGroup?.(["Notes","Widgets"]) || [];}});
   if (typeof window!=="undefined") window.addEventListener("waffle-palette-ready",attach);
-  attach();return Object.freeze({types,limits,todoAliases,keyFor,isWidget,valid,validCell,stateOK,withinBytes,fallbackOK,paint,attach,calculatorPresets});
+  attach();return Object.freeze({types,limits,todoAliases,keyFor,isWidget,valid,validCell,stateOK,withinBytes,fallbackOK,paint,attach,calculatorPresets,toolGroups});
 })();

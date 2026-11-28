@@ -444,5 +444,7 @@ globalThis.AtriumMacros = (() => {
     G.AtriumNavHost?.on("replace", () => syncEditor().catch(error => G.AtriumNavHost?.info(error.message)));
     watchEditor();
   } else B.observe(event => {if (event.replayable) capture(event);});
-  return Object.freeze({record, recordCurrent, runStepwise, selectionCommands});
+  // The saved macro behind a registered command (the Active Bar opens Run… for one with parameters).
+  const forCommand = id => keys.get(id)?.macro ?? null;
+  return Object.freeze({record, recordCurrent, runStepwise, selectionCommands, forCommand});
 })();

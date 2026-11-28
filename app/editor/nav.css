@@ -70,7 +70,14 @@
 .nav-menu-item > .ui-shortcut {flex:none}
 .nav-menu hr {border:0;border-top:1px solid var(--line);margin:4px 4px}
 .active-bar .tool[data-tool-group] {position:relative}
-.active-bar .tool[data-tool-group]::after {content:"";position:absolute;inset-inline-end:var(--s-2);inset-block-end:var(--s-2);width:5px;height:5px;
+/* Customisable bars (bars.js): a customised kind waits hidden until drawn; trailing tools that do not
+   fit move into the "⋯" flyout. A tool without an icon shows its short title (approved 2026-11-27):
+   the 28 px tool, wider, with the text spacing and type of the canvas tools' text buttons. */
+.active-bar[data-pending] {visibility:hidden}
+.active-bar > [data-overflow] {display:none}
+.active-bar .tool:has(> .tool-text) {inline-size:auto;max-inline-size:calc(var(--chrome-icon-width) * 4);padding:0 var(--s-8)}
+.active-bar .tool-text {display:block;overflow:hidden;font-size:var(--fs-12);line-height:1;white-space:nowrap;text-overflow:ellipsis}
+.active-bar .tool[data-tool-group]:not([data-tool-group=overflow])::after {content:"";position:absolute;inset-inline-end:var(--s-2);inset-block-end:var(--s-2);width:5px;height:5px;
   background:currentColor;opacity:.6;clip-path:polygon(100% 0,100% 100%,0 100%);pointer-events:none}
 .menu-items [data-checkable][data-checked=true]::before {content:"✓";position:absolute;left:7px;font-size:var(--fs-11);color:var(--accent-text)}
 

@@ -185,7 +185,7 @@ globalThis.AtriumPaletteActions = (() => {
           const notes = await need("AtriumRichText"); owner(request.context);
           const heading = request.values?.level;
           return notes.insert(request, style === "h1" && levels.some(option => option.value === heading) ? heading : style);
-        }, {boost:ctx.notebook ? 160 : 0, icon:style === "check" ? "dtable" : "dtext",
+        }, {group:"Notes", boost:ctx.notebook ? 160 : 0, icon:style === "check" ? "dtable" : "dtext",
           ...(style === "h1" ? {options:[choices("level","Level","h1",levels)]} : {}),
           ...(style === "check" ? {inline:["todo","checklist"], describe:r => ({detail:r.argument || "Schematic notes"}),
             preview:r => ({kind:"text", title:label, text:r.argument || "Checklist"})} : {})}));
@@ -197,12 +197,12 @@ globalThis.AtriumPaletteActions = (() => {
         if (signal?.aborted) return;
         const sheet = await need("AtriumCalculationSheet"); owner(c);
         if (!signal?.aborted) return sheet.compose(c.host, null, {...c, source:argument || ""});
-      }, {icon:"measure", inline:["calc"], boost:ctx.notebook ? 160 : 0}));
+      }, {group:"Notes", icon:"measure", inline:["calc"], boost:ctx.notebook ? 160 : 0}));
     }
     if (G.AtriumMathEditor?.open || modules.includes("AtriumMathEditor")) {
       out.push(row("math", "Equation", "Schematic notes", "math latex formula equation", async request => {
         const editor = await need("AtriumMathEditor"); owner(request.context); return editor.open(request);
-      }, {icon:"measure", inline:["math"], boost:ctx.notebook ? 160 : 0,
+      }, {group:"Notes", icon:"measure", inline:["math"], boost:ctx.notebook ? 160 : 0,
         preview:async request => {
           await need("AtriumMathEditor");
           return {kind:"equation", tex:request.argument || ""};

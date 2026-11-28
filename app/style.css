@@ -291,8 +291,8 @@ h1,h2,h3,h4,p {margin:0}
 .active-bar .tool-label {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .active-bar .tool-divider {height:18px;margin:0 var(--s-2)}
 /* Drawing documents (drawing.js): the Active Bar shows the drawing tools (data-scope="drawing"), not the
-   schematic and board ones, which have no meaning on a sheet of views. */
-body[data-kind="drawing"] #tools .tool:is([data-action="library"],[data-action="route"],[data-action="via"],[data-action="junction"],[data-action="label"],[data-action="measure"]) {display:none}
+   schematic and board ones (data-hide-kind="drawing"), which have no meaning on a sheet of views. */
+body[data-kind="drawing"] #tools .tool[data-hide-kind~="drawing"] {display:none}
 
 /* PCB layer tabs */
 .layer-bar {--ui-toolbar-sep-margin:var(--s-4);display:flex;align-items:center;flex:none;gap:var(--s-6);height:var(--chrome-layer-height);

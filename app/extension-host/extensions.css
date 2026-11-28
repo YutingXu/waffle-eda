@@ -47,7 +47,6 @@
 .ext-status {display:flex;align-items:center;gap:8px;flex:none;max-width:40%;overflow:hidden}
 .ext-status:empty {display:none}
 .ext-status-item {white-space:nowrap;color:var(--muted);font-size:var(--fs-11);padding:0 4px;border-radius:var(--r-sm);overflow:hidden;text-overflow:ellipsis}
-.ext-tool-label {font:600 var(--fs-10)/1 var(--mono);letter-spacing:.02em}
 
 /* ------------------------------------------------------------------ manager */
 .ext-manager {width:min(980px,calc(100vw - 32px));height:min(680px,calc(100vh - 48px));padding:0;overflow:hidden;flex-direction:column}

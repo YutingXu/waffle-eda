@@ -309,7 +309,7 @@ COVERAGE = {
     "drawing-table": (T, "edit_drawing"), "drawing-text": (T, "edit_drawing"), "drawing-line": (T, "edit_drawing"),
     "fab": (T, "generate_fabrication"), "fab-outputs": (T, "generate_fabrication"), "output-jobs": (T, "run_output_job"), "step": (T, "export_step"),
     "print": (T, "export_pdf"), "export-pdf": (T, "export_pdf"), "export": (T, "export_kicad"), "export-altium": (T, "export_altium"),
-    "preferences": I(PREF), "preferences-page": I(PREF),
+    "preferences": I(PREF), "preferences-page": I(PREF), "customise-active-bar": I(PREF),
     "query-panel": (C, "query"), "query-clear": I(VIEW + " A filter mask is editor view state; query returns the matches."),
     "sheet-overview": I("Read-only diagram of schematic hierarchy and connections. Headless net connections are available through read_netlist."),
     "navigator-panel": I(VIEW + " Navigator: list_nets, list_components and query."), "layer-sets": I(VIEW + " Layer visibility is view state; render takes layers."),

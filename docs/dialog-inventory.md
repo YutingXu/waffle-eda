@@ -78,7 +78,7 @@ Design Rule Check results appear in the Messages dock. The Dock surface inventor
 | app/analysis/pdn-view.js | modeless | 1 | PDN Analyzer |
 | app/pcb/pin-swap.js | modeless | 1 | Automatic Net/Pin Optimizer |
 | app/pcb/polygon-pour.js | modal | 1 | Polygon Pour |
-| app/editor/prefs.js | modeless | 1 | Preferences |
+| app/editor/prefs.js | modeless | 1 | Preferences (its Toolbars page is app/editor/toolbars-page.js, registered by app/editor/bars.js) |
 | app/formats/print.js | modal | 1 | Print and Export PDF |
 | app/formats/print-report.js | modal | 1 | Print and Export PDF for reports (BOM, Messages, comparison) |
 | app/project/project-archive-ui.js | modal | 2 | Archive and project file selection |

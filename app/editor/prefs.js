@@ -99,6 +99,8 @@ globalThis.AtriumPrefs = (() => {
   function reset(keys) {
     for (const k of keys || Object.keys(values)) if (k in values && globalThis.AtriumLabs?.permits(k, DEFAULTS[k]) !== false) { const old = values[k]; delete values[k]; save(); emit(k, get(k), old); }
   }
+  // AtriumPrefsStorage keys an import or Reset all changed.
+  function stored(keys) { for (const k of keys) { let v = null; try { v = JSON.parse(storage?.getItem(k)); } catch {} emit(k, v); } }
   function on(prefix, fn) {
     const l = typeof prefix === "function" ? {fn: prefix, prefix: ""} : {fn, prefix: String(prefix || "")};
     listeners.add(l);
@@ -230,7 +232,7 @@ globalThis.AtriumPrefs = (() => {
   const childPages = id => pages.filter(p => parents[p.id] === id && (p.id !== "search" || globalThis.AtriumLabs?.notebookEnabled()));
   const catalog = () => pages.filter(p => !Object.hasOwn(parents, p.id));
   const sections = [
-    ["App", {general:"settings", appearance:"layers", display:"drawing", keyboard:"command", mouse:"pan"}],
+    ["App", {general:"settings", appearance:"layers", display:"drawing", keyboard:"command", mouse:"pan", toolbars:"select"}],
     ["Design", {schematic:"schematic", pcb:"board", routing:"route", checks:"select", insights:"chip", library:"book"}],
     ["Connect", {extensions:"chip", collaboration:"comment"}],
     ["Advanced", {labs:"grid"}]
@@ -249,6 +251,7 @@ globalThis.AtriumPrefs = (() => {
       if (key === "general.efficiency") return page.id === "display";
       return parts.some(p => p.resetKeys?.includes(key) ?? key.startsWith(p.id + "."));
     }));
+    for (const p of parts) p.reset?.();
     if (page.id === "appearance") globalThis.AtriumTheme?.reset?.();
     if (page.id === "keyboard") globalThis.AtriumKeymap?.setPreset?.("altium");
   }
@@ -457,7 +460,7 @@ globalThis.AtriumPrefs = (() => {
   // credential is written or read: keys named like one are dropped at every depth, and so are
   // string values shaped like common API keys.
   const BUNDLE = "atrium-settings";
-  const LAYOUT = {collapsedSections: "atrium.collapsed-sections", collapsedPanels: "atrium.collapsed-panels", pcbView: "atrium.pcbView.v1"};
+  const LAYOUT = {collapsedSections: "atrium.collapsed-sections", collapsedPanels: "atrium.collapsed-panels", pcbView: "atrium.pcbView.v1", barFaces: "atrium.bar-faces"};
   const extras = new Map();   // extend(): tools' own keys (prefs-storage.js)
   function extend(name, extra) {
     const fresh = !extras.has(name);
@@ -506,7 +509,7 @@ globalThis.AtriumPrefs = (() => {
     if (data.keymap) try { const p = globalThis.AtriumKeymap.importJSON(data.keymap); applied.push("key map"); if (p?.length) skipped.push(...p); } catch (e) { skipped.push("key map (" + e.message + ")"); }
     if (data.layout && typeof data.layout === "object") {
       let n = 0;
-      for (const [k, key] of Object.entries(LAYOUT)) if (k in data.layout) try { storage?.setItem(key, JSON.stringify(data.layout[k])); n++; } catch {}
+      for (const [k, key] of Object.entries(LAYOUT)) if (k in data.layout) try { storage?.setItem(key, JSON.stringify(data.layout[k])); n++; stored([key]); } catch {}
       const V = globalThis.AtriumPCBAppearance, view = data.layout.pcbView;
       if (V && view && typeof view === "object") try {
         V.reset();
@@ -743,7 +746,7 @@ globalThis.AtriumPrefs = (() => {
     const waitingForSection = !focusedSection && Object.hasOwn(parents,page);
     const initialFocus = doc.activeElement;
     const modules = ["AtriumCanvasGPUPref", "AtriumExtensionDev", "AtriumCollabPresence", "AtriumCamera",
-      "AtriumChecks", "AtriumInsightsUI", "AtriumExternalTools", "AtriumClipHistory", "AtriumHistoryPanel", "AtriumRouteSuggest"];
+      "AtriumChecks", "AtriumInsightsUI", "AtriumExternalTools", "AtriumClipHistory", "AtriumHistoryPanel", "AtriumRouteSuggest", "AtriumActiveBarMenu"];
     if (page === "search" && globalThis.AtriumLabs?.notebookEnabled()) modules.push("AtriumPalettePersonal");
     const missing = modules.filter(name => !globalThis[name]);
     if (missing.length && globalThis.AtriumLazy) Promise.allSettled(missing.map(name => globalThis.AtriumLazy.need(name))).then(() => {
@@ -798,10 +801,10 @@ globalThis.AtriumPrefs = (() => {
       for (const k of ["pcb.rerouteOnDrag", "pcb.smartGuides", "pcb.hud", "pcb.designatorsFollow", "pcb.trackWidth", "pcb.showRatsnest"]) if (k in values) apply(k, values[k]);
       for (const k of Object.keys(SNAP)) if (k in values && globalThis.AtriumPCBEdit?.snapPrefs?.[SNAP[k]] !== values[k]) apply(k, values[k]);
       const K = globalThis.AtriumKeymap;
-      const add = (id, title, run, defaultKeys) => {
+      const add = (id, title, run, defaultKeys, category = "File") => {
         if (id === "preferences") h?.registerAction?.("preferences-page", run);
         else h?.registerAction?.(id, run);
-        try { if (!K?.command?.(id)) K?.registerCommand?.({id, title, run, defaultKeys, category: "File"}); } catch {}
+        try { if (!K?.command?.(id)) K?.registerCommand?.({id, title, run, defaultKeys, category}); } catch {}
       };
       add("preferences", "Preferences…", () => open(), ["Mod+,", "T P"]);
       add("start-page", "Start Page", () => openStartPage());
@@ -810,12 +813,13 @@ globalThis.AtriumPrefs = (() => {
       add("import-vscode-keybindings", "Import VS Code keybindings…", () => vscode("keysDialog"));
       add("export-settings", "Export settings…", exportAll);
       add("import-settings", "Import settings…", () => { importAll(); });
+      add("customise-active-bar", "Customise Active Bar…", () => open("toolbars"), undefined, "View");
       globalThis.AtriumNavCommon?.menuItem("file", "new-from-template", "New from Template…", {after: "new"});
       globalThis.AtriumAutosave?.launchHome?.(() => openStartPage({launch:true}));
     };
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", ready, {once: true}); else ready();
   }
-  return Object.freeze({STORE, FORMAT, VERSION, DEFAULTS, READERS, GUARDED, get, set, on, reset, changed, exportJSON, importJSON, sheetDefaults, registerPage,
+  return Object.freeze({STORE, FORMAT, VERSION, DEFAULTS, READERS, GUARDED, get, set, on, stored, reset, changed, exportJSON, importJSON, sheetDefaults, registerPage,
     junctions, exportSettings, importSettings, scrub, extend,
     pages: () => catalog().map(p => ({id: p.id, title: p.title})), open, close, openStartPage, newProject,
     // Tests: reload from storage.

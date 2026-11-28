@@ -90,7 +90,7 @@ The user approved every family as the gallery shows it (2026-11-23), including t
 
 ![Icon buttons](ui-library/icon-button.png)
 
-- **Use** for a toolbar, heading or row action with a well-known icon from the `index.html` icon bank.
+- **Use** for a toolbar, heading or row action with a well-known icon from the `index.html` icon bank. New symbols follow [Icons](design-system.md#icons).
 - **Markup** `<button class="ui-icon-button" aria-label="Add" title="Add"><svg class="icon"><use href="#i-plus"/></svg></button>`, or `K.iconButton(name, label, {size, run, pressed})`.
 - **States** hover (soft fill, mouse and pen only), `aria-pressed`/`aria-expanded` (selection fill), `disabled`, keyboard focus. Sizes are `sm` 20, `md` 24 and `lg` 28 px. The icon stays 16 px.
 - **Keyline** every icon in the bank draws with the same 1.6 stroke on the 24-unit grid and fits one optical size: about 16 units for square shapes (the geometry inside 4–20), at most 18 along the long side of a wide or tall shape, and 14 for open strokes such as plus, grid and the chevron (close stays 12). Scale a new icon to the keyline by its coordinates, never with a transform, so the stroke stays 1.6. The gallery's Icon set shows them side by side.
@@ -315,11 +315,12 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 ![Toolbar](ui-library/toolbar.png)
 
 - **Markup** `.ui-toolbar[role=toolbar]` with icon buttons, quiet buttons, `.ui-toolbar-sep`, `.ui-toolbar-spacer` and a search field. `K.toolbar(items)`, where `"|"` is a separator and `"->"` is a spacer.
+- **Wrapping** `K.toolbar(items, {wrap:true})` (`data-wrap`) lets the items flow onto further lines, 4 px apart, where the row is too narrow, and stays one line wherever it fits. Use it for a controls row in a dialog or a Preferences page that must fit a 390 px window (Preferences › Toolbars, the table editor's cell toolbar); a canvas or panel toolbar stays one line.
 - **Note formatting** `K.toolbar(items, {floating:"editing"})` uses the editing palette face. The text editor positions its palette next to the note. Formatting selects use `K.select(options, {native:true})`.
 - **Compact actions** `.ui-toolbar-actions` shares the 20 px action face: the small soft-fill button (`--button-face`, `--chrome-control-radius`, medium weight) for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
 - **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` is the 20 px field for the Nets and PCB List headers: the control radius, a 6 px text inset and, on a select, the library chevron. The shorter search uses `.ui-search[data-size=compact]`.
 - **Layer controls** `.ui-layer-action` uses the menu button’s `aria-expanded` or the layer’s `aria-pressed` to draw the state. A non-copper drawing layer uses `aria-current` for the inset mark. The menu can supply its own arrow with `data-menu-indicator=custom`.
-- The canvas Active Bar (`.active-bar .tool`) is a settled surface with its own 28 px tools. Do not copy it into panels.
+- The canvas Active Bar (`.active-bar .tool`) is a settled surface with its own 28 px tools. Do not copy it into panels. Its buttons are customisable (`app/editor/bars.js`): a command without an icon, and an extension button without one, shows its short title (`.tool-text`, approved 2026-11-27): the same 28 px tool with its height, radius, hover, pressed and focus states, widened with `--s-8` padding, `--fs-12` type on one line, at most four tool widths with an ellipsis, and the full name in the tooltip. Tools that do not fit move into a "⋯" flyout.
 - **Floating** (proposed component, 2026-11-23) `data-floating` (`K.toolbar(items, {floating:true})`) lifts the toolbar onto `--overlay` with `--elev-2` and `--r-lg`, for the presentation bar over the canvas. `data-idle` fades it out over `--motion-base` (no slide under Reduced motion) until the pointer moves, a key is pressed or focus enters it. `.ui-toolbar-title` holds one line of title text. Use it only for a mode the user started, never for chrome that appears on its own.
 
 <a id="menu"></a>
@@ -481,6 +482,7 @@ Print and report previews share `.ui-page-art`. Page tiles keep their lighter pa
 
 - **Handles** `.ui-drag-handle` shows six dots and keeps the arrow cursor. Do not use a grab hand on chrome. Lifted rows use `ui/spatial-motion` (`.ui-drag-lift`).
 - **Targets** `.ui-drop-target[data-drop=ready|over|denied|busy]` (`K.dropState(node, state)`) draws an inset ring and a tint above the content. Cells and geometry stay readable. Put a denied target's reason in the status line. `.ui-drop-line` marks an insertion point.
+- **Reorderable lists** (approved 2026-11-27; Preferences → Toolbars) `K.reorderable(list, {onMove, canMove})` adds behaviour to the ordinary `K.list` of `K.row`s: each row gets a `K.dragHandle` (`.ui-list[data-reorder]` puts the handle before the row's own columns with the row's column gap, as the Handle specimen does, and keeps the icon column at the icon's width, so titles line up whether or not a row has an icon; a tree row keeps its disclosure column, and its depth indents the disclosure, icon and title while the handles stay in one column), and rows move by keyboard (Alt+↑/↓ moves the focused row, ↑/↓ move focus), mouse, pen and touch (the handle has the 44 px touch hit area, `--ctl-h-touch`). Row actions follow the row rule: they show on hover or focus, and always on touch. Focus rings are the rows' own. The lifted row uses `.ui-drag-lift`, the target an insertion line, and a refused target `data-drop=denied`. `onMove(from, to)` redraws the rows in the same list and may return the moved row's index in the redrawn list (when rows around it change, as a tree's expanded children do); focus follows it. Also offer Move Up and Move Down in the row's menu.
 
 <a id="panel"></a>
 ### Panels and list-detail

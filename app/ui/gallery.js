@@ -289,6 +289,9 @@ globalThis.AtriumUIGallery = (() => {
       family("viewport", "Design viewport", "Orbit uses the grab cursor over artwork.", specimen("Orbit", orbit), specimen("Orbit tools", orbitTools)),
       family("toolbar", "Toolbars", "Icon buttons, separators, a spacer and a search field on one row.",
         specimen("Default", k.toolbar([k.iconButton("select", "Select", {pressed: true}), k.iconButton("route", "Route"), "|", k.iconButton("undo", "Undo"), k.iconButton("redo", "Redo"), "->", k.search({placeholder: "Filter"})], {label: "Specimen tools"})),
+        specimen("Wrapping", (() => { const t = k.toolbar([k.segmented([["sch", "Schematic"], ["pcb", "PCB"], ["drawing", "Drawing"]], {value: "sch", label: "Document kind", size: "sm"}), "->",
+          k.el("span", null, "13 of 24 buttons"), k.button("Add Separator", {variant: "quiet", size: "sm"}), k.button("Reset", {variant: "quiet", size: "sm"})], {label: "Specimen wrapping", wrap: true});
+          t.style.maxInlineSize = "320px"; return t; })()),
         specimen("Table header", tableToolbar), specimen("Table actions", reportActions),
         specimen("Current copper layer", copperLayer),
         specimen("Floating", (() => { const t = k.toolbar([k.pager({index: 2, count: 12, unit: "slide"}), k.el("span", "ui-toolbar-title", "Power stage"), "|", k.button("Notes", {variant: "quiet", size: "sm", pressed: false}), k.button("End", {variant: "quiet", size: "sm"})], {label: "Specimen presentation", floating: true}); t.classList.add("ui-gallery-floating"); return t; })()),
@@ -340,7 +343,16 @@ globalThis.AtriumUIGallery = (() => {
       family("drag", "Drag handles and drop targets", "Handles keep the arrow cursor; targets say ready, over, denied or busy.",
         specimen("Handle", (() => { const r = k.row({title: "Step 2", detail: "Drag to reorder"}); r.prepend(k.dragHandle()); r.style.gridTemplateColumns = "auto auto minmax(0,1fr)"; return r; })()),
         specimen("Targets", ...["ready", "over", "denied", "busy"].map(state => k.dropState(k.el("div", "ui-gallery-drop", state), state))),
-        specimen("Insertion line", k.el("div", "ui-drop-line"))),
+        specimen("Insertion line", k.el("div", "ui-drop-line")),
+        specimen("Reorderable list", (() => {
+          // K.reorderable: Alt+↑/↓ or a handle (mouse, pen, touch) moves a row; the caller redraws.
+          const names = [["Select", "select"], ["Route track", "route"], ["Separator"], ["Measure distance", "measure"]];
+          const list = k.list([], {label: "Reorderable rows"});
+          const draw = () => list.replaceChildren(...names.map(([title, icon]) => k.row({title, icon,
+            actions: [k.iconButton("close", "Remove " + title, {size: "sm"})]})));
+          draw();
+          return k.reorderable(list, {onMove: (from, to) => { names.splice(to, 0, ...names.splice(from, 1)); draw(); }});
+        })())),
       family("panel", "Panels and list-detail", "A panel: heading with actions, scrolling body, footer. Detail panes reuse sections and property rows.",
         specimen("Inspector", detailPane()),
         specimen("Overlay drawers", ...["workspace", "sheet"].map(edge => Object.assign(k.el("aside", "ui-drawer ui-gallery-static", edge === "sheet" ? "Columns" : "Workspace"), {style: `--ui-drawer-shadow:var(--elev-${edge}-drawer);background:var(--surface);padding:var(--s-8)`})))),

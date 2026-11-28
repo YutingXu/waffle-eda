@@ -4,7 +4,7 @@
 .table-editor{width:min(920px,94vw);max-height:90vh;overflow:auto;color:var(--ink);background:var(--surface);padding:var(--s-12) var(--s-16) var(--s-12)}
 .table-editor header{display:flex;align-items:center;justify-content:space-between;gap:var(--s-8);margin-block-end:var(--s-4)}
 .table-editor h2{margin:0;font-size:var(--fs-14);font-weight:var(--fw-semibold)}
-.table-editor .table-tools.ui-toolbar{flex-wrap:wrap;row-gap:var(--s-4);padding-inline:0;margin-inline:calc(-1 * var(--s-4))}
+.table-editor .table-tools.ui-toolbar{padding-inline:0;margin-inline:calc(-1 * var(--s-4))}
 .table-field{display:inline-flex;align-items:center;gap:var(--s-6);color:var(--muted);font-size:var(--fs-11);white-space:nowrap}
 .table-field > .ui-field{color:var(--ink)}
 .table-field > select.ui-field{inline-size:auto}

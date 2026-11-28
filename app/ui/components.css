@@ -392,6 +392,8 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 .ui-document-tab:hover:not([aria-selected=true]) {background:var(--tab-hover);color:var(--tab-hover-ink)}
 /* ---- Toolbar ----------------------------------------------------------------------------------- */
 :is(.ui-toolbar) {display:flex;align-items:center;gap:var(--s-4);flex-wrap:nowrap;min-block-size:var(--chrome-tab-height);min-inline-size:0;padding-inline:var(--s-8)}
+/* A toolbar that wraps (K.toolbar(items, {wrap:true})): one line wherever it fits, more lines on a narrow window or dialog. */
+:is(.ui-toolbar)[data-wrap] {flex-wrap:wrap;row-gap:var(--s-4)}
 :is(.ui-toolbar-sep) {flex:none;inline-size:1px;block-size:var(--s-16);margin-inline:var(--ui-toolbar-sep-margin,var(--s-2));background:var(--line-strong)}
 :is(.ui-toolbar-spacer) {flex:1 1 var(--ui-spacer-basis,auto)}
 :is(.ui-toolbar):where(:not([data-table])) > :is(.ui-search) {flex:0 1 var(--search-w)}
@@ -454,6 +456,24 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
   background:radial-gradient(circle,currentColor 1px,transparent 1.2px) 0 0/4px 4px;
 }
 :is(.ui-drag-handle):hover {color:var(--muted)}
+/* Reorderable lists (K.reorderable, approved 2026-11-27): the handle leads the row's own columns with
+   the row's column gap, as the Handle specimen does. The icon column keeps the icon's width, so titles
+   line up whether or not a row has an icon. A tree row keeps its disclosure column; its depth indents
+   the disclosure, icon and title, and the handles stay in one column. */
+:is(.ui-list[data-reorder]) > :is(.ui-row) {grid-template-columns:auto var(--s-16) minmax(0,1fr) auto auto}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-drag-handle) {grid-column:1}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-icon) {grid-column:2}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-text) {grid-column:3}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-meta) {grid-column:4}
+:is(.ui-list[data-reorder]) > :is(.ui-row) > :is(.ui-row-actions) {grid-column:5}
+:is(.ui-list[data-reorder]) > :is(.ui-tree-row) {grid-template-columns:auto calc(var(--s-12) + var(--ui-depth) * var(--s-16)) var(--s-16) minmax(0,1fr) auto auto;padding-inline-start:var(--s-8)}
+:is(.ui-list[data-reorder]) > :is(.ui-tree-row) > :is(.ui-disclosure) {grid-column:2;justify-self:end}
+:is(.ui-list[data-reorder]) > :is(.ui-tree-row) > :is(.ui-row-icon) {grid-column:3}
+:is(.ui-list[data-reorder]) > :is(.ui-tree-row) > :is(.ui-row-text) {grid-column:4}
+:is(.ui-list[data-reorder]) > :is(.ui-tree-row) > :is(.ui-row-meta) {grid-column:5}
+:is(.ui-list[data-reorder]) > :is(.ui-tree-row) > :is(.ui-row-actions) {grid-column:6}
+/* A finger reaches a handle through a 44 px hit area; the dots stay compact. */
+@media (any-pointer:coarse) {:is(.ui-drag-handle) {position:relative} :is(.ui-drag-handle)::after {content:"";position:absolute;inset:calc(50% - var(--ctl-h-touch) / 2)}}
 :is(.ui-dragging) {opacity:.55}
 /* A drop target says what it will do. ready: it can take the drag; over: the drag is on it;
    denied: it cannot (its reason shows in the status line); busy: reading or preparing.

@@ -360,6 +360,7 @@ async function installedExtensionStartup(browser){
 
 async function firstUseDialogs(browser){
   await require("./library/browser-component-demand.js")(browser);
+  await require("./editor/browser-active-bar.cjs")(browser);
   await require("./library/browser-library-drag.cjs")(browser);
   await require("./formats/browser-step-worker.cjs")(browser);
   const prefsPage=await browser.newPage(),errors=[];

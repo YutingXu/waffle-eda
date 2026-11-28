@@ -35,7 +35,7 @@ globalThis.AtriumPrefsStorage = (() => {
     "atrium.comments.v1", "atrium.routing.habits", "atrium.tutorial.v1", "atrium.welcome.v1", "atrium.script.draft", "atrium.script.height", "atrium.script.history",
     "atrium-calculators", "atrium.update", "atrium.selectionFilter.v1", "atrium-eco-unticked:", "atrium.bom.dismissed:",
     // Exported with the panel layout by prefs.js; Reset all clears them here.
-    "atrium.collapsed-sections", "atrium.collapsed-panels", "atrium.pcbView.v1",
+    "atrium.collapsed-sections", "atrium.collapsed-panels", "atrium.pcbView.v1", "atrium.bar-faces",
     // Review notes: which note kinds each sheet shows or hides.
     "waffle.notes.sheet."]);
 
@@ -67,20 +67,25 @@ globalThis.AtriumPrefsStorage = (() => {
   }
   // Writes the settings of an exported object back; anything else is listed in `skipped`.
   function restore(data, skipped = []) {
-    const s = ls();
-    let n = 0;
+    const s = ls(), written = [];
     if (!data || typeof data !== "object" || Array.isArray(data)) return [];
     for (const [k, v] of Object.entries(data)) {
       if (typeof v !== "string" || kind(k) !== "setting") { skipped.push(k); continue; }
-      try { s.setItem(k, v); n++; } catch { skipped.push(k); }
+      try { s.setItem(k, v); written.push(k); } catch { skipped.push(k); }
     }
+    announce(written);
+    const n = written.length;
     return n ? ["tool settings (each tool picks them up when it next opens)"] : [];
   }
   function clear() {
     const s = ls(), gone = keys();
     for (const k of gone) try { s.removeItem(k); } catch {}
+    announce(gone);
     return gone;
   }
+  // The listed keys an import or Reset all changed go out through the preferences' own change
+  // notification (AtriumPrefs.on), so a view that shows them (the Active Bar's flyout faces) redraws.
+  const announce = changed => { if (changed.length) try { G.AtriumPrefs?.stored?.(changed); } catch {} };
   // Preferences, the appearance, the panel layout and every registered key go back to the defaults.
   // The key map has its own Reset all (Keyboard shortcuts), so custom bindings are kept.
   function resetAll() {

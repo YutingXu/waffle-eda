@@ -110,7 +110,7 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 
 ## Altium-style (default)
 
-308 of 469 commands have a default key.
+308 of 470 commands have a default key.
 
 ### File
 

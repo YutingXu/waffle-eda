@@ -283,7 +283,7 @@ globalThis.AtriumTableEditor=(()=>{
       try{e.preventDefault();commitValue();viewport.focus();move(e.key==="Enter"?(e.shiftKey?-1:1):0,e.key==="Tab"?(e.shiftKey?-1:1):0);}catch(error){feedback(error.message);}
     };
     button(header,"Done",()=>dialog.close());const kind=select(toolbar,"Cell type",["Value","Formula","Rich text","Design field","Math","Link"].map(x=>[x,x]),()=>{formula.focus();});
-    toolbar.className="table-tools ui-toolbar";toolbar.setAttribute("role","toolbar");toolbar.setAttribute("aria-label","Table cell");
+    toolbar.className="table-tools ui-toolbar";toolbar.dataset.wrap="";toolbar.setAttribute("role","toolbar");toolbar.setAttribute("aria-label","Table cell");
     const sep=()=>{const s=el("span");s.className="ui-toolbar-sep";toolbar.append(s);};
     sep();button(toolbar,"Edit cell",()=>editValue());button(toolbar,"Apply",commitValue);sep();button(toolbar,"Bold",()=>style({bold:!T.get(state,selected.rowId,selected.columnId)?.style?.bold}));
     select(toolbar,"Align",[["left","Left"],["center","Centre"],["right","Right"]],align=>style({align}));button(toolbar,"Merge",()=>{
