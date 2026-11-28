@@ -110,8 +110,10 @@ const LEFT_OUT={
   "atrium.":"review.author fallback before AtriumPref (eager) existed"};
 const app=path.join(__dirname,"../../app");
 // Every app module that touches localStorage, found by scanning, so a new tool cannot be missed.
-const walk=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?(e.name==="vendor"?[]:walk(path.join(dir,e.name))):e.name.endsWith(".js")?[path.join(dir,e.name)]:[]);
-const SOURCES=walk(app).map(file=>({file:path.relative(app,file),src:fs.readFileSync(file,"utf8")})).filter(m=>/localStorage/.test(m.src));
+// The shared app inventory is the same walk under Node and JavaScriptCore, which cannot list a directory.
+const modules=[...require("../support/app-source-paths.cjs").inventoryFrom().values()]
+  .filter(rel=>rel.endsWith(".js")&&!rel.split("/").slice(0,-1).includes("vendor"));
+const SOURCES=modules.map(file=>({file,src:fs.readFileSync(path.join(app,file),"utf8")})).filter(m=>/localStorage/.test(m.src));
 assert.ok(SOURCES.length>=70,"modules using localStorage found: "+SOURCES.length);
 const lit=/"((?:atrium|waffle)[.\-][A-Za-z0-9._:\-]*)"/g;
 const cand=/localStorage|getItem|setItem|\b(?:const|let)\s+[A-Z_]*(?:KEY|STORE|PREFS?|VIEWS|SOURCES|RECENT|HINT|USER|CONFIG|PROVENANCE|DRAFT|HISTORY|SAVED|HEIGHT)\b|\b(?:key|KEY)\s*=\s*"atrium|ls\.(?:get|set)\(|=\s*(?:\([^)]*\)\s*=>\s*)?"(?:atrium|waffle)[.\-][A-Za-z0-9._\-]*[.:]"/;
@@ -122,7 +124,7 @@ for(const {file,src} of SOURCES){
 if(missing.length)console.log("MISSING "+missing.join(" | "));
 assert.deepEqual(missing,[],"register these in app/editor/prefs-storage.js or list them in LEFT_OUT");
 // Every current key has a producer. Older path-indexed Git history remains eligible for reset.
-const all=SOURCES.filter(m=>m.file!==path.join("editor","prefs-storage.js")).map(m=>m.src).join("\n");
+const all=SOURCES.filter(m=>m.file!=="editor/prefs-storage.js").map(m=>m.src).join("\n");
 assert.ok(!all.includes('"'+gitSeenV1+'"'),"the old path-indexed history is retained only for reset");
 for(const k of registered)if(k!=="atrium.test.tool.v1"&&k!==gitSeenV1)assert.ok(all.includes('"'+k+'"'),k+" is registered but no module uses it");
 console.log("SHIM-OK prefs-storage");

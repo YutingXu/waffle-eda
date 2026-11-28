@@ -10,7 +10,7 @@ ships is byte-for-byte the code that was checked.
 scripts/typecheck.sh            # check; fails on any error types/baseline.json does not allow
 scripts/typecheck.sh --update   # record the current error counts (read every new error first)
 python3 types/gen-globals.py --add   # declare new module globals in types/globals.d.ts
-python3 tests/types-model.py    # model.d.ts vs app/model.js and the VS Code JSON schema
+python3 tests/maintenance/types-model.py    # model.d.ts vs app/core/model.js and the VS Code JSON schema
 ```
 
 CI runs `scripts/typecheck.sh` in the `static` step on macOS (`scripts/ci-local.sh static`) and
@@ -42,8 +42,8 @@ on Linux (`scripts/ci-linux.sh static`). A check takes about 3 seconds.
 | `types/gen-globals.py` | Reads each module's exported member names; writes them to a temporary `.d.ts` on every check |
 | `types/typecheck.py` | Runs tsc and judges the output against the baseline |
 | `scripts/typecheck.sh` | Finds or installs Node and TypeScript, then runs `types/typecheck.py` |
-| `tests/types-model.py` | `model.d.ts` agrees with `app/model.js` and `integrations/vscode/schema/waffle.schema.json` |
-| `tests/typing-regressions.cjs` | Tests for the bugs the type check found |
+| `tests/maintenance/types-model.py` | `model.d.ts` agrees with `app/core/model.js` and `integrations/vscode/schema/waffle.schema.json` |
+| `tests/maintenance/typing-regressions.cjs` | Tests for the bugs the type check found |
 
 ## How the globals are typed
 
@@ -96,7 +96,7 @@ depend on which file defines a global or when it loads. Each global is declared 
 - `ignoredCodes` are never counted: TS2774 (runtime presence guards, above) and TS2810
   (`new Promise(r => ... r())` with no value).
 - The check fails on an error beyond the expected count, on a `checked` or `tsconfig.json`
-  mismatch, on a `.d.ts` error (including the export checks), and on a `tests/types-model.py`
+  mismatch, on a `.d.ts` error (including the export checks), and on a `tests/maintenance/types-model.py`
   failure. Compared with the baseline at `TYPECHECK_BASE_REF` (default `HEAD`), it also fails
   when a file left `checked` or an `expected` count grew. Without git, or without the file at
   that ref, the comparison is skipped with a note.
@@ -105,7 +105,7 @@ depend on which file defines a global or when it loads. Each global is declared 
 
 1. **Check it.** Add the file to `checked` in `types/baseline.json` and to `files` in
    `types/tsconfig.json`, then run `scripts/typecheck.sh`.
-2. **Read every error.** Fix real bugs, each with a test (see `tests/typing-regressions.cjs`).
+2. **Read every error.** Fix real bugs, each with a test (see `tests/maintenance/typing-regressions.cjs`).
    Behaviour must not change otherwise.
 3. **Type the boundary.**
    - **Eager module** (listed in `app/index.html`): no JSDoc in the file. Write

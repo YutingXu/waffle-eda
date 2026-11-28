@@ -278,7 +278,7 @@ globalThis.AtriumVSKeys = (() => {
   const PEEK = "keyboard.peekCheatsheet";
   function peekDown(e) {
     clearTimeout(peekTimer);
-    if (!(e.key === "Control" || e.key === "Meta") || e.repeat || cs || doc.querySelector("dialog[open]")) return;
+    if (!(e.key === "Control" || e.key === "Meta") || e.repeat || cs || doc.querySelector("dialog[open]:not(.doc-view dialog)")) return;
     if (!globalThis.AtriumPref?.get?.(PEEK, false)) return;
     peekTimer = setTimeout(() => cheatsheet({peek: true, previous: doc.activeElement}), 600);
   }

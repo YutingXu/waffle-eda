@@ -1,0 +1,113 @@
+{
+ "comment": "Defects the edit flow shows today (tests/e2e/edit-flow.py). One entry per defect, with every gating check it turns red. limits records how badly each of those checks fails (python3 tests/e2e/edit-flow.py --update-limits): a check that fails worse is a new failure, and one that passes fails the suite until it is removed from its entry (the report prints FIXED).",
+ "failures": [
+  {
+   "project": "demo-kicad",
+   "bug": "Not a writer defect: the suite's model rows have no parametric form for three pad kinds. The KiCad save now writes demo.kicad_pcb's chamfered rectangle, trapezoid and custom pad as the records they were read from (chamfered_rect with its ratio and corners, trapezoid with rect_delta, custom with its 0.5 mm rect anchor), and the saved file equals the original (untouched.pads passes). Waffle's model holds each of the three as its exact outline (shape custom, w and h the outline's extent), so the saved file against the model reports them as three missing and three extra pads. It passes once the oracle compares those shapes by outline, or the model gains them as native shapes",
+   "checks": [
+    "clean.kicad.pads",
+    "slide.kicad.pads",
+    "drag.kicad.pads",
+    "rework.kicad.pads"
+   ]
+  },
+  {
+   "project": "pidp11-io-expander-edit",
+   "bug": "needs triage: an unedited Altium board saved as KiCad and imported again plots 7.8 mm2 differently on both outer copper layers; the difference grows with every edit (14-43 mm2), which includes the stale zone fill",
+   "checks": [
+    "clean.kicad.films",
+    "slide.kicad.films",
+    "drag.kicad.films",
+    "rework.kicad.films"
+   ]
+  },
+  {
+   "project": "pidp11-io-expander-edit",
+   "bug": "Altium source copy keeps the source's stored pour after an edit: sliding one via 0.254 mm saves, and the copy's copper is the fill from before the move (the writer's own diagnostic says to repour in Altium), while Waffle's outputs repour. Both outer copper layers differ by 6.7 mm2",
+   "checks": [
+    "slide.altium-source-copy.films"
+   ]
+  }
+ ],
+ "limits": {
+  "demo-kicad": {
+   "clean.kicad.pads": {
+    "missing": 3,
+    "extra": 3,
+    "netMismatch": 0
+   },
+   "slide.kicad.pads": {
+    "missing": 3,
+    "extra": 3,
+    "netMismatch": 0
+   },
+   "drag.kicad.pads": {
+    "missing": 3,
+    "extra": 3,
+    "netMismatch": 0
+   },
+   "rework.kicad.pads": {
+    "missing": 6,
+    "extra": 6,
+    "netMismatch": 0
+   }
+  },
+  "pidp11-io-expander-edit": {
+   "clean.kicad.films": {
+    "differing": 2,
+    "xorMm2.GTL": 7.779,
+    "xorMm2.GBL": 7.779,
+    "xorMm2.GTO": 0.001,
+    "xorMm2.GBO": 0,
+    "xorMm2.GTS": 0,
+    "xorMm2.GBS": 0,
+    "xorMm2.GTP": 0,
+    "xorMm2.GM1": 0
+   },
+   "slide.altium-source-copy.films": {
+    "differing": 2,
+    "xorMm2.GTL": 5.817,
+    "xorMm2.GBL": 6.819,
+    "xorMm2.GTO": 0,
+    "xorMm2.GBO": 0,
+    "xorMm2.GTS": 0,
+    "xorMm2.GBS": 0,
+    "xorMm2.GTP": 0,
+    "xorMm2.GM1": 0
+   },
+   "slide.kicad.films": {
+    "differing": 2,
+    "xorMm2.GTL": 9.139,
+    "xorMm2.GBL": 9.665,
+    "xorMm2.GTO": 0.001,
+    "xorMm2.GBO": 0,
+    "xorMm2.GTS": 0,
+    "xorMm2.GBS": 0,
+    "xorMm2.GTP": 0,
+    "xorMm2.GM1": 0
+   },
+   "drag.kicad.films": {
+    "differing": 2,
+    "xorMm2.GTL": 9.108,
+    "xorMm2.GBL": 9.609,
+    "xorMm2.GTO": 0.001,
+    "xorMm2.GBO": 0,
+    "xorMm2.GTS": 0,
+    "xorMm2.GBS": 0,
+    "xorMm2.GTP": 0,
+    "xorMm2.GM1": 0
+   },
+   "rework.kicad.films": {
+    "differing": 2,
+    "xorMm2.GTL": 8.991,
+    "xorMm2.GBL": 9.59,
+    "xorMm2.GTO": 0.693,
+    "xorMm2.GBO": 0,
+    "xorMm2.GTS": 0,
+    "xorMm2.GBS": 0,
+    "xorMm2.GTP": 0,
+    "xorMm2.GM1": 0
+   }
+  }
+ }
+}

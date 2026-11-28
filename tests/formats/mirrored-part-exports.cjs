@@ -93,6 +93,10 @@ for (const angle of [0, 30, 90]) {
     assert.equal(slot[4], "(drill oval 3 0.6)", at + "a slot is an oval drill along the pad's X axis");
     // KiCad angles are counter-clockwise on screen; the oval runs along the turned pad X axis.
     sameAxis(A.rotate([1, 0], -(+slot[3] || 0)), slotAxis);
+    // The pad turned with its slot, so its capsule (4 x 2, 7.14 mm2) is an outline turned back by the same angle.
+    const capsule = [.../\(gr_poly \(pts ([^\n]*?)\) \(width 0\)/.exec(slot[0])[1].matchAll(/\(xy ([-\d.]+) ([-\d.]+)\)/g)].map(m => [+m[1], +m[2]]);
+    const capsuleArea = Math.abs(capsule.reduce((s, a, i) => { const b = capsule[(i + 1) % capsule.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2);
+    assert.ok(Math.abs(capsuleArea - (4 + Math.PI)) < .01, at + "capsule copper, not an ellipse (" + capsuleArea + ")");
     sameAngle(-(+padOf("3")[3] || 0), placed[2].angle);
     const label = /\(fp_text user "MARK" \(at ([-\d.]+) ([-\d.]+)(?: ([-\d.]+))?\)[^\n]*/.exec(text);
     nearPoint(A.world([+label[1], +label[2]], origin), [mark.x, mark.y]);
@@ -101,7 +105,7 @@ for (const angle of [0, 30, 90]) {
     // Axis-aligned slots keep the pad rotation and size the oval along the matching pad axis.
     if (!angle) for (const [slotAngle, drill] of [[0, "(drill oval 3 0.6)"], [90, "(drill oval 0.6 3)"], [-90, "(drill oval 0.6 3)"], [180, "(drill oval 3 0.6)"]]) {
       const d = design(false, slotAngle), out = AtriumKiCad.exportBoard(d.project, d.doc).content;
-      assert.match(out, new RegExp('\\(pad "2" thru_hole custom \\(at -4 0\\) \\(size [\\d.]+ [\\d.]+\\) ' + drill.replace(/[()]/g, "\\$&")));
+      assert.match(out, new RegExp('\\(pad "2" thru_hole oval \\(at -4 0\\) \\(size 4 2\\) ' + drill.replace(/[()]/g, "\\$&")), "a capsule is KiCad's oval");
     }
   }
 

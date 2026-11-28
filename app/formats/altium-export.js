@@ -586,7 +586,11 @@ globalThis.AtriumAltiumExport = (() => {
     const step = 2.54, sx = ext[0] < 0 ? Math.ceil((25.4 - ext[0]) / step) * step : 0, sy = -ext[3] < 0 ? Math.ceil((25.4 + ext[3]) / step) * step : 0;
     const X = v => mil(v + sx), Y = v => mil(sy - v), XY = (kx, ky, p) => [[kx, X(p[0])], [ky, Y(p[1])]];
     const rot = a => globalThis.AtriumTranslatorPrecision?.angle(a) ?? n4(mod(-(a || 0), 360));
-    const lines = [], push = fields => lines.push(record(fields, report));
+    // A locked free object: every record written for it (its Polygon record, or each primitive it is
+    // drawn with) carries LOCKED=TRUE. A component states its own lock; its primitives have none.
+    let lockedObject = false;
+    const writeLocked = (item, write) => { lockedObject = item.locked === true; try { return write(); } finally { lockedObject = false; } };
+    const lines = [], push = fields => lines.push(record(lockedObject ? [...fields, ["LOCKED", "TRUE"]] : fields, report));
     // Nets in name order; IDs are positions.
     const netSet = new Set();
     for (const i of doc.items) { if (i.net) netSet.add(i.net); for (const v of Object.values(i.pinNets || {})) if (v) netSet.add(v); }
@@ -691,7 +695,7 @@ globalThis.AtriumAltiumExport = (() => {
         ["AREATHRESHOLD",zone.islandAreaThreshold > 0 ? zone.islandAreaThreshold / (tick*tick) : 0],
         ["REMOVENECKS",TRUE(zone.neckWidth > 0)],["NECKWIDTHTHRESHOLD",mil(zone.neckWidth || 0)],
         ["NAME",name],["POURINDEX",Math.round(+zone.pourIndex || 0)]);
-      push(settings);counts.polygons++;
+      writeLocked(zone, () => push(settings));counts.polygons++;
       if (zone.connectStyle && zone.connectStyle !== "relief" || zone.clearance != null)
         report("Pour connect styles and clearances come from Altium's design rules. Per-pour overrides require review after repouring in Altium.");
     }
@@ -988,22 +992,24 @@ globalThis.AtriumAltiumExport = (() => {
           if (p.kind === "via") { via(p, place([p.x, p.y]), net, id); continue; }
           pad(p, id, place, i.angle || 0, side, net, !i.angle && !i.mirror ? p : undefined);
         }
-      } else if (i.kind === "pad") pad({...i, x: 0, y: 0}, null, p => [p[0] + i.x, p[1] + i.y], 0, i.layer, i.net || "", i);
-      else if (i.kind === "via") via(i, [i.x, i.y], i.net || "");
-      else if (i.kind === "track") {
-        const layer = layerOf(i.layer);
-        if (!layer || !COPPER.test(i.layer || "")) { report("Tracks on unsupported layers omitted."); continue; }
-        const extra = [...pourParent(i), ...maskFields(i)];
-        const arc = Atr.pathArc(i);
-        if (arc) arcRecord(arc, layer, i.width ?? .25, i.net, null, extra);
-        else track(i.points || [], i.width || .25, layer, i.net, null, extra, i.width > 0);
-      } else if (i.kind === "graphic" || i.kind === "label") {
-        if (i.kind === "label" && !i.layer) { textRecord(i, "TOPOVERLAY", null, [], i); continue; }
-        graphic(i, null);
-      } else if (i.kind === "polygon") {
-        if (i.cutout) graphic(i, null);
-        else if (!zoneRecords.has(i.id)) report("Polygon pours on unsupported layers or without a closed outline omitted.");
-      } else report("Unsupported board item " + i.kind + " omitted.");
+      } else writeLocked(i, () => {
+        if (i.kind === "pad") pad({...i, x: 0, y: 0}, null, p => [p[0] + i.x, p[1] + i.y], 0, i.layer, i.net || "", i);
+        else if (i.kind === "via") via(i, [i.x, i.y], i.net || "");
+        else if (i.kind === "track") {
+          const layer = layerOf(i.layer);
+          if (!layer || !COPPER.test(i.layer || "")) { report("Tracks on unsupported layers omitted."); return; }
+          const extra = [...pourParent(i), ...maskFields(i)];
+          const arc = Atr.pathArc(i);
+          if (arc) arcRecord(arc, layer, i.width ?? .25, i.net, null, extra);
+          else track(i.points || [], i.width || .25, layer, i.net, null, extra, i.width > 0);
+        } else if (i.kind === "graphic" || i.kind === "label") {
+          if (i.kind === "label" && !i.layer) { textRecord(i, "TOPOVERLAY", null, [], i); return; }
+          graphic(i, null);
+        } else if (i.kind === "polygon") {
+          if (i.cutout) graphic(i, null);
+          else if (!zoneRecords.has(i.id)) report("Polygon pours on unsupported layers or without a closed outline omitted.");
+        } else report("Unsupported board item " + i.kind + " omitted.");
+      });
     }
     const nextIsland = new Map();
     // A board saved by a previous Waffle version may mix numbered source

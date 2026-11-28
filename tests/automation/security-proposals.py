@@ -3,7 +3,7 @@
 
 app/automation/proposal.js owns the version 1 field list (V1_FIELDS) and the code-bearing fields (CODE_FIELDS).
 mcp/server.py mirrors V1_FIELDS as EDIT_FIELDS for propose_component_edits; no other module may
-define its own copy. The JS side of the regression tests is tests/security-proposals.cjs.
+define its own copy. The JS side of the regression tests is tests/automation/security-proposals.cjs.
 
     python3 -I -B tests/automation/security-proposals.py
 """

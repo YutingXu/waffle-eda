@@ -3,7 +3,7 @@
 # Usage: scripts/startup-budget.sh [--static] [--runs N] [--idle] [--json] [--measure-only]
 #   --static   only the eager-JS byte budget (no browser)
 # Budgets (eager JS 2000 KB, heap 3.8 MB, boot 50 ms) and their environment overrides are
-# documented in tests/startup-budget.py.
+# documented in tests/maintenance/startup-budget.py.
 root=${0:A:h:h}
 args=("$@")
 if (( ${args[(I)--static]} )); then args=(${args:#--static}); exec python3 $root/tests/maintenance/startup-budget.py $args; fi

@@ -410,7 +410,7 @@ What I'd skip, and why:
 Migration of the existing consumers, all in phase 0:
 
 - `rules.detectDiffPairs` becomes a wrapper over `AtriumNetIntent.pairs`. Same signature, and the test
-  in `tests/rules.cjs:90` is extended rather than replaced.
+  in `tests/checks/rules.cjs:90` is extended rather than replaced.
 - `diffpair.pairs` drops its own `SUFFIX` loop and calls `R.detectDiffPairs` only.
 - `eco.directives` gets polarity from `polarity()`.
 - `xsignals`, `si`, `return-path`, `topology`, `length-tuning`, `insights`, `autoplace`, `autorouter`,
@@ -465,7 +465,7 @@ budget.
 
 ## 12. Tests
 
-- **`tests/net-intent.cjs` golden corpus.** A table of about 500 names with the expected role,
+- **`tests/checks/net-intent.cjs` golden corpus.** A table of about 500 names with the expected role,
   voltage, polarity, partner and activeLow. It deliberately includes:
   - every name in §2's table
   - negative cases: `CAP/CAN`, `STEP/STEN`, `VCC_EN`, `3V3_PG`, `LDO2VIN`, `VDD_CORE_2`, `DM0`
@@ -485,7 +485,7 @@ budget.
   not rail".
 - **Index incremental equivalence.** After a random sequence of edits, rename, add-pin and library swap,
   the incremental index equals a fresh full build. This mirrors the insights engine's tests.
-- **Insights tests** in `tests/insights.cjs`, one positive and one negative fixture per new check,
+- **Insights tests** in `tests/checks/insights.cjs`, one positive and one negative fixture per new check,
   including the FP mitigations: PCIe polarity inversion quiet, inverter in path quiet, unknown cap
   rating quiet.
 
@@ -519,7 +519,7 @@ P0 does not depend on the Signal model and can land now. P1 depends on the Signa
 ## 15. Phase 0: implementation and integration notes
 
 Phase 0 has landed as new files only: `app/net-intent.js` (`AtriumNetIntent`),
-`tests/net-intent.cjs` and `tests/fixtures/net-intent/corpus.json`. No existing module calls it yet.
+`tests/checks/net-intent.cjs` and `tests/fixtures/net-intent/corpus.json`. No existing module calls it yet.
 Line numbers below refer to the working tree used for the 20 November 2026 design and
 may drift.
 
@@ -547,7 +547,7 @@ may drift.
 - **Size.** 16.2 KB of source (6.9 KB gzipped), against the 14 KB target. The dictionaries and the
   `explain` text are most of it. It adds 0 eager bytes. If 14 KB is firm, dropping the mains and
   frequency grammar saves about 1 KB.
-- **Cost** (`tests/net-intent.cjs`): 20k distinct names read cold in 41 ms under Node and 52 ms under
+- **Cost** (`tests/checks/net-intent.cjs`): 20k distinct names read cold in 41 ms under Node and 52 ms under
   JSC, about 2–2.6 µs each. A warm re-read takes 0.6 ms, and `pairs()` over 20k names about 10 ms.
 
 ### Loading
@@ -566,7 +566,7 @@ for one release. Worker bundles and old headless lists then keep working.
 
 | Site | Replacement | Behaviour change |
 |---|---|---|
-| `app/rules.js:592–607` (`SUFFIXES`, `detectDiffPairs`) | `function detectDiffPairs(nets,existing=[]){const N=globalThis.AtriumNetIntent;if(!N)return legacyDetect(nets,existing);return N.pairs(nets,existing).map(({name,positive,negative})=>({name,positive,negative}));}`. Keep only the three fields so "Create from nets" never writes `explain`/`level` into `rules.diffPairs`. | **New pairs:** USB_DP/USB_DM, CANH/CANL, CAN_H/CAN_L, CK_t/CK_c, DQS_t/DQS_c, TXP0/TXN0, TX_P0/TX_N0, `…_P_C`/`…_N_C`, SATA_RXP/RXN, SENSE_POS/NEG, ADC_INP/INM. **No longer paired:** CAP/CAN, STEP/STEN, or any bare P/N whose stem is not serial (TX, RX, CLK, REFCLK, CK, D, DQS, DATA, LANE, ML, MDI, LVDS, IN, AIN, VIN, VREF). **Ambiguous** (USB_DP with both USB_DM and USB_DN): no pair, where the old code took the first. `tests/rules.cjs:89–91` passes unchanged. A duplicate name now gets `_1` after the cleaned stem (`USB_1`), where the old code produced `USB__1`. |
+| `app/checks/rules.js:592–607` (`SUFFIXES`, `detectDiffPairs`) | `function detectDiffPairs(nets,existing=[]){const N=globalThis.AtriumNetIntent;if(!N)return legacyDetect(nets,existing);return N.pairs(nets,existing).map(({name,positive,negative})=>({name,positive,negative}));}`. Keep only the three fields so "Create from nets" never writes `explain`/`level` into `rules.diffPairs`. | **New pairs:** USB_DP/USB_DM, CANH/CANL, CAN_H/CAN_L, CK_t/CK_c, DQS_t/DQS_c, TXP0/TXN0, TX_P0/TX_N0, `…_P_C`/`…_N_C`, SATA_RXP/RXN, SENSE_POS/NEG, ADC_INP/INM. **No longer paired:** CAP/CAN, STEP/STEN, or any bare P/N whose stem is not serial (TX, RX, CLK, REFCLK, CK, D, DQS, DATA, LANE, ML, MDI, LVDS, IN, AIN, VIN, VREF). **Ambiguous** (USB_DP with both USB_DM and USB_DN): no pair, where the old code took the first. `tests/checks/rules.cjs:89–91` passes unchanged. A duplicate name now gets `_1` after the cleaned stem (`USB_1`), where the old code produced `USB__1`. |
 | `app/diffpair.js:16` (`SUFFIX`) and the loop at `:36–44` | Delete both. The `R.detectDiffPairs(...)` call at `:31–35` already covers name pairs. | `_H/_L` pairs are now only CAN (CAN_H/CAN_L, CANH/CANL). LED_H/LED_L and SPEED_H/SPEED_L stop routing as pairs. Router and DRC now agree on which name pairs exist. |
 | `app/eco.js:494–495` (`directives()` pair polarity) | `const list=[...nets],o=list.length===2&&globalThis.AtriumNetIntent?.orient(list);` then `if(!o){cx.issues.add(…same message…);continue;}` and `after={name,positive:o.positive,negative:o.negative}`. When `o.known===false` (A/B), also add an issue: "Differential pair NAME: A taken as positive; check the transceiver's datasheet." | A `USB` directive on USB_DP/USB_DM, a CANH/CANL directive or a CK_t/CK_c directive is now accepted (today it is rejected). `SIGP`/`SIGN` and `X+`/`X-` directives still work through the final-letter fallback. |
 
@@ -613,7 +613,7 @@ names.
   - returns, such as 24V_RTN
   - `PE`, `COM` (weak) and `SHIELD`, in the modules whose regexes lacked them
 - **Voltages:** `3,3V` becomes 3.3 V; LDO2VIN, VDD_CORE_2 and 12V_EN have no voltage. The values in
-  `tests/pdn.cjs:111` are unchanged.
+  `tests/analysis/pdn.cjs:111` are unchanged.
 - **Rails that are no longer rails** in `polygon-pour.js` only: `VOUT`, `VS`, `VDC` and `VSUPPLY`
   (its regex accepted them). The pour "power net name" hint stops firing for them; DAC_VOUT is the
   reason. If that matters, add `VOUT`/`VDC`/`VSUPPLY` to `RAIL` in net-intent.js; it is a one-word
@@ -675,7 +675,7 @@ see §17. Regulator-output voltage evidence is still open.
 ## 17. Phase 3: creepage and clearance by voltage; conventions files; Create from nets
 
 Landed 2026-11-20. New: `app/creepage.js` (`AtriumCreepage`, loaded with `AtriumRules`, 0 eager bytes
-beyond its 15-byte entry in `lazy.js`), `tests/creepage.cjs`. Small hooks: `rules.js` (the `creepage`
+beyond its 15-byte entry in `lazy.js`), `tests/checks/creepage.cjs`. Small hooks: `rules.js` (the `creepage`
 rule type, its DRC hook line, no default rule), `checks.js` (`layout.creepage` in the registry),
 `drc-view.js` (online DRC's window grows by the rule's reach), `insights-intent.js` (the
 `isolationRating` hint; installs the layout hint), `net-intent-index.js`, `naming.js`, `signals-panel.js`,
@@ -758,7 +758,7 @@ Nothing runs at startup. The hint is an `area` check with a small registered rea
 re-checks the pairs of the changed objects against anything within the board's reach (computed once per
 set of facts from the voltages present), and the unchanged pairs whose finding lies in the edit's window;
 everything else is kept. An edit away from every high-voltage net extracts nothing. In DRC, online runs
-re-check the edit's neighbourhood grown by the rule's reach. Measured (`tests/creepage.cjs`, Node, an
+re-check the edit's neighbourhood grown by the rule's reach. Measured (`tests/checks/creepage.cjs`, Node, an
 800-feature board): full pass 234 candidate pairs in about 3 ms; an edit next to the 400 V net 24 pairs in
 about 1.5 ms; an edit away from it 0 pairs. The 20k-feature figures are in the cost test.
 

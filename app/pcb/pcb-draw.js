@@ -1246,8 +1246,9 @@ globalThis.AtriumPCBDraw = (() => {
     if (!H || !isPcb()) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target, tag = t?.tagName;
-    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || t?.isContentEditable || document.querySelector("dialog[open]")) return;
-    if (!(t === document.body || t === H.canvas?.() || t === document.documentElement || t?.closest?.("#canvas-stage, .split-pane"))) return;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || t?.isContentEditable || document.querySelector("dialog[open]:not(.doc-view dialog)")) return;
+    // A document view (an editor tab) covers the canvas inside its stage: its keys are its own.
+    if (!(t === document.body || t === H.canvas?.() || t === document.documentElement || t?.closest?.("#canvas-stage, .split-pane")) || t?.closest?.(".doc-view")) return;
     if (active()?.def.kind === "board" && (e.key === "Delete" || e.key === "Backspace")) { swallow(e); boardDelete(); return; }
     if (key(e)) swallow(e);
   }

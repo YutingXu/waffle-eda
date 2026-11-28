@@ -175,7 +175,8 @@ globalThis.AtriumDock = (() => {
   let L = null, host = null, queued = false, saveTimer = 0, drag = null, lastFocused = null, kindSeen = D.body.dataset.kind || "", applying = false, pendingInto = null;
   const pref = (k, fallback) => {try {const v = globalThis.AtriumPref?.get(k); return v === undefined ? fallback : v;} catch {return fallback;}};
   const setPref = (k, v) => {try {globalThis.AtriumPref?.set(k, v);} catch {}};
-  function el(tag, cls, text) { return AtriumNavCommon.classedElement(D, tag, cls, text); }
+  // Plain DOM (as classedElement): a saved layout loads this module mid-parse, before nav-common.js.
+  function el(tag, cls, text) {const n = D.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n;}
   function info(text) {if (host?.info) host.info(text); else {const s = D.getElementById("status"); if (s) s.textContent = text;}}
   const bottomEl = () => {
     let b = D.getElementById("dock-bottom");

@@ -3,7 +3,7 @@
 // damaged codes refused), and the host's in-window relay (hub) carrying the real transport
 // (app/project/collab-transport.js) over data-channel stand-ins: joins, end-to-end messages between the host
 // and guests and between guests, large bodies in pieces, a wrong key refused, leaving.
-// The round trip in two Chrome windows, through the real Share dialog, is tests/collab-pair-browser.cjs.
+// The round trip in two Chrome windows, through the real Share dialog, is tests/project/collab-pair-browser.cjs.
 const assert = require("node:assert/strict");
 const {webcrypto} = require("node:crypto");
 Object.defineProperty(globalThis, "crypto", {value: webcrypto, configurable: true});

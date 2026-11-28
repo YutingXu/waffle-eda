@@ -3,7 +3,7 @@
 // one window, many windows, a loading detached view, an unavailable writer, saved layouts (empty,
 // active, missing documents, missing display, store failure), recovery (replaying, reattached,
 // conflict) and a large tab collection. The native AppKit fixture covers the real host.
-// node tests/browser-butter-windows-ui.cjs [--shots OUTPUT_DIRECTORY]
+// node tests/native-bridge/browser-butter-windows-ui.js [--shots OUTPUT_DIRECTORY]
 const assert = require("node:assert/strict");
 const {boot, run} = require("../support/butter-design.cjs");
 

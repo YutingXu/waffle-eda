@@ -1,6 +1,6 @@
 "use strict";
 // Keep the engine and its real findings alive while collecting old analysis generations.
-// Run with node --expose-gc tests/insights-fix-lifetime.js.
+// Run with node --expose-gc tests/checks/insights-fix-lifetime.js.
 const assert = require("node:assert/strict");
 for (const file of ["model", "parts", "sch-objects", "hierarchy", "multichannel", "net-intent",
   "net-intent-index", "signals", "insights", "insights-sch", "insights-intent", "undo-store"]) require(require("../support/app-source-paths.cjs").appFile(file + ".js"));

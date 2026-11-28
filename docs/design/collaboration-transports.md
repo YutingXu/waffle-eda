@@ -68,10 +68,10 @@ That was headless Chrome with an intercepted page, not WebView2 with a virtual-h
 
 ## Checks
 
-- `tests/collab-transport.cjs`: real Web Crypto, an in-process relay and WebRTC stand-in: verified identity, forged and replayed proofs, ordered relay-to-channel switch, fallback, a stalled peer, forced relay, TURN-only, no WebRTC, invitations.
-- `tests/collab-relay.py`: the relay's protocol, limits, per-peer queues, TURN credentials, `/healthz`, `/join`, `--dev`.
+- `tests/project/collab-transport.cjs`: real Web Crypto, an in-process relay and WebRTC stand-in: verified identity, forged and replayed proofs, ordered relay-to-channel switch, fallback, a stalled peer, forced relay, TURN-only, no WebRTC, invitations.
+- `tests/project/collab-relay.py`: the relay's protocol, limits, per-peer queues, TURN credentials, `/healthz`, `/join`, `--dev`.
 - `native/tests/lan_relay.py`: the same-network listeners of Linux, macOS and Windows against one conformance suite.
-- `tests/collab-session.cjs`: the session's trust rules (authors, host-only catch-up, merges and restore boundaries).
+- `tests/project/collab-session.cjs`: the session's trust rules (authors, host-only catch-up, merges and restore boundaries).
 - `tests/project/collab-resilience.cjs`: two and three real session modules over a scripted network: offline and in-flight edits past the bounded log reach the host, the cap notice, a host-relayed session ending, hostile confirmations.
 - `tests/project/collab-convergence.cjs --mode session`: randomised convergence under the session's catch-up rules, failing if a guest ever lacks an edit the host needs.
 - `scripts/perf-collab.sh`: relay drop, stall and bounded-log scenarios in headless Chrome (detection, reconnect, lost edits, idle wake-ups).
