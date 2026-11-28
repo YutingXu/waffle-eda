@@ -3,7 +3,8 @@
 // Layers (docs/design-system.md › Layers, ui/owner-layer.js): an open app bar menu draws above floating
 // panels; decorations that belong to one element join that element's layer, so what covers the element
 // covers them, and they follow and are cut to the visible part of it (net-name completion over a field
-// in a scrolled Properties panel, the pin-swap chip and timing readout over the canvas).
+// in a scrolled Properties panel, the pin-swap chip and timing readout over the canvas). A select's list
+// leaves with its select, and a dock sash drag ends with its capture even when the sash is removed.
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
@@ -76,6 +77,34 @@ async function ownerLayers(browser) {
     assert.equal((await ghost()).hidden, false, "a half-shown field shows the part of its completion that can be seen");
     await page.evaluate(() => { document.getElementById("nm-probe").closest("label").previousElementSibling.remove(); document.getElementById("nm-probe").closest("label").remove(); });
     await page.setViewportSize({width:1400, height:900});
+
+    // A decoration leaves with its owner at once, with no pointer event after it: a select's option list
+    // in the body goes when the select is removed while the list has focus (an inspector rebuilt).
+    const list = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumSelectPopup");
+      const s = document.createElement("select"); s.id = "leave-probe";
+      for (const n of ["One", "Two", "Three"]) s.append(new Option(n));
+      document.getElementById("inspector").append(s);
+      AtriumSelectPopup.open(s);
+      const box = AtriumSelectPopup.element(), inBody = box?.parentElement === document.body;
+      s.remove();
+      await new Promise(r => setTimeout(r, 0));
+      return {inBody, open:AtriumSelectPopup.isOpen(), shown:!!box?.isConnected};
+    });
+    assert.deepEqual(list, {inBody:true, open:false, shown:false}, "a select's list leaves with its select");
+    // A drag ends with its capture: a dock sash removed mid-drag (a render after Escape closed the panel
+    // beside it) gets no release, and the body must not keep dock-resizing (no cursors, no selection).
+    const sash = await page.evaluate(() => { const s = [...document.querySelectorAll(".dock-sash")].find(s => s.getClientRects().length && s.getBoundingClientRect().height > 40);
+      const r = s.getBoundingClientRect(); s.id = "sash-probe"; return {x:r.left + r.width / 2, y:r.top + r.height / 2}; });
+    await page.mouse.move(sash.x, sash.y);
+    await page.mouse.down();
+    await page.mouse.move(sash.x - 10, sash.y, {steps:2});
+    assert.equal(await page.evaluate(() => document.body.classList.contains("dock-resizing")), true, "a sash drag marks the body");
+    await page.evaluate(() => document.getElementById("sash-probe").remove());
+    await page.mouse.move(sash.x - 20, sash.y, {steps:2});
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => document.body.classList.contains("dock-resizing")), false, "a sash removed mid-drag leaves the body as it was");
+    await page.evaluate(() => AtriumDock.render());
 
     // Canvas decorations join the canvas's layer: the pin-swap chip and the timing readout.
     const layered = await page.evaluate(async () => {

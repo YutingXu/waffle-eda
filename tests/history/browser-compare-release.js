@@ -8,8 +8,12 @@
 // each closed Change table stayed in memory with its whole subtree (about 220 nodes on the soak's
 // schematic bench; about 2,000 for each visual comparison, Project › Compare › Compare…). The visual
 // comparison is opened and closed the same way, and a removed scroller whose edge the pointer reached
-// is collected as well. The suite clicks with the plain mouse and waits on booleans: a locator click
-// or an element handle would itself keep the closed dialog alive.
+// is collected as well. A scroller leaves with its thumb at once, with no pointer move after it: a
+// context menu closed with Escape while the pointer rests on its scroll edge, and a Change table closed
+// with Escape while a thumb is held (Chromium sends that lost capture to the document and the release
+// to the canvas, so the drag used to outlive the dialog and block every later edge hover). The suite
+// clicks with the plain mouse and waits on booleans: a locator click or an element handle would itself
+// keep the closed dialog alive.
 // Run standalone: node tests/history/browser-compare-release.js
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
@@ -64,7 +68,7 @@ async function compareRelease(browser) {
         return {nodes, listeners:jsEventListeners, detached:detachedNodes.reduce((n, t) => n + t.retainedNodeIds.length, 0), dialogs};
       } finally { await inspector.detach(); }
     };
-    async function compare() {
+    async function openCompare() {
       await page.evaluate(() => AtriumNavHost.act("compare"));
       const dialog = page.getByRole("dialog", {name:"Change table"});
       const picker = await page.context().newCDPSession(page);
@@ -82,6 +86,9 @@ async function compareRelease(browser) {
         await picker.send("DOM.setFileInputFiles", {backendNodeId:opened[0].backendNodeId, files:[baseline]});
       } finally { await picker.detach(); }
       await dialog.getByRole("status").filter({hasText:/Working design · \d+–\d+ of \d+ changes?/}).waitFor();
+    }
+    async function compare() {
+      await openCompare();
       // The pointer crosses the dialog, its change list and its detail pane, away from their edges; the
       // keyboard closes it. Before the fix each closed dialog stayed with every scroller it had crossed.
       const boxes = await page.evaluate(() => [".revision-dialog", ".revision-dialog .rev-list", ".revision-dialog .rev-detail"].map(s => {
@@ -139,16 +146,80 @@ async function compareRelease(browser) {
     await page.mouse.move(350, 300, {steps:3});
     await page.mouse.move(497, 300, {steps:3});
     await page.waitForFunction(() => AtriumOverlayScroll.thumbs().length > 0);
+    // Removed with the pointer resting on its edge: no pointer move follows, as when a key closes it.
     await page.evaluate(() => document.getElementById("release-probe").remove());
-    await page.mouse.move(8, 400, {steps:3});
-    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))));
-    await cdp.send("HeapProfiler.collectGarbage"); await cdp.send("HeapProfiler.collectGarbage");
+    // A frame and a task pass, and the shown thumb's fade timer (900 ms) is still far off.
+    const settle = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))));
+    const collect = async () => { await settle(); await cdp.send("HeapProfiler.collectGarbage"); await cdp.send("HeapProfiler.collectGarbage"); };
+    // A thumb still drawn: shown, in the document, and what the pointer at x, y hits.
+    const leftOver = (x, y) => page.evaluate(([x, y]) => ({shown:[...document.querySelectorAll(".ui-scroll-thumb[data-shown]")].filter(t => t.getClientRects().length).length,
+      hit:!!document.elementFromPoint(x, y)?.classList.contains("ui-scroll-thumb")}), [x, y]);
+    await collect();
     const probe = await page.evaluate(() => ({collected:globalThis.__releaseProbe.deref() === undefined,
       thumbs:AtriumOverlayScroll.thumbs().filter(t => t.isConnected).length}));
-    assert.equal(probe.collected, true, "a removed scroller is not kept by its overlay scrollbar");
+    assert.equal(probe.collected, true, "a removed scroller is not kept by its overlay scrollbar, with no pointer move after it");
     assert.equal(probe.thumbs, 0, "a removed scroller's thumb leaves with it");
+    assert.deepEqual(await leftOver(497, 300), {shown:0, hit:false}, "no thumb is left where the removed scroller's edge was");
+
+    // The Projects context menu in a short window scrolls. The pointer rests on its scroll edge, so its
+    // thumb is hot (wide and grabbable), and Escape closes the menu without a pointer move.
+    await page.setViewportSize({width:1280, height:290});
+    const header = await page.evaluate(() => {
+      const r = [...document.querySelectorAll(".panel-projects .section-toggle")].find(e => e.textContent.trim() === "Projects").getBoundingClientRect();
+      return {x:r.left + 5, y:r.top + r.height / 2};
+    });
+    await page.mouse.click(header.x, header.y, {button:"right"});
+    await page.waitForFunction(() => { const m = document.querySelector(".nav-menu-portal .nav-menu"); return !!m && m.scrollHeight > m.clientHeight + 1; });
+    const edge = await page.evaluate(() => {
+      const m = document.querySelector(".nav-menu-portal .nav-menu"), r = m.getBoundingClientRect();
+      globalThis.__releaseMenu = new WeakRef(m);
+      return {x:r.right - 4, y:r.top + r.height / 2};
+    });
+    await page.mouse.move(edge.x - 60, edge.y, {steps:3});
+    await page.mouse.move(edge.x, edge.y, {steps:3});
+    await page.waitForFunction(() => !!document.querySelector(".ui-scroll-thumb[data-hot][data-shown]"));
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector(".nav-menu-portal .nav-menu"));
+    await collect();
+    assert.deepEqual(await leftOver(edge.x, edge.y), {shown:0, hit:false}, "the closed menu's thumb leaves with it: not shown, not under the resting pointer");
+    assert.equal(await page.evaluate(() => globalThis.__releaseMenu.deref() === undefined), true, "the closed menu is not kept by its thumb");
+    await page.setViewportSize({width:1280, height:860});
+
+    // A thumb held in the Change table when Escape closes it, released only afterwards.
+    await openCompare();
+    const grip = await page.evaluate(() => {
+      const list = [...document.querySelectorAll(".revision-dialog *")].find(e => e.scrollHeight - e.clientHeight > 40 && /auto|scroll/.test(getComputedStyle(e).overflowY));
+      const r = list.getBoundingClientRect();
+      globalThis.__releaseDialog = new WeakRef(list.closest("dialog"));
+      return {x:r.right - 4, y:r.top + 30};
+    });
+    await page.mouse.move(grip.x - 60, grip.y, {steps:3});
+    await page.mouse.move(grip.x, grip.y, {steps:3});
+    await page.waitForFunction(() => !!document.querySelector(".revision-dialog .ui-scroll-thumb[data-hot]"));
+    const held = await page.evaluate(() => { const r = document.querySelector(".revision-dialog .ui-scroll-thumb[data-hot]").getBoundingClientRect(); return {x:r.left + r.width / 2, y:r.top + Math.min(10, r.height / 2)}; });
+    await page.mouse.move(held.x, held.y);
+    await page.mouse.down();
+    await page.mouse.move(held.x, held.y + 20, {steps:3});
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector(".revision-dialog"));
+    await page.mouse.up();
+    await collect();
+    assert.equal(await page.evaluate(() => globalThis.__releaseDialog.deref() === undefined), true, "a Change table closed mid-drag is not kept by the drag");
+    // The drag is over: another scroller's edge lights its thumb again.
+    await page.evaluate(() => {
+      const s = Object.assign(document.createElement("div"), {id:"release-after"});
+      s.style.cssText = "position:fixed;left:200px;top:200px;width:300px;height:200px;overflow:auto;z-index:5";
+      s.append(Object.assign(document.createElement("div"), {style:"height:2000px"}));
+      document.body.append(s);
+    });
+    await page.mouse.move(350, 300, {steps:3});
+    await page.mouse.move(497, 300, {steps:3});
+    const relit = await page.waitForFunction(() => !!document.querySelector(".ui-scroll-thumb[data-hot]"), null, {timeout:3000}).then(() => true, () => false);
+    await page.evaluate(() => document.getElementById("release-after").remove());
+    assert.equal(relit, true, "after a drag whose thumb left, a scroller's edge lights its thumb again");
     assert.deepEqual(errors, []);
-    console.log("PASS compare release: " + ROUNDS + " Change table rounds, " + growth + " nodes of growth (" + report + "); visual comparison " + viewReport + "; a removed scroller is collected");
+    console.log("PASS compare release: " + ROUNDS + " Change table rounds, " + growth + " nodes of growth (" + report + "); visual comparison " + viewReport +
+      "; a removed scroller, a menu closed under the pointer and a Change table closed mid-drag are collected with their thumbs");
   } finally {
     await cdp.detach().catch(() => {});
     await page.close();

@@ -163,6 +163,9 @@ globalThis.AtriumSelectPopup = (() => {
     doc.addEventListener("scroll", scrolled, true);
     globalThis.addEventListener("resize", resized);
     box.addEventListener("focusout", blurred);
+    // A select that leaves (a key the list passes on rebuilt the inspector, a module arrived) takes its
+    // list with it at once: the list kept focus, so no focusout or press would come (ui/owner-layer.js).
+    globalThis.AtriumLayer?.watch(box, select, () => { if (list === box) close(false); });
     cleanup = () => {
       doc.removeEventListener("pointerdown", away, true);
       doc.removeEventListener("scroll", scrolled, true);

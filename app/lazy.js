@@ -21,7 +21,7 @@ globalThis.AtriumLazy = (() => {
   const MODULES = {
     AtriumTouchPrecision: {scripts: ["editor/touch-precision.js"], css: ["editor/touch-precision.css"]},
     // The option list every single-line <select> opens (ui/dialog.js routes presses and keys here).
-    AtriumSelectPopup: {scripts: ["ui/select-popup.js"]},
+    AtriumSelectPopup: {scripts: ["ui/select-popup.js"], deps: ["AtriumLayer"]},
     AtriumWholePixels: {scripts: ["ui/whole-pixels.js"]},
     // The UI library builders (docs/ui-library.md) and its living gallery (index.html#ui-gallery).
     AtriumUIKit: {scripts:["ui/kit.js"]},

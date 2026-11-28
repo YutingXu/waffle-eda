@@ -385,7 +385,7 @@ globalThis.AtriumMessages = (() => {
       e.preventDefault(); grip.setPointerCapture(e.pointerId);
       const start = e.clientY, height = panel.getBoundingClientRect().height;
       grip.onpointermove = m => {panel.style.height = Math.max(120, Math.min(innerHeight * .8, height + start - m.clientY)) + "px";};
-      grip.onpointerup = () => {grip.onpointermove = grip.onpointerup = null;};
+      grip.onpointerup = grip.onpointercancel = grip.onlostpointercapture = () => {grip.onpointermove = grip.onpointerup = grip.onpointercancel = grip.onlostpointercapture = null;};
     };
     document.body.append(panel);
   }
@@ -435,8 +435,10 @@ globalThis.AtriumMessages = (() => {
       ui.cols[t.key].style.width = widths[t.key] + "px";
     };
     const move = m => {x = m.clientX; if (!frame) frame = requestAnimationFrame(apply);};
-    const up = () => {if (frame) cancelAnimationFrame(frame); apply(); g.classList.remove("is-dragging"); g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up); saveColumns(); fit();};
-    g.classList.add("is-dragging"); g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
+    // It ends with its capture (released, cancelled or taken), never on a later hover.
+    const ends = ["pointerup", "pointercancel", "lostpointercapture"];
+    const up = () => {if (frame) cancelAnimationFrame(frame); apply(); g.classList.remove("is-dragging"); g.removeEventListener("pointermove", move); for (const t of ends) g.removeEventListener(t, up); saveColumns(); fit();};
+    g.classList.add("is-dragging"); g.addEventListener("pointermove", move); for (const t of ends) g.addEventListener(t, up);
   }
   // Double-click a divider: the column fits its header and the rows in view.
   function autoFit(key) {

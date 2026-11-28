@@ -1005,8 +1005,13 @@ globalThis.AtriumDock = (() => {
       else setGroup(s, start + (s.dataset.area === "bottom" ? dx : dy));
     };
     const follow = m => {last = {clientX: m.clientX, clientY: m.clientY}; if (!frame) frame = requestAnimationFrame(apply);};
-    const done = () => {if (frame) cancelAnimationFrame(frame); apply(); s.classList.remove("is-dragging"); D.body.classList.remove("dock-resizing"); s.removeEventListener("pointermove", follow); s.removeEventListener("pointerup", done); s.removeEventListener("pointercancel", done); save(); try {globalThis.dispatchEvent(new Event("resize"));} catch {}};
-    s.addEventListener("pointermove", follow); s.addEventListener("pointerup", done); s.addEventListener("pointercancel", done);
+    // The resize ends when its capture does. A render can remove a group sash mid-drag (Escape closed the
+    // panel beside it): Chromium then sends the lost capture to the document and the release elsewhere,
+    // and the body would keep dock-resizing (no cursors, no text selection). The document listens too.
+    const id = e.pointerId, ends = ["pointerup", "pointercancel", "lostpointercapture"];
+    const stop = m => {if (m.pointerId === id) done();};
+    const done = () => {if (frame) cancelAnimationFrame(frame); apply(); s.classList.remove("is-dragging"); D.body.classList.remove("dock-resizing"); s.removeEventListener("pointermove", follow); for (const t of ends) D.removeEventListener(t, stop, true); save(); try {globalThis.dispatchEvent(new Event("resize"));} catch {}};
+    s.addEventListener("pointermove", follow); for (const t of ends) D.addEventListener(t, stop, true);
   }
   function sashReset(s) {
     const kind = s.dataset.sash;
@@ -1040,8 +1045,9 @@ globalThis.AtriumDock = (() => {
     e.preventDefault(); try {bar.setPointerCapture?.(e.pointerId);} catch {}
     const sx = e.clientX - f.x, sy = e.clientY - f.y;
     const follow = m => {f.x = Math.max(0, Math.min(innerWidth - 60, m.clientX - sx)); f.y = Math.max(captionTop(), Math.min(innerHeight - 30, m.clientY - sy)); w.style.left = f.x + "px"; w.style.top = f.y + "px";};
-    const done = () => {bar.removeEventListener("pointermove", follow); bar.removeEventListener("pointerup", done); bar.removeEventListener("pointercancel", done); L.name = null; save();};
-    bar.addEventListener("pointermove", follow); bar.addEventListener("pointerup", done); bar.addEventListener("pointercancel", done);
+    // Ends with its capture, so a capture taken elsewhere does not leave the window following a hover.
+    const done = () => {bar.removeEventListener("pointermove", follow); for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) bar.removeEventListener(t, done); L.name = null; save();};
+    bar.addEventListener("pointermove", follow); for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) bar.addEventListener(t, done);
   }
   function floatKey(e) {
     const bar = e.target.closest?.(".dock-float-bar"); if (!bar || e.target !== bar) return;

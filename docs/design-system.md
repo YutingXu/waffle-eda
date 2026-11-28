@@ -77,7 +77,12 @@ pin-swap hint, the timing readout, the connection flash and the note editor over
 owner's layer through `ui/owner-layer.js` (`AtriumLayer.attach`, `at`, `clip`). It is never
 appended to the body at a high z-index: whatever is drawn over its owner then covers it too, and it is
 cut to the part of its owner that can be seen. Its own z-index only orders it among its owner's
-neighbours.
+neighbours. The layer can outlive the owner (a menu in a body portal closes, a row is replaced), so a
+decoration that must go with its owner says so (`AtriumLayer.watch(node, owner, leave)`, or `attach`
+with `{leave}`): `leave` runs as soon as the owner leaves the document, not on a later pointer event.
+A pointer drag ends when its capture ends (`pointerup`, `pointercancel` or `lostpointercapture`); one
+that keeps state outside its handle also listens on the document, where a removed handle's lost
+capture arrives.
 
 Numbers above 9 are not layers. `tests/maintenance/layer_lint.py` (run by `css-tokens.py`) rejects
 them, keeps `--z-top` and `--z-alert` to the surfaces named above, and requires every resize handle to
