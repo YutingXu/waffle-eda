@@ -339,9 +339,10 @@ input:is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected=ink] 
   max-block-size:min(var(--ui-dialog-max-height,min(78vh,720px)),var(--dialog-avail-h));
 }
 :where(dialog:is(.ui-dialog,.work-dialog,.message-dialog),#library-dialog)::backdrop {background:var(--backdrop)}
-/* Snap centered sheets in CSS without changing the native focus or top-layer behavior. */
+/* Snap centered sheets in CSS without changing the native focus or top-layer behavior. The palette, the quick
+   theme picker and the clipboard picker place themselves, so the centring translate would move them off their spot. */
 @supports (translate:round(down,-50%,1px)) {
-  :where(dialog.ui-dialog:modal:not(#palette,.thq-dialog)) {
+  :where(dialog.ui-dialog:modal:not(#palette,.thq-dialog,.clip-picker)) {
     inset:round(nearest,calc(var(--dialog-safe-top) + var(--dialog-avail-h) / 2),1px) auto auto round(nearest,50vw,1px);margin:0;
     translate:round(down,-50%,1px) round(down,-50%,1px);
     block-size:calc-size(auto,round(up,size,1px));

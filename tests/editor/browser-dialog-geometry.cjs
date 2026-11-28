@@ -19,7 +19,7 @@ const profiles = [
 ];
 const surfaces = '[data-geometry-surface]';
 const modal = 'dialog[open]:visible';
-const fixtureGroups = ["core", "native", "library", "canvas", "extensions", "review", "pcb-tools", "notebook", "automation", "workflows"];
+const fixtureGroups = ["core", "native", "library", "canvas", "extensions", "review", "pcb-tools", "notebook", "automation", "workflows", "narrow"];
 const platformPanels = [
   {platform:"macOS", source:"native/macos/main.swift", flow:"Native save confirmation, imported first Save, stale member decision and system file/directory pickers"},
   {platform:"Linux", source:"native/linux/waffle.py", flow:"GTK confirmation and system file/directory pickers"},

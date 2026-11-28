@@ -113,8 +113,7 @@
 .dv-insp-head{display:flex;gap:var(--s-6);align-items:flex-start}
 .dv-insp-head strong{font-weight:var(--fw-semibold);overflow-wrap:anywhere}
 .dv-insp-meta{margin:0;color:var(--muted);font-size:var(--fs-11)}
-/* Routing delta: one line per net, the pop-up as wide as the table (up to its max-width, then it scrolls). */
-.dv-pop:has(> .dv-route){width:max-content}
+/* Routing delta: one line per net; the pop-up is as wide as the table (up to its max-width, then it scrolls). */
 .dv-route th,.dv-route td{white-space:nowrap;overflow-wrap:normal}
 .dv-linked{display:grid;gap:var(--s-2);font-size:var(--fs-11)}
 .dv-linked > span{color:var(--muted)}
@@ -128,7 +127,8 @@
 .dv-topo-wire{fill:none;stroke:var(--warning);stroke-width:1.2}
 
 /* popovers, live region, picker, document menu */
-.dv-pop{position:absolute;z-index:var(--z-popover);min-width:260px;max-width:min(560px,90%);max-height:60%;overflow:auto;padding:var(--s-8) var(--s-12);display:grid;gap:var(--s-6)}
+/* Its own content sets the width, not the room right of the anchor, so the shared menu fit can move it whole. */
+.dv-pop{position:absolute;z-index:var(--z-popover);width:max-content;min-width:260px;max-width:min(560px,90%);max-height:60%;overflow:auto;padding:var(--s-8) var(--s-12);display:grid;gap:var(--s-6)}
 .dv-matches th,.dv-matches td:not(:last-child){white-space:nowrap}
 .dv-matches td.is-review{color:var(--warn-ink)}
 .dv-pop h3,.dv-pop h4{margin:0;font-size:var(--fs-12);font-weight:var(--fw-semibold)}

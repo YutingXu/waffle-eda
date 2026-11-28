@@ -310,7 +310,7 @@ globalThis.AtriumPCBSelectionInspector = (() => {
       const r = el("label", null, "pcb-edit-check"), n = el("input", null, "ui-field"); n.type = "number"; n.min = "2"; n.max = "40"; n.value = String(snapPrefs.radius); n.setAttribute("aria-label", "Snap distance in pixels");
       n.onchange = () => {changeSnap("radius", n.value); n.value = String(snapPrefs.radius);}; r.append(el("span", "Distance (px) "), n); pop.append(r);
       document.body.append(pop);
-      const b = anchor?.getBoundingClientRect?.(); if (b) { pop.style.left = Math.max(4, b.left) + "px"; pop.style.bottom = (innerHeight - b.top + 6) + "px"; }
+      const b = anchor?.getBoundingClientRect?.(); if (b) { pop.style.left = Math.max(4, b.left) + "px"; pop.style.bottom = (innerHeight - b.top + 6) + "px"; globalThis.AtriumWorkbench?.fitMenu?.(pop); }
       const listeners = new AbortController(), surface = globalThis.AtriumSurfaceMotion;
       function close(instant = false) {
         listeners.abort();

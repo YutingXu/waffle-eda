@@ -1544,7 +1544,7 @@ globalThis.AtriumDiffView = (() => {
           }
           tr.append(el("td",ref),el("td",doc?.name||""),conf,evidence);body.append(tr);
         }
-        list.append(table);prev.disabled=page===0;next.disabled=(page+1)*50>=rows.length;
+        list.append(table);prev.disabled=page===0;next.disabled=(page+1)*50>=rows.length;fitPop();
       }
       pop.append(el("h3", "Component matches", "ui-dialog-title"),list);
       if(rows.length>50)pop.append(prev,next);
@@ -1557,7 +1557,7 @@ globalThis.AtriumDiffView = (() => {
       const src = S.model.stats?.netlistSource;
       if (src) ul.append(el("li", T("diff.view.netlist_source", {before: src.before, after: src.after})));
       pop.append(ul, closeBtn);
-      pop.querySelector("button")?.focus(); return;
+      fitPop(); pop.querySelector("button")?.focus(); return;
     }
     if (kind === "routing") {
       const t = el("table", null, "dv-props dv-route"), hd = el("tr");
@@ -1684,7 +1684,10 @@ globalThis.AtriumDiffView = (() => {
     const surface = G.AtriumSurfaceMotion;
     if (surface) surface.popover(S.pop, open, {instant});
     else S.pop.hidden = !open;
+    if (open) fitPop();
   }
+  // Keep the placed popover inside the window (the shared menu fit). Its left comes fresh from the anchor.
+  function fitPop() { delete S.pop.dataset.fitX; G.AtriumWorkbench?.fitMenu?.(S.pop); }
   function hidePop() {
     setPop(false);
     S.popAnchor?.focus({preventScroll: true});
@@ -1774,7 +1777,7 @@ globalThis.AtriumDiffView = (() => {
       if (e.key === "Escape") { e.preventDefault(); m.remove(); back?.focus?.(); }
       else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); }
     });
-    document.body.append(m); m.querySelector("button").focus();
+    document.body.append(m); G.AtriumWorkbench?.fitMenu?.(m); m.querySelector("button").focus();
     setTimeout(() => document.addEventListener("pointerdown", function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener("pointerdown", off, true); } }, true), 0);
     return m;
   }
