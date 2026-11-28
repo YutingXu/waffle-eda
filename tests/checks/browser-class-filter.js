@@ -57,7 +57,8 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     assert.equal(control.position,rtl ? "12px, 16px" : "calc(100% - 16px), calc(100% - 12px)");
     assert.ok(near(filter.x,comparison.x) && near(filter.width,comparison.width),"Class and Designator share a control column");
     assert.ok(near(filter.height,28) && near(comparison.height,28));
-    assert.ok(near(control.row.height,touch ? 44 : 32)); // a property row: the field plus 2px above and below
+    // A property row is as tall as a field row plus 2 px above and below (docs/ui-library.md › Property rows).
+    assert.ok(near(control.row.height,touch ? 44 : 32),"property row height " + control.row.height);
     const readClass = async () => (await textBaselines(page,session,inspector))
       .find(item => item.control === "Component class filter");
     const text = await readClass();

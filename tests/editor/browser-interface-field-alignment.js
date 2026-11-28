@@ -134,8 +134,10 @@ async function surfaces(page, sample, profile) {
     await page.keyboard.press("Escape");
     await window.waitFor({state:"hidden"});
   }
-  // The docked Library has no heading of its own: its dock tab closes it.
+  // A closable dock tab takes over its panel header's Close (dock.css), so close through whichever shows:
+  // the dock tab's or the heading's.
   await click(page.locator('button:is([aria-label="Close Library"],[aria-label="Close the Library panel"]):visible').first());
+  await library.waitFor({state:"hidden"});
 
   await windowPanel(page,"nets",{touch:profile.touch});
   const nets = page.locator(".panel-nets:visible");
