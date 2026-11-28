@@ -1,7 +1,6 @@
 /* Route Suggestions (route-suggest.js, route-habits.js): the learned habits in Preferences › Routing › Suggestions.
    The ghost is drawn on the canvas and its chip lives in route-feel.js's head tip, so there is no floating element here. */
-.rs-habits {display:flex;flex-direction:column;gap:6px;margin-top:4px}
-.prf-card > .rs-habits {gap:8px;margin:0}
-.rs-habits-list {margin:0;padding:6px 8px 6px 22px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--raised);color:var(--text);
-  font-variant-numeric:tabular-nums;max-height:180px;overflow:auto}
-.rs-habits-list li {margin:2px 0}
+.rs-habits {display:flex;flex-direction:column;gap:var(--s-8);margin-top:var(--s-4)}
+.prf-card > .rs-habits {gap:var(--s-8);margin:0}
+.rs-habits-list {list-style:none;margin:0;padding:0;color:var(--ink);font-variant-numeric:tabular-nums;max-height:180px;overflow:auto}
+.rs-habits-list li {padding:var(--s-6) 0;border-top:1px solid var(--line)}

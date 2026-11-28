@@ -36,7 +36,7 @@ globalThis.AtriumPrefsControls = (() => {
   async function chooseHeld(held) {
     const boxes = held.map(([key, label]) => {
       const row = doc.createElement("label"), box = doc.createElement("input"), caption = doc.createElement("span");
-      row.className = "prf-row prf-check";
+      row.className = "ui-checkbox-row";
       box.className = "ui-checkbox";
       box.type = "checkbox";
       caption.textContent = label + " (" + key + ")";
@@ -122,7 +122,7 @@ globalThis.AtriumPrefsControls = (() => {
       const control = input.parentElement, unit = control.querySelector(".prf-unit");
       const label = (input.labels?.[0] || control.closest(".prf-row")?.querySelector("label"))?.textContent.trim() || input.getAttribute("aria-label");
       const box = doc.createElement("span"), value = doc.createElement("span");
-      box.className = "prf-stepper"; value.className = "prf-step-value";
+      box.className = "ui-stepper prf-stepper"; value.className = "ui-stepper-value prf-step-value";
       if (input.placeholder && input.dataset.defaultValue) {
         input.title = input.placeholder;
         input.placeholder = input.dataset.defaultValue;
@@ -144,10 +144,12 @@ globalThis.AtriumPrefsControls = (() => {
         value.append(unit);
       }
       box.append(value);
-      for (const [direction, text, action] of [[-1,"−","Decrease"], [1,"+","Increase"]]) {
-        box.append(AtriumUI.nativeButton(text, () => stepNumber(input, direction), "prf-step-button ui-stepper-button", null, {
-          variant:"quiet", ariaLabel:label ? action + " " + label : action
-        }));
+      for (const [direction, iconName, action] of [[-1, "minus", "Decrease"], [1, "plus", "Increase"]]) {
+        const step = AtriumUI.nativeButton(null, () => stepNumber(input, direction), "prf-step-button ui-stepper-button", null, {
+          variant:"quiet", ariaLabel:label ? action + " " + label : action, disabled:input.disabled || input.readOnly
+        });
+        step.append(AtriumNavCommon.icon(iconName));
+        box.append(step);
       }
       input.addEventListener("keydown", event => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;

@@ -93,11 +93,23 @@ globalThis.AtriumPrefsStorage = (() => {
   function render(group, api) {
     const r = api.el("div", "prf-row prf-link");
     r.dataset.search = "reset all settings defaults factory clear remembered";
-    r.append(api.button("Reset all settings…", () => {
-      if (typeof G.confirm === "function" && !G.confirm("Return every preference, the appearance, the panel layout and each tool's remembered settings to the defaults? Projects, libraries, fab profiles and the key map are kept.")) return;
+    const runReset = () => {
       const n = resetAll().length;
       G.AtriumPrefs?.open?.("general");
       G.AtriumNavHost?.info?.("Restored the default settings" + (n ? " and cleared " + n + " remembered tool settings" : "") + ". Open tools pick this up the next time they start.");
+    };
+    r.append(api.button("Reset all settings…", async () => {
+      const text = "Return every preference, the appearance, the panel layout and each tool's remembered settings to the defaults? Projects, libraries, fab profiles and the key map are kept.";
+      if (G.AtriumShell?.dialog) {
+        const accept = "Reset All Settings";
+        const warning = G.AtriumShell.dialog({title: "Reset all settings?", body: [api.el("p", null, text)],
+          actions: [{label: "Cancel", default: false}, {label: accept, variant: "danger", default: false}]});
+        if (await warning.done !== accept) return;
+        runReset();
+        return;
+      }
+      if (typeof G.confirm === "function" && !G.confirm(text)) return;
+      runReset();
     }, "prf-button"), api.el("small", "prf-help", "Projects, libraries, fab profiles and the key map are kept. Export first to keep a copy."));
     group.append(r);
   }

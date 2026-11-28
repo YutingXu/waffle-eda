@@ -256,16 +256,16 @@ globalThis.AtriumRouteHabits = (() => {
     ["routing.habitsScope", "Keep habits", null, [["user", "For me, across projects"], ["project", "Per project"]]]
   ];
   function renderPage(c, P, {el, group}) {
-    const status = (msg, bad) => { const s = c.closest?.("dialog")?.querySelector?.(".prf-status"); if (s) { s.textContent = msg || ""; s.classList.toggle("prf-error", !!bad); } };
+    const status = (msg, bad) => { const s = c.closest?.("dialog")?.querySelector?.(".prf-status"); if (s) { s.textContent = msg || ""; if (bad) s.dataset.tone = "danger"; else delete s.dataset.tone; } };
     const g = group(c, "Route Suggestions");
     for (const [key, label, help, options] of ROWS) {
       const id = "prf-" + key.replace(/\W/g, "-"), wrap = el("div", "prf-row"), cur = pref(key, PREF_DEFAULTS[key]);
       wrap.dataset.search = (label + " " + (help || "") + " " + key + " suggest suggestion ghost tab habits").toLowerCase();
       let input;
       if (!options) {
-        wrap.classList.add("prf-check"); input = el("input", "ui-checkbox"); input.type = "checkbox"; input.checked = cur !== false; input.id = id;
+        wrap.classList.add("prf-check"); input = el("input", "ui-switch"); input.type = "checkbox"; input.setAttribute("role", "switch"); input.checked = cur !== false; input.id = id;
         input.onchange = () => { try { P.set(key, input.checked); status(""); } catch (e) { status(e.message, true); } };
-        const l = el("label", "ui-checkbox-row"); l.htmlFor = id; l.append(input, el("span", null, label)); wrap.append(l);
+        const l = el("label", "ui-switch-row"); l.htmlFor = id; l.append(input, el("span", null, label)); wrap.append(l);
       } else {
         const l = el("label", "prf-label", label); l.htmlFor = id; input = el("select", "ui-field"); input.id = id;
         for (const [v, t] of options) { const o = el("option", null, t); o.value = v; input.append(o); }
@@ -293,7 +293,7 @@ globalThis.AtriumRouteHabits = (() => {
     const fill = () => { list.textContent = ""; for (const line of describe(load(project))) { const li = d.createElement("li"); li.textContent = line; list.append(li); } };
     fill();
     const bar = d.createElement("div"); bar.className = "prf-inline-actions";
-    const btn = (text, fn, title) => { const b = d.createElement("button"); b.type = "button"; b.textContent = text; if (title) b.title = title; b.onclick = fn; bar.append(b); return b; };
+    const btn = (text, fn, title) => { const b = d.createElement("button"); b.type = "button"; b.className = "ui-button"; b.textContent = text; if (title) b.title = title; b.onclick = fn; bar.append(b); return b; };
     btn("Reset habits", () => { reset(project); fill(); o.status?.("Routing habits reset to the defaults."); }, "Forget everything learned; suggestions go back to the rule defaults.");
     btn("Export…", () => { (globalThis.AtriumIO?.exportFile || (() => {}))("routing-habits.json", exportText(load(project))); }, "Save the profile as a JSON file (it is not part of the project).");
     btn("Import…", async () => {

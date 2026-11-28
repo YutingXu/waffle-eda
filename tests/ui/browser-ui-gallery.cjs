@@ -203,13 +203,32 @@ module.exports = async function gallery(browser) {
         await page.keyboard.press("Shift+Tab");
         await page.keyboard.press("Tab");
         const ring = await target.evaluate(n => {
-          const cs = getComputedStyle(n);
-          return n === document.activeElement && document.documentElement.dataset.focusNav === "keys" && (cs.outlineStyle !== "none" || cs.boxShadow !== "none");
+          const hasRing = el => { const cs = getComputedStyle(el); return cs.outlineStyle !== "none" || cs.boxShadow !== "none"; };
+          const frame = n.closest(".ui-stepper,.ui-field-measure");
+          return n === document.activeElement && document.documentElement.dataset.focusNav === "keys" && (hasRing(n) || (!!frame && hasRing(frame)));
         });
         if (!ring) rings.push(await target.evaluate(n => n.className));
       }
       await page.mouse.click(4, 4);
       failures.push(...rings.map(r => profile.name + ": no keyboard focus ring on " + r));
+      // Stepper minus/plus icons sit dead-centre inside their full-height buttons.
+      const stepperOff = await page.evaluate(() => {
+        const out = [];
+        for (const stepper of document.querySelectorAll("#ui-stepper .ui-stepper")) {
+          const box = stepper.getBoundingClientRect();
+          for (const btn of stepper.querySelectorAll(".ui-stepper-button")) {
+            const br = btn.getBoundingClientRect(), svg = btn.querySelector("svg.icon");
+            if (!svg) { out.push("missing icon in stepper button"); continue; }
+            const ir = svg.getBoundingClientRect();
+            const dy = (ir.top + ir.height / 2) - (br.top + br.height / 2);
+            const dx = (ir.left + ir.width / 2) - (br.left + br.width / 2);
+            if (Math.abs(dy) > 0.5 || Math.abs(dx) > 1) out.push(`stepper icon off-centre dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
+            if (Math.abs(br.height - (box.height - 2)) > 0.5) out.push(`stepper button height ${br.height} vs box ${box.height}`);
+          }
+        }
+        return out;
+      });
+      failures.push(...stepperOff.map(m => profile.name + ": " + m));
       // The computed face of every specimen root.
       styles[profile.name] = await page.evaluate(FACE => {
         const out = {};

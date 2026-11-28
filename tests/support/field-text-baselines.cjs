@@ -169,12 +169,12 @@ function collect(root, {selector, source}) {
     if (structure === "centred") {
       let row = named.text.node;
       while (row && !row.contains(node)) row = row.parentElement;
-      const outer = row.getBoundingClientRect(), field = (node.closest(".prf-stepper") || node).getBoundingClientRect();
+      const outer = row.getBoundingClientRect(), field = (node.closest(".ui-stepper,.prf-stepper") || node).getBoundingClientRect();
       centreOffset = field.top + field.height / 2 - (outer.top + outer.height / 2);
     }
-    const unitScope = node.closest(".ui-field-measure,.prf-step-value");
+    const unitScope = node.closest(".ui-field-measure,.ui-stepper-value,.prf-step-value");
     const unit = unitScope && painted(unitScope.querySelector(".ui-field-unit,.prf-unit"), node, "[hidden],.sr-only,.visually-hidden");
-    const stepper = node.closest(".prf-stepper"), frame = stepper ? stepper.getBoundingClientRect() : box;
+    const stepper = node.closest(".ui-stepper,.prf-stepper"), frame = stepper ? stepper.getBoundingClientRect() : box;
     mirror.pairs[index] = {control:node, frame:stepper || node, caption:named?.text.textNode, unit:unit?.textNode};
     const boxData = {top:frame.top,bottom:frame.bottom,left:frame.left,right:frame.right};
     const family = segmented ? "segmented" : node.matches("select") ? "native-select" :

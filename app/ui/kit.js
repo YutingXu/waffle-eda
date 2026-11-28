@@ -113,6 +113,86 @@ globalThis.AtriumUIKit = (() => {
     row.append(input, el("span", "ui-field-unit", unit));
     return row;
   }
+  function stepNumeric(input, direction) {
+    if (input.disabled || input.readOnly) return;
+    const editing = input.type !== "number", N = globalThis.AtriumNumericFields;
+    if (editing && N?.draft?.(input) && !Number.isFinite(Number(input.value))) {
+      N.commitField(input).then(ok => { if (ok && input.isConnected) stepNumeric(input, direction); });
+      return;
+    }
+    const native = editing ? Object.assign(doc.createElement("input"), {
+      type: "number", min: input.min, max: input.max, step: input.step, value: input.value
+    }) : input;
+    const current = native.valueAsNumber, fallback = Number(input.dataset.defaultValue ?? 0);
+    if (!Number.isFinite(current)) native.value = String(fallback);
+    if (native.step === "any") {
+      const increment = Number(input.dataset.increment) || 1;
+      const lo = input.min === "" ? -Infinity : Number(input.min), hi = input.max === "" ? Infinity : Number(input.max);
+      const next = Number((native.valueAsNumber + direction * increment).toPrecision(12));
+      native.value = String(Math.max(lo, Math.min(hi, next)));
+    } else if (direction > 0) native.stepUp();
+    else native.stepDown();
+    if (editing) input.value = native.value;
+    input.dispatchEvent(new Event("input", {bubbles: true}));
+    input.dispatchEvent(new Event("change", {bubbles: true}));
+  }
+  /** A numeric stepper: .ui-stepper holding .ui-stepper-value (number input + optional unit) and
+   *  centred − / + .ui-stepper-button controls. Returns the wrapper with .input, .decrease, .increase. */
+  function stepper({value = "", min, max, step = "1", increment, defaultValue, unit, label, placeholder,
+    invalid, disabled, readOnly, onInput, onChange} = {}) {
+    const input = /** @type {HTMLInputElement} */ (el("input", "ui-field"));
+    input.type = "number"; input.value = String(value);
+    if (min != null) input.min = String(min);
+    if (max != null) input.max = String(max);
+    if (step != null) input.step = String(step);
+    if (increment != null) input.dataset.increment = String(increment);
+    if (defaultValue != null) input.dataset.defaultValue = String(defaultValue);
+    if (placeholder != null) input.placeholder = String(placeholder);
+    if (label) input.setAttribute("aria-label", label);
+    if (invalid) input.setAttribute("aria-invalid", "true");
+    if (disabled) input.disabled = true;
+    if (readOnly) input.readOnly = true;
+    if (onInput) input.addEventListener("input", () => onInput(input.value, input));
+    if (onChange) input.addEventListener("change", () => onChange(input.value, input));
+    return adoptStepper(input, {unit, label});
+  }
+  /** Wrap an existing numeric input in .ui-stepper with optional unit and − / + buttons. */
+  function adoptStepper(input, {unit, label, boxClass = "", valueClass = "", buttonClass = ""} = {}) {
+    const name = label || input.getAttribute("aria-label") || "";
+    const box = el("span", ("ui-stepper " + boxClass).trim());
+    const value = el("span", ("ui-stepper-value " + valueClass).trim());
+    if (input.parentNode) input.replaceWith(box);
+    value.append(input);
+    if (unit) {
+      const unitNode = typeof unit === "string" ? el("span", "ui-field-unit", unit) : unit;
+      unitNode.classList.add("ui-field-unit");
+      if (input.id && !unitNode.id) unitNode.id = input.id + "-unit";
+      if (unitNode.id) input.setAttribute("aria-describedby", [unitNode.id, input.getAttribute("aria-describedby")].filter(Boolean).join(" "));
+      value.append(unitNode);
+    }
+    box.append(value);
+    const buttons = [[-1, "minus", "Decrease"], [1, "plus", "Increase"]].map(([direction, iconName, action]) => {
+      const b = globalThis.AtriumUI.nativeButton(null, () => stepNumeric(input, direction),
+        ("ui-stepper-button " + buttonClass).trim(), null, {
+          variant: "quiet",
+          ariaLabel: name ? action + " " + name : action,
+          disabled: input.disabled || input.readOnly
+        });
+      b.append(icon(String(iconName)));
+      box.append(b);
+      return b;
+    });
+    input.addEventListener("keydown", event => {
+      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+      if (event.key === "Enter") { input.dispatchEvent(new Event("change", {bubbles: true})); return; }
+      const direction = ({"+": 1, "-": -1, ArrowUp: 1, ArrowDown: -1})[event.key];
+      const operator = event.key === "+" || event.key === "-";
+      if (!direction || operator && globalThis.AtriumNumericFields?.draft?.(input) ||
+        event.key === "-" && !input.value && Number(input.min) < 0) return;
+      event.preventDefault(); stepNumeric(input, direction);
+    });
+    return Object.assign(box, {input, decrease: buttons[0], increase: buttons[1]});
+  }
   /** Nullable engineering number. Blank stays null, explicit zero stays 0, and the callback runs from onchange. */
   function nullableNumber(value, onValue, {label, unit, min, placeholder} = {}) {
     const input = field({type: "number", value: value == null ? "" : value, placeholder, label});
@@ -535,7 +615,7 @@ globalThis.AtriumUIKit = (() => {
   doc?.addEventListener?.("change", segmentSlide);
   globalThis.AtriumLazy?.need?.("AtriumMotionUI")?.catch?.(() => {});
 
-  return {el, icon, button, iconButton, closeButton, chip, chips, badge, count, dot, field, nullableNumber, analysisField, select, switchRow, checkbox, radioGroup,
+  return {el, icon, button, iconButton, closeButton, chip, chips, badge, count, dot, field, stepper, adoptStepper, nullableNumber, analysisField, select, switchRow, checkbox, radioGroup,
     segmented, tabs, search, adoptSearch, section, propRow, row, list, analysisTable, toolbar, notice, empty, progress, spinner, statusLine, thumb, pager, steps, diff,
     avatar, overlayLabel,
     splitter, dragHandle, dropState, turn, cite, recording, panel};

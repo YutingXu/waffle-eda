@@ -33,6 +33,7 @@ FAMILIES = [
      r"(?:icon-button|tool|[a-z0-9]+-(?:icon-btn|tool|icon-button))"),
     ("close", "Close buttons", "`.ui-close`, `AtriumUIKit.closeButton`", r"ui-close|closeButton\(", r"[a-z0-9-]+-close"),
     ("field", "Text and number fields with units", "`.ui-field`, `.ui-field-measure`, `.ui-field-unit`", r"ui-field", r"[a-z0-9]+-(?:input|field|unit)"),
+    ("stepper", "Steppers", "`.ui-stepper`, `.ui-stepper-value`, `.ui-stepper-button`, `AtriumUIKit.stepper`", r"ui-stepper|\.stepper\(|\.adoptStepper\(", r"[a-z0-9]+-stepper"),
     ("select", "Selects", "every native single-line `<select>`; `ui/dialog.js` routes it to `AtriumSelectPopup`", r"AtriumSelectPopup|ui-select-list|[\"']select[\"']|<select", r"[a-z0-9]+-select"),
     ("switch", "Switches", "`label.ui-switch-row > input.ui-switch[role=switch]`", r"ui-switch", r"[a-z0-9]+-(?:switch|toggle)"),
     ("checkbox", "Checkboxes", "`.ui-checkbox`, `.ui-checkbox-row`", r"ui-checkbox", r"[a-z0-9]+-(?:check|checkbox)"),

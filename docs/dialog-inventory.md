@@ -146,6 +146,7 @@ Design Rule Check results appear in the Messages dock. The Dock surface inventor
 | app/formats/import-save-view.js | shell | 1 | First Save for imported Altium, KiCad, EAGLE and EasyEDA designs |
 | app/project/native-member-ui.js | shell | 1 | Standalone library component details and editing |
 | app/editor/prefs-controls.js | shell | 2 | Confirm Restore Defaults and enable selected settings from imports |
+| app/editor/prefs-storage.js | shell | 1 | Confirm Reset all settings |
 | app/project/project-connections.js | shell | 1 | Project connections |
 | app/formats/release-odb.js | shell | 1 | ODB++ fidelity report (butter.odb) |
 | app/analysis/sim-menu.js | shell | 1 | Simulate |

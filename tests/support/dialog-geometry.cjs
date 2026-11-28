@@ -107,7 +107,7 @@ async function fields(page, session, scope) {
         node.closest("dialog,[role=dialog]").contains(root))).map((node, index) => {
       node.dataset.geometryField = index;
       const box = node.getBoundingClientRect(), style = getComputedStyle(node);
-      const stepper = node.closest(".prf-stepper");
+      const stepper = node.closest(".ui-stepper,.prf-stepper");
       // In a property row the unit sits inside the field, so the measure draws the box and the input has none.
       const boxed = stepper || node.closest(".ui-prop-row > .ui-field-measure");
       const visualField = boxed ? boxed.getBoundingClientRect() : box;

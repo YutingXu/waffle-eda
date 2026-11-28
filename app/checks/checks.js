@@ -944,9 +944,9 @@ globalThis.AtriumChecks = (() => {
       render(c, api) {
         const g = api.group(c, t("checks.pref.live"));
         const row = api.el("div", "prf-row prf-check"); row.dataset.search = t("checks.pref.live_erc").toLowerCase();
-        const box = api.el("input"); box.type = "checkbox"; box.id = "prf-checks-live-erc"; box.checked = liveOn();
+        const box = api.el("input", "ui-switch"); box.type = "checkbox"; box.setAttribute("role", "switch"); box.id = "prf-checks-live-erc"; box.checked = liveOn();
         box.onchange = () => P.set("checks.liveErc", box.checked);
-        const l = api.el("label"); l.htmlFor = box.id; l.append(box, api.el("span", null, t("checks.pref.live_erc"))); row.append(l);
+        const l = api.el("label", "ui-switch-row"); l.htmlFor = box.id; l.append(box, api.el("span", null, t("checks.pref.live_erc"))); row.append(l);
         const r = api.el("div", "prf-row"); r.dataset.search = t("checks.pref.live_severity").toLowerCase();
         const label = api.el("label", "prf-label", t("checks.pref.live_severity")), s = api.el("select", "ui-field"); s.id = "prf-checks-live-severity"; label.htmlFor = s.id;
         for (const [v, text] of [["hint", t("checks.pref.live_hint")], ["real", t("checks.pref.live_real")]]) { const o = api.el("option", null, text); o.value = v; s.append(o); }

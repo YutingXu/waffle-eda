@@ -59,7 +59,6 @@
   --ui-button-border:transparent;
   --ui-button-hover:var(--hover);
 }
-.ui-button.ui-stepper-button {align-self:stretch;min-block-size:0;padding:0;border:0;border-inline-start:1px solid var(--line);border-radius:0}
 :where(.ui-button[data-variant=danger]) {
   --ui-button-fill:var(--danger-fill);
   --ui-button-border:var(--danger-fill);
@@ -69,7 +68,7 @@
   --ui-control-focus:var(--on-danger);
 }
 
-:root {--field-height:28px;--field-number-width:80px;--ui-switch-w:34px}
+:root {--field-height:28px;--field-number-width:80px;--field-stepper-width:132px;--ui-switch-w:34px}
 
 /* One text Field also covers the ordinary form controls of adopted dialogs. */
 :where(.ui-field:not([data-field-face=paper]),#inspector :is(input,select),:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select) {
@@ -146,6 +145,95 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 }
 :where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea)[readonly]:not(:disabled) {
   border-color:transparent;background-color:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink);
+}
+
+/* Numeric stepper: a compact field with an optional unit inside the well and trailing − / + buttons.
+   The box owns the field face, focus ring, disabled/read-only and invalid states so the inner input
+   stays borderless and both buttons stretch to the full box height with centred icons. */
+:where(.ui-stepper) {
+  box-sizing:border-box;
+  display:inline-grid;
+  grid-template-columns:minmax(0,1fr) var(--ctl-h) var(--ctl-h);
+  align-items:stretch;
+  flex:none;
+  inline-size:var(--ui-stepper-width,var(--field-stepper-width));
+  min-block-size:var(--field-height);
+  border:1px solid var(--input-line);
+  border-radius:var(--chrome-control-radius);
+  background-color:var(--field);
+  color:var(--ink);
+  font:var(--fs-12)/var(--lh) var(--font-ui);
+  overflow:hidden;
+}
+:where(.ui-stepper-value) {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:baseline;
+  align-content:center;
+  column-gap:var(--s-6);
+  min-inline-size:0;
+  padding-inline:var(--s-8);
+}
+:where(.ui-stepper > .ui-stepper-value > input) {font:var(--fs-12)/var(--lh) var(--font-ui)}
+.ui-stepper > .ui-stepper-value > input {
+  appearance:textfield;
+  flex:1 1 3ch;
+  inline-size:0;
+  min-inline-size:0;
+  min-block-size:0;
+  block-size:calc(var(--field-height) - 2px);
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:inherit;
+  text-align:end;
+  font-variant-numeric:tabular-nums;
+}
+.ui-stepper > .ui-stepper-value > input::-webkit-inner-spin-button,
+.ui-stepper > .ui-stepper-value > input::-webkit-outer-spin-button {appearance:none;margin:0}
+.ui-stepper > .ui-stepper-value > input:is(:disabled,[readonly]) {border:0;background:transparent}
+.ui-stepper > .ui-stepper-value > input:disabled {color:var(--muted);-webkit-text-fill-color:var(--muted)}
+.ui-stepper > .ui-stepper-value > input:focus-visible {outline:0}
+.ui-stepper > .ui-stepper-value > .ui-field-unit {
+  flex:none;
+  max-inline-size:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.ui-button.ui-stepper-button {
+  --ui-button-hover:var(--button-face-hover,var(--hover));
+  --ui-button-active:var(--button-face-pressed,var(--pressed));
+  display:inline-grid;
+  place-items:center;
+  align-self:stretch;
+  min-inline-size:0;
+  min-block-size:0;
+  padding:0;
+  border:0;
+  border-inline-start:1px solid var(--line);
+  border-radius:0;
+  color:var(--ink);
+}
+.ui-button.ui-stepper-button > .icon {inline-size:var(--chrome-glyph-dense);block-size:var(--chrome-glyph-dense)}
+.ui-button.ui-stepper-button:active:not(:disabled) {background:var(--ui-button-active)}
+.ui-stepper:has(> .ui-stepper-value > input:focus-visible) {
+  outline:var(--focus-w) solid var(--focus);
+  outline-offset:calc(-1 * var(--focus-w));
+}
+.ui-stepper:has(> .ui-stepper-value > input:is([aria-invalid=true],:user-invalid)) {border-color:var(--error)}
+.ui-stepper:has(> .ui-stepper-value > input[data-edit-rejected]) {border-color:var(--ui-field-error,var(--err-mark))}
+.ui-stepper:has(> .ui-stepper-value > input[data-edit-rejected=ink]) {--ui-field-error:var(--error-ink);color:var(--ui-field-error)}
+.ui-stepper:has(> .ui-stepper-value > input:disabled) {
+  border-color:var(--line);
+  background-color:color-mix(in srgb,var(--field) 55%,var(--soft));
+  color:var(--muted);
+}
+.ui-stepper:has(> .ui-stepper-value > input:disabled) > .ui-stepper-button {opacity:.45;pointer-events:none}
+.ui-stepper:has(> .ui-stepper-value > input[readonly]:not(:disabled)) {
+  border-color:transparent;
+  background-color:color-mix(in srgb,var(--ink) 6%,transparent);
 }
 
 @media (forced-colors:active) {

@@ -47,15 +47,14 @@
 }
 .prf-window-head {display:flex;align-items:center;flex:none;gap:8px;min-block-size:52px;padding-inline:4px}
 .work-dialog.prf-dialog .prf-title {flex:1;margin:0;font:600 var(--fs-13)/18px var(--font-ui)}
-.work-dialog .prf-window-head .prf-close {inline-size:28px;min-block-size:28px;justify-content:center;padding:0}
-.prf-close .icon {inline-size:14px;block-size:14px}
+.work-dialog .prf-window-head .prf-close {inline-size:28px;min-block-size:28px}
 @media(hover:hover) and (pointer:fine) {.prf-window-head {cursor:move;user-select:none}}
 .prf-search-box {flex:none}
 .prf-nav ul {list-style:none;margin:0;padding:0}
 .prf-page-groups {overflow:auto;min-block-size:0}
 .prf-nav-label {padding:14px 8px 4px;color:var(--muted);font:600 var(--fs-11)/14px var(--font-ui)}
 .prf-page-picker {display:none}
-.work-dialog .prf-nav button:not(.ui-search *) {
+.work-dialog .prf-nav .prf-nav-item {
   --ui-control-focus:var(--focus);--ui-button-hover:var(--ui-button-fill);
   display:flex;gap:8px;inline-size:100%;min-block-size:28px;padding:0 8px;
   border:0;text-align:start;font-size:var(--fs-13);transition:none;
@@ -78,9 +77,8 @@
 .prf-page-section[hidden] {display:none}
 .prf-dialog .prf-page-title {margin:0;font:600 calc(var(--fs-20) * 1.1)/28px var(--font-ui);letter-spacing:-.01em}
 .work-dialog .prf-restore-link {
-  min-block-size:28px;flex:none;padding:0 4px;border:0;background:transparent;color:var(--accent);
+  min-block-size:28px;flex:none;color:var(--accent-text);
 }
-.work-dialog .prf-restore-link:hover {background:transparent;text-decoration:underline}
 .prf-dialog :is(.prf-heading,.prf-appearance .thp-group > .thp-heading) {
   margin:0 0 var(--s-8);padding:0;font:600 var(--fs-16)/22px var(--font-ui);
 }
@@ -126,24 +124,8 @@
 .prf-row:not(.prf-link):has(> .prf-help:only-child) {min-block-size:var(--prf-row-height);padding-block:var(--s-8)}
 .prf-row:not(.prf-link) > .prf-help:only-child {grid-area:1 / 1 / auto / -1}
 .prf-check > .prf-help {grid-area:2 / 1;margin-inline-end:calc(var(--ui-switch-w) + var(--s-8))}
-.prf-stepper {
-  display:grid;grid-template-columns:minmax(0,1fr) 24px 24px;align-items:baseline;box-sizing:border-box;flex:none;
-  inline-size:var(--prf-stepper-width);min-block-size:var(--field-height);border:1px solid var(--input-line);border-radius:var(--r-lg);background:var(--field);
-}
-.prf-stepper:focus-within {outline:1px solid var(--focus);outline-offset:-1px}
-.prf-step-value {
-  display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;align-content:center;column-gap:var(--s-6);
-  min-inline-size:0;padding-inline:var(--s-8);
-}
-.prf-step-value input:is([type=number],[data-numeric-native]) {
-  appearance:textfield;flex:1 1 3ch;inline-size:0;min-inline-size:0;min-block-size:0;
-  block-size:calc(var(--field-height) - 2px);padding:0;border:0;
-  background:transparent;text-align:end;font-variant-numeric:tabular-nums;
-}
-.prf-step-value input::-webkit-inner-spin-button,.prf-step-value input::-webkit-outer-spin-button {appearance:none;margin:0}
-.prf-step-value .prf-unit {
-  flex:none;max-inline-size:100%;overflow-wrap:anywhere;color:var(--muted);font-size:var(--fs-11);line-height:var(--prf-help-line);
-}
+.prf-stepper {--ui-stepper-width:var(--prf-stepper-width)}
+.prf-step-value .prf-unit {line-height:var(--prf-help-line)}
 .prf-button {justify-self:start}
 .prf-note {color:var(--muted);margin:0}
 .prf-inline-actions {display:flex;gap:8px;flex-wrap:wrap}
@@ -168,8 +150,7 @@
 .prf-appearance .thp-field:has(> .thp-hint) > :not(.thp-label,.thp-hint) {grid-row:1 / span 2}
 .prf-appearance .thp-field > select {inline-size:100%;font-size:var(--fs-13);line-height:var(--prf-caption-line)}
 .prf-appearance .thp-status:empty {display:none}
-.prf-status {min-height:18px;color:var(--muted);font-size:var(--fs-11);margin:0;padding:6px 16px 0}
-.prf-status.prf-status-error {color:var(--error-ink)}
+.prf-status {margin:0;padding:var(--s-6) var(--s-16) 0}
 .prf-row[hidden],.prf-group[hidden],.prf-reset[hidden],.prf-page-body [data-search][hidden],.prf-card [hidden] {display:none}
 .prf-status:empty {display:none}
 
@@ -188,13 +169,12 @@
 .prf-row[data-modified] :is(.prf-label, label > span) {padding-inline-end:52px}
 .work-dialog .prf-reset {
   position:absolute;inset-inline-end:calc(var(--prf-control-width) + 12px);inset-block-start:50%;transform:translateY(-50%);
-  min-block-size:22px;padding:0 4px;border:0;background:none;color:var(--accent-text);border-radius:var(--r-md);
+  padding-inline:var(--s-4);color:var(--accent-text);
 }
 .work-dialog .prf-check .prf-reset {z-index:1;inset-inline-end:calc(var(--ui-switch-w) + var(--s-8))}
-.work-dialog .prf-reset:hover {background:none;text-decoration:underline}
 .prf-dialog .prf-page-body.prf-enter {animation:atrium-fade var(--motion-fast) var(--ease-decelerate)}
 @media (hover:hover) and (pointer:fine) {
-  .work-dialog .prf-nav button:not(.ui-search *,[aria-current=page]) {--ui-button-hover:var(--hover)}
+  .work-dialog .prf-nav .prf-nav-item:not([aria-current=page]) {--ui-button-hover:var(--hover)}
   .prf-reset {opacity:0;pointer-events:none;transition:opacity var(--motion-instant) var(--ease-decelerate)}
   .prf-row:is(:hover,:focus-within) .prf-reset {opacity:1;pointer-events:auto}
 }
@@ -220,5 +200,5 @@
 }
 @media (any-pointer:coarse) {
   .prf-dialog {resize:none}
-  .work-dialog .prf-nav button:not(.ui-search *) {min-block-size:var(--ctl-h-touch)}
+  .work-dialog .prf-nav .prf-nav-item {min-block-size:var(--ctl-h-touch)}
 }

@@ -79,7 +79,7 @@ globalThis.AtriumPower = (() => {
           const g = api.group(c, "Efficiency"), row = api.el("div", "prf-row");
           row.dataset.search = "efficiency energy power saving low power mode energy saver battery saver power saver animation background";
           const label = api.el("label", "prf-label", "Efficiency mode"); label.htmlFor = "prf-energy-efficiency";
-          const sel = api.el("select"); sel.id = "prf-energy-efficiency";
+          const sel = api.el("select", "ui-field"); sel.id = "prf-energy-efficiency";
           for (const [v, t] of [["auto", "Automatic"], ["always", "Always"], ["off", "Off"]]) { const o = api.el("option", null, t); o.value = v; sel.append(o); }
           sel.value = mode();
           const now = api.el("small", "prf-help"), show = () => { now.textContent = efficient() ? "In effect now." : "Not in effect now."; };

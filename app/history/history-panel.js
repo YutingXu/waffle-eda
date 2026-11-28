@@ -555,7 +555,7 @@ globalThis.AtriumHistoryPanel = (() => {
       const input = api.el("input", "ui-field"); input.type = "number"; input.id = "prf-undo-mb"; input.min = "8"; input.max = "2048"; input.step = "8";
       input.value = String(G.AtriumPref?.get?.("history.undoBudgetMB", 64) ?? 64);
       input.onchange = () => { const v = Math.min(2048, Math.max(8, Math.round(+input.value) || 64)); P.set("history.undoBudgetMB", v); input.value = String(v); };
-      const ctl = api.el("span", "prf-control"); ctl.append(input, api.el("span", "prf-unit", "MB"));
+      const ctl = api.el("span", "prf-control"); ctl.append(input, api.el("span", "ui-field-unit prf-unit", "MB"));
       const help = api.el("small", "prf-help", "Oldest steps drop first. Default 64 MB.");
       help.id = input.id + "-help"; input.setAttribute("aria-describedby", help.id);
       n.append(l, ctl, help);

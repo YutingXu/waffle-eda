@@ -514,12 +514,12 @@ globalThis.AtriumCamera = (() => {
       ctl.append(s); w.append(l, ctl); helpText(w, s, help); return s;
     }
     function check(g, key, label, help) {
-      const w = wrap(g, label, help, key), id = "cam-" + key.replace(/\W/g, "-"), i = el("input", "ui-checkbox"), l = el("label", "ui-checkbox-row");
-      w.classList.add("prf-check"); i.type = "checkbox"; i.id = id; i.checked = !!cfg[key]; i.onchange = () => setPref(key, i.checked);
+      const w = wrap(g, label, help, key), id = "cam-" + key.replace(/\W/g, "-"), i = el("input", "ui-switch"), l = el("label", "ui-switch-row");
+      w.classList.add("prf-check"); i.type = "checkbox"; i.setAttribute("role", "switch"); i.id = id; i.checked = !!cfg[key]; i.onchange = () => setPref(key, i.checked);
       l.htmlFor = id; l.append(i, el("span", null, label)); w.append(l); helpText(w, i, help); return i;
     }
     function range(g, key, label, help) {
-      const w = wrap(g, label, help, key), id = "cam-" + key.replace(/\W/g, "-"), l = el("label", "prf-label", label), i = el("input"), out = el("output", "prf-unit"), ctl = el("span", "prf-control");
+      const w = wrap(g, label, help, key), id = "cam-" + key.replace(/\W/g, "-"), l = el("label", "prf-label", label), i = el("input"), out = el("output", "ui-field-unit prf-unit"), ctl = el("span", "prf-control");
       const [lo, hi] = RANGES[key];
       i.type = "range"; i.id = l.htmlFor = id; i.min = String(lo * 100); i.max = String(hi * 100); i.step = "5"; i.value = String(Math.round(cfg[key] * 100));
       out.textContent = i.value + "%"; i.oninput = () => { out.textContent = i.value + "%"; setPref(key, +i.value / 100); };
@@ -544,7 +544,7 @@ globalThis.AtriumCamera = (() => {
       "Pan when the pointer rests at a canvas edge.");
     const K = globalThis.AtriumKeymap, rts = wrap(cg, "RTS camera keys WASD preset", "W A S D pan; Altium's W and A, S, D sequences move aside (E, G and E, S keep align and select)");
     rts.classList.add("prf-link");
-    const rb = el("button", "prf-button"); rb.type = "button";
+    const rb = el("button", "ui-button prf-button"); rb.type = "button";
     const label = () => { rb.textContent = K?.preset?.() === "rts" ? "Use the Altium-style keys" : "Use the RTS camera keys (WASD)"; };
     rb.onclick = () => { try { K.setPreset(K.preset() === "rts" ? "altium" : "rts"); } catch {} label(); edgeSync(); };
     label();
@@ -565,7 +565,7 @@ globalThis.AtriumCamera = (() => {
     }
     kg.append(list);
     const r = wrap(kg, "Keyboard shortcuts", "rebind"); r.classList.add("prf-link");
-    const kb = el("button", "prf-button", "Keyboard shortcuts…"); kb.type = "button"; kb.onclick = () => { try { K?.open?.({kind: host()?.doc?.()?.kind}); } catch {} };
+    const kb = el("button", "ui-button prf-button", "Keyboard shortcuts…"); kb.type = "button"; kb.onclick = () => { try { K?.open?.({kind: host()?.doc?.()?.kind}); } catch {} };
     r.append(kb, el("small", "prf-help", "Every camera key can be rebound."));
   }
 
