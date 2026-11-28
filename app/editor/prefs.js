@@ -99,6 +99,8 @@ globalThis.AtriumPrefs = (() => {
   function reset(keys) {
     for (const k of keys || Object.keys(values)) if (k in values && globalThis.AtriumLabs?.permits(k, DEFAULTS[k]) !== false) { const old = values[k]; delete values[k]; save(); emit(k, get(k), old); }
   }
+  // AtriumPrefsStorage keys an import or Reset all changed.
+  function stored(keys) { for (const k of keys) { let v = null; try { v = JSON.parse(storage?.getItem(k)); } catch {} emit(k, v); } }
   function on(prefix, fn) {
     const l = typeof prefix === "function" ? {fn: prefix, prefix: ""} : {fn, prefix: String(prefix || "")};
     listeners.add(l);
@@ -249,7 +251,7 @@ globalThis.AtriumPrefs = (() => {
       if (key === "general.efficiency") return page.id === "display";
       return parts.some(p => p.resetKeys?.includes(key) ?? key.startsWith(p.id + "."));
     }));
-    for (const p of parts) p.reset?.(); // a page's own state (Toolbars: flyout faces)
+    for (const p of parts) p.reset?.();
     if (page.id === "appearance") globalThis.AtriumTheme?.reset?.();
     if (page.id === "keyboard") globalThis.AtriumKeymap?.setPreset?.("altium");
   }
@@ -507,7 +509,7 @@ globalThis.AtriumPrefs = (() => {
     if (data.keymap) try { const p = globalThis.AtriumKeymap.importJSON(data.keymap); applied.push("key map"); if (p?.length) skipped.push(...p); } catch (e) { skipped.push("key map (" + e.message + ")"); }
     if (data.layout && typeof data.layout === "object") {
       let n = 0;
-      for (const [k, key] of Object.entries(LAYOUT)) if (k in data.layout) try { storage?.setItem(key, JSON.stringify(data.layout[k])); n++; } catch {}
+      for (const [k, key] of Object.entries(LAYOUT)) if (k in data.layout) try { storage?.setItem(key, JSON.stringify(data.layout[k])); n++; stored([key]); } catch {}
       const V = globalThis.AtriumPCBAppearance, view = data.layout.pcbView;
       if (V && view && typeof view === "object") try {
         V.reset();
@@ -811,13 +813,13 @@ globalThis.AtriumPrefs = (() => {
       add("import-vscode-keybindings", "Import VS Code keybindings…", () => vscode("keysDialog"));
       add("export-settings", "Export settings…", exportAll);
       add("import-settings", "Import settings…", () => { importAll(); });
-      add("customise-active-bar", "Customise Active Bar…", () => AtriumLazy.need("AtriumActiveBarMenu").then(() => open("toolbars")), undefined, "View"); // bars.js: the page
+      add("customise-active-bar", "Customise Active Bar…", () => open("toolbars"), undefined, "View");
       globalThis.AtriumNavCommon?.menuItem("file", "new-from-template", "New from Template…", {after: "new"});
       globalThis.AtriumAutosave?.launchHome?.(() => openStartPage({launch:true}));
     };
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", ready, {once: true}); else ready();
   }
-  return Object.freeze({STORE, FORMAT, VERSION, DEFAULTS, READERS, GUARDED, get, set, on, reset, changed, exportJSON, importJSON, sheetDefaults, registerPage,
+  return Object.freeze({STORE, FORMAT, VERSION, DEFAULTS, READERS, GUARDED, get, set, on, stored, reset, changed, exportJSON, importJSON, sheetDefaults, registerPage,
     junctions, exportSettings, importSettings, scrub, extend,
     pages: () => catalog().map(p => ({id: p.id, title: p.title})), open, close, openStartPage, newProject,
     // Tests: reload from storage.

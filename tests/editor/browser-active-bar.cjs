@@ -611,18 +611,24 @@ async function facesFollowGroups(browser) {
 async function facesFollowSettings(browser) {
   const page = await open(browser);
   try {
+    // The reviewer's case: the default bar, no stored preference at all, one face chosen from a flyout.
     const reset = await page.evaluate(async () => {
+      const P = await AtriumLazy.need("AtriumPrefs"); P.reset();
       await AtriumLazy.need("AtriumActiveBarMenu");
-      localStorage.setItem("atrium.bar-faces", JSON.stringify({schematic:{select:"pan"}})); AtriumBars.render();
-      const before = document.querySelector("#tools > :first-child").dataset.action;
+      AtriumActiveBar.open(document.querySelector('#tools [data-action="select"]'));
+      for (let i = 0; i < 40 && !document.querySelector("#active-bar-flyout [role=menuitem]"); i++) await new Promise(r => setTimeout(r, 50));
+      [...document.querySelectorAll("#active-bar-flyout [role=menuitem]")].find(b => b.getAttribute("aria-label") === "Pan").click();
+      await new Promise(r => setTimeout(r, 100));
+      const prefs = Object.keys(P.changed()).length, before = document.querySelector("#tools > :first-child").dataset.action;
       (await AtriumLazy.need("AtriumPrefsStorage")).resetAll();
       await new Promise(r => setTimeout(r, 100));
-      return [before, localStorage.getItem("atrium.bar-faces"), document.querySelector("#tools > :first-child").dataset.action];
+      return [prefs, before, localStorage.getItem("atrium.bar-faces"), document.querySelector("#tools > :first-child").dataset.action];
     });
-    assert.deepEqual(reset, ["pan", null, "select"], "Reset All settings redraws the bar without its faces");
+    assert.deepEqual(reset, [0, "pan", null, "select"], "Reset All settings redraws the bar without its faces, with nothing else stored");
+    // An import that changes only the faces (no preference, no key map in the file).
     const imported = await page.evaluate(async () => {
       const P = await AtriumLazy.need("AtriumPrefs"), data = JSON.parse(P.exportSettings());
-      data.layout.barFaces = {schematic:{select:"pan"}};
+      data.layout.barFaces = {schematic:{select:"pan"}}; delete data.keymap; delete data.theme;
       P.importSettings(JSON.stringify(data));
       await new Promise(r => setTimeout(r, 100));
       return document.querySelector("#tools > :first-child").dataset.action;
