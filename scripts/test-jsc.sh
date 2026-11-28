@@ -41,7 +41,7 @@ for test_path in $test_paths; do
     ai) reason="requires Node filesystem writes and a child process" ;;
     import-worker|live-pour-worker) reason="requires Node worker threads" ;;
     diff-worker) reason="requires URL to place diff-worker.js beside diff.js (the Node inventory runs it)" ;;
-    integration-browser|collab-pair-browser|palette-actions.browser|browser-apricot-readonly|browser-apricot-native-query|browser-import-export-target|browser-butter-ai|butter-macros-browser|browser-butter-ai-ui|browser-butter-query-ui|browser-butter-macros-ui|browser-butter-links-ui|butter-intel-ui-shared) reason="requires Node, Playwright and Chromium" ;;
+    integration-browser|collab-pair-browser|palette-actions.browser|browser-apricot-readonly|browser-apricot-native-query|browser-import-export-target|browser-butter-ai|butter-macros-browser|browser-butter-ai-ui|browser-butter-query-ui|browser-butter-macros-ui|browser-butter-links-ui|browser-links-open|butter-intel-ui-shared) reason="requires Node, Playwright and Chromium" ;;
     browser-format-2-git|browser-butter-history) reason="requires Node child processes, Playwright, Chromium, Python 3 and Git (runs in Chromium CI)" ;;
     browser-dialog-geometry|browser-dialog-safe-area|browser-titlebar-safe-area|browser-surface-motion|browser-workbench-spatial|browser-dock-beta|browser-ui-gallery|browser-ui-snapshots) reason="requires Node and real Chromium layout, focus and animations" ;;
     browser-gpu-pour-lod) reason="runs in the GPU CI step with Node, Playwright and hardware WebGL2" ;;

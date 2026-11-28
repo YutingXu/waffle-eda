@@ -163,7 +163,17 @@ globalThis.AtriumLinksDesktop = (() => {
       if (!await reader.openLink({id:target.datasheetId ?? target.objectId, page:target.page ?? 1})) return {status:"missing-fragment"};
       return;
     }
-    if (!target.documentId) return;
+    // A saved query opens in Query. Other metadata with no place on the canvas says so.
+    const query = target.kind === "savedQuery" && butterEnabled("query") && editor.project()?.savedQueries?.find(row => row.id === target.objectId);
+    if (query) {
+      if (!G.AtriumIntelUI) await G.AtriumLazy.need("AtriumButterEditor");
+      await (G.AtriumIntelUI ?? await G.AtriumLazy.need("AtriumIntelUI")).open("query", {source:query.query.source});
+      return;
+    }
+    if (!target.documentId) {
+      if (!["comment", "slide", "savedView"].includes(target.kind)) editor.info((target.label || "This object") + " has no place on the canvas.");
+      return;
+    }
     await editor.selectDocument(target.documentId);
     if (editor.project()?.id !== target.projectId || editor.currentId() !== target.documentId)
       return {status:"missing-document", documentId:target.documentId};
@@ -245,26 +255,33 @@ globalThis.AtriumLinksDesktop = (() => {
     editor.info("Copied link to " + target.label);
     return true;
   }
-  function receive(url) {
-    const target = L.parse(url);
-    if (!target) return false;
-    return follow(target).then(result => {
-      if (result.status !== "found")
-        G.AtriumNavHost?.info({
-          disabled:"Waffle links are turned off in this profile's settings.",
-          "missing-project":"The project for this link could not be found.",
-          "project-mismatch":"The selected project does not match this link.",
-          "ambiguous-project":"More than one recent project has this identity. Open the intended project first.",
-          "missing-object":"The object for this link is missing.",
-          "missing-fragment":"This datasheet page is unavailable.",
-          "missing-document":"The document for this link is unavailable.",
-          "missing-frame":"The frame for this slide is unavailable.",
-          partial:"This link could not be checked because part of the project is unavailable.",
-          ambiguous:"More than one object has this identity.",
-          busy:"Another Waffle link is opening."
-        }[result.status] ?? "The Waffle link was not opened.");
-      return result.status === "found";
-    }, error => {G.AtriumNavHost?.info(error.message); return false;});
+  function message(status) {
+    return {
+      disabled:"Waffle links are turned off in this profile's settings.",
+      "invalid-link":"This is not a Waffle link.",
+      "missing-project":"The project for this link could not be found.",
+      "project-mismatch":"The chosen project does not match this link.",
+      "ambiguous-project":"More than one recent project has this identity. Open the intended project first.",
+      "missing-object":"The object for this link is missing.",
+      "missing-fragment":"This datasheet page is unavailable.",
+      "missing-document":"The document for this link is unavailable.",
+      "missing-frame":"The frame for this slide is unavailable.",
+      partial:"Part of the project is still loading. Try again in a moment.",
+      ambiguous:"More than one object has this identity.",
+      cancelled:"Opening the link was cancelled.",
+      busy:"Another Waffle link is opening."
+    }[status] ?? "The Waffle link was not opened.";
   }
-  return Object.freeze({index:currentIndex, covered, complete, resolveTargets, gitPage, follow, copyLink, copyTarget, receive});
+  // The one way to open a link. Every opener (the palette, Open Waffle Link…, Properties, notes and
+  // the operating system) passes the link's whole address, as AtriumLinks.format writes it with its fragment.
+  async function open(url) {
+    const target = L.parse(url);
+    let result;
+    try {result = target ? await follow(target) : {status:"invalid-link"};}
+    catch (error) {G.AtriumNavHost?.info(error.message); return {status:"failed", message:error.message};}
+    if (result.status !== "found") G.AtriumNavHost?.info(message(result.status));
+    return result;
+  }
+  const receive = url => open(url).then(result => result.status === "found");
+  return Object.freeze({index:currentIndex, covered, complete, resolveTargets, gitPage, follow, open, message, copyLink, copyTarget, receive});
 })();
