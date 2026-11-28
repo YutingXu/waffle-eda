@@ -686,6 +686,42 @@ async function fullBarWrites(browser) {
   } finally { await page.close(); }
 }
 
+// [P2] At 770 × 500 with Comfortable density the Widgets menu stays inside the window and scrolls.
+async function widgetsMenuFits(browser) {
+  const page = await open(browser, {viewport:{width:770, height:500}, prefs:{"labs.notebook":true}});
+  try {
+    await page.evaluate(() => AtriumTheme.set({density:"comfortable"}));
+    await settle(page);
+    await page.evaluate(() => AtriumActiveBar.open(document.querySelector('#tools [data-tool-group="widgets"]')));
+    await waitFlyout(page); await wait(300);
+    const menu = await page.evaluate(async () => {
+      const f = document.getElementById("active-bar-flyout"), box = f.getBoundingClientRect(), items = [...f.querySelectorAll("[role=menuitem]")];
+      const inside = n => { const r = n.getBoundingClientRect(), b = f.getBoundingClientRect(); return r.top >= b.top - 1 && r.bottom <= b.bottom + 1; };
+      const first = inside(items[0]);
+      items.at(-1).focus(); await new Promise(r => setTimeout(r, 50));
+      return {top:Math.round(box.top), bottom:Math.round(box.bottom), height:innerHeight, first, last:inside(items.at(-1)), scroll:f.classList.contains("menu-scroll")};
+    });
+    assert.ok(menu.top >= 0 && menu.bottom <= menu.height, `the Widgets menu stays in the window: ${menu.top}…${menu.bottom} of ${menu.height}`);
+    assert.deepEqual([menu.first, menu.last, menu.scroll], [true, true, true], "its first command shows, the last scrolls into view, the menu scrolls as long menus do");
+    console.log("PASS the Widgets menu scrolls inside a 770 × 500 window");
+  } finally { await page.close(); }
+}
+// [P2] Preferences › Toolbars fits a 390 × 790 touch screen without sideways scrolling.
+async function toolbarsFitsTouch(browser) {
+  const page = await open(browser, {viewport:{width:390, height:790}, hasTouch:true, isMobile:true});
+  try {
+    await page.evaluate(() => AtriumNavHost.act("customise-active-bar"));
+    await page.waitForFunction(() => document.querySelector(".prf-page [role=tree] .ui-row"), null, {timeout:15000});
+    await settle(page);
+    const fit = await page.evaluate(() => {
+      const p = document.querySelector(".prf-page"), bar = p.querySelector(".ui-toolbar"), out = [...bar.children].filter(n => n.getBoundingClientRect().right > p.getBoundingClientRect().right + 1);
+      return {client:p.clientWidth, scroll:p.scrollWidth, out:out.map(n => n.textContent || n.className)};
+    });
+    assert.ok(fit.client >= fit.scroll - 1, `Preferences › Toolbars fits 390 px: ${fit.scroll} px of content in ${fit.client} px (${fit.out.join(", ")})`);
+    console.log("PASS Preferences › Toolbars fits a 390 px touch screen");
+  } finally { await page.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -725,7 +761,7 @@ async function shots(browser) {
 
 async function run(browser) {
   const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
-    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, conditionalExtensions, fullBarWrites, shots};
+    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, conditionalExtensions, fullBarWrites, widgetsMenuFits, toolbarsFitsTouch, shots};
   for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)

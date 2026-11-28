@@ -8,7 +8,7 @@ const {fields, textBaselines} = require("../support/dialog-geometry.cjs");
 
 const providers = ["AtriumCanvasGPUPref", "AtriumExtensionDev", "AtriumCollabPresence", "AtriumCamera", "AtriumChecks",
   "AtriumExternalTools", "AtriumInsightsUI", "AtriumRouteSuggest", "AtriumClipHistory", "AtriumHistoryPanel", "AtriumThemePicker"];
-const routes = ["general", "schematic", "pcb", "routing", "checks", "insights", "appearance", "display", "mouse", "keyboard",
+const routes = ["general", "schematic", "pcb", "routing", "checks", "insights", "appearance", "display", "mouse", "keyboard", "toolbars",
   "extensions", "library", "collaboration", "labs"];
 const legacySections = {search:"keyboard", "route-suggestions":"routing", clipboard:"general", history:"general",
   energy:"display", "external-tools":"extensions", "extension-dev":"extensions"};

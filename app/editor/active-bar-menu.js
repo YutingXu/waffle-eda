@@ -87,9 +87,13 @@ globalThis.AtriumActiveBarMenu = (() => {
     fly.addEventListener("focusout", e => {if (fly.isConnected && !fly.contains(e.relatedTarget)) close(false);});
     fly.addEventListener("mousedown", e => e.preventDefault());
     (D.getElementById("workbench") || D.body).append(fly);
-    const r = button.getBoundingClientRect(), f = fly.getBoundingClientRect();
+    const r = button.getBoundingClientRect(), f = fly.getBoundingClientRect(), up = innerHeight - f.height - 4;
     fly.style.left = Math.max(4, Math.min(r.left, innerWidth - f.width - 4)) + "px";
-    fly.style.top = Math.min(r.bottom + 4, innerHeight - f.height - 4) + "px";
+    // Under the button, or raised to fit; a menu taller than the window hangs from the button and
+    // scrolls, as the other long menus do (AtriumContextMenu.fitMenu, lazy).
+    fly.style.top = (up < 4 ? r.bottom + 4 : Math.min(r.bottom + 4, up)) + "px";
+    const CM = G.AtriumContextMenu;
+    if (CM) CM.fitMenu(fly); else G.AtriumLazy?.need("AtriumContextMenu").then(m => { if (fly.isConnected) m.fitMenu(fly); }, () => {});
     G.AtriumSurfaceMotion?.popover(fly, true, {instant:switching});
     items[0]?.focus();
   }

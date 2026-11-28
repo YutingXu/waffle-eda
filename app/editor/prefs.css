@@ -147,6 +147,9 @@
 .prf-button {justify-self:start}
 .prf-note {color:var(--muted);margin:0}
 .prf-inline-actions {display:flex;gap:8px;flex-wrap:wrap}
+/* A kit toolbar in a card (Toolbars: the kind switch and its actions) wraps on a narrow window, as the
+   table editor's does, so the page never scrolls sideways; one line wherever it fits. */
+.prf-card > .ui-toolbar {flex-wrap:wrap;row-gap:var(--s-4)}
 .prf-page-body > .prf-appearance + .prf-inline-actions {margin-block-start:var(--s-24)}
 .prf-page-body > .prf-inline-actions + .prf-inline-actions {margin-block-start:var(--s-8)}
 .prf-dialog .prf-appearance {padding:0;overflow:visible}
