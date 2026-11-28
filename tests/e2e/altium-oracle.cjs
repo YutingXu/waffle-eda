@@ -83,17 +83,19 @@ function compoundFile(bytes) {
     return out;
   }
   // Walk the red-black tree of each storage. Paths are lower-case, "/"-separated.
-  const streams = new Map();
-  function walk(id, prefix, depth) {
+  // streams.names keeps each stream's path as stored (case kept), for reports that name streams.
+  const streams = new Map(), names = new Map();
+  function walk(id, prefix, depth, stored = "") {
     if (id >= entries.length || id === FREE || depth > 64) return;
     const e = entries[id];
-    walk(e.left, prefix, depth + 1);
+    walk(e.left, prefix, depth + 1, stored);
     const path = prefix + e.name.toLowerCase();
-    if (e.type === 2) streams.set(path, e.size < cutoff ? readMini(e.start, e.size) : readChain(e.start, e.size));
-    if (e.type === 1) walk(e.child, path + "/", depth + 1);
-    walk(e.right, prefix, depth + 1);
+    if (e.type === 2) { streams.set(path, e.size < cutoff ? readMini(e.start, e.size) : readChain(e.start, e.size)); names.set(path, stored + e.name); }
+    if (e.type === 1) walk(e.child, path + "/", depth + 1, stored + e.name + "/");
+    walk(e.right, prefix, depth + 1, stored);
   }
   walk(root.child, "", 0);
+  streams.names = names;
   return streams;
 }
 
