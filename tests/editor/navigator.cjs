@@ -174,11 +174,26 @@ async function panelEdits(parseHTML) {
       while(JSON.stringify(snapshot(N.rows()))!==JSON.stringify(expected)&&performance.now()<deadline)await new Promise(requestAnimationFrame);
       assert.deepEqual(snapshot(N.rows()),expected);
     };
-    search.value="review sensor AA";search.oninput();await expectFresh();
+    search.value="review sensor AA";search.oninput();
+    assert.ok(N.rows().some(r=>r.entry?.id===part.id) && !N.rows().some(r=>r.entry?.id===other.id), "typing filters the tree in the input event");
+    assert.equal(document.querySelectorAll(".navp-row").length,N.rows().length,"only current matches are mounted for a small result");
+    await expectFresh();
     search.value="review sensor AB";search.oninput();
     const enter=new window.Event("keydown",{bubbles:true,cancelable:true});enter.key="Enter";
     search.onkeydown(enter);
-    assert.deepEqual(picked,[hidden.id,[other.id]],"Enter uses the newly pasted query before debounce");
+    assert.deepEqual(picked,[hidden.id,[other.id]],"Enter uses the newly pasted query");
+    edit(()=>{other.value="Changed sensor";});
+    picked=null;search.onkeydown(enter);
+    assert.equal(picked,null,"Enter sees a pending model change before the scheduled refresh");
+    edit(()=>{other.value="Review sensor AB";});
+
+    search.value="";search.oninput();
+    const group = N.rows().findIndex(r=>r.group==="parts");
+    document.querySelector(`.navp-row[data-index="${group}"]`).dispatchEvent(new window.Event("click",{bubbles:true}));
+    search.value="review sensor";search.oninput();search.value="";search.oninput();
+    assert.ok(!N.rows().some(r=>r.type==="part"), "clearing a query preserves collapsed groups");
+    document.querySelector(`.navp-row[data-index="${group}"]`).dispatchEvent(new window.Event("click",{bubbles:true}));
+    assert.ok(N.rows().some(r=>r.entry?.id===other.id));
 
     search.value="review sensor";search.oninput();await expectFresh();
     const index=N.rows().findIndex(r=>r.entry?.id===other.id);

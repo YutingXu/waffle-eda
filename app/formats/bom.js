@@ -1,6 +1,6 @@
 "use strict";
 // Bill of Materials: an Altium-style grouped BOM grid with CSV, Excel, HTML and
-// printed / PDF output (print-report.js). The functions above `open` are pure and DOM-free.
+// printed / PDF output (print-report.js). The data and search functions are DOM-free.
 globalThis.AtriumBOM = (() => {
   // ---------------------------------------------------------------- ordering
   const tokens = s => String(s ?? "").match(/\d+|\D+/g) || [];
@@ -371,12 +371,56 @@ globalThis.AtriumBOM = (() => {
     return rows;
   }
   // Search box and per-column filters. "=text" matches exactly, "!text" excludes.
-  function matchText(value, f) {
-    const v = String(value ?? "").toLowerCase(), t = String(f).trim().toLowerCase();
-    if (!t) return true;
-    if (t.startsWith("!")) return t.length === 1 ? v !== "" : !v.includes(t.slice(1));
-    if (t.startsWith("=")) return v === t.slice(1);
-    return v.includes(t);
+  const lowerText = value => String(value ?? "").toLowerCase();
+  const columnText = (row, key) => lowerText(key === "designator" ? row.refs.join(" ") + " " + row.values.designator : row.values[key]);
+
+  // Each dialog owns the index for its current grouped, sorted rows and visible columns.
+  // Keep searches complete while warming. Only a finished index can narrow the candidates.
+  function prepareSearch(rows, keys, scheduler = globalThis.AtriumIdle) {
+    const index = {records:new Map(), grams:new Map(), keys:new Set([...keys, "designator"]), ready:false};
+    function* prepare() {
+      for (const row of rows) {
+        const fields = Object.create(null), text = row.refs.map(lowerText);
+        for (const key of keys) {
+          fields[key] = lowerText(row.values[key]);
+          if (fields[key]) text.push(fields[key]);
+        }
+        // Column filters also match individual refs omitted by a compressed range.
+        fields.designator = columnText(row, "designator");
+        index.records.set(row, {fields, text});
+        for (const value of new Set([...text, fields.designator])) {
+          for (let start = 0; start < value.length - 2; start += 512) {
+            const end = Math.min(start + 512, value.length - 2);
+            for (let i = start; i < end; i++) {
+              const gram = value.slice(i, i + 3);
+              let lines = index.grams.get(gram);
+              if (!lines) index.grams.set(gram, lines = []);
+              if (lines.at(-1) !== row) lines.push(row);
+            }
+            yield;
+          }
+        }
+        yield;
+      }
+      index.ready = true;
+    }
+    const work = prepare();
+    let handle = null, nextTask = 0;
+    function schedule() { handle = scheduler.idle(warm); }
+    function warm(deadline) {
+      handle = null;
+      const until = performance.now() + 3;
+      do { if (work.next().done) return; } while (deadline.timeRemaining() > 1 && performance.now() < until);
+      // WebKit's idle pump can drain newly enqueued callbacks in the same task.
+      // Let pending input run between slices on that host as well.
+      if (scheduler.native === false) nextTask = setTimeout(schedule, 0);
+      else schedule();
+    }
+    if (scheduler && rows.length) schedule();
+    return {
+      filter: (settings, matches) => filterRows(rows, settings, keys, matches, index),
+      cancel() { clearTimeout(nextTask); if (handle !== null) scheduler.cancel(handle); handle = null; work.return(); }
+    };
   }
   const queryKey = (documentId,instanceId,id) => JSON.stringify([documentId,instanceId ?? "",id]);
   async function queryMatches(service, collected, source, options) {
@@ -394,17 +438,40 @@ globalThis.AtriumBOM = (() => {
     }
     return matches;
   }
-  function filterRows(rows, settings = {}, keys, matches) {
-    const q = matches ? "" : String(settings.query || "").trim().toLowerCase();
-    const filters = Object.entries(settings.filters || {}).filter(([, f]) => String(f ?? "").trim());
+  function filterRows(rows, settings = {}, keys, matches, index) {
+    const q = matches ? "" : lowerText(settings.query || "").trim();
+    const filters = [];
+    for (const [key, raw] of Object.entries(settings.filters || {})) {
+      const term = lowerText(raw).trim();
+      if (!term) continue;
+      const op = term[0] === "!" || term[0] === "=" ? term[0] : "";
+      filters.push({key, op, needle:term.slice(op.length)});
+    }
     if (!q && !filters.length && !matches) return rows;
-    return rows.filter(row => {
-      for (const [k, f] of filters) if (!matchText(k === "designator" ? row.refs.join(" ") + " " + row.values.designator : row.values[k], f)) return false;
+    let candidates = rows;
+    if (index?.ready) {
+      // Posting lists preserve line order. A match must contain every trigram
+      // in a positive term. Check the actual fields below, including for short terms.
+      const terms = [q, ...filters.filter(f => f.op !== "!" && index.keys.has(f.key)).map(f => f.needle)];
+      for (const term of terms) for (let i = 0; i < term.length - 2; i++) {
+        const lines = index.grams.get(term.slice(i, i + 3));
+        if (!lines) return [];
+        if (lines.length < candidates.length) candidates = lines;
+      }
+    }
+    return candidates.filter(row => {
+      const record = index?.records.get(row);
+      for (const {key, op, needle} of filters) {
+        const value = record?.fields[key] ?? columnText(row, key);
+        if (op === "!") { if (needle ? value.includes(needle) : !value) return false; }
+        else if (op === "=" ? value !== needle : !value.includes(needle)) return false;
+      }
       if (matches && !row.parts.some(part => (part.instances || [part]).some(member =>
         matches.has(queryKey(member.docId,member.instanceId,member.id))))) return false;
       if (!q) return true;
+      if (record) return record.text.some(value => value.includes(q));
       if (row.refs.some(r => r.toLowerCase().includes(q))) return true;
-      return (keys || Object.keys(row.values)).some(k => String(row.values[k] ?? "").toLowerCase().includes(q));
+      return (keys || Object.keys(row.values)).some(k => lowerText(row.values[k]).includes(q));
     });
   }
 
@@ -813,7 +880,7 @@ globalThis.AtriumBOM = (() => {
       panelOpen: prefs.panelOpen !== false, panelWidth: Number.isFinite(prefs.panelWidth) ? Math.max(PANEL_MIN, Math.min(PANEL_MAX, prefs.panelWidth)) : 272
     };
     if (state.viewName) Object.assign(state, viewState(findView(project, state.viewName)));
-    let collected, all, rows = [], shown = [], flat = [], cols = [], rowH = 24, editor = null, optView = null, designFilter;
+    let collected, all, rows = [], shown = [], flat = [], cols = [], rowH = 24, editor = null, optView = null, designFilter, searchIndex;
     // Hints: the analysis behind them (shared with the Optimise tab), its key, the hints per grid line,
     // the flat index of the line whose hint strip is open and that strip's measured height.
     let hintAnalysis = null, hintKey = "", hintData = null, lineHints = new Map(), stripAt = -1, stripH = 72, hintTimer = 0, hintIdle = 0, optStale = false;
@@ -1011,6 +1078,7 @@ globalThis.AtriumBOM = (() => {
       viewSelect.value = state.viewName;
     }
     function recollect() {
+      if (!d.open) return;
       collected = collect(live(), {source: state.source, board: state.board, variant: state.variant});
       state.source = collected.source; state.board = collected.board?.id;
       sourceSelect.value = collected.source === "pcb" ? "pcb:" + state.board : "schematic";
@@ -1023,11 +1091,16 @@ globalThis.AtriumBOM = (() => {
       if (optView) { if (state.tab === "optimise") { optView.update(collected, analysisNow()); optStale = false; } else optStale = true; }
       scheduleHints();
     }
+    function rebuildRows() {
+      searchIndex?.cancel();
+      rows = build(collected, settings());
+      lineHints = state.hints && hintData ? rowHints(rows, hintData) : new Map();
+      searchIndex = prepareSearch(rows, state.columns);
+    }
     function regroup() {
       state.columns = state.order.filter(k => state.columns.includes(k));
       const keep = flat[state.active.r]?.row.parts[0]?.id;
-      rows = build(collected, settings());
-      lineHints = state.hints && hintData ? rowHints(rows, hintData) : new Map();
+      rebuildRows();
       cols = state.columns.map(k => all.find(c => c.key === k)).filter(Boolean);
       refilter(keep);
       paintHead(); paintPanel(); paintNotes(); paintSummary(); paintHintUI(); remember();
@@ -1057,14 +1130,14 @@ globalThis.AtriumBOM = (() => {
       const request = designMatches();
       if (!request) {
         gridWrap.removeAttribute("aria-busy");
-        displayRows(filterRows(rows,state,cols.map(c => c.key)),keepId);
+        displayRows(searchIndex.filter(state),keepId);
         return;
       }
       gridWrap.setAttribute("aria-busy","true");
       request.promise.then(matches => {
         if (!request.current()) return;
         gridWrap.removeAttribute("aria-busy");
-        displayRows(filterRows(rows,state,cols.map(c => c.key),matches),keepId);
+        displayRows(searchIndex.filter(state,matches),keepId);
         paintSummary();
       }, error => {
         if (!request.current()) return;
@@ -1187,12 +1260,11 @@ globalThis.AtriumBOM = (() => {
       } else state.sort = [{key, dir: i === 0 && state.sort[0].dir > 0 ? -1 : 1}];
       regroup();
     };
-    let filterTimer = 0;
+    function applyFilter(keepId) { refilter(keepId); paintSummary(); }
     thead.oninput = e => {
       const input = e.target.closest(".ui-sheet-filter"); if (!input) return;
       if (input.value.trim()) state.filters[input.dataset.key] = input.value; else delete state.filters[input.dataset.key];
-      clearTimeout(filterTimer);
-      filterTimer = setTimeout(() => { refilter(); paintSummary(); }, 90);
+      applyFilter();
     };
     thead.onkeydown = e => { if (e.target.closest(".ui-sheet-filter") && (e.key === "ArrowDown" || e.key === "Enter")) { e.preventDefault(); gridWrap.focus(); } };
     // Resizing: drag the grip on a header's right edge.
@@ -1784,6 +1856,7 @@ globalThis.AtriumBOM = (() => {
         supplierPn: row.parts.find(p => p.supplierPn)?.supplierPn};
       try {
         const res = await O.price([line], {providers});
+        if (!d.open) return;
         const offers = res.lines.get("x")?.offers || [];
         state.offers.set(lineKey(row), offers);
         const qty = row.parts.length * Math.max(1, O.loadSettings().quantity || 1);
@@ -1791,7 +1864,7 @@ globalThis.AtriumBOM = (() => {
         if (mpn && ranked[0]) state.solutions.set(upper(mpn), {supplier: ranked[0].offer.supplier, sku: ranked[0].offer.sku, stock: ranked[0].offer.stock,
           unit: ranked[0].unit, currency: ranked[0].offer.currency, lifecycle: ranked[0].offer.lifecycle});
         status.textContent = offers.length ? count(offers.length, "offer") + " found." : "No exact match." + (res.errors[0] ? " " + res.errors[0].message : "");
-        const keep = row.parts[0].id; rows = build(collected, settings()); refilter(keep);
+        rebuildRows(); applyFilter(row.parts[0].id);
       } catch (e) { status.textContent = e.message || String(e); }
     }
     // Offers that cover the quantity first, then by price at that quantity.
@@ -1969,14 +2042,13 @@ globalThis.AtriumBOM = (() => {
       designFilter?.controller.abort();
       designFilter = null;
       status.textContent = "";
-      clearTimeout(filterTimer);
-      filterTimer = setTimeout(() => { refilter(); paintSummary(); },90);
+      applyFilter();
     };
     search.onkeydown = e => { if (e.key === "ArrowDown" || e.key === "Enter") { e.preventDefault(); gridWrap.focus(); } };
     format.onchange = () => { state.format = format.value; remember(); };
     titleCheck.onchange = () => { state.titleBlock = titleCheck.checked; remember(); };
-    const offQueryPrefs = globalThis.AtriumPrefs?.on("butter.query", () => { if (d.open) refilter(); });
-    d.onclose = () => { clearTimeout(filterTimer); offQueryPrefs?.(); designFilter?.controller.abort(); cancelHints(); d.remove(); };
+    const offQueryPrefs = globalThis.AtriumPrefs?.on("butter.query", () => { if (d.open) applyFilter(); });
+    d.onclose = () => { searchIndex?.cancel(); searchIndex = null; offQueryPrefs?.(); designFilter?.controller.abort(); cancelHints(); d.remove(); };
     d.oncancel = e => { if (editor) { e.preventDefault(); cancelEdit(); } else if (state.strip) { e.preventDefault(); closeStrip(true); } };
     globalThis.AtriumShell.adoptDialog(d, {title: heading, body, actions: foot, initialFocus: () => state.tab === "lines" ? gridWrap : tabOpt});
     document.body.append(d);
@@ -1997,7 +2069,7 @@ globalThis.AtriumBOM = (() => {
   const optimise = (project, options = {}) => optimiser().analyse(project, options);
   const applyOptimisation = (project, analysis, ids) => optimiser().apply(project, analysis, ids);
 
-  return {open, collect, isDnp, optimise, applyOptimisation, columns, build, filterRows, queryMatches, rowHints, report, views, findView, saveView, deleteView, normaliseView, viewSettings,
+  return {open, collect, isDnp, optimise, applyOptimisation, columns, build, filterRows, prepareSearch, queryMatches, rowHints, report, views, findView, saveView, deleteView, normaliseView, viewSettings,
     editable: editableKey, planEdit, applyChanges, tsv, field, statusText: STATUS_TEXT, compress, naturalCompare, csv, csvCell, xlsxFiles, xlsx, html, printable, fileName,
     defaults: {columns: defaultColumns, groupBy: defaultGroups}};
 })();

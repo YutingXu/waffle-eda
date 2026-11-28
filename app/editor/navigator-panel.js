@@ -135,7 +135,7 @@ globalThis.AtriumNavigatorPanel = (() => {
       const open = !collapsed.has(g), start = out.length;
       let count = 0;
       for (const r of list) {
-        const own = hit(r), pins = r.type === "net" && words.length ? r.pins.filter(hit) : null;
+        const own = hit(r), pins = !own && r.type === "net" ? r.pins.filter(hit) : null;
         if (!own && !pins?.length) continue;
         count++;
         if (!open) continue;
@@ -152,7 +152,7 @@ globalThis.AtriumNavigatorPanel = (() => {
 
   // ------------------------------------------------------------------ UI
   let host = null, panel = null, ui = null, rows = [], current = null, dirty = true, timer = 0, frame = 0, active = -1;
-  let projectLoad;
+  let projectLoad, unfilteredRows;
   let filteredQuery = "";
   const cache = new Map(), expanded = new Set(), collapsed = new Set();
   const MODES_KEY = "atrium.navigator.modes.v1";
@@ -178,6 +178,7 @@ globalThis.AtriumNavigatorPanel = (() => {
     // A cancelled drag can restore the live geometry without an undo record.
     const live = host.drag?.()?.before;
     current = model(project, defs, live ? undefined : cache, live ? undefined : globalThis.AtriumUndoStore || {}, !load);
+    unfilteredRows = null;
     dirty = false;
   }
   function refresh(keepActive = true) {
@@ -185,7 +186,8 @@ globalThis.AtriumNavigatorPanel = (() => {
     if (dirty) compute();
     const prev = keepActive ? rows[active]?.id : null;
     filteredQuery = ui.search.value;
-    rows = flatten(current, {query:filteredQuery, expanded, collapsed});
+    rows = filteredQuery.trim() ? flatten(current, {query:filteredQuery, expanded, collapsed})
+      : (unfilteredRows ??= flatten(current, {expanded, collapsed}));
     active = prev ? rows.findIndex(r => r.id === prev) : -1;
     if (active < 0 && rows.length) active = Math.min(rows.length - 1, Math.max(0, keepActive ? 0 : -1));
     const total = current.parts.length + current.nets.length + current.ports.length + current.frames.length;
@@ -199,18 +201,20 @@ globalThis.AtriumNavigatorPanel = (() => {
     frame = 0;
     const top = ui.scroller.scrollTop, h = ui.scroller.clientHeight || 400;
     const first = Math.max(0, Math.floor(top / ROW) - OVERSCAN), last = Math.min(rows.length, Math.ceil((top + h) / ROW) + OVERSCAN);
-    const need = last - first;
+    const need = Math.max(0, last - first);
     while (pool.length < need) {
       const n = el("div", null, "navp-row"); n.setAttribute("role", "treeitem"); n.tabIndex = -1;
       const tw = el("span", null, "navp-twisty"), ic = el("span", null, "navp-icon"), lb = el("span", null, "navp-label"), dt = el("span", null, "navp-detail");
       tw.setAttribute("aria-hidden", "true"); ic.setAttribute("aria-hidden", "true");
-      n.append(tw, ic, lb, dt); ui.inner.append(n); pool.push(n);
+      n.append(tw, ic, lb, dt); pool.push(n);
     }
+    // Keep recycled rows for the next search, outside the live tree until needed.
+    while (ui.inner.childElementCount > need) ui.inner.lastElementChild.remove();
+    while (ui.inner.childElementCount < need) ui.inner.append(pool[ui.inner.childElementCount]);
     const lit = host.highlight?.() || "";
-    for (let k = 0; k < pool.length; k++) {
+    for (let k = 0; k < need; k++) {
       const n = pool[k], idx = first + k, r = rows[idx];
-      if (!r || k >= need) {n.hidden = true; continue;}
-      n.hidden = false; n.style.top = idx * ROW + "px"; n.dataset.index = String(idx);
+      n.style.top = idx * ROW + "px"; n.dataset.index = String(idx);
       n.id = idx === active ? "navp-active" : "";
       n.dataset.type = r.type; n.dataset.depth = String(r.depth);
       n.setAttribute("aria-level", String(r.depth + 1));
@@ -239,6 +243,7 @@ globalThis.AtriumNavigatorPanel = (() => {
     if (r.type === "group") {if (open ?? collapsed.has(r.group)) collapsed.delete(r.group); else collapsed.add(r.group);}
     else if (r.expandable) {if (open ?? !expanded.has(r.id)) expanded.add(r.id); else expanded.delete(r.id);}
     else return false;
+    unfilteredRows = null;
     refresh(); return true;
   }
   // ------------------------------------------------------------------ probing
@@ -395,9 +400,9 @@ globalThis.AtriumNavigatorPanel = (() => {
     const tools = el("div", null, "navp-tools");
     const search = el("input", null, "ui-field"); search.type = "search"; search.placeholder = "Search components, nets, pins, ports, frames"; search.setAttribute("aria-label", "Search the Navigator");
     const filter = () => {clearTimeout(timer); ui.scroller.scrollTop = 0; refresh(false);};
-    search.oninput = () => {clearTimeout(timer); timer = setTimeout(filter, 60);};
+    search.oninput = filter;
     search.onkeydown = e => {
-      if ((e.key === "Enter" || e.key === "ArrowDown") && search.value !== filteredQuery) filter();
+      if ((e.key === "Enter" || e.key === "ArrowDown") && (dirty || search.value !== filteredQuery)) filter();
       if (e.key === "ArrowDown") {e.preventDefault(); ui.scroller.focus(); choose(Math.max(0, active));}
       else if (e.key === "Enter") {e.preventDefault(); const r = rows.find(x => x.depth > 0); if (r) {choose(rows.indexOf(r)); probe(r);}}
       else if (e.key === "Escape" && search.value) {e.preventDefault(); search.value = ""; refresh(false);}
@@ -448,12 +453,13 @@ globalThis.AtriumNavigatorPanel = (() => {
   }
   function toggle(show) {
     if (!panel && !build()) return;
+    clearTimeout(timer);
     const on = show ?? panel.hidden;
     panel.hidden = !on;
     document.body.classList.remove("hide-left");
     globalThis.AtriumNavCommon?.setChecked("navigator-panel", on);
     if (on) {dirty = true; refresh(); ui.scroller.focus({preventScroll:true}); host.info("Navigator: " + (current.parts.length) + " components, " + current.nets.length + " nets");}
-    else host.canvas()?.focus();
+    else {unfilteredRows = null; host.canvas()?.focus();}
   }
   function changed() {
     dirty = true;
