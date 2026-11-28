@@ -50,7 +50,7 @@ AtriumNavCommon.ready(host => {
       host.select([hit.item.id], null, {afterMenu:!!globalThis.AtriumCrossProbe && !!globalThis.AtriumContextMenu});
     use(hit, X => X.openMenu(clientX, clientY, {
       target: hit?.item ? X.targetAt(hit.doc, host.defs(), hit.item, hit.point) : null,
-      returnFocus, hit, clientX, clientY
+      returnFocus, hit, clientX, clientY, pointer:true
     }), () => menuRequest === request && returnFocus.isConnected && host.tool() === "select");
   });
 });

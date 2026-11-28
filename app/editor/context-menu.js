@@ -484,7 +484,8 @@ globalThis.AtriumContextMenu = (() => {
     if ((k === "Home" || k === "End") && list.length) {stop(); (k === "Home" ? list[0] : list.at(-1)).focus(); return;}
     ev.stopPropagation();
   }
-  // opts: {hit, target, clientX, clientY, returnFocus} from crossprobe.js.
+  // opts: {hit, target, clientX, clientY, returnFocus, pointer} from crossprobe.js. opts.pointer: a
+  // right-click or touch hold opened the menu at [x, y] (Shift+F10 and the menu key do not).
   function open(host, x, y, opts = {}) {
     const doc=host.doc();
     if(doc.kind==="drawing"||doc.kind==="panel"){
@@ -494,11 +495,11 @@ globalThis.AtriumContextMenu = (() => {
         local.pick();
         const list=[{label:tx("Properties"),enabled:true,run:()=>showProperties({host})},
           {label:tx("Zoom to selected object"),enabled:!!local.box,run:()=>input.zoomBox({canvas,view},local.box,()=>host.redraw())}];
-        return popup({host},list,tx(local.label),x,y,opts.returnFocus||canvas);
+        return popup({host},list,tx(local.label),x,y,opts.returnFocus||canvas,false,false,!!opts.pointer);
       }
     }
     const ctx = context(host, opts), list = resolve(TYPES[ctx.type] || TYPES.object, ctx);
-    return popup(ctx, list, headOf(ctx), x, y, opts.returnFocus || host.canvas());
+    return popup(ctx, list, headOf(ctx), x, y, opts.returnFocus || host.canvas(), false, false, !!opts.pointer);
   }
 
   // The Projects panel and the document tabs (workbench.js), as Altium's Projects
@@ -506,6 +507,7 @@ globalThis.AtriumContextMenu = (() => {
   // document (open, rename, save, reveal, compare, check). Nothing is listed that cannot run here.
   // opts.returnFocus: where Escape or a command returns focus (default the target). A pointer menu passes
   // what was focused before the right-click, so dismissing it does not move focus or ring the row.
+  // opts.pointer: a right-click opened the menu at [x, y]; a keyboard menu hangs from the row.
   // Project windows (butter.windows): a main-window tab can leave for its own native window.
   function detach(id, strip) {
     const W = globalThis.AtriumProjectWindowClient;
@@ -563,7 +565,8 @@ globalThis.AtriumContextMenu = (() => {
       ["Project Options…", "erc"]
     ];
     const ctx = {host, project, doc:doc || host.doc(), item:null};
-    const menu = popup(ctx, resolve(actions, ctx), doc?.name || (starter ? "Untitled" : project.name), x, y, opts.returnFocus === undefined ? target : opts.returnFocus);
+    const menu = popup(ctx, resolve(actions, ctx), doc?.name || (starter ? "Untitled" : project.name), x, y,
+      opts.returnFocus === undefined ? target : opts.returnFocus, false, false, !!opts.pointer);
     if (target.matches?.("[data-doc], [data-tab], summary")) {marked = target; target.setAttribute("data-context-target", "");}
     return menu;
   }
@@ -654,9 +657,11 @@ globalThis.AtriumContextMenu = (() => {
 
   // A menu opened at the pointer starts this far up and left of it, so the pointer lands inside the
   // menu's rounded corner instead of falling through to the row or object under it (which would show
-  // its hover fill beside the context ring).
+  // its hover fill beside the context ring). `pointer` says the menu was opened at the pointer (a
+  // right-click or a touch hold). A keyboard menu (Shift+F10, the menu key) and a dropdown hang flush
+  // from their element, so they never take the inset.
   const POINTER_INSET = 2;
-  function popup(ctx, list, heading, x, y, focus, dropdown = false, above = false, pointer = !dropdown) {
+  function popup(ctx, list, heading, x, y, focus, dropdown = false, above = false, pointer = false) {
     const switching = !!root;
     close(false, true);
     root = build(list, ctx, 0);
@@ -833,7 +838,8 @@ globalThis.AtriumContextMenu = (() => {
   // The browser's editing menu also contains page navigation or inspection commands.
   // Snapshot the user's selection before focusing the menu. Let the editing engine
   // perform text mutations so input events and the field's native undo stack survive.
-  function editing(target, field, x, y) {
+  // pointer: a right-click opened the menu at [x, y]; a keyboard menu hangs from the field.
+  function editing(target, field, x, y, pointer = false) {
     const host = globalThis.AtriumNavHost, doc = target.ownerDocument;
     const selection = doc.getSelection(), range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
     const input = field && (field.tagName === "INPUT" || field.tagName === "TEXTAREA");
@@ -871,7 +877,7 @@ globalThis.AtriumContextMenu = (() => {
     if (field) add("Select All", true, () => {
       restore(); if (input) field.select(); else doc.execCommand("selectAll");
     });
-    popup({host}, list, tx("Text"), x, y, target, true, false, true);
+    popup({host}, list, tx("Text"), x, y, target, true, false, pointer);
   }
   function dropdown(trigger, entries, {host = globalThis.AtriumNavHost, above = false} = {}) {
     if (root && back === trigger) {close(); return;}
