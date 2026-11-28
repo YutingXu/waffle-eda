@@ -37,8 +37,10 @@ async function main() {
   const live = () => ({...scope,revision:get(board),getRevision:() => get(board)});
   assert.deepEqual(Object.keys(await Q.search(local,{project})),["status","complete","diagnostic"]);
   assert.equal((await Q.search(local,{project})).status,"disabled");
-  const result = await Q.search(local,{...live(),limit:1});
+  let preparedHints;
+  const result = await Q.search(local,{...live(),limit:1,onPrepared:hints => { preparedHints = hints; }});
   assert.equal(result.complete,true); assert.equal(result.count,2);
+  assert.ok(preparedHints.some(hint => hint.code === "inferred-unit" && hint.unit === "mm"));
   assert.deepEqual(rows(result),["rail-at-limit"]);
   assert.ok(result.cursor);
   assert.deepEqual(rows(await Q.search(local,{...live(),limit:1,cursor:result.cursor})),["rail-thin"]);
@@ -113,6 +115,14 @@ async function main() {
   assert.ok(partial.lowerBound > 0,JSON.stringify(partial));
   const docs = [...project.documents,{id:"unloaded",kind:"pcb",name:"Unloaded"}];
   assert.equal((await Q.search(local,{enabled:true,project:{...project,documents:docs},revision:1})).status,"partial");
+  const withoutAnchor = {id:"zz-no-anchor",kind:"pcb",name:"No anchor",items:[]};
+  const previewScope = {...live(),project:{...project,documents:[board,withoutAnchor]},documentId:undefined};
+  const brokenPlan = await Q.plan(copper,previewScope);
+  assert.equal(brokenPlan.diagnostic.code,"broken-reference");
+  const brokenSearch = await Q.search(copper,{...previewScope,
+    onPrepared:() => assert.fail("The project query did not compile on every document."),
+    onProjection:() => assert.fail("A preview must check all plans before scanning the design.")});
+  assert.deepEqual(brokenSearch,brokenPlan);
 
   const preview = Q.applicability("two-nets",live());
   assert.equal(preview.complete,true,JSON.stringify(preview));

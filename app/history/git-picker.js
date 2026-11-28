@@ -283,6 +283,7 @@ globalThis.AtriumGitPicker = (() => {
   const SVG = "http://www.w3.org/2000/svg";
   const LANE = 12, ROW = 30, MAX_LANES = 8;
   const PAGE = 150;
+  const SLOW_READ = 150;
   let host = null;
 
   // ------------------------------------------------------------------ graph cell
@@ -314,6 +315,8 @@ globalThis.AtriumGitPicker = (() => {
   // Resolves to a spec (single), {before, after, mergeBase} (pair) or null.
   function open(o = {}) {
     const pair = o.mode === "pair", git = GIT.available();
+    const active = GIT.readBound(G.AtriumNavHost || {});
+    const parallel = G.AtriumHost?.parallelGitReads === true;
     return new Promise(resolve => {
       const d = el("dialog", null, "work-dialog ui-dialog gp-dialog"); d.setAttribute("aria-label", o.title || "Choose a revision");
       const head = el("header", null, "gp-head");
@@ -353,8 +356,16 @@ globalThis.AtriumGitPicker = (() => {
       const ok = btn(pair ? "Compare" : "Choose", finish, "is-primary"), cancel = btn("Cancel", () => d.close());
       const foot = el("div", null, "work-actions ui-dialog-actions gp-foot"); foot.append(status, cancel, ok);
       d.append(head, chips, baseRow, tools, body, foot);
-      let refs = null, commits = [], rows = [], cursor = -1, result = null, ticket = 0, more_ = false, refFilter = null, files = [];
+      let refs = null, refsError, query, requested, page, frame = 0, retry = 0, composing = false;
+      let cursor = -1, result = null, refFilter = null;
+      const files = [], tips = new Map(), pending = new Set();
       const entries = []; // what the list shows: {spec, node}
+      function current() {
+        if (!d.open) return false;
+        if (active()) return true;
+        d.close();
+        return false;
+      }
 
       function paintSlots() {
         if (!pair) return;
@@ -400,11 +411,11 @@ globalThis.AtriumGitPicker = (() => {
         const refNode = r => {
           const b = sideItem(r.short, r.name === refs.ref ? "current branch" : GIT.ago(r.date), pick(r), "is-" + r.kind);
           b.ondblclick = () => { assign(pick(r)); if (!pair) finish(); };
-          b.onclick = () => { assign(pick(r)); if (!pair) { finish(); return; } refFilter = r.name; loadCommits(false); };
+          b.onclick = () => { assign(pick(r)); if (!pair) { finish(); return; } refFilter = r.name; queueSearch(); };
           if (r.name === refs.ref) b.classList.add("is-current");
           return b;
         };
-        const all = sideItem("All branches", "commit graph", null, "is-all" + (refFilter ? "" : " is-current"), () => { refFilter = null; loadCommits(false); });
+        const all = sideItem("All branches", "commit graph", null, "is-all" + (refFilter ? "" : " is-current"), () => { refFilter = null; queueSearch(); });
         group("History", [all]);
         group("Branches", refs.refs.filter(r => r.kind === "branch").sort((a, b) => (b.name === refs.ref) - (a.name === refs.ref) || String(b.date).localeCompare(String(a.date))).map(refNode));
         group("Remote branches", refs.refs.filter(r => r.kind === "remote").slice(0, 60).map(refNode));
@@ -413,22 +424,29 @@ globalThis.AtriumGitPicker = (() => {
       async function chooseFile() {
         try {
           const spec = await GIT.chooseReference();
-          if (!spec) return null;
+          if (!spec || !current()) return null;
           files.push(spec); paintSide();
           return spec;
         } catch (e) { status.textContent = e.message; return null; }
       }
+      function addBadges(line, revision) {
+        const labels = tips.get(revision) || [];
+        const badges = labels.map(r => refBadge(r.short, r.kind, r.name === refs.ref));
+        if (revision === refs.head && !labels.some(r => r.name === refs.ref)) badges.push(refBadge("HEAD", "head"));
+        line.prepend(...badges);
+      }
       // Right: the commits, newest first, with lanes and the "changed this file" mark.
       function paintList() {
+        if (!page && git) return;
         const keep = cursor;
-        list.replaceChildren(); entries.length = 0;
-        const searching = !!search.value.trim();
+        entries.length = 0;
+        const commits = page?.commits || [];
+        const searching = !!page?.text;
         const shown = onlyBox.checked ? commits.filter(c => c.touches) : commits;
         const graph = !searching && !onlyBox.checked;
-        rows = graph ? GIT.lanes(shown) : [];
+        const rows = graph ? GIT.lanes(shown) : [];
         const width = Math.min(MAX_LANES, Math.max(1, ...rows.map(r => Math.max(r.lane, ...r.to, r.before.length - 1, r.after.length - 1) + 1))) * LANE;
-        const tips = new Map();
-        for (const r of refs?.refs || []) { if (!tips.has(r.revision)) tips.set(r.revision, []); tips.get(r.revision).push(r); }
+        const nodes = document.createDocumentFragment();
         shown.forEach((c, i) => {
           const spec = {type: "commit", rev: c.revision, label: c.subject};
           const node = el("div", null, "ui-row gp-row" + (c.touches ? " touches" : ""));
@@ -437,24 +455,27 @@ globalThis.AtriumGitPicker = (() => {
           // Filled node: the commit changed this file; hollow: it changed other files only.
           if (!graph) { const mark = el("span", c.touches ? "●" : "○", "gp-touch"); mark.title = c.touches ? "Changed this file" : "Did not change this file"; node.append(mark); }
           const text = el("span", null, "gp-text"), line = el("span", null, "gp-line");
-          for (const r of tips.get(c.revision) || []) line.append(refBadge(r.short, r.kind, r.name === refs.ref));
-          if (c.revision === refs?.head && !tips.get(c.revision)?.some(r => r.name === refs.ref)) line.append(refBadge("HEAD", "head"));
+          if (refs) addBadges(line, c.revision);
           line.append(el("span", c.subject || "(no message)", "gp-subject"));
-          text.append(line, el("span", [c.author, GIT.ago(c.date), GIT.short(c.revision)].filter(Boolean).join(" · "), "ui-row-detail gp-meta"));
+          const age = GIT.ago(c.date);
+          text.append(line, el("span", [c.author, age, GIT.short(c.revision)].filter(Boolean).join(" · "), "ui-row-detail gp-meta"));
           node.append(text);
-          node.setAttribute("aria-label", (c.subject || "Commit") + ", " + c.author + ", " + GIT.ago(c.date) + (c.touches ? ", changed this file" : ""));
+          node.setAttribute("aria-label", (c.subject || "Commit") + ", " + c.author + ", " + age + (c.touches ? ", changed this file" : ""));
           node.title = c.revision + "\n" + (c.date || "");
           node.onclick = () => { focusRow(i); assign(spec); };
           node.ondblclick = () => { assign(spec); finish(); };
-          list.append(node); entries.push({spec, node});
+          nodes.append(node); entries.push({spec, node, line});
         });
-        if (!shown.length) list.append(el("p", git ? (searching ? "No commits match." : onlyBox.checked ? "No commits changed this file." : "No commits yet.")
+        if (!shown.length) nodes.append(el("p", git ? (searching ? "No commits match." : onlyBox.checked ? "No commits changed this file." : "No commits yet.")
           : "Git history appears here for a project saved in a Git repository (desktop app). You can still compare the working design with saved project ZIPs.", "gp-empty"));
-        if (keep >= 0 && keep < entries.length) focusRow(keep, true);
+        list.replaceChildren(nodes);
+        focusRow(keep < entries.length ? keep : -1, true);
       }
       function focusRow(i, quiet) {
         if (cursor >= 0 && entries[cursor]) entries[cursor].node.setAttribute("aria-selected", "false");
-        cursor = i; const e = entries[i]; if (!e) return;
+        cursor = i;
+        const e = entries[i];
+        if (!e) { list.removeAttribute("aria-activedescendant"); return; }
         e.node.setAttribute("aria-selected", "true"); list.setAttribute("aria-activedescendant", e.node.id);
         if (!quiet) e.node.scrollIntoView?.({block: "nearest"});
       }
@@ -465,26 +486,87 @@ globalThis.AtriumGitPicker = (() => {
         if (to != null) { e.preventDefault(); focusRow(to); return; }
         if ((e.key === "Enter" || e.key === " ") && entries[cursor]) { e.preventDefault(); assign(entries[cursor].spec); if (e.key === "Enter" && (!pair || (slots.before && slots.after))) finish(); }
       };
-      search.onkeydown = e => { if (e.key === "ArrowDown") { e.preventDefault(); list.focus(); focusRow(Math.max(0, cursor)); } else if (e.key === "Enter") { e.preventDefault(); loadCommits(false); } };
-      let timer = 0;
-      search.oninput = () => { clearTimeout(timer); timer = setTimeout(() => loadCommits(false), 220); };
+      search.onkeydown = e => {
+        if (composing || e.isComposing) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); list.focus(); focusRow(entries.length ? Math.max(0, cursor) : -1); }
+        else if (e.key === "Enter") { e.preventDefault(); queueSearch(true); }
+      };
+      search.oninput = e => { composing = e.isComposing; queueSearch(); };
+      search.oncompositionend = () => { composing = false; queueSearch(); };
       onlyBox.onchange = () => paintList();
-      async function loadCommits(append) {
-        if (!git) { paintList(); return; }
-        const id = ++ticket, text = search.value.trim();
-        status.textContent = append ? "Reading more commits…" : text ? "Searching…" : "Reading the history…";
+      const sameQuery = (a, b) => a && a.text === b.text && a.ref === b.ref;
+      const matches = request => sameQuery(query, request) && (!request.previous || page === request.previous);
+      function queueSearch(immediate = false) {
+        if (!git || !current()) return;
+        const next = {ref: refFilter, text: search.value.trim()};
+        if (!sameQuery(query, next)) {
+          query = next;
+          clearTimeout(retry);
+          if (page) {
+            page = null;
+            entries.length = 0;
+            focusRow(-1, true);
+            list.replaceChildren();
+            more.hidden = true;
+          }
+        }
+        if (page) return;
+        if (immediate) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+          loadCommits();
+        } else if (!frame && !composing) {
+          frame = requestAnimationFrame(() => { frame = 0; loadCommits(); });
+        }
+      }
+      async function loadCommits(append = false) {
+        if (!current() || !query || frame || composing || (append ? !page?.more : page)) return;
+        const previous = page, now = performance.now();
+        if (pending.size) {
+          const [running] = pending;
+          if (!parallel || pending.size > 1 || matches(running)) return;
+          // Give a superseded request time to finish before opening a second slot on a parallel host.
+          const wait = SLOW_READ - (now - running.startedAt);
+          if (wait > 0) {
+            clearTimeout(retry);
+            retry = setTimeout(() => loadCommits(append && previous === page), Math.ceil(wait));
+            return;
+          }
+        }
+        clearTimeout(retry);
+        const request = {...query, previous, startedAt: now};
+        requested = query;
+        pending.add(request);
+        more.disabled = true;
+        list.setAttribute("aria-busy", "true");
+        status.textContent = append ? "Reading more commits…" : request.text ? "Searching…" : "Reading the history…";
         try {
-          const r = await GIT.log({refs: refFilter ? [refFilter] : "all", skip: append ? commits.length : 0, limit: PAGE, search: text || undefined});
-          if (id !== ticket || !d.open) return;
-          commits = append ? commits.concat(r.commits) : r.commits;
-          more_ = !!r.more; more.hidden = !more_;
-          if (!append) cursor = -1;
+          const r = await GIT.log({refs: request.ref ? [request.ref] : "all", skip: previous?.commits.length || 0,
+            limit: PAGE, search: request.text});
+          if (!current() || !matches(request)) return;
+          const commits = append ? previous.commits.concat(r.commits) : r.commits;
+          page = {text: request.text, commits, more: !!r.more};
+          more.hidden = !page.more;
           paintList();
           const touching = commits.filter(c => c.touches).length;
-          status.textContent = commits.length ? commits.length + (more_ ? "+" : "") + " commits · " + touching + " changed this file" : "";
-        } catch (e) { if (id === ticket) status.textContent = e.message; }
+          status.textContent = refsError?.message || (commits.length ?
+            commits.length + (page.more ? "+" : "") + " commits · " + touching + " changed this file" : "");
+        } catch (e) {
+          if (current() && matches(request)) {
+            requested = query;
+            status.textContent = e.message;
+          }
+        } finally {
+          pending.delete(request);
+          if (![...pending].some(matches)) {
+            more.disabled = false;
+            list.removeAttribute("aria-busy");
+          }
+          if (requested !== query && !page) loadCommits();
+        }
       }
       function finish() {
+        if (!current()) return;
         if (pair) { if (!slots.before || !slots.after) return; result = {before: slots.before, after: slots.after, mergeBase: !baseRow.hidden && baseBox.checked}; }
         else {
           if (!slots.before && entries[cursor]) slots.before = entries[cursor].spec;
@@ -498,12 +580,31 @@ globalThis.AtriumGitPicker = (() => {
         if (e.target === d && e.key.length === 1 && !e.metaKey && !e.ctrlKey) search.focus();
       });
       G.AtriumShell.openDialog(d, {title, body, actions: foot, initialFocus: git ? search : list,
-        beforeRemove() { ticket++; clearTimeout(timer); }, onClose() { resolve(result); }});
+        beforeRemove() {
+          cancelAnimationFrame(frame);
+          clearTimeout(retry);
+          G.removeEventListener("atrium-git-binding", current);
+        },
+        onClose() { resolve(active() ? result : null); }});
       paintSlots(); paintSide(); paintList();
       ok.disabled = pair ? !(slots.before && slots.after) : false;
       if (git) {
-        status.textContent = "Reading branches and tags…";
-        GIT.refs().then(r => { if (!d.open) return; refs = r; paintSide(); return loadCommits(false); }, e => { status.textContent = e.message; refs = null; paintSide(); paintList(); });
+        G.addEventListener("atrium-git-binding", current);
+        GIT.refs().then(r => {
+          if (!current()) return;
+          refs = r;
+          for (const ref of r.refs) {
+            if (!tips.has(ref.revision)) tips.set(ref.revision, []);
+            tips.get(ref.revision).push(ref);
+          }
+          paintSide();
+          for (const {line, spec} of entries) addBadges(line, spec.rev);
+        }, error => {
+          if (!current()) return;
+          refsError = error;
+          if (page && !list.hasAttribute("aria-busy")) status.textContent = error.message;
+        });
+        queueSearch();
       } else status.textContent = "Without Git, compare the working design with saved project ZIPs.";
     });
   }

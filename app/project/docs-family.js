@@ -16,8 +16,8 @@ globalThis.AtriumDocsFamily = (() => {
     node.style.setProperty("--ui-thumb-ratio", ratio);
     if (size) node.style.setProperty("--ui-thumb-size", size);
     const tiles = new Map(), A = () => G.AtriumHistoryArtwork;
-    let watch = null, current = null, items = [];
-    function tile(item, index) {
+    let watch = null, current = null, items = [], marked = null, tabbable = null;
+    function tile(item) {
       let t = tiles.get(item.id);
       const key = [item.label, item.state || "", item.version || ""].join("\u0000");
       if (t && t.key === key) return t;
@@ -42,20 +42,26 @@ globalThis.AtriumDocsFamily = (() => {
       for (const [id, t] of tiles) if (!keep.has(id)) { watch?.forget(t.node); t.node.remove(); tiles.delete(id); }
       let prev = null;
       items.forEach((item, i) => {
-        const t = tile(item, i);
+        const t = tile(item);
+        t.index = i;
         if ((prev ? prev.nextSibling : node.firstChild) !== t.node) prev ? prev.after(t.node) : node.prepend(t.node);
         prev = t.node;
       });
       mark();
     }
     function mark() {
-      let focusable = null;
-      for (const [id, t] of tiles) {
-        const on = id === current;
-        if (on) { t.node.setAttribute("aria-current", "true"); focusable = t.node; } else t.node.removeAttribute("aria-current");
-        t.node.tabIndex = -1;
+      const selected = tiles.get(current)?.node ?? null;
+      const focusable = selected || node.firstElementChild;
+      if (selected !== marked) {
+        marked?.removeAttribute("aria-current");
+        selected?.setAttribute("aria-current", "true");
+        marked = selected;
       }
-      (focusable || node.firstElementChild)?.setAttribute?.("tabindex", "0");
+      if (focusable !== tabbable) {
+        if (tabbable) tabbable.tabIndex = -1;
+        if (focusable) focusable.tabIndex = 0;
+        tabbable = focusable;
+      }
     }
     function select(id, {reveal = true, focus = false} = {}) {
       current = id; mark();
@@ -65,20 +71,21 @@ globalThis.AtriumDocsFamily = (() => {
     }
     node.addEventListener("keydown", event => {
       if (onKey?.(event) === true) return;
-      const ids = items.map(i => i.id), at = Math.max(0, ids.indexOf(current));
+      const at = tiles.get(current)?.index ?? 0;
       const fwd = orientation === "row" ? "ArrowRight" : "ArrowDown", back = orientation === "row" ? "ArrowLeft" : "ArrowUp";
       let to = null;
-      if (event.key === fwd && !event.altKey) to = Math.min(ids.length - 1, at + 1);
+      if (event.key === fwd && !event.altKey) to = Math.min(items.length - 1, at + 1);
       else if (event.key === back && !event.altKey) to = Math.max(0, at - 1);
       else if (event.key === "Home") to = 0;
-      else if (event.key === "End") to = ids.length - 1;
+      else if (event.key === "End") to = items.length - 1;
       else if (event.key === "Enter" || event.key === " ") { if (current) onPick?.(current, "key"); event.preventDefault(); return; }
-      if (to == null || !ids.length) return;
+      if (to == null || !items.length) return;
       event.preventDefault();
-      select(ids[to], {focus: true});
-      onPick?.(ids[to], "key");
+      const id = items[to].id;
+      select(id, {focus: true});
+      onPick?.(id, "key");
     });
-    const close = () => { watch?.close(); watch = null; tiles.clear(); node.replaceChildren(); };
+    const close = () => { watch?.close(); watch = null; tiles.clear(); items = []; node.replaceChildren(); mark(); };
     return {node, update, select, close, tile: id => tiles.get(id)?.node, current: () => current};
   }
 

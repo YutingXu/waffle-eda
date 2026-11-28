@@ -6,14 +6,13 @@
 // counterpart in the other pane; nets are also highlighted.
 //
 // Built for large designs: rows are cached per document and rebuilt for affected documents
-// (debounced, and only while the panel is open); the list is virtualised (fixed
+// (after the edit frame, and only while the panel is open); the list is virtualised (fixed
 // row height, a small pool of row nodes); search filters cached lower-case keys.
 //
 // Headless API (pure):
 //   AtriumNavigatorPanel.model(project, defs, cache?, journal?) -> {sheets, parts, nets, buses, ports}
 //   AtriumNavigatorPanel.flatten(model, {query, expanded, collapsed}) -> visible rows
 globalThis.AtriumNavigatorPanel = (() => {
-  const A = () => globalThis.Atrium;
   const ROW = 22, OVERSCAN = 8;
   const natural = new Intl.Collator(undefined, {numeric:true, sensitivity:"base"});
   const lower = s => String(s ?? "").toLowerCase();
@@ -113,8 +112,10 @@ globalThis.AtriumNavigatorPanel = (() => {
       for (const d of docs.filter(x => x.kind === "pcb")) for (const [n, pins] of per.get(d.id).boardNets) {if (!all.has(n)) all.set(n, []); all.get(n).push(...pins.map(p => ({...p, detail:sheetName.get(d.id)})));}
       nets = [...all].map(([name, pins]) => ({type:"net", name, label:name, pins:pins.sort((a, b) => natural.compare(a.label, b.label))}));
     }
-    for (const n of nets) n.detail = n.pins.length + (n.pins.length === 1 ? " pin" : " pins");
-    nets.sort((a, b) => natural.compare(a.label, b.label));
+    if (!reuseNets || nets !== memo.nets) {
+      for (const n of nets) n.detail = n.pins.length + (n.pins.length === 1 ? " pin" : " pins");
+      nets.sort((a, b) => natural.compare(a.label, b.label));
+    }
     const buses = [...new Set(schematic.flatMap(d => [...per.get(d.id).buses]))].sort(natural.compare).map(b => ({type:"bus", name:b, label:b, detail:"Bus"}));
     const ports = schematic.flatMap(d => per.get(d.id).ports).sort((a, b) => natural.compare(a.label, b.label));
     const frames = schematic.flatMap(d => per.get(d.id).frames).sort((a,b) => natural.compare(a.label,b.label));
@@ -135,7 +136,7 @@ globalThis.AtriumNavigatorPanel = (() => {
       const open = !collapsed.has(g), start = out.length;
       let count = 0;
       for (const r of list) {
-        const own = hit(r), pins = r.type === "net" && words.length ? r.pins.filter(hit) : null;
+        const own = hit(r), pins = !own && r.type === "net" ? r.pins.filter(hit) : null;
         if (!own && !pins?.length) continue;
         count++;
         if (!open) continue;
@@ -151,8 +152,8 @@ globalThis.AtriumNavigatorPanel = (() => {
   }
 
   // ------------------------------------------------------------------ UI
-  let host = null, panel = null, ui = null, rows = [], current = null, dirty = true, timer = 0, frame = 0, active = -1;
-  let projectLoad;
+  let host = null, panel = null, ui = null, rows = [], current = null, dirty = true, frame = 0, active = -1;
+  let projectLoad, modelOwner, unfilteredRows, cancelRefresh, pendingProbe;
   let filteredQuery = "";
   const cache = new Map(), expanded = new Set(), collapsed = new Set();
   const MODES_KEY = "atrium.navigator.modes.v1";
@@ -178,14 +179,16 @@ globalThis.AtriumNavigatorPanel = (() => {
     // A cancelled drag can restore the live geometry without an undo record.
     const live = host.drag?.()?.before;
     current = model(project, defs, live ? undefined : cache, live ? undefined : globalThis.AtriumUndoStore || {}, !load);
+    modelOwner = {project, documents:project.documents.slice(), stamp:globalThis.AtriumUndoStore?.hierarchyVersion?.(project)};
+    unfilteredRows = null;
     dirty = false;
   }
   function refresh(keepActive = true) {
-    if (!panel || panel.hidden) return;
-    if (dirty) compute();
+    if (!panel || panel.hidden || !current) return;
     const prev = keepActive ? rows[active]?.id : null;
     filteredQuery = ui.search.value;
-    rows = flatten(current, {query:filteredQuery, expanded, collapsed});
+    rows = filteredQuery.trim() ? flatten(current, {query:filteredQuery, expanded, collapsed})
+      : (unfilteredRows ??= flatten(current, {expanded, collapsed}));
     active = prev ? rows.findIndex(r => r.id === prev) : -1;
     if (active < 0 && rows.length) active = Math.min(rows.length - 1, Math.max(0, keepActive ? 0 : -1));
     const total = current.parts.length + current.nets.length + current.ports.length + current.frames.length;
@@ -196,37 +199,44 @@ globalThis.AtriumNavigatorPanel = (() => {
     paint();
   }
   function paint() {
-    frame = 0;
+    if (!panel || panel.hidden) return;
     const top = ui.scroller.scrollTop, h = ui.scroller.clientHeight || 400;
     const first = Math.max(0, Math.floor(top / ROW) - OVERSCAN), last = Math.min(rows.length, Math.ceil((top + h) / ROW) + OVERSCAN);
-    const need = last - first;
+    const need = Math.max(0, last - first);
     while (pool.length < need) {
       const n = el("div", null, "navp-row"); n.setAttribute("role", "treeitem"); n.tabIndex = -1;
       const tw = el("span", null, "navp-twisty"), ic = el("span", null, "navp-icon"), lb = el("span", null, "navp-label"), dt = el("span", null, "navp-detail");
       tw.setAttribute("aria-hidden", "true"); ic.setAttribute("aria-hidden", "true");
-      n.append(tw, ic, lb, dt); ui.inner.append(n); pool.push(n);
+      n.append(tw, ic, lb, dt); pool.push(n);
     }
+    // Keep recycled rows for the next search, outside the live tree until needed.
+    while (ui.inner.childElementCount > need) ui.inner.lastElementChild.remove();
+    while (ui.inner.childElementCount < need) ui.inner.append(pool[ui.inner.childElementCount]);
     const lit = host.highlight?.() || "";
-    for (let k = 0; k < pool.length; k++) {
+    for (let k = 0; k < need; k++) {
       const n = pool[k], idx = first + k, r = rows[idx];
-      if (!r || k >= need) {n.hidden = true; continue;}
-      n.hidden = false; n.style.top = idx * ROW + "px"; n.dataset.index = String(idx);
-      n.id = idx === active ? "navp-active" : "";
-      n.dataset.type = r.type; n.dataset.depth = String(r.depth);
-      n.setAttribute("aria-level", String(r.depth + 1));
-      n.setAttribute("aria-selected", String(idx === active));
-      if (r.type === "group" || r.expandable) n.setAttribute("aria-expanded", String(!!r.open)); else n.removeAttribute("aria-expanded");
-      const [tw, ic, lb, dt] = n.children;
-      tw.dataset.state = r.type === "group" || r.expandable ? (r.open ? "open" : "closed") : "";
-      ic.textContent = "";
-      lb.textContent = r.label;
-      dt.textContent = r.type === "group" ? String(r.count) : r.detail || "";
-      n.style.paddingLeft = (4 + r.depth * 12 + (r.indent || 0) * 10) + "px";
+      if (n.navigatorRow !== r || +n.dataset.index !== idx) {
+        n.navigatorRow = r;
+        n.style.top = idx * ROW + "px"; n.dataset.index = String(idx);
+        n.dataset.type = r.type; n.dataset.depth = String(r.depth);
+        n.setAttribute("aria-level", String(r.depth + 1));
+        if (r.type === "group" || r.expandable) n.setAttribute("aria-expanded", String(!!r.open)); else n.removeAttribute("aria-expanded");
+        const [tw, , lb, dt] = n.children;
+        tw.dataset.state = r.type === "group" || r.expandable ? (r.open ? "open" : "closed") : "";
+        lb.textContent = r.label;
+        dt.textContent = r.type === "group" ? String(r.count) : r.detail || "";
+        n.style.paddingLeft = (4 + r.depth * 12 + (r.indent || 0) * 10) + "px";
+      }
+      const id = idx === active ? "navp-active" : "", selected = String(idx === active);
+      if (n.id !== id) n.id = id;
+      if (n.getAttribute("aria-selected") !== selected) n.setAttribute("aria-selected", selected);
       n.classList.toggle("is-lit", (r.type === "net" && r.name === lit) || (r.type === "pin" && r.net === lit && !!lit));
     }
     if (active >= 0) ui.scroller.setAttribute("aria-activedescendant", "navp-active"); else ui.scroller.removeAttribute("aria-activedescendant");
   }
-  function schedulePaint() {if (!frame) frame = (globalThis.requestAnimationFrame || (f => setTimeout(f, 16)))(paint);}
+  function schedulePaint() {
+    if (!frame) frame = (globalThis.requestAnimationFrame || (f => setTimeout(f, 16)))(() => {frame = 0; paint();});
+  }
   function choose(i, scroll = true) {
     active = Math.max(-1, Math.min(rows.length - 1, i));
     if (scroll && active >= 0) {
@@ -239,11 +249,12 @@ globalThis.AtriumNavigatorPanel = (() => {
     if (r.type === "group") {if (open ?? collapsed.has(r.group)) collapsed.delete(r.group); else collapsed.add(r.group);}
     else if (r.expandable) {if (open ?? !expanded.has(r.id)) expanded.add(r.id); else expanded.delete(r.id);}
     else return false;
+    unfilteredRows = null;
     refresh(); return true;
   }
   // ------------------------------------------------------------------ probing
   function boxFor(doc, part, pin) {
-    const sub = globalThis.AtriumCrossProbe.terminal(doc,host.defs(),part,{pin});
+    const sub = globalThis.AtriumCrossProbe.terminal(doc,host.defs(),part,{pin,includeNet:false});
     if (!sub) return null;
     const [x,y]=sub.at, r=Math.max(sub.w || 0,sub.h || 0,doc.kind === "pcb" ? .3 : 1)/2;
     return {sub,box:[x-r,y-r,x+r,y+r]};
@@ -303,7 +314,6 @@ globalThis.AtriumNavigatorPanel = (() => {
         activateInstance(doc, member?.instance, row.name);
         counterpart(doc.id, {kind:"net", net:row.name, docId:doc.id}, members);
         host.info("Navigator: net " + row.name + " · " + row.pins.length + " pins");
-        refresh();
       });
       return;
     }
@@ -311,13 +321,16 @@ globalThis.AtriumNavigatorPanel = (() => {
     host.info("Net " + row.name + " has no objects to show.");
   }
   function probe(r) {
-    if (dirty && (r?.type === "net" || r?.type === "pin")) {
-      const id = r.id;
-      refresh();
-      r = rows.find(row => row.id === id);
-    }
     const Q = globalThis.AtriumQuery, m = {select:modes.select, zoom:modes.zoom, mask:modes.mask, highlight:false};
     if (!r || r.type === "group") return;
+    if (dirty && (r.type === "net" || r.type === "pin")) {
+      const id = r.id;
+      compute();
+      refresh();
+      r = rows.find(row => row.id === id);
+      if (!r) return;
+    }
+    pendingProbe = null;
     if (r.type === "sheet") {
       host.selectDocument(r.docId);
       if(m.zoom && globalThis.AtriumSchAppearance?.isInfinite(host.doc()))host.act("fit-document");
@@ -343,11 +356,11 @@ globalThis.AtriumNavigatorPanel = (() => {
       const doc = host.docById(r.docId), part = doc?.items.find(i => i.id === r.partId); if (!part) return;
       const b = boxFor(doc, part, r.pin);
       onDocument(doc, () => {
-        Q?.applyIds(r.docId, [part.id], b ? [b.sub] : [], {...m, highlight:!m.mask});
+        Q?.applyIds(r.docId, [part.id], b ? [b.sub] : [], {...m, zoom:m.zoom && !b, highlight:!m.mask});
         const compiled = current?.nets.find(n => n.name === r.net)?.compiled;
         if (r.net) host.setHighlight(r.net, compiled ? AtriumCrossProbe.compiledNetMembers(compiled) : null);
         activateInstance(doc, r.instanceId, r.net);
-        if (b && modes.zoom) host.zoomTo(b.box);
+        if (b && m.zoom) host.zoomTo(b.box);
         counterpart(r.docId, {kind:"pin", ref:part.ref, link:part.link, pin:r.pin, docId:r.docId});
         host.info("Navigator: pin " + r.label + (r.net ? " · net " + r.net : ""));
       });
@@ -373,7 +386,6 @@ globalThis.AtriumNavigatorPanel = (() => {
         Q?.applyIds(d.id, m.select ? ids : [], subs, {...m, highlight:!m.mask});
         if (r.type === "net") counterpart(d.id, {kind:"net", net:name, docId:d.id});
         host.info("Navigator: " + (r.type === "bus" ? "bus " : "net ") + name + " · " + (r.pins?.length || 0) + " pins");
-        refresh();
         return;
       }
       host.info("Net " + name + " has no objects to show.");
@@ -394,13 +406,18 @@ globalThis.AtriumNavigatorPanel = (() => {
     head.append(h2, close);
     const tools = el("div", null, "navp-tools");
     const search = el("input", null, "ui-field"); search.type = "search"; search.placeholder = "Search components, nets, pins, ports, frames"; search.setAttribute("aria-label", "Search the Navigator");
-    const filter = () => {clearTimeout(timer); ui.scroller.scrollTop = 0; refresh(false);};
-    search.oninput = () => {clearTimeout(timer); timer = setTimeout(filter, 60);};
+    const filter = () => {pendingProbe = null; ui.scroller.scrollTop = 0; refresh(false);};
+    const firstResult = () => {const i = rows.findIndex(x => x.depth > 0); if (i >= 0) {choose(i); probe(rows[i]);}};
+    search.oninput = filter;
     search.onkeydown = e => {
       if ((e.key === "Enter" || e.key === "ArrowDown") && search.value !== filteredQuery) filter();
       if (e.key === "ArrowDown") {e.preventDefault(); ui.scroller.focus(); choose(Math.max(0, active));}
-      else if (e.key === "Enter") {e.preventDefault(); const r = rows.find(x => x.depth > 0); if (r) {choose(rows.indexOf(r)); probe(r);}}
-      else if (e.key === "Escape" && search.value) {e.preventDefault(); search.value = ""; refresh(false);}
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        if (dirty) {pendingProbe = firstResult; scheduleRefresh();}
+        else firstResult();
+      }
+      else if (e.key === "Escape" && search.value) {e.preventDefault(); search.value = ""; filter();}
       e.stopPropagation();
     };
     const modesRow = el("div", null, "navp-modes"); modesRow.setAttribute("role", "group"); modesRow.setAttribute("aria-label", "On click");
@@ -421,8 +438,9 @@ globalThis.AtriumNavigatorPanel = (() => {
     scroller.addEventListener("scroll", schedulePaint, {passive:true});
     inner.addEventListener("click", e => {
       const n = e.target.closest(".navp-row"); if (!n) return;
-      const i = +n.dataset.index, r = rows[i]; if (!r) return; choose(i, false);
-      if (r.type === "group" || e.target.closest(".navp-twisty") && r.expandable) {toggleRow(r); return;}
+      const i = +n.dataset.index, r = rows[i]; if (!r) return;
+      if (r.type === "group" || e.target.closest(".navp-twisty") && r.expandable) {active = i; toggleRow(r); return;}
+      choose(i, false);
       probe(r);
     });
     inner.addEventListener("dblclick", e => {const n = e.target.closest(".navp-row"); const r = n && rows[+n.dataset.index]; if (r?.expandable) toggleRow(r);});
@@ -441,32 +459,66 @@ globalThis.AtriumNavigatorPanel = (() => {
       if ((r.type === "group" && r.open || r.expandable && r.open)) toggleRow(r, false);
       else {for (let k = active - 1; k >= 0; k--) if (rows[k].depth < r.depth) {choose(k); break;}}
     } else if ((e.key === "Enter" || e.key === " ") && r) {e.preventDefault(); if (r.type === "group") toggleRow(r); else probe(r);}
-    else if (e.key === "Escape") {e.preventDefault(); globalThis.AtriumQuery?.clear(true); host.setHighlight(""); host.canvas()?.focus();}
+    else if (e.key === "Escape") {e.preventDefault(); pendingProbe = null; globalThis.AtriumQuery?.clear(true); host.setHighlight(""); host.canvas()?.focus();}
     else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {ui.search.focus(); return;}
     else return;
     e.stopPropagation();
   }
   function toggle(show) {
     if (!panel && !build()) return;
+    cancelRefresh?.(); cancelRefresh = pendingProbe = null;
     const on = show ?? panel.hidden;
     panel.hidden = !on;
     document.body.classList.remove("hide-left");
     globalThis.AtriumNavCommon?.setChecked("navigator-panel", on);
-    if (on) {dirty = true; refresh(); ui.scroller.focus({preventScroll:true}); host.info("Navigator: " + (current.parts.length) + " components, " + current.nets.length + " nets");}
-    else host.canvas()?.focus();
+    if (on) {compute(); refresh(); ui.scroller.focus({preventScroll:true}); host.info("Navigator: " + (current.parts.length) + " components, " + current.nets.length + " nets");}
+    else {unfilteredRows = null; host.canvas()?.focus();}
+  }
+  function scheduleRefresh() {
+    if (!panel || panel.hidden || !dirty || cancelRefresh) return;
+    const run = () => {
+      cancelRefresh = null;
+      if (panel.hidden || !dirty) return;
+      if (host.drag?.()?.before) {scheduleRefresh(); return;}
+      // The undo recorder may be queued separately. Certify this generation once
+      // here so Navigator and the live check can share the compiled result.
+      const journal = globalThis.AtriumUndoStore;
+      if (journal?.unrecorded?.()) journal.sync?.(host.project());
+      compute();
+      refresh();
+      const action = pendingProbe;
+      pendingProbe = null;
+      if (!projectLoad) action?.();
+    };
+    if (host.stageEdit) {
+      const task = host.stageEdit("idle", "navigator:model", current => {if (current()) run();});
+      cancelRefresh = () => task?.cancel?.();
+    } else {
+      const timer = setTimeout(run, 0);
+      cancelRefresh = () => clearTimeout(timer);
+    }
   }
   function changed() {
-    dirty = true;
-    if (!panel || panel.hidden) return;
-    clearTimeout(timer); timer = setTimeout(() => refresh(), 250);
+    cancelRefresh?.(); cancelRefresh = null;
+    dirty = true; pendingProbe = null;
+    scheduleRefresh();
   }
   function attach(h) {
     host = h;
     host.registerAction("navigator-panel", () => toggle());
     host.on("change", changed);
     host.on("folder-owner", changed);
-    host.on("document", () => {dirty = true; if (panel && !panel.hidden) {clearTimeout(timer); timer = setTimeout(() => refresh(), 60);}});
-    host.on("highlight", () => {if (panel && !panel.hidden) paint();});
+    host.on("replace", changed);
+    host.on("document", () => {
+      pendingProbe = null;
+      if (!panel || panel.hidden) return;
+      const project = host.project(), docs = project.documents, stamp = globalThis.AtriumUndoStore?.hierarchyVersion?.(project);
+      // Native folders can hydrate another owner in the background before it is opened.
+      if (modelOwner?.project !== project || modelOwner.stamp !== stamp ||
+          modelOwner.documents.length !== docs.length || docs.some((d, i) => d !== modelOwner.documents[i])) changed();
+      schedulePaint();
+    });
+    host.on("highlight", () => {if (panel && !panel.hidden) schedulePaint();});
   }
   if (typeof document !== "undefined") globalThis.AtriumNavCommon?.ready(attach);
   return {model, flatten, toggle, attach, isOpen:() => !!panel && !panel.hidden, rows:() => rows.slice(), modes:() => ({...modes})};

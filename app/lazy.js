@@ -92,7 +92,7 @@ globalThis.AtriumLazy = (() => {
     AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationIntent","AtriumCalculationDesign","AtriumTableData"]},
     AtriumTableVisual: {scripts:["notebook/table-visual.js"],deps:["AtriumTableFormulas","AtriumTableExchange","AtriumSheetWidgets"]},
     AtriumTableQuery: {scripts:["notebook/table-query.js"],deps:["AtriumTableData","AtriumDesignQuery"]},
-    AtriumTableEditor: {scripts:["notebook/table-editor.js"],css:["notebook/table-editor.css"],deps:["AtriumTableVisual","AtriumNotebook"]},
+    AtriumTableEditor: {scripts:["notebook/table-editor.js"],css:["notebook/table-editor.css"],deps:["AtriumTableVisual","AtriumNotebook","AtriumUndoStore"]},
     AtriumWidgetCatalogue: {scripts:["notebook/widget-fallback.js","notebook/widget-catalogue.js"]},
     AtriumSheetWidgets: {scripts:["notebook/sheet-widgets.js"],deps:["AtriumWidgetCatalogue","AtriumNoteFields"]},
     AtriumExtensionWidgetDeclarations: {scripts:["notebook/widget-fallback.js","extension-host/extension-widget-declarations.js"]},
@@ -597,7 +597,7 @@ globalThis.AtriumLazy = (() => {
   on({pcb: ["AtriumViaStack","AtriumRules"]}, "via");
   on(["AtriumLibrary"], "library-panel", "library-workspace", "library-sources", "footprint-wizard", "footprint-editor", "symbol-editor", "edit-footprint", "edit-symbol");
   // Symbol Wizard (symbol-wizard.js): a symbol from a datasheet pin table.
-  register("AtriumSymbolWizard", {scripts: ["library/symbol-wizard.js"], css: ["library/symbol-wizard.css"], deps: ["AtriumLibrary"]}, ["symbol-wizard"]);
+  register("AtriumSymbolWizard", {scripts: ["library/symbol-wizard.js"], css: ["library/symbol-wizard.css"], deps: ["AtriumLibrary", "AtriumWindowedTable"]}, ["symbol-wizard"]);
   on(["AtriumSwap"], "swap-components", "swap-components-origin", "swap-library", "swap-variant", "swap-variant-back", "swap-variant-pick");
   on(["AtriumSymbols"], "symbols");
   on(["AtriumPCBEdit", "AtriumTeardrops"], "teardrops");

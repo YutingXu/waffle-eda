@@ -1,4 +1,4 @@
-import {openDocument, pageTable, pageText, renderPage, search} from "../notebook/datasheet-document.mjs";
+import {openDocument, pageAspect, pageTable, pageText, renderPage, search} from "../notebook/datasheet-document.mjs";
 
 const documents = new Map(), requests = new Map();
 
@@ -15,7 +15,7 @@ async function run(message,signal) {
     if (documents.size>=4) throw Error("Close a datasheet before opening another.");
     const pdf = await openDocument(bytes,{signal});
     documents.set(key,pdf);
-    return {pages:pdf.numPages};
+    return {pages:pdf.numPages,aspect:await pageAspect(pdf,1,signal)};
   }
   const pdf = documents.get(key);
   if (!pdf) throw Error("The datasheet reader has closed.");

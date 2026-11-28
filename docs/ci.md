@@ -114,6 +114,45 @@ Compare builds with the same board, viewport, pixel ratio and input sequence. Ch
 
 For a saved board on macOS, run `scripts/perf-view-feel.sh --native --bundle <signed-harness.app> --project <manifest.waffle> --display <display-id> --draw-work`. It sends native input, checks the board under the pointer, and reports the first and final stationary frame alongside the moving frames. The detailed output includes per-process CPU and, on builds with text raster counters, the rows and milliseconds spent sharpening the current view or preparing a wider view. Use `--hz 120` on an awake 120 Hz display to check presentation cadence. The default work budget is 8 ms at p95.
 
+### Tracing editor interactions
+
+With Chrome installed, run the three interaction suites against the local editor.
+
+```sh
+python3 scripts/prepare-assets.py
+npm ci --prefix scripts/ci
+NODE_PATH="$PWD/scripts/ci/node_modules" node scripts/perf-interactions.cjs --out /tmp/waffle-interactions
+```
+
+Use a fresh output directory or omit `--out` to create a temporary one. Set `CHROME` to select another Chromium executable. Each suite writes a JSON summary and the original compressed Chromium trace (`*.trace.json.gz`). Open the trace in Chrome DevTools Performance or Perfetto. The `waffle.start.` and `waffle.end.` marks bracket each action. The `waffle.input.` marks identify trusted events by surface, device and type. Raw traces can include local browser and project details.
+
+- `--suite canvas` exercises a populated schematic and a drawing with 120 text labels and 120 lines. It checks camera changes at fit and detail zoom, mouse drag, trackpad pan and zoom, wheel notches, keyboard pan, touch pan and pinch, mouse and pen selection, object dragging and keyboard Undo. It also edits and commits a schematic property.
+- `--suite notebook` opens a 1,000-row, 50-column notebook table with the table feature enabled in this browser profile. It exercises filter keystrokes and Tab to apply, sorting, formula entry and commit, cell selection and virtual scrolling. It also edits a rich-text note, draws a pressure-sensitive pen stroke and verifies Undo.
+- `--suite shell` drives the menus, context menu, project tree, document tabs, command palette, Quick Open, preferences, themes, component catalogue and dock sash. It searches the library and drags a component onto a schematic. It also exercises the schematic bill of materials, 5,000 compiler messages and the Navigator. The checks verify filtered counts, sort order, row navigation and IME composition.
+- `--suite manual` opens the schematic project in a visible editor. Use any tools, panels or dialogs in that window and press Enter in the terminal to save the trace. This also captures interactions in lazy-loaded features. Each run uses a fresh browser context.
+
+The summaries include sample counts and p50, p95, p99 and maximum times in milliseconds. `captureDelayMs` measures from the trusted DOM event timestamp to the capture listener. `inputDelayMs` and `eventDurationMs` use Chromium's Event Timing processing start and duration where available. `dispatchMs` measures synchronous event dispatch. For the filter probes, `resultMs` measures from the triggering keydown timestamp until a DOM observer sees the updated count. This includes any debounce. The notebook column filter starts its result measurement at the Tab key that commits the change.
+
+`latencyRecords` counts Chromium EventLatency events by input type. `compositorMs` includes paired records with display feedback in the same interaction window. Several inputs can share a frame or produce no display feedback. `laterFeedback` counts feedback arriving after the measurement window. `presentedIntervalMs` reports the time between distinct frames with presentation feedback during the action, excluding the settling period. It also reflects the rate at which the driver sends input. Measuring physical display latency requires a device measurement.
+
+`workMs` covers layout, style, paint and animation-frame callbacks on the editor thread. `longTasks` counts tasks over 50 ms starting in the window. `callbacks` ranks inclusive callback time and `samples` ranks the nearest application function on sampled stacks. These measurements can overlap. `components` contains the editor's own timing records for each automated action.
+
+### Timing input through a visible result
+
+Run the result probes with the same Chromium and Playwright installation. The default runs 20 repetitions of each interaction, one suite at a time.
+
+```sh
+NODE_PATH="$PWD/scripts/ci/node_modules" node scripts/perf-results.cjs --out /tmp/waffle-results
+```
+
+Use `--help` for suite names or pass a comma-separated list to `--suite`. Each suite writes its observed results to JSON and records a compressed Chromium trace. Open the trace in DevTools Performance and look for the `waffle.result-input.` and `waffle.result-frame.` marks. `--no-trace` runs the same assertions and records just the samples.
+
+Each timer starts at a trusted browser event. The probe checks the requested result in an animation frame and records `frameMs` in a task posted from that frame. This measures a browser rendering opportunity. Search debounces start at the final key. Palette, Quick Open and library searches start at the first key in a burst paced at 24 ms per character and finish when the intended row is visible and enabled. Enter has its own timer.
+
+Canvas probes check the scene at the end of the editor’s paint callback so an earlier animation callback cannot count an extra frame. The PDF probe checks the position of the matched text in a decoded page image. The Git picker calls the desktop Git helper on a temporary local repository. Review Comments uses locally stored threads. Navigator checks the destination sheet, selected pin owner and net highlight after drawing. The resize probe starts a recovery save during capture of the trusted pointer move. It verifies that the drawing receives the move before IndexedDB finishes writing the checkpoint.
+
+The notebook probes check four on-screen formula results after paste and fill. They exercise Undo with the grid focused and again from the canvas after closing the table. A grid shortcut with no matching update during the one-second observation window is recorded as `no-result`. Percentiles use completed samples only.
+
 ### Recording component performance
 
 Open **Help › Troubleshooting › Frame Monitor** and reproduce the operation. The monitor shows the five operations with the longest p95 times. **Crash Diagnostics…** previews the shareable report. The latest capture stays in memory after the monitor closes and is replaced when the next capture starts. A browser test can acquire its own recording lease. Closing the monitor or completing a test releases only that caller’s lease.

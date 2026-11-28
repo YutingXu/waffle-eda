@@ -50,9 +50,9 @@ globalThis.AtriumCanvasInput = (() => {
     try{c.dispatchEvent(next);}finally{touchEvent=prior;}
   }
   // Midpoint translation, span ratio and incremental angle use the same pair and anchor.
-  function pair(points) {
+  function pair(points, rotate) {
     const it = points.values(), a = it.next().value.at, b = it.next().value?.at;
-    return b ? {at: [(a[0]+b[0])/2, (a[1]+b[1])/2], span: distance(a,b), angle: Math.atan2(b[1]-a[1],b[0]-a[0])} : {at:a,span:0,angle:0};
+    return b ? {at: [(a[0]+b[0])/2, (a[1]+b[1])/2], span: distance(a,b), angle: rotate?Math.atan2(b[1]-a[1],b[0]-a[0]):0} : {at:a,span:0,angle:0};
   }
   const turn = a => Math.atan2(Math.sin(a), Math.cos(a));
   // Rotation is optional. Leave the fast, axis-aligned renderer and its caches untouched at zero.
@@ -331,10 +331,14 @@ globalThis.AtriumCanvasInput = (() => {
     }
     function pan(s, from, to, factor=1, angle=0) {
       const dx=to[0]-from[0],dy=to[1]-from[1],v=s.pane.view;
-      if (!dx && !dy && factor===1 && !angle) return;
-      const at=loc(s,to); v.pan(dx,dy);
-      if (factor!==1 && Number.isFinite(factor)) v.zoom(factor,at);
-      if (angle) v.rotate?.(angle,at);
+      const zoom=factor!==1 && Number.isFinite(factor);
+      if (!dx && !dy && !zoom && !angle) return;
+      if (dx || dy) v.pan(dx,dy);
+      if (zoom || angle) {
+        const at=loc(s,to);
+        if (zoom) v.zoom(factor,at);
+        if (angle) v.rotate?.(angle,at);
+      }
       frame(s.pane);
     }
     function speed(s, dx, dy, dt) {
@@ -363,7 +367,8 @@ globalThis.AtriumCanvasInput = (() => {
     }
     function move(s,e) {
       const row=s.points.get(e.pointerId),at=client(e),old=row.at;
-      const before=s.mode==="pan"?pair(s.points):null;
+      const rotate=s.mode==="pan" && s.points.size>1 && cameraPref("camera.rotate");
+      const before=s.mode==="pan"?pair(s.points,rotate):null;
       row.at=at; s.last=e;
       if (distance(row.start,at)>=SLOP) s.wandered=true;
       if (s.swipe) { s.swipe.get(e.pointerId).at=at; return; }
@@ -390,8 +395,8 @@ globalThis.AtriumCanvasInput = (() => {
       if (s.mode==="drag" || s.mode==="place") {
         if (at[0]!==old[0] || at[1]!==old[1]) { replay(s,e,"pointermove",at); editing(s,e,"move"); }
       } else if (s.mode==="pan" && before) {
-        const after=pair(s.points),factor=before.span&&after.span?after.span/before.span:1;
-        const angle=before.span&&after.span&&cameraPref("camera.rotate")?turn(after.angle-before.angle):0;
+        const after=pair(s.points,rotate),factor=before.span&&after.span?after.span/before.span:1;
+        const angle=rotate&&before.span&&after.span?turn(after.angle-before.angle):0;
         pan(s,before.at,after.at,factor,angle);
         if (distance(after.at,before.at)>0) {
           const t=time.now(); speed(s,after.at[0]-before.at[0],after.at[1]-before.at[1],t-s.t); s.t=t;
@@ -617,11 +622,12 @@ globalThis.AtriumCanvasInput = (() => {
       if(e.type.startsWith("gesture")) return web(e,s);
       if(e.type==="wheel") {
         if(!s.web&&!s.points.size) C()?.wheel(e,pane.view,pinch=>{
-          const at=client(e);
-          if(pinch && s.webEnd && time.now()-s.webEnd.t<65 && distance(s.webEnd.at,at)<26) return null;
+          const at=pinch?client(e):null;
+          if(at && s.webEnd && time.now()-s.webEnd.t<65 && distance(s.webEnd.at,at)<26) return null;
           stopMotion(); s.webEnd=null;
           s.wheelPinch=pinch?{at,t:time.now(),before:pane.view.camera()}:null;
-          return loc(s,at);
+          let anchor;
+          return ()=>anchor??=loc(s,at||client(e));
         },pane.canvas,(inFrame,wheelEnd)=>frame(pane,inFrame,wheelEnd));
         return true;
       }

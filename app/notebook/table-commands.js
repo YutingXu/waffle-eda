@@ -43,7 +43,7 @@
     const {doc, item, state, project} = hit;
     if(state===next)return {result,ops:[]};
     if(!T.changedFrom(next,state)){
-      T.validate(next);
+      T.validateView(next);
       if(T.equal(state,next))return {result,ops:[]};
     }
     const ops = [{op:"set", target:"item", document:doc.id, id:item.id, path:["widget", "state"], before:state, after:next}];
@@ -210,18 +210,9 @@
         T.split(hit.state,args.rowId,args.columnId));
     },
     fill(args, context) {
-      const hit = table(args,context,true), range = select(hit.state,args), cells = [];
+      const hit = table(args,context,true), range = select(hit.state,args);
       if (range.rows.length < 2) fail("Include the source row and one or more rows below it.");
-      for (const columnId of range.columns) {
-        const from = {rowId:range.rows[0],columnId}, cell = T.get(hit.state,from.rowId,columnId);
-        for (const rowId of range.rows.slice(1)) {
-          T.assertEditable(hit.state,rowId,columnId);
-          const content = cell?.content?.kind === "formula" ?
-            G.AtriumTableFormulas.copyTo(hit.state,cell.content,from,{rowId,columnId}) : cell?.content ?? null;
-          cells.push({rowId,columnId,content,style:cell?.style ?? null});
-        }
-      }
-      return commit(hit,T.batch(hit.state,cells),{cells:cells.length});
+      return commit(hit,G.AtriumTableFormulas.fillDown(hit.state,range),{cells:(range.rows.length-1)*range.columns.length});
     },
     evaluate(args, context) {
       const hit = table(args,context), area = select(hit.state,args);

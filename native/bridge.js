@@ -553,6 +553,8 @@
       return value;
     },
     get folderGitGrant() { return folderGitGrant; },
+    // WebKitGTK serializes folder Git work on the same queue as other folder reads.
+    get parallelGitReads() { return !!(webview || wk && channel === wk); },
     get canRevealProject() { return !!(wk && channel === wk && folderGitGrant); },
     revealProject(){return this.canRevealProject ? forFolder("revealProject", folderGitGrant) : Promise.resolve(false);},
     collabLocks(grant = folderGitGrant){return forFolder("collabLocks", grant);},

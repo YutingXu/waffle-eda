@@ -295,10 +295,10 @@ globalThis.AtriumPaletteView = (() => {
     help.textContent = t("palette.help", {activate:keymap.display("Enter", true)}) + " " + t("palette.options_help", {shortcut:keymap.display("Mod+K", true)});
     input.setAttribute("aria-describedby", help.id); footer.append(commands, help);
 
-    let entries = [], nodes = [], cache = new Map(), serial = 0, active = -1, activeKey = null;
+    let entries = [], nodes = [], cache = new Map(), groupNodes = new Map(), serial = 0, active = -1, activeKey = null, activeRow = null;
     let insertion = false, phase = null, pointer = null, swipe = null;
     let controller = null, previewTimer = 0, draw = null, drawFrame = 0, fadeFrame = 0, visualToken = "";
-    let pendingPointerPreview = false;
+    let pendingPointerPreview = false, resetScroll = false;
     const resize = typeof ResizeObserver === "function" ? new ResizeObserver(scheduleDraw) : null;
     const listResize = typeof ResizeObserver === "function" ? new ResizeObserver(() => {
       if (dialog.open && !list.hidden && !body.hidden && nodes[active]) reveal(nodes[active]);
@@ -323,15 +323,16 @@ globalThis.AtriumPaletteView = (() => {
         ACTION_ICONS[entry.action] || CATEGORY_ICONS[entry.category?.toLowerCase()] || "select" :
         ICONS[entry.kind === "object" ? entry.target?.type : entry.kind] || "new";
       const icon = entry.icon || typeIcon;
-      const signature = [title, detail, entry.hint, icon, source, match, enabled].join("\u0000");
-      const old = cache.get(entry.key);
-      let row = old?.row;
-      if (!row || old.signature !== signature) {
-        row = C.el("div", null, "ui-row nav-palette-item"); row.id = old?.row.id || "nav-palette-opt-" + ++serial;
+      const signature = [title, detail, entry.hint, icon, source, enabled].join("\u0000");
+      let item = cache.get(entry.key);
+      if (item?.signature !== signature) {
+        const row = C.el("div", null, "ui-row nav-palette-item");
+        row.id = item?.row.id || "nav-palette-opt-" + ++serial;
         row.setAttribute("role", "option");
+        row.setAttribute("aria-selected", String(selected));
         row.append(glyph(icon, typeIcon));
-        const copy = C.el("span", null, "nav-palette-item-copy"), label = C.el("span", null, "nav-palette-label");
-        label.append(C.highlighted(title, match)); copy.append(label);
+        const copy = C.el("span", null, "nav-palette-item-copy");
+        const label = C.el("span", null, "nav-palette-label"); copy.append(label);
         if (detail) copy.append(C.el("span", detail, "nav-palette-detail"));
         row.append(copy);
         if (source) row.append(C.el("span", source, "nav-palette-source"));
@@ -339,38 +340,63 @@ globalThis.AtriumPaletteView = (() => {
           const keys = C.el("span", null, "nav-palette-keys"); keys.append(shortcutBadge(entry.hint, false)); row.append(keys);
         }
         if (!enabled) row.setAttribute("aria-disabled", "true");
+        item = {row, label, signature};
       }
-      row.dataset.i = String(i);
-      row.setAttribute("aria-selected", String(selected));
-      retain.set(entry.key, {row, signature});
-      return row;
+      if (item.match !== match) {item.label.replaceChildren(C.highlighted(title, match)); item.match = match;}
+      if (item.row.dataset.i !== String(i)) item.row.dataset.i = String(i);
+      retain.set(entry.key, item);
+      return item.row;
+    }
+    function reconcile(parent, children) {
+      if (!parent.firstElementChild) {
+        if (children.length) parent.append(...children);
+        return;
+      }
+      const keep = new Set(children);
+      for (const child of [...parent.children]) if (!keep.has(child)) child.remove();
+      let first = parent.firstElementChild;
+      for (const child of children) {
+        if (child === first) first = first.nextElementSibling;
+        else parent.insertBefore(child, first);
+      }
     }
     function results(next, state = {}) {
       const {q = "", mode = "", entryMode: entry = "", active: nextActive = 0, instant = false, loading = false} = state;
       insertion = ![">", "@", ":"].includes(mode) && (entry === "insert" || entry === "/" || mode === "/");
       entries = next;
-      const fragment = document.createDocumentFragment(), retain = new Map(), groups = next.groups || [], scroll = list.scrollTop;
+      const top = [], retain = new Map(), nextGroups = new Map(), groups = next.groups || [];
       const selected = next[nextActive]?.key;
-      let group = null, groupIndex = 0, section, sectionCount = 0, container = fragment;
+      const preserveScroll = selected != null && selected === activeKey;
+      let group = null, groupIndex = 0, section, sectionCount = 0, children = top;
       nodes = next.map((row, i) => {
         if (groups[groupIndex]?.start === i) group = groups[groupIndex++];
         const name = group?.heading || group?.name;
         const translation = !group?.heading && !group?.remote && GROUPS.get(name);
         if (name !== section || i === group?.start) {
           section = name;
-          if (!name) container = fragment;
+          if (!name) children = top;
           else {
-            container = C.el("div"); container.setAttribute("role", "group");
-            const label = C.el("div", translation ? t(translation) : text(name), "nav-palette-group");
-            label.id = "nav-palette-group-" + ++sectionCount;
-            container.setAttribute("aria-labelledby", label.id); container.append(label); fragment.append(container);
+            const key = ++sectionCount + "\u0000" + name;
+            let [container, label] = groupNodes.get(key) || [];
+            if (!container) {
+              container = C.el("div"); container.setAttribute("role", "group");
+              label = C.el("div", null, "nav-palette-group");
+              label.id = "nav-palette-group-" + ++serial;
+              container.setAttribute("aria-labelledby", label.id);
+            }
+            const caption = translation ? t(translation) : text(name);
+            if (label.textContent !== caption) label.textContent = caption;
+            children = [label]; top.push(container);
+            nextGroups.set(key, [container, label, children]);
           }
         }
         const option = rowFor(row, i, name, mode === ":" ? "" : q, retain, i === nextActive);
-        container.append(option); return option;
+        children.push(option); return option;
       });
       cache = retain;
-      list.replaceChildren(fragment);
+      for (const [container,, rows] of nextGroups.values()) reconcile(container, rows);
+      groupNodes = nextGroups;
+      reconcile(list, top);
       list.hidden = !next.length;
       empty.hidden = !!next.length;
       input.setAttribute("aria-expanded", String(!list.hidden));
@@ -381,15 +407,23 @@ globalThis.AtriumPaletteView = (() => {
         mode === ">" ? t("palette.no_commands") : mode === "@" ? t("palette.no_objects") : t("palette.no_results"));
       if (empty.textContent !== message) empty.textContent = message;
       status(message);
-      list.scrollTop = selected != null && selected === activeKey ? scroll : 0;
-      select(nextActive, {scroll: selected != null && selected !== activeKey && nextActive > 0, instant});
+      select(nextActive, {scroll:false, instant});
+      // The fade already measures overflow before paint. Reset in that pass
+      // so typing does not force a second layout.
+      if (!preserveScroll) resetScroll = true;
       scheduleFade();
     }
     function scheduleFade() {
       if (!dialog.open || fadeFrame) return;
       fadeFrame = requestAnimationFrame(() => {
         fadeFrame = 0;
-        resultsRegion.toggleAttribute("data-more-below", !list.hidden && !body.hidden && list.scrollTop + list.clientHeight + 1 < list.scrollHeight);
+        const visible = !list.hidden && !body.hidden;
+        if (visible && resetScroll) {
+          if (list.scrollTop) list.scrollTop = 0;
+          if (active > 0) reveal(nodes[active]);
+        }
+        resetScroll = false;
+        resultsRegion.toggleAttribute("data-more-below", visible && list.scrollTop + list.clientHeight + 1 < list.scrollHeight);
       });
     }
     function reveal(row) {
@@ -402,13 +436,17 @@ globalThis.AtriumPaletteView = (() => {
       }
     }
     function select(index, {scroll = true, event, instant = false} = {}) {
-      if (active !== index) nodes[active]?.setAttribute("aria-selected", "false");
       active = index;
       const row = nodes[index], entry = entries[index];
-      if (row) {
-        row.setAttribute("aria-selected", "true"); input.setAttribute("aria-activedescendant", row.id);
-        if (scroll) reveal(row);
-      } else input.removeAttribute("aria-activedescendant");
+      if (activeRow !== row) {
+        activeRow?.setAttribute("aria-selected", "false");
+        activeRow = row;
+        if (row) {
+          if (row.getAttribute("aria-selected") !== "true") row.setAttribute("aria-selected", "true");
+          input.setAttribute("aria-activedescendant", row.id);
+        } else input.removeAttribute("aria-activedescendant");
+      }
+      if (row && scroll) {resetScroll = false; reveal(row);}
       if (phase?.key && phase.key !== entry?.key) leave();
       activeKey = entry?.key ?? null;
       if (!phase) updatePreview(event, instant);
@@ -767,8 +805,8 @@ globalThis.AtriumPaletteView = (() => {
     function close() {
       stopPreview(); leave(false, false); clearVisual(); visualToken = "";
       if (fadeFrame) cancelAnimationFrame(fadeFrame);
-      fadeFrame = 0; resultsRegion.removeAttribute("data-more-below");
-      entries = []; nodes = []; cache.clear(); active = -1; activeKey = null;
+      fadeFrame = 0; resetScroll = false; resultsRegion.removeAttribute("data-more-below");
+      entries = []; nodes = []; cache.clear(); groupNodes.clear(); active = -1; activeKey = activeRow = null;
       list.replaceChildren(); list.hidden = aside.hidden = head.hidden = primary.hidden = secondary.hidden = empty.hidden = true;
       input.removeAttribute("aria-activedescendant"); input.setAttribute("aria-expanded", "false");
       content.tabIndex = -1; status("");

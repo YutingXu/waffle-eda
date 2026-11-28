@@ -1388,7 +1388,29 @@ globalThis.AtriumLibrary = (() => {
       if (sch) doc.schDrawing = {width: 406.4, height: 406.4, grid: 2.54, frame: [], border: false};
       const part = {id: "library-stage-part", kind: "part", def: "library-stage-def", ref: "", value: "", x: O[0], y: O[1], angle: 0, pinNets: {}, showRef: false, showValue: false};
       doc.items.push(part);
-      let defs = new Map(), dpr = 1, observer = null, queued = 0;
+      let defs = new Map(), observer = null, queued = 0, painted = null;
+      const bounds = () => {
+        if (!canvas.isConnected) return null;
+        const r = canvas.getBoundingClientRect();
+        return r.width && r.height ? r : null;
+      };
+      function paint(r) {
+        view.render(doc, defs, {grid: o.grid !== false, layer: o.layer?.() || "Top", hidden: o.hidden?.() || new Set(), origin: !sch, ...(o.options?.() || {})}, r);
+        painted = r;
+        if (o.overlay) {
+          const c = canvas.getContext("2d"), dpr = canvas.width / r.width || 1;
+          c.save(); c.setTransform(dpr, 0, 0, dpr, 0, 0); o.overlay(c, s); c.restore();
+        }
+      }
+      const owner = canvas.closest("dialog");
+      function dispose() {
+        observer?.disconnect();
+        observer = null;
+        if (queued) (globalThis.cancelAnimationFrame || clearTimeout)(queued);
+        globalThis.AtriumCamera.stopWheel(view);
+        view.dispose();
+      }
+      owner?.addEventListener("close", dispose, {once: true});
       const s = {
         doc, part, view, O,
         toScreen: p => view.worldToScreen([p[0] + O[0], p[1] + O[1]]),
@@ -1405,32 +1427,36 @@ globalThis.AtriumLibrary = (() => {
           if (o.item) Object.assign(part, o.item());
           view.invalidate(doc);
         },
-        render() {
-          if (!canvas.isConnected) return;
+        render(r = bounds()) {
+          if (!r) return;
           s.sync();
-          const r = canvas.getBoundingClientRect(); if (!r.width || !r.height) return;
-          view.render(doc, defs, {grid: o.grid !== false, layer: o.layer?.() || "Top", hidden: o.hidden?.() || new Set(), origin: !sch, ...(o.options?.() || {})});
-          const c = canvas.getContext("2d"); dpr = canvas.width / r.width || 1;
-          c.save(); c.setTransform(dpr, 0, 0, dpr, 0, 0); o.overlay?.(c, s); c.restore();
+          paint(r);
         },
         schedule() { if (!queued) queued = (globalThis.requestAnimationFrame ? requestAnimationFrame : setTimeout)(() => { queued = 0; s.render(); }); },
-        fit() {
+        fit(r = bounds()) {
+          if (!r) return;
           globalThis.AtriumCamera.stopWheel(view);
           s.sync();
-          const outline = doc.outline; doc.outline = [];
-          const g = sch ? defs.get(part.def)?.symbol : defs.get(part.def)?.footprint;
-          const extra = o.extent?.();
-          if (extra && (!g || !A.symbolPoints(g).length)) { part.x += 0; }
-          view.fit(doc, defs);
-          doc.outline = outline; view.invalidate(doc);
-          s.render();
+          const outline = doc.outline;
+          doc.outline = [];
+          try { view.fit(doc, defs, undefined, r); }
+          finally { doc.outline = outline; }
+          paint(r);
         },
         zoom(f, at) { globalThis.AtriumCamera.stopWheel(view); view.zoom(f, at); s.render(); },
         pan(dx, dy) { globalThis.AtriumCamera.stopWheel(view); view.pan(dx, dy); s.render(); },
-        observe() {
-          if (observer || !globalThis.ResizeObserver) { setTimeout(() => s.fit(), 0); return; }
-          let first = true;
-          observer = new ResizeObserver(() => { if (first) { first = false; s.fit(); } else s.render(); });
+        observe(refit) {
+          if (observer) return;
+          if (!owner) canvas.closest("dialog")?.addEventListener("close", dispose, {once: true});
+          if (!globalThis.ResizeObserver) { if (!refit || !painted) s.fit(); return; }
+          let first = !refit;
+          observer = new ResizeObserver(() => {
+            const r = bounds();
+            if (!r || (!first && r.width === painted?.width && r.height === painted?.height)) return;
+            if (first || refit?.()) s.fit(r);
+            else s.render(r);
+            first = false;
+          });
           observer.observe(canvas);
         }
       };
@@ -1443,7 +1469,6 @@ globalThis.AtriumLibrary = (() => {
         const r = canvas.getBoundingClientRect(), at = [e.clientX - r.left, e.clientY - r.top];
         globalThis.AtriumCamera.wheel(e, view, at, canvas, s.schedule, stageWheel);
       }, {passive: false});
-      canvas.closest("dialog")?.addEventListener("close", () => globalThis.AtriumCamera.stopWheel(view), {once:true});
       let panFrom = null;
       canvas.addEventListener("pointerdown", e => {
         if (e.button === 1 || e.button === 2 || (e.button === 0 && s.spaceDown)) { panFrom = [e.clientX, e.clientY]; canvas.setPointerCapture?.(e.pointerId); e.preventDefault(); e.stopImmediatePropagation(); }

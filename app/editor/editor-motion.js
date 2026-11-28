@@ -444,7 +444,7 @@ globalThis.AtriumMotion = (() => {
   }
 
   // ---------------------------------------------------------------- canvas effects
-  let H = null, accent = G.AtriumTheme?.PRESETS.dark.tokens.accent || "currentColor", doc$ = null;
+  let H = null, accent = G.AtriumTheme?.PRESETS.dark.tokens.accent || "currentColor", accentPending = false, doc$ = null;
   const MAX_BOXES = 400;
   // Effects: one slot per kind, so a new undo replaces the last undo pulse, and so on.
   const fx = {pulse: null, gone: null, settle: null, halo: null, fade: null};
@@ -483,6 +483,7 @@ globalThis.AtriumMotion = (() => {
   function start(kind, e) {
     if (!fx[kind]) fxCount++;
     fx[kind] = e; e.start = -1; e.created = now();
+    if (kind !== "fade") accentPending = true;
     schedule();
   }
   function end(kind) {
@@ -497,7 +498,7 @@ globalThis.AtriumMotion = (() => {
   function undone(d, replayedItems) {
     const changed = H && !hidden() && level(true) !== "off" ? replayedItems?.(d, MAX_BOXES) : null;
     if (!changed) { end("pulse"); end("gone"); return; }
-    readAccent(); doc$ = d.id;
+    doc$ = d.id;
     const now$ = boxesOf(d, changed.changed), gone = boxesOf(d, changed.removed);
     if (now$) start("pulse", {...now$, ms:DURATIONS.base}); else end("pulse");
     if (gone) start("gone", {...gone, ms:DURATIONS.base}); else end("gone");
@@ -505,13 +506,13 @@ globalThis.AtriumMotion = (() => {
   function settle(d, items) {
     const s = boxesOf(d, items);
     if (!s) return;
-    readAccent(); doc$ = d.id;
+    doc$ = d.id;
     start("settle", {...s, ms: duration("base"), move: moves()});
   }
   function halo(d, items) {
     const s = boxesOf(d, items);
     if (!s) return;
-    readAccent(); doc$ = d.id;
+    doc$ = d.id;
     start("halo", {...s, ms: duration("fast"), move: moves()});
   }
 
@@ -559,6 +560,7 @@ globalThis.AtriumMotion = (() => {
         ctx.restore();
       }
     }
+    if (accentPending) { readAccent(); accentPending = false; }
     ctx.strokeStyle = accent; ctx.fillStyle = accent; ctx.lineJoin = "round";
     // Undo and redo fade the outline without moving the changed objects.
     const u = fx.pulse;

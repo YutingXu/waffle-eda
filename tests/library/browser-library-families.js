@@ -120,7 +120,18 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(await page.evaluate(() => AtriumNavHost.tool()), "select", "a collapsed package cannot be placed from the result group");
     await search.fill("Bench Devices MX100 dry");
     assert.equal(await panel.locator(".cat-family-packages .lib-row").count(), 0);
-    await search.fill("Bench Devices MX100 pkg:BGA");
+    await search.fill("Bench Devices MX100 pkg:BG");
+    await row("family-bga").waitFor();
+    const retained = await search.evaluate(box => {
+      const panel = box.closest(".panel-library");
+      const result = () => panel.querySelector('.lib-row[data-def="family-bga"]');
+      const detail = () => panel.querySelector(".lib-detail").firstElementChild;
+      const row = result(), empty = detail();
+      box.value += "A";
+      box.dispatchEvent(new Event("input",{bubbles:true}));
+      return {result:result() === row, detail:detail() === empty};
+    });
+    assert.deepEqual(retained,{result:true,detail:true},"refining a package search keeps the matching row and the empty inspector");
     await row("family-bga").click();
     const details = panel.locator(".lib-detail");
     const command = async name => {

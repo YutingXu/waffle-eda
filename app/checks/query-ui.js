@@ -12,8 +12,9 @@ globalThis.AtriumQueryUI = (() => {
   const EXAMPLES = ["resistor where value < 1 kΩ", "track where width < 0.2 mm", "capacitor where value >= 100 nF"];
   const KEYWORDS = ["where", "and", "or", "not", "in net", "in class", "in component", "on layer", "near"];
   let panel, tabs, tab = "search", input, list, completion, scopeControl, editor, results, scope = "project";
-  let state = {kind:"empty"}, rows = [], cursor = null, active = -1, staleTimer = 0, service, saved = null, request, scopedInstance, openTicket=0;
-  const need = async () => service ??= G.AtriumQueryService ?? await L.need("AtriumQueryService");
+  let state = {kind:"empty"}, rows = [], paintedRows = [], cursor = null, active = -1, saved = null, request, scopedInstance, openTicket=0;
+  let searchFrame = 0, renderFrame = 0, paintedRequest, hydration, subscriptions = [];
+  const need = async () => G.AtriumQueryService ?? L.need("AtriumQueryService");
 
   // ------------------------------------------------------------------ completion
   // Kinds first, then keywords after a kind, then field names after where/and/or/not.
@@ -61,51 +62,85 @@ globalThis.AtriumQueryUI = (() => {
     offer = null; paintCompletion();
     input.dispatchEvent(new Event("input", {bubbles:true}));
   }
+  function dismissCompletion() {
+    complete.version++;
+    if (offer) { offer = null; paintCompletion(); }
+  }
 
   // ------------------------------------------------------------------ search
   function documentName(id) { return host().project().documents.find(d => d.id === id)?.name ?? "Missing document"; }
-  function stopSearch() { request?.abort(); request = undefined; }
+  function clearMatches() { rows = []; cursor = null; active = -1; }
+  function cancelQuery() {
+    if (searchFrame) { cancelAnimationFrame(searchFrame); searchFrame = 0; }
+    if (renderFrame) { cancelAnimationFrame(renderFrame); renderFrame = 0; }
+    request?.abort(); request = undefined;
+  }
+  function cancelHydration() { hydration?.controller.abort(); hydration = undefined; }
+  function stopSearch() { cancelQuery(); cancelHydration(); }
+  function projectClosure(h,folder) {
+    if (hydration?.folder === folder) return hydration.done;
+    cancelHydration();
+    // Reading project owners belongs to the open project scope; typing only replaces the query.
+    const job = hydration = {folder, controller:new AbortController()};
+    job.done = h.requireProjectClosure({purpose:"project",signal:job.controller.signal}).finally(() => {
+      if (hydration === job) hydration = undefined;
+    });
+    return job.done;
+  }
+  function scheduleSearch() {
+    cancelQuery();
+    if (panel?.open && tab === "search") searchFrame = requestAnimationFrame(() => { searchFrame = 0; run(); });
+  }
+  function scheduleRender() {
+    if (!renderFrame) renderFrame = requestAnimationFrame(() => { renderFrame = 0; render(); });
+  }
+  function needsSearch() {
+    return state.stale || state.kind === "compiling" || state.kind === "counting" ||
+      state.revision != null && state.revision !== host().revision() || input.value.trim() !== (state.source ?? "");
+  }
   function setScope(value) {
     scope = value;
     for (const button of scopeControl.querySelectorAll("button")) button.setAttribute("aria-pressed",String(button.value === value));
   }
   async function run({more = false} = {}) {
-    if (!panel?.open) return;
-    clearTimeout(staleTimer);
-    stopSearch();
+    if (!panel?.open || tab !== "search" || more && (!cursor || !currentRows())) return;
+    cancelQuery();
     const source = input.value.trim();
-    if (!source) { state = {kind:"empty"}; rows = []; cursor = null; render(); return; }
+    if (!source) { cancelHydration(); state = {kind:"empty"}; clearMatches(); render(); return; }
     const h = host(), project = h.project(), revision = h.revision(), documentId = scope === "document" ? h.currentId() : undefined;
+    if (documentId) cancelHydration();
     const {signal} = request = new AbortController();
-    const current = () => !signal.aborted && panel?.open && source === input.value.trim() && h.project() === project &&
+    const current = () => !signal.aborted && panel?.open && tab === "search" && source === input.value.trim() && h.project() === project &&
       h.revision() === revision && (!documentId || documentId === h.currentId()) && enabled();
-    if (!more) { state = {kind:"compiling", source}; rows = []; cursor = null; active = -1; render(); }
+    if (!more) { state = {kind:"compiling", source}; clearMatches(); scheduleRender(); }
     const S = await need();
     if (!current()) return;
-    if (!documentId && h.folderProject?.() && !h.folderProject().completeFor("project")) {
-      state = {...state, hydrating:true}; render();
-      try { await h.requireProjectClosure({purpose:"project",signal}); } catch (error) { if (current()) { state = {kind:"failed", source, message:error.message}; render(); } return; }
+    const folder = !documentId && h.folderProject?.();
+    if (folder && !folder.completeFor("project")) {
+      state = {...state, hydrating:true}; scheduleRender();
+      try { await projectClosure(h,folder); } catch (error) { if (current()) { state = {kind:"failed", source, message:error.message}; render(); } return; }
     }
     if (!current()) return;
     if (saved && saved.source !== source) saved = null;
-    const common = {project, revision, enabled, isCurrent:current, getRevision:h.revision, signal,
+    const common = {project, revision, enabled, isCurrent:current, signal,
       documentId:saved ? undefined : documentId,
       ...(scopedInstance && scopedInstance.documentId === documentId && {instanceId:scopedInstance.instanceId})};
     // A saved group runs by its durable ID, so a deleted definition reads as missing, not as no matches.
     const query = saved?.source === source ? {savedQueryId:saved.id} : source;
-    if (!more) {
-      const planned = await S.plan(query, common);
-      if (!current()) return;
-      if (!planned.complete) {
-        state = {kind:{missing:"missing", denied:"denied", cancelled:"cancelled"}[planned.status] ?? "diagnostic", source, result:planned};
-        render(); return;
-      }
-      state = {kind:"counting", source, hints:planned.plans.flatMap(p => p.hints ?? []), lowerBound:0};
-      render();
-    }
     const result = await S.search(query, {...common, limit:PAGE, ...(saved ? {} : {fields:COLUMNS}), ...(more && cursor ? {cursor} : {}),
-      onPage:page => { if (!current() || page.complete) return; state = {...state, kind:"counting", lowerBound:page.lowerBound};
-        if (!more) { rows = page.rows; } render(); }});
+      ...(!more && {
+        onPrepared:hints => {
+          if (!current()) return;
+          state = {kind:"counting", source, revision, hints, lowerBound:0};
+          scheduleRender();
+        },
+        onPage:page => {
+          if (!current() || page.status !== "counting") return;
+          state = {...state, lowerBound:page.lowerBound};
+          if (page.rows.length > rows.length) rows = page.rows;
+          scheduleRender();
+        }
+      })});
     if (!current()) return;
     if (result.status === "complete") {
       rows = more ? [...rows, ...result.rows] : result.rows;
@@ -116,17 +151,16 @@ globalThis.AtriumQueryUI = (() => {
       cursor = null;
       state = {...state, kind:"partial", lowerBound:result.lowerBound, message:result.diagnostic?.message};
     } else {
-      rows = []; cursor = null;
+      clearMatches();
       state = {...state, kind:result.status === "denied" ? "denied" : result.status === "cancelled" ? "cancelled" :
         result.status === "missing" ? "missing" : "diagnostic", result};
     }
     render();
   }
-  function scheduleStale() {
-    if (!panel?.open || tab !== "search" || !["compiling", "complete", "partial", "counting"].includes(state.kind)) return;
-    state = {...state, stale:true}; render();
-    clearTimeout(staleTimer);
-    staleTimer = setTimeout(() => run(), 400);
+  function refreshSearch() {
+    if (!input.value.trim()) return;
+    state = {...state, stale:true};
+    scheduleSearch();
   }
 
   function rowFor(row, index) {
@@ -136,25 +170,42 @@ globalThis.AtriumQueryUI = (() => {
     const r = K.row({title:String(label), detail:[f.designator ? d.kind : null, d.document, row.instanceId && "occurrence " + row.instanceId].filter(Boolean).join(" · "),
       meta:extra || d.kind, selected:index === active});
     r.dataset.index = String(index);
-    r.addEventListener("click", () => setActive(index, true));
-    r.addEventListener("dblclick", () => U.probe(row, {focus:true}));
     return r;
   }
+  function paintRows() {
+    if (rows === paintedRows) return;
+    // Progress pages contain copies of the same projected rows returned at completion.
+    const sameSearch = request && paintedRequest === request;
+    let first = 0;
+    while (first < rows.length) {
+      const row = rows[first], old = paintedRows[first];
+      if (row !== old && !(sameSearch && old && row.id === old.id && row.documentId === old.documentId &&
+          row.instanceId === old.instanceId)) break;
+      first++;
+    }
+    while (list.children.length > first) list.lastElementChild.remove();
+    list.append(...rows.slice(first).map((row,i) => rowFor(row,first+i)));
+    paintedRows = rows; paintedRequest = request;
+  }
+  const currentRows = () => rows === paintedRows && !state.stale && state.revision === host().revision() && state.source === input.value.trim();
   function setActive(index, probe) {
+    list.children[active]?.setAttribute("aria-selected", "false");
     active = Math.max(0, Math.min(rows.length - 1, index));
-    for (const r of list.querySelectorAll(".ui-row[data-index]")) r.setAttribute("aria-selected", String(Number(r.dataset.index) === active));
-    list.querySelector('.ui-row[data-index="' + active + '"]')?.scrollIntoView({block:"nearest"});
+    const row = list.children[active];
+    row?.setAttribute("aria-selected", "true");
+    row?.scrollIntoView({block:"nearest"});
     if (probe && rows[active]) U.probe(rows[active]);
   }
   async function selectAll() {
+    if (!currentRows()) return;
     const h = host(), source = input.value.trim(), project = h.project(), revision = h.revision(), documentId = h.currentId();
-    const signal = request?.signal;
-    const current = () => !signal?.aborted && panel?.open && enabled() && h.project() === project && h.revision() === revision &&
+    const {signal} = request ??= new AbortController();
+    const current = () => !signal.aborted && panel?.open && enabled() && h.project() === project && h.revision() === revision &&
       h.currentId() === documentId && source === input.value.trim();
     const S = await need();
     if (!current()) return;
     const query = saved?.source === source ? {savedQueryId:saved.id} : source;
-    const result = await S.selection(query, {project,revision,enabled,isCurrent:current,signal,getRevision:h.revision,documentId,
+    const result = await S.selection(query, {project,revision,enabled,isCurrent:current,signal,documentId,
       ...(scopedInstance?.documentId === documentId && {instanceId:scopedInstance.instanceId})});
     if (!current()) return;
     if (!result.complete) { h.info(result.diagnostic?.message ?? "Narrow the query before selecting."); return; }
@@ -211,6 +262,7 @@ globalThis.AtriumQueryUI = (() => {
     out.push(actions);
     const count = countLine();
     if (count) { count.setAttribute("aria-live", "polite"); out.push(count); }
+    paintRows();
     if (s.kind === "empty") {
       out.push(K.empty({text:"Type a query, such as an object kind and a condition. Results update as you type.",
         actions:EXAMPLES.map(e => K.button(e, {variant:"quiet", size:"sm", run:() => { input.value = e; run(); input.focus(); }}))}));
@@ -223,7 +275,6 @@ globalThis.AtriumQueryUI = (() => {
       " The rows shown matched; the count is a lower bound, not exact."}));
     if (s.kind === "complete" && s.count === 0) out.push(K.empty({text:"Nothing in " + (scope === "document" ? host().doc().name : "the project") +
       " matches. The query ran on every object."}));
-    list.replaceChildren(...rows.map(rowFor));
     if (rows.length) out.push(list);
     if (cursor && state.kind === "complete") {
       const more = K.button("Show " + Math.min(PAGE, state.count - rows.length) + " more", {variant:"quiet", size:"sm", run:() => run({more:true})});
@@ -349,26 +400,45 @@ globalThis.AtriumQueryUI = (() => {
 
   // ------------------------------------------------------------------ panel
   async function render() {
+    if (renderFrame) { cancelAnimationFrame(renderFrame); renderFrame = 0; }
     if (!panel?.open) return;
     const version = ++render.version;
     const nodes = tab === "search" ? renderSearch() : tab === "saved" ? await renderSaved() : await renderRules();
-    if (version !== render.version) return;
+    if (!panel?.open || version !== render.version) return;
     // The editor stays in place while results change, so typing never loses focus.
     if (tab !== "search") { panel.body.replaceChildren(...nodes); return; }
-    if (editor.parentNode !== panel.body || results.parentNode !== panel.body) panel.body.replaceChildren(editor, results);
-    results.replaceChildren(...nodes);
+    showSearch();
+    const matchList = nodes.indexOf(list);
+    if (matchList < 0 || list.parentNode !== results) results.replaceChildren(...nodes);
+    else {
+      // Keep the list attached while its count and paging controls update.
+      while (list.previousSibling) list.previousSibling.remove();
+      while (list.nextSibling) list.nextSibling.remove();
+      list.before(...nodes.slice(0,matchList));
+      list.after(...nodes.slice(matchList+1));
+    }
   }
   render.version = 0;
-  function setTab(id) {
+  function showSearch() {
+    if (editor.parentNode !== panel.body) panel.body.replaceChildren(editor, results);
+  }
+  function setTab(id, runSearch = false) {
+    if (tab === "search" && id !== "search") {
+      stopSearch();
+      dismissCompletion();
+    }
     tab = id;
     for (const b of tabs.querySelectorAll(".ui-tab")) { const on = b.value === id; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; }
-    render();
+    if (id === "search" && (runSearch || needsSearch())) {
+      render.version++;
+      showSearch(); run();
+    } else render();
   }
   function build() {
-    panel = U.dockPanel({id:"design-query", title:"Query"});
+    panel = U.dockPanel({id:"design-query", title:"Query", onHide:stopSearch});
     const spec = {id:"design-query", title:"Query", element:panel.el, area:"right"};
     if (G.AtriumDock?.register) G.AtriumDock.register(spec); else (G.AtriumDockPending ||= []).push(spec);
-    tabs = K.tabs([["search", "Search"], ["saved", "Saved"], ["rules", "Rules"]], {value:tab, strip:true, label:"Query views", onChange:setTab});
+    tabs = K.tabs([["search", "Search"], ["saved", "Saved"], ["rules", "Rules"]], {value:tab, strip:true, label:"Query views", onChange:id => setTab(id)});
     panel.strip.append(tabs); panel.strip.hidden = false;
     input = /** @type {HTMLTextAreaElement} */ (K.el("textarea", "ui-field intel-query-source"));
     input.rows = 2; input.spellcheck = false; input.placeholder = "Type a query";
@@ -380,23 +450,37 @@ globalThis.AtriumQueryUI = (() => {
     editor = K.el("div", "intel-query-editor");
     editor.append(input, completion);
     results = K.el("div", "intel-query-results");
-    let typing = 0;
-    input.addEventListener("input", () => { stopSearch(); complete(); clearTimeout(typing); typing = setTimeout(() => run(), 250); });
+    function searchInput() { scheduleSearch(); complete(); }
+    input.addEventListener("input", event => {
+      if (event.isComposing) { dismissCompletion(); cancelQuery(); }
+      else searchInput();
+    });
+    input.addEventListener("compositionend", searchInput);
     input.addEventListener("keydown", event => {
       event.stopPropagation();
+      if (event.isComposing) return;
       if (offer && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
         event.preventDefault(); chosen = (chosen + (event.key === "ArrowDown" ? 1 : -1) + offer.options.length) % offer.options.length; paintCompletion(); return;
       }
       if (offer && (event.key === "Tab" || event.key === "Enter")) { event.preventDefault(); accept(); return; }
-      if (offer && event.key === "Escape") { event.preventDefault(); offer = null; paintCompletion(); return; }
-      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); clearTimeout(typing); run(); return; }
-      if (event.key === "ArrowDown" && rows.length && !input.value.slice(input.selectionStart).includes("\n")) { event.preventDefault(); list.focus(); setActive(Math.max(active, 0), true); }
+      if (offer && event.key === "Escape") { event.preventDefault(); dismissCompletion(); return; }
+      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); run(); return; }
+      if (event.key === "ArrowDown" && rows.length && currentRows() && !input.value.slice(input.selectionStart).includes("\n")) { event.preventDefault(); list.focus(); setActive(Math.max(active, 0), true); }
       if (event.key === "Escape" && input.value) { event.preventDefault(); input.value = ""; run(); }
     });
-    input.addEventListener("blur", () => { offer = null; paintCompletion(); });
+    input.addEventListener("blur", dismissCompletion);
     list = K.list([], {label:"Matches"});
     list.tabIndex = 0;
+    list.addEventListener("click", event => {
+      const row = event.target.closest("[data-index]");
+      if (row && currentRows()) setActive(Number(row.dataset.index), true);
+    });
+    list.addEventListener("dblclick", event => {
+      const row = event.target.closest("[data-index]");
+      if (row && currentRows()) U.probe(rows[Number(row.dataset.index)], {focus:true});
+    });
     list.addEventListener("keydown", event => {
+      if (!currentRows()) return;
       const step = {ArrowDown:1, ArrowUp:-1, PageDown:10, PageUp:-10}[event.key];
       if (step) { event.preventDefault(); if (active <= 0 && step < 0) { input.focus(); return; } setActive(active + step, true); }
       else if (event.key === "Enter") { event.preventDefault(); if (rows[active]) U.probe(rows[active], {focus:true}); }
@@ -405,9 +489,14 @@ globalThis.AtriumQueryUI = (() => {
     scopeControl = K.segmented([["project", "Project"], ["document", "Document"]], {value:scope, size:"sm", label:"Scope",
       onChange:value => { scopedInstance=undefined; setScope(value); run(); }});
     const h = host();
-    h.on?.("change", () => {stopSearch(); scheduleStale();});
-    h.on?.("document", () => { if (scope === "document") {stopSearch(); scheduleStale();} if (tab === "rules") render(); });
-    h.on?.("replace", () => { stopSearch(); clearTimeout(staleTimer); rows = []; state = {kind:"empty"}; input.value = ""; render(); });
+    subscriptions = [
+      h.on("change", refreshSearch),
+      h.on("document", () => { if (scope === "document") refreshSearch(); if (tab === "rules") render(); }),
+      h.on("replace", () => {
+        stopSearch(); dismissCompletion(); saved = null; scopedInstance = undefined;
+        clearMatches(); state = {kind:"empty"}; input.value = ""; render();
+      })
+    ];
   }
   async function open({source,scope:targetScope,savedRecord} = {}) {
     if (!panel) build();
@@ -415,7 +504,7 @@ globalThis.AtriumQueryUI = (() => {
     need().catch(() => {});
     livePanel.show();
     if (source != null) {
-      stopSearch();
+      stopSearch(); dismissCompletion();
       const targetDoc=targetScope?.documentId;
       if (targetDoc && h.currentId() !== targetDoc) await h.selectDocument(targetDoc);
       if(ticket!==openTicket || panel!==livePanel || !livePanel.open || h.project()!==project ||
@@ -425,12 +514,18 @@ globalThis.AtriumQueryUI = (() => {
       if (targetScope) {
         setScope(targetDoc ? "document" : "project");
       }
-      input.value = source; setTab("search"); run();
-    }
-    else render();
+      input.value = source; setTab("search", true);
+    } else setTab(tab);
     if (tab === "search") input.focus();
     return livePanel;
   }
-  function sync(on) { if (!on) { stopSearch(); clearTimeout(staleTimer); panel?.dispose(); panel = null; rows = []; state = {kind:"empty"}; } }
+  function sync(on) {
+    if (on) return;
+    stopSearch(); dismissCompletion(); render.version++;
+    for (const unsubscribe of subscriptions) unsubscribe();
+    subscriptions = [];
+    panel?.dispose(); panel = null; saved = null; scopedInstance = undefined;
+    clearMatches(); paintedRows = []; paintedRequest = undefined; state = {kind:"empty"};
+  }
   return Object.freeze({open, sync, run, setTab, state:() => state, rows:() => rows, set pageSize(n) { PAGE = n; }});
 })();

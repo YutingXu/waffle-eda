@@ -125,6 +125,13 @@ const onGrid = v => Math.abs(v / G - Math.round(v / G)) < 1e-6;
   const swapped = W.pinsOf(W.detect("A,1\nB,2"), {roles: ["name", "number"]}).pins;
   assert.deepEqual(swapped.map(p => p.number + p.base), ["1A", "2B"]);
   assert.throws(() => W.detect("x".repeat(200001)), /too long/);
+  const wide = run("\t".repeat(300) + "Pin\tName\tType\n" + "\t".repeat(300) + "1\tVCC\tpower");
+  assert.equal(wide.t.columns, 303);
+  assert.deepEqual(wide.pins.map(p => [p.number, p.base]), [["1", "VCC"]]);
+  const sparse = run("Pin\tName\tType\n1\tA\tI\n1000000000\tB\tI");
+  assert.match(sparse.issues.find(x => x.code === "missing").message, /2–999999999/);
+  const balls = run("Pin\tName\tType\nA1\tA\tI\nA1000000000\tB\tI\nB1\tC\tI");
+  assert.match(balls.issues.find(x => x.code === "missing-balls").message, /A2, A3, .*A17 …/);
   console.log("PASS validation: duplicates, missing ranges, mixed types, unknown types, footprint mismatch, grid edits");
 }
 {

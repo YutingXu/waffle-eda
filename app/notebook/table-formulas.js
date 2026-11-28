@@ -80,6 +80,19 @@ globalThis.AtriumTableFormulas = (() => {
     const ix=T.index(s),source=spelling(s,content,{row:ix.rows.get(to.rowId)-ix.rows.get(from.rowId),column:ix.columns.get(to.columnId)-ix.columns.get(from.columnId)});
     return scan(s,source,{resolveDesign:name=>content.references.find(r=>r.type==="design"&&r.name===name)?.target});
   }
+  function fillDown(s,{rows,columns}) {
+    const changes=[];
+    for(const columnId of columns){
+      const from={rowId:rows[0],columnId},cell=T.get(s,from.rowId,columnId);
+      const content=cell?.content??null,style=cell?.style??null;
+      for(let i=1;i<rows.length;i++){
+        const rowId=rows[i];
+        T.assertEditable(s,rowId,columnId);
+        changes.push({rowId,columnId,content:content?.kind==="formula"?copyTo(s,content,from,{rowId,columnId}):content,style});
+      }
+    }
+    return T.batch(s,changes);
+  }
   function lower(s,formula) {
     const refs=[],map=[[0,1]],watched=[],original=formula.source;
     let source="(",cursor=1;
@@ -317,6 +330,6 @@ globalThis.AtriumTableFormulas = (() => {
     }
     return entry.engine.compute(state,context);
   }
-  return Object.freeze({scan,lower,spelling,copyTo,engine,report});
+  return Object.freeze({scan,lower,spelling,copyTo,fillDown,engine,report});
 })();
 if (typeof module!=="undefined") module.exports=globalThis.AtriumTableFormulas;

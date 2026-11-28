@@ -24,6 +24,7 @@ NODE_SUPPORT_SUITES = (
     "tests/support/app-source-paths.py",
     "tests/support/browser-app-server-test.cjs",
     "tests/support/chrome_cdp_test.py",
+    "tests/support/interaction-trace-test.cjs",
     "tests/support/mcp_stdio.py",
     "tests/support/playwright-test.cjs",
     "tests/support/standalone-chromium-test.cjs",

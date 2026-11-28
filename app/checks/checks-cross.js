@@ -395,8 +395,10 @@ globalThis.AtriumChecksCross = (() => {
   function badgeAt(h, pane, cx, cy) {
     const d = h.docById?.(pane.docId);
     if (!d) return null;
+    const list = projected(h, d);
+    if (!list.length && d.kind === "schematic") return null;
     const b = pane.canvas.getBoundingClientRect();
-    const list = projected(h, d), x = cx - b.left, y = cy - b.top;
+    const x = cx - b.left, y = cy - b.top;
     const P = G.AtriumProblemMarks;
     const plan = d.kind === "pcb" && boardBadgePlan(d, P.paneFrame(pane, b), list);
     if (!plan) return P.badgeUnder(pane, list, d.kind === "pcb" ? "pcb" : "schematic", x, y);

@@ -761,7 +761,7 @@ globalThis.AtriumPalette = (() => {
   function render(instant = false) {
     if (!query || !view) return;
     const {mode,q} = currentSearch();
-    const loading = query.designQuery ? query.designQuery === "loading" : query.catalogue === "loading" || !IX || indexedAt !== indexChanges;
+    const loading = query.designQuery ? query.designQuery === "loading" : query.catalogue === "loading" || !IX || mode !== ">" && indexedAt !== indexChanges;
     view.results(results,{q,mode,entryMode:session.mode,active,instant,recent,loading,
       counting:query.designQuery === "loading",diagnostic:query.diagnostic,total:results.total});
     lastSearch = {q,mode,total:results.total,ms:results.ms ?? null,groups:[...new Set(results.groups.map(g => g.name).filter(Boolean))]};
@@ -799,9 +799,14 @@ globalThis.AtriumPalette = (() => {
     });
   }
   function refreshIndexedResults() {
+    if (!query) return;
+    const {mode,q} = currentSearch();
+    // Project indexing adds documents, objects and components. Command sources
+    // have their own invalidation and do not need to rerank when those arrive.
+    if (mode === ">") return;
     // The stock empty browse uses live sources directly. Indexed additions can
     // affect a typed search or the empty-state message, and edits can change those live rows.
-    if (!session?.enhanced && query?.sourceVersion === indexChanges && results.length && !currentSearch().q) return;
+    if (!session?.enhanced && query.sourceVersion === indexChanges && results.length && !q) return;
     scheduleRefresh();
   }
   function appendFreshLocal(next) {
@@ -1146,9 +1151,10 @@ globalThis.AtriumPalette = (() => {
       const refresh = files => {
         if (!files || !dialog?.open || dialog.paletteRequest !== raw) return;
         const next = fileEntries();
-        if (next.length || IX.source("files").length) {
-          IX.setGroup("files",next); scheduleRefresh();
-        }
+        const old = IX.source("files");
+        if (next.length === old.length && next.every((e,i) => e.key === old[i].key && e.label === old[i].label && e.detail === old[i].detail)) return;
+        IX.setGroup("files",next);
+        if (currentSearch().mode !== ">") scheduleRefresh();
       };
       Promise.resolve(globalThis.AtriumHost?.refreshRecentFiles?.()).then(refresh,() => {});
       Promise.resolve(globalThis.AtriumAutosave?.refreshRecent?.()).then(refresh,() => {});

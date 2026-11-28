@@ -431,5 +431,5 @@ globalThis.AtriumHierarchy = (() => {
     }
     return out;
   }
-  return {SCOPES, local, instances, instancesCached, effectiveScope, scopeRule, withScope, scopeSetting, sourceAutomatic, compile, compileCached, peek, invalidatePublished, parentOf, sheetNets, tree, sourceType};
+  return {SCOPES, local, instances, instancesCached, effectiveScope, scopeRule, withScope, scopeSetting, sourceAutomatic, compile, compileCached, publish, peek, invalidatePublished, parentOf, sheetNets, tree, sourceType};
 })();

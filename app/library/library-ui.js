@@ -858,10 +858,7 @@ globalThis.AtriumLibraryDockUI = (() => {
     sourceSel.title = "Show this project's components or a library source";
     const addBtn = k.iconButton("plus", "Add library");
     const openTabBtn = k.iconButton("book", "Open full Library tab", {
-      run: () => {
-        const open = () => G_openWorkspace(P.ctx, P.selected ? (P.lib?.defs || project().library).find(d => d.id === P.selected) : null, P.lib);
-        open();
-      }
+      run: () => G_openWorkspace(P.ctx, P.selected ? currentDefinition(P.selected) : null, P.lib)
     });
     const moreBtn = k.iconButton("more", "Library commands");
     sourceBar.append(sourceSel, addBtn, openTabBtn, moreBtn);
@@ -896,7 +893,7 @@ globalThis.AtriumLibraryDockUI = (() => {
     const searchWrap = k.search({
       placeholder: "Search families, components, packages…",
       label: "Search the library",
-      onInput: () => { cancelIntent(); P.selected = null; render(); }
+      onInput: () => { cancelIntent(); P.selected = null; render("results"); }
     });
     const search = searchWrap.input;
     search.spellcheck = false;
@@ -983,8 +980,10 @@ globalThis.AtriumLibraryDockUI = (() => {
 
     function markSelected(row) {
       const selected = row.dataset.def === P.selected;
-      row.setAttribute("aria-selected", String(selected));
-      row.tabIndex = selected ? 0 : -1;
+      if (row.getAttribute("aria-selected") !== String(selected)) {
+        row.setAttribute("aria-selected", String(selected));
+        row.tabIndex = selected ? 0 : -1;
+      }
     }
     function select(id, row = null) {
       if (P.selected === id) return;
@@ -992,7 +991,7 @@ globalThis.AtriumLibraryDockUI = (() => {
       cancelIntent(); P.selected = id; P.pinsOpen = false;
       if (previous) markSelected(previous);
       if (row) markSelected(row);
-      render(false);
+      render("selection");
     }
 
     const folderLibs = () => globalThis.AtriumLibrarySources?.libraries() || [];
@@ -1086,9 +1085,12 @@ globalThis.AtriumLibraryDockUI = (() => {
       }
       P.lastCounts = res.counts || {};
       const activeFacets = FACETS()?.activeCount("panel") || 0;
-      facetBtn.setAttribute("aria-pressed", String(activeFacets > 0));
-      facetBadge.textContent = String(activeFacets);
-      facetBadge.hidden = !activeFacets;
+      if (P.activeFacets !== activeFacets) {
+        P.activeFacets = activeFacets;
+        facetBtn.setAttribute("aria-pressed", String(activeFacets > 0));
+        facetBadge.textContent = String(activeFacets);
+        facetBadge.hidden = !activeFacets;
+      }
       return {items: res.items, matching: res.matching ?? res.items.length};
     }
 
@@ -1131,7 +1133,7 @@ globalThis.AtriumLibraryDockUI = (() => {
         depth,
         selected: def.id === P.selected,
         onSelect: (d, nodeRow) => select(d.id, nodeRow),
-        onActivate: d => placeEntry(P.lib, d),
+        onActivate: d => placeSelected(d.id),
         onPointerDown: (e, d, nodeRow) => ROWS().startDragPlace(e, {
           def: d, lib: P.lib, row: nodeRow,
           onSelect: (dd, rr) => select(dd.id, rr),
@@ -1170,12 +1172,13 @@ globalThis.AtriumLibraryDockUI = (() => {
       }));
     }
 
-    function render(full = true) {
+    function render(update = "all") {
       if (!visible()) { needsRender = true; return; }
-      const p = project();
-      if (full || needsRender) {
+      const p = project(), revision = P.ctx.revision?.() ?? 0;
+      const refresh = update === "all" || needsRender || P.lastProject !== p || P.lastLibrary !== p.library || P.lastRevision !== revision;
+      if (refresh) {
         if (P.lastProject !== p) { cancelIntent(); P.lastProject = p; P.selected = null; }
-        needsRender = false; P.lastRevision = P.ctx.revision?.() ?? 0; P.lastLibrary = p.library;
+        needsRender = false; P.lastRevision = revision; P.lastLibrary = p.library;
         P.versions = versions(p); P.familyVersion = undo()?.familyVersion?.(); placements(p, P.versions);
         const sources = libs();
         if (!P.libraries || sources.length !== P.libraries.length || sources.some((s, i) => s !== P.libraries[i])) P.libraries = sources;
@@ -1184,12 +1187,16 @@ globalThis.AtriumLibraryDockUI = (() => {
         const owner = P.lib || p;
         P.members = owner.search?.members || globalThis.AtriumComponentFamilies?.memberships(owner);
         for (const b of filterButtons) b.setAttribute("aria-pressed", String(b.dataset.filter === P.filter));
+      }
+      if (refresh || update === "results") {
+        const owner = P.lib || p;
         const {items: defs, matching} = filtered(owner, P.members);
-        searchWrap.setCount(matching ? String(matching) : (search.value.trim() ? "0" : ""));
+        const searching = !!search.value.trim(), count = matching ? String(matching) : searching ? "0" : "";
+        if (P.searchCount !== count) { P.searchCount = count; searchWrap.setCount(count); }
         const shown = defs.slice(0, 400);
         if (P.selected && !shown.some(d => d.id === P.selected)) P.selected = null;
         const C = globalThis.AtriumCatalogue;
-        const treeKey = JSON.stringify([P.source, !!C, !!search.value.trim(), matching, shown.map(d => {
+        const treeKey = JSON.stringify([P.source, !!C, searching, matching, shown.map(d => {
           const m = P.members?.get(d.id), rec = C?.record(d);
           return [d.id, rec?.group, rec?.cat, m?.id, m?.name, m?.part, m ? d.footprint?.name : null];
         })]);
@@ -1207,14 +1214,14 @@ globalThis.AtriumLibraryDockUI = (() => {
           }
         } else {
           const choice = [P.source, P.filter, search.value].join("\0");
-          const motion = P.treeProject === p && P.treeChoice === choice && !P.lib?.scan && !search.value.trim()
+          const motion = P.treeProject === p && P.treeChoice === choice && !P.lib?.scan && !searching
             ? globalThis.AtriumSpatialMotion : null;
           const rebuild = () => {
             P.treeKey = treeKey; P.treeProject = p; P.rows = new Map(); list.replaceChildren();
             if (shown.length) {
               ROWS().componentTree(list, shown, buildRow, {
                 key: "panel", scope: p, source: P.source, owner, members: P.members,
-                reveal: P.selected, open: !!search.value.trim(), onGroup: () => select(null)
+                reveal: P.selected, open: searching, onGroup: () => select(null)
               });
             }
             if (matching > 400) {
@@ -1222,7 +1229,7 @@ globalThis.AtriumLibraryDockUI = (() => {
             }
             if (!defs.length) {
               const hasAny = (P.lib?.defs || p.library).length > 0;
-              const clearAction = hasAny && (search.value.trim() || P.filter !== "all" || FACETS()?.activeCount("panel"))
+              const clearAction = hasAny && (searching || P.filter !== "all" || FACETS()?.activeCount("panel"))
                 ? [k.button("Clear filters", {variant: "quiet", size: "sm", run: () => {
                     search.value = ""; P.filter = "all"; globalThis.AtriumCatalogue?.clearFacets?.("panel"); render();
                   }})]
@@ -1238,18 +1245,19 @@ globalThis.AtriumLibraryDockUI = (() => {
           if (motion) motion.layout(list, ".lib-row[data-def]", r => r.dataset.def, rebuild); else rebuild();
           P.treeChoice = choice;
         }
-        renderNotice();
       }
-      P.lastSel = (P.ctx.selection?.() || []).join(",");
-      renderDetail();
-      renderGate();
+      if (refresh) renderNotice();
+      if (refresh || update === "selection" || P.detailSelection !== P.selected) renderDetail();
+      const selected = (P.ctx.selection?.() || []).join(",");
+      if (refresh || selected !== P.lastSel) { P.lastSel = selected; renderGate(); }
     }
 
     function renderDetail() {
+      P.detailSelection = P.selected;
       const p = project(), kind = currentKind();
       if (P.lib) {
         const lib = P.lib;
-        const rowDef = P.selected && api.sourceEntry(lib, {id: P.selected});
+        const rowDef = P.selected && currentDefinition(P.selected);
         const def = P.detailBody?.row === rowDef && P.detailBody.lib === lib ? P.detailBody.def : rowDef;
         if (!def) {
           INSP().render(detail, {
@@ -1301,7 +1309,7 @@ globalThis.AtriumLibraryDockUI = (() => {
         return;
       }
 
-      const def = p.library.find(d => d.id === P.selected) || null;
+      const def = P.selected && currentDefinition(P.selected);
       if (!def) {
         INSP().render(detail, {def: null});
         return;
@@ -1370,10 +1378,20 @@ globalThis.AtriumLibraryDockUI = (() => {
     function run(fn, message) { try { P.ctx.edit(fn); if (message) P.ctx.info?.(message); render(); } catch (e) { P.ctx.info?.(e.message); } }
     const kindFor = def => currentKind() === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb";
     function placeEntry(lib, def, kind = kindFor(def)) { if (lib) placeFromSource(lib, def, kind); else place(def, kind); }
+    function currentDefinition(id) {
+      const p = project();
+      if (P.lib) return api.sourceEntry(P.lib, {id});
+      return N?.project?.() === p ? N.defs().get(id) : p.library.find(d => d.id === id);
+    }
+    function placeSelected(id, kind) {
+      const def = currentDefinition(id);
+      if (def) placeEntry(P.lib, def, kind);
+    }
     function place(def, kind) { ROWS().place(P.ctx, def, kind); }
     function editSelected(id, kind) {
-      const def = project().library.find(d => d.id === id);
-      if (def && !P.lib) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? api.openFootprintEditor : api.openSymbolEditor)(P.ctx, def);
+      if (P.lib) return;
+      const def = currentDefinition(id);
+      if (def) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? api.openFootprintEditor : api.openSymbolEditor)(P.ctx, def);
     }
     function manageFamilies(initial) {
       globalThis.AtriumLibraryFamiliesUI?.manage(P.ctx, {initial, done: id => { P.selected = id; render(); }});
@@ -1431,18 +1449,17 @@ globalThis.AtriumLibraryDockUI = (() => {
       if (!id) return;
       // The list itself acts on the selection only while its row is visible (not in a collapsed branch).
       if (e.target === list && !ROWS().visibleRows(list).some(r => r.dataset.def === id)) return;
+      if (e.key === "Enter") { e.preventDefault(); placeSelected(id, currentKind()); return; }
       if (P.lib) {
-        if (e.key === "Enter") { e.preventDefault(); const d = P.lib.defs.find(def => def.id === id); if (d) placeFromSource(P.lib, d, currentKind()); }
-        else if (e.key === "Delete" || e.key === "Backspace" || e.key === "e" || e.key === "E") {
+        if (e.key === "Delete" || e.key === "Backspace" || e.key === "e" || e.key === "E") {
           e.preventDefault(); P.ctx.info?.("Library entries are read-only here. Add the component to the project to edit it.");
         }
         return;
       }
-      const def = project().library.find(d => d.id === id);
+      if (e.key === "e" || e.key === "E") { e.preventDefault(); editSelected(id, e.shiftKey ? "pcb" : "schematic"); return; }
+      const def = currentDefinition(id);
       if (!def) return;
-      if (e.key === "Enter") { e.preventDefault(); place(def, currentKind()); }
-      else if (e.key === "e" || e.key === "E") { e.preventDefault(); editSelected(id, e.shiftKey ? "pcb" : "schematic"); }
-      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") { e.preventDefault(); run(() => { P.selected = api.duplicate(project(), def).id; }, "Duplicated " + def.name); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") { e.preventDefault(); run(() => { P.selected = api.duplicate(project(), def).id; }, "Duplicated " + def.name); }
       else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         try { run(() => api.remove(project(), def.id), def.name + " deleted"); P.selected = null; }

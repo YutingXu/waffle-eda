@@ -20,7 +20,7 @@ globalThis.AtriumIntelUI = (() => {
   // A Dock panel body with the dock's own heading: title, heading actions, close. Below it one
   // notice slot (one state at a time, most severe first), the scrolling body and a footer.
   const panels = new Map();
-  function dockPanel({id, title}) {
+  function dockPanel({id, title, onHide}) {
     const known = panels.get(id);
     if (known) return known;
     const el = K.el("section", "panel intel-panel panel-" + id);
@@ -36,7 +36,7 @@ globalThis.AtriumIntelUI = (() => {
       get actions() { if (!actions.isConnected) h2.after(actions); return actions; },
       // Opening a panel that sits behind another tab brings it to the front.
       show() { if (el.hidden) el.hidden = false; else G.AtriumDock?.reveal?.(id); return panel; },
-      hide() { el.hidden = true; host()?.canvas?.()?.focus?.({preventScroll:true}); },
+      hide() { el.hidden = true; onHide?.(); host()?.canvas?.()?.focus?.({preventScroll:true}); },
       get open() { return !el.hidden && el.isConnected; },
       setNotice(node) { notice.replaceChildren(...(node ? [node] : [])); notice.hidden = !node; },
       dispose() { el.remove(); panels.delete(id); }};

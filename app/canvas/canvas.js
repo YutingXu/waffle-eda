@@ -1770,7 +1770,17 @@ globalThis.AtriumCanvas = (() => {
         // Strips are drawn with the camera that matches the shifted pixels exactly.
         const ax=DX/dpr,ay=DY/dpr,tx=cx,ty=cy;
         cx=s.cx-ax/(f*scale);cy=s.cy-ay/scale;
-        for(const strip of I.exposedPanStrips(width,height,ax,ay,opts))paint(doc,defs,opts,strip,false,false,pourView);
+        const strips=I.exposedPanStrips(width,height,ax,ay,opts);
+        if(doc.kind==="drawing" && strips.length>1){
+          // Drawing artwork is an overlay. Paint it once through the combined clip.
+          ctx.save();
+          try{
+            ctx.setTransform(dpr,0,0,dpr,0,0);ctx.beginPath();
+            for(const [x0,y0,x1,y1] of strips)ctx.rect(x0,y0,x1-x0,y1-y0);
+            ctx.clip();
+            paint(doc,defs,opts,null,false,false,pourView,strips);
+          }finally{ctx.restore();}
+        }else for(const strip of strips)paint(doc,defs,opts,strip,false,false,pourView);
         s.cx=cx;s.cy=cy;cx=tx;cy=ty;
         return true;
       }
@@ -1900,14 +1910,14 @@ globalThis.AtriumCanvas = (() => {
       // complete before either frame and can undergo the normal edit transaction.
       if(openingOverview?.doc===doc && last?.[0]===doc)render(...last);
     }
-    function render(doc,defs,opts={}) {
+    function render(doc,defs,opts={},measured) {
       const perf=globalThis.AtriumDiagnostics?.performance;
-      if(!perf)return renderFrame(doc,defs,opts);
+      if(!perf)return renderFrame(doc,defs,opts,null,measured);
       const kind=doc.kind;
       const span=!opts.print && canvas.isConnected && ("reuseBase" in opts || opts.editorPane) &&
         (kind==="pcb" || kind==="schematic" || kind==="panel" && globalThis.AtriumPanel) ? perf.begin(kind,"draw") : null;
-      if(!span)return renderFrame(doc,defs,opts);
-      try{return renderFrame(doc,defs,opts,span);}
+      if(!span)return renderFrame(doc,defs,opts,null,measured);
+      try{return renderFrame(doc,defs,opts,span,measured);}
       catch(error){span.end("failed");throw error;}
     }
     function finishDraw(span,partial=false){
@@ -1917,7 +1927,7 @@ globalThis.AtriumCanvas = (() => {
       span.end(partial || canvas.inert || canvas.closest?.("[hidden], [inert]") ||
         globalThis.AtriumPower?.visible?.()===false || globalThis.document?.visibilityState==="hidden" ? "completed" : "visible");
     }
-    function renderFrame(doc,defs,opts,span) {
+    function renderFrame(doc,defs,opts,span,measured) {
       if(doc.kind==="panel" && globalThis.AtriumPanel)[doc,defs]=projectedPanel(doc,defs);
       const g=gesture, cold=last?.[0]!==doc;
       const overview=cold && !g && !opts.noReuse && !opts.print && !rotation && repaint &&
@@ -1929,7 +1939,7 @@ globalThis.AtriumCanvas = (() => {
       gesture=false;last=[doc,defs,opts];
       if(deferred&&(deferred.doc!==doc||!showingAirwires()))cancelAirwires();
       if(!showingAirwires())waitForSave=false;
-      dimensions();
+      dimensions(measured);
       if(!width || !height){span?.end("cancelled");return;}
       if(doc.kind!=="pcb")flipped=false;
       noteView(doc,opts);
@@ -1985,7 +1995,7 @@ globalThis.AtriumCanvas = (() => {
       if(pcb && opts.boardHandles)boardHandles(opts.boardHandles,opts.boardHandleActive);
     }
     // bare: the board layer only (canvas-fast.js repaints selection boxes into its copy).
-    function paint(doc,defs,opts,area,bare,unclipped=false,frame=doc.kind==="pcb"?pourFrame(doc,defs,opts):null) {
+    function paint(doc,defs,opts,area,bare,unclipped=false,frame=doc.kind==="pcb"?pourFrame(doc,defs,opts):null,damageRects) {
       const pcb=doc.kind==="pcb",substrate=hasSubstrate(doc,opts);
       if(!pcb)flipped=false;
       const clipped=area&&!(bare&&unclipped);
@@ -1998,7 +2008,7 @@ globalThis.AtriumCanvas = (() => {
       const count=paintArtwork(doc,defs,opts,area,pcb,substrate,F,artwork,frame);
       if(F)F.saved(I,doc,defs,opts,now()-t0,count,frame);
       if(bare){if(clipped)ctx.restore();return;}
-      paintTop(doc,defs,opts,area,pcb,substrate,undefined,artwork,frame);
+      paintTop(doc,defs,opts,area,pcb,substrate,damageRects,artwork,frame);
     }
     // Overlay effects extend past the damage rectangle by CSS pixels. Pad it
     // before inverting the camera, so the world bounds include rotated corners.

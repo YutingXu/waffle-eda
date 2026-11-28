@@ -297,6 +297,23 @@ class GitQueries(unittest.TestCase):
     def q(self, op, args=None):
         return helper.query(self.file, op, args)
 
+    def test_log_search_matches_message_body_or_author_email_once(self):
+        body = self.save("Initial board\n\nPart Match [R1].")
+        self.git("config", "user.email", "match@example.invalid")
+        self.git("commit", "--allow-empty", "-qm", "Unrelated subject")
+        author = self.git("rev-parse", "HEAD").strip()
+        self.git("commit", "--allow-empty", "-qm", "Match in both")
+        both = self.git("rev-parse", "HEAD").strip()
+        full = self.q("log", {"search": "mAtCH"})
+        self.assertEqual({c["revision"] for c in full["commits"]}, {body, author, both})
+        self.assertEqual(len(full["commits"]), 3)
+        self.assertEqual([c["revision"] for c in self.q("log", {"search": "[R1]."})["commits"]], [body])
+        first = self.q("log", {"search": "mAtCH", "limit": 1})
+        rest = self.q("log", {"search": "mAtCH", "limit": 2, "skip": 1})
+        self.assertTrue(first["more"])
+        self.assertFalse(rest["more"])
+        self.assertEqual(first["commits"] + rest["commits"], full["commits"])
+
     def test_refs_log_search_and_lanes_data(self):
         first = self.save("Initial board")
         second = self.save("Move R1", p1={"x": 11})

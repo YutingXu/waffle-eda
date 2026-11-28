@@ -3,6 +3,61 @@ const assert=require("node:assert/strict");
 require("../../app/core/model.js");require("../../app/library/parts.js");require("../../app/core/zip.js");require("../../app/formats/bom.js");
 const A=Atrium,B=AtriumBOM;
 
+// The displayed view must give the same answers before, during and after idle indexing.
+{
+  const rows = [
+    {refs:["R10","R11","R12"], values:{designator:"R10-R12", comment:"10 kΩ", quantity:3, supplier:"Hidden SKU"}, parts:[{docId:"sheet",id:"first"}]},
+    {refs:["C2"], values:{designator:"C2", comment:"10 nF", quantity:1, supplier:""}, parts:[{docId:"sheet",id:"second"}]},
+    {refs:["R2"], values:{designator:"R2", comment:"10 kΩ", quantity:1, supplier:"Other"}, parts:[{docId:"sheet",id:"third"}]}
+  ];
+  const keys = ["comment","quantity"], jobs = new Set();
+  let reads = 0;
+  const comment = rows[0].values.comment;
+  Object.defineProperty(rows[0].values, "comment", {get() { reads++; return comment; }});
+  const idle = {idle(fn) { jobs.add(fn); return fn; }, cancel(fn) { jobs.delete(fn); }};
+  function step(ms) {
+    const [job] = jobs; jobs.delete(job); job({timeRemaining:() => ms});
+  }
+  const cases = [
+    [{query:"R11"}, [0]], [{query:"R10-R12"}, []], [{query:"10 KΩ"}, [0,2]], [{query:"Hidden SKU"}, []],
+    [{filters:{designator:"R10 R11", comment:"=10 kΩ"}}, [0]], [{filters:{designator:"=R10 R11 R12 R10-R12"}}, [0]],
+    [{filters:{comment:"!10 k", supplier:"="}}, [1]], [{filters:{supplier:"!"}}, [0,2]],
+    [{query:"1", filters:{quantity:"=1"}}, [1,2]], [{filters:{supplier:"hidden SKU"}}, [0]],
+    [{query:"no such trigram"}, []], [{query:"nF C2"}, []]
+  ];
+  const index = B.prepareSearch(rows, keys, idle);
+  const check = () => {
+    for (const [settings, ids] of cases) {
+      const expected = ids.map(i => rows[i]);
+      assert.deepEqual(index.filter(settings), expected);
+      assert.deepEqual(B.filterRows(rows, settings, keys), expected);
+    }
+    const matches = new Set([JSON.stringify(["sheet","","third"])]);
+    assert.deepEqual(index.filter({query:"parts where ...", filters:{comment:"10 kΩ"}}, matches), [rows[2]]);
+    assert.equal(index.filter({}), rows);
+  };
+  assert.equal(jobs.size, 1, "opening a view queues its search index");
+  check(); step(0); assert.equal(jobs.size, 1, "a short idle deadline yields"); check();
+  while (jobs.size) step(10);
+  check();
+  const warmReads = reads;
+  assert.deepEqual(index.filter({filters:{comment:"10 kΩ"}}), [rows[0],rows[2]]);
+  assert.equal(reads, warmReads, "a warm column filter uses the prepared values");
+  const other = B.prepareSearch(rows.slice().reverse(), ["supplier","designator","comment"], idle);
+  while (jobs.size) step(10);
+  assert.deepEqual(other.filter({query:"hidden SKU"}), [rows[0]], "a new visible column is searchable");
+  assert.deepEqual(other.filter({query:"10 kΩ"}), [rows[2],rows[0]], "posting lists preserve the new view order");
+  assert.deepEqual(other.filter({query:"r"}), [rows[2],rows[0]], "short queries preserve view order");
+  assert.deepEqual(other.filter({filters:{designator:"R1"}}), [rows[0]]);
+  const closed = B.prepareSearch(rows, keys, idle);
+  step(0); const [queued] = jobs; closed.cancel(); assert.equal(jobs.size, 0);
+  queued({timeRemaining:() => 10}); assert.equal(jobs.size, 0, "a cancelled callback cannot restart indexing");
+  const fallback = B.prepareSearch(rows, keys, {...idle, native:false});
+  step(0);
+  assert.equal(jobs.size, 0, "yield to the next task before rejoining the WebKit idle queue");
+  fallback.cancel();
+}
+
 // Designator compression and natural order.
 assert.equal(B.compress(["C5","C1","C4","C3"]),"C1, C3-C5");
 assert.equal(B.compress(["R10","R9","R2","R1"]),"R1, R2, R9, R10");

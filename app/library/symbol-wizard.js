@@ -176,7 +176,6 @@ globalThis.AtriumSymbolWizard = (() => {
     else cells = splitRows(src, {tab: "\t", csv: ",", semicolon: ";"}[mode] || "\t");
     if (cells.length > MAX_ROWS + 1) throw Error("The pin table has too many rows (over " + MAX_ROWS + ").");
     const columns = Math.max(0, ...cells.map(r => r.length));
-    for (const r of cells) while (r.length < columns) r.push("");
     let header = false, headers = null, roles;
     if (mode === "space") {
       roles = ["number", "name", "type", "alternates", "description"];
@@ -187,17 +186,28 @@ globalThis.AtriumSymbolWizard = (() => {
       const first = cells[0] || [];
       const hits = first.map(headerRole);
       header = o.header ?? (hits.filter(Boolean).length >= 1 && first.filter(isNumber).length <= (hits.includes("number") ? 0 : 1) && cells.length > 1);
-      if (header) { headers = first.slice(); cells.shift(); }
+      if (header) { headers = Array.from({length: columns}, (_, i) => first[i] || ""); cells.shift(); }
       roles = guessRoles(cells, columns, header ? hits : []);
     }
     return {mode, header, headers, columns: mode === "space" ? 5 : columns, cells, roles};
   }
   function guessRoles(cells, columns, hits) {
-    const roles = Array(columns).fill(null), sample = cells.slice(0, 200);
+    const roles = Array(columns).fill(null), values = Array(columns), assigned = new Set();
+    for (const row of cells.slice(0, 200)) {
+      row.forEach((cell, i) => { if (cell) (values[i] ||= []).push(cell); });
+    }
     // Header words first; a second "function" column after a name column is alternates.
-    hits.forEach((k, i) => { if (!k) return; if (UNIQUE.has(k) && roles.includes(k)) { if (k === "name" && !roles.includes("alternates")) roles[i] = "alternates"; return; } roles[i] = k; });
-    const score = (i, test) => { const v = sample.map(r => r[i]).filter(c => c !== "" && c != null); return v.length ? v.filter(test).length / v.length : 0; };
-    const free = () => roles.map((r, i) => r ? -1 : i).filter(i => i >= 0);
+    hits.forEach((k, i) => {
+      if (!k) return;
+      if (UNIQUE.has(k) && assigned.has(k)) {
+        if (k !== "name" || assigned.has("alternates")) return;
+        k = "alternates";
+      }
+      roles[i] = k;
+      assigned.add(k);
+    });
+    const score = (i, test) => values[i] ? values[i].filter(test).length / values[i].length : 0;
+    const free = () => values.flatMap((v, i) => roles[i] ? [] : [i]);
     const pick = (role, test, min) => {
       if (roles.includes(role)) return;
       let best = -1, bs = min;
@@ -212,7 +222,7 @@ globalThis.AtriumSymbolWizard = (() => {
     // "Function" columns that hold sentences are descriptions, not alternate functions.
     const prose = c => /[a-z]{3,}\s+[a-z]{2,}/i.test(c) && !signals(c);
     roles.forEach((r, i) => { if (r === "alternates" && score(i, prose) >= .5) roles[i] = "description"; });
-    for (const i of free()) roles[i] = sample.some(r => /\s\S+\s/.test(r[i] || "")) ? "description" : "ignore";
+    for (let i = 0; i < roles.length; i++) if (!roles[i]) roles[i] = values[i]?.some(s => /\s\S+\s/.test(s)) ? "description" : "ignore";
     return roles;
   }
 
@@ -233,18 +243,20 @@ globalThis.AtriumSymbolWizard = (() => {
   // Table + roles -> pins. edits: {key: {number, name, low, type, alternates, side, part, include}}.
   function pinsOf(table, o = {}) {
     const roles = o.roles && o.roles.length === table.columns ? o.roles : table.roles;
-    const col = k => roles.indexOf(k), L = Lib(), notes = [];
+    const columns = Object.fromEntries(ROLES.map(k => [k, roles.indexOf(k)])), L = Lib(), notes = [];
     const smart = o.smart !== false, edits = o.edits || {};
     const out = [];
     let auto = 1;
     table.cells.forEach((r, ri) => {
-      const get = k => col(k) >= 0 ? String(r[col(k)] ?? "").trim() : "";
-      let name = get("name"), alternates = get("alternates") ? get("alternates").split(/\s*[/,;]\s*|\s{2,}/).filter(Boolean) : [];
+      const get = k => String(r[columns[k]] ?? "").trim();
+      const alternativeText = get("alternates");
+      let name = get("name"), alternates = alternativeText ? alternativeText.split(/\s*[/,;]\s*|\s{2,}/).filter(Boolean) : [];
       if (o.split !== false && name.includes("/")) { const [n, a] = splitName(name); name = n; alternates = [...a, ...alternates]; }
-      const numbers = col("number") >= 0 ? numbersOf(get("number")) : [String(auto)];
+      const numbers = columns.number >= 0 ? numbersOf(get("number")) : [String(auto)];
       if (!numbers.length && !name) return;
       if (!numbers.length) numbers.push(String(auto));
-      const typeText = get("type"), sideText = get("side").toLowerCase(), gateText = get("gate");
+      const typeText = get("type"), side = SIDES[get("side").toLowerCase()], gateText = get("gate");
+      const description = get("description"), hidden = /^(y|yes|true|1|x|hide|hidden)$/i.test(get("hidden"));
       const part = /^[A-Z]$/i.test(gateText) ? gateText.toUpperCase().charCodeAt(0) - 64 : /^\d+$/.test(gateText) ? +gateText : undefined;
       numbers.forEach((number, k) => {
         const key = ri + ":" + k, e = edits[key] || {};
@@ -255,19 +267,21 @@ globalThis.AtriumSymbolWizard = (() => {
           if (code === undefined) notes.push({level: "info", code: "type", message: "Pin " + number + ": type “" + tt + "” is not one Waffle knows; it was inferred from the name.", keys: [key]});
           const given = code;
           if (smart && NC_NAME.test(base)) code = "nc";
-          else if (smart && L.inferElectrical(base) === 7) code = 7;
-          else if (code == null) code = L.inferElectrical(base);
+          else if (smart || code == null) {
+            const inferred = L.inferElectrical(base);
+            if (code == null || inferred === 7) code = inferred;
+          }
           if (given != null && given !== code && !/^[-—–]$/.test(tt.trim())) notes.push({level: "info", code: "smart", message: "Pin " + number + " " + base + ": the table says " + tt + "; smart typing made it " + (code === "nc" ? "no-connect" : L.ELECTRICAL[code]) + ".", keys: [key]});
         }
         const nc = code === "nc";
         const pin = {key, row: ri, number: String(e.number ?? number).trim(), typed, base, low, name: low ? styleName(base, o.activeLow || "overbar", typed) : base,
           electrical: nc ? 4 : code, nc, alternates: e.alternates != null ? String(e.alternates).split(/\s*[/,;]\s*/).filter(Boolean) : alternates,
-          description: get("description"), include: e.include !== false};
-        const side = e.side ?? SIDES[sideText];
-        if (side && side !== "auto") pin.side = side;
+          description, include: e.include !== false};
+        const pinSide = e.side ?? side;
+        if (pinSide && pinSide !== "auto") pin.side = pinSide;
         const pt = e.part ?? part;
         if (Number.isInteger(pt) && pt >= 0) pin.part = pt;
-        if (/^(y|yes|true|1|x|hide|hidden)$/i.test(get("hidden"))) pin.hidden = true;
+        if (hidden) pin.hidden = true;
         out.push(pin);
       });
       auto = (parseInt(numbers.at(-1), 10) || auto) + 1;
@@ -276,10 +290,11 @@ globalThis.AtriumSymbolWizard = (() => {
   }
 
   // ------------------------------------------------------------------ checks
-  function ranges(list) {
-    const out = [];
-    for (let i = 0; i < list.length; i++) { let j = i; while (j + 1 < list.length && list[j + 1] === list[j] + 1) j++; out.push(j > i ? list[i] + "–" + list[j] : String(list[i])); i = j; }
-    return out;
+  function* gaps(numbers, prev = numbers[0] - 1) {
+    for (const n of numbers) {
+      if (n - prev > 1) yield [prev + 1, n - 1];
+      prev = n;
+    }
   }
   function check(all, o = {}) {
     const pins = all.filter(p => p.include !== false), out = [];
@@ -288,18 +303,32 @@ globalThis.AtriumSymbolWizard = (() => {
     for (const p of pins) { if (!p.number) { out.push({level: "error", code: "number", message: "Row " + (p.row + 1) + " (" + (p.base || "unnamed") + ") has no pin number.", keys: [p.key]}); continue; } const k = p.number.toUpperCase(); if (!byNumber.has(k)) byNumber.set(k, []); byNumber.get(k).push(p); }
     for (const [n, list] of byNumber) if (list.length > 1) out.push({level: "error", code: "duplicate", message: "Pin " + list[0].number + " appears " + list.length + " times (" + list.map(p => p.base || "unnamed").join(", ") + ").", keys: list.map(p => p.key)});
     // Gaps in a numeric range, and in each row of BGA ball ids.
-    const ints = [...byNumber.keys()].filter(n => /^\d+$/.test(n)).map(Number).sort((a, b) => a - b);
+    const ints = [...byNumber.keys()].filter(n => /^\d+$/.test(n)).map(Number).filter(Number.isSafeInteger).sort((a, b) => a - b);
     if (ints.length > 1 && ints.length >= .6 * byNumber.size) {
-      const have = new Set(ints), miss = [];
-      for (let n = Math.min(1, ints[0]); n <= ints.at(-1); n++) if (!have.has(n)) miss.push(n);
-      if (miss.length) out.push({level: "warning", code: "missing", message: "Missing pin number" + (miss.length > 1 ? "s " : " ") + ranges(miss).slice(0, 12).join(", ") + (ranges(miss).length > 12 ? "…" : "") + " between 1 and " + ints.at(-1) + ".", keys: []});
+      const missing = [...gaps(ints, Math.min(1, ints[0]) - 1)];
+      if (missing.length) {
+        const one = missing.length === 1 && missing[0][0] === missing[0][1];
+        const ranges = missing.slice(0, 12).map(([a, b]) => a === b ? String(a) : a + "–" + b);
+        out.push({level: "warning", code: "missing", message: "Missing pin number" + (one ? " " : "s ") + ranges.join(", ") + (missing.length > ranges.length ? "…" : "") + " between 1 and " + ints.at(-1) + ".", keys: []});
+      }
     }
     const balls = new Map();
-    for (const n of byNumber.keys()) { const m = /^([A-Z]{1,2})(\d+)$/.exec(n); if (m) { if (!balls.has(m[1])) balls.set(m[1], []); balls.get(m[1]).push(+m[2]); } }
+    for (const n of byNumber.keys()) {
+      const m = /^([A-Z]{1,2})(\d+)$/.exec(n);
+      if (!m || !Number.isSafeInteger(+m[2])) continue;
+      if (!balls.has(m[1])) balls.set(m[1], []);
+      balls.get(m[1]).push(+m[2]);
+    }
     if (balls.size > 1) {
-      const gaps = [];
-      for (const [r, list] of balls) { list.sort((a, b) => a - b); for (let c = list[0]; c <= list.at(-1); c++) if (!list.includes(c)) gaps.push(r + c); }
-      if (gaps.length) out.push({level: "info", code: "missing-balls", message: "Ball rows have gaps: " + gaps.slice(0, 16).join(", ") + (gaps.length > 16 ? " …" : "") + " (fine for a depopulated array).", keys: []});
+      const missing = [];
+      for (const [r, list] of balls) {
+        for (const [a, b] of gaps(list.sort((x, y) => x - y))) {
+          for (let c = a; c <= b && missing.length <= 16; c++) missing.push(r + c);
+          if (missing.length > 16) break;
+        }
+        if (missing.length > 16) break;
+      }
+      if (missing.length) out.push({level: "info", code: "missing-balls", message: "Ball rows have gaps: " + missing.slice(0, 16).join(", ") + (missing.length > 16 ? " …" : "") + " (fine for a depopulated array).", keys: []});
     }
     // One name, several types.
     const byName = new Map();
@@ -315,7 +344,10 @@ globalThis.AtriumSymbolWizard = (() => {
     if (fp?.pads) {
       const pads = new Set(fp.pads.filter(p => !p.thermalVia).map(p => String(p.number).toUpperCase())), nums = new Set(byNumber.keys());
       const {noPad, noPin} = globalThis.AtriumLibraryPairing.difference(nums, pads);
-      if (noPad.length) out.push({level: "warning", code: "no-pad", message: "Pins without a pad in " + (fp.name || "the footprint") + ": " + noPad.slice(0, 12).join(", ") + (noPad.length > 12 ? " …" : "."), keys: pins.filter(p => noPad.includes(p.number.toUpperCase())).map(p => p.key)});
+      if (noPad.length) {
+        const unmatched = new Set(noPad);
+        out.push({level: "warning", code: "no-pad", message: "Pins without a pad in " + (fp.name || "the footprint") + ": " + noPad.slice(0, 12).join(", ") + (noPad.length > 12 ? " …" : "."), keys: pins.filter(p => unmatched.has(p.number.toUpperCase())).map(p => p.key)});
+      }
       if (noPin.length) out.push({level: "warning", code: "no-pin", message: "Pads without a pin: " + noPin.slice(0, 12).join(", ") + (noPin.length > 12 ? " …" : "."), keys: []});
     }
     return out;
@@ -420,7 +452,7 @@ globalThis.AtriumSymbolWizard = (() => {
     const g = o.pitch || G, len = o.length || 2 * G, part = o.part;
     const slots = (groups, gaps) => { const out = []; groups.forEach((grp, i) => { if (i && gaps) out.push(null); out.push(...grp); }); return out; };
     const Lp = slots(sides.left, true), Rp = slots(sides.right, true), Tp = slots(sides.top, false), Bp = slots(sides.bottom, false);
-    const w = list => Math.max(0, ...list.filter(Boolean).map(p => textWidth(p.name)));
+    const w = list => list.reduce((max, p) => p ? Math.max(max, textWidth(p.name)) : max, 0);
     const lw = w(Lp), rw = w(Rp), tw = w(Tp), bw = w(Bp);
     const rows = Math.max(Lp.length, Rp.length, 1);
     let width = Math.max(4 * G, lw + rw + 2 * G, (Math.max(Tp.length, Bp.length) + 1) * g, o.minWidth || 0);
@@ -491,18 +523,26 @@ globalThis.AtriumSymbolWizard = (() => {
     });
     return model;
   }
-  // Pins -> library def (not yet in any project).
-  function build(pins, o = {}) {
-    const L = Lib(), model = layout(pins, o);
-    const extra = model.pins.map(p => ({noConnect: p.noConnect, alternates: p.alternates}));
-    const b = L.buildSymbol({...model, pins: model.pins.map(({key, noConnect, alternates, ...p}) => { void key; void noConnect; void alternates; return p; })});
-    b.symbol.pins.forEach((p, i) => { if (extra[i].noConnect) p.noConnect = true; if (extra[i].alternates?.length) p.alternates = extra[i].alternates.slice(); });
+  function symbolOf(model) {
+    const {symbol, schDrawing} = Lib().buildSymbol(model);
+    symbol.pins.forEach((p, i) => {
+      const {noConnect, alternates} = model.pins[i];
+      if (noConnect) p.noConnect = true;
+      if (alternates?.length) p.alternates = alternates.slice();
+    });
+    return schDrawing ? {symbol, schDrawing} : {symbol};
+  }
+  function definition(drawing, o) {
     const A = globalThis.Atrium;
-    const def = {id: o.id || A.id(), name: String(o.name || "New component").trim() || "New component", prefix: o.prefix || "U", value: o.value ?? "", category: o.category || "Project components", symbol: b.symbol};
-    if (b.schDrawing) def.schDrawing = b.schDrawing;
+    const def = {id: o.id || A.id(), name: String(o.name || "New component").trim() || "New component", prefix: o.prefix || "U", value: o.value ?? "", category: o.category || "Project components", ...drawing};
     if (o.description) def.description = String(o.description);
     if (o.footprint) def.footprint = JSON.parse(JSON.stringify(o.footprint));
-    return {def, model};
+    return def;
+  }
+  // Pins -> library def (not yet in any project).
+  function build(pins, o = {}) {
+    const model = layout(pins, o);
+    return {def: definition(symbolOf(model), o), model};
   }
 
   // ------------------------------------------------------------------ existing symbols
@@ -633,15 +673,16 @@ globalThis.AtriumSymbolWizard = (() => {
   }
 
   // ------------------------------------------------------------------ dialog
-  function footprintChoices(library, pins) {
+  function footprintChoices(library) {
     const C = globalThis.AtriumCatalogue, ids = new Set(library.map(d => d.id));
     let defs = library.filter(d => d.footprint && !d.mirrorOf && !(C && C.hidden(d, ids)));
     if (C) defs = C.uniqueFootprints(defs);
     else { const seen = new Set(); defs = defs.filter(d => { const k = (d.footprint.name || d.name) + "|" + JSON.stringify((d.footprint.pads || []).map(Atrium.terminalGeometry)); if (seen.has(k)) return false; seen.add(k); return true; }); }
     const out = defs.map(d => ({id: d.id, footprint: d.footprint, name: d.footprint.name || d.name, pads: new Set((d.footprint.pads || []).filter(p => !p.thermalVia).map(p => String(p.number))).size, part: d.name}));
     const byName = new Map(); for (const o of out) byName.set(o.name, (byName.get(o.name) || 0) + 1);
-    for (const o of out) { const n = o.pads + (o.pads === 1 ? " pad" : " pads"); o.label = byName.get(o.name) > 1 ? o.name + " (" + n + ", " + o.part + ")" : o.name + " · " + n; o.match = o.pads === pins; }
-    return out.sort((a, b) => b.match - a.match || a.label.localeCompare(b.label, "en", {numeric: true, sensitivity: "base"}));
+    for (const o of out) { const n = o.pads + (o.pads === 1 ? " pad" : " pads"); o.label = byName.get(o.name) > 1 ? o.name + " (" + n + ", " + o.part + ")" : o.name + " · " + n; }
+    const compare = new Intl.Collator("en", {numeric: true, sensitivity: "base"}).compare;
+    return out.sort((a, b) => compare(a.label, b.label));
   }
 
   function open(ctx = {}) {
@@ -652,7 +693,7 @@ globalThis.AtriumSymbolWizard = (() => {
     const applying = typeof ctx.apply === "function";
     const st = {text: ctx.text || "", mode: "auto", header: undefined, roles: null, edits: {}, layout: "function", preset: "dual", pitch: G, length: 2 * G, power: "separate",
       activeLow: "overbar", smart: true, split: true, units: "mm", name: ctx.name || "", prefix: ctx.prefix || "U", value: "", description: "", footprint: "", gate: 1};
-    let table = null, result = {pins: [], notes: []}, issues = [], made = null, error = "";
+    let table, result = {pins: [], notes: []}, issues = [], model = null, drawing = null, preview = null, error = "", sourceError = "";
     const dlg = ui.dialog("Symbol Wizard", "sw-dialog");
 
     // ---- source
@@ -661,28 +702,51 @@ globalThis.AtriumSymbolWizard = (() => {
     ta.placeholder = "Paste a pin table from a datasheet or spreadsheet: tab, comma or space separated.\n1 VDD power\nPA0 / ADC_IN0 12 I/O\n3\tnRESET\tinput";
     const sample = el("select"); sample.setAttribute("aria-label", "Sample table"); sample.add(new Option("Sample…", ""));
     for (const [k, s] of Object.entries(SAMPLES)) sample.add(new Option(s.name + " (" + s.style + ")", k));
-    sample.onchange = () => { const s = SAMPLES[sample.value]; if (!s) return; st.text = ta.value = s.text; st.name = s.name; st.prefix = s.prefix; st.roles = null; st.edits = {}; st.header = undefined; sample.value = ""; syncMeta(); recompute(true); };
+    sample.onchange = () => {
+      const s = SAMPLES[sample.value];
+      if (!s) return;
+      st.prefix = s.prefix;
+      sample.value = "";
+      setText(s.text, s.name, st.mode);
+    };
     const importBtn = ui.button("Import file…", () => importFile(), "lib-mini"); importBtn.title = "CSV or TSV (also a spreadsheet saved as CSV), KiCad .kicad_sym, or the components of an Altium SchLib or SchDoc";
     const modeSel = el("select"); modeSel.setAttribute("aria-label", "Split columns by");
     for (const [v, t] of [["auto", "Columns: auto"], ["tab", "Tab"], ["csv", "Comma"], ["semicolon", "Semicolon"], ["columns", "Two or more spaces"], ["space", "Spaces (PDF text)"]]) modeSel.add(new Option(t, v));
-    modeSel.onchange = () => { st.mode = modeSel.value; st.roles = null; recompute(true); };
+    modeSel.onchange = () => { st.mode = modeSel.value; st.roles = null; refreshSource(true); };
     const headChk = el("input"); headChk.type = "checkbox"; headChk.setAttribute("aria-label", "First row is a header");
-    headChk.onchange = () => { st.header = headChk.checked; st.roles = null; recompute(true); };
+    headChk.onchange = () => { st.header = headChk.checked; st.roles = null; refreshSource(true); };
     const headLbl = el("label", null, "sw-check"); headLbl.append(headChk, el("span", "Header row"));
     const libPick = el("select"); libPick.hidden = true; libPick.setAttribute("aria-label", "Symbol in the library file");
     const srcBar = el("div", null, "sw-bar"); srcBar.append(importBtn, sample, libPick, el("span", null, "sw-grow"), modeSel, headLbl);
     const detected = el("p", null, "sw-detected"); detected.setAttribute("role", "status");
     const mapping = el("div", null, "sw-mapping"); mapping.setAttribute("aria-label", "Column roles");
     src.append(srcBar, ta, detected, mapping);
-    let typing = 0;
-    ta.oninput = () => { clearTimeout(typing); typing = setTimeout(() => { st.text = ta.value; st.edits = {}; recompute(true); }, 180); };
+    let sourceFrame = 0, fileRequest = 0;
+    const queueSource = () => {
+      fileRequest++;
+      if (!sourceFrame) sourceFrame = requestAnimationFrame(() => {
+        sourceFrame = 0;
+        if (ta.value !== st.text) refreshSource(true);
+      });
+    };
+    ta.oninput = e => { if (!e.isComposing) queueSource(); };
+    ta.addEventListener("compositionstart", () => { fileRequest++; cancelSource(); });
+    ta.addEventListener("compositionend", queueSource);
+    function cancelSource() {
+      if (sourceFrame) cancelAnimationFrame(sourceFrame);
+      sourceFrame = 0;
+    }
+    dlg.addEventListener("close", cancelSource, {once: true});
     async function importFile() {
       const pick = ctx.pickFile || globalThis.AtriumIO?.pickFile;
       if (!pick) { error = "This build has no file chooser."; renderIssues(); return; }
+      const request = ++fileRequest;
+      const current = () => dlg.open && request === fileRequest;
       try {
         const f = await pick([".csv", ".tsv", ".txt", ".kicad_sym", ".SchLib", ".schlib", ".SchDoc", ".schdoc"]);
-        if (!f) return;
+        if (!f || !current()) return;
         const r = await readFile(f);
+        if (!current()) return;
         libPick.hidden = true;
         if (r.kind === "table") { setText(r.text, String(f.name || "").replace(/\.[^.]+$/, "")); return; }
         const usable = r.symbols.filter(s => s.text);
@@ -691,18 +755,30 @@ globalThis.AtriumSymbolWizard = (() => {
         libPick.hidden = usable.length < 2;
         libPick.onchange = () => { const s = usable[+libPick.value]; setText(s.text, s.name); };
         setText(usable[0].text, usable[0].name);
-      } catch (e) { error = e.message; renderIssues(); }
+      } catch (e) { if (current()) { error = e.message; renderIssues(); } }
     }
-    function setText(text, name) { st.text = ta.value = text; if (name) st.name = name; st.roles = null; st.edits = {}; st.header = undefined; st.mode = "auto"; modeSel.value = "auto"; error = ""; syncMeta(); recompute(true); }
+    function setText(text, name, mode = "auto") {
+      fileRequest++;
+      ta.value = text;
+      if (name) st.name = name;
+      st.roles = null; st.edits = {}; st.header = undefined;
+      st.mode = modeSel.value = mode;
+      syncMeta();
+      refreshSource(true);
+    }
 
     // ---- pin grid
     const gridWrap = el("div", null, "sw-grid-wrap"), grid = el("table", null, "sw-grid ui-sheet-fields"); gridWrap.append(grid);
+    const head = el("tr"), thead = el("thead"), tbody = el("tbody");
+    for (const t of ["", "Number", "Name", "Low", "Type", "Alternate functions", "Side", "Gate"]) head.append(el("th", t));
+    thead.append(head);
+    grid.append(thead, tbody);
     const issueBox = el("div", null, "sw-issues"); issueBox.setAttribute("aria-live", "polite");
     const left = el("div", null, "sw-left"); left.append(src, gridWrap, issueBox);
 
     // ---- options and preview
     const right = el("div", null, "sw-right"), opts = el("div", null, "sw-options");
-    const input = (label, key, ph) => { const i = el("input"); i.value = st[key]; i.placeholder = ph || ""; i.spellcheck = false; i.oninput = () => { st[key] = i.value; schedule(); }; return ui.label(label, i); };
+    const input = (label, key, ph) => { const i = el("input"); i.value = st[key]; i.placeholder = ph || ""; i.spellcheck = false; i.oninput = () => { st[key] = i.value; }; return ui.label(label, i); };
     const metaRow = el("div", null, "sw-meta");
     metaRow.append(input("Name", "name", "New component"), input("Prefix", "prefix", "U"), input("Value", "value"), input("Description", "description"));
     function syncMeta() { const f = metaRow.querySelectorAll("input"); f[0].value = st.name; f[1].value = st.prefix; }
@@ -710,27 +786,40 @@ globalThis.AtriumSymbolWizard = (() => {
     for (const [k, t, title] of [["function", "By function", "One body: power on top, ground at the bottom, inputs left, outputs right, ports grouped"],
       ["gates", "Gates by group", "One gate per channel or port, a control gate and a power gate"], ["package", "Package sides", "Pins around the body in pin-number order"]]) {
       const b = el("button", t, "ui-segment"); b.type = "button"; b.dataset.layout = k; b.title = title;
-      b.onclick = () => { st.layout = k; st.gate = 1; recompute(true); }; layoutBar.append(b);
+      b.onclick = () => { st.layout = k; st.gate = 1; renderLayout(); relayout(); }; layoutBar.append(b);
     }
-    const sel = (label, key, values, num) => { const s = el("select"); for (const [v, t] of values) s.add(new Option(t, String(v))); s.value = String(st[key]); s.onchange = () => { st[key] = num ? +s.value : s.value; recompute(true); }; return ui.label(label, s); };
-    const presetRow = sel("Sides", "preset", [["dual", "Dual (DIP, SOIC)"], ["quad", "Quad (QFP, QFN)"], ["single", "Single, left"], ["single-right", "Single, right"]]);
-    const powerRow = sel("Power pins", "power", [["separate", "Own power gate"], ["shared", "On every gate"]]);
-    const unitRow = sel("Units", "units", [["mm", "mm"], ["mil", "mil"]]);
+    const sel = (label, key, values, change, num) => {
+      const s = el("select");
+      for (const [v, t] of values) s.add(new Option(t, String(v)));
+      s.value = String(st[key]);
+      s.onchange = () => { st[key] = num ? +s.value : s.value; change(); };
+      return ui.label(label, s);
+    };
+    const relayout = () => { rebuildPreview(); repaintPreview(true); };
+    const presetRow = sel("Sides", "preset", [["dual", "Dual (DIP, SOIC)"], ["quad", "Quad (QFP, QFN)"], ["single", "Single, left"], ["single-right", "Single, right"]], relayout);
+    const powerRow = sel("Power pins", "power", [["separate", "Own power gate"], ["shared", "On every gate"]], relayout);
+    const unitRow = sel("Units", "units", [["mm", "mm"], ["mil", "mil"]], gridSelects);
     const pitchRow = el("div"), lengthRow = el("div");
     function gridSelects() {
       const f = v => st.units === "mil" ? Math.round(v / .0254) + " mil" : v.toFixed(2) + " mm";
-      pitchRow.replaceChildren(sel("Pin spacing", "pitch", [[2.54, f(2.54) + " grid"], [5.08, f(5.08)]], true));
-      lengthRow.replaceChildren(sel("Pin length", "length", [[2.54, f(2.54)], [5.08, f(5.08)], [7.62, f(7.62)]], true));
+      pitchRow.replaceChildren(sel("Pin spacing", "pitch", [[2.54, f(2.54) + " grid"], [5.08, f(5.08)]], relayout, true));
+      lengthRow.replaceChildren(sel("Pin length", "length", [[2.54, f(2.54)], [5.08, f(5.08)], [7.62, f(7.62)]], relayout, true));
     }
-    const lowRow = sel("Active-low names", "activeLow", [["overbar", "Overbar (R̅E̅S̅E̅T̅)"], ["altium", "Altium notation (R\\E\\S\\E\\T\\)"], ["keep", "Keep as typed"]]);
-    const flag = (text, key, title) => { const c = el("input"); c.type = "checkbox"; c.checked = st[key]; c.onchange = () => { st[key] = c.checked; recompute(); }; const l = el("label", null, "sw-check"); l.title = title; l.append(c, el("span", text)); return l; };
+    const lowRow = sel("Active-low names", "activeLow", [["overbar", "Overbar (R̅E̅S̅E̅T̅)"], ["altium", "Altium notation (R\\E\\S\\E\\T\\)"], ["keep", "Keep as typed"]], () => refreshPins(true));
+    const flag = (text, key, title) => { const c = el("input"); c.type = "checkbox"; c.checked = st[key]; c.onchange = () => { st[key] = c.checked; refreshPins(); }; const l = el("label", null, "sw-check"); l.title = title; l.append(c, el("span", text)); return l; };
     const flags = el("div", null, "sw-flags");
     flags.append(flag("Smart typing", "smart", "GND, VSS, VDD and VCC are power and NC is no-connect, whatever the type column says"),
       flag("Split “A / B” names", "split", "PA0 / ADC_IN0 becomes pin PA0 with alternate function ADC_IN0"));
     const layoutOpts = el("div", null, "sw-grid2");
     layoutOpts.append(presetRow, powerRow, pitchRow, lengthRow, unitRow, lowRow);
     const fpSel = el("select"); fpSel.setAttribute("aria-label", "Footprint");
-    fpSel.onchange = () => { st.footprint = fpSel.value; recompute(); };
+    fpSel.onchange = () => {
+      st.footprint = fpSel.value;
+      renderFootprintNote(fpCount);
+      refreshChecks();
+      renderIssues();
+      renderGrid();
+    };
     const fpNote = el("p", null, "sw-note");
     const fpBox = el("div", null, "sw-footprint"); fpBox.append(ui.label("Footprint", fpSel), fpNote);
     opts.append(metaRow, layoutBar, layoutOpts, flags, ...(applying ? [] : [fpBox]));
@@ -739,17 +828,13 @@ globalThis.AtriumSymbolWizard = (() => {
     const facts = el("p", null, "sw-note");
     const previewBox = el("div", null, "sw-preview"); previewBox.append(gates, canvas, facts);
     right.append(opts, previewBox);
-    const FG = globalThis.AtriumSymbolEditor?.filterGate || (s => s);
-    const stage = ui.stage(canvas, {kind: "schematic", def: () => made ? {...made.def, symbol: FG(made.def.symbol, st.gate, false)} : null, item: () => ({part: st.gate, alt: false})});
-    canvas.tabIndex = 0; canvas.setAttribute("aria-label", "Symbol preview");
+    canvas.tabIndex = 0;
     ui.shortcut(canvas, "Fit the symbol preview", "F", " or double-click");
     canvas.addEventListener("dblclick", () => stage.fit());
     // The preview refits when its box changes size, until the user zooms or pans it.
-    let userView = false, refit = 0;
+    let userView = false;
     canvas.addEventListener("wheel", () => { userView = true; }, {passive: true});
-    canvas.addEventListener("pointerdown", e => { if (e.button !== 0) userView = true; });
-    const fitSoon = () => { clearTimeout(refit); refit = setTimeout(() => { if (canvas.isConnected) stage.fit(); }, 30); };
-    if (globalThis.ResizeObserver) new ResizeObserver(() => { if (!userView) fitSoon(); }).observe(canvas);
+    canvas.addEventListener("pointerdown", e => { if (e.button !== 0) userView = true; }, {capture: true});
     canvas.addEventListener("keydown", e => { if (e.key === "f" || e.key === "F") { e.preventDefault(); stage.fit(); } });
 
     const body = el("div", null, "sw-body"); body.append(left, right);
@@ -759,140 +844,280 @@ globalThis.AtriumSymbolWizard = (() => {
     const add = ui.button("Add to library", () => finish(false));
     footer.append(status, ui.button("Cancel", () => dlg.close()), ...(applying ? [] : [add]), primary);
     dlg.append(body, footer);
+    const FG = globalThis.AtriumSymbolEditor?.filterGate || (s => s);
+    const stage = ui.stage(canvas, {kind: "schematic", def: () => preview, item: () => ({part: st.gate, alt: false})});
 
     // ---- recompute
     const E = L.ELECTRICAL;
-    let pending = 0;
-    function schedule() { clearTimeout(pending); pending = setTimeout(() => recompute(), 120); }
-    function recompute(fit) {
-      error = "";
+    function refreshSource(fit) {
+      cancelSource();
+      if (ta.value !== st.text) {
+        const active = document.activeElement;
+        if (active && tbody.contains(active)) active.blur();
+        st.text = ta.value; st.edits = {};
+      }
+      sourceError = "";
       try { table = detect(st.text, {mode: st.mode, header: st.header}); }
-      catch (e) { table = {mode: st.mode, header: false, headers: null, columns: 0, cells: [], roles: []}; error = e.message; }
+      catch (e) { table = {mode: st.mode, header: false, headers: null, columns: 0, cells: [], roles: []}; sourceError = e.message; }
       if (st.roles && st.roles.length !== table.columns) st.roles = null;
-      result = pinsOf(table, {roles: st.roles || table.roles, smart: st.smart, split: st.split, activeLow: st.activeLow, edits: st.edits});
-      const fp = library().find(d => d.id === st.footprint)?.footprint;
-      issues = [...(st.text.trim() ? check(result.pins, {footprint: fp}) : []), ...result.notes];
-      made = null;
+      renderMapping();
+      refreshPins(fit);
+    }
+    function refreshPins(fit) {
+      result = pinsOf(table, st);
+      renderDetected();
+      renderFootprints();
+      refreshChecks();
+      rebuildPreview();
+      renderGrid();
+      repaintPreview(fit);
+    }
+    function selectedFootprint() {
+      return st.footprint ? library().find(d => d.footprint && d.id === st.footprint) : null;
+    }
+    function refreshChecks() {
+      issues = [...(st.text.trim() ? check(result.pins, {footprint: selectedFootprint()?.footprint}) : []), ...result.notes];
+      issueOf.clear();
+      for (const x of issues) for (const k of x.keys) {
+        const cur = issueOf.get(k);
+        if (!cur || rank(x.level) > rank(cur.level)) issueOf.set(k, x);
+      }
+    }
+    function rebuildPreview() {
+      model = drawing = null;
+      error = sourceError;
       if (result.pins.some(p => p.include !== false)) {
-        try { made = build(result.pins, {layout: st.layout, preset: st.preset, pitch: st.pitch, length: st.length, power: st.power, name: st.name || "New component", prefix: st.prefix || "U", value: st.value, description: st.description, footprint: fp}); }
+        try { model = layout(result.pins, st); drawing = symbolOf(model); }
         catch (e) { error = e.message; }
       }
-      if (made && (made.def.symbol.parts || 1) < st.gate) st.gate = 1;
-      renderMapping(); renderGrid(); renderIssues(); renderOptions(); renderFootprints();
-      if (fit) { userView = false; fitSoon(); } else stage.render();
+      if ((model?.parts || 1) < st.gate) st.gate = 1;
+      renderGates();
+      renderFacts();
+      renderIssues();
+    }
+    function repaintPreview(fit) {
+      if (fit) userView = false;
+      renderPreview(!userView);
+    }
+    function renderPreview(fit) {
+      preview = drawing ? {...drawing, symbol: FG(drawing.symbol, st.gate, false)} : null;
+      if (fit) stage.fit();
+      else stage.render();
+    }
+    function renderDetected() {
+      const modeName = {tab: "tab-separated", csv: "comma-separated", semicolon: "semicolon-separated", columns: "column-aligned text", space: "space-separated PDF text"}[table.mode] || table.mode;
+      detected.textContent = st.text.trim() ? "Detected " + modeName + (table.header ? " with a header row" : "") + " · " + table.cells.length + " row" + (table.cells.length === 1 ? "" : "s") + " → " + result.pins.length + " pin" + (result.pins.length === 1 ? "" : "s") : "";
     }
     function renderMapping() {
       headChk.checked = !!table.header;
       const roles = st.roles || table.roles;
-      const modeName = {tab: "tab-separated", csv: "comma-separated", semicolon: "semicolon-separated", columns: "column-aligned text", space: "space-separated PDF text"}[table.mode] || table.mode;
-      detected.textContent = st.text.trim() ? "Detected " + modeName + (table.header ? " with a header row" : "") + " · " + table.cells.length + " row" + (table.cells.length === 1 ? "" : "s") + " → " + result.pins.length + " pin" + (result.pins.length === 1 ? "" : "s") : "";
       mapping.replaceChildren();
       if (!table.columns) return;
+      const examples = new Map();
+      for (const row of table.cells) row.forEach((cell, i) => { if (cell && !examples.has(i)) examples.set(i, cell); });
       for (let i = 0; i < table.columns; i++) {
+        if (table.mode !== "space" && !table.headers?.[i] && !examples.has(i) && (!roles[i] || roles[i] === "ignore")) continue;
         const s = el("select"); for (const r of ROLES) s.add(new Option(ROLE_LABEL[r], r)); s.value = roles[i] || "ignore";
         const head = table.mode === "space" ? ["Number", "Name", "Type", "Alternates", "Description"][i] : table.headers?.[i] || "Column " + (i + 1);
-        const first = table.cells.find(r => r[i])?.[i] || "";
+        const first = examples.get(i);
         s.setAttribute("aria-label", "Role of " + head);
-        s.onchange = () => { const next = roles.slice(); if (UNIQUE.has(s.value)) next.forEach((r, k) => { if (r === s.value && k !== i) next[k] = "ignore"; }); next[i] = s.value; st.roles = next; st.edits = {}; recompute(true); };
+        s.onchange = () => { const next = roles.slice(); if (UNIQUE.has(s.value)) next.forEach((r, k) => { if (r === s.value && k !== i) next[k] = "ignore"; }); next[i] = s.value; st.roles = next; st.edits = {}; renderMapping(); refreshPins(true); };
         const chip = el("label", null, "sw-col" + (s.value === "ignore" ? " is-off" : "")); chip.title = head + (first ? " · e.g. " + first : "");
         chip.append(el("span", head, "sw-col-head"), s); mapping.append(chip);
       }
     }
     const issueOf = new Map();
-    function renderGrid() {
-      issueOf.clear();
-      for (const x of issues) for (const k of x.keys || []) { const cur = issueOf.get(k); if (!cur || rank(x.level) > rank(cur.level)) issueOf.set(k, x); }
-      grid.replaceChildren();
-      const head = el("tr");
-      for (const t of ["", "Number", "Name", "Low", "Type", "Alternate functions", "Side", "Gate"]) head.append(el("th", t));
-      const thead = el("thead"); thead.append(head); grid.append(thead);
-      const tbody = el("tbody");
-      const edit = (p, k, v) => { (st.edits[p.key] ||= {})[k] = v; recompute(); };
-      for (const p of result.pins.slice(0, 2000)) {
-        const tr = el("tr"), x = issueOf.get(p.key);
-        tr.dataset.key = p.key;
-        if (x) { tr.className = "sw-" + x.level; tr.title = x.message; }
-        if (p.include === false) tr.classList.add("is-off");
-        const td = () => { const c = el("td"); tr.append(c); return c; };
-        const inc = el("input"); inc.type = "checkbox"; inc.checked = p.include !== false; inc.setAttribute("aria-label", "Include pin " + p.number); inc.onchange = () => edit(p, "include", inc.checked); td().append(inc);
-        const text = (k, v, label, cls) => { const i = el("input"); i.value = v; i.spellcheck = false; i.setAttribute("aria-label", label); if (cls) i.className = cls; i.onchange = () => edit(p, k, i.value); td().append(i); return i; };
-        text("number", p.number, "Number of pin " + (p.row + 1), "sw-num");
-        text("name", p.typed, "Name of pin " + p.number);
-        const low = el("input"); low.type = "checkbox"; low.checked = p.low; low.title = "Active low: drawn with an overbar"; low.setAttribute("aria-label", "Active low pin " + p.number); low.onchange = () => edit(p, "low", low.checked); td().append(low);
-        const ty = el("select"); for (const [v, t] of [...E.map((t, i) => [String(i), t]), ["nc", "No connect"]]) ty.add(new Option(t, v)); ty.value = p.nc ? "nc" : String(p.electrical);
-        ty.setAttribute("aria-label", "Type of pin " + p.number); ty.onchange = () => edit(p, "type", ty.value); td().append(ty);
-        text("alternates", p.alternates.join(", "), "Alternate functions of pin " + p.number, "sw-alt");
-        const side = el("select"); for (const [v, t] of [["auto", "Auto"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"]]) side.add(new Option(t, v)); side.value = p.side || "auto";
-        side.setAttribute("aria-label", "Side of pin " + p.number); side.onchange = () => edit(p, "side", side.value); td().append(side);
-        const g = el("input"); g.value = p.part ?? ""; g.placeholder = "auto"; g.className = "sw-gate"; g.setAttribute("aria-label", "Gate of pin " + p.number);
-        g.onchange = () => { const v = g.value.trim(); edit(p, "part", v === "" ? undefined : /^[A-Z]$/i.test(v) ? v.toUpperCase().charCodeAt(0) - 64 : parseInt(v, 10)); }; td().append(g);
-        tbody.append(tr);
+    const typeOptions = el("select"), sideOptions = el("select");
+    for (const [i, type] of E.entries()) typeOptions.add(new Option(type, String(i)));
+    typeOptions.add(new Option("No connect", "nc"));
+    for (const [value, label] of [["auto", "Auto"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"]])
+      sideOptions.add(new Option(label, value));
+    const columns = ["include", "number", "name", "low", "type", "alternates", "side", "part"];
+    const pinGrid = AtriumWindowedTable(gridWrap, tbody, () => columns.length, renderPin, {editable: true, rowHeight: 26});
+    dlg.addEventListener("close", pinGrid.dispose, {once: true});
+    function makePinControls(tr) {
+      const include = el("input"), number = el("input", null, "sw-num"), name = el("input"), low = el("input");
+      const alternates = el("input", null, "sw-alt"), part = el("input", null, "sw-gate");
+      include.type = low.type = "checkbox";
+      low.title = "Active low: drawn with an overbar";
+      number.spellcheck = name.spellcheck = alternates.spellcheck = false;
+      part.placeholder = "auto";
+      const controls = [include, number, name, low, typeOptions.cloneNode(true), alternates, sideOptions.cloneNode(true), part];
+      controls.forEach((control, i) => {
+        control.dataset.field = columns[i];
+        const td = el("td");
+        td.append(control);
+        tr.append(td);
+      });
+    }
+    tbody.onchange = e => {
+      const control = e.target, field = control.dataset.field, row = control.closest("tr");
+      if (!field || !row || ta.value !== st.text) return;
+      let value = control.type === "checkbox" ? control.checked : control.value;
+      if (field === "part") {
+        value = value.trim();
+        value = value === "" ? undefined : /^[A-Z]$/i.test(value) ? value.toUpperCase().charCodeAt(0) - 64 : parseInt(value, 10);
       }
-      grid.append(tbody);
+      (st.edits[row.dataset.key] ||= {})[field] = value;
+      refreshPins();
+    };
+    tbody.onkeydown = e => {
+      if (e.key !== "Tab" || e.altKey || e.ctrlKey || e.metaKey) return;
+      const row = e.target.closest("tr[data-r]"), backwards = e.shiftKey;
+      if (!row || e.target.dataset.field !== columns[backwards ? 0 : columns.length - 1]) return;
+      const index = Number(row.dataset.r) + (backwards ? -1 : 1);
+      if (index < 0 || index >= result.pins.length) return;
+      const sibling = backwards ? row.previousElementSibling : row.nextElementSibling;
+      if (sibling?.dataset.r === String(index)) return;
+      e.preventDefault();
+      focusPin(index, columns[backwards ? columns.length - 1 : 0]);
+    };
+    function renderPin(tr, pin, index) {
+      if (!tr.firstChild) makePinControls(tr);
+      tr.dataset.key = pin.key;
+      tr.setAttribute("aria-rowindex", String(index + 2));
+      const issue = issueOf.get(pin.key);
+      tr.className = (issue ? "sw-" + issue.level : "") + (pin.include === false ? " is-off" : "");
+      tr.title = issue?.message || "";
+      const n = pin.number;
+      const values = [pin.include !== false, n, pin.typed, pin.low, pin.nc ? "nc" : String(pin.electrical), pin.alternates.join(", "), pin.side || "auto", String(pin.part ?? "")];
+      const labels = ["Include pin " + n, "Number of pin " + (pin.row + 1), "Name of pin " + n, "Active low pin " + n, "Type of pin " + n,
+        "Alternate functions of pin " + n, "Side of pin " + n, "Gate of pin " + n];
+      values.forEach((value, i) => {
+        const control = tr.children[i].firstElementChild, prop = i === 0 || i === 3 ? "checked" : "value";
+        if (control[prop] !== value && document.activeElement !== control) control[prop] = value;
+        if (control.getAttribute("aria-label") !== labels[i]) control.setAttribute("aria-label", labels[i]);
+      });
+    }
+    function renderGrid() {
       gridWrap.hidden = !result.pins.length;
+      grid.setAttribute("aria-rowcount", String(result.pins.length + 1));
+      pinGrid.refresh(result.pins);
+    }
+    function focusIssue(key) {
+      if (!key) return;
+      const index = result.pins.findIndex(p => p.key === key);
+      if (index >= 0) focusPin(index, "number");
+    }
+    function focusPin(index, field) {
+      pinGrid.scrollTo(index);
+      tbody.querySelector('tr[data-r="' + index + '"] [data-field="' + field + '"]')?.focus();
     }
     const rank = l => l === "error" ? 3 : l === "warning" ? 2 : 1;
+    let shownIssues = [], emptyIssues = false;
     function renderIssues() {
-      issueBox.replaceChildren();
       const list = [...(error ? [{level: "error", code: "parse", message: error, keys: []}] : []), ...issues].sort((a, b) => rank(b.level) - rank(a.level));
       const errors = list.filter(x => x.level === "error").length, warnings = list.filter(x => x.level === "warning").length;
-      if (!list.length && !result.pins.length) { issueBox.append(el("p", "Paste a pin table above, import a file, or try a sample.", "ui-empty sw-empty")); }
-      if (list.length) {
-        const ul = el("ul");
-        for (const x of list.slice(0, 40)) {
-          const li = el("li", null, "lvl-" + x.level), b = ui.button(x.message, () => { const k = x.keys?.[0]; const tr = k && grid.querySelector('tr[data-key="' + k + '"]'); if (tr) { tr.scrollIntoView?.({block: "nearest"}); tr.querySelector("input:not([type=checkbox])")?.focus(); } });
-          b.className = "sw-issue"; li.append(b); ul.append(li);
+      const visible = list.slice(0, 40), empty = !list.length && !result.pins.length;
+      if (empty !== emptyIssues || visible.length !== shownIssues.length || visible.some((x, i) => {
+        const prev = shownIssues[i];
+        return x.level !== prev.level || x.message !== prev.message || x.keys[0] !== prev.keys[0];
+      })) {
+        emptyIssues = empty;
+        shownIssues = visible;
+        issueBox.replaceChildren();
+        if (empty) issueBox.append(el("p", "Paste a pin table above, import a file, or try a sample.", "ui-empty sw-empty"));
+        if (visible.length) {
+          const ul = el("ul");
+          for (const x of visible) {
+            const li = el("li", null, "lvl-" + x.level), b = ui.button(x.message, () => focusIssue(x.keys[0]));
+            b.className = "sw-issue"; li.append(b); ul.append(li);
+          }
+          issueBox.append(ul);
         }
-        issueBox.append(ul);
       }
       status.textContent = errors ? errors + " error" + (errors > 1 ? "s" : "") + " to fix" : warnings ? warnings + " warning" + (warnings > 1 ? "s" : "") : result.pins.length ? "Checks pass" : "";
       status.className = "sw-status " + (errors ? "is-error" : warnings ? "is-warning" : "is-ok");
-      primary.disabled = add.disabled = !!errors || !made;
+      primary.disabled = add.disabled = !!errors || !drawing;
     }
-    function renderOptions() {
+    function renderLayout() {
       for (const b of layoutBar.children) b.setAttribute("aria-pressed", String(b.dataset.layout === st.layout));
       presetRow.hidden = st.layout !== "package"; powerRow.hidden = st.layout !== "gates";
-      gridSelects();
-      gates.replaceChildren();
-      const n = made?.def.symbol.parts || 1;
-      if (n > 1) for (let g = 1; g <= n; g++) { const b = ui.button(String.fromCharCode(64 + g) + (made.model.gateLabels?.[g - 1] ? " · " + made.model.gateLabels[g - 1] : ""), () => { st.gate = g; renderOptions(); stage.fit(); }, "lib-chip"); b.setAttribute("aria-pressed", String(g === st.gate)); gates.append(b); }
-      const pins = result.pins.filter(p => p.include !== false), k = c => pins.filter(p => kind(p) === c).length;
-      facts.textContent = made ? pins.length + " pins · " + n + (n === 1 ? " gate" : " gates") + " · " + [["power", k("power") + k("ground")], ["in", k("input")], ["out", k("output")], ["I/O", k("io")], ["passive", k("passive")], ["NC", k("nc")], ["active low", pins.filter(p => p.low).length]].filter(x => x[1]).map(x => x[1] + " " + x[0]).join(", ") : "";
     }
-    let fpCount = -1;
+    function renderGates() {
+      const n = model?.parts > 1 ? model.parts : 0;
+      while (gates.children.length > n) gates.lastChild.remove();
+      for (let g = 1; g <= n; g++) {
+        const label = model.gateLabels?.[g - 1];
+        const text = String.fromCharCode(64 + g) + (label ? " · " + label : "");
+        let b = gates.children[g - 1];
+        if (!b) {
+          b = ui.button(text, () => { st.gate = g; renderGates(); renderPreview(true); }, "lib-chip");
+          gates.append(b);
+        } else if (b.textContent !== text) b.textContent = text;
+        b.setAttribute("aria-pressed", String(g === st.gate));
+      }
+    }
+    function renderFacts() {
+      if (!drawing) { facts.textContent = ""; return; }
+      const types = {power: "power", ground: "power", input: "in", output: "out", io: "I/O", passive: "passive", nc: "NC"};
+      const counts = {power: 0, in: 0, out: 0, "I/O": 0, passive: 0, NC: 0, "active low": 0};
+      let n = 0;
+      for (const p of result.pins) {
+        if (!p.include) continue;
+        n++;
+        const label = types[kind(p)];
+        if (label) counts[label]++;
+        if (p.low) counts["active low"]++;
+      }
+      facts.textContent = n + " pins · " + model.parts + (model.parts === 1 ? " gate" : " gates") + " · " +
+        Object.entries(counts).filter(([, count]) => count).map(([label, count]) => count + " " + label).join(", ");
+    }
+    let fpCount = -1, fpSource, fpSize = -1, fpCatalogue, fpChoices;
     function renderFootprints() {
       if (applying) return;
-      const n = new Set(result.pins.filter(p => p.include !== false).map(p => p.number)).size;
-      if (n !== fpCount || fpSel.options.length <= 1) {
+      const n = new Set(result.pins.filter(p => p.include).map(p => p.number)).size, source = library();
+      const catalogue = globalThis.AtriumCatalogue;
+      const changed = source !== fpSource || source.length !== fpSize || catalogue !== fpCatalogue;
+      if (changed) {
+        fpChoices = footprintChoices(source);
+        fpSource = source;
+        fpSize = source.length;
+        fpCatalogue = catalogue;
+      }
+      if (n !== fpCount || changed) {
         fpCount = n;
-        const list = footprintChoices(library(), n), keep = st.footprint;
+        const keep = st.footprint;
         fpSel.replaceChildren(new Option("— none —", ""));
-        const match = list.filter(x => x.match), rest = list.filter(x => !x.match);
+        const match = fpChoices.filter(x => x.pads === n), rest = fpChoices.filter(x => x.pads !== n);
         const group = (label, items) => { if (!items.length) return; const g = el("optgroup"); g.label = label; for (const x of items) g.append(new Option(x.label, x.id)); fpSel.append(g); };
         group(n + " pads, matching the pins", match); group(match.length ? "Other footprints" : "Footprints", rest);
-        fpSel.value = list.some(x => x.id === keep) ? keep : "";
+        fpSel.value = fpChoices.some(x => x.id === keep) ? keep : "";
         st.footprint = fpSel.value;
       }
-      const d = library().find(x => x.id === st.footprint);
+      renderFootprintNote(n);
+    }
+    function renderFootprintNote(n) {
+      const d = selectedFootprint();
       fpNote.textContent = d ? "Linked to " + (d.footprint.name || d.name) + ". The Symbol Editor shows it under Footprint." : "Footprints with " + n + " pads are listed first. You can also choose one later in the Symbol Editor.";
     }
+    let draftId;
+    function makeDef() {
+      if (!drawing) return null;
+      draftId ||= globalThis.Atrium.id();
+      return definition(drawing, {...st, id: draftId, footprint: selectedFootprint()?.footprint});
+    }
     function finish(edit) {
-      recompute();
-      if (!made || issues.some(x => x.level === "error")) return;
-      const def = made.def;
-      if (applying) { ctx.apply({pins: made.model.pins.map(({key, ...p}) => { void key; return p; }), shapes: made.model.shapes, parts: made.model.parts}, def); dlg.close(); return; }
+      if (ta.value !== st.text) refreshSource(true);
+      const active = document.activeElement;
+      if (active && tbody.contains(active)) active.blur(); // Commit a grid input before handling the shortcut.
+      if (!drawing || sourceError || issues.some(x => x.level === "error")) return;
+      const def = makeDef();
+      if (applying) { ctx.apply({pins: model.pins.map(({key, ...p}) => { void key; return p; }), shapes: model.shapes, parts: model.parts}, def); dlg.close(); return; }
       const v = L.validateDef(def, {footprintWarnings: false});
       if (!v.ok) { error = v.errors[0]; renderIssues(); return; }
       dlg.close();
       if (edit) { if (L.openSymbolEditor) L.openSymbolEditor(ctx, def); else globalThis.AtriumSymbolEditor?.open({def, library: library(), info: ctx.info, commit: d => L.commitDef(ctx, d)}); }
       else L.commitDef(ctx, def);
     }
-    dlg.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); finish(true); } });
+    dlg.addEventListener("keydown", e => { if (!e.isComposing && (e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); finish(true); } });
+    renderLayout();
+    gridSelects();
     ui.show(dlg);
-    recompute(true);
-    stage.observe();
+    refreshSource(true);
+    stage.observe(() => !userView);
     if (!st.text) ta.focus();
-    return {dialog: dlg, state: st, result: () => ({table, pins: result.pins, issues, def: made?.def || null}), setText, recompute, finish};
+    return {dialog: dlg, state: st, result: () => ({table, pins: result.pins, issues, def: makeDef()}), setText, recompute: refreshSource, finish};
   }
 
   const workflows = {"symbol-wizard": {open: ctx => open(ctx)}};

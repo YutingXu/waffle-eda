@@ -52,7 +52,7 @@ async function cameraPolicy(page) {
     let next = -1;
     const steps = new Map();
     window.requestAnimationFrame = callback => {
-      if ((new Error().stack.split("\n")[2] || "").includes("/motion.js:")) {
+      if ((new Error().stack.split("\n")[2] || "").includes("/editor/editor-motion.js:")) {
         const id = next--;
         steps.set(id,callback);
         return id;

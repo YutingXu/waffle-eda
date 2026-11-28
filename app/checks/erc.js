@@ -470,7 +470,7 @@ globalThis.AtriumERC = (() => {
     yield "boards";
     // Sheet hierarchy and project-wide net names.
     let hier = null;
-    try {const h = H(); if (h) hier = options.cache ? h.compileCached(project, {defs, scope:cfg.scope}) : h.compile(project, {defs, scope:cfg.scope});}
+    try {const h = H(); if (h) hier = options.cache ? h.compileCached(project, {defs, scope:cfg.scope, publish:options.publishHierarchy}) : h.compile(project, {defs, scope:cfg.scope});}
     catch (error) {messages.push({class:"Warning", source:"Compiler", check:"hierarchy", text:"Hierarchy could not be compiled: " + error.message, document:"", time:now});}
     for (const issue of hier?.issues || []) {
       if (issue.kind === "channelLimit") {
@@ -511,7 +511,9 @@ globalThis.AtriumERC = (() => {
     const projectNets = new Map(), namedOn = new Map();
     const floatingInputsOn = CLASS[cfg.checks.floatingInputs];
     const reusableScopes=!scoped || ![...scoped.dependencies || []].some(k=>k.startsWith("geometry:") || k.startsWith("rule:") || k==="field:length");
-    const cfgSig = options.cache ? JSON.stringify(cfg) + (scoped ? "|" + scoped.sig : "") : "", scope0 = scopeOf(project, cfg), effective0 = hier?.effective || (scope0 === "automatic" ? "global" : scope0);
+    const cfgSig = options.cache ? JSON.stringify(cfg) + (scoped ? "|" + scoped.sig : "") : "";
+    const scope = scopeOf(project, cfg), effective = hier?.effective || (scope === "automatic" ? "global" : scope);
+    const localNames = effective === "flat" || effective === "hierarchical";
     for (const g of graphs) {
       const doc = g.doc, e = options.entries.get(doc);
       if (reusableScopes && e?.phys && e.physSig === cfgSig) reuse(e.phys);
@@ -549,18 +551,16 @@ globalThis.AtriumERC = (() => {
       if (e) options.entries.set(doc, {...e, phys:messages.slice(start), physSig:cfgSig});
       }
       // With the project compiler the project nets come from it (below); without it, from the sheets.
-      if (hier && effective0 !== "flat" && effective0 !== "hierarchical") { yield "sheet"; continue; }
-      for (const net of g.nets) {
-        // The project compiler (hierarchy.js) names nets across sheets and the hierarchy
-        // under the net identifier scope. Without it, names join nets across sheets.
-        const first = net.pins[0], projectName = hier && first ? hier.byDoc.get(doc.id)?.byPin.get(first.i.id + "/" + first.pin.number) : "";
-        const key = projectName ? "h:" + projectName : net.names.size ? "name:" + net.name : "sheet:" + doc.id + ":" + net.name;
-        if (!projectNets.has(key)) projectNets.set(key, {name:projectName || net.name, pins:[], connectors:[], global:false});
-        const pn = projectNets.get(key);
-        for (const c of net.pins) pn.pins.push({...c, doc, noErc:g.noErc.has(c.key)});
-        if (!hier && g.directions.size) for (const {item} of net.sources) addDirection(pn, g, item, doc.id);
-        if (net.sources.some(s => labelType(s.item) !== "label") || net.pins.some(c => g.entryGroups.has(g.physicalOf(c.key)))) pn.global = true;
-        if (net.names.size) {
+      if (!hier || localNames) for (const net of g.nets) {
+        if (!hier) {
+          const key = net.names.size ? "name:" + net.name : "sheet:" + doc.id + ":" + net.name;
+          if (!projectNets.has(key)) projectNets.set(key, {name:net.name, pins:[], connectors:[], global:false});
+          const pn = projectNets.get(key);
+          for (const c of net.pins) pn.pins.push({...c, doc, noErc:g.noErc.has(c.key)});
+          if (g.directions.size) for (const {item} of net.sources) addDirection(pn, g, item, doc.id);
+          if (net.sources.some(s => labelType(s.item) !== "label") || net.pins.some(c => g.entryGroups.has(g.physicalOf(c.key)))) pn.global = true;
+        }
+        if (localNames && net.names.size) {
           if (!namedOn.has(net.name)) namedOn.set(net.name, []);
           namedOn.get(net.name).push({doc, net, global:net.sources.some(s => s.name === net.name && labelType(s.item) !== "label")});
         }
@@ -581,8 +581,9 @@ globalThis.AtriumERC = (() => {
         if (!g.contactOf) {g.contactOf = new Map(); for (const c of g.contacts) g.contactOf.set(c.i.id + "/" + c.pin.number, {c, noErc:g.noErc.has(c.key)});}
         contactsOf.set(g.doc.id, g.contactOf);
       }
-      projectNets.clear();
+      let batch = 0;
       for (const n of hier.nets) {
+        if (++batch === 256) {batch = 0; yield "project nets";}
         const pins = [];
         for (const x of n.pins) {
           const found = contactsOf.get(x.doc.id)?.get(x.part.id + "/" + x.pin.number);
@@ -605,8 +606,7 @@ globalThis.AtriumERC = (() => {
         }
       }
     }
-    const scope = scopeOf(project, cfg), effective = hier?.effective || (scope === "automatic" ? "global" : scope);
-    for (const [name, entries] of effective === "flat" || effective === "hierarchical" ? namedOn : []) {
+    for (const [name, entries] of namedOn) {
       const docs = new Set(entries.map(e => e.doc));
       if (docs.size < 2) continue;
       for (const e of entries) {
@@ -620,7 +620,9 @@ globalThis.AtriumERC = (() => {
     const netCache = reusableScopes && options.cache ? (options.cache.get(project) || {}) : null, nextNets = netCache ? new Map() : null, byHier = netCache ? new Map() : null;
     const netStamp = netCache ? cfgSig + "|" + (options.stamp ?? "") : "";
     const sameStamp = !!netCache && netCache.stamp === netStamp;
+    let batch = 0;
     for (const net of projectNets.values()) {
+      if (++batch === 256) {batch = 0; yield "net findings";}
       let sig = null;
       const changed = c => rebuilt.has(c.doc.id);
       const changedSheet = netCache && (net.pins.some(changed) || net.connectors.some(changed));

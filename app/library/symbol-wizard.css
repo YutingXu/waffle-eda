@@ -55,5 +55,6 @@
 @media (max-width: 900px) {
   .sw-body {grid-template-columns:1fr;overflow:auto}
   .sw-left {border-right:0;border-bottom:1px solid var(--line);overflow:visible}
+  .sw-grid-wrap {max-height:50dvh}
   .sw-options {max-height:none}
 }

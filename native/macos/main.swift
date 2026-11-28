@@ -1331,8 +1331,9 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
         guard NSApp.keyWindow === window, window.attachedSheet == nil, initialPageReady else { normalEditing(); return }
         let script = """
         const el=document.activeElement;
-        if(document.querySelector('dialog[open]') || el?.isContentEditable ||
-            el?.closest('input,textarea,select,[role=textbox]') || window.getSelection()?.toString())return false;
+        const history = (action==='undo'||action==='redo') && globalThis.AtriumEditorKeys?.ownsHistory(el);
+        if(!history && (document.querySelector('dialog[open]') || el?.isContentEditable ||
+            el?.closest('input,textarea,select,[role=textbox]') || window.getSelection()?.toString()))return false;
         window.dispatchEvent(new CustomEvent('atrium-command',{detail:action}));
         return true;
         """

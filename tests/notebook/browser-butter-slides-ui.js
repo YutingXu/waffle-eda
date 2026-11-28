@@ -19,6 +19,35 @@ module.exports = async function slidesUI(browser) {
     assert.equal(await tiles.first().getAttribute("aria-current"), "true");
     await pane.locator(".docs-strip .ui-thumb canvas[data-ready=true]").first().waitFor();
 
+    // The shared strip keeps one tab stop through selection, replacement, and an empty list.
+    const states = await page.evaluate(async () => {
+      const kit = await AtriumLazy.need("AtriumUIKit"), picks = [];
+      const strip = AtriumDocsFamily.strip(kit, {onPick: id => picks.push(id)});
+      const rows = ["a", "b", "c"].map(id => ({id, label: id}));
+      document.body.append(strip.node);
+      const state = () => [strip.node.querySelector("[tabindex='0']")?.dataset.id, strip.node.querySelector("[aria-current=true]")?.dataset.id];
+      const observer = new MutationObserver(() => {});
+      try {
+        strip.update(rows);
+        const initial = state();
+        strip.select("b", {reveal: false});
+        observer.observe(strip.node, {subtree: true, attributes: true, attributeFilter: ["tabindex", "aria-current"]});
+        strip.select("c", {reveal: false});
+        const touched = [...new Set(observer.takeRecords().map(record => record.target.dataset.id))].sort();
+        const oldTile = strip.tile("c");
+        strip.update([rows[0], rows[1], {...rows[2], version: "new"}]);
+        const replaced = oldTile !== strip.tile("c") && state();
+        strip.update([rows[1], rows[0]]);
+        const fallback = state();
+        strip.tile("b").dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true}));
+        const routed = [document.activeElement.dataset.id, ...picks];
+        strip.update([]);
+        return {initial, touched, replaced, fallback, routed, empty: strip.node.childElementCount};
+      } finally { observer.disconnect(); strip.close(); strip.node.remove(); }
+    });
+    assert.deepEqual(states, {initial: ["a", undefined], touched: ["b", "c"], replaced: ["c", "c"],
+      fallback: ["b", undefined], routed: ["a", "a"], empty: 0});
+
     // Inspector: title edits are one Undo step; aspect switches in place.
     await tiles.nth(1).click();
     await pane.locator(".ui-section-title", {hasText:"Slide 2 of 3"}).waitFor();

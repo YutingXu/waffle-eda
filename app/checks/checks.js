@@ -500,6 +500,7 @@ globalThis.AtriumChecks = (() => {
       if (!host) return;
       for (const c of id ? [clients.get(id)].filter(Boolean) : [...clients.values()]) {
         if (c.manual) continue; // queued by its owner (queue()), never re-planned or dropped by an edit
+        if (o.navigation && c.keepOnNavigation?.()) continue;
         cancel(c.id);
         if (c.enabled && !c.enabled()) continue;
         if (!visible()) { c.waiting = true; continue; }
@@ -602,9 +603,9 @@ globalThis.AtriumChecks = (() => {
       if (attached && host === h) return;
       host = h; attached = true; project = h.project?.();
       let replacementPlan = 0;
-      const planCurrent = () => {
+      const planCurrent = (navigation = false) => {
         clearTimeout(replacementPlan); replacementPlan = 0;
-        if (host === h) plan(null);
+        if (host === h) plan(null, {navigation});
       };
       const notifyDocument = () => { for (const c of clients.values()) try { c.onDocument?.(); } catch (e) { G.console?.warn?.("Checks", c.id, e); } };
       const bindProject = () => {
@@ -618,7 +619,7 @@ globalThis.AtriumChecks = (() => {
         return true;
       };
       h.on?.("change", () => { if (bindProject()) notifyDocument(); pruneLayers(); planCurrent(); });
-      h.on?.("document", () => { bindProject(); notifyDocument(); planCurrent(); });
+      h.on?.("document", () => { const replaced = bindProject(); notifyDocument(); planCurrent(!replaced && !replacementPlan); });
       h.on?.("replace", () => {
         if (!bindProject()) return;
         notifyDocument();
@@ -626,7 +627,7 @@ globalThis.AtriumChecks = (() => {
         clearTimeout(replacementPlan);
         replacementPlan = setTimeout(planCurrent, 0);
       });
-      h.on?.("panes", planCurrent);
+      h.on?.("panes", () => planCurrent(!replacementPlan));
       let wasVisible = visible(), wasEfficient = efficient();
       G.AtriumPower?.onChange?.(s => {
         if (s?.visible !== undefined && s.visible !== wasVisible) { wasVisible = s.visible; if (wasVisible) resume(); }
@@ -697,7 +698,7 @@ globalThis.AtriumChecks = (() => {
     publish("project", "erc", result.messages, adapt, {summary: result.summary, counts: result.counts, compiled: live.compiledAt, ms: live.ms});
   }
   function ercClient(h) {
-    let loading = null;
+    let loading = null, planned = null;
     const ready = p => {
       const L=G.AtriumLazy;
       const needed=!G.AtriumProjectRules && L?.modules?.().includes("AtriumRules") ? "AtriumRules" : !G.AtriumERC?.steps ? "AtriumERC" :
@@ -707,36 +708,54 @@ globalThis.AtriumChecks = (() => {
         loading=L.need(needed).then(()=>{loading=null;scheduler.plan("erc",{now:true});},()=>{loading=null;});
       return false;
     };
-    scheduler.client({id: "erc", key: () => "erc:live", phase: () => "idle", unrecorded: "sync", efficiency: true,
-      delay: () => efficient() ? 1500 : 400,
+    scheduler.client({id: "erc", key: () => "erc:live", phase: () => "idle", efficiency: true,
+      delay: () => efficient() ? 1500 : 0,
       enabled: () => liveOn(),
       docs: () => { const p = h.project?.(); return p?.documents?.some(d => d.kind === "schematic") ? [p] : []; },
+      keepOnNavigation() {
+        const p = h.project?.();
+        return planned?.project === p && planned.versions != null && planned.versions === versionsOf(p) &&
+          (scheduler.pending("erc", p) || live.project === p && live.versions === planned.versions);
+      },
       due(p) {
         // An unused blank project has no findings to publish. Once a pass has run,
         // keep checking through the last deletion so old diagnostics are cleared.
         if (!G.AtriumERC?.steps && !p.erc && !p.rules && !p.ruleSets &&
             !p.documents.some(d => (d.kind === "schematic" || d.kind === "pcb") && d.items?.length)) return false;
         if (!ready(p)) return false;
-        if (live.project !== p) return true;
         const v = versionsOf(p);
-        if (v == null) return true;
-        return v !== live.versions;
+        planned = {project:p, versions:v};
+        return live.project !== p || v == null || v !== live.versions;
       },
-      start(p) {
-        const E = G.AtriumERC, t0 = now(), store = U(), versions = versionsOf(p); // what this pass reads
+      *start(p) {
+        while (h.drag?.()?.before) yield scheduler.WAIT;
+        const E = G.AtriumERC, t0 = now(), store = U();
+        if (store?.unrecorded?.()) store.sync?.(p);
+        const versions = versionsOf(p); // what this pass reads
+        const journal = store?.outer?.(), revision = h.revision?.();
+        const retry = () => { queueMicrotask(() => {if (h.project?.() === p) scheduler.plan("erc");}); };
+        planned = {project:p, versions};
         if (live.project !== p) { live.project = p; live.compiled = new Set(); live.compiledAt = null; live.cache = new WeakMap(); }
         const v0 = p.documents[0] && store?.documentVersions?.(p.documents[0], p);
         const calculationSnapshot = G.AtriumCalculations?.knownSnapshot(p, h.revision?.());
-        const it = E.steps(p, {cache: live.cache, stamp: v0 ? v0.floor + "/" + v0.library + "/" + v0.project : null, calculationSnapshot});
-        return (function* () {
-          let r = it.next();
-          while (!r.done) { yield; r = it.next(); }
+        const it = E.steps(p, {cache: live.cache, stamp: v0 ? v0.floor + "/" + v0.library + "/" + v0.project : null,
+          calculationSnapshot, publishHierarchy:false});
+        for (;;) {
+          while (h.drag?.()?.before) yield scheduler.WAIT;
+          if (h.project?.() !== p) return;
+          // Folder hydration can update the journal between idle slices.
+          if (journal !== store?.outer?.() || revision !== h.revision?.()) return retry();
+          const r = it.next();
+          if (!r.done) { yield; continue; }
+          if (versions !== versionsOf(p)) return retry();
+          if (r.value.hierarchy) G.AtriumHierarchy?.publish?.(p, r.value.hierarchy);
           live.ms = r3(now() - t0);
           live.versions = versions;
           publishERC(p, r.value);
           return r.value;
-        })();
+        }
       }});
+    h.on?.("folder-owner", () => scheduler.plan("erc"));
   }
 
   // Compile (C C) reports through here too: the same checks, at their configured severity.
@@ -961,7 +980,14 @@ globalThis.AtriumChecks = (() => {
       // Live checking off: the last Compile's findings stay (at their severity); live ones go.
       // Missing Courtyard on or off: its findings join or leave the current DRC results; nothing else is checked again.
       if (key === "checks.courtyard") G.AtriumDRCView?.retype?.("courtyard");
-      if (key === "checks.liveErc") { if (liveOn()) scheduler.plan("erc", {now: true}); else if (live.compiledResult && live.project) publishERC(live.project, live.compiledResult); else clear("project", "erc"); }
+      if (key === "checks.liveErc") {
+        if (liveOn()) scheduler.plan("erc", {now: true});
+        else {
+          scheduler.cancel("erc");
+          if (live.compiledResult && live.project) publishERC(live.project, live.compiledResult);
+          else clear("project", "erc");
+        }
+      }
     });
   }
   function registerPrefs() { const P = G.AtriumPrefs; if (!P?.registerPage) return false; prefsPage(P); return true; }

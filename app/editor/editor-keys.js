@@ -5,6 +5,8 @@
 globalThis.AtriumEditorKeys = (() => {
   const KM=globalThis.AtriumKeymap,PRINT=new Set(["print","export-pdf"]);
   const isForm=el=>!!(el?.isContentEditable||el?.closest?.("input,textarea,select,[contenteditable=true],[contenteditable=plaintext-only],[role=textbox]"));
+  const ownsHistory=el=>el?.hasAttribute?.("data-editor-history")===true&&!isForm(el);
+  const modalHistory=({command:{action}})=>action==="undo"||action==="redo"||PRINT.has(action);
   // Dispatch runs through AtriumKeymap's compiled table: one Map lookup per key, then the
   // first binding whose context passes. A live sequence prefix wins over a single key.
   function create(run,hint,passThrough=null){
@@ -24,10 +26,10 @@ globalThis.AtriumEditorKeys = (() => {
       const next=globalThis.AtriumKeymapPresets?.continuation(rec,n,s,canvas,hint);
       KM.invoke(rec,(action,param)=>run(action,param,next));
     }
-    function begin(e,s,canvas,n,t){
+    function begin(e,s,canvas,n,t,accept){
       e.preventDefault();
-      if(!e.repeat){prefix=n;owner=s.documentId;ownerTable=t;hint(KM.hintText(n,s,canvas));
-        const lead=KM.leadOf?.(n,s,canvas);if(lead)invokeLead(lead,n,s,canvas);}
+      if(!e.repeat){prefix=n;owner=s.documentId;ownerTable=t;hint(KM.hintText(n,s,canvas,accept));
+        const lead=KM.leadOf?.(n,s,canvas,accept);if(lead)invokeLead(lead,n,s,canvas);}
       return true;
     }
     function formBinding(e,s,t,k){
@@ -42,6 +44,10 @@ globalThis.AtriumEditorKeys = (() => {
       if(e.defaultPrevented||e.isComposing||e.key==="Process"||!e.key)return false;
       const k=KM.eventKey(e);
       if(k<0)return false;
+      if(s.modal&&ownsHistory(e.target)){
+        const n=KM.table().root.get(k*16+KM.eventMask(e,k));
+        return !!n&&KM.live(n,s,false,modalHistory);
+      }
       if(s.modal||isForm(e.target)){
         if(formBinding(e,s,KM.table(),k))return true;
         return !s.modal&&(e.metaKey||!KM.mac&&e.ctrlKey)&&!e.altKey&&/^[a-z]$/i.test(e.key)&&!/[acvxyz]/i.test(e.key);
@@ -64,8 +70,8 @@ globalThis.AtriumEditorKeys = (() => {
     }
     function handle(e,s){
       if(e.defaultPrevented || e.isComposing || e.key==="Process" || !e.key)return false;
-      const t=KM.table(),k=KM.eventKey(e);
-      if(s.modal || isForm(e.target)){
+      const t=KM.table(),k=KM.eventKey(e),accept=s.modal&&ownsHistory(e.target)?modalHistory:undefined;
+      if(!accept&&(s.modal||isForm(e.target))){
         clear();
         // Save commits the active inspector field. Text editing retains native undo/clipboard handling.
         // Print also runs over dialogs and fields: it prints the dialog's report (editor.js printTarget).
@@ -86,15 +92,15 @@ globalThis.AtriumEditorKeys = (() => {
         // the selected bindings are unchanged, and look up continuations in the new table.
         const current=ownerTable.bindingRevision===t.bindingRevision&&
           prefix.path.reduce((at,chord)=>at?.children?.get(chord),t.rootNode);
-        if(current&&KM.isPrefix(current,s,canvas)&&sameBindings(prefix.any,current.any)){prefix=current;ownerTable=t;}
+        if(current&&KM.isPrefix(current,s,canvas,accept)&&sameBindings(prefix.any,current.any)){prefix=current;ownerTable=t;}
         else clear();
       }
       if(prefix){
         if(e.repeat && !e.shiftKey && !(m&MODS)){e.preventDefault();return true;}
         const child=k>=0&&prefix.children.get(k*16+m);
-        if(child && KM.live(child,s,canvas)){
-          if(KM.isPrefix(child,s,canvas))return begin(e,s,canvas,child,t);
-          const rec=KM.firstPass(child.bindings,s,canvas);
+        if(child && KM.live(child,s,canvas,accept)){
+          if(KM.isPrefix(child,s,canvas,accept))return begin(e,s,canvas,child,t,accept);
+          const rec=KM.firstPass(child.bindings,s,canvas,accept);
           if(rec)return fire(e,rec);
         }
         if(k===ESCAPE && !(m&MODS)){clear();e.preventDefault();if(!e.repeat)run("prefix-cancel");return true;}
@@ -107,8 +113,8 @@ globalThis.AtriumEditorKeys = (() => {
       if(k===SPACE && !canvas && e.target?.closest?.("button,summary,[role=button]"))return false;
       const n=t.root.get(k*16+m);
       if(!n)return false;
-      if(KM.isPrefix(n,s,canvas))return begin(e,s,canvas,n,t);
-      const rec=KM.firstPass(n.bindings,s,canvas);
+      if(KM.isPrefix(n,s,canvas,accept))return begin(e,s,canvas,n,t,accept);
+      const rec=KM.firstPass(n.bindings,s,canvas,accept);
       return rec?fire(e,rec):false;
     }
     return {clear,handle,waitsForPreset};
@@ -123,5 +129,5 @@ globalThis.AtriumEditorKeys = (() => {
     },e=>host?.info?.(e.message));
   }
   const gridPicker=(current,customFirst,apply,opt={})=>showDialog(ui=>ui.gridPicker(current,customFirst,apply,opt));
-  return {create,gridPicker};
+  return {create,gridPicker,ownsHistory};
 })();

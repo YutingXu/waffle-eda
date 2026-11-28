@@ -126,6 +126,37 @@ async function noteHover(page) {
   assert.equal(await tip.isVisible(), false, "hovering a note shows no card repeating its text");
 }
 
+async function filterComments(page) {
+  await page.evaluate(() => {
+    const h = AtriumNavHost, review = AtriumReviewComments, project = h.project();
+    const doc = project.documents.find(d => d.kind === "pcb").id, anchor = {kind:"point", at:[0, 0]};
+    const thread = review.add(project, {doc, anchor, text:"Check the board footprint"});
+    review.reply(project, thread.id, {text:"調査済み"});
+    review.setStatus(project, thread.id, "resolved");
+    review.toggle(true);
+  });
+  const panel = page.locator('[data-dock="comments"]');
+  const search = panel.getByRole("searchbox", {name:"Search comments"});
+  const text = panel.locator(".rc-thread .rc-text");
+  assert.deepEqual(await text.allTextContents(), ["Check the decoupling here light"]);
+  assert.equal(await panel.locator(".ui-dock-count").textContent(), "1 open");
+
+  const cdp = await page.context().newCDPSession(page);
+  await search.focus();
+  await cdp.send("Input.imeSetComposition", {text:"調査済み", selectionStart:4, selectionEnd:4});
+  await page.clock.runFor(48);
+  assert.deepEqual(await text.allTextContents(), ["Check the decoupling here light"], "tentative IME input leaves the threads in place");
+  await cdp.send("Input.insertText", {text:"調査済み"});
+  await panel.getByText("No comments match.").waitFor();
+  await cdp.detach();
+
+  await panel.getByRole("combobox", {name:"Documents"}).selectOption("all");
+  assert.equal(await text.count(), 0, "open threads still hide the resolved result");
+  await panel.getByRole("combobox", {name:"Show comments"}).selectOption("resolved");
+  assert.deepEqual(await text.allTextContents(), ["Check the board footprint"], "the query also matches reply text across documents");
+  assert.equal(await panel.locator(".ui-dock-count").textContent(), "1 open", "the project open count stays independent of filters");
+}
+
 module.exports = async function reviewComposer(browser, {shots} = {}) {
   for (const theme of ["light", "dark"]) {
     const {page, errors} = await open(browser, theme);
@@ -133,6 +164,7 @@ module.exports = async function reviewComposer(browser, {shots} = {}) {
       const made = await composer(page, theme);
       await pin(page, made);
       await noteHover(page);
+      if (theme === "light") await filterComments(page);
       assert.deepEqual(errors, []);
       console.log("PASS review composer " + theme + ": no name field, badge or bar; ⌘↩ on Comment; teardrop pin; no note echo card");
     } finally { await page.close(); }

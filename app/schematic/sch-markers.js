@@ -138,8 +138,10 @@ globalThis.AtriumSchMarkers = (() => {
   function groupAt(pane, x, y) {
     const d = host.docById?.(pane.docId) || host.doc();
     if (d?.kind !== "schematic") return null;
+    const rows = list(d.id);
+    if (!rows.length) return null;
     const b = pane.canvas.getBoundingClientRect(), M = P();
-    return M.pick(markerPlan(d, list(d.id), M.paneFrame(pane, b)), x - b.left, y - b.top);
+    return M.pick(markerPlan(d, rows, M.paneFrame(pane, b)), x - b.left, y - b.top);
   }
   const markerAt = (pane, x, y) => groupAt(pane, x, y)?.rep || null;
   // One status-bar line while a marker is hovered (no pop-up).

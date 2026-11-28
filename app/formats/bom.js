@@ -1,6 +1,6 @@
 "use strict";
 // Bill of Materials: an Altium-style grouped BOM grid with CSV, Excel, HTML and
-// printed / PDF output (print-report.js). The functions above `open` are pure and DOM-free.
+// printed / PDF output (print-report.js). The data and search functions are DOM-free.
 globalThis.AtriumBOM = (() => {
   // ---------------------------------------------------------------- ordering
   const tokens = s => String(s ?? "").match(/\d+|\D+/g) || [];
@@ -30,7 +30,16 @@ globalThis.AtriumBOM = (() => {
   }
   // "C1, C3-C5": runs of at least `minRun` consecutive numbers share a range.
   function compress(refs, minRun = 3) {
-    const list = [...new Set([...refs].map(r => String(r ?? "").trim()).filter(Boolean))].sort(naturalCompare);
+    return compressSorted([...new Set([...refs].map(r => String(r ?? "").trim()).filter(Boolean))].sort(naturalCompare), minRun);
+  }
+  function compressGroup(refs, minRun) {
+    if (refs.length === 1) return String(refs[0] ?? "").trim();
+    // Collection trims designators, and the group already sorts its parts by ref.
+    if (refs.some(ref => typeof ref !== "string" || ref.trim() !== ref)) return compress(refs, minRun);
+    return compressSorted([...new Set(refs.filter(Boolean))], minRun);
+  }
+  function compressSorted(list, minRun) {
+    if (list.length < 2) return list[0] || "";
     const split = r => /^(.*?)(0|[1-9]\d*)$/.exec(r);
     const out = [];
     for (let i = 0; i < list.length;) {
@@ -102,7 +111,7 @@ globalThis.AtriumBOM = (() => {
       description: alternateDescription?.(item, params) ?? (ownDescription(item) || clean(def?.description) || params.DESCRIPTION || ""),
       libRef: clean(def?.libRef ?? (doc.kind === "schematic" ? def?.name : "")) || params.LIBREF || params["LIB REF"] || "",
       footprint: doc.kind === "pcb" ? clean(def?.footprint?.name || def?.name) : clean(def?.footprintName || def?.footprint?.name || params.FOOTPRINT),
-      params, item
+      params, item, mate: null
     };
   }
   const sameText = (a, b) => upper(a) === upper(b);
@@ -141,8 +150,9 @@ globalThis.AtriumBOM = (() => {
     const appliedParams = globalThis.AtriumVariants?.appliedParameters(project, defs);
     const alternateDescription = globalThis.AtriumVariants?.appliedDescription(project, defs);
     const read = appliedParams || parameters;
-    const sch = [], notes = [];
-    for (const sheet of sheets) for (const item of (globalThis.AtriumMultichannel?.sheetParts(project, sheet) || parts(sheet))) sch.push(describe(item, defs.get(item.def), sheet, read, alternateDescription));
+    const sch = [], notes = [], multichannel = globalThis.AtriumMultichannel;
+    const hierarchy = multichannel && sheets.length ? globalThis.AtriumHierarchy?.instancesCached?.(project) : null;
+    for (const sheet of sheets) for (const item of (multichannel?.sheetParts(project, sheet, hierarchy) || parts(sheet))) sch.push(describe(item, defs.get(item.def), sheet, read, alternateDescription));
     const brd = parts(board).map(item => describe(item, defs.get(item.def), board, read, alternateDescription));
     const index = list => {
       const byLink = new Map(), byRef = new Map();
@@ -154,16 +164,17 @@ globalThis.AtriumBOM = (() => {
       }
       return e => (e.item.link && byLink.get(e.item.link)) || byRef.get(upper(e.ref)) || null;
     };
-    const boardMate = index(brd), sheetMate = index(sch);
-    for (const e of sch) {
-      const mate = boardMate(e);
-      e.mate = mate;
-      if (!e.footprint && mate) e.footprint = mate.footprint;
-    }
-    for (const e of brd) {
-      const mate = sheetMate(e);
-      e.mate = mate;
-      if (mate) {
+    if (brd.length && sch.length) {
+      const boardMate = index(brd), sheetMate = index(sch);
+      for (const e of sch) {
+        const mate = boardMate(e);
+        e.mate = mate;
+        if (!e.footprint && mate) e.footprint = mate.footprint;
+      }
+      for (const e of brd) {
+        const mate = sheetMate(e);
+        e.mate = mate;
+        if (!mate) continue;
         e.description = e.description || mate.description;
         e.libRef = e.libRef || mate.libRef;
         e.params = appliedParams ? appliedParams(e.item, e.def, mate.params) : fallbackParameters(e.params, mate.params);
@@ -295,7 +306,11 @@ globalThis.AtriumBOM = (() => {
     if (key === "stock") { const s = solutionFor(e, settings); return s && Number.isFinite(s.stock) ? s.stock : ""; }
     if (key === "price") { const s = solutionFor(e, settings); return s && Number.isFinite(s.unit) ? s.unit : ""; }
     if (key === "lifecycle") return solutionFor(e, settings)?.lifecycle || "";
-    if (key === "document") return [...new Set((e.instances || [e]).map(i => i.docName))].join(", ");
+    if (key === "document") {
+      if (!e.instances) return String(e.docName ?? "");
+      if (e.instances.length <= 1) return String(e.instances[0]?.docName ?? "");
+      return [...new Set(e.instances.map(i => i.docName))].join(", ");
+    }
     if (key.startsWith("p:")) return e.params[key.slice(2)] ?? "";
     return "";
   }
@@ -303,16 +318,20 @@ globalThis.AtriumBOM = (() => {
     "out-of-stock": "Out of stock", eol: "EOL", nrnd: "NRND", obsolete: "Obsolete"};
   const sortList = sort => (Array.isArray(sort) ? sort : sort ? [sort] : []).filter(s => s && typeof s.key === "string").map(s => ({key: s.key, dir: s.dir < 0 ? -1 : 1}));
   // Group included parts and compute every column value and status per line.
-  function build(collected, settings = {}) {
+  function build(collected, settings = {}, all) {
     const span = globalThis.AtriumDiagnostics?.performance?.begin("manufacturing", "build");
-    return span ? span.run(groupRows, collected, settings) : groupRows(collected, settings);
+    return span ? span.run(groupRows, collected, settings, all) : groupRows(collected, settings, all);
   }
-  function groupRows(collected, settings = {}) {
-    const all = columns(collected), known = new Set(all.filter(c => c.group).map(c => c.key));
+  const balanceKeys = ["comment", "footprint", "mpn", "manufacturer"];
+  function groupRows(collected, settings, all = columns(collected)) {
+    const known = new Set(all.filter(c => c.group).map(c => c.key));
     const groupBy = (settings.groupBy ?? defaultGroups).filter(k => known.has(k));
+    const groupedKeys = new Set(groupBy);
     const parts = settings.showDnp ? [...collected.parts, ...(collected.dnp || [])] : collected.parts;
-    const groups = new Map();
+    const groups = new Map(), refCount = new Map();
     for (const e of parts) {
+      const ref = upper(e.ref);
+      if (ref && !ref.includes("?")) refCount.set(ref, (refCount.get(ref) || 0) + 1);
       // DNP parts never share a line with fitted ones.
       const key = (e.dnp ? "D" : "F") + (groupBy.length ? JSON.stringify(groupBy.map(k => field(e, k, settings))) : "#" + e.id) +
         // Generic parts (generic-parts.js): their ratings (def.generic.fields) are part of the line.
@@ -320,37 +339,54 @@ globalThis.AtriumBOM = (() => {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(e);
     }
-    const refCount = new Map();
-    for (const e of parts) { const r = upper(e.ref); if (r && !r.includes("?")) refCount.set(r, (refCount.get(r) || 0) + 1); }
     const differs = new Set((collected.mismatches || []).map(m => upper(m.ref)));
     const boards = Math.max(1, settings.boards || 1);
-    const rows = [], natural = naturalComparer();
+    const rows = [], natural = naturalComparer(), minRun = settings.minRun ?? 3;
+    const byPartRef = (a, b) => natural(a.ref, b.ref);
+    const checkedKeys = balanceKeys.filter(key => !groupedKeys.has(key));
+    const {solutions} = settings;
+    const seen = new Set();
     for (const list of groups.values()) {
-      list.sort((a, b) => natural(a.ref, b.ref));
+      if (list.length > 1) list.sort(byPartRef);
+      const firstPart = list[0], refs = list.map(p => p.ref);
       const values = Object.create(null);
       for (const c of all) {
-        if (c.key === "designator") values.designator = compress(list.map(p => p.ref), settings.minRun ?? 3);
-        else if (c.key === "quantity") values.quantity = list.length;
-        else if (c.key !== "line" && c.key !== "status") {
-          const seen = [];
-          for (const p of list) { const v = field(p, c.key, settings); if (v !== "" && v != null && !seen.includes(v)) seen.push(v); }
-          values[c.key] = c.numeric ? (seen.length === 1 ? seen[0] : seen.length ? seen.join(", ") : "") : seen.join(", ");
+        const {key} = c;
+        if (key === "line" || key === "status") continue;
+        if (key === "quantity") values.quantity = list.length;
+        else if (key === "designator") values.designator = compressGroup(refs, minRun);
+        else if (list.length === 1 || groupedKeys.has(key)) {
+          const value = field(firstPart, key, settings);
+          values[key] = c.numeric ? value ?? "" : String(value ?? "");
+        } else {
+          seen.clear();
+          for (const p of list) {
+            const value = field(p, key, settings);
+            if (value !== "" && value != null) seen.add(value);
+          }
+          if (c.numeric && seen.size === 1) values[key] = seen.values().next().value;
+          else values[key] = seen.size ? [...seen].join(", ") : "";
         }
       }
-      const dnp = list.every(p => p.dnp), status = [];
+      const dnp = Boolean(firstPart.dnp), status = [];
       if (dnp) status.push("dnp");
       // A placeholder (generic-parts role "placeholder") still has to be resolved to a real component: its own status, not No MPN.
       const placeholder = !dnp && list.some(p => p.def?.generic?.role === "placeholder");
       if (placeholder) status.push("placeholder");
       if (!dnp && !placeholder && !list.some(p => p.mpn || p.supplierPn)) status.push("missing-mpn");
-      if (["comment", "footprint", "mpn", "manufacturer"].some(k => new Set(list.map(p => upper(field(p, k, settings)))).size > 1)) status.push("unbalanced");
+      if (list.length > 1 && checkedKeys.some(k => {
+        const first = upper(field(firstPart, k, settings));
+        return list.some((p, i) => i > 0 && upper(field(p, k, settings)) !== first);
+      })) status.push("unbalanced");
       if (list.some(p => p.duplicate || refCount.get(upper(p.ref)) > 1)) status.push("duplicate");
-      if (list.some(p => differs.has(upper(p.ref)))) status.push("mismatch");
-      const sol = list.map(p => solutionFor(p, settings)).filter(Boolean);
-      if (!dnp && sol.length && sol.some(x => Number.isFinite(x.stock) && x.stock < list.length * boards)) status.push("out-of-stock");
-      for (const life of ["eol", "nrnd", "obsolete"]) if (sol.some(x => x.lifecycle === life)) status.push(life);
+      if (differs.size && list.some(p => differs.has(upper(p.ref)))) status.push("mismatch");
+      if (solutions) {
+        const sol = list.map(p => solutionFor(p, settings)).filter(Boolean);
+        if (!dnp && sol.some(x => Number.isFinite(x.stock) && x.stock < list.length * boards)) status.push("out-of-stock");
+        for (const life of ["eol", "nrnd", "obsolete"]) if (sol.some(x => x.lifecycle === life)) status.push(life);
+      }
       values.status = status.map(s => STATUS_TEXT[s]).join(", ");
-      rows.push({parts: list, refs: list.map(p => p.ref), first: list[0]?.ref || "", values, status, dnp});
+      rows.push({parts: list, refs, first: refs[0] || "", values, status, dnp});
     }
     const sorts = sortList(settings.sort ?? {key: "designator", dir: 1}).map(s => ({...s, column: all.find(c => c.key === s.key)})).filter(s => s.column);
     const byRef = (a, b) => natural(a.first, b.first);
@@ -371,12 +407,56 @@ globalThis.AtriumBOM = (() => {
     return rows;
   }
   // Search box and per-column filters. "=text" matches exactly, "!text" excludes.
-  function matchText(value, f) {
-    const v = String(value ?? "").toLowerCase(), t = String(f).trim().toLowerCase();
-    if (!t) return true;
-    if (t.startsWith("!")) return t.length === 1 ? v !== "" : !v.includes(t.slice(1));
-    if (t.startsWith("=")) return v === t.slice(1);
-    return v.includes(t);
+  const lowerText = value => String(value ?? "").toLowerCase();
+  const columnText = (row, key) => lowerText(key === "designator" ? row.refs.join(" ") + " " + row.values.designator : row.values[key]);
+
+  // Each dialog owns the index for its current grouped, sorted rows and visible columns.
+  // Keep searches complete while warming. Only a finished index can narrow the candidates.
+  function prepareSearch(rows, keys, scheduler = globalThis.AtriumIdle) {
+    const index = {records:new Map(), grams:new Map(), keys:new Set([...keys, "designator"]), ready:false};
+    function* prepare() {
+      for (const row of rows) {
+        const fields = Object.create(null), text = row.refs.map(lowerText);
+        for (const key of keys) {
+          fields[key] = lowerText(row.values[key]);
+          if (fields[key]) text.push(fields[key]);
+        }
+        // Column filters also match individual refs omitted by a compressed range.
+        fields.designator = columnText(row, "designator");
+        index.records.set(row, {fields, text});
+        for (const value of new Set([...text, fields.designator])) {
+          for (let start = 0; start < value.length - 2; start += 512) {
+            const end = Math.min(start + 512, value.length - 2);
+            for (let i = start; i < end; i++) {
+              const gram = value.slice(i, i + 3);
+              let lines = index.grams.get(gram);
+              if (!lines) index.grams.set(gram, lines = []);
+              if (lines.at(-1) !== row) lines.push(row);
+            }
+            yield;
+          }
+        }
+        yield;
+      }
+      index.ready = true;
+    }
+    const work = prepare();
+    let handle = null, nextTask = 0;
+    function schedule() { handle = scheduler.idle(warm); }
+    function warm(deadline) {
+      handle = null;
+      const until = performance.now() + 3;
+      do { if (work.next().done) return; } while (deadline.timeRemaining() > 1 && performance.now() < until);
+      // WebKit's idle pump can drain newly enqueued callbacks in the same task.
+      // Let pending input run between slices on that host as well.
+      if (scheduler.native === false) nextTask = setTimeout(schedule, 0);
+      else schedule();
+    }
+    if (scheduler && rows.length) schedule();
+    return {
+      filter: (settings, matches) => filterRows(rows, settings, keys, matches, index),
+      cancel() { clearTimeout(nextTask); if (handle !== null) scheduler.cancel(handle); handle = null; work.return(); }
+    };
   }
   const queryKey = (documentId,instanceId,id) => JSON.stringify([documentId,instanceId ?? "",id]);
   async function queryMatches(service, collected, source, options) {
@@ -394,17 +474,40 @@ globalThis.AtriumBOM = (() => {
     }
     return matches;
   }
-  function filterRows(rows, settings = {}, keys, matches) {
-    const q = matches ? "" : String(settings.query || "").trim().toLowerCase();
-    const filters = Object.entries(settings.filters || {}).filter(([, f]) => String(f ?? "").trim());
+  function filterRows(rows, settings = {}, keys, matches, index) {
+    const q = matches ? "" : lowerText(settings.query || "").trim();
+    const filters = [];
+    for (const [key, raw] of Object.entries(settings.filters || {})) {
+      const term = lowerText(raw).trim();
+      if (!term) continue;
+      const op = term[0] === "!" || term[0] === "=" ? term[0] : "";
+      filters.push({key, op, needle:term.slice(op.length)});
+    }
     if (!q && !filters.length && !matches) return rows;
-    return rows.filter(row => {
-      for (const [k, f] of filters) if (!matchText(k === "designator" ? row.refs.join(" ") + " " + row.values.designator : row.values[k], f)) return false;
+    let candidates = rows;
+    if (index?.ready) {
+      // Posting lists preserve line order. A match must contain every trigram
+      // in a positive term. Check the actual fields below, including for short terms.
+      const terms = [q, ...filters.filter(f => f.op !== "!" && index.keys.has(f.key)).map(f => f.needle)];
+      for (const term of terms) for (let i = 0; i < term.length - 2; i++) {
+        const lines = index.grams.get(term.slice(i, i + 3));
+        if (!lines) return [];
+        if (lines.length < candidates.length) candidates = lines;
+      }
+    }
+    return candidates.filter(row => {
+      const record = index?.records.get(row);
+      for (const {key, op, needle} of filters) {
+        const value = record?.fields[key] ?? columnText(row, key);
+        if (op === "!") { if (needle ? value.includes(needle) : !value) return false; }
+        else if (op === "=" ? value !== needle : !value.includes(needle)) return false;
+      }
       if (matches && !row.parts.some(part => (part.instances || [part]).some(member =>
         matches.has(queryKey(member.docId,member.instanceId,member.id))))) return false;
       if (!q) return true;
+      if (record) return record.text.some(value => value.includes(q));
       if (row.refs.some(r => r.toLowerCase().includes(q))) return true;
-      return (keys || Object.keys(row.values)).some(k => String(row.values[k] ?? "").toLowerCase().includes(q));
+      return (keys || Object.keys(row.values)).some(k => lowerText(row.values[k]).includes(q));
     });
   }
 
@@ -558,7 +661,7 @@ globalThis.AtriumBOM = (() => {
     collected = collected || collect(project, settings);
     const all = columns(collected), byKey = new Map(all.map(c => [c.key, c]));
     const visible = (settings.columns ?? defaultColumns).map(k => byKey.get(k)).filter(Boolean);
-    const rows = filterRows(build(collected, settings), settings, visible.map(c => c.key), matches);
+    const rows = filterRows(build(collected, settings, all), settings, visible.map(c => c.key), matches);
     const now = settings.now ? new Date(settings.now) : new Date();
     const source = collected.source === "pcb" ? "Board · " + (collected.board?.name || "") :
       "Schematic · " + collected.sheets.length + " sheet" + (collected.sheets.length === 1 ? "" : "s");
@@ -813,7 +916,7 @@ globalThis.AtriumBOM = (() => {
       panelOpen: prefs.panelOpen !== false, panelWidth: Number.isFinite(prefs.panelWidth) ? Math.max(PANEL_MIN, Math.min(PANEL_MAX, prefs.panelWidth)) : 272
     };
     if (state.viewName) Object.assign(state, viewState(findView(project, state.viewName)));
-    let collected, all, rows = [], shown = [], flat = [], cols = [], rowH = 24, editor = null, optView = null, designFilter;
+    let collected, all, rows = [], shown = [], flat = [], cols = [], rowH = 24, editor = null, optView = null, designFilter, searchIndex;
     // Hints: the analysis behind them (shared with the Optimise tab), its key, the hints per grid line,
     // the flat index of the line whose hint strip is open and that strip's measured height.
     let hintAnalysis = null, hintKey = "", hintData = null, lineHints = new Map(), stripAt = -1, stripH = 72, hintTimer = 0, hintIdle = 0, optStale = false;
@@ -863,7 +966,7 @@ globalThis.AtriumBOM = (() => {
     // count in a line; this toggle lists them, struck through, in lines of their own.
     const dnpCheck = el("input", null, "ui-checkbox"); dnpCheck.type = "checkbox"; dnpCheck.id = "bom-show-dnp";
     dnpCheck.setAttribute("aria-describedby", "bom-dnp-help");
-    dnpCheck.onchange = () => { state.showDnp = dnpCheck.checked; regroup(); };
+    dnpCheck.onchange = () => { state.showDnp = dnpCheck.checked; regroup({layoutChanged: false}); };
     const dnpCount = el("span", null, "bom-count");
     const dnpToggle = el("label", null, "bom-check bom-dnp-toggle");
     dnpToggle.append(dnpCheck, el("span", "Show DNP parts"), dnpCount);
@@ -1010,27 +1113,46 @@ globalThis.AtriumBOM = (() => {
       for (const v of views(live())) viewSelect.add(new Option(v.name, v.name));
       viewSelect.value = state.viewName;
     }
-    function recollect() {
-      collected = collect(live(), {source: state.source, board: state.board, variant: state.variant});
+    function recollect(layoutChanged = false) {
+      if (!d.open) return;
+      const next = collect(live(), {source: state.source, board: state.board, variant: state.variant});
+      const before = collected?.params;
+      layoutChanged ||= !state.columns.length || before?.length !== next.params.length || next.params.some((name, i) => name !== before[i]);
+      collected = next;
       state.source = collected.source; state.board = collected.board?.id;
       sourceSelect.value = collected.source === "pcb" ? "pcb:" + state.board : "schematic";
-      all = columns(collected);
-      const keys = all.map(c => c.key);
-      state.order = [...(state.order || []).filter(k => keys.includes(k)), ...keys.filter(k => !(state.order || []).includes(k))];
-      state.columns = state.columns.filter(k => keys.includes(k));
-      if (!state.columns.length) state.columns = defaultColumns.slice();
-      regroup();
+      if (layoutChanged) {
+        all = columns(collected);
+        const keys = all.map(c => c.key);
+        state.order = [...(state.order || []).filter(k => keys.includes(k)), ...keys.filter(k => !(state.order || []).includes(k))];
+        state.columns = state.columns.filter(k => keys.includes(k));
+        if (!state.columns.length) state.columns = defaultColumns.slice();
+      }
+      regroup({layoutChanged});
       if (optView) { if (state.tab === "optimise") { optView.update(collected, analysisNow()); optStale = false; } else optStale = true; }
       scheduleHints();
     }
-    function regroup() {
-      state.columns = state.order.filter(k => state.columns.includes(k));
-      const keep = flat[state.active.r]?.row.parts[0]?.id;
-      rows = build(collected, settings());
+    function rebuildRows() {
+      rows = build(collected, state, all);
       lineHints = state.hints && hintData ? rowHints(rows, hintData) : new Map();
-      cols = state.columns.map(k => all.find(c => c.key === k)).filter(Boolean);
+      indexRows();
+    }
+    function indexRows() {
+      searchIndex?.cancel();
+      searchIndex = prepareSearch(rows, state.columns);
+    }
+    function regroup({layoutChanged = true, rebuild = true} = {}) {
+      const previous = cols;
+      if (layoutChanged) {
+        state.columns = state.order.filter(k => state.columns.includes(k));
+        cols = state.columns.map(k => all.find(c => c.key === k)).filter(Boolean);
+      }
+      const keep = flat[state.active.r]?.row.parts[0]?.id;
+      if (rebuild) rebuildRows();
+      else if (cols.length !== previous.length || cols.some(c => !previous.includes(c))) indexRows();
       refilter(keep);
-      paintHead(); paintPanel(); paintNotes(); paintSummary(); paintHintUI(); remember();
+      if (layoutChanged) { paintHead(); paintPanel(); }
+      paintNotes(); paintSummary(); paintHintUI(); remember();
       dnpCheck.checked = state.showDnp;
       const dnp = collected.dnp?.length || 0;
       dnpCount.textContent = dnp ? String(dnp) : ""; dnpCount.hidden = !dnp;
@@ -1057,14 +1179,14 @@ globalThis.AtriumBOM = (() => {
       const request = designMatches();
       if (!request) {
         gridWrap.removeAttribute("aria-busy");
-        displayRows(filterRows(rows,state,cols.map(c => c.key)),keepId);
+        displayRows(searchIndex.filter(state),keepId);
         return;
       }
       gridWrap.setAttribute("aria-busy","true");
       request.promise.then(matches => {
         if (!request.current()) return;
         gridWrap.removeAttribute("aria-busy");
-        displayRows(filterRows(rows,state,cols.map(c => c.key),matches),keepId);
+        displayRows(searchIndex.filter(state,matches),keepId);
         paintSummary();
       }, error => {
         if (!request.current()) return;
@@ -1079,7 +1201,8 @@ globalThis.AtriumBOM = (() => {
       if (state.hintsOnly && state.hints) shown = shown.filter(r => lineHints.has(r));
       flatten();
       if (keepId) { const i = flat.findIndex(f => f.type === "line" && f.row.parts.some(p => p.id === keepId)); if (i >= 0) state.active.r = i; }
-      clamp(); paintRows(); paintDetail();
+      clamp();
+      if (!hold) { paintRows(); paintDetail(); }
     }
     const lineKey = row => row.parts[0]?.id || row.first;
     function flatten() {
@@ -1109,7 +1232,7 @@ globalThis.AtriumBOM = (() => {
     }
     // The excluded count links to the list of excluded parts (and why), the DNP count to the toggle.
     const excludedLink = button("", () => showExcluded(), "bom-link"), dnpLink = button("", () => {
-      if (!state.showDnp) { state.showDnp = true; regroup(); }
+      if (!state.showDnp) { state.showDnp = true; regroup({layoutChanged: false}); }
       dnpCheck.focus();
     }, "bom-link");
     excludedLink.setAttribute("aria-controls", "bom-excluded"); dnpLink.setAttribute("aria-controls", "bom-show-dnp");
@@ -1132,7 +1255,7 @@ globalThis.AtriumBOM = (() => {
       box.querySelector("summary")?.focus({preventScroll: true});
     }
     const cellText = (f, c) => {
-      const v = f.type === "part" ? (c.key === "quantity" ? 1 : c.key === "line" ? "" : c.key === "status" ? (f.part.dnp ? "DNP" : "") : field(f.part, c.key, settings())) : f.row.values[c.key];
+      const v = f.type === "part" ? (c.key === "quantity" ? 1 : c.key === "line" ? "" : c.key === "status" ? (f.part.dnp ? "DNP" : "") : field(f.part, c.key, state)) : f.row.values[c.key];
       return v == null ? "" : typeof v === "number" ? String(Math.round(v * 1e6) / 1e6) : String(v);
     };
 
@@ -1187,12 +1310,11 @@ globalThis.AtriumBOM = (() => {
       } else state.sort = [{key, dir: i === 0 && state.sort[0].dir > 0 ? -1 : 1}];
       regroup();
     };
-    let filterTimer = 0;
+    function applyFilter(keepId) { refilter(keepId); paintSummary(); }
     thead.oninput = e => {
       const input = e.target.closest(".ui-sheet-filter"); if (!input) return;
       if (input.value.trim()) state.filters[input.dataset.key] = input.value; else delete state.filters[input.dataset.key];
-      clearTimeout(filterTimer);
-      filterTimer = setTimeout(() => { refilter(); paintSummary(); }, 90);
+      applyFilter();
     };
     thead.onkeydown = e => { if (e.target.closest(".ui-sheet-filter") && (e.key === "ArrowDown" || e.key === "Enter")) { e.preventDefault(); gridWrap.focus(); } };
     // Resizing: drag the grip on a header's right edge.
@@ -1231,7 +1353,7 @@ globalThis.AtriumBOM = (() => {
       if (to !== dragKey) {
         state.order = state.order.filter(k => k !== dragKey);
         state.order.splice(state.order.indexOf(to) + (after ? 1 : 0), 0, dragKey);
-        regroup();
+        regroup({rebuild: false});
       }
       dragKey = null;
     }
@@ -1685,7 +1807,7 @@ globalThis.AtriumBOM = (() => {
         const row = el("div", null, "bom-column"); row.setAttribute("role", "listitem"); row.dataset.key = key; row.draggable = true;
         const show = el("input", null, "ui-checkbox"); show.type = "checkbox"; show.dataset.role = "show"; show.checked = state.columns.includes(key);
         show.setAttribute("aria-label", "Show " + c.label);
-        show.onchange = () => { state.columns = show.checked ? [...state.columns, key] : state.columns.filter(k => k !== key); regroup(); refocus(i, "show"); };
+        show.onchange = () => { state.columns = show.checked ? [...state.columns, key] : state.columns.filter(k => k !== key); regroup({rebuild: false}); refocus(i, "show"); };
         const group = el("input", null, "ui-checkbox"); group.type = "checkbox"; group.dataset.role = "group"; group.checked = state.groupBy.includes(key); group.disabled = !c.group;
         group.setAttribute("aria-label", "Group by " + c.label);
         group.onchange = () => { state.groupBy = group.checked ? [...state.groupBy, key] : state.groupBy.filter(k => k !== key); regroup(); refocus(i, "group"); };
@@ -1693,7 +1815,7 @@ globalThis.AtriumBOM = (() => {
           const b = button(delta < 0 ? "↑" : "↓", () => {
             const j = i + delta; if (j < 0 || j >= state.order.length) return;
             [state.order[i], state.order[j]] = [state.order[j], state.order[i]];
-            regroup(); refocus(j, delta < 0 ? "up" : "down");
+            regroup({rebuild: false}); refocus(j, delta < 0 ? "up" : "down");
           }, "bom-move");
           b.dataset.role = delta < 0 ? "up" : "down"; b.setAttribute("aria-label", label); b.title = label;
           b.disabled = delta < 0 ? i === 0 : i === state.order.length - 1;
@@ -1707,7 +1829,7 @@ globalThis.AtriumBOM = (() => {
       const pin = el("select", null, "ui-field"); pin.setAttribute("aria-label", "Pinned columns");
       for (let n = 0; n <= 4; n++) pin.add(new Option(n ? "First " + n : "None", String(n)));
       pin.value = String(state.pinned);
-      pin.onchange = () => { state.pinned = Number(pin.value); regroup(); };
+      pin.onchange = () => { state.pinned = Number(pin.value); regroup({rebuild: false}); };
       const opts = el("div", null, "bom-panel-row"); opts.append(field_("Pin", pin));
       panel.append(opts);
       // Optimiser hints in the lines: on by default; dismissed ones are kept per project.
@@ -1722,7 +1844,7 @@ globalThis.AtriumBOM = (() => {
       }
       const reset = button("Reset columns", () => {
         Object.assign(state, {columns: defaultColumns.slice(), groupBy: defaultGroups.slice(), order: null, sort: [{key: "designator", dir: 1}], widths: {}, pinned: 2, filters: {}});
-        recollect();
+        recollect(true);
       }, "bom-reset");
       panel.append(reset);
       // Named views live in the project, so exports and automation can use them.
@@ -1747,7 +1869,7 @@ globalThis.AtriumBOM = (() => {
         const n = state.viewName; if (!n) return;
         const run = () => deleteView(live(), n);
         if (typeof ctx.edit === "function") ctx.edit(run); else run();
-        state.viewName = ""; Object.assign(state, viewState(prefsView())); paintViews(); recollect();
+        state.viewName = ""; Object.assign(state, viewState(prefsView())); paintViews(); recollect(true);
         status.textContent = "Deleted view " + n + ".";
       });
       del.disabled = !state.viewName;
@@ -1784,6 +1906,7 @@ globalThis.AtriumBOM = (() => {
         supplierPn: row.parts.find(p => p.supplierPn)?.supplierPn};
       try {
         const res = await O.price([line], {providers});
+        if (!d.open) return;
         const offers = res.lines.get("x")?.offers || [];
         state.offers.set(lineKey(row), offers);
         const qty = row.parts.length * Math.max(1, O.loadSettings().quantity || 1);
@@ -1791,7 +1914,7 @@ globalThis.AtriumBOM = (() => {
         if (mpn && ranked[0]) state.solutions.set(upper(mpn), {supplier: ranked[0].offer.supplier, sku: ranked[0].offer.sku, stock: ranked[0].offer.stock,
           unit: ranked[0].unit, currency: ranked[0].offer.currency, lifecycle: ranked[0].offer.lifecycle});
         status.textContent = offers.length ? count(offers.length, "offer") + " found." : "No exact match." + (res.errors[0] ? " " + res.errors[0].message : "");
-        const keep = row.parts[0].id; rows = build(collected, settings()); refilter(keep);
+        rebuildRows(); applyFilter(row.parts[0].id);
       } catch (e) { status.textContent = e.message || String(e); }
     }
     // Offers that cover the quantity first, then by price at that quantity.
@@ -1885,7 +2008,7 @@ globalThis.AtriumBOM = (() => {
         for (const [reason, refs] of reasons) {
           const li = el("li"); li.append(el("strong", (reason === "Do not populate" ? "DNP (do not populate)" : reason) + " · "), document.createTextNode(compress(refs)));
           if (reason === "Do not populate") {
-            const b = button(state.showDnp ? "Hide from the lines" : "Show in the lines", () => { state.showDnp = !state.showDnp; regroup(); showExcluded(); }, "bom-link");
+            const b = button(state.showDnp ? "Hide from the lines" : "Show in the lines", () => { state.showDnp = !state.showDnp; regroup({layoutChanged: false}); showExcluded(); }, "bom-link");
             li.append(" ", b);
           }
           ul.append(li);
@@ -1926,7 +2049,7 @@ globalThis.AtriumBOM = (() => {
     // ---------------------------------------------------------- tabs
     function showTab(t) {
       state.tab = t === "optimise" && O ? "optimise" : "lines";
-      const lines = state.tab === "lines";
+      const lines = state.tab === "lines", revealLines = lines && body.hidden;
       tabLines.setAttribute("aria-selected", String(lines)); tabOpt.setAttribute("aria-selected", String(!lines));
       tabLines.tabIndex = lines ? 0 : -1; tabOpt.tabIndex = lines ? -1 : 0;
       body.hidden = detail.hidden = !lines;
@@ -1948,7 +2071,7 @@ globalThis.AtriumBOM = (() => {
       paintHintUI();
       exporter.textContent = lines ? "Export" : "Export optimised";
       remember();
-      if (lines) requestAnimationFrame(() => paintRows());
+      if (revealLines) requestAnimationFrame(() => paintRows());
     }
 
     sources(); paintVariants(); paintViews();
@@ -1962,27 +2085,26 @@ globalThis.AtriumBOM = (() => {
       state.viewName = viewSelect.value;
       Object.assign(state, viewState(state.viewName ? findView(live(), state.viewName) : prefsView()));
       search.value = state.query; paintVariants();
-      recollect();
+      recollect(true);
     };
     search.oninput = () => {
       state.query = search.value;
       designFilter?.controller.abort();
       designFilter = null;
       status.textContent = "";
-      clearTimeout(filterTimer);
-      filterTimer = setTimeout(() => { refilter(); paintSummary(); },90);
+      applyFilter();
     };
     search.onkeydown = e => { if (e.key === "ArrowDown" || e.key === "Enter") { e.preventDefault(); gridWrap.focus(); } };
     format.onchange = () => { state.format = format.value; remember(); };
     titleCheck.onchange = () => { state.titleBlock = titleCheck.checked; remember(); };
-    const offQueryPrefs = globalThis.AtriumPrefs?.on("butter.query", () => { if (d.open) refilter(); });
-    d.onclose = () => { clearTimeout(filterTimer); offQueryPrefs?.(); designFilter?.controller.abort(); cancelHints(); d.remove(); };
+    const offQueryPrefs = globalThis.AtriumPrefs?.on("butter.query", () => { if (d.open) applyFilter(); });
+    d.onclose = () => { searchIndex?.cancel(); searchIndex = null; offQueryPrefs?.(); designFilter?.controller.abort(); cancelHints(); d.remove(); };
     d.oncancel = e => { if (editor) { e.preventDefault(); cancelEdit(); } else if (state.strip) { e.preventDefault(); closeStrip(true); } };
     globalThis.AtriumShell.adoptDialog(d, {title: heading, body, actions: foot, initialFocus: () => state.tab === "lines" ? gridWrap : tabOpt});
+    setPanel(state.panelOpen);
     document.body.append(d);
     d.showModal();
     recollect();
-    setPanel(state.panelOpen);
     showTab(state.tab);
     (state.tab === "lines" ? gridWrap : tabOpt).focus({preventScroll: true});
     return d;
@@ -1997,7 +2119,7 @@ globalThis.AtriumBOM = (() => {
   const optimise = (project, options = {}) => optimiser().analyse(project, options);
   const applyOptimisation = (project, analysis, ids) => optimiser().apply(project, analysis, ids);
 
-  return {open, collect, isDnp, optimise, applyOptimisation, columns, build, filterRows, queryMatches, rowHints, report, views, findView, saveView, deleteView, normaliseView, viewSettings,
+  return {open, collect, isDnp, optimise, applyOptimisation, columns, build, filterRows, prepareSearch, queryMatches, rowHints, report, views, findView, saveView, deleteView, normaliseView, viewSettings,
     editable: editableKey, planEdit, applyChanges, tsv, field, statusText: STATUS_TEXT, compress, naturalCompare, csv, csvCell, xlsxFiles, xlsx, html, printable, fileName,
     defaults: {columns: defaultColumns, groupBy: defaultGroups}};
 })();
