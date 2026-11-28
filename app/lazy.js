@@ -989,10 +989,20 @@ globalThis.AtriumLazy = (() => {
       !(input.closest(".prf-stepper") && input.value.trim() && Number.isFinite(Number(input.value)))){e.preventDefault();e.stopImmediatePropagation();commit=true;submit=true;}};
     input.addEventListener("input",hold,true);input.addEventListener("change",hold,true);input.addEventListener("keydown",key,true);
     const cleanup=()=>{input.removeEventListener("input",hold,true);input.removeEventListener("change",hold,true);input.removeEventListener("keydown",key,true);delete input.waffleNumericWaiting;};
-    need("AtriumNumericFields").then(module=>{
+    const ready=need("AtriumNumericFields").then(module=>{
       cleanup();const control=module.attach(input);
-      if(edited){control.changed();if(commit)control.commit().then(ok=>{if(ok && submit && input.isConnected)input.form?.requestSubmit?.();});}
-    },()=>{cleanup();input.type=input.waffleNumericType;});
+      if(edited){control.changed();if(commit)return control.commit().then(ok=>{if(ok && submit && input.isConnected)input.form?.requestSubmit?.();return ok;});}
+      return true;
+    },()=>{cleanup();input.type=input.waffleNumericType;return true;}).catch(()=>false);
+    numericLoads.add(ready);ready.then(()=>numericLoads.delete(ready));
+  }
+  // Waits for every numeric draft to commit, including one typed while numeric-fields.js was still loading.
+  // Resolves false when a commit was rejected, so the caller keeps the field and its message for correction.
+  const numericLoads=new Set();
+  function finishNumericEdits(host=globalThis.AtriumNavHost) {
+    const finish=()=>globalThis.AtriumNumericFields?.finishEdits?.(host);
+    if(!numericLoads.size)return finish();
+    return Promise.all([...numericLoads]).then(async loaded=>{const ok=await finish();return loaded.every(Boolean) && ok!==false;});
   }
   function watchNumericInputs() {
     doc().addEventListener("focusin",numericFocus,true);
@@ -1126,6 +1136,6 @@ globalThis.AtriumLazy = (() => {
     };
     if (doc().readyState === "loading") doc().addEventListener("DOMContentLoaded", start, {once: true}); else setTimeout(start, 0);
   }
-  return Object.freeze({need, numericField, numericText, numericPresentation: () => sheet("editor/numeric-fields.css"), appendOnLoad, has, pending, prefetch, cancelPrefetch: cancelPreparations, forAction, isDiagnosticAction, diagnosticAction, needsRuleQuery:globalThis.AtriumRuleScopeDemand, validatorsFor, boardRenderers, register, files, stylesheets,
+  return Object.freeze({need, numericField, numericText, finishNumericEdits, numericPresentation: () => sheet("editor/numeric-fields.css"), appendOnLoad, has, pending, prefetch, cancelPrefetch: cancelPreparations, forAction, isDiagnosticAction, diagnosticAction, needsRuleQuery:globalThis.AtriumRuleScopeDemand, validatorsFor, boardRenderers, register, files, stylesheets,
     modules: () => Object.keys(MODULES), actions: () => Object.keys(ACTIONS), board: () => [...BOARD]});
 })();
