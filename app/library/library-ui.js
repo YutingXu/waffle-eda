@@ -601,8 +601,9 @@ globalThis.AtriumLibraryInspector = (() => {
     if (kind === "schematic") cmds.push({label: "Place footprint on board", enabled: !!def.footprint, run: () => a.place?.("pcb")});
     else cmds.push({label: "Place symbol on sheet", enabled: !!def.symbol, run: () => a.place?.("schematic")});
     cmds.push("-");
-    cmds.push({label: def.symbol ? "Edit symbol" : "Create symbol", shortcut: "E", run: () => a.editSymbol?.()});
-    cmds.push({label: def.footprint ? "Edit footprint" : "Create footprint", shortcut: "Shift+E", run: () => a.editFootprint?.()});
+    // `action` names the Library list's keymap command (lazy.js LIST_COMMANDS), so the menu shows its key.
+    cmds.push({label: def.symbol ? "Edit symbol" : "Create symbol", action: "library-edit-symbol", run: () => a.editSymbol?.()});
+    cmds.push({label: def.footprint ? "Edit footprint" : "Create footprint", action: "library-edit-footprint", run: () => a.editFootprint?.()});
     if (def.footprint?.wizard) cmds.push({label: "Open in IPC wizard…", run: () => a.openWizard?.()});
     cmds.push("-");
     if (a.attachPackage && def.symbol && def.footprint) cmds.push({label: "Add package…", run: () => a.attachPackage(true)});
@@ -611,7 +612,7 @@ globalThis.AtriumLibraryInspector = (() => {
       cmds.push({label: "Attach " + other + "…", run: () => a.attachPackage(false)});
     }
     if (a.manageFamily) cmds.push({label: spec.family ? "Edit family…" : "Group component…", run: () => a.manageFamily()});
-    cmds.push({label: "Duplicate", shortcut: "Mod+D", run: () => a.duplicate?.()});
+    cmds.push({label: "Duplicate", action: "library-duplicate", run: () => a.duplicate?.()});
     cmds.push("-");
     cmds.push({label: "Update placed parts", run: () => a.updateParts?.()});
     if (spec.status?.src && !spec.status.same) {
@@ -622,7 +623,7 @@ globalThis.AtriumLibraryInspector = (() => {
     cmds.push("-");
     cmds.push({
       label: "Delete",
-      shortcut: spec.used?.length ? undefined : "Backspace",
+      action: spec.used?.length ? undefined : "library-delete",
       enabled: !(spec.used?.length > 0),
       run: () => a.remove?.()
     });
@@ -824,6 +825,14 @@ globalThis.AtriumLibraryDockUI = (() => {
     } catch (e) { if (current()) ctx.info?.(e.message); }
   }
 
+  // Run a Library list keymap command (lazy.js LIST_COMMANDS) on `def` with the list's own
+  // handlers: the dock's list and the Library tab's table share these keys.
+  function listCommand(action, def, h) {
+    if (action === "library-edit-symbol") h.edit(def.id, "schematic");
+    else if (action === "library-edit-footprint") h.edit(def.id, "pcb");
+    else if (action === "library-duplicate") h.duplicate(def);
+    else if (action === "library-delete") h.remove(def);
+  }
   /** Update placed parts of project `def`: older linked copies follow only when ticked (api.chooseCopies). `run(fn)`
    *  applies the edit as the dock or the tab does; the report names retargets, rewires, stubs, cleared pin nets and
    *  pins left unconnected. */
@@ -1325,16 +1334,13 @@ globalThis.AtriumLibraryDockUI = (() => {
             if (live) AtriumLibraryFamiliesUI.attach(P.ctx, live, {variant, done: id => { P.selected = id; render(); }});
           } : null,
           manageFamily: globalThis.AtriumLibraryFamiliesUI ? () => manageFamilies(def.id) : null,
-          duplicate: () => run(() => { const c = api.duplicate(project(), def); P.selected = c.id; }, "Duplicated " + def.name),
+          duplicate: () => duplicate(def),
           updateParts: () => updatePlaced(P.ctx, api, def, project, run),
           reviewUpdate: () => status?.src && reviewUpdates([{def, lib: status.lib, src: status.src}]),
           saveToLibrary: () => api.saveToLibraryDialog(P.ctx, def, () => render()),
           saveToFolder: (globalThis.AtriumHost?.chooseLibraryFolder || globalThis.showDirectoryPicker)
             ? () => api.folderUI(u => u.saveToFolder(P.ctx, def, () => render())) : null,
-          remove: () => {
-            try { run(() => api.remove(project(), def.id), def.name + " deleted"); P.selected = null; }
-            catch (e) { P.ctx.info?.(e.message); }
-          }
+          remove: () => remove(def)
         }
       });
     }
@@ -1375,6 +1381,12 @@ globalThis.AtriumLibraryDockUI = (() => {
       const def = project().library.find(d => d.id === id);
       if (def && !P.lib) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? api.openFootprintEditor : api.openSymbolEditor)(P.ctx, def);
     }
+    function duplicate(def) { run(() => { P.selected = api.duplicate(project(), def).id; }, "Duplicated " + def.name); }
+    function remove(def) {
+      try { run(() => api.remove(project(), def.id), def.name + " deleted"); P.selected = null; }
+      catch (e) { P.ctx.info?.(e.message); }
+    }
+    const listCommands = {edit: editSelected, duplicate, remove};
     function manageFamilies(initial) {
       globalThis.AtriumLibraryFamiliesUI?.manage(P.ctx, {initial, done: id => { P.selected = id; render(); }});
     }
@@ -1410,7 +1422,8 @@ globalThis.AtriumLibraryDockUI = (() => {
     }
     const offKeys = AtriumKeymap.onChange(() => { if (visible()) updateToolHints(); });
 
-    // Keyboard navigation & actions
+    // Keyboard navigation & actions. The component keys are keymap commands with focus "library".
+    const listKeys = {focus: "library", kind: "schematic"};
     node.addEventListener("keydown", e => {
       if (e.key === "Escape" && !FACETS()?.isOpen()) { cancelIntent(); select(null); return; }
       // Tab hops between a selected package row and the first detail action.
@@ -1431,23 +1444,18 @@ globalThis.AtriumLibraryDockUI = (() => {
       if (!id) return;
       // The list itself acts on the selection only while its row is visible (not in a collapsed branch).
       if (e.target === list && !ROWS().visibleRows(list).some(r => r.dataset.def === id)) return;
+      listKeys.kind = documentKind();
+      const rec = e.key === "Enter" ? null : AtriumKeymap.focusBinding(e, listKeys);
+      if (rec) e.preventDefault();
       if (P.lib) {
         if (e.key === "Enter") { e.preventDefault(); const d = P.lib.defs.find(def => def.id === id); if (d) placeFromSource(P.lib, d, currentKind()); }
-        else if (e.key === "Delete" || e.key === "Backspace" || e.key === "e" || e.key === "E") {
-          e.preventDefault(); P.ctx.info?.("Library entries are read-only here. Add the component to the project to edit it.");
-        }
+        else if (rec && !e.repeat) P.ctx.info?.("Library entries are read-only here. Add the component to the project to edit it.");
         return;
       }
       const def = project().library.find(d => d.id === id);
       if (!def) return;
       if (e.key === "Enter") { e.preventDefault(); place(def, currentKind()); }
-      else if (e.key === "e" || e.key === "E") { e.preventDefault(); editSelected(id, e.shiftKey ? "pcb" : "schematic"); }
-      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") { e.preventDefault(); run(() => { P.selected = api.duplicate(project(), def).id; }, "Duplicated " + def.name); }
-      else if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        try { run(() => api.remove(project(), def.id), def.name + " deleted"); P.selected = null; }
-        catch (err) { P.ctx.info?.(err.message); }
-      }
+      else if (rec && !e.repeat) listCommand(rec.command.action, def, listCommands);
     });
     search.addEventListener("keydown", e => {
       if (e.key === "ArrowDown") {
@@ -1534,5 +1542,5 @@ globalThis.AtriumLibraryDockUI = (() => {
     return P;
   }
 
-  return Object.freeze({mount, review, updatePlaced});
+  return Object.freeze({mount, review, updatePlaced, listCommand});
 })();

@@ -110,7 +110,7 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 
 ## Altium-style (default)
 
-308 of 469 commands have a default key.
+312 of 473 commands have a default key.
 
 ### File
 
@@ -246,6 +246,11 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 | Add selection to memory 9 | `Mod+Shift+9` | Always |
 | Recall selection memory 9 (twice: fly to it) | `Alt+9` | Always |
 | Rename designator or net | `F2` | Not placing |
+| Library: edit symbol | `E` | In the Library list |
+| Library: edit footprint | `Shift+E` | In the Library list |
+| Library: duplicate component | `Mod+D` | In the Library list |
+| Library: delete component | `Backspace` | In the Library list |
+|  | `Delete` | In the Library list |
 
 ### Place
 

@@ -877,6 +877,13 @@ globalThis.AtriumLazy = (() => {
     AtriumRooms: [["room-move", "Move room", "D M M"], ["rooms-fit", "Fit rooms to components", "D M F"], ["rooms-lock", "Lock or unlock rooms", null],
       ["rooms-show", "Show rooms", null]].map(([id, t, k]) => ["rooms:" + id, id, t, "Design", k, "pcb"])
   };
+  // Keys of focused lists in lazy modules (registerCommand `focus`): [id, title, category, keys, focus].
+  // The list runs them through AtriumKeymap.focusBinding, so they need no module code and are
+  // registered whether or not the module has loaded. Library: library-ui.js and library-workspace.js.
+  const LIST_COMMANDS = [["library-edit-symbol", "Library: edit symbol", "Edit", ["E"], "library"],
+    ["library-edit-footprint", "Library: edit footprint", "Edit", ["Shift+E"], "library"],
+    ["library-duplicate", "Library: duplicate component", "Edit", ["Mod+D"], "library"],
+    ["library-delete", "Library: delete component", "Edit", ["Backspace", "Delete"], "library"]];
   // Menu items a lazy module adds when it loads (rooms.js install): [menu, action, label, options].
   const MENUS = {
     AtriumCollabPresence: [["project", "collab-status", "Collaboration…", {after: "review-changes", separator: true}],
@@ -906,6 +913,9 @@ globalThis.AtriumLazy = (() => {
       for (const [id, action, title, category, key, when] of list) {
         try { if (!K.command?.(id)) K.registerCommand({id, title, category, action, ...(when ? {when} : {}), defaultKeys: key ? [key] : []}); } catch { /* built in */ }
       }
+    }
+    for (const [id, title, category, keys, focus] of LIST_COMMANDS) {
+      try { if (!K.command?.(id)) K.registerCommand({id, title, category, action: id, focus, defaultKeys: keys}); } catch { /* built in */ }
     }
     const N = globalThis.AtriumNavCommon;
     for (const [name, list] of Object.entries(MENUS)) if (globalThis[name] == null) for (const [menu, action, label, o] of list) N?.menuItem?.(menu, action, label, o);

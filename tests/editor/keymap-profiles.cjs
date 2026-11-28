@@ -188,6 +188,17 @@ for (const preset of presets) {
       }
       for (const sequence of record.seqs) {
         variants++;
+        // A focused list's command runs only from that list (AtriumKeymap.focusBinding), never from the editor.
+        const focus = record.command.focus;
+        if (focus) {
+          for (const kind of ["pcb", "schematic"]) {
+            trials++;
+            const found = sequence.length === 1 && keymap.focusBinding(keyEvent(record.key, sequence[0], mac, panel), {kind, focus});
+            if (found?.id !== record.id) problems.push(`${label}: ${record.key} (${record.id}) did not run in the ${focus} list on ${kind}`);
+          }
+          if (states.some(state => record.test(state, state.canvas))) problems.push(`${label}: ${record.key} (${record.id}) applies outside the ${focus} list`);
+          continue;
+        }
         let seen = false;
         for (const state of states) {
           if (!record.test(state, state.canvas)) continue;

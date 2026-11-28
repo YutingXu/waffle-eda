@@ -167,8 +167,26 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(hints["Edit symbol"], "E");
     assert.equal(hints["Edit footprint"], "Shift+E");
     assert.equal(hints["Duplicate"], "Mod+D");
+    assert.equal(hints["Delete"], "Backspace");
     assert.equal(hints["Update placed parts"], null, "a command without a key has no hint");
     await page.keyboard.press("Escape");
+
+    // The list's keys are the same keymap commands: a rebinding moves both the key and the menu hint.
+    const editFromList = async key => {
+      await row("family-bga").focus();
+      await page.keyboard.press(key);
+      await symbolEditor.locator("h2", {hasText: "MX100-B"}).waitFor();
+      await symbolEditor.getByRole("button", {name: "Cancel", exact: true}).click();
+      await symbolEditor.waitFor({state: "hidden"});
+    };
+    await editFromList("e");
+    await page.evaluate(() => AtriumKeymap.setBindings("library-edit-symbol", ["Alt+E"]));
+    await details.getByRole("button", {name: "More component actions", exact: true}).click();
+    assert.equal(await page.locator(".nav-menu.action-menu:focus-within [role=menuitem]", {hasText: "Edit symbol"})
+      .locator(":scope > .ui-shortcut").getAttribute("data-binding"), "Alt+E", "the menu hint follows the rebinding");
+    await page.keyboard.press("Escape");
+    await editFromList("Alt+e");
+    await page.evaluate(() => AtriumKeymap.resetCommand("library-edit-symbol"));
 
     // A project switch asks about an editor tab's unsaved changes; keeping them keeps the project and the tab.
     const kept = await page.evaluate(async () => {
