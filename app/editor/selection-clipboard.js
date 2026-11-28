@@ -53,7 +53,8 @@ globalThis.AtriumSelectionClipboard=(()=>{
     return {kind:v.kind,origin:v.origin,items:v.items,library:v.library,...owner,...(typeof v.noteProject==="string" && typeof v.noteDoc==="string"?{noteProject:v.noteProject,noteDoc:v.noteDoc}:{}),...(Object.keys(b).length?{blobs:b}:{}),cut:false,doc:null};
   }
   function validTarget(target){
-    if(document.querySelector("dialog[open]"))return false;
+    // A dialog blocks the canvas clipboard; an editor tab's dialog (in a .doc-view) only while it has the focus.
+    if(document.querySelector("dialog[open]:not(.doc-view dialog)")||target?.closest?.(".doc-view"))return false;
     if(target?.isContentEditable||target?.closest?.("input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=textbox]"))return false;
     return !globalThis.window?.getSelection?.()?.toString();
   }

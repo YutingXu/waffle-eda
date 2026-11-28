@@ -61,7 +61,8 @@ Design Rule Check results appear in the Messages dock. The Dock surface inventor
 | app/pcb/layer-sets.js | modal | 1 | Layer sets |
 | app/pcb/length-tuning.js | modal | 2 | Length properties and Length tuning |
 | app/library/library-editor.js | modal | 1 | New component |
-| app/library/library-panel.js | factory | 1 | Editors, wizards, library sources and component management listed below |
+| app/library/library-panel.js | factory | 2 | Editors, wizards, library sources and component management listed below, and the Symbol and Footprint Editor tabs (a non-modal dialog in a document view) |
+| app/library/library-ui.js | popover | 1 | Library parameter filters (the Library panel and the Library tab) |
 | app/editor/logo-creator.js | modal | 1 | Logo Creator |
 | app/notebook/math-editor.js | modal | 1 | Insert or edit an equation |
 | app/formats/mcad-panel.js | modal | 1 | Mechanical collaboration prompts |
@@ -150,21 +151,20 @@ Design Rule Check results appear in the Messages dock. The Dock surface inventor
 | app/analysis/sim-menu.js | shell | 1 | Simulate |
 | app/editor/start-page.js | shell | 1 | Offline Getting started guide |
 | app/editor/update-check.js | shell | 1 | Check for Updates |
+| app/editor/welcome.js | shell | 1 | Customise Waffle |
 | app/editor/whats-new.js | shell | 1 | What’s New |
 
 ## Library dialog workflows
 
 | Source | Kind | Sites | Surface |
 | --- | --- | ---: | --- |
-| app/library/footprint-editor.js | library | 1 | Footprint Editor |
 | app/library/footprint-wizard.js | library | 2 | IPC-7351B Footprint Wizard and Batch Footprints |
 | app/library/generic-parts-ui.js | library | 5 | Place Generic Component, Connector Generator or Edit Connector, Bind Manufacturer Part, Finalise Part and Add Part |
 | app/library/group-library-ui.js | library | 4 | Propose component revision, Propose naming changes, review or restore group changes, and Group library |
 | app/library/library-diff.js | library | 1 | Review library updates |
-| app/library/library-panel.js | library | 6 | Update placed parts, check a library file or project, manage family memberships, Save to a library and Library sources |
+| app/library/library-panel.js | library | 7 | Symbol Editor and Footprint Editor (as dialogs, through editorSurface), update placed parts, check a library file or project, manage family memberships, Save to a library and Library sources |
 | app/library/library-sources-ui.js | library | 4 | Save to folder, KiCad 3D model folders, Import library components and Get KiCad libraries |
 | app/library/placeholder-ui.js | library | 3 | Place Placeholder and Resolve Placeholder or review the replacement |
-| app/library/symbol-editor.js | library | 1 | Symbol Editor |
 | app/library/symbol-wizard.js | library | 1 | Symbol Wizard |
 
 ## System-owned prompts and pickers

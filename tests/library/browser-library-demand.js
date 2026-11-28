@@ -111,7 +111,9 @@ module.exports = async function libraryDemand(browser, appURL = pathToFileURL(pa
       await page.keyboard.press("Escape");
       const detailReads = (await page.evaluate(() => demand.counters())).reads;
       assert.equal(detailReads, selected.reads, "a warm row places without another body read");
-      await panel.getByRole("button", {name: /^Check library/}).click();
+      // Check library… is in the Library's "Library commands" menu.
+      await panel.getByRole("button", {name: "Library commands", exact: true}).click();
+      await page.getByRole("menuitem", {name: "Check library…", exact: true}).click();
       const report = page.getByRole("dialog", {name: "Check " + name});
       await report.getByText(/error\(s\), .*warning\(s\)/).waitFor();
       assert.match(await report.textContent(), new RegExp(cold.healthErrors + " error\\(s\\)"));
@@ -264,7 +266,9 @@ module.exports = async function libraryDemand(browser, appURL = pathToFileURL(pa
       await page.waitForFunction(() => !!demand.resumeStaleScan);
       await source.selectOption("project");
       await panel.locator('.lib-row[data-def="' + projectId + '"]').click();
-      await panel.getByRole("button", {name: "Save to library…", exact: true}).click();
+      // Save to library… is in the component's "More component actions" menu.
+      await panel.locator(".lib-detail").getByRole("button", {name: "More component actions", exact: true}).click();
+      await page.getByRole("menuitem", {name: "Save to library…", exact: true}).click();
       const saveDialog = page.getByRole("dialog", {name: / to a library$/});
       await saveDialog.getByLabel("Target library").selectOption("file-probe");
       const peer = await page.context().newPage();

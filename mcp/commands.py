@@ -357,7 +357,7 @@ COVERAGE = {
     "symbols": I(PREF), "blocks": I("layout block library dialog; block placement is scripted with run_script (AtriumAPI)."),
     "connectivity": (T, "board_connectivity"), "mcp": (T, "project_summary"), "variants": (C, "set_variant"), "multichannel": (T, "replicate_layout"),
     # place
-    "library": (T, "place_part"), "library-catalogue": (T, "place_part"), "sch-auto-increment": I(PREF), "route": I(LIVE_ROUTE), "junction": I(PLACE_TOOL), "label": (T, "add_net_label"),
+    "library": (T, "place_part"), "quick-place": (T, "place_part"), "library-catalogue": (T, "place_part"), "sch-auto-increment": I(PREF), "route": I(LIVE_ROUTE), "junction": I(PLACE_TOOL), "label": (T, "add_net_label"),
     "sch-power": (T, "add_power_port"), "via": I(PLACE_TOOL), "polygon-pour": I(PLACE_TOOL + " Pour with pour_polygons."), "via-fence": (C, "via_fence"),
     "logo": I("needs a picked image file; logos are graphics, so add_items covers the result."),
     # route
@@ -371,7 +371,7 @@ COVERAGE = {
     "autoroute-net": (T, "autoroute"), "autoroute-connection": (T, "route_connection"), "autoroute-component": (T, "autoroute"),
     "autoroute-area": (T, "autoroute"), "fanout": (T, "fanout"), "length": (T, "matched_length_report"),
     # design
-    "library-panel": (T, "list_library"), "library-sources": (T, "list_library"), "related-components": (C, "related_components"), "symbol-editor": (T, "create_symbol"), "edit-symbol": (T, "create_symbol"),
+    "library-panel": (T, "list_library"), "library-workspace": (T, "list_library"), "library-sources": (T, "list_library"), "related-components": (C, "related_components"), "symbol-editor": (T, "create_symbol"), "edit-symbol": (T, "create_symbol"),
     "footprint-editor": (T, "create_footprint"), "edit-footprint": (T, "create_footprint"), "footprint-wizard": (T, "create_footprint"),
     "rules": (T, "propose_rule_change"), "stackup": (T, "stackup_propose"), "hdi-setup": (C, "hdi_setup"), "fab-preset": (T, "apply_fab_preset"), "dfm-check": (T, "dfm_check"),
     "split-region": I("pointer drawing of rigid-flex regions; the stack is edited with stackup_propose."),

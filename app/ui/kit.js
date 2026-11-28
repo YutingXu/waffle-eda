@@ -290,7 +290,7 @@ globalThis.AtriumUIKit = (() => {
     if (checked != null) { r.setAttribute("role", "radio"); r.setAttribute("aria-checked", String(!!checked)); }
     if (state) r.dataset.state = state;
     if (tree) r.append(el("span", "ui-disclosure"));
-    if (iconName) { const i = icon(iconName); i.classList.add("ui-row-icon"); r.append(i); }
+    if (iconName) { const i = typeof iconName === "string" ? icon(iconName) : iconName; i.classList.add("ui-row-icon"); r.append(i); }
     const text = el("span", "ui-row-text");
     text.append(el("span", "ui-row-title", title));
     if (detail) text.append(el("span", "ui-row-detail", detail));
