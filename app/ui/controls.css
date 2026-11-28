@@ -170,11 +170,11 @@ input:is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected=ink] 
   > span:first-child:not([aria-hidden=true],.icon) +
     :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select:not([multiple],[size]:not([size="1"])),.ui-field-measure)
 ) {align-items:center}
-:where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:has(
+:where(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,.ui-popover) label:has(
   > span:first-child:not([aria-hidden=true],.icon) + :is(textarea,select[multiple],select[size]:not([size="1"]))
 ) {align-items:baseline}
 /* A stacked caption keeps its first baseline, as before same-row centring. */
-:where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:where(
+:where(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,.ui-popover) label:where(
   .lib-field,.fe-inline,.bsh-field,.sw-col,.collab-field,.wl-field,.dv-pick-side,.ext-dev-field,.ext-registry-field,.variants-field,.ui-tool-field:not(.ui-tool-bar *),.ar-layers label,.ar-area label,.library-editor label:not(.le-region > label),.calculation-dialog label,.notebook-image-grid label,.notebook-image-pages label,.nav-palette-forms label,.connection-card label
 ):has(
   > span:first-child:not([aria-hidden=true],.icon) +
@@ -187,7 +187,7 @@ input:is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected=ink] 
    centres the line box. */
 @supports (text-box: trim-both cap alphabetic) {
   :where(
-    :is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:not(:where(
+    :is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,.ui-popover) label:not(:where(
       .lib-field,.fe-inline,.bsh-field,.sw-col,.collab-field,.wl-field,.dv-pick-side,.ext-dev-field,.ext-registry-field,.variants-field,.ui-tool-field:not(.ui-tool-bar *),.ar-layers label,.ar-area label,.library-editor label:not(.le-region > label),.calculation-dialog label,.notebook-image-grid label,.notebook-image-pages label,.nav-palette-forms label,.connection-card label
     )):has(
       > span:first-child:not([aria-hidden=true],.icon) +
@@ -468,7 +468,7 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
   /* The 44 px measure keeps its field at the top, so the caption is centred on the field, not on the measure: it takes
      the field's 28 px slot and centres its text there (trimmed to its cap height, unpadded, so two lines still fit).
      A longer caption grows the slot downwards. */
-  :where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:not(.ui-prop-row,:where(
+  :where(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,.ui-popover) label:not(.ui-prop-row,:where(
     .lib-field,.fe-inline,.bsh-field,.sw-col,.collab-field,.wl-field,.dv-pick-side,.ext-dev-field,.ext-registry-field,.variants-field,.ui-tool-field:not(.ui-tool-bar *),.ar-layers label,.ar-area label,.library-editor label:not(.le-region > label),.calculation-dialog label,.notebook-image-grid label,.notebook-image-pages label,.nav-palette-forms label,.connection-card label
   )):has(> span:first-child:not([aria-hidden=true],.icon) + .ui-field-measure) > span:first-child {
     align-self:start;box-sizing:border-box;min-block-size:var(--field-height);padding-block:0;align-content:center;
