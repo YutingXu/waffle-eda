@@ -30,7 +30,17 @@ module.exports = async function datasheetsUI(browser) {
     await panel.locator(".docs-strip .ui-thumb canvas[data-ready=true]").first().waitFor();
 
     // Step with the pager and the keyboard; the strip follows.
+    await page.emulateMedia({reducedMotion:"no-preference"});
+    await panel.locator('.docs-page[data-page="2"]').evaluate(node => {
+      const scroll = node.scrollIntoView;
+      node.scrollIntoView = options => {
+        node.dataset.pagerScroll = options.behavior;
+        scroll.call(node, options);
+      };
+    });
     await pager.getByRole("button", {name:"Next page"}).click();
+    assert.equal(await panel.locator('.docs-page[data-page="2"]').getAttribute("data-pager-scroll"), "smooth");
+    await page.emulateMedia({reducedMotion:"reduce"});
     await page.waitForFunction(() => document.querySelector(".panel-datasheet .docs-foot .ui-pager-position").textContent === "2 of 24");
     await panel.locator(".docs-pages").focus();
     await page.keyboard.press("End");

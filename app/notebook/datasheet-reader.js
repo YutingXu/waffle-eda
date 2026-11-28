@@ -50,7 +50,7 @@ globalThis.AtriumDatasheetReader = (() => {
     });
     const notice = K.el("div", "docs-notice-slot");
     const reader = K.el("div", "docs-reader");
-    const strip = F().strip(K, {label: "Pages", ratio: "1 / 1.294", onPick: n => goTo(Number(n))});
+    const strip = F().strip(K, {label: "Pages", ratio: "1 / 1.294", onPick: n => goTo(Number(n), true)});
     const pages = K.el("div", "docs-pages"); pages.tabIndex = 0; pages.setAttribute("role", "document"); pages.setAttribute("aria-label", "Datasheet pages");
     reader.append(strip.node, K.splitter({label: "Resize page strip", onResize: d => { const w = Math.max(56, Math.min(200, strip.node.getBoundingClientRect().width + d)); reader.style.setProperty("--docs-rail", w + "px"); }}), pages);
     const library = K.el("div", "docs-scroll");
@@ -335,15 +335,16 @@ globalThis.AtriumDatasheetReader = (() => {
   function selectPage(o, n) {
     o.page = n; ui.pager.set(n - 1, o.pages); ui.strip.select(String(n));
   }
-  function goTo(n) {
+  function goTo(n, manual = false) {
     const o = open_; if (!o || !o.pages) return;
     n = Math.max(1, Math.min(o.pages, n));
     selectPage(o, n);
-    pageNode(n)?.scrollIntoView({block: "start", behavior: "instant"});
+    const behavior = manual && G.AtriumMotionUI?.moves() ? "smooth" : "instant";
+    pageNode(n)?.scrollIntoView({block: "start", behavior});
     o.scrollTop = ui.pages.scrollTop;
     schedule();
   }
-  function step(d) { const o = open_; if (o) goTo(d === -Infinity ? 1 : d === Infinity ? o.pages : o.page + d); }
+  function step(d) { const o = open_; if (o) goTo(d === -Infinity ? 1 : d === Infinity ? o.pages : o.page + d, true); }
   function setZoom(v) { const o = open_; if (!o) return; o.zoom = v; relayout(); goTo(o.page); }
   function pageKeys(e) {
     if (e.target !== ui.pages) return;
