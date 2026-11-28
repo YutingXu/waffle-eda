@@ -101,7 +101,7 @@ globalThis.AtriumPCBPours=(()=>{
     if(!fresh){base.data=encode(bytes);return base;}   // walk() reports what is wrong when it is read
     // True arcs ([ring, i0, i1, cx, cy, ...] in ring order) go with the runs of their rings.
     const arcs=arcsByRun(extra?.arcs,fresh);
-    return withCopper(base,new Copper(fresh.runs.map((run,j)=>intern(runOf(bytes,fresh,run,arcs?.[j]))),rings.length,!!arcs));
+    return withCopper(base,copperFor(fresh.runs.map((run,j)=>intern(runOf(bytes,fresh,run,arcs?.[j]))),rings.length,!!arcs));
   }
   // regionLike's answer when the caller knows the rings are those of `region` (the area patch left
   // the island as it was): that region, removed from `prior`, if `prior` still holds it and its other
@@ -329,6 +329,19 @@ globalThis.AtriumPCBPours=(()=>{
     toJSON(){return "copper:"+this.count+":"+this.runs.map(r=>r.id).join(",");}
   }
   const isCopper=x=>x instanceof Copper;
+  // One copper per content: the same runs in the same order, ring count and arcs. A region the live
+  // worker sends again, or a refill after Undo that gives back an island the undo store still holds, is
+  // then the copper the editor already has, and everything cached by copper (the copper digest of
+  // polygon-pour.js packedCopperHash, tables, paths, LOD) is found again instead of being recomputed.
+  const copperStore=new Map();
+  const copperGone=typeof FinalizationRegistry==="function"?new FinalizationRegistry(k=>{const w=copperStore.get(k);if(w&&!w.deref())copperStore.delete(k);}):null;
+  function copperFor(runs,count,arcs){
+    let k=count+(arcs?"a":"")+":";for(const r of runs)k+=r.id+",";
+    const held=copperStore.get(k)?.deref();if(held)return held;
+    const c=new Copper(runs,count,arcs);
+    if(typeof WeakRef==="function"){copperStore.set(k,new WeakRef(c));copperGone?.register(c,k);}
+    return c;
+  }
   // One run of a region's bytes (a copy), with its rings' hashes and offsets, and its true arcs. A run is
   // found by id (key: its rings; id: its rings and arcs). Geometry caches key on key.
   function runOf(bytes,t,run,arcs=null){
@@ -484,7 +497,7 @@ globalThis.AtriumPCBPours=(()=>{
       list.push(run);
     }
     const o={};for(const k of Object.keys(fields))o[k]=fields[k];
-    return withCopper(o,new Copper(list,fields.count,arcs||fields.arcs===null));
+    return withCopper(o,copperFor(list,fields.count,arcs||fields.arcs===null));
   }
   // A run as a message or a recovery record carries it (structured clone).
   const runRecord=run=>({id:run.id,key:run.key,bytes:run.bytes,n:run.n,h1:run.h1,h2:run.h2,at:run.at,arcs:run.arcs});

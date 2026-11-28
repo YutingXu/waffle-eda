@@ -241,6 +241,22 @@ const more = (from, n = +(process.env.SEEDS || 0)) => Array.from({length: n}, (_
   if (engine) assert.ok(stats.changes > 0 && stats.lod > 0, "changed copper and LOD were compared " + JSON.stringify({...stats, digests: 0}));
   if (engine) { const g = stats.undoGrowth.sort((a, b) => a - b), med = g[g.length >> 1]; stats.undoGrowth = {n: g.length, median: +med.toFixed(3), max: +g.at(-1).toFixed(3)}; assert.ok(med < .5, "Undo holds about the changed runs of an island, not the island: " + JSON.stringify(stats.undoGrowth)); }
 });
+// (f) One copper per content: a region made again from the same rings, or rebuilt from its runs as the
+// live worker sends it, holds the copper object the first one holds, so what is cached by copper (the
+// copper digest, tables, paths) is found again; other rings give another copper.
+await test("regions with the same runs share one copper", async () => {
+  if (!engine) return;
+  const sq = (x, y) => [[x, y], [x + 4, y], [x + 4, y + 3], [x, y + 3]];
+  const a = C.regionLike(null, [sq(0, 0), sq(1, 1)], "Top", "GND", {polygon: "cu", links: []});
+  const b = C.regionLike(null, [sq(0, 0), sq(1, 1)], "Top", "GND", {polygon: "cu", links: []});
+  const c = C.regionLike(null, [sq(0, 0), sq(1, 1.5)], "Top", "GND", {polygon: "cu", links: []});
+  assert.notEqual(a, b, "two region objects");
+  assert.equal(C.copperOf(a), C.copperOf(b), "the same rings: the same copper");
+  assert.notEqual(C.copperOf(a), C.copperOf(c), "other rings: another copper");
+  const sent = C.fromRuns(C.fieldsOf(a), C.copperRuns(C.copperOf(a)).map(r => r.id), null, C.runLookup([a]));
+  assert.equal(C.copperOf(sent), C.copperOf(a), "rebuilt from its runs: the same copper");
+  assert.equal(C.dataKey(sent), C.dataKey(a));
+});
 // (e) A frame drawn at a display LOD level shows each ring simplified over its whole length, so one
 // changed vertex can move the simplified outline far from the changed edges (a dependent pour's long
 // border ring after a refill). viewDamage(a, b, k) at such a scale must cover every moved segment; the
