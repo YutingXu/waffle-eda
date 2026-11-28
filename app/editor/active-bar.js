@@ -40,7 +40,8 @@ globalThis.AtriumActiveBar = (() => {
     const bar = D.getElementById("tools");
     if (!bar) return;
     titles(); bars();
-    G.AtriumKeymap?.onChange?.(titles);
+    // A settings import changes the key map and may bring flyout faces (written a moment later).
+    G.AtriumKeymap?.onChange?.(() => { titles(); queueMicrotask(() => bars()); });
     new MutationObserver(() => { titles(); bars(); }).observe(D.body, {attributes:true, attributeFilter:["data-kind"]});
     new ResizeObserver(() => { if (bar.scrollWidth > bar.clientWidth + 1) bars(true); }).observe(bar);
     // Every flyout owner opens the same way: a markup tool, a user's group, More tools.

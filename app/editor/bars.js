@@ -141,12 +141,19 @@ globalThis.AtriumBars = (() => {
   const defaultList = k => defaults(entries().filter(e => e.sep || !hiddenOn(k).has(e.id)), k, extNodes().map(n => ({id:idOf(n), when:n.dataset.when || ""})), allows);
   const effective = k => listFor(k) ?? defaultList(k);
   // Commands come and go (macros, extensions, Experimental features): a stored bar draws what exists now.
-  let redraw = false;
-  K()?.onChange?.(() => {
-    availableIds = null;
-    if (redraw || !(listFor(kind()) || faces()[kind()])) return;
-    redraw = true; queueMicrotask(() => { redraw = false; render(); });
-  });
+  // Settings import and Reset All write the preferences, the key map and the faces together and say so
+  // only through the preferences' and the key map's own notifications: a microtask after either, the
+  // bar is drawn again when the stored bar or the faces differ from what it shows.
+  let pending = 0, drawn = "[null,null]"; // the markup, until the first drawing
+  const state = k => JSON.stringify([listFor(k), faces()[k] || null]);
+  function later(commands) {
+    if (!pending) queueMicrotask(() => {
+      const all = pending > 1, k = kind(); pending = 0;
+      if (state(k) !== drawn || all && (listFor(k) || faces()[k])) render();
+    });
+    pending = Math.max(pending, commands ? 2 : 1);
+  }
+  K()?.onChange?.(() => { availableIds = null; later(true); });
   function command(id) {
     const c = K()?.command(id);
     if (!c) return null;
@@ -260,6 +267,13 @@ globalThis.AtriumBars = (() => {
     for (const a of ["data-scope", "data-notebook-action"]) if (from?.hasAttribute(a)) n.setAttribute(a, from.getAttribute(a)); else if (from) n.removeAttribute(a);
     return n;
   }
+  // Whether a group holds an id now, so a remembered face is still one of its commands: a user's group
+  // (what its flyout draws), a built-in group's rows, a provided group's entries (the face names it).
+  function holds(key, id, k) {
+    if (groups.has(key)) return groups.get(key).includes(id) && drawable(id, k);
+    if (key === "widgets") return known.get(id)?.group === key;
+    return !!M()?.rows(key, k)?.some(r => r.id === id);
+  }
   const divider = () => { const s = D.createElement("span"); s.className = "tool-divider"; s.setAttribute("aria-hidden", "true"); made.add(s); return s; };
 
   // ------------------------------------------------------------------ render
@@ -279,7 +293,7 @@ globalThis.AtriumBars = (() => {
       const f = chosen[slot], id = typeof f === "string" ? f : f?.id;
       if (!id || id === slot) return node;
       if (typeof f === "object") known.set(id, {label:f.label, icon:f.icon, group:f.group});
-      if (!drawable(id, k) && !(groups.get(key) || M()?.rows(key, k)?.map(r => r.id) || []).includes(id)) return node;
+      if (!holds(key, id, k)) return node;
       const n = asFace(extNode(id) || build(id, k), key, node);
       slots.set(n, slot); return n;
     };
@@ -334,6 +348,7 @@ globalThis.AtriumBars = (() => {
     if (current.length !== shown.length || current.some((n, i) => n !== shown[i])) bar.replaceChildren(...shown);
     watcher?.takeRecords();
     rendering = false;
+    drawn = Array.isArray(given) ? "" : state(k);
     G.AtriumActiveBar?.titles();
     fit();
     // The icons arrive later: a newer drawing (another kind, an edit) supersedes this one; otherwise
@@ -486,8 +501,9 @@ globalThis.AtriumBars = (() => {
     new MutationObserver(() => render()).observe(D.body, {attributes:true, attributeFilter:["data-kind"]});
     let frame = 0;
     new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(fit); }).observe(bar.parentElement || bar);
-    // A microtask later, so an imported settings file's flyout faces (written after its preferences) apply too.
-    const prefs = P => P?.on?.(PREF, () => queueMicrotask(() => render()));
+    // Any preference: an imported settings file's faces are written after its preferences, and Reset All
+    // clears them after resetting the preferences (later() looks a microtask on).
+    const prefs = P => P?.on?.("", () => later());
     if (G.AtriumPrefs) prefs(G.AtriumPrefs); else G.AtriumLazy?.need?.("AtriumPrefs").then(prefs, () => {});
     G.addEventListener?.("storage", e => { if (e.key === FACES) render(); });
     G.AtriumLazy?.register?.("AtriumToolbarsPage", {scripts:["editor/toolbars-page.js"], deps:["AtriumUIKit"]});

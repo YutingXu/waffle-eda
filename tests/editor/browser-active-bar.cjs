@@ -586,6 +586,64 @@ async function extensionFace(browser) {
   } finally { await page.close(); }
 }
 
+// [P2] A remembered face is shown only while its group holds it.
+async function facesFollowGroups(browser) {
+  const page = await open(browser);
+  try {
+    const replaced = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumActiveBarMenu");
+      const second = () => document.querySelector("#tools > :nth-child(2)").dataset.action;
+      AtriumBars.setList("schematic", ["select", {face:"measure", more:["goto-location", "goto-object"]}]);
+      localStorage.setItem("atrium.bar-faces", JSON.stringify({schematic:{measure:"goto-object"}})); AtriumBars.render();
+      const before = second();
+      AtriumBars.setList("schematic", ["select", {face:"measure", more:["comment-mode"]}]);
+      const after = second();
+      // A built-in group too: Select's flyout never holds Fit.
+      AtriumBars.setList("schematic", null);
+      localStorage.setItem("atrium.bar-faces", JSON.stringify({schematic:{select:"fit"}})); AtriumBars.render();
+      return [before, after, document.querySelector("#tools > :first-child").dataset.action];
+    });
+    assert.deepEqual(replaced, ["goto-object", "measure", "select"], "a face its group does not hold falls back to the group's own face");
+    console.log("PASS remembered faces follow their groups");
+  } finally { await page.close(); }
+}
+// [P2] Settings import and Reset All redraw the bar when only the faces change.
+async function facesFollowSettings(browser) {
+  const page = await open(browser);
+  try {
+    const reset = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumActiveBarMenu");
+      localStorage.setItem("atrium.bar-faces", JSON.stringify({schematic:{select:"pan"}})); AtriumBars.render();
+      const before = document.querySelector("#tools > :first-child").dataset.action;
+      (await AtriumLazy.need("AtriumPrefsStorage")).resetAll();
+      await new Promise(r => setTimeout(r, 100));
+      return [before, localStorage.getItem("atrium.bar-faces"), document.querySelector("#tools > :first-child").dataset.action];
+    });
+    assert.deepEqual(reset, ["pan", null, "select"], "Reset All settings redraws the bar without its faces");
+    const imported = await page.evaluate(async () => {
+      const P = await AtriumLazy.need("AtriumPrefs"), data = JSON.parse(P.exportSettings());
+      data.layout.barFaces = {schematic:{select:"pan"}};
+      P.importSettings(JSON.stringify(data));
+      await new Promise(r => setTimeout(r, 100));
+      return document.querySelector("#tools > :first-child").dataset.action;
+    });
+    assert.equal(imported, "pan", "an imported face applies at once");
+  } finally { await page.close(); }
+  // The same import before the bar code has loaded (an uncustomised bar loads none).
+  const fresh = await open(browser);
+  try {
+    const imported = await fresh.evaluate(async () => {
+      const loaded = !!globalThis.AtriumBars, P = await AtriumLazy.need("AtriumPrefs"), data = JSON.parse(P.exportSettings());
+      data.layout.barFaces = {schematic:{select:"pan"}};
+      P.importSettings(JSON.stringify(data));
+      for (let i = 0; i < 40 && document.querySelector("#tools > :first-child").dataset.action !== "pan"; i++) await new Promise(r => setTimeout(r, 50));
+      return [loaded, document.querySelector("#tools > :first-child").dataset.action];
+    });
+    assert.deepEqual(imported, [false, "pan"], "an imported face applies at once on a bar that loaded no bar code yet");
+    console.log("PASS remembered faces follow settings import and Reset All");
+  } finally { await fresh.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -625,7 +683,7 @@ async function shots(browser) {
 
 async function run(browser) {
   const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
-    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, shots};
+    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, shots};
   for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)
