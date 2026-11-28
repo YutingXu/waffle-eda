@@ -888,9 +888,8 @@
   // its selection. Background rebuilds are a module arriving (moduleLoaded), a resize, reveal or wake that
   // catches up a dirty panel, and an appearance or Labs change. The rebuild waits until focus leaves the
   // panel, unless an edit or a selection change rebuilds it first. A length field commits on blur through the
-  // calculations worker, once numeric-fields.js has loaded, so the held rebuild waits for that commit:
-  // rebuilding under it would drop the value. A rejected value keeps its field and its message until it is
-  // corrected. Held means dirty too, so a panel hidden before focus leaves still rebuilds when shown again.
+  // calculations worker, once numeric-fields.js has loaded, so the held rebuild waits for that commit and
+  // learns whether it was accepted. A rejected value keeps its field and its message until it is corrected. Held means dirty too, so a panel hidden before focus leaves still rebuilds when shown again.
   let backgroundInspect=false,inspectorHeld=false,heldPanel=null;
   function typingInInspector(panel){const a=document.activeElement;return !!a&&panel.contains(a)&&a.matches("textarea,[contenteditable=true],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=color])");}
   function draftInInspector(panel){const N=globalThis.AtriumNumericFields;return typingInInspector(panel)||!!N?.draft&&[...panel.querySelectorAll("input")].some(i=>N.draft(i));}
