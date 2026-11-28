@@ -30,7 +30,8 @@ async function main(){
   const {p,port}=await relay(),url="ws://127.0.0.1:"+port;
   const browser=await chromium.launch({channel:"chrome",headless:true});
   try{
-    // Playwright routes only the WebSockets of a page loaded after routeWebSocket, so wire before loading.
+    // Wire before loading so the route also catches any WebSocket the app opens during startup. A route
+    // added after loading would still catch the sockets the session opens later.
     const options={prefs:{"labs.notebook":true},setup:page=>wire(page,port)};
     const alice=await editor(browser,port,"Ada",url,options),bob=await editor(browser,port,"Ben",url,options),A=alice.page,B=bob.page;
     await Promise.all([A,B].map(page=>page.evaluate(()=>{globalThis.RTCPeerConnection=undefined;})));
