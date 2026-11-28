@@ -133,15 +133,34 @@ async function connectionCrossing(page) {
   assert.deepEqual(await visible(page), [], "a touch hold replaces passive hover with the canvas context menu");
 }
 
-// Run an Insights pass to its end while a hover card waits for the pointer to rest. A pass makes new
-// insight objects even when it finds the same advice.
-async function passDuringPause(page) {
-  const passed = await page.evaluateHandle(() => {
-    const before = AtriumInsightsUI.lastPass();
-    AtriumInsightsUI.schedule({now: true, force: true});
-    return () => AtriumInsightsUI.lastPass() !== before && !AtriumInsightsUI.running();
-  });
-  await page.waitForFunction(passed => passed(), passed);
+// Rest the pointer on `point` and run an Insights pass to its end while the `kind` hover card waits
+// for the pointer to rest. A pass makes new insight objects even when it finds the same advice. The
+// page clock stays paused, so the pass provably starts after the hover is queued and finishes before
+// the hover timer fires. `wording`, when given, is the fixture's new message for that pass.
+const DWELL = 350;
+// Start a forced Insights pass (with the fixture's new wording, if given); the handle says when it has finished.
+const startPass = (page, wording = null) => page.evaluateHandle(wording => {
+  if (wording) globalThis.hoverWording = wording;
+  const before = AtriumInsightsUI.lastPass();
+  AtriumInsightsUI.schedule({now: true, force: true});
+  return () => AtriumInsightsUI.lastPass() !== before && !AtriumInsightsUI.running();
+}, wording);
+async function passDuringPause(page, kind, point, wording = null) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
+  await page.mouse.move(point.x, point.y);
+  let spent = 20;
+  await page.clock.runFor(spent); // the pointer's frame
+  const pending = () => page.evaluate(kind => !!AtriumCanvasHover.pending(kind), kind);
+  assert.equal(await pending(), true, "the " + kind + " hover is pending before the pass is scheduled");
+  const passed = await startPass(page, wording);
+  while (!await page.evaluate(passed => passed(), passed)) {
+    assert.ok(spent < DWELL - 50, "the pass finishes within the hover pause");
+    await page.clock.runFor(5);
+    spent += 5;
+  }
+  assert.equal(await pending(), true, "the " + kind + " hover is still pending when the pass has finished");
+  await page.clock.runFor(DWELL + 50 - spent);
+  await page.clock.resume();
 }
 
 async function insightOverlap(page) {
@@ -151,7 +170,7 @@ async function insightOverlap(page) {
     board.items = [{id: "hover-track", kind: "track", points: [[1, 1], [9, 1]], layer: "Top", net: "SENSE", width: .25}];
     AtriumInsights.register({
       id: "hover-fixture", kind: "pcb", title: "Test advice",
-      run: () => [{objects: ["hover-track"], at: [5, 1], message: "This advice is placed over the track", sig: "same"}]
+      run: () => [{objects: ["hover-track"], at: [5, 1], message: globalThis.hoverWording || "This advice is placed over the track", sig: "same"}]
     });
     await h.replaceProject(project, {force: true, dirty: false});
     await h.selectDocument(board.id);
@@ -170,17 +189,32 @@ async function insightOverlap(page) {
         AtriumInsightsUI.markerAt(pane, x, y)?.check !== "hover-fixture") throw Error("Marker must overlap its track");
     return {x, y};
   });
-  await page.mouse.move(point.x, point.y);
-  await passDuringPause(page);
+  await passDuringPause(page, "problem", point);
   await page.locator(selectors.problem).waitFor();
   assert.deepEqual(await visible(page), ["problem"], "default click-to-expand shows the compact card");
   await page.keyboard.press("Escape");
+  // The same finding in new words during the pause: the card still opens, and says the new words.
+  await page.mouse.move(point.x, point.y + 35);
+  await passDuringPause(page, "problem", point, "This advice now reads differently");
+  await page.locator(selectors.problem).waitFor();
+  assert.equal(await page.locator(selectors.problem + " .ui-tooltip-detail").first().textContent(), "This advice now reads differently",
+    "a wording change during the pause opens the card with the new wording");
+  // A pass rewords the finding of the open card: the next small move refreshes it in place, never closing it.
+  await page.waitForFunction(done => done(), await startPass(page, "Reworded while the card is open"));
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 1000);
+  await page.mouse.move(point.x + 2, point.y);
+  await page.clock.runFor(20);
+  assert.deepEqual(await page.evaluate(selector => {
+    const card = document.querySelector(selector);
+    return [!card.hidden, card.querySelector(".ui-tooltip-detail")?.textContent];
+  }, selectors.problem), [true, "Reworded while the card is open"], "the open card shows the new wording without closing");
+  await page.clock.resume();
+  await page.keyboard.press("Escape");
   await page.evaluate(() => AtriumPrefs.set("insights.expand", "hover"));
   await page.mouse.move(point.x, point.y + 35);
-  await page.mouse.move(point.x, point.y);
   // The card still opens after a pass during the pause, and the open card and its marker highlight
   // follow the current insight.
-  await passDuringPause(page);
+  await passDuringPause(page, "insight", point);
   await page.locator(selectors.insight).waitFor();
   assert.deepEqual(await visible(page), ["insight"], "the actionable hover Insight owns the same point as the track");
   assert.equal(await page.evaluate(() => AtriumInsightsUI.cardFor() === AtriumInsightsUI.current().find(i => i.check === "hover-fixture")), true,

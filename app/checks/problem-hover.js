@@ -170,12 +170,13 @@ globalThis.AtriumProblemHover = (() => {
     return {...out, at:group.at, radius:group.reach, entries, get boxes() { resolve(); return boxes; }};
   }
   // A check pass that finishes during the hover pause replaces its finding objects: an insight or a
-  // check-store finding is the same one while its key and its wording are (a key names the objects, not
-  // the measured value, so a finding whose value changed shows its new text).
-  const sameEntry = (a, b) => a.raw === b.raw || a.kind === b.kind && a.raw?.key != null && a.raw.key === b.raw?.key &&
-    a.title === b.title && a.text === b.text && a.value === b.value;
+  // check-store finding is the same one while its key is (a key names the objects, not the measured
+  // value). Identity decides whether a pending or shown card still stands for what is under the
+  // pointer; the wording is only the card's content, always taken from the current finding.
+  const sameEntry = (a, b) => a.raw === b.raw || a.kind === b.kind && a.raw?.key != null && a.raw.key === b.raw?.key;
   const same = (a, b) => !!a && !!b && a.pane.canvas === b.pane.canvas && a.d === b.d &&
     a.entries.length === b.entries.length && a.entries.every((e, i) => sameEntry(e, b.entries[i]));
+  const wording = hit => JSON.stringify(hit.entries.map(e => [e.severity, e.word, e.title, e.text, e.value]));
 
   // ---------------------------------------------------------------- the card
   const el = (tag, cls, text) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -326,7 +327,8 @@ globalThis.AtriumProblemHover = (() => {
     if (!pane || busy(e.canvas)) { hide(true); return; }
     const hit = find(pane, e.x, e.y);
     if (!hit) { hover.cancel("problem"); settleLeave(); return; }
-    if (same(shown, hit)) { hover.stay("problem"); return; }
+    // The same finding with new wording (a pass finished while the card was open): refresh it in place.
+    if (same(shown, hit)) { hover.stay("problem"); if (wording(shown) !== wording(hit)) show(hit); return; }
     if (same(hover.pending("problem"), hit)) return;
     if (shown) hide(true);
     hover.queue("problem", e.canvas, DWELL, hit, () => {

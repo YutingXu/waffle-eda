@@ -77,7 +77,7 @@ globalThis.AtriumInsightsUI = (() => {
   let host = null, engine = null, nowNext = false;
   let enabled = pref("insights.enabled", true) !== false, markers = pref("insights.markers", true) !== false;
   const seqs = new Map(), shown = new Map(); // docId → journal seq of the last finished pass; docId → {list, sig}
-  let hover = null, pinned = null, card = null, cardFor = null, cardCanvas = null, cursor = new Map(), lastPass = null;
+  let hover = null, pinned = null, card = null, cardFor = null, cardCanvas = null, cardPane = null, cursor = new Map(), lastPass = null;
   let schematicInk = null;
 
   // ---------------------------------------------------------------- running
@@ -139,11 +139,13 @@ globalThis.AtriumInsightsUI = (() => {
     publishTo(d);
     refreshMessages(d);
     // A pass makes new insight objects. The hovered and the open insight follow their key, so the
-    // overlay keeps their highlight and a pending hover still opens; an open card whose insight is gone closes.
+    // overlay keeps their highlight and a pending hover still opens. The open card follows too: its
+    // wording, its Fix and the Fix preview all come from the new insight. A card whose insight is gone
+    // closes, and the focus it held returns to the canvas.
     const fresh = new Map(current(d).map(x => [x.key, x]));
     if (hover?.doc === d.id) hover = fresh.get(hover.key) || null;
-    if (cardFor && !fresh.has(cardFor.key)) closeCard();
-    else if (cardFor?.doc === d.id) cardFor = fresh.get(cardFor.key);
+    if (cardFor && !fresh.has(cardFor.key)) closeCard({focus: !!card?.contains(doc.activeElement)});
+    else if (cardFor?.doc === d.id) followCard(fresh.get(cardFor.key));
   }
   // The insights to show for a document: the engine's, without dismissed ones (re-read when the store changes).
   function current(d) {
@@ -338,6 +340,8 @@ globalThis.AtriumInsightsUI = (() => {
     card = el("div", "insight-card ui-popover"); card.hidden = true; card.setAttribute("role", "dialog");
     card.addEventListener("pointerenter", () => canvasHover.stay("insight"));
     card.addEventListener("pointerleave", () => leaveHover(true));
+    // A rebuilt card (followCard) can leave a hover preview on with the pointer off its new Fix.
+    card.addEventListener("pointerover", e => { if (card.dataset.preview === "1" && !e.target.closest?.(".insight-fix") && !doc.activeElement?.matches?.(".insight-fix")) { card.dataset.preview = ""; host.invalidate?.(); } });
     card.addEventListener("focusout", e => { if (!card.contains(e.relatedTarget) && !card.matches(":hover")) leaveHover(true); });
     card.addEventListener("keydown", e => { if (e.key === "Escape" && !e.isComposing) { e.preventDefault(); e.stopPropagation(); closeCard({focus: true}); } });
     doc.body.append(card);
@@ -348,36 +352,59 @@ globalThis.AtriumInsightsUI = (() => {
     if (pin) canvasHover.dismiss();
     ensureCard();
     canvasHover.stay("insight"); canvasHover.cancel("insight");
-    cardFor = ins; pinned = pin; cardCanvas = pane?.canvas || host.canvas?.();
+    cardFor = ins; pinned = pin; cardCanvas = pane?.canvas || host.canvas?.(); cardPane = pane || null;
+    fillCard(ins);
+    card.hidden = false;
+    place(ins, pane);
+    globalThis.AtriumSurfaceMotion?.popover(card, true);
+    if (focus) (card.querySelector(".insight-actions button") || card.querySelector(".insight-close")).focus({preventScroll: true});
+    host.invalidate?.();
+  }
+  // What the card shows of an insight. The buttons act on cardFor, the insight the card shows now.
+  const face = x => JSON.stringify([x.severity, x.title, x.message, x.why, x.learnMore || "", x.fix?.label ?? null]);
+  function fillCard(ins, {learn: learnOpen = false} = {}) {
     const head = el("div", "insight-head"), mark = el("span", "insight-mark"); mark.dataset.severity = ins.severity; mark.setAttribute("aria-hidden", "true");
     const title = el("strong", "insight-title", ins.title); title.id = "insight-card-title";
     const sev = el("span", "insight-sev", t(ins.severity === "advice" ? "insights.ui.advice" : "insights.ui.tip"));
-    const close = el("button", "ui-close insight-close", "×"); close.type = "button"; close.addEventListener("click", ev => { ev.stopPropagation(); closeCard({focus: true}); });
+    const close = el("button", "ui-close insight-close", "×"); close.type = "button"; close.dataset.action = "close"; close.addEventListener("click", ev => { ev.stopPropagation(); closeCard({focus: true}); });
     close.setAttribute("aria-label", t("insights.ui.close")); close.title = t("insights.ui.close");
     head.append(mark, title, sev, close);
     const msg = el("p", "insight-msg", ins.message), why = el("p", "insight-why", ins.why);
-    const learn = el("p", "insight-learn", ins.learnMore); learn.hidden = true; learn.id = "insight-card-learn";
+    const learn = el("p", "insight-learn", ins.learnMore); learn.hidden = !(learnOpen && ins.learnMore); learn.id = "insight-card-learn";
     const actions = el("div", "insight-actions");
+    const act = (name, fn, text, cls, variant) => { const b = button(text, () => { if (cardFor) fn(cardFor); }, cls, variant); b.dataset.action = name; return b; };
     if (ins.fix) {
-      const fix = button(ins.fix.label, () => applyFix(ins), "insight-btn insight-fix", "primary");
+      const fix = act("fix", applyFix, ins.fix.label, "insight-btn insight-fix", "primary");
       const show = on => { card.dataset.preview = on ? "1" : ""; host.invalidate?.(); };
       fix.addEventListener("pointerenter", () => show(true)); fix.addEventListener("pointerleave", () => show(false));
       fix.addEventListener("focus", () => show(true)); fix.addEventListener("blur", () => show(false));
       actions.append(fix);
     }
-    actions.append(button(t("insights.ui.dismiss"), () => dismiss(ins)), button(t("insights.ui.dismiss_all"), () => mute(ins)));
+    actions.append(act("dismiss", dismiss, t("insights.ui.dismiss")), act("mute", mute, t("insights.ui.dismiss_all")));
     if (ins.learnMore) {
-      const more = button(t("insights.ui.learn"), () => { learn.hidden = !learn.hidden; more.textContent = t(learn.hidden ? "insights.ui.learn" : "insights.ui.learn_less"); more.setAttribute("aria-expanded", String(!learn.hidden)); place(ins, pane); }, "insight-btn insight-link", "quiet");
-      more.setAttribute("aria-expanded", "false"); more.setAttribute("aria-controls", learn.id);
+      const more = act("learn", () => { learn.hidden = !learn.hidden; more.textContent = t(learn.hidden ? "insights.ui.learn" : "insights.ui.learn_less"); more.setAttribute("aria-expanded", String(!learn.hidden)); place(cardFor, cardPane); }, t(learn.hidden ? "insights.ui.learn" : "insights.ui.learn_less"), "insight-btn insight-link", "quiet");
+      more.setAttribute("aria-expanded", String(!learn.hidden)); more.setAttribute("aria-controls", learn.id);
       actions.append(more);
     }
     card.replaceChildren(head, msg, why, learn, actions);
     card.setAttribute("aria-labelledby", title.id);
     card.dataset.severity = ins.severity; card.dataset.preview = "";
-    card.hidden = false;
-    place(ins, pane);
-    globalThis.AtriumSurfaceMotion?.popover(card, true);
-    if (focus) (card.querySelector(".insight-actions button") || close).focus({preventScroll: true});
+  }
+  // A pass replaced the open insight with a new object of the same key. A card that says the same
+  // keeps its nodes (focus, hover and the Fix preview stay as they are); one whose wording or Fix
+  // changed is rebuilt in place, with the focus and Learn more kept on the same action.
+  function followCard(ins) {
+    if (!ins || ins === cardFor) return;
+    const changed = face(ins) !== face(cardFor);
+    cardFor = ins;
+    if (changed && card && !card.hidden) {
+      const focused = card.contains(doc.activeElement) ? doc.activeElement.dataset.action || "" : null;
+      const preview = card.dataset.preview === "1" && focused !== "fix";
+      fillCard(ins, {learn: !card.querySelector(".insight-learn")?.hidden});
+      if (preview && ins.fix) card.dataset.preview = "1";
+      place(ins, cardPane);
+      if (focused != null) (card.querySelector(`[data-action="${focused}"]`) || card.querySelector(".insight-actions button") || card.querySelector(".insight-close")).focus({preventScroll: true});
+    }
     host.invalidate?.();
   }
   function place(ins, pane) {
@@ -395,7 +422,7 @@ globalThis.AtriumInsightsUI = (() => {
     canvasHover.cancel("insight"); canvasHover.release("insight");
     const had = !!cardFor;
     const canvas = cardCanvas?.isConnected ? cardCanvas : host?.canvas?.();
-    cardFor = null; pinned = false; cardCanvas = null;
+    cardFor = null; pinned = false; cardCanvas = null; cardPane = null;
     if (card) {
       const surface = globalThis.AtriumSurfaceMotion;
       if (surface) surface.popover(card, false, {instant: !!o.instant});
