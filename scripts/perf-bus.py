@@ -2,7 +2,7 @@
 """Bus routing feel in real time (stage 4 of scripts/perf-canvas.sh).
 
 Drives the real editor over the Chrome DevTools protocol (python3, no packages; the Page class of
-scripts/perf-route.py) on the 25,600-object board of tests/dense-board.js. An 11-net bus (a DDR byte
+scripts/perf-route.py) on the 25,600-object board of tests/pcb/dense-board.js. An 11-net bus (a DDR byte
 lane's worth: eleven pads at 0.8 mm) is placed in a cleared pocket, Interactive Bus Routing starts on it
 in push mode, and the mouse sweeps the ribbon head back and forth across the board's tracks with real
 Input.dispatchMouseEvent events at about 60 Hz, on the real clock. Every animation frame that renders

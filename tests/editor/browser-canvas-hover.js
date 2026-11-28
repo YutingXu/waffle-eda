@@ -133,6 +133,17 @@ async function connectionCrossing(page) {
   assert.deepEqual(await visible(page), [], "a touch hold replaces passive hover with the canvas context menu");
 }
 
+// Run an Insights pass to its end while a hover card waits for the pointer to rest. A pass makes new
+// insight objects even when it finds the same advice.
+async function passDuringPause(page) {
+  const passed = await page.evaluateHandle(() => {
+    const before = AtriumInsightsUI.lastPass();
+    AtriumInsightsUI.schedule({now: true, force: true});
+    return () => AtriumInsightsUI.lastPass() !== before && !AtriumInsightsUI.running();
+  });
+  await page.waitForFunction(passed => passed(), passed);
+}
+
 async function insightOverlap(page) {
   await page.evaluate(async () => {
     const h = AtriumNavHost, project = Atrium.project("Insight hover", []);
@@ -160,14 +171,20 @@ async function insightOverlap(page) {
     return {x, y};
   });
   await page.mouse.move(point.x, point.y);
+  await passDuringPause(page);
   await page.locator(selectors.problem).waitFor();
   assert.deepEqual(await visible(page), ["problem"], "default click-to-expand shows the compact card");
   await page.keyboard.press("Escape");
   await page.evaluate(() => AtriumPrefs.set("insights.expand", "hover"));
   await page.mouse.move(point.x, point.y + 35);
   await page.mouse.move(point.x, point.y);
+  // The card still opens after a pass during the pause, and the open card and its marker highlight
+  // follow the current insight.
+  await passDuringPause(page);
   await page.locator(selectors.insight).waitFor();
   assert.deepEqual(await visible(page), ["insight"], "the actionable hover Insight owns the same point as the track");
+  assert.equal(await page.evaluate(() => AtriumInsightsUI.cardFor() === AtriumInsightsUI.current().find(i => i.check === "hover-fixture")), true,
+    "the open card follows the insight of the latest pass");
   await page.evaluate(() => {
     AtriumNavHost.view().pan(26, 0);
     AtriumNavHost.redraw();
@@ -181,7 +198,10 @@ async function insightOverlap(page) {
   });
   await page.mouse.move(point.x, point.y + 35);
   await page.mouse.move(point.x, point.y);
+  // The hidden card keeps the earlier card's buttons: focus the close button once the card is open again.
+  await page.locator(selectors.insight).waitFor();
   await page.locator(selectors.insight + " .insight-close").focus();
+  assert.equal(await page.evaluate(() => !!document.activeElement?.closest(".insight-card")), true, "the passive Insight's close button takes the focus");
   await page.keyboard.press("Escape");
   assert.equal(await page.evaluate(() => document.activeElement === AtriumNavHost.canvas()), true,
     "Escape from a focused passive Insight returns focus to its canvas");

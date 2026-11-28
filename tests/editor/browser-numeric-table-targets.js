@@ -4,8 +4,11 @@
 const assert=require("node:assert/strict"),path=require("node:path"),{pathToFileURL}=require("node:url");
 const {chromium}=require("../support/playwright.cjs");
 const app=path.resolve(__dirname,"../../app"),tables=path.resolve(process.argv[2] || app);
-require(path.join(app,"project/source-file.js"));
-const T=require(path.join(tables,"table-data.js")),F=require(path.join(tables,"table-formulas.js"));
+// Find each table module wherever that app directory keeps it (app/notebook/ in this checkout).
+const tableFile=file=>path.join(tables,require("../support/app-source-paths.cjs").inventoryFrom(tables).get(file) || file);
+// table-formulas.js reads AtriumCalculationIntent when it loads, as the lazy registry in app/lazy.js declares.
+for(const name of ["source-file","calculation-intent"])require(require("../support/app-source-paths.cjs").appFile(name+".js"));
+const T=require(tableFile("table-data.js")),F=require(tableFile("table-formulas.js"));
 let id=0,state=T.create(3,4,()=>"axis"+(++id));
 const [row,otherRow]=state.rows.map(r=>r.id),columns=state.columns.map(c=>c.id);
 state={...state,columns:state.columns.map((c,i)=>i<2?{...c,unit:"Ω"}:c)};
@@ -13,7 +16,7 @@ state=T.change(state,row,columns[1],{content:{kind:"literal",text:"4"},style:{bo
 state=T.change(state,row,columns[2],{content:F.scan(state,"=SUM(A1:B1)")});
 state=T.change(state,otherRow,columns[1],{style:{italic:true}});
 state=T.change(state,otherRow,columns[0],{content:{kind:"math",tex:"x^2"}});
-const url=file=>pathToFileURL(path.join(tables,file)).href;
+const url=file=>pathToFileURL(tableFile(file)).href;
 
 async function run() {
   const browser=await chromium.launch({channel:"chrome",headless:true});
@@ -30,7 +33,7 @@ async function run() {
       AtriumPref.set("labs.notebook",true);
       // These are the real table modules. The paths can come from either feature branch.
       AtriumLazy.register("AtriumTableData",{scripts:[model],deps:["AtriumSourceFile"]});
-      AtriumLazy.register("AtriumTableFormulas",{scripts:[formulas],deps:["AtriumTableData","AtriumCalculationDesign"]});
+      AtriumLazy.register("AtriumTableFormulas",{scripts:[formulas],deps:["AtriumCalculationIntent","AtriumCalculationDesign","AtriumTableData"]});
       await AtriumLazy.need(["AtriumNumericFields","AtriumUndoStore"]);
       const resistor={id:"rdef",name:"Resistor",prefix:"R",symbol:{shapes:[],pins:[]}};
       const p=Atrium.project("Sparse table numeric targets",[resistor]),d=Atrium.sheet("schematic","Values");

@@ -5,6 +5,7 @@ const {chromium}=require("../support/playwright.cjs");
   const browser=await chromium.launch({channel:"chrome",args:["--allow-file-access-from-files"]});
   try{
     const page=await browser.newPage({viewport:{width:1280,height:860}});
+    await require("../fixtures/notebook-labs.cjs").profile(page);
     await page.goto(pathToFileURL(path.resolve(__dirname,"../../app/index.html")).href);
     await page.waitForFunction(()=>globalThis.AtriumNavHost?.doc());
     const results=await page.evaluate(async()=>{

@@ -82,7 +82,7 @@ module.exports=async function sourceRuleViews(browser){
     try{
       await page.goto(pathToFileURL(path.join(__dirname,"../../app/index.html")).href);
       await page.evaluate(theme=>AtriumTheme.set({preset:theme,followSystem:false},{persist:false}),theme);
-      // This view tests the Ask flow; the default (use) is covered in tests/import-rules.cjs.
+      // This view tests the Ask flow; the default (use) is covered in tests/formats/import-rules.cjs.
       await page.evaluate(async()=>{const P=globalThis.AtriumPrefs||await AtriumLazy.need("AtriumPrefs");P.set("pcb.importRules","ask");});
       await chooseFile(page,startup(page).getByRole("button",{name:"Import from Altium or KiCad…",exact:true}),fixture,".pcbdoc");
       await page.waitForFunction(()=>globalThis.AtriumImportRules?.pending(AtriumNavHost.project()).some(r=>r.count===41));

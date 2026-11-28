@@ -1,5 +1,5 @@
 "use strict";
-// Paired R5/R6 regression. The R5-only physical endpoint corpus is tests/frame-conversion.cjs.
+// Paired R5/R6 regression. The R5-only physical endpoint corpus is tests/formats/frame-conversion.cjs.
 const assert=require("node:assert/strict");
 for (const m of ["model","sch-appearance","sch-objects","hierarchy","multichannel","erc","frame-conversion","altium-rules","rules","project-rules",
   "note-fields","notebook","widget-catalogue","sheet-widgets","calculation-records","calculation-checks","calculations"]) require(require("../support/app-source-paths.cjs").appFile(m+".js"));

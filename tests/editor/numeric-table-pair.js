@@ -7,7 +7,9 @@ const app=path.resolve(__dirname,"../../app"),tables=path.resolve(process.argv[2
 for(const name of ["model","source-file","note-fields","calculation-intent","calculation-core","query-fields","calculators",
   "calculation-helpers","calculation-records","calculation-graph","calculation-design","calculations","numeric-fields"])
   require(require("../support/app-source-paths.cjs").appFileFrom(app, name+".js"));
-const T=require(path.join(tables,"table-data.js")),F=require(path.join(tables,"table-formulas.js"));
+// Find each table module wherever that app directory keeps it (app/notebook/ in this checkout).
+const tableFile=file=>path.join(tables,require("../support/app-source-paths.cjs").inventoryFrom(tables).get(file) || file);
+const T=require(tableFile("table-data.js")),F=require(tableFile("table-formulas.js"));
 const N=globalThis.AtriumNumericFields;
 async function run() {
   let next=0,state=T.create(1000,2,()=>"axis"+(++next));

@@ -13,7 +13,7 @@ Appearance settings live in **File → Preferences… → Appearance** (`Mod+,`)
 | Animations | System (Full, or Reduced when the OS asks), Full, Reduced (fades only), Off (`motion`: `system`, `full`, `reduce`, `off`) |
 | Canvas | Follow the theme, or set the PCB background, schematic background and sheet colour separately |
 
-The built-in presets use contrast checks for text and control states (`tests/theme.cjs`). Waffle applies the theme before first paint.
+The built-in presets use contrast checks for text and control states (`tests/editor/theme.cjs`). Waffle applies the theme before first paint.
 
 PCB layer colours are separate: **View Configuration** (`L` on a board, or **View → View Configuration…**) edits layer colours, opacity and system colours. **Reset to Altium®-style defaults** restores the classic layer palette.
 

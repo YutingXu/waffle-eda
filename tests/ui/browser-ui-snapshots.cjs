@@ -10,8 +10,10 @@
 // --compare reports, per surface, the pixels that differ and the elements whose computed style
 // changed, and exits 1 on any difference not listed with --allow SURFACE (repeatable).
 // --only NAME limits the run to surfaces whose name contains NAME. CHROME=/path picks the browser.
+// Without --out the captures go to a new temporary folder, named at the end, never into the checkout.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
 
@@ -19,7 +21,7 @@ const argv = process.argv.slice(2);
 const arg = name => { const i = argv.indexOf(name); return i < 0 ? undefined : argv[i + 1]; };
 const all = name => argv.flatMap((a, i) => a === name ? [argv[i + 1]] : []);
 const APP = path.resolve(arg("--app") || path.join(__dirname, "../../app"));
-const OUT = path.resolve(arg("--out") || "ui-snapshots");
+const OUT_ARG = arg("--out");
 const BASE = arg("--compare") && path.resolve(arg("--compare"));
 const ONLY = arg("--only");
 const ALLOW = new Set(all("--allow"));
@@ -154,6 +156,7 @@ async function pixelDiff(page, a, b) {
 }
 
 module.exports = async function snapshots(browser) {
+  const OUT = OUT_ARG ? path.resolve(OUT_ARG) : fs.mkdtempSync(path.join(os.tmpdir(), "waffle-ui-snapshots-"));
   fs.mkdirSync(OUT, {recursive:true});
   const failures = [], report = [];
   for (const profile of PROFILES) {
@@ -199,7 +202,7 @@ module.exports = async function snapshots(browser) {
   }
   fs.writeFileSync(path.join(OUT, "report.txt"), report.join("\n") + "\n" + (failures.length ? "\nFAILURES\n" + failures.join("\n") + "\n" : ""));
   console.log(report.join("\n"));
-  assert.equal(failures.length, 0, failures.join("\n"));
+  assert.equal(failures.length, 0, failures.join("\n") + "\nCaptures in " + OUT);
   console.log("PASS UI snapshots: " + PROFILES.length * SURFACES.length + " surface captures" + (BASE ? " match the baseline" : " recorded in " + OUT));
 };
 

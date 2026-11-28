@@ -221,6 +221,12 @@ assert.equal(s2.tracks, s1.tracks, "track segments");
 assert.equal(s2.vias, s1.vias, "vias");
 assert.equal(s2.nets, s1.nets, "nets");
 const polys = b2.items.filter(i => i.kind === "polygon");
+// The fill stored above is out of date by now: the keep-outs, teardrops, net fill and rules came
+// after it. The file carries the fill the fabrication outputs plot for the board as it stands.
+const fillOf = (regions, id) => regions.filter(r => r.polygon === id).reduce((s, r) => s + regionArea(r), 0);
+const plotted = PP.outputCopper(board, defs, {project, evaluatedOnly: true});
+assert.ok(plotted.filled.includes(gnd.id), "the GND plane is out of date when it is saved");
+assert.ok(Math.abs(fillOf(plotted.regions, gnd.id) - fillOf(fills, gnd.id)) > 1, "the stale and the current GND fill differ");
 for (const src of nonCutPours) {
   const got = polys.find(p => p.layer === src.layer && p.net === src.net && p.points.length === src.points.length && src.points.every(q => p.points.some(r => nearP(q, r))));
   assert.ok(got, "pour " + (src.name || src.net + " " + src.layer) + " outline");
@@ -230,9 +236,9 @@ for (const src of nonCutPours) {
   if (src.reliefAirGap) assert.ok(near(got.reliefAirGap, src.reliefAirGap), "relief gap");
   if (src.fillMode === "hatched") { assert.ok(near(got.hatchWidth, src.hatchWidth)); assert.ok(near(got.hatchPitch, src.hatchPitch)); assert.equal(got.hatchAngle, src.hatchAngle); }
   if (src.clearance != null) assert.ok(near(got.clearance, src.clearance), "clearance");
-  // Stored fill: the same copper area (holes included, fractured into one ring per island).
-  const before = fills.filter(r => r.polygon === src.id).reduce((s, r) => s + regionArea(r), 0);
-  const after = (b2.pcbDrawing?.pours || []).filter(r => r.polygon === got.id).reduce((s, r) => s + regionArea(r), 0);
+  // Saved fill: the same copper area as the outputs' (holes included, fractured into one ring per island).
+  const before = fillOf(plotted.regions, src.id);
+  const after = fillOf(b2.pcbDrawing?.pours || [], got.id);
   assert.ok(before > 0 && Math.abs(after - before) <= Math.max(1e-3, before * 1e-5), "fill area " + (src.name || src.net) + ": " + before + " -> " + after);
   src.back = got;
 }
@@ -258,6 +264,103 @@ const again = K.exportBoard(back.project, b2);
 for (const k of ["footprints", "pads", "segments", "vias", "zones", "zoneFills"]) assert.equal(again.counts[k], out.counts[k], "re-export " + k);
 console.log("PASS KiCad round trip: " + [s2.parts + " footprints", s2.tracks + " segments", s2.vias + " vias", out.counts.zones + " zones (" + out.counts.zoneFills + " stored fills, " +
   teardrops.length + " teardrops)", keepZones.length + " keep-outs", out.counts.dimensions + " dimensions", s2.nets + " nets", druRules.length + " custom rules"].join(", "));
+
+// ------------------------------------------------------------------ 2b. edits and a KiCad source saved back
+{
+  // An edit after the pour: the save carries the copper the outputs plot, not the fill from before the move.
+  const p3 = A.clone(project), b3 = p3.documents.find(d => d.id === board.id), d3 = defsOf(p3);
+  const zoneFill = text => kids(kids(parse(text), "zone").find(z => kids(z, "name")[0]?.[1] === "GND plane"), "filled_polygon");
+  const first = K.exportBoard(p3, b3), via = b3.items.find(i => i.kind === "via" && i.net !== "GND");
+  via.x += 1.5; via.y += 1;
+  const moved = K.exportBoard(p3, b3), want = PP.outputCopper(b3, d3, {project: p3, evaluatedOnly: true}).regions;
+  assert.notDeepEqual(zoneFill(moved.content), zoneFill(first.content), "the saved fill follows a moved via");
+  const m = reimport(moved), mg = m.board.items.find(i => i.kind === "polygon" && i.name === "GND plane");
+  const got = fillOf(m.board.pcbDrawing.pours, mg.id), exact = fillOf(want, gnd.id);
+  assert.ok(exact > 0 && Math.abs(got - exact) <= exact * 1e-5, "saved fill after the move: " + exact + " -> " + got);
+  console.log("PASS KiCad save after an edit carries the outputs' pour fill");
+}
+{
+  // demo.kicad_pcb (this repository's own fixture): an arc track, an oval through-hole pad, a
+  // chamfered rectangle, a trapezoid and a custom pad are saved as the records they were read from.
+  const demo = fs.readFileSync(path.join(__dirname, "../fixtures/import/demo.kicad_pcb"), "utf8");
+  const src = reimport({name: "demo.kicad_pcb", content: demo}), saved = K.exportBoard(src.project, src.board), t = parse(saved.content);
+  const nums = (v, name) => kids(v, name)[0].slice(1).map(Number), netName = id => kids(t, "net").find(n => n[1] === String(id))[2];
+  const arcs = kids(t, "arc");
+  assert.equal(arcs.length, 1, "one arc track");
+  assert.equal(kids(t, "segment").length, kids(parse(demo), "segment").length, "no chords beside it");
+  assert.deepEqual([nums(arcs[0], "start"), nums(arcs[0], "end"), nums(arcs[0], "width"), kids(arcs[0], "layer")[0][1], netName(nums(arcs[0], "net")[0])],
+    [[20, 20], [25, 25], [.25], "F.Cu", "SIG"]);
+  assert.ok(nearP(nums(arcs[0], "mid"), [21.464466, 23.535534], 1e-5), "arc midpoint");
+  assert.equal(saved.counts.arcs, 1);
+  const padsOf = (tree, ref) => kids(kids(tree, "footprint").find(f => f.some(c => Array.isArray(c) && c[2] === ref && /reference/i.test(c[1]))), "pad");
+  const pad = (tree, ref, number) => padsOf(tree, ref).find(q => q[1] === number);
+  const oval = pad(t, "J1", "2");
+  assert.deepEqual([oval[3], nums(oval, "size"), kids(oval, "drill")[0].slice(1)], ["oval", [1.7, 2.2], ["oval", "1", "1.4"]], "a capsule is KiCad's oval");
+  const chamfer = pad(t, "U2", "1");
+  assert.deepEqual([chamfer[3], nums(chamfer, "size"), nums(chamfer, "chamfer_ratio"), kids(chamfer, "chamfer")[0].slice(1)], ["chamfered_rect", [1.2, 1.2], [.25], ["top_left"]]);
+  const trapezoid = pad(t, "U2", "2");
+  assert.deepEqual([trapezoid[3], nums(trapezoid, "size"), nums(trapezoid, "rect_delta")], ["trapezoid", [1, 1.4], [0, .4]]);
+  const custom = pad(t, "U2", "3"), poly = kids(kids(custom, "primitives")[0], "gr_poly")[0];
+  assert.deepEqual([custom[3], nums(custom, "size"), kids(kids(custom, "options")[0], "anchor")[0][1]], ["custom", [.5, .5], "rect"], "a custom pad keeps its anchor");
+  assert.deepEqual(kids(kids(poly, "pts")[0], "xy").map(v => v.slice(1).map(Number)), [[-.5, -.5], [.8, -.5], [.8, .9], [-.5, .5]]);
+  assert.ok(!saved.diagnostics.some(m => /64-sided/.test(m)), "no ellipse stands in for a capsule");
+  // The other forms, turned: a trapezoid along X, an octagon-like chamfer on every corner, and an
+  // anchor that no longer fits its outline. Rounded corners beside a chamfer stay an outline.
+  // A slot cut into the outline between the corners of a 0.5 mm anchor, and through it.
+  const notch = [[-1, -1], [1, -1], [1, 1], [.05, 1], [.05, -.1], [-.05, -.1], [-.05, 1], [-1, 1]];
+  const board2 = `(kicad_pcb (version 20221018) (generator test) (layers (0 "F.Cu" signal) (31 "B.Cu" signal)) (net 0 "")
+    (footprint "Forms" (layer "F.Cu") (at 10 10 30) (property "Reference" "U9" (at 0 -3) (layer "F.SilkS"))
+      (pad "1" smd trapezoid (at 0 0) (size 1.4 1) (rect_delta 0.3 0) (layers "F.Cu"))
+      (pad "2" smd chamfered_rect (at 3 0 90) (size 2 1) (chamfer_ratio 0.2) (chamfer top_left top_right bottom_left bottom_right) (layers "F.Cu"))
+      (pad "3" smd chamfered_rect (at 6 0) (size 2 1) (roundrect_rratio 0.2) (chamfer_ratio 0.2) (chamfer bottom_right) (layers "F.Cu"))
+      (pad "4" smd custom (at 9 0) (size 0.4 0.4) (layers "F.Cu") (options (clearance outline) (anchor circle))
+        (primitives (gr_poly (pts (xy -1 -1) (xy 1 -1) (xy 0 1)) (width 0) (fill yes))))
+      (pad "5" smd oval (at 12 0) (size 2 1) (layers "F.Cu"))
+      (pad "6" smd custom (at 15 0) (size 0.5 0.5) (layers "F.Cu") (options (clearance outline) (anchor rect))
+        (primitives (gr_poly (pts (xy -1 -1) (xy 1 -1) (xy 1 1) (xy 0 1.2) (xy -1 1)) (width 0) (fill yes))))
+      (pad "7" smd custom (at 18 0) (size 0.5 0.5) (layers "F.Cu") (options (clearance outline) (anchor rect))
+        (primitives (gr_poly (pts ${"NOTCH"}) (width 0) (fill yes))))
+      (pad "8" smd chamfered_rect (at 21 0) (size 2 1) (chamfer_ratio 0.5) (chamfer top_left top_right) (layers "F.Cu"))
+      (pad "9" smd chamfered_rect (at 24 0) (size 2 1) (chamfer_ratio 0.5) (chamfer top_left bottom_left) (layers "F.Cu"))))`
+    .replace("NOTCH", notch.map(v => "(xy " + v.join(" ") + ")").join(" "));
+  const forms = reimport({name: "forms.kicad_pcb", content: board2}), t2 = parse(K.exportBoard(forms.project, forms.board).content);
+  const f = number => pad(t2, "U9", number);
+  assert.deepEqual([f("1")[3], nums(f("1"), "size"), nums(f("1"), "rect_delta")], ["trapezoid", [1.4, 1], [.3, 0]]);
+  assert.deepEqual([f("2")[3], nums(f("2"), "size"), nums(f("2"), "chamfer_ratio"), kids(f("2"), "chamfer")[0].slice(1)],
+    ["chamfered_rect", [2, 1], [.2], ["top_left", "top_right", "bottom_left", "bottom_right"]]);
+  assert.equal(f("3")[3], "custom", "sampled round corners stay an outline");
+  assert.deepEqual([f("4")[3], nums(f("4"), "size"), kids(kids(f("4"), "options")[0], "anchor")[0][1]], ["custom", [.4, .4], "circle"]);
+  assert.deepEqual([f("5")[3], nums(f("5"), "size")], ["oval", [2, 1]]);
+  const fp = forms.project.library.find(d => d.footprint?.pads.some(q => q.number === "4")).footprint;
+  fp.pads.find(q => q.number === "4").poly = [[.5, .5], [2, .5], [1, 2]];  // the outline moved off its anchor
+  const off = pad(parse(K.exportBoard(forms.project, forms.board).content), "U9", "4");
+  assert.deepEqual([nums(off, "size"), kids(kids(off, "options")[0], "anchor")[0][1]], [[.01, .01], "circle"], "an anchor outside its outline is not written");
+  // KiCad's copper is the anchor and the outline together. An anchor is kept only while the whole of
+  // it lies within the outline: with a notch through it, it would fill copper Waffle does not have.
+  const anchorOf = v => [nums(v, "size"), kids(kids(v, "options")[0], "anchor")[0][1]];
+  assert.deepEqual(anchorOf(f("6")), [[.5, .5], "rect"]);
+  const fpPad = number => fp.pads.find(q => q.number === number);
+  fpPad("6").poly = notch.map(v => [...v]);
+  assert.deepEqual(anchorOf(pad(parse(K.exportBoard(forms.project, forms.board).content), "U9", "6")), [[.01, .01], "circle"], "an anchor cut by its outline is not written");
+  assert.equal(fpPad("7").poly.length, 4, "the same pad read from a file is the anchor and the outline together");
+  // A chamfer of half the short side reaches the middle of that side.
+  for (const [number, corners] of [["8", ["top_left", "top_right"]], ["9", ["top_left", "bottom_left"]]])
+    assert.deepEqual([f(number)[3], nums(f(number), "size"), nums(f(number), "chamfer_ratio"), kids(f(number), "chamfer")[0].slice(1)], ["chamfered_rect", [2, 1], [.5], corners]);
+  // Three points at the file's precision do not hold a sliver of an arc: 0.05 degrees of a 5 mm
+  // radius reads back as 13.9 mm. Those keep their chords, and every arc written reads back as itself.
+  const arcTrack = src.board.items.find(i => i.kind === "track" && A.pathArc(i));
+  const sweeps = [.05, .5, 20];
+  for (const [k, sweep] of sweeps.entries()) {
+    const arc = {kind: "arc", c: [30.1234567, 40 + 12 * k + .7654321], r: 5, start: 17, end: 17 + sweep, ccw: true};
+    src.board.items.push({...A.clone(arcTrack), id: "sliver" + k, arc, points: A.arcProjection(arc)});
+  }
+  const slivers = K.exportBoard(src.project, src.board), written = kids(parse(slivers.content), "arc");
+  const radius = v => I.geom.circle3(nums(v, "start"), nums(v, "mid"), nums(v, "end")).r;
+  assert.deepEqual(written.map(v => Math.round(radius(v) * 1000) / 1000), [5, 5], "the arcs written: " + written.map(radius));
+  assert.equal(kids(parse(slivers.content), "segment").length, kids(t, "segment").length + 4, "two slivers as two chords each");
+  assert.equal(slivers.counts.arcs, 2);
+  console.log("PASS KiCad source saved back: arc track, oval, chamfered, trapezoid and custom pads in their own records");
+}
 
 // ------------------------------------------------------------------ 3. fracture and project export
 {

@@ -9,7 +9,7 @@ Both dialogs offer two engines. The choice is remembered.
   - While v2 routes, routes are drawn on the board as they land.
   - **Stop** cancels the run and changes nothing.
 
-v1 stays the default until v2 wins every benchmark (`tests/autorouter-bench.cjs`). Today v2 completes more connections and uses fewer vias, with no clearance errors. It is slower, though: about 1.3–1.5× on small boards and up to 8× on dense, incomplete ones, where it retries.
+v1 stays the default until v2 wins every benchmark (`tests/pcb/autorouter-bench.cjs`). Today v2 completes more connections and uses fewer vias, with no clearance errors. It is slower, though: about 1.3–1.5× on small boards and up to 8× on dense, incomplete ones, where it retries.
 
 ## What v2 does
 

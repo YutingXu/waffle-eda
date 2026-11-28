@@ -3,7 +3,7 @@
 # zoom / right-drag / hover frames, part and wire drags, wire drawing, one-edit deferred work,
 # select-all and move-all, net highlight, compile (ERC), annotate, cross-probe, search, save
 # (incremental serialisation), heap, and idle wake-ups and CPU (energy). The probe is
-# tests/integration/perf-sch.js; the synthetic hierarchical projects come from tests/sch-bench-project.js.
+# tests/integration/perf-sch.js; the synthetic hierarchical projects come from tests/schematic/sch-bench-project.js.
 #
 # Frames are timed synchronously (input -> handler -> render -> raster; no vsync wait), as in
 # scripts/perf-canvas.sh stage 2. Idle and post-edit CPU come from the browser's own counters

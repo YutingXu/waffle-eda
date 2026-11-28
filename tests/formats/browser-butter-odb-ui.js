@@ -2,7 +2,7 @@
 // Walks the ODB++ output card in File › Release (butter.odb, task 55): the live preview with its
 // progress line, fidelity summary, fidelity report and receipt, then each reason the archive cannot be
 // written (ODB++ off, no PCB, no closed board shape, worker unavailable) with its fixing action.
-// node tests/browser-butter-odb-ui.cjs [--shots OUTPUT_DIRECTORY]
+// node tests/formats/browser-butter-odb-ui.js [--shots OUTPUT_DIRECTORY]
 const assert = require("node:assert/strict");
 const {boot, run} = require("../support/butter-design.cjs");
 

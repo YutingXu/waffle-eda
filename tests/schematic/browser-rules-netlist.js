@@ -62,7 +62,7 @@ function metrics(project) {
     const env=require("../support/native-folder-fixture.cjs").hostEnv(path.join(tmp,"folder-host"),root);
     const author=[
       "import json,sys",
-      "sys.path.insert(0,'tests')",
+      "sys.path.insert(0,'tests/support')",
       "from native_sample import write_design,read_design",
       "manifest = write_design(sys.argv[1],json.load(sys.stdin))",
       "print(json.dumps(read_design(manifest)))"
@@ -94,8 +94,9 @@ function metrics(project) {
           assert.ok(await page.evaluate(()=>!globalThis.AtriumNetlistText && !globalThis.AtriumNetlistView && !globalThis.AtriumRuleLint),"closed tools do no work at startup");
           if(inspectSource){
             const board=project.documents.find(d=>d.kind==="pcb"),row=AtriumRules.sourceReport(board.sourceRules,board).find(r=>r.status==="source-only");
-            await page.getByText("Import report",{exact:true}).first().click();
-            await page.getByRole("button",{name:"View import details",exact:true}).click();
+            // The project's ⋯ menu opens the report; without a retained import it is the Import details sheet.
+            await page.locator('[data-project-menu="more"]').click();
+            await page.locator(".nav-menu [role=menuitem]",{hasText:"Import Report"}).click();
             const report=page.getByRole("dialog").filter({has:page.getByRole("heading",{name:"Import details"})});
             await report.locator("details > summary").filter({hasText:board.name+" · "+board.sourceRules.length+" Altium design rules"}).click();
             await report.getByText(row.name+" · Source only",{exact:true}).click();

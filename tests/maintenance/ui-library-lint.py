@@ -30,7 +30,7 @@ Fails when feature code adds an ad hoc control instead of using the library in a
             tests/editor/browser-titlebar-safe-area.cjs checks the same at runtime.
   hover     an app stylesheet changes a border on hover or gives hover feedback a duration other
             than --motion-instant, including transitions on the corresponding resting rule.
-Each existing site is listed once in tests/ui-library-legacy.json. A listed entry that no longer
+Each existing site is listed once in tests/maintenance/ui-library-legacy.json. A listed entry that no longer
 matches fails too, so the list only shrinks: delete the entry when the site moves to the library.
 Its "settled" map labels the entries the user kept as settled exceptions (docs/ui-library.md › Settled
 faces); each label must name a listed entry.

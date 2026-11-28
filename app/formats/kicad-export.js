@@ -274,7 +274,7 @@ globalThis.AtriumKiCad = (() => {
   function exportBoard(project,requested,observer){
     const doc=docFor(project,requested);if(doc?.kind!=="pcb")throw Error("Choose a PCB layout to export.");
     const defs=new Map(project.library.map(d=>[d.id,d])),notes=new Map(),nets=new Set(),inner=new Set();
-    const counts={footprints:0,components:0,standalonePads:0,pads:0,vias:0,segments:0,graphics:0,outlineEdges:0,zones:0,zoneFills:0,keepouts:0,teardrops:0,dimensions:0};
+    const counts={footprints:0,components:0,standalonePads:0,pads:0,vias:0,segments:0,arcs:0,graphics:0,outlineEdges:0,zones:0,zoneFills:0,keepouts:0,teardrops:0,dimensions:0};
     const note=m=>notes.set(m,(notes.get(m)||0)+1), addNote=observer?observer.diagnostics(note):note;
     const markLayer=l=>{const mapped=standardLayer(l),m=/^In(\d+)\.Cu$/.exec(mapped||"");if(m)inner.add(+m[1]);};
     const padNet=(part,pad)=>part?.pinNets?.[pad.number]??pad.net??"";
@@ -320,6 +320,21 @@ globalThis.AtriumKiCad = (() => {
         boardObjects.push("(segment (start "+a+") (end "+b+") (width "+n(width)+") (layer "+q(layer)+") (net "+(netId.get(net)||0)+") "+stamp(key+"/segment/"+i)+")");counts.segments++;
       }
     }
+    // A track that still follows its arc (model.js pathArc) is one KiCad arc through its start,
+    // middle and end. A full circle has no such record and keeps its chords. So does a sliver whose
+    // three points, at the file's precision, no longer give its radius to 0.02 %: its sagitta is then
+    // under 8 um and its chords lie within 2 um of it.
+    function track(o,layer){
+      const g=A.pathArc(o);
+      if(g&&isCu(layer)&&o.width>0){
+        const [a,m,b]=[o.points[0],A.arcPoint(g,g.start+A.arcSweep(g)/2),o.points.at(-1)].map(p=>[+n(p[0]),+n(p[1])]);
+        const twice=Math.abs((m[0]-a[0])*(b[1]-a[1])-(m[1]-a[1])*(b[0]-a[0])),side=(p,q)=>Math.hypot(q[0]-p[0],q[1]-p[1]);
+        if(twice>0&&Math.abs(side(a,m)*side(m,b)*side(a,b)/(2*twice)-g.r)<=g.r*2e-4){
+          boardObjects.push("(arc (start "+point(a)+") (mid "+point(m)+") (end "+point(b)+") (width "+n(o.width)+") (layer "+q(layer)+") (net "+(netId.get(o.net)||0)+") "+stamp(o.id+"/arc")+")");counts.arcs++;return;
+        }
+      }
+      segments(o.points,o.width,layer,o.net,o.id);
+    }
     function via(o,p,key){
       if(o.stackMode||o.padStack||o.backdrill||(o.ipc4761&&o.ipc4761!=="none"))addNote("Via stacks (per-layer lands, back-drill, IPC-4761) export as plain vias at the nominal diameter. Recreate them in KiCad.");
       if(!(o.diameter>0)||!(o.drill>0)||o.drill>=o.diameter){addNote("Vias without a valid drill and annular ring omitted.");return;}
@@ -334,7 +349,16 @@ globalThis.AtriumKiCad = (() => {
     // ---- zones: polygon pours, cut-outs, net-assigned copper fills and teardrops ----
     const R=globalThis.AtriumRules,ruleOf=(()=>{try{return R?.resolver?R.resolver(doc,{project}):null;}catch{return null;}})();
     const rule=(type,o)=>{try{return ruleOf?.(type,o)||null;}catch{return null;}};
-    const pours=doc.pcbDrawing?.pours||[];
+    // The copper a zone is saved with is what the fabrication outputs plot (polygon-pour.js
+    // outputCopper), as the Altium writer saves it: the stored fill when it is the exact fill for the
+    // board as it stands, else that fill made on a copy. A zone never poured stays unfilled.
+    const pours=(()=>{
+      const drawing=doc.pcbDrawing,stored=drawing?.pours||[],engine=globalThis.AtriumPolygonPour,archive=globalThis.AtriumPCBPours;
+      if(!stored.length&&!drawing?.sourceHatchSignature&&!Object.keys(drawing?.pourSignatures||{}).length&&!doc.items.some(i=>i.sourcePour!=null))return stored;
+      if(engine&&archive)return engine.outputCopper(doc,defs,{project,evaluatedOnly:true}).regions;
+      if(archive?.matchesSignature(doc,defs,project))return stored;
+      throw Error("Stored polygon copper could not be verified. Load the polygon pour engine before exporting this board.");
+    })();
     const ring=pts=>"(pts "+pts.map(p=>"(xy "+point(p)+")").join(" ")+")";
     const MAX_FILL_POINTS=400000;let fillPoints=0;
     function storedFill(region){
@@ -498,6 +522,36 @@ globalThis.AtriumKiCad = (() => {
       }
       return lines;
     }
+    // A custom outline that is exactly one of KiCad's parametric pads is written as that pad (the
+    // importer holds a trapezoid and a chamfered rectangle as their outlines): a centred rectangle,
+    // a trapezoid (size and rect_delta), or a rectangle with equal 45 degree chamfers on some corners.
+    function parametricPad(poly){
+      const E=2e-6,eq=(a,b)=>Math.abs(a-b)<=E;
+      const X=Math.max(...poly.map(v=>Math.abs(v[0]))),Y=Math.max(...poly.map(v=>Math.abs(v[1])));
+      if(!(X>E&&Y>E))return null;
+      if(poly.length===4){
+        // One corner in each quadrant: (-X-dy, Y+dx), (X+dy, Y-dx), (X-dy, -Y+dx), (-X+dy, -Y-dx).
+        const at=(sx,sy)=>poly.filter(v=>v[0]*sx>E&&v[1]*sy>E),c=[at(-1,1),at(1,1),at(1,-1),at(-1,-1)];
+        if(c.every(v=>v.length===1)){
+          const [p0,p1,p2,p3]=c.map(v=>v[0]);
+          const x=(p1[0]+p2[0]-p0[0]-p3[0])/4,dy=(p1[0]-p2[0]-p0[0]+p3[0])/4,y=(p0[1]+p1[1]-p2[1]-p3[1])/4,dx=(p0[1]-p1[1]+p2[1]-p3[1])/4;
+          const fits=[[p0,-x-dy,y+dx],[p1,x+dy,y-dx],[p2,x-dy,-y+dx],[p3,-x+dy,-y-dx]].every(([v,a,b])=>eq(v[0],a)&&eq(v[1],b));
+          if(fits&&eq(dx,0)&&eq(dy,0))return {shape:"rect",size:[2*x,2*y],extra:""};
+          if(fits&&(eq(dx,0)||eq(dy,0)))return {shape:"trapezoid",size:[2*x,2*y],extra:" (rect_delta "+n(2*dx)+" "+n(2*dy)+")"};
+        }
+        return null;
+      }
+      // A corner of the bounding rectangle is either a vertex or cut by two, the same distance c along each side.
+      if(poly.length<5||poly.length>8)return null;
+      const has=(x,y)=>poly.some(v=>eq(v[0],x)&&eq(v[1],y));
+      const corners=[{name:"top_left",sx:-1,sy:-1},{name:"top_right",sx:1,sy:-1},{name:"bottom_left",sx:-1,sy:1},{name:"bottom_right",sx:1,sy:1}],cut=corners.filter(k=>!has(k.sx*X,k.sy*Y));
+      if(!cut.length||poly.length!==4+cut.length)return null;
+      // The chamfer's end on the first cut corner's vertical side; at half the short side it is on the middle line.
+      const {sx:fx,sy:fy}=cut[0],c=Y-Math.max(...poly.filter(v=>eq(v[0],fx*X)&&v[1]*fy>-E).map(v=>v[1]*fy),-Infinity);
+      if(!(c>E&&c<=Math.min(X,Y)+E)||!cut.every(k=>has(k.sx*X,k.sy*(Y-c))&&has(k.sx*(X-c),k.sy*Y))||
+        !eq(Math.abs(signedArea(poly)),4*X*Y-cut.length*c*c/2))return null;
+      return {shape:"chamfered_rect",size:[2*X,2*Y],extra:" (roundrect_rratio 0) (chamfer_ratio "+n(c/(2*Math.min(X,Y)))+") (chamfer "+cut.map(k=>k.name).join(" ")+")"};
+    }
     function pad(o,parent,p,key,source){
       const w=o.w,h=o.h,d=o.drill||0,net=padNet(parent,o);
       if(!(w>0&&h>0)||d<0||d>Math.min(w,h)+.000001){addNote("Pads with inconsistent copper or drill dimensions omitted.");return "";}
@@ -515,21 +569,35 @@ globalThis.AtriumKiCad = (() => {
       const slot=d>0&&o.slotLength>d+1e-6,across=slot?(((o.slotAngle||0)%180)+180)%180:0;
       let turn=slot&&Math.abs(across-90)>1e-6&&across>1e-6&&180-across>1e-6?o.slotAngle:0;
       const spin=v=>turn?A.rotate(v,-turn):v;
+      // The land engine names the shape (pcb-appearance.js padShape): a round pad with unequal sides is
+      // a capsule, which is KiCad's oval. A true ellipse and an octagon have no KiCad pad, and neither
+      // has a capsule whose slot is at an angle to it: that pad turns with its slot.
+      const land=AtriumResolvedLand.shape(s,w,Math.abs(w-h)<.000001?w:h,true),outline=land==="custom"&&Array.isArray(o.poly)&&o.poly.length>2?o.poly:null;
+      const native=outline&&!turn?parametricPad(outline):null;
       let shape,extra="",size=[w,h];
-      if(["rect","rectangle"].includes(s))shape="rect";
-      else if(["rounded","roundedrect","roundrect"].includes(s)){shape="roundrect";extra=" (roundrect_rratio "+n(A.padCornerRatio(o))+")";}
-      else if(["round","circle","oval","ellipse"].includes(s)&&Math.abs(w-h)<.000001)shape="circle";
-      else if(s==="custom"&&Array.isArray(o.poly)&&o.poly.length>2){
-        // Custom polygon pads (footprint editor, KiCad and EasyEDA imports): one polygon primitive
-        // around a minimal anchor, so the copper is exactly the stored outline.
-        shape="custom";const anchor=Math.max(d,.01);size=[anchor,anchor];
-        extra=" (options (clearance outline) (anchor circle)) (primitives (gr_poly (pts "+o.poly.map(v=>"(xy "+point(spin(v))+")").join(" ")+") (width 0) (fill yes)))";
+      if(land==="rect")shape="rect";
+      else if(land==="roundrect"){shape="roundrect";extra=" (roundrect_rratio "+n(A.padCornerRatio(o))+")";}
+      else if(land==="circle")shape="circle";
+      else if(land==="obround"&&!turn)shape="oval";
+      else if(native)({shape,size,extra}=native);
+      else if(outline){
+        // Custom polygon pads (footprint editor, KiCad and EasyEDA imports): one polygon primitive, so
+        // the copper is exactly the stored outline, around the source's own anchor while that still
+        // lies within it (import-kicad.js sourceAnchor, model.js landWithin), else around a minimal one.
+        shape="custom";
+        const a=o.sourceAnchor,round=a?.shape!=="rect",kept=a&&a.w>0&&a.h>0&&Math.min(a.w,a.h)>=d&&(round||!turn)&&A.landWithin(round,a.w,a.h,outline);
+        const anchor=Math.max(d,.01);size=kept?[a.w,a.h]:[anchor,anchor];
+        extra=" (options (clearance outline) (anchor "+(kept&&!round?"rect":"circle")+")) (primitives (gr_poly (pts "+outline.map(v=>"(xy "+point(spin(v))+")").join(" ")+") (width 0) (fill yes)))";
       }
-      else if(["round","circle","oval","ellipse","octagon","octagonal"].includes(s)){
-        // KiCad's oval is a capsule. Waffle displays an ellipse. A custom
-        // polygon preserves its actual envelope and avoids changing clearance.
+      else if(land==="ellipse"||land==="octagon"||land==="obround"){
+        // A polygon keeps the envelope of a shape KiCad has no pad for.
         shape="custom";let vertices;
-        if(s.startsWith("oct")){
+        if(land==="obround"){
+          // Two half circles of the short side's radius, on the ends of the long axis.
+          const r=Math.min(w,h)/2,l=Math.max(w,h)/2-r,cap=i=>(i%33)*Math.PI/32+(i<33?-1:1)*Math.PI/2;
+          vertices=Array.from({length:66},(_,i)=>A.rotate([(i<33?l:-l)+r*Math.cos(cap(i)),r*Math.sin(cap(i))],w>h?0:90));
+          addNote("Capsule pads with a slot at an angle to their sides use 64-sided custom outlines.");
+        }else if(land==="octagon"){
           const t=Math.min(w,h)*.25,x=w/2,y=h/2;vertices=[[-x+t,-y],[x-t,-y],[x,-y+t],[x,y-t],[x-t,y],[-x+t,y],[-x,y-t],[-x,-y+t]];
         }else{vertices=Array.from({length:64},(_,i)=>[w/2*Math.cos(i*Math.PI/32),h/2*Math.sin(i*Math.PI/32)]);addNote("Elliptical pads with unequal axes use 64-sided custom outlines.");}
         const anchor=Math.max(d,Math.min(w,h)*.25);size=[anchor,anchor];
@@ -627,7 +695,7 @@ globalThis.AtriumKiCad = (() => {
         footprint({id:o.id,ref,value:"Board pad",x:o.x,y:o.y,angle:0,layer:o.layer==="Bottom"?"Bottom":"Top",pinNets:{}},
           {name:"BoardPad",shapes:[],pads:[{...o,x:0,y:0}]},true,o);
       }else if(o.kind==="via")via(o,[o.x,o.y],o.id);
-      else if(o.kind==="track")segments(o.points,o.width,omitLayer(o.layer,"Track"),o.net,o.id);
+      else if(o.kind==="track")track(o,omitLayer(o.layer,"Track"));
       else if(o.kind==="graphic"||o.kind==="label")boardObjects.push(...graphic(o,null,o.id));
       else if(o.kind==="polygon")pour(o);
       else addNote("Unsupported board item "+o.kind+" omitted.");

@@ -572,7 +572,7 @@ async function actions(page, kind) {
       drawing:["drawing-view", "drawing-table", "drawing-text"],
     };
     return [...new Set(menu.concat(commands, ["about", "grid-picker", "grid-custom", "library-catalogue", "shortcuts", "find-replace",
-      "library-sources", "rule-sets", "collab-status", "collab-live", "clipboard-picker", "project-connections", "check-updates"],
+      "library-sources", "rule-sets", "collab-status", "collab-live", "clipboard-picker", "project-connections", "check-updates", "customise-waffle"],
       related[kind] || []))].filter(Boolean);
   }, kind);
 }

@@ -101,10 +101,8 @@ globalThis.AtriumKiCadImport = (() => {
   const PAD_FIELDS = new Set(["at", "size", "drill", "layers", "net", "uuid", "tstamp", "roundrect_rratio", "chamfer_ratio", "chamfer", "rect_delta", "options", "primitives",
     "solder_mask_margin", "solder_paste_margin", "solder_paste_margin_ratio", "solder_paste_ratio"]);
   function padReason(k, pad, issues) {
-    const ovalCopper = k[3] === "oval" && pad.w !== pad.h ? "The KiCad copper capsule is drawn as an ellipse in the editor" : null;
-    if (issues?.length) return (ovalCopper ? [...issues, ovalCopper] : issues).join(". ");
+    if (issues?.length) return issues.join(". ");
     if (!Object.hasOwn(PAD_SHAPES, k[3])) return "The unknown pad shape uses a rectangle.";
-    if (ovalCopper) return ovalCopper + ".";
     if ((k[3] === "roundrect" || k[3] === "chamfered_rect") && num(val(k, "roundrect_rratio"), 0) > 0 && pad.shape === "custom")
       return "The rounded corners use sampled geometry.";
     if (!["smd", "thru_hole", "np_thru_hole"].includes(k[2])) return "The pad type maps to a native surface pad.";
@@ -272,7 +270,7 @@ globalThis.AtriumKiCadImport = (() => {
   }
   const PAD_SHAPES = {circle: "round", rect: "rect", oval: "oval", roundrect: "roundrect", trapezoid: "rect", chamfered_rect: "rect", custom: "rect"};
   const PAD_FILMS = new Map([["F.Paste", "Top paste"], ["B.Paste", "Bottom paste"], ["F.Mask", "Top mask"], ["B.Mask", "Bottom mask"]]);
-  // KiCad ovals are capsules; Waffle's "oval" pad is drawn as an ellipse of the same extents.
+  // KiCad's oval is a capsule, and so is Waffle's "oval" pad (pcb-appearance.js padShape: obround).
 
   const BOARD_MARGINS = {mask: "pad_to_mask_clearance", paste: "pad_to_paste_clearance", ratio: "pad_to_paste_clearance_ratio"};
   const boardExpansions = new WeakMap();
@@ -697,7 +695,8 @@ globalThis.AtriumKiCadImport = (() => {
     } else if (shape === "custom") {
       // The anchor plus every primitive: one polygon primitive enclosing the anchor is
       // used as drawn; anything else becomes the convex hull of all of them.
-      const anchor = val(one(k, "options"), "anchor") === "circle" ? G().circlePoints([0, 0], Math.min(w, h) / 2) : G().padOutline(w, h);
+      const round = val(one(k, "options"), "anchor") === "circle";
+      const anchor = round ? G().circlePoints([0, 0], Math.min(w, h) / 2) : G().padOutline(w, h);
       const prims = (one(k, "primitives") || []).filter(isL), outlines = [];
       for (const p of prims) {
         const g = primitive(p);
@@ -706,10 +705,12 @@ globalThis.AtriumKiCadImport = (() => {
         if (g.circle) outlines.push(G().circlePoints(g.circle.c, g.circle.r + pw));
         else if (g.points?.length) outlines.push(pw > 0 && !g.closed ? g.points.flatMap(q => [[q[0] - pw, q[1] - pw], [q[0] + pw, q[1] + pw], [q[0] - pw, q[1] + pw], [q[0] + pw, q[1] - pw]]) : g.points);
       }
-      const inside = (q, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > q[1]) !== (yj > q[1]) && q[0] < (xj - xi) * (q[1] - yi) / (yj - yi) + xi) c = !c; } return c; };
-      if (outlines.length === 1 && prims.length === 1 && prims[0][0] === "gr_poly" && anchor.every(q => inside([q[0] * .999, q[1] * .999], outlines[0]))) custom(outlines[0]);
+      if (outlines.length === 1 && prims.length === 1 && prims[0][0] === "gr_poly" && A.landWithin(round, w, h, outlines[0])) custom(outlines[0]);
       else if (outlines.length) { custom(G().hull([...anchor, ...outlines.flat()])); notes.add("Custom pads with several primitives import as the convex hull of their copper"); }
-      else pad.shape = val(one(k, "options"), "anchor") === "circle" ? "round" : "rect";
+      else pad.shape = round ? "round" : "rect";
+      // The anchor is the land at the pad origin that the primitives join. The outline already holds
+      // its copper; its own shape and size are kept so that a save writes the same custom pad.
+      if (pad.shape === "custom") pad.sourceAnchor = {shape: round ? "circle" : "rect", w, h};
     }
     const drill = one(k, "drill"), throughHole = type === "thru_hole" || type === "np_thru_hole";
     const copper = layers.some(l => /\.Cu$/.test(l));
