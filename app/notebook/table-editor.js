@@ -36,10 +36,10 @@ globalThis.AtriumTableEditor=(()=>{
       });parent.append(b);return b;
     }
     const select=(parent,label,values,fn)=>{
-      const l=el("label",label+" "),field=el("select");field.setAttribute("aria-label",label);field.className="ui-field";l.className="table-field";
+      const l=el("label"),field=el("select");l.append(el("span",label));field.setAttribute("aria-label",label);field.className="ui-field";l.className="table-field";
       for(const [val,name] of values)field.add(new Option(name,val));field.onchange=()=>{try{fn(field.value);}catch(e){feedback(e.message);}};l.append(field);parent.append(l);return field;
     };
-    const input=(parent,label,value,type,fn)=>{const l=el("label",label+" "),f=el("input");f.type=type;l.className="table-field";if(type!=="color")f.className="ui-field";f.value=value;f.setAttribute("aria-label",label);f.onchange=()=>{try{fn(f.value);}catch(e){feedback(e.message);}};l.append(f);parent.append(l);return f;};
+    const input=(parent,label,value,type,fn)=>{const l=el("label"),f=el("input");l.append(el("span",label));f.type=type;l.className="table-field";if(type!=="color")f.className="ui-field";f.value=value;f.setAttribute("aria-label",label);f.onchange=()=>{try{fn(f.value);}catch(e){feedback(e.message);}};l.append(f);parent.append(l);return f;};
     function apply(label,next,{materialize=false}={}) {
       if(!live())throw Error("This table is unavailable for editing.");
       const item=get(),previous=item.widget.state;

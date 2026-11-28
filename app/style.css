@@ -527,7 +527,8 @@ body > .statusbar {order:2}
 
 /* The generic part editor (generic-parts-ui.js) still writes .field-row rows into Properties. */
 #inspector label.field-row > span {flex-shrink:1;min-width:0;overflow-wrap:anywhere}
-#inspector label.field-row:has(> input:not([type=checkbox],[type=radio],[type=range],[type=color]),> textarea,> .ui-field-measure) {align-items:baseline}
+#inspector label.field-row:has(> input:not([type=checkbox],[type=radio],[type=range],[type=color]),> .ui-field-measure) {align-items:center}
+#inspector label.field-row:has(> textarea) {align-items:baseline}
 /* Empty panels: one quiet sentence with the next step. */
 .empty-state {margin:8px;color:var(--muted);font-size:var(--fs-11);line-height:1.5}
 

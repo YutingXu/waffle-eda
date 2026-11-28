@@ -183,13 +183,12 @@ async function preferences(page, session, profile, report, save) {
       const renderProblems = await scope.getByText(/^This page failed to load:/).allTextContents();
       if (renderProblems.length) report.errors.push(...renderProblems.map(problem => `${entry.title}: ${problem}`));
       const items = await G.fields(page, session, scope), geometry = await G.preferenceGeometry(page);
-      const textBaselines = await G.textBaselines(page, session, scope);
-      const {census, metrics:coverage} = await fieldCoverage(scope,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result,
-        ...await G.keyListGeometry(scope), ...await G.viewportGeometry(dialog)];
+      const fieldText = await G.measureFieldText(page, session, scope);
+      const {census, metrics:coverage} = await fieldCoverage(scope,fieldText);
+      const measurements = [...G.fieldResults(items), ...G.fieldTextResults(fieldText), ...coverage, ...geometry.result, ...await G.keyListGeometry(scope), ...await G.viewportGeometry(dialog)];
       const visit = repeat ? (report.preferenceStates ||= []) : report.preferences;
       visit.push({id:entry.id, name:entry.title, state, fields:items.length, rows:geometry.rows, groups:geometry.groups,
-        renderProblems, textBaselines, census, measurements, failures:G.failures(measurements)});
+        renderProblems, fieldText, census, measurements, failures:G.failures(measurements)});
       if (surface) {
         const coverage = report.dialogs.find(item => item.id === surface.id);
         coverage.fields += items.length;
@@ -220,13 +219,13 @@ async function appearanceSystemFields(page, session, scope, report) {
     for (const name of ["Preferred light theme","Preferred dark theme"])
       await themes.getByRole("combobox", {name, exact:true}).waitFor();
     const items = await G.fields(page, session, themes);
-    const textBaselines = await G.textBaselines(page, session, themes);
-    const {census, metrics:coverage} = await fieldCoverage(themes,textBaselines);
-    assert.equal(textBaselines.length, 2);
-    assert.ok(textBaselines.every(field => field.mode === "inline" && field.disposition === "measured"));
-    const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage];
+    const fieldText = await G.measureFieldText(page, session, themes);
+    const {census, metrics:coverage} = await fieldCoverage(themes,fieldText);
+    assert.equal(fieldText.length, 2);
+    assert.ok(fieldText.every(field => field.mode === "inline" && field.disposition === "measured"));
+    const measurements = [...G.fieldResults(items), ...G.fieldTextResults(fieldText), ...coverage];
     report.preferenceStates.push({id:"appearance", name:"Appearance (system themes)", state:"system-theme",
-      fields:items.length, textBaselines, census, measurements, failures:G.failures(measurements)});
+      fields:items.length, fieldText, census, measurements, failures:G.failures(measurements)});
   } finally {
     await follow.uncheck();
   }
@@ -270,9 +269,9 @@ async function preferenceMutationControls(page, session, dialog, scope, report) 
     try { report.controls.push(await probe()); }
     catch (error) { report.errors.push(`One-pixel Preferences control: ${error.message}`); }
   }
-  const autosaveText = async () => (await G.textBaselines(page,session,scope))
+  const autosaveText = async () => (await G.measureFieldText(page,session,scope))
     .find(item => item.control === "prf-general-autosaveMinutes");
-  try { report.controls.push(...await G.assertBaselinePerturbations(number, autosaveText)); }
+  try { report.controls.push(...await G.assertFieldTextPerturbations(number, autosaveText, {move:"value"})); }
   catch (error) { report.errors.push(`Preferences compound field text mutation: ${error.message}`); }
   const original = Number(await number.inputValue());
   const unit = stepper.locator(".prf-unit");
@@ -337,9 +336,9 @@ async function narrowPreferences(page, session, dialog, scope, report) {
       expanded += await scope.locator(".prf-page-title,.prf-label,.prf-help").evaluateAll(nodes =>
         nodes.filter(node => /^\[[^\]]+\]$/.test(node.textContent.trim())).length);
       const items = await G.fields(page, session, scope), geometry = await G.preferenceGeometry(page, {narrow:true});
-      const textBaselines = await G.textBaselines(page, session, scope);
-      const {census, metrics:coverage} = await fieldCoverage(scope,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result,
+      const fieldText = await G.measureFieldText(page, session, scope);
+      const {census, metrics:coverage} = await fieldCoverage(scope,fieldText);
+      const measurements = [...G.fieldResults(items), ...G.fieldTextResults(fieldText), ...coverage, ...geometry.result,
         ...await G.viewportGeometry(dialog)];
       const accessibleHelp = await scope.locator(".prf-row:has(.prf-help)").evaluateAll(rows => rows.flatMap(row => {
         const help = row.querySelector(".prf-help");
@@ -350,11 +349,11 @@ async function narrowPreferences(page, session, dialog, scope, report) {
       }));
       assert.ok(accessibleHelp.length && accessibleHelp.every(item => item.complete), "The full narrow-layout help stays available to its control.");
       report.narrowPreferences ||= [];
-      report.narrowPreferences.push({id, name:`${id} (390px pseudo-locale)`, locale, width:390, fields:items.length, accessibleHelp:accessibleHelp.length, textBaselines, census,
+      report.narrowPreferences.push({id, name:`${id} (390px pseudo-locale)`, locale, width:390, fields:items.length, accessibleHelp:accessibleHelp.length, fieldText, census,
         measurements, failures:G.failures(measurements)});
       if (id === "general") {
         const caption = scope.locator('label[for="prf-general-language"]');
-        const languageText = async () => (await G.textBaselines(page,session,scope))
+        const languageText = async () => (await G.measureFieldText(page,session,scope))
           .find(item => item.control === "prf-general-language");
         report.controls.push(await G.assertStackedCaptionPerturbation(caption,languageText));
       }
@@ -604,13 +603,12 @@ async function auditDialogs(page, session, report, action, context, original) {
     if (!await locator.isVisible()) continue;
     try {
       const items = await G.fields(page, session, locator), sections = await G.dialogSections(locator);
-      const textBaselines = await G.textBaselines(page, session, locator);
-      const {census, metrics:coverage} = await fieldCoverage(locator,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...sections,
-        ...await G.keyListGeometry(locator), ...await G.viewportGeometry(locator)];
+      const fieldText = await G.measureFieldText(page, session, locator);
+      const {census, metrics:coverage} = await fieldCoverage(locator,fieldText);
+      const measurements = [...G.fieldResults(items), ...G.fieldTextResults(fieldText), ...coverage, ...sections, ...await G.keyListGeometry(locator), ...await G.viewportGeometry(locator)];
       const strays = await strayShortcuts(locator);
       report.dialogs.push({...surface, action, context, fields:items.length, sections:sections.length,
-        textBaselines, census, measurements, failures:G.failures(measurements)});
+        fieldText, census, measurements, failures:G.failures(measurements)});
       if (surface.name === "Insert palette" && !report.controls.some(probe => probe.label === "Insert palette provider refresh")) {
         const refresh = await locator.evaluate(async dialog => {
           const input = dialog.querySelector("input[role=combobox]");
@@ -634,27 +632,35 @@ async function auditDialogs(page, session, report, action, context, original) {
         report.controls.push({label:"Insert palette provider refresh", ...refresh});
       }
       if (surface.name === "Add Comment" && !report.controls.some(probe => probe.label.startsWith("Comment caption text"))) {
-        const readComment = async () => (await G.textBaselines(page,session,locator)).find(item => item.control === "Comment");
-        const comment = textBaselines.find(item => item.control === "Comment");
-        assert.equal(comment?.mode,"multiline","The review form pairs its caption with its first visible textarea line.");
+        const readComment = async () => (await G.measureFieldText(page,session,locator)).find(item => item.control === "Comment");
+        const comment = fieldText.find(item => item.control === "Comment");
+        assert.equal(comment?.mode,"multiline","The review form centres its caption on its first visible textarea line.");
         const field = locator.getByRole("textbox",{name:"Comment",exact:true}), originalValue = await field.inputValue();
         const caption = locator.locator("label > span", {hasText:/^Comment$/});
         await field.fill("Review this connection.\nConfirm before release.");
         try {
-          assert.deepEqual(G.failures(G.baselineResults([await readComment()])),[]);
-          report.controls.push(...await G.assertBaselinePerturbations(caption,readComment,{captionOnly:true}));
+          assert.deepEqual(G.failures(G.fieldTextResults([await readComment()])),[]);
+          report.controls.push(...await G.assertFieldTextPerturbations(caption,readComment,{move:"caption"}));
         } finally { await field.fill(originalValue); }
+      }
+      if (surface.name === "Edit table" && !report.controls.some(probe => probe.label.startsWith("Column width (mm) "))) {
+        // An 11 px caption beside a 12 px field: centred on the field's box, so a 1px move of either must fail.
+        const readWidth = async () => (await G.measureFieldText(page,session,locator)).find(item => item.label === "Column width (mm)");
+        const caption = locator.locator("label.table-field > span", {hasText:/^Column width \(mm\)$/});
+        assert.deepEqual(G.failures(G.fieldTextResults([await readWidth()])),[]);
+        report.controls.push(...await G.assertFieldTextPerturbations(caption,readWidth,{move:"caption"}));
+        report.controls.push(...await G.assertFieldTextPerturbations(caption.locator("xpath=following-sibling::input[1]"),readWidth,{move:"field"}));
       }
       if (surface.name === "Auto Place (Proposal)" && report.profile === "touch") {
         // The draft opens before the proposal arrives. Check the enlarged, settled form as well.
         await locator.locator(".autoplace-alt").first().waitFor();
-        const current = () => G.textBaselines(page,session,locator);
+        const current = () => G.measureFieldText(page,session,locator);
         const prepared = (await current()).filter(row => ["Place","Strategy","Seed"].includes(row.label));
         assert.equal(prepared.length,3);
-        assert.deepEqual(G.failures(G.baselineResults(prepared)),[]);
+        assert.deepEqual(G.failures(G.fieldTextResults(prepared)),[]);
         const readPlace = async () => (await current()).find(item => item.label === "Place");
         const caption = locator.locator("label.autoplace-field > span",{hasText:/^Place$/});
-        report.controls.push(...await G.assertBaselinePerturbations(caption,readPlace,{captionOnly:true}));
+        report.controls.push(...await G.assertFieldTextPerturbations(caption,readPlace,{move:"caption"}));
       }
       report.strays.push(...strays.map(issue => ({...issue, surface:surface.name})));
     } catch (error) {

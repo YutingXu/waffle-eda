@@ -264,7 +264,7 @@ async function run(browser) {
       await page.evaluate(theme => AtriumTheme.set({preset:theme,followSystem:false,motion:"off"}),theme);
       assert.equal(await page.evaluate(() => matchMedia("(any-pointer:coarse)").matches),touch);
       const probes = [], failures = [];
-      const read = scope => geometry.textBaselines(page,session,scope);
+      const read = scope => geometry.measureFieldText(page,session,scope);
       await surfaces(page,async (title, scope, required, panel) => {
         await scope.waitFor();
         const results = await read(scope);
@@ -278,18 +278,31 @@ async function run(browser) {
             result.disposition === "measured"),
           `${name} ${title}: expected measured ${String(control)}${mode ? " (" + mode + ")" : ""}; saw ${results.map(row=>row.label + "/" + row.mode).join(", ")}`);
         }
-        failures.push(...geometry.failures([...geometry.baselineResults(results), ...metrics]).map(item => ({surface:title, ...item})));
+        failures.push(...geometry.failures([...geometry.fieldTextResults(results), ...metrics]).map(item => ({surface:title, ...item})));
         report.push({title,results,panel,census});
         const row = async expected => (await read(scope)).find(item => item.control === expected || item.label === expected);
         if (title === "PCB · document Properties") {
-          // A property row puts its caption and its field on one baseline, so text moved inside the field
-          // takes the caption with it. Move the caption alone: the measurement must still see the 1px.
-          const caption = scope.getByRole("combobox",{name:"Component class filter"}).locator("xpath=preceding-sibling::*[1]");
-          probes.push(...await geometry.assertBaselinePerturbations(caption,() => row("Component class filter"),{captionOnly:true}));
+          // Properties rows are library .ui-prop-row grids that centre their cells, so the caption sits on the
+          // select's centre. Move the caption's painted text, then the select, to prove the checker rejects
+          // a 1px drift either way, in every profile.
+          const control = scope.getByRole("combobox",{name:"Component class filter"});
+          const caption = control.locator("xpath=preceding-sibling::*[1]");
+          probes.push(...await geometry.assertFieldTextPerturbations(caption,() => row("Component class filter"),{move:"caption"}));
+          probes.push(...await geometry.assertFieldTextPerturbations(control,() => row("Component class filter"),{move:"field"}));
+        }
+        if (name === "light" && title === "PCB · copper track") {
+          // A number with its unit inside the field's box: the caption centres on the box, and the unit shares
+          // the value's baseline. Moving the caption, the box (with its text and unit) or the unit by 1px must each fail.
+          const control = scope.locator(".ui-prop-row > .ui-field-measure > input[aria-label^=\"Width\"]").first();
+          const read = () => row("Width");
+          assert.equal((await read())?.mode,"compound","the track width carries its unit");
+          probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=../../span[1]"),read,{move:"caption"}));
+          probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=.."),read,{move:"field"}));
+          probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=../span[contains(@class,'ui-field-unit')]"),read,{move:"unit"}));
         }
         if (name === "light" && title === "PCB · View Configuration") {
           const control = scope.locator('output[aria-labelledby="vc-opacity-track"]');
-          probes.push(...await geometry.assertBaselinePerturbations(control,() => row("Tracks")));
+          probes.push(...await geometry.assertFieldTextPerturbations(control,() => row("Tracks"),{move:"field"}));
         }
         if (name === "light" && title === "Footprint Editor · Properties and toolbar") {
           const caption = scope.getByLabel("Drawing layer",{exact:true}).locator("xpath=../span[1]");
@@ -305,7 +318,7 @@ async function run(browser) {
         for (const row of census.unmeasured) noValue[row.family] = (noValue[row.family] || 0) + 1;
       }
       const count = report.filter(entry=>entry.panel).length;
-      console.log(`PASS field alignment ${name}: ${report.length} states, ${count} Dock panels, ${JSON.stringify(modes)}; controls without value text ${JSON.stringify(noValue)}; ±1px probes rejected`);
+      console.log(`PASS field alignment ${name}: ${report.length} states, ${count} Dock panels, ${JSON.stringify(modes)}; controls without value text ${JSON.stringify(noValue)}; ${probes.length} ±1px caption, field and unit probes rejected`);
       reports.push({profile:name, surfaces:report, probes, modes, noValue});
     } finally {
       await session.detach();

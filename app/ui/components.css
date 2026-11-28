@@ -206,7 +206,7 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 
 /* ---- Property row: caption and value side by side (Properties, inspectors, settings) ------------ */
 :is(.ui-prop-row) {
-  display:grid;grid-template-columns:minmax(0,var(--ui-prop-label,42%)) minmax(0,1fr);align-items:baseline;column-gap:var(--s-8);
+  display:grid;grid-template-columns:minmax(0,var(--ui-prop-label,42%)) minmax(0,1fr);align-items:center;column-gap:var(--s-8);
   /* Every row is as tall as a field row, so read-only values keep the same rhythm as editable ones. */
   min-block-size:calc(var(--field-height) + 2 * var(--s-2));align-content:center;padding-block:var(--s-2);
 }
@@ -217,7 +217,10 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 :is(.ui-prop-row) > :is(.ui-prop-value) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 :is(.ui-prop-row):not([data-stacked]) > :is(.ui-prop-value) {padding-inline-start:calc(var(--s-8) + 1px)}
 :is(.ui-prop-row)[data-clip] > :is(.ui-prop-value) {white-space:nowrap}
-:is(.ui-prop-row):has(> :is(.ui-switch-row,input[type=checkbox])) {align-items:center}
+/* The caption is centred on a field, a select, a segmented control or a switch (docs/design-system.md › Field text
+   alignment). Beside read-only text it shares the text's first baseline instead, so a wrapped value keeps its caption
+   on its first line. */
+:is(.ui-prop-row):has(> .ui-prop-value) {align-items:baseline}
 :is(.ui-prop-row)[data-stacked] {grid-template-columns:minmax(0,1fr);row-gap:var(--s-2)}
 :is(.ui-prop-row) > :is(.ui-prop-error) {grid-column:2;color:var(--error);font-size:var(--fs-11)}
 /* Boxed controls fill the value column, so their end edges line up too. */

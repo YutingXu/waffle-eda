@@ -71,13 +71,20 @@
 
 /* Label + control rows: labels share one column so every control starts at the same x
    (checkbox rows, where the input comes first, keep the flex layout). */
-.work-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) {display:grid;grid-template-columns:minmax(96px,max-content) minmax(0,1fr);align-items:baseline;}
+.work-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) {display:grid;grid-template-columns:minmax(96px,max-content) minmax(0,1fr);align-items:center;}
+/* The caption is centred on its field (docs/design-system.md › Field text alignment); beside a textarea or a list box it keeps to the first line. */
+.work-row:has(> span:first-child + :is(textarea,select[multiple],select[size]:not([size="1"]))) {align-items:baseline;}
 .work-dialog .work-list:has(> .work-row > span:first-child + select) {--work-label:8em;}
 .work-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) > span:first-child {min-width:var(--work-label,96px);}
 /* Label/control forms with labels of any length: one grid, so every control in the form
    starts at the same x and has the same width. Labels are display:contents rows. */
-.work-form {display:grid;grid-template-columns:minmax(0,1fr) minmax(11em,14em);align-items:baseline;gap:6px 12px;margin:8px 0}
+.work-form {display:grid;grid-template-columns:minmax(0,1fr) minmax(11em,14em);align-items:center;gap:6px 12px;margin:8px 0}
 .work-form > label {display:contents}
+/* A caption label that precedes its control (label for=…) is a grid item of its own, so it can be aligned. */
+.work-form > label:not(:has(input,select,textarea,button)) {display:block}
+/* Beside a textarea or a list box the caption keeps to the first text line. */
+.work-form :is(textarea,select[multiple],select[size]:not([size="1"])),
+.work-form :has(+ :is(textarea,select[multiple],select[size]:not([size="1"]))) {align-self:baseline}
 .work-form > label > span {color:var(--ink);overflow-wrap:anywhere}
 .work-form > label > :is(select,input) {width:100%}
 .work-form > p {grid-column:1/-1;margin:4px 0}

@@ -113,7 +113,7 @@
 .script-save-fields {display:grid;gap:var(--s-8)}
 .script-files select {flex:0 1 auto;min-inline-size:0;max-inline-size:20ch;text-overflow:ellipsis}
 .script-timeout {inline-size:6ch}
-.script-timeout-label {display:flex;align-items:baseline;gap:4px;color:var(--muted);white-space:nowrap}
+.script-timeout-label {display:flex;align-items:center;gap:4px;color:var(--muted);white-space:nowrap}
 .script-console.dock-tabbed :is(.script-bar h2,.script-close) {display:none}
 .script-body {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);flex:1;min-height:0}
 .script-editor {display:flex;min-width:0;min-height:0;border-right:1px solid var(--app);background:var(--field)}
@@ -193,4 +193,8 @@
   .ext-panel .ext-detail-table td {display:grid;grid-template-columns:minmax(68px,26%) minmax(0,1fr);gap:var(--s-8);padding:var(--s-2) 0;border:0;text-align:start!important;overflow-wrap:break-word}
   .ext-detail-table td::before {content:attr(data-label);color:var(--muted);font-size:var(--fs-11)}
   .ext-detail-table td > .ext-chip {justify-self:start}
+}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .script-timeout-label > span:first-child {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
 }

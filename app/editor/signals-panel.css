@@ -33,9 +33,12 @@
 .sig-create {display:flex;flex-direction:column;gap:4px;padding:6px;margin:0 6px 4px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--raised);font-size:var(--fs-12)}
 .sig-create[hidden] {display:none}
 .sig-create-row {display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.sig-value-row {align-items:baseline}
 .sig-create-row input[type=text] {flex:1 1 120px;min-width:0}
 .sig-radio {display:inline-flex;gap:4px;align-items:center}
 .sig-create-nets {max-height:160px;overflow:auto;border:1px solid var(--soft);border-radius:var(--r-sm);background:var(--field);padding:2px 4px}
 .sig-create-net {display:flex;gap:6px;align-items:center;font:var(--fs-11) var(--mono)}
 .sig-create-preview {min-height:1.4em;color:var(--muted);font:var(--fs-11) var(--mono);overflow-wrap:anywhere}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .sig-value-row > .sig-input-label {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}

@@ -22,8 +22,7 @@
 .logo-controls h3 {margin:12px 0 4px;color:var(--ink)}
 .logo-controls h3:first-child {margin-top:0}
 .logo-row {display:grid;grid-template-columns:118px minmax(0,1fr);align-items:center;gap:2px 8px;min-height:28px;padding:1px 0}
-.logo-row:has(> input[type=text],> select) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
-.logo-row:has(> input[type=text]) > span:first-child {position:relative;inset-block-start:.5px}
+.logo-row:has(> input[type=text],> select) {font-size:var(--fs-12);line-height:var(--lh)}
 .logo-row > span:first-child {color:var(--ink)}
 .logo-row > small {grid-column:2;margin:0 0 2px}
 .logo-dialog .logo-row select,.logo-dialog .logo-row input[type=text] {width:100%}

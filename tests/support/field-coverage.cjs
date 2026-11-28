@@ -25,7 +25,7 @@ function assertPanelCoverage(observations, profile, inventory = panelInventory()
   assert.deepEqual(missing, [], `${profile}: open and exercise each inventoried Dock panel`);
 }
 
-// Intentionally enumerate the DOM independently of the baseline helper's selector. An eligible
+// Intentionally enumerate the DOM independently of the field text helper's selector. An eligible
 // control should still count even if a later change drops its type or role from the measurement.
 function controlCensus(root) {
   const selector = "input, select, textarea, output[aria-labelledby], [role=combobox], [role=spinbutton], [role=searchbox], [role=textbox]";
@@ -68,11 +68,11 @@ async function fieldCoverage(scope, rows) {
   for (const family of new Set([...expected.keys(),...observed.keys()])) {
     metrics.push({kind:"field coverage by family", label:family, actual:observed.get(family) || 0, expected:expected.get(family) || 0});
   }
-  for (const {label,family,mode,disposition,index,valueBaseline,captionBaseline} of rows) {
+  for (const {label,family,mode,disposition,index,valueBaseline,captionCentre} of rows) {
     const actual = Number.isInteger(index) ? census.visible[index] : undefined;
     const valid = actual?.family === family && families.has(family) && modes.has(mode) && dispositions.has(disposition) &&
       (disposition !== "empty value" || !actual.hasNativeValue) &&
-      (disposition !== "measured" || Number.isFinite(valueBaseline) && (mode === "standalone" || Number.isFinite(captionBaseline)));
+      (disposition !== "measured" || Number.isFinite(valueBaseline) && (mode === "standalone" || Number.isFinite(captionCentre)));
     if (!valid) metrics.push({kind:"field coverage disposition", label, family, mode, disposition, actual:0, expected:1});
   }
   metrics.push({kind:"unique field coverage",label:"control index",actual:new Set(rows.map(row=>row.index)).size,expected:rows.length});

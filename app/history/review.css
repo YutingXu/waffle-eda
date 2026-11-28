@@ -25,7 +25,7 @@
 .rc-buttons {display:flex;justify-content:flex-end;gap:var(--s-4);margin-top:var(--s-4)}
 .rc-buttons .rc-delete {margin-right:auto;color:var(--error)}
 .rc-dialog {width:min(460px,calc(100vw - 48px))}
-.rc-dialog .rc-form > .work-row:has(> span:first-child + .ui-field) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
+.rc-dialog .rc-form > .work-row:has(> span:first-child + .ui-field) {font-size:var(--fs-12);line-height:var(--lh)}
 .rc-dialog .rc-form > .work-row:has(> span:first-child + textarea) {align-items:start}
 .rc-dialog .work-row > span {flex:0 0 88px}
 /* The multiline caption shares the first line's padding and field border. */

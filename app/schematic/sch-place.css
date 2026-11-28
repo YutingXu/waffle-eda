@@ -6,7 +6,6 @@
 .sp-pop.sp-docked {position:static;z-index:auto;width:auto;border-width:0 0 1px;border-radius:0;background:transparent;box-shadow:none}
 .sp-pop h3 {margin:0 0 6px;font-size:var(--fs-12);font-weight:600;color:var(--head-ink)}
 .sp-row {display:flex;align-items:center;gap:8px;margin:4px 0}
-:is(.sp-pop,#inspector) .sp-row:has(> .ui-field) {align-items:baseline}
 .sp-row > span {width:92px;flex:none;color:var(--muted)}
 .sp-row input[type=text],.sp-row select {flex:1;min-width:0}
 .sp-row input[type=checkbox] {margin:0}
@@ -45,3 +44,7 @@
 .ps-row > span {width:150px;flex:none}
 .ps-row input[type=text],.ps-row select {flex:1;min-width:0}
 .ps-note {min-height:1em;color:var(--error-ink)}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  :is(.sp-pop,#inspector) .sp-row:has(> .ui-field) > span:first-child {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}

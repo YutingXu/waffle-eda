@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const {pathToFileURL} = require("node:url");
-const {fields, textBaselines} = require("../support/dialog-geometry.cjs");
+const {fields, measureFieldText, fieldTextResults, failures} = require("../support/dialog-geometry.cjs");
 
 const providers = ["AtriumCanvasGPUPref", "AtriumExtensionDev", "AtriumCollabPresence", "AtriumCamera", "AtriumChecks",
   "AtriumExternalTools", "AtriumInsightsUI", "AtriumRouteSuggest", "AtriumClipHistory", "AtriumHistoryPanel", "AtriumThemePicker"];
@@ -121,7 +121,7 @@ async function checkGeneralRows(page, pane) {
   }
   const session = await page.context().newCDPSession(page);
   try {
-    const samples = await textBaselines(page,session,pane);
+    const samples = await measureFieldText(page,session,pane);
     // Controls centre on their row (beta feedback), so only the stepper's own value and unit share a baseline.
     const row = samples.find(sample => sample.control === "prf-general-autosaveMinutes");
     assert.equal(row?.mode,"centred");
@@ -171,6 +171,19 @@ async function checkPageLayout(pane, title, narrow) {
     return out;
   }, narrow);
   assert.deepEqual(problems, [], title + " layout");
+}
+
+// A caption with no help line shares the row with its control and is centred on it by its cap height
+// (docs/design-system.md › Field text alignment); a unit shares its value's baseline. Rows with help centre
+// the control on the whole row instead.
+async function checkCaptions(page, pane, title) {
+  const session = await page.context().newCDPSession(page);
+  try {
+    const rows = await measureFieldText(page, session, pane);
+    const problems = failures(fieldTextResults(rows)).filter(metric => /^caption |^field unit|^field centred/.test(metric.kind));
+    assert.deepEqual(problems.map(({kind,label,actual}) => `${kind} ${label} ${actual}`), [], title + " captions");
+    return rows.filter(row => row.mode === "inline" || row.mode === "compound").length;
+  } finally { await session.detach(); }
 }
 
 async function checkExternalToolsFirstOpen(browser) {
@@ -307,6 +320,7 @@ module.exports = async function preferencesLayout(browser) {
       const touch = name === "touch";
       const show = title => touch ? picker.selectOption({label:title}) : nav.getByRole("button", {name:title,exact:true}).click();
       const pane = dialog.locator(".prf-page"), units = new Map();
+      let captionRows = 0;
       for (const {id,title} of catalog) {
         await show(title);
         await dialog.locator(`.prf-page[data-shown="${id}"]`).waitFor();
@@ -316,6 +330,7 @@ module.exports = async function preferencesLayout(browser) {
         assert.doesNotMatch(await pane.innerText(), /This page failed to load/, title);
         assert.ok(await pane.evaluate(el => el.clientWidth >= el.scrollWidth - 1), `${title} fits ${name}`);
         await checkPageLayout(pane, `${name} ${title}`, touch);
+        captionRows += await checkCaptions(page, pane, `${name} ${title}`);
         if (evidence) {
           if (id === "appearance") await page.waitForFunction(() => {
             const thumbnails = [...document.querySelectorAll(".prf-page .thg-grid img")];
@@ -563,7 +578,8 @@ module.exports = async function preferencesLayout(browser) {
         assert.equal(await page.locator("dialog[open]").count(), 0);
       }
       assert.deepEqual(errors, [], name);
-      console.log(`PASS ${name} modeless Preferences: all ${routes.length} pages, aligned fields, real steppers and focused close`);
+      assert.ok(name === "touch" || captionRows > 0, "Preferences has same-row captions to measure (the narrow touch form stacks them)");
+      console.log(`PASS ${name} modeless Preferences: all ${routes.length} pages, aligned fields, ${captionRows} centred same-row captions, real steppers and focused close`);
     } finally { await page.close(); }
   }
 };

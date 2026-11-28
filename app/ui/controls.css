@@ -156,12 +156,35 @@ input:is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected=ink] 
   }
 }
 :where(.ui-field-row) {display:grid;gap:var(--s-4)}
-/* Inline label rows align to the first painted text line, including a wrapped caption.
-   Two-column grids and flex rows share this rule without changing their spacing. */
+/* Field text alignment (docs/design-system.md). A caption beside its field is centred on the field's box, and a
+   wrapped caption is centred as one block. Beside a textarea or a list box the caption keeps to the first text
+   line. Two-column grids and flex rows share this rule without changing their spacing. */
 :where(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,.ui-popover) label:has(
   > span:first-child:not([aria-hidden=true],.icon) +
-    :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select,textarea,.ui-field-measure)
+    :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select:not([multiple],[size]:not([size="1"])),.ui-field-measure)
+) {align-items:center}
+:where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:has(
+  > span:first-child:not([aria-hidden=true],.icon) + :is(textarea,select[multiple],select[size]:not([size="1"]))
 ) {align-items:baseline}
+/* Centring a row centres the caption's line box, and where the half-leading falls depends on the font and its
+   rounding, so the capitals could sit up to about a pixel off. A same-row caption is therefore trimmed to its
+   cap height and padded back by the same amount on both sides: the box keeps its line-box size, and the row
+   centres the caption's capitals exactly, in any font. Where text-box trimming is unavailable the row still
+   centres the line box. */
+@supports (text-box: trim-both cap alphabetic) {
+  :where(
+    :is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:has(
+      > span:first-child:not([aria-hidden=true],.icon) +
+        :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select:not([multiple],[size]:not([size="1"])),.ui-field-measure)
+    ) > span:first-child,
+    .ui-prop-row:not([data-stacked],:has(> .ui-prop-value)) > :first-child,
+    .work-row:has(> span:first-child + :is(select:not([multiple],[size]:not([size="1"])),input:not([type=checkbox],[type=radio]))) > span:first-child,
+    .work-form > label > span:first-child,
+    .work-form > label:not(:has(input,select,textarea,button)):has(+ :is(select:not([multiple],[size]:not([size="1"])),input:not([type=checkbox],[type=radio]))),
+    #inspector label.field-row:has(> input:not([type=checkbox],[type=radio],[type=range],[type=color]),> .ui-field-measure) > span,
+    .prf-row:not(.prf-check,.prf-link,:has(> .prf-help)) > .prf-label
+  ) {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}
 /* Checkbox and radio: the library draws both (2026-11-27 prototype) instead of the platform's widget, so they
    share the field's line, the primary fill and the icon stroke. Inputs paint no pseudo-element in WebKit, so
    the tick is a background glyph (--glyph-check) and the radio dot a gradient; both appear with the
@@ -424,6 +447,11 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
   :where(.ui-button,.ui-tab,.ui-segment)[data-size],
   :where(.ui-button,.ui-tab,.ui-segment) {--ui-control-height:var(--ctl-h-touch)}
   :where(label.ui-field-row,.ui-field-measure) {min-block-size:var(--ctl-h-touch);align-content:center}
+  /* The 44 px measure keeps its field at the top, so the caption is centred on the field, not on the measure: it takes
+     the field's 28 px slot and centres its text there, overflowing evenly when it wraps to more than the slot holds. */
+  :where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:not(.ui-prop-row):has(> span:first-child:not([aria-hidden=true],.icon) + .ui-field-measure) > span:first-child {
+    align-self:start;box-sizing:border-box;block-size:var(--field-height);align-content:unsafe center;
+  }
   #inspector label.field-row:has(> select:not([multiple],[size]:not([size="1"]))) {min-block-size:var(--ctl-h-touch)}
   :where(.ui-checkbox-row) {min-height:var(--ctl-h-touch)}
 }

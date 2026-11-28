@@ -88,3 +88,7 @@
   .stk-panel,.stk-message,.stk-summary {padding-inline:8px}
   .stk-text {min-width:80px}
 }
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .stk-subbar > .stk-label {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}
