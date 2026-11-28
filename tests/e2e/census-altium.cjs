@@ -403,15 +403,20 @@ const BASE = {SELECTION:"FALSE", SELECTED:"FALSE", LOCKED:"FALSE", POLYGONOUTLIN
 const baseDefault = (f, v) => BASE[f] != null && String(v).toUpperCase() === BASE[f];
 
 // ------------------------------------------------------------------ field rules
-// A rule: {held(v, e, o, M, field, rawField) -> true | "why not" | {outside:why}} or {outside:why, when?(v, e, rawField, M)}.
+// A rule: {held(v, e, o, M, field, rawField) -> true | "why not" | {outside:why} | {reported:true} | {unmapped:why}} or {outside:why, when?(v, e, rawField, M)}.
 // A field without a rule, or whose comparison fails and the report does not cover, is lost.
 const H = fn => ({held:fn});
 const OUT = (why, when) => ({outside:why, ...(when ? {when} : {})});
 const sameNum = (a, b, t = 1e-4) => near(Number(a), Number(b), t);
 const noGroup = H((v, e, o) => (Number(v) === 0 ? true : !!o?.obj?.groupId || "the union is not kept (no groupId)"));
-const lockRule = H((v, e, o) => {
-  const want = truthy(v), have = o?.obj?.locked === true || o?.part?.locked === true && !!o?.obj && o.obj !== o.part;
-  return want === have || (want ? "locked in the source, unlocked in Waffle" : "unlocked in the source, locked in Waffle");
+// A free object and a component hold their own lock. A primitive inside a component (and a part's
+// designator or comment string) has none in Waffle: an unlocked one has nothing to keep, and a locked
+// one is accounted for only by the import note that counts them.
+const CHILD_LOCK_NOTE = /Locks on primitives inside components not kept/;
+const lockRule = H((v, e, o, M) => {
+  const want = truthy(v);
+  if (o?.part && o.obj !== o.part) return !want || (M.notes.some(n => CHILD_LOCK_NOTE.test(n)) ? {reported:true} : "locked in the source; a primitive inside a component has no lock in Waffle, and no import note says so");
+  return want === (o?.obj?.locked === true) || (want ? "locked in the source, unlocked in Waffle" : "unlocked in the source, locked in Waffle");
 });
 const layerRule = H((v, e, o) => !o || waffleLayer(v) === o.layer || ("layer " + waffleLayer(v) + " ≠ " + o.layer));
 // A layer named in record text (MID2, PLANE1) is a slot of Altium's fixed table; M.layerKey places it in the stack.
@@ -461,8 +466,8 @@ const PRIMITIVE_FIELDS = {
     TEXT:H((v, e, o) => o.text === v || /^\.(designator|comment)$/i.test(v) || "text " + o.text),
     HEIGHT:H((v, e, o) => sameNum(o.size, v) || "height"), ROTATION:H((v, e, o) => sameAngle(-v, o.angle) || "rotation"),
     MIRROR:H((v, e, o) => v === !!o.obj.mirrored || "mirror"), COMMENT:H(() => true), DESIGNATOR:H(() => true),
-    // A designator or comment label: Waffle keeps it per part (boardLabels); the lock follows the part.
-    LOCKED:H((v, e, o) => (o.label ? truthy(v) === (o.part.locked === true) || "locked in the source, unlocked in Waffle (label of " + o.part.ref + ")" : lockRule.held(v, e, o))), COMPONENT:H((v, e, o, M) => (o.label ? o.part === M.ownerOf(e) : compRule.held(v, e, o, M)))},
+    // A designator or comment label is kept per part (boardLabels); lockRule treats it as a primitive inside the component.
+    LOCKED:lockRule, COMPONENT:H((v, e, o, M) => (o.label ? o.part === M.ownerOf(e) : compRule.held(v, e, o, M)))},
 };
 // A slot is HOLESIZE by SLOTSIZE, in either order; Waffle keeps the short side as drill and the long one as slotLength.
 const slotted = e => e.fields.HOLESHAPE === 2 && e.fields.SLOTSIZE > 0 && !sameNum(e.fields.SLOTSIZE, e.fields.HOLESIZE);
@@ -890,15 +895,15 @@ function account(entries, imported, files) {
         const twin = /^UNICODE__(.+)$/.exec(f), own = spec.fields?.[nf] ?? spec.fields?.[f];
         const rule = f === "UNICODE" && !own ? OUT(WHY.twinMarker) : !own && twin ? spec.fields?.[norm(twin[1])] ?? spec.fields?.[twin[1]] : own;
         if (!own && twin) v = chars(v);
-        let held = false, outsideWhy = null, unmapped = null, why = "the model holds a different value";
+        let held = false, reported = false, outsideWhy = null, unmapped = null, why = "the model holds a different value";
         if (rule?.held && o) {
-          try { const r = rule.held(v, e, o, M, nf, f); held = r === true; if (r?.outside) outsideWhy = r.outside; else if (r?.unmapped) unmapped = r.unmapped; else if (!held) why = typeof r === "string" ? r : "value differs"; }
+          try { const r = rule.held(v, e, o, M, nf, f); held = r === true; if (r?.outside) outsideWhy = r.outside; else if (r?.reported) reported = true; else if (r?.unmapped) unmapped = r.unmapped; else if (!held) why = typeof r === "string" ? r : "value differs"; }
           catch (error) { why = "compare failed: " + error.message; }
         } else if (!rule) unmapped = "the census has no rule for this field, so nothing has checked it";
         else if (!rule.held) unmapped = "outside on other records for a reason that does not apply to this one; the census has no comparison for it";
         const note = how => { if (row.detail.length < 4) row.detail.push(e.id + " " + f + "=" + JSON.stringify(v).slice(0, 60) + ": " + how); };
         if (held) row.metric.held++;
-        else if (recordTold) row.metric.reported++;
+        else if (recordTold || reported) row.metric.reported++;
         else if (outsideWhy || rule?.outside && (!rule.when || rule.when(v, e, f, M, nf))) row.metric.outside++;
         else if (unmapped) { row.metric.unmapped++; note("unmapped: " + unmapped); }
         else if (rule.held && !o) row.metric.unplaced++;  // its object is the failure; the object row counts it once
