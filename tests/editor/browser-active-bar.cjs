@@ -722,6 +722,70 @@ async function toolbarsFitsTouch(browser) {
   } finally { await page.close(); }
 }
 
+// [P3] Toolbars: Alt+↑/↓ keeps focus and expansion on the item that moved.
+async function toolbarsKeepFocus(browser) {
+  const page = await open(browser);
+  try {
+    await page.evaluate(() => AtriumNavHost.act("customise-active-bar"));
+    await page.waitForFunction(() => document.querySelector(".prf-page [role=tree] .ui-row"), null, {timeout:15000});
+    const row = title => `[...document.querySelectorAll(".prf-page [role=tree] > .ui-row")].find(x => x.querySelector(".ui-row-title").textContent === ${JSON.stringify(title)})`;
+    const press = async (title, key, mods = {}) => {
+      await page.evaluate(({row, key, mods}) => { const r = eval(row); r.focus(); r.dispatchEvent(new KeyboardEvent("keydown", {key, bubbles:true, ...mods})); }, {row:row(title), key, mods});
+      await settle(page);
+    };
+    const state = () => page.evaluate(() => ({focus:document.activeElement.querySelector?.(".ui-row-title")?.textContent,
+      expanded:[...document.querySelectorAll('.prf-page [role=tree] > .ui-row[aria-expanded="true"]')].map(r => r.querySelector(".ui-row-title").textContent)}));
+    const order = () => page.evaluate(() => AtriumPrefs.get("workbench.bars").active.schematic.slice(3, 6).map(x => x.face || x));
+    await press("Wire", "ArrowRight");
+    await press("Wire", "ArrowDown", {altKey:true});
+    assert.deepEqual(await order(), ["library", "junction", "route"]);
+    assert.deepEqual(await state(), {focus:"Wire", expanded:["Wire"]}, "Alt+↓ keeps the expanded group expanded and focused");
+    await press("Place component", "ArrowRight");
+    await press("Wire", "ArrowUp", {altKey:true});
+    await press("Wire", "ArrowUp", {altKey:true});
+    assert.deepEqual(await order(), ["route", "library", "junction"]);
+    assert.deepEqual(await state(), {focus:"Wire", expanded:["Wire", "Place component"]}, "moving past an expanded group keeps both expanded and focus on the moved one");
+    console.log("PASS Toolbars keeps focus and expansion with the item that moves");
+  } finally { await page.close(); }
+}
+// [P3] A rebuilt bar shows the editor's state at once: Undo disabled with nothing to undo, a face
+// chosen from a flyout pressed while its tool is active.
+async function barKeepsToolState(browser) {
+  const page = await open(browser);
+  try {
+    const tools = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumActiveBarMenu");
+      AtriumBars.setList("schematic", ["select", "undo", "route"]);
+      const undo = document.querySelector('#tools [data-action="undo"]').disabled, chrome = document.querySelector('[data-action="undo"]:not(#tools *)')?.disabled;
+      AtriumActiveBar.open(document.querySelector('#tools [data-action="route"]'));
+      for (let i = 0; i < 40 && !document.querySelector("#active-bar-flyout [role=menuitem]"); i++) await new Promise(r => setTimeout(r, 50));
+      [...document.querySelectorAll("#active-bar-flyout [role=menuitem]")].find(b => b.getAttribute("aria-label") === "Split Wire").click();
+      await new Promise(r => setTimeout(r, 100));
+      return {undo, chrome, tool:AtriumNavHost.tool(), pressed:document.querySelector('#tools [data-action="split-wire"]').getAttribute("aria-pressed")};
+    });
+    assert.equal(tools.chrome, true, "nothing to undo in a fresh demo");
+    assert.deepEqual(tools, {undo:true, chrome:true, tool:"split-wire", pressed:"true"}, "the rebuilt buttons carry the editor's state");
+    console.log("PASS a rebuilt bar carries the editor's disabled and pressed states");
+  } finally { await page.close(); }
+}
+// [P3] A flyout whose button leaves the bar closes.
+async function orphanMenuCloses(browser) {
+  const page = await open(browser);
+  try {
+    const orphan = await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumActiveBarMenu");
+      AtriumActiveBar.open(document.querySelector('#tools [data-action="select"]'));
+      for (let i = 0; i < 40 && !document.querySelector("#active-bar-flyout [role=menuitem]"); i++) await new Promise(r => setTimeout(r, 50));
+      const was = AtriumActiveBarMenu.isOpen();
+      AtriumBars.setList("schematic", ["pan", "route"]);
+      await new Promise(r => setTimeout(r, 300));
+      return [was, AtriumActiveBarMenu.isOpen(), !!document.getElementById("active-bar-flyout")];
+    });
+    assert.deepEqual(orphan, [true, false, false], "the flyout closes when its button leaves the bar");
+    console.log("PASS a flyout closes when its button leaves the bar");
+  } finally { await page.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -761,7 +825,8 @@ async function shots(browser) {
 
 async function run(browser) {
   const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
-    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, conditionalExtensions, fullBarWrites, widgetsMenuFits, toolbarsFitsTouch, shots};
+    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, conditionalExtensions, fullBarWrites,
+    widgetsMenuFits, toolbarsFitsTouch, toolbarsKeepFocus, barKeepsToolState, orphanMenuCloses, shots};
   for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)

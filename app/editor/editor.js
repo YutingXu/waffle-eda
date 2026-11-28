@@ -2404,7 +2404,9 @@
     authoredRevision:()=>authoredRevision,afterWorkspaceGesture,
     folderProject:folder,saveAll:o=>save({...o,all:true}),savedWritePending:()=>folderPending,
     requireProjectClosure:o=>folder()?.requireClosure(o)||Promise.resolve(project),
-    selection:()=>[...selectedIds],fieldFocus,tool:()=>tool,units:unit,info,edit,act,executeKey,revealInspector,prepareWorkbench,
+    selection:()=>[...selectedIds],fieldFocus,tool:()=>tool,
+    // The tool buttons' pressed, disabled, hidden and named states, as after an action (bars.js redraws the Active Bar).
+    syncTools:()=>{syncToolTitles(true);syncTools();},units:unit,info,edit,act,executeKey,revealInspector,prepareWorkbench,
     // A transparent native window is occluded until its first frame is ready.
     async prepareLaunch(){
       await prepareWorkbench();

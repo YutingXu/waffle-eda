@@ -39,6 +39,7 @@ globalThis.AtriumToolbarsPage = (() => {
   const clone = x => JSON.parse(JSON.stringify(x));
   const kinds = () => [["schematic", t("toolbars.kind_schematic")], ["pcb", t("toolbars.kind_pcb")], ["drawing", t("toolbars.kind_drawing")]];
   let kind = (D.body.dataset.kind && kinds().some(([k]) => k === D.body.dataset.kind)) ? D.body.dataset.kind : "schematic";
+  // Expanded groups, by the item's face id: a move or an edit above keeps the same group expanded.
   const open = new Set();
 
   function render(into, api) {
@@ -85,8 +86,8 @@ globalThis.AtriumToolbarsPage = (() => {
         const names = flyout.filter(m => m !== id).map(m => B().info(m, kind).label);
         const detail = !info.known ? t("toolbars.unavailable") : !info.drawable ? t("toolbars.not_here") : group ? t("toolbars.flyout", {names:names.join(", ")}) : provided ? t("toolbars.provided") : "";
         meta.push({top:i});
-        rows.push(itemRow({title:info.label, detail, icon:info.icon, key:info.key, state:info.known ? undefined : "pending", depth:0, expanded:group ? open.has(i) : undefined}, i, null));
-        if (group && open.has(i)) flyout.forEach((m, j) => {
+        rows.push(itemRow({title:info.label, detail, icon:info.icon, key:info.key, state:info.known ? undefined : "pending", depth:0, expanded:group ? open.has(id) : undefined}, i, null, id));
+        if (group && open.has(id)) flyout.forEach((m, j) => {
           const mi = B().info(m, kind);
           meta.push({top:i, member:j});
           rows.push(itemRow({title:mi.label, detail:mi.known ? "" : t("toolbars.unavailable"), icon:mi.icon, key:mi.key, depth:1}, i, j));
@@ -97,18 +98,19 @@ globalThis.AtriumToolbarsPage = (() => {
       if (focus >= 0) queueMicrotask(() => list.children[Math.min(focus, list.children.length - 1)]?.focus());
       found();
     }
-    function itemRow({title, detail, icon, key, state, depth, expanded}, i, j) {
+    function itemRow({title, detail, icon, key, state, depth, expanded}, i, j, id) {
+      const toggle = on => { if (on ?? !open.has(id)) open.add(id); else open.delete(id); draw(); };
       const actions = [];
       const menu = K.iconButton("more", t("toolbars.more", {name:title}), {size:"sm"});
       G.AtriumNavCommon.actionMenu(menu, () => commands(i, j));
       actions.push(menu, K.iconButton("close", t("toolbars.remove", {name:title}), {size:"sm", run:() => remove(i, j)}));
       const badge = key ? G.AtriumShortcut.render(key, {variant:"inline"}) : undefined;
       const r = K.row({title, detail, icon:icon || undefined, meta:badge, actions, depth, expanded, state, role:"treeitem"});
-      if (expanded != null) r.addEventListener("click", e => { if (!e.target.closest(".ui-row-actions,.ui-drag-handle")) { if (open.has(i)) open.delete(i); else open.add(i); draw(); } });
+      if (expanded != null) r.addEventListener("click", e => { if (!e.target.closest(".ui-row-actions,.ui-drag-handle")) toggle(); });
       r.addEventListener("keydown", e => {
         if (e.target !== r) return;
         if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); remove(i, j); }
-        if (expanded != null && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); if (e.key === "ArrowRight") open.add(i); else open.delete(i); draw(); }
+        if (expanded != null && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); toggle(e.key === "ArrowRight"); }
       });
       return r;
     }
@@ -139,12 +141,13 @@ globalThis.AtriumToolbarsPage = (() => {
       const top = b.member == null ? b.top : b.top === a.top ? a.top + (to > from ? 1 : 0) : b.top;
       return top === a.top ? null : top;
     }
+    // Returns the moved row's place in the redrawn list, so focus stays on it (K.reorderable).
     function move(from, to) {
       const a = meta[from];
-      if (to == null || !a) return;
-      if (a.member != null) { moveMember(a.top, a.member, to); return; }
+      if (to == null || !a) return undefined;
+      if (a.member != null) { moveMember(a.top, a.member, to); return meta.findIndex(m => m.top === a.top && m.member === to); }
       edit(list => { const [x] = list.splice(a.top, 1); list.splice(to, 0, x); });
-      open.clear();
+      return flat(to);
     }
     function moveMember(i, j, to) {
       edit(list => {
@@ -155,11 +158,11 @@ globalThis.AtriumToolbarsPage = (() => {
     }
     function remove(i, j) {
       edit(list => {
-        if (j == null) { list.splice(i, 1); open.clear(); return; }
+        if (j == null) { open.delete(idOf(list[i])); list.splice(i, 1); return; }
         const g = list[i] = asGroup(list[i], kind), m = B().members(g);
         m.splice(j, 1);
         if (!m.length) { list.splice(i, 1); return; }
-        if (!m.includes(g.face)) g.face = m[0];
+        if (!m.includes(g.face)) { if (open.delete(g.face)) open.add(m[0]); g.face = m[0]; }
         g.more = m;
       });
     }
@@ -168,7 +171,7 @@ globalThis.AtriumToolbarsPage = (() => {
         const g = list[i - 1] = asGroup(list[i - 1], kind), m = B().members(g), x = list[i];
         for (const id of object(x) ? B().members(x) : [x]) if (!m.includes(id)) m.push(id);
         if (m.length > B().LIMITS.flyout) { say(t("toolbars.flyout_full", {limit:B().LIMITS.flyout})); return false; }
-        g.more = m; list.splice(i, 1); open.add(i - 1);
+        g.more = m; list.splice(i, 1); open.add(g.face);
       });
     }
     function outOfFlyout(i, j) {

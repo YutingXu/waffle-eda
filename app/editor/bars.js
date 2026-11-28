@@ -353,12 +353,14 @@ globalThis.AtriumBars = (() => {
     const shown = list ? tidy(out, n => isDivider(n)) : out;
     for (const n of shown) if (n.nodeType === 1 && n.dataset.scope && !n.classList.contains("ext-tool")) n.hidden = n.dataset.scope !== k;
     for (const n of [...bar.children, ...pristine]) if (!shown.includes(n) && n !== more && !made.has(n) && n.parentNode !== parked) parked.append(n);
-    const current = [...bar.childNodes].filter(n => n !== more);
-    if (current.length !== shown.length || current.some((n, i) => n !== shown[i])) bar.replaceChildren(...shown);
+    const current = [...bar.childNodes].filter(n => n !== more), changed = current.length !== shown.length || current.some((n, i) => n !== shown[i]);
+    if (changed) bar.replaceChildren(...shown);
     watcher?.takeRecords();
     rendering = false;
     drawn = Array.isArray(given) ? "" : state(k);
     G.AtriumActiveBar?.titles();
+    // New buttons take the editor's state now (pressed tool, Undo disabled, the tools it names), not at its next action.
+    if (changed) G.AtriumNavHost?.syncTools?.();
     fit();
     // The icons arrive later: a newer drawing (another kind, an edit) supersedes this one; otherwise
     // draw what is current then, not the kind this pass began on.
@@ -382,6 +384,9 @@ globalThis.AtriumBars = (() => {
     }
     watcher?.takeRecords();
     rendering = false;
+    // A flyout whose button left the bar (parked, moved into More tools, More tools gone) closes.
+    const owner = M()?.isOpen() && M().owner();
+    if (owner && (!owner.isConnected || !owner.getClientRects().length)) M().close(false);
   }
   function overflowButton() {
     const b = D.createElement("button"), label = t("bars.more_tools");

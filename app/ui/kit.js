@@ -470,7 +470,8 @@ globalThis.AtriumUIKit = (() => {
     list.dataset.reorder = "";
     const rows = () => [...list.children].filter(n => n.matches(".ui-row"));
     const roving = active => { for (const r of rows()) r.tabIndex = r === active ? 0 : -1; };
-    const focusAt = i => queueMicrotask(() => { const r = rows()[Math.min(i, rows().length - 1)]; if (r) { roving(r); r.focus(); } });
+    // onMove may return where the moved row is after the list redraws (rows can change around it); focus goes there.
+    const focusAt = (at, i) => queueMicrotask(() => { const all = rows(), r = all[Math.min(Number.isInteger(at) && at >= 0 ? at : i, all.length - 1)]; if (r) { roving(r); r.focus(); } });
     const prepare = () => {
       const all = rows();
       for (const r of all) {
@@ -489,7 +490,7 @@ globalThis.AtriumUIKit = (() => {
       const jump = e.key === "Home" ? 0 : e.key === "End" ? all.length - 1 : null;
       if (step && e.altKey) {
         e.preventDefault();
-        if (i + step >= 0 && i + step < all.length && canMove(i, i + step)) { onMove(i, i + step); focusAt(i + step); }
+        if (i + step >= 0 && i + step < all.length && canMove(i, i + step)) focusAt(onMove(i, i + step), i + step);
       } else if (step || jump != null) {
         e.preventDefault();
         const r = all[jump ?? i + step];
@@ -517,7 +518,7 @@ globalThis.AtriumUIKit = (() => {
         handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", end); handle.removeEventListener("pointercancel", end);
         doc.removeEventListener("keydown", escape, true);
         row.classList.remove("ui-drag-lift"); line.remove(); if (denied) dropState(denied, null);
-        if (ev?.type === "pointerup" && ok && to !== from) { onMove(from, to); focusAt(to); }
+        if (ev?.type === "pointerup" && ok && to !== from) focusAt(onMove(from, to), to);
       };
       const escape = ev => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); end(null); } };
       handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
