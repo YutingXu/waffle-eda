@@ -25,7 +25,7 @@
 .layer-tab:focus-visible,.tool:focus-visible,.command-link:focus-visible,.document-tab:focus-visible,
 .nav-rows button:focus-visible,.section-toggle:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-2px}
 :is(.nav-rows button[aria-current=true],.nav-rows button[aria-selected=true]):focus-visible {outline-color:var(--selection-ink)}
-:is(.work-dialog,.lib-dialog) button.sp-primary:focus-visible {outline-color:var(--on-primary)}
+:is(.work-dialog,.lib-dialog,.lib-editor-surface) button.sp-primary:focus-visible {outline-color:var(--on-primary)}
 /* The design canvas is the main work surface and draws its own selection, so focus never
    rings the whole sheet: not for pointer focus, nor when a shortcut (/, Escape, Ctrl+Tab, a
    closed dialog) hands focus back. When Tab reaches it (shell.js sets data-focus-nav), a rule

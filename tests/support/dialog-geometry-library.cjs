@@ -375,6 +375,11 @@ function cases(page) {
       const target = page.locator(`.lib-editor-surface[open][aria-label="${title}"]`);
       await target.waitFor();
       assert.equal(await target.evaluate(node => node.matches(":modal")), false, `The ${title} tab is not modal.`);
+      if (title !== "Symbol Editor") return;
+      // The pin table's fields and selects only exist once the symbol has a pin.
+      await target.getByRole("tab", {name:"Pin table", exact:true}).click();
+      await button(target, "Add pin").click();
+      await target.getByRole("combobox", {name:"Type of pin 1", exact:true}).waitFor();
     }, finish:closeLibraryTab});
   }
   return outcomes;

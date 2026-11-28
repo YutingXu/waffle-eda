@@ -1294,6 +1294,9 @@ globalThis.AtriumLibrary = (() => {
       const V = globalThis.AtriumDocViews, id = surface._tabId;
       // The editors ask showOpenTab first; an editor built anyway releases its canvas input (on "close").
       if (V.isOpen(id)) { surface.dispatchEvent(new Event("close")); V.show(id); return; }
+      // The modal path adopts the action row in AtriumShell.adoptDialog; the tab adopts it alone.
+      const actions = surface.querySelector(":scope > .lib-actions");
+      if (actions) globalThis.AtriumUI?.adoptActions?.(actions);
       const title = surface.heading?.querySelector("h2")?.textContent || surface.getAttribute("aria-label") || "Editor";
       // A project switch closes the tab without asking (AtriumDocViews closes every view on "replace"; the modal
       // editor never asked on a switch either), so a later Save cannot write into the next project. The view's
