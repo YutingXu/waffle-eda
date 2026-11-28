@@ -462,10 +462,10 @@ globalThis.AtriumCollabPresence = (() => {
         }
         nameField(g, field);
         const check = (key, label, help, def) => {
-          const row = el("div", null, "prf-row prf-check"), box = el("input", null, "ui-checkbox"), l = el("label", null, "ui-checkbox-row");
+          const row = el("div", null, "prf-row prf-check"), box = el("input", null, "ui-switch"), l = el("label", null, "ui-switch-row");
           const detail = el("small", help, "prf-help");
           row.dataset.search = (label + " " + help).toLowerCase();
-          box.type = "checkbox"; box.id = prefId(key); box.checked = pref(key, def) !== false && pref(key, def) !== "false" && (def || pref(key, def) === true);
+          box.type = "checkbox"; box.setAttribute("role", "switch"); box.id = prefId(key); box.checked = pref(key, def) !== false && pref(key, def) !== "false" && (def || pref(key, def) === true);
           detail.id = box.id + "-help"; box.setAttribute("aria-describedby", detail.id);
           box.onchange = () => setPref(key, box.checked);
           l.htmlFor = box.id; l.append(box, el("span", label)); row.append(l, detail); return row;

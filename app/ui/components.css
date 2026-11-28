@@ -221,7 +221,7 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 :is(.ui-prop-row)[data-stacked] {grid-template-columns:minmax(0,1fr);row-gap:var(--s-2)}
 :is(.ui-prop-row) > :is(.ui-prop-error) {grid-column:2;color:var(--error);font-size:var(--fs-11)}
 /* Boxed controls fill the value column, so their end edges line up too. */
-:is(.ui-prop-row) > :is(input.ui-field,select.ui-field,textarea.ui-field) {inline-size:100%;min-inline-size:0}
+:is(.ui-prop-row) > :is(input.ui-field,select.ui-field,textarea.ui-field,.ui-stepper) {inline-size:100%;min-inline-size:0}
 :is(.ui-prop-row) > :is(.ui-segmented) {display:flex}
 :is(.ui-prop-row) > :is(.ui-segmented) > :is(.ui-segment) {flex:1 1 0;min-inline-size:0}
 /* A number keeps its unit inside the field's box, at the trailing edge. Only in property rows: a

@@ -235,7 +235,10 @@ globalThis.AtriumThemePicker = (() => {
   const pages = new Set();
   let statusNode = null;
   function status(text, error) {
-    for (const p of pages) { const s = p.querySelector(".thp-status"); if (s) { s.textContent = text || ""; s.classList.toggle("is-error", !!error); } }
+    for (const p of pages) {
+      const s = p.querySelector(".thp-status");
+      if (s) { s.textContent = text || ""; if (error) s.dataset.tone = "danger"; else delete s.dataset.tone; }
+    }
     if (!pages.size && text) info(text);
   }
   function setSafe(partial, persist = true) { try { T.set(partial, {persist}); status(""); } catch (e) { status(e.message, true); } }
@@ -267,15 +270,15 @@ globalThis.AtriumThemePicker = (() => {
     const themes = appearanceGroup(n, "theme", t("Color theme"));
     // The gallery is the picker, so the actions sit on the heading row and the themes need no card around them.
     const tools = el("div", "thg-tools");
-    tools.append(button(t("Customize…"), () => act("theme-editor"), null, t("Edit any colour on top of the current theme")),
-      button(t("Import theme…"), importFile, null, t("A Waffle theme (.json) or a VS Code colour theme")),
-      button(t("Export theme…"), () => exportFile(), null, t("Save the current theme as a Waffle theme JSON file")));
+    tools.append(button(t("Customize…"), () => act("theme-editor"), "ui-button", t("Edit any colour on top of the current theme")),
+      button(t("Import theme…"), importFile, "ui-button", t("A Waffle theme (.json) or a VS Code colour theme")),
+      button(t("Export theme…"), () => exportFile(), "ui-button", t("Save the current theme as a Waffle theme JSON file")));
     const grid = el("div", "thg-grid"); grid.setAttribute("role", "radiogroup"); grid.setAttribute("aria-label", t("Color theme"));
     themes.classList.add("thg-gallery"); themes.parentElement.classList.add("thg-group");
     themes.before(tools); themes.append(grid); c.grid = grid;
     // Follow the OS light/dark setting, with a preferred theme for each.
-    const follow = el("label", "thp-check"), followBox = el("input", "ui-checkbox"); followBox.type = "checkbox";
-    if (preferences) { followBox.setAttribute("role", "switch"); followBox.classList.add("ui-switch"); follow.classList.add("ui-switch-row"); }
+    const follow = el("label", preferences ? "thp-check ui-switch-row" : "thp-check"), followBox = el("input", preferences ? "ui-switch" : "ui-checkbox"); followBox.type = "checkbox";
+    if (preferences) followBox.setAttribute("role", "switch");
     follow.append(followBox, el("span", null, t("Follow the operating system's light/dark setting")));
     followBox.addEventListener("change", () => setSafe({followSystem: followBox.checked}));
     const followRow = el("div", "thp-follow");
@@ -317,13 +320,14 @@ globalThis.AtriumThemePicker = (() => {
     c.density = density.inputs; c.font = font.inputs; c.motion = motion.inputs;
     // Canvas overrides.
     const canvasSet = appearanceGroup(n, "canvas", t("Canvas"));
-    const fc = el("label", "thp-check"), fcBox = el("input", "ui-checkbox"); fcBox.type = "checkbox";
-    if (preferences) { fcBox.setAttribute("role", "switch"); fcBox.classList.add("ui-switch"); fc.classList.add("ui-switch-row"); }
+    const fc = el("label", preferences ? "thp-check ui-switch-row" : "thp-check"), fcBox = el("input", preferences ? "ui-switch" : "ui-checkbox"); fcBox.type = "checkbox";
+    if (preferences) fcBox.setAttribute("role", "switch");
     fc.append(fcBox, el("span", null, t("Canvas colours follow the colour theme")));
     fcBox.addEventListener("change", () => setSafe({canvas: {follow: fcBox.checked}}));
     c.canvasFollow = fcBox; c.colors = [];
     const colorControl = (label, key) => {
-      const wrap = el("span", "thp-color"), input = el("input"), clear = button(t("Default"), () => setSafe({canvas: {[key]: ""}}), "thp-default");
+      const wrap = el("span", "thp-color"), input = el("input"), clear = button(t("Default"), () => setSafe({canvas: {[key]: ""}}), "ui-button thp-default");
+      clear.dataset.size = "sm";
       input.type = "color"; input.setAttribute("aria-label", label); clear.setAttribute("aria-label", t("themes.what_use_the_theme_default", {what: label}));
       input.addEventListener("input", () => setSafe({canvas: {[key]: input.value}}, false));
       input.addEventListener("change", () => setSafe({canvas: {[key]: input.value}}));
@@ -332,7 +336,7 @@ globalThis.AtriumThemePicker = (() => {
     canvasSet.append(fc, field(t("PCB background"), colorControl(t("PCB background"), "pcbBackground")),
       field(t("Schematic workspace"), colorControl(t("Schematic workspace"), "schBackground")),
       field(t("Schematic sheet"), colorControl(t("Schematic sheet"), "schSheet"), t("Layer colours come from the theme; View Configuration (L) overrides them per layer.")));
-    const st = el("p", "thp-status"); st.setAttribute("role", "status");
+    const st = el("p", "ui-status-line thp-status"); st.setAttribute("role", "status");
     page.append(...[themes, osSet, accentSet, layout, canvasSet].map(card => card.parentElement), st);
     for (const f of page.querySelectorAll(".thp-group")) f.dataset.search = f.textContent.toLowerCase();
     page._thg = c; pages.add(page);
@@ -353,7 +357,8 @@ globalThis.AtriumThemePicker = (() => {
         card.append(input, thumb(x.id), name);
         if (x.description) card.title = x.description;
         if (x.source === "user") {
-          const del = button("", () => { if (Lib().removeUser(x.id)) { forget(x.id); refresh(); status(t("themes.removed_name", {name: x.name})); } }, "thg-remove", t("themes.remove_name", {name: x.name}));
+          const del = button("×", () => { if (Lib().removeUser(x.id)) { forget(x.id); refresh(); status(t("themes.removed_name", {name: x.name})); } }, "ui-button ui-close thg-remove", t("themes.remove_name", {name: x.name}));
+          del.dataset.variant = "quiet"; del.dataset.fill = "overlay";
           del.setAttribute("aria-label", t("themes.remove_name", {name: x.name})); card.append(del);
         }
         frag.append(card);

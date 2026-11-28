@@ -180,9 +180,9 @@ globalThis.AtriumExtensionDev = (() => {
     P.registerPage({id: "extension-dev", title: "Extension Development", order: 5.5, keywords: "developer mode extension unpacked folder reload console scaffold new extension sdk", render(c, api) {
       const g = api.group(c, "Developer mode");
       const row = api.el("div", "prf-row prf-check"); row.dataset.search = "developer mode unpacked load folder reload console";
-      const box = api.el("input"); box.type = "checkbox"; box.id = "prf-ext-dev"; box.checked = P.get(PREF) === true;
+      const box = api.el("input", "ui-switch"); box.type = "checkbox"; box.setAttribute("role", "switch"); box.id = "prf-ext-dev"; box.checked = P.get(PREF) === true;
       box.onchange = () => P.set(PREF, box.checked);
-      const l = api.el("label"); l.htmlFor = box.id; l.append(box, api.el("span", null, "Developer mode: load unpacked extensions from a folder"));
+      const l = api.el("label", "ui-switch-row"); l.htmlFor = box.id; l.append(box, api.el("span", null, "Developer mode: load unpacked extensions from a folder"));
       const help = api.el("small", "prf-help", "Load temporary extensions with the usual permission prompts.");
       help.title = "Unpacked extensions are sandboxed and removed when Waffle quits or Developer mode ends.";
       help.id = "prf-ext-dev-help"; box.setAttribute("aria-describedby", help.id);

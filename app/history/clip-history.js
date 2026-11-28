@@ -812,9 +812,9 @@ globalThis.AtriumClipHistory = (() => {
       help.id = "prf-clip-size-help"; input.setAttribute("aria-describedby", help.id);
       n.append(l, ctl, help); g.append(n);
       const k = api.el("div", "prf-row prf-check"); k.dataset.search = "keep history restart persist clipboard";
-      const box = api.el("input", "ui-checkbox"); box.type = "checkbox"; box.id = "prf-clip-keep"; box.checked = keep();
+      const box = api.el("input", "ui-switch"); box.type = "checkbox"; box.setAttribute("role", "switch"); box.id = "prf-clip-keep"; box.checked = keep();
       box.onchange = () => P.set(PREF_KEEP, box.checked);
-      const kl = api.el("label", "ui-checkbox-row"); kl.htmlFor = box.id; kl.append(box, api.el("span", null, "Keep the clipboard history after restarting Waffle"));
+      const kl = api.el("label", "ui-switch-row"); kl.htmlFor = box.id; kl.append(box, api.el("span", null, "Keep the clipboard history after restarting Waffle"));
       const detail = api.el("small", "prf-help", "Store this history on your computer, outside the project.");
       detail.id = box.id + "-help"; box.setAttribute("aria-describedby", detail.id); k.append(kl, detail);
       g.append(k);

@@ -474,9 +474,9 @@ globalThis.AtriumInsightsUI = (() => {
         };
         const check = (key, label, def, help) => {
           const r = api.el("div", "prf-row prf-check"); r.dataset.search = (label + " " + key).toLowerCase();
-          const box = api.el("input", "ui-checkbox"); box.type = "checkbox"; box.id = "prf-" + key.replace(/\W/g, "-"); box.checked = pref(key, def) !== false;
+          const box = api.el("input", "ui-switch"); box.type = "checkbox"; box.setAttribute("role", "switch"); box.id = "prf-" + key.replace(/\W/g, "-"); box.checked = pref(key, def) !== false;
           box.onchange = () => P.set(key, box.checked);
-          const l = api.el("label", "ui-checkbox-row"); l.htmlFor = box.id; l.append(box, api.el("span", null, label)); r.append(l);
+          const l = api.el("label", "ui-switch-row"); l.htmlFor = box.id; l.append(box, api.el("span", null, label)); r.append(l);
           describe(r, box, help);
           return r;
         };
@@ -505,7 +505,7 @@ globalThis.AtriumInsightsUI = (() => {
               const v = pref(key, null); input.value = v == null ? "" : String(v); input.placeholder = t("insights.pref.default", {value: base[s.key]});
               if (Number.isFinite(base[s.key])) input.dataset.defaultValue = String(base[s.key]);
               input.onchange = () => { const n = input.value === "" ? null : Math.min(s.max ?? Infinity, Math.max(s.min ?? -Infinity, +input.value)); if (n == null || !Number.isFinite(n)) P.reset?.([key]) ?? P.set(key, null); else { P.set(key, n); input.value = String(n); } };
-              const ctl = api.el("span", "prf-control"); ctl.append(input); if (s.unit) ctl.append(api.el("span", "prf-unit", s.unit));
+              const ctl = api.el("span", "prf-control"); ctl.append(input); if (s.unit) ctl.append(api.el("span", "ui-field-unit prf-unit", s.unit));
               r.append(l, ctl); f.append(r);
             }
           }

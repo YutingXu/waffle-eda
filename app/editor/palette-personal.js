@@ -346,7 +346,7 @@ globalThis.AtriumPalettePersonal = (() => {
   }
   let preferenceFieldId = 0;
   function renderPreferences(container,P) {
-    const {el,button,group} = P, feedback = el("p","prf-note palette-personal-status");
+    const {el,button,group} = P, feedback = el("p","ui-status-line palette-personal-status");
     feedback.setAttribute("role","status");
     const announce = text => {feedback.textContent = text;};
     const fail = fn => () => {try {fn();} catch (error) {announce(error.message);}};
@@ -365,6 +365,7 @@ globalThis.AtriumPalettePersonal = (() => {
       return row;
     };
     const action = (label,fn) => button(label,fn,"prf-button");
+    const rowAction = (label,fn) => { const b = button(label,fn,"prf-button"); b.dataset.size = "sm"; return b; };
     const groups = el("div","palette-personal-groups");
 
     const commands = group(groups,t("personal.aliasGroup")), target = el("select"), aliasesInput = el("input"), row = el("div","palette-personal-controls");
@@ -394,23 +395,25 @@ globalThis.AtriumPalettePersonal = (() => {
     commands.append(field(t("personal.command"),target),field(t("personal.aliases"),aliasesInput),row);
 
     const quicklinks = group(groups,t("personal.quicklinks")), name = el("input"), template = el("input"), formEl = el("form","palette-personal-link-form");
-    const list = el("ul","palette-personal-list"), saveButton = action(t("personal.saveLink"));
+    const list = el("div","ui-list palette-personal-list"), saveButton = action(t("personal.saveLink"));
+    list.setAttribute("role","list");
     quicklinks.dataset.search = "quicklinks url template browser search";
     name.required = template.required = true;
     name.maxLength = 80; template.maxLength = 2048; saveButton.type = "submit";
     let editing = null;
     const paintLinks = () => {
       list.replaceChildren(...links().map(link => {
-        const li = el("li"), title = el("span",null,link.name);
-        const edit = action(t("personal.edit"),() => {editing = link.id; name.value = link.name; template.value = link.template; name.focus();});
-        const remove = action(t("personal.remove"),() => {
+        const li = el("div","ui-row palette-personal-row"), text = el("span","ui-row-text"), title = el("span","ui-row-title",link.name), actions = el("span","ui-row-actions");
+        li.setAttribute("role","listitem");
+        const edit = rowAction(t("personal.edit"),() => {editing = link.id; name.value = link.name; template.value = link.template; name.focus();});
+        const remove = rowAction(t("personal.remove"),() => {
           removeLink(link.id);
           if (editing === link.id) {editing = null; formEl.reset();}
           paintLinks(); name.focus(); announce(t("personal.removed"));
         });
         edit.setAttribute("aria-label",t("personal.edit")+" "+link.name);
         remove.setAttribute("aria-label",t("personal.remove")+" "+link.name);
-        title.title = link.template; li.append(title,edit,remove); return li;
+        title.title = link.template; text.append(title); actions.append(edit,remove); li.append(text,actions); return li;
       }));
     };
     formEl.addEventListener("submit",e => {e.preventDefault(); fail(() => {
@@ -420,16 +423,20 @@ globalThis.AtriumPalettePersonal = (() => {
     formEl.append(field(t("personal.linkName"),name),field(t("personal.template"),template,t("personal.linkHint",{example:token})),saveButton);
     quicklinks.append(formEl,list); paintLinks();
 
-    const snippets = group(groups,t("personal.snippets")), items = el("ul","palette-personal-list"), help = el("small","prf-help",t("personal.snippetHint"));
+    const snippets = group(groups,t("personal.snippets")), items = el("div","ui-list palette-personal-list"), help = el("div","ui-empty palette-personal-empty");
+    items.setAttribute("role","list");
+    help.append(el("p",null,t("personal.snippetHint")));
     snippets.dataset.search = "snippet selection clipboard saved group reusable";
     const paintSnippets = () => {
       const rows = (clips()?.list() || []).filter(saved);
       help.hidden = !!rows.length;
       items.replaceChildren(...rows.map(clip => {
-        const li = el("li"), label = el("span",null,clip.name+" · "+kindNames[clip.kind]);
-        const remove = action(t("personal.remove"), () => {clips().pin(clip.id,false); paintSnippets(); announce(t("personal.removed"));});
+        const li = el("div","ui-row palette-personal-row"), text = el("span","ui-row-text"), actions = el("span","ui-row-actions");
+        li.setAttribute("role","listitem");
+        text.append(el("span","ui-row-title",clip.name), el("span","ui-row-detail",kindNames[clip.kind]));
+        const remove = rowAction(t("personal.remove"), () => {clips().pin(clip.id,false); paintSnippets(); announce(t("personal.removed"));});
         remove.setAttribute("aria-label",t("personal.remove")+" "+clip.name);
-        li.append(label, remove); return li;
+        actions.append(remove); li.append(text,actions); return li;
       }));
     };
     snippets.append(help,items); paintSnippets();

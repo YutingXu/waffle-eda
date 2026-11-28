@@ -98,8 +98,6 @@
 .thp-segment {flex-wrap:wrap;justify-self:start}
 .thp-color {display:flex;align-items:center;gap:6px}
 .work-dialog .thp-color input[type=color] {width:44px;height:24px;padding:1px 2px;cursor:default}
-.work-dialog .thp-default {min-height:var(--ctl-h-sm);padding:0 8px;font-size:var(--fs-11)}
-.thp-status {min-height:18px;margin:0;padding:4px 18px 0;font-size:var(--fs-11);color:var(--muted)}
-.thp-status.is-error {color:var(--danger)}
+.thp-status {margin:0;padding:4px 18px 0}
 @media(max-width:620px) {.thp-field {grid-template-columns:1fr} .thp-field .thp-hint {grid-column:1}}
 @media(pointer:coarse) {.thp-check {min-block-size:var(--ctl-h-touch)}}

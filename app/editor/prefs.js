@@ -254,7 +254,7 @@ globalThis.AtriumPrefs = (() => {
   }
   const doc = globalThis.document;
   function el(tag, cls, text) { return AtriumNavCommon.classedElement(doc, tag, cls, text); }
-  function button(text, fn, cls, title) { const b = el("button", cls, text); b.type = "button"; b.onclick = fn; if (title) b.title = title; return b; }
+  function button(text, fn, cls, title, variant) { const b = el("button", cls ? "ui-button " + cls : "ui-button", text); b.type = "button"; b.onclick = fn; if (title) b.title = title; if (variant) b.dataset.variant = variant; return b; }
   const act = a => { close(); setTimeout(() => host()?.act?.(a), 0); };
   const icon = name => AtriumNavCommon.icon(name);
   // Field rows: [key, label, help?, {type, options, unit, step}]
@@ -264,9 +264,9 @@ globalThis.AtriumPrefs = (() => {
     let input;
     if (typeof d === "boolean") {
       wrap.classList.add("prf-check");
-      input = el("input", "ui-checkbox"); input.type = "checkbox"; input.checked = !!get(key); input.id = id;
+      input = el("input", "ui-switch"); input.type = "checkbox"; input.setAttribute("role", "switch"); input.checked = !!get(key); input.id = id;
       input.onchange = () => { commit(key, input.checked, input); input.checked = !!get(key); };
-      const l = el("label", "ui-checkbox-row"); l.htmlFor = id; l.append(input, el("span", null, label)); wrap.append(l);
+      const l = el("label", "ui-switch-row"); l.htmlFor = id; l.append(input, el("span", null, label)); wrap.append(l);
     } else {
       const l = el("label", "prf-label", label); l.htmlFor = id;
       if (o.options) {
@@ -282,7 +282,7 @@ globalThis.AtriumPrefs = (() => {
         input.onchange = () => { commit(key, input.value, input); input.value = String(get(key)); };
       }
       input.id = id; input.classList.add("ui-field");
-      const control = el("span", "prf-control"); control.append(input); if (o.unit) control.append(el("span", "prf-unit", o.unit));
+      const control = el("span", "prf-control"); control.append(input); if (o.unit) control.append(el("span", "ui-field-unit prf-unit", o.unit));
       wrap.append(l, control);
     }
     if (help) { const h = el("small", "prf-help", help); h.id = id + "-help"; input.setAttribute("aria-describedby", h.id); wrap.append(h); }
@@ -291,8 +291,8 @@ globalThis.AtriumPrefs = (() => {
       if (input.type === "checkbox") input.checked = !!get(key);
       else input.value = String(get(key));
       updateReset(); input.focus();
-    }, "prf-reset");
-    restore.setAttribute("aria-label", "Reset " + label + " to default");
+    }, "prf-reset", null, "quiet");
+    restore.dataset.size = "sm"; restore.setAttribute("aria-label", "Reset " + label + " to default");
     const updateReset = () => {
       restore.hidden = get(key) === d;
       wrap.toggleAttribute("data-modified", !restore.hidden);
@@ -550,12 +550,12 @@ globalThis.AtriumPrefs = (() => {
 
   // ------------------------------------------------------------------ dialog
   let dialog = null, ui = null, current = "general", pendingPage = null, opening = 0;
-  function status(text, error) { if (!ui) return; ui.status.textContent = text || ""; ui.status.classList.toggle("prf-status-error", !!error); }
+  function status(text, error) { if (!ui) return; ui.status.textContent = text || ""; if (error) ui.status.dataset.tone = "danger"; else delete ui.status.dataset.tone; }
   function build() {
     const d = el("dialog", "work-dialog prf-dialog"); d.setAttribute("aria-labelledby", "prf-title");
     const head = el("header", "prf-window-head"), title = el("h2", "prf-title", "Preferences"); title.id = "prf-title";
-    const dismiss = button("", () => close(), "prf-close ui-button", "Close Preferences");
-    dismiss.dataset.variant = "quiet"; dismiss.setAttribute("aria-label", "Close Preferences"); dismiss.append(icon("close"));
+    const dismiss = button("×", () => close(), "ui-close prf-close", "Close Preferences", "quiet");
+    dismiss.setAttribute("aria-label", "Close Preferences");
     if (globalThis.AtriumKeymap?.mac) head.append(dismiss, title); else head.append(title, dismiss);
     const search = el("input", "prf-search ui-field");
     search.type = "search"; search.placeholder = "Search preferences"; search.setAttribute("aria-label", "Search preferences");
@@ -570,9 +570,9 @@ globalThis.AtriumPrefs = (() => {
     nav.append(head, searchBox, list, picker);
     const main = el("div", "prf-page"); main.setAttribute("role", "region"); main.tabIndex = -1;
     body.append(nav, main);
-    const st = el("p", "prf-status"); st.setAttribute("role", "status");
+    const st = el("p", "ui-status-line prf-status"); st.setAttribute("role", "status");
     d.append(body, st);
-    AtriumShell.adoptDialog(d, {title, body:[body, st], defaultAction:false});
+    AtriumShell.adoptDialog(d, {title, body:[body, st], modeless:true, defaultAction:false});
     d.addEventListener("keydown", event => {
       if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       event.preventDefault(); event.stopPropagation(); close();
@@ -591,7 +591,7 @@ globalThis.AtriumPrefs = (() => {
       else if (e.key === "Home" || e.key === "End") { e.preventDefault(); const b = bs[e.key === "Home" ? 0 : bs.length - 1]; b.focus(); b.click(); }
     });
     doc.body.append(d);
-    dialog = d; ui = {search, list, jump, main, status: st, show, head};
+    dialog = d; ui = {search, searchBox, list, jump, main, status: st, show, head};
   }
   function loadWindowControls() {
     if (ui.controls) return;
@@ -611,8 +611,11 @@ globalThis.AtriumPrefs = (() => {
     ui.main.querySelector(".prf-restore-link")?.focus({preventScroll:true});
   }
   function prepareFields(container) {
-    for (const input of container.querySelectorAll('.prf-check > label > input[type="checkbox"], .prf-appearance .thp-check > input[type="checkbox"]'))
-      { input.setAttribute("role", "switch"); input.classList.add("ui-switch"); input.parentElement.classList.add("ui-switch-row"); }
+    for (const i of container.querySelectorAll('.prf-check>label>input[type=checkbox],.prf-appearance .thp-check>input[type=checkbox]')) {
+      i.setAttribute("role", "switch");
+      i.classList.replace("ui-checkbox", "ui-switch") || i.classList.add("ui-switch");
+      i.parentElement.classList.replace("ui-checkbox-row", "ui-switch-row") || i.parentElement.classList.add("ui-switch-row");
+    }
     ui.controls?.enhance(container);
   }
   function refreshSections(body, page) {
@@ -647,7 +650,7 @@ globalThis.AtriumPrefs = (() => {
     catch (e) { c.append(el("p", "prf-note", "This page failed to load: " + e.message)); }
     prepareFields(c);
     const footer = el("div", "prf-page-footer");
-    footer.append(button("Restore Defaults…", () => confirmRestore(p), "prf-restore-link")); c.append(footer);
+    footer.append(button("Restore Defaults…", () => confirmRestore(p), "prf-restore-link", null, "quiet")); c.append(footer);
     refreshSections(c,p);
     return c;
   }
@@ -658,10 +661,9 @@ globalThis.AtriumPrefs = (() => {
       const group = el("li"), options = el("ul"); options.setAttribute("role", "list");
       group.append(el("div", "prf-nav-label", title), options);
       for (const [p, symbol] of entries) {
-        const li = el("li"), item = button("", event => ui.show(p.id, event), "prf-nav-item ui-button", p.title);
+        const li = el("li"), item = button("", event => ui.show(p.id, event), "prf-nav-item", p.title, p.id === current ? "primary" : "quiet");
         item.append(icon(symbol), el("span", null, p.title));
         if (p.id === current) item.setAttribute("aria-current", "page");
-        item.dataset.variant = p.id === current ? "primary" : "quiet";
         li.append(item); options.append(li);
       }
       list.append(group);
@@ -689,6 +691,7 @@ globalThis.AtriumPrefs = (() => {
       }
       shown.push({p, c, titleMatch});
     }
+    ui.searchBox.setCount?.(q ? String(shown.length) : null);
     if (!shown.some(x => x.p.id === current)) current = shown[0]?.p.id || current;
     pageNavigation(list, shown);
     const options = shown.map(({p}) => {
@@ -699,7 +702,11 @@ globalThis.AtriumPrefs = (() => {
     ui.jump.disabled = !shown.length;
     if (navFocused) list.querySelector('[aria-current="page"]')?.focus();
     const page = shown.find(x => x.p.id === current);
-    if (!page) { main.removeAttribute("aria-label"); delete main.dataset.shown; main.replaceChildren(el("p", "prf-note", "No preferences match “" + ui.search.value + "”.")); return; }
+    if (!page) {
+      main.removeAttribute("aria-label"); delete main.dataset.shown;
+      const empty = el("div", "ui-empty"); empty.append(el("p", null, "No preferences match “" + ui.search.value + "”."));
+      main.replaceChildren(empty); return;
+    }
     const body = page.c || pageBody(page.p);
     if (body.parentNode !== main) {
       main.setAttribute("aria-label", page.p.title);
