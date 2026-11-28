@@ -102,6 +102,19 @@ def budgets():
     # The same table as scripts/perf-collab.cjs BUDGETS, on the median of the runs' p95.
     B = {"remote": 4, "structural": 4, "inPlace": 1, "undo": 16, "drcItems": 2000}
     failed, lines, ed = [], [], report["editors"]
+    # Lost edits: every run on its own (the maximum, not the median), as scripts/perf-collab.cjs lostEdits.
+    for n, run in enumerate(report["raw"]["live"], 1):
+        for mode, t in run["transports"].items():
+            if t.get("error"): failed.append("run %d %s: a pass failed, so its edits were not checked: %s" % (n, mode, t["error"]))
+            for name in ("drop", "stall"):
+                r = t.get(name)
+                if not r: continue
+                if r.get("lost"): failed.append("run %d %s %s: %s edit(s) lost %s" % (n, mode, name, r["lost"], json.dumps(r.get("arrived"))))
+                if any(k in r and r[k] is None for k in ("settledMsAfterReturn", "settledMsAfterResume")): failed.append("run %d %s %s: the editors never settled" % (n, mode, name))
+            for variant, r in (t.get("trim") or {}).items():
+                if r.get("missingOnHost") or r.get("vvAgree") is False: failed.append("run %d %s trim %s: %s missing on the host" % (n, mode, variant, r.get("missingOnHost")))
+    lost = [r.get(name, {}).get("lost", 0) or 0 for run in report["raw"]["live"] for t in run["transports"].values() for name in ("drop", "stall") for r in [t]]
+    lines.append("  %-30s %-14s max %8s      budget %5s" % ("drop and stall", "edits lost", max(lost or [0]), 0))
     def p95(k):
         v = ed.get(k)
         return v["p95"]["median"] if isinstance(v, dict) and v.get("p95") else None

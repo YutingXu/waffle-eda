@@ -25,6 +25,8 @@
 //            convergence times, and whether every edit arrived on both sides.
 //   stall    the relay stops for 25 s without closing (a half-open connection): does either editor
 //            notice, and does an edit still arrive (it can on a direct data channel)?
+//            In drop and stall, an edit counts as lost only once both editors have settled (equal
+//            version vectors and shared project, within 60 s) and it is still missing.
 //   trim     (relay-only) a guest that deletes 4,200 objects while disconnected, past the CRDT's
 //            bounded log (LIMITS.log): whether the host receives them after reconnecting.
 //   scope    (with cost) what each remote edit makes the guest's editor re-check: whether the patch
@@ -486,7 +488,8 @@ const mark = (page, which, field, value) => page.evaluate(({which, field, value}
   return it.id;
 }, {which, field, value});
 const read = (page, id, field) => page.evaluate(({id, field}) => { for (const d of AtriumNavHost.project().documents) { const it = d.items.find(i => i.id === id); if (it) return it[field]; } return null; }, {id, field});
-async function arrived(checks) { const out = {}; for (const c of checks) out[c.name] = await read(c.page, c.id, c.field) === c.value; return out; }
+// Per check, by name (a check without one is keyed by its place, so no check can hide another).
+async function arrived(checks) { const out = {}; for (const [i, c] of checks.entries()) out[c.name ?? i] = await read(c.page, c.id, c.field) === c.value; return out; }
 // Both editors back on the relay (with data channels kept, the session may have stayed "open").
 async function waitOpen(s, since, ms = 70000) {
   while (Date.now() - since < ms) {
@@ -507,6 +510,27 @@ async function noticed(s, since, ms) {
 }
 async function waitAll(checks, since, ms = 30000) {
   while (Date.now() - since < ms) { const a = await arrived(checks); if (Object.values(a).every(Boolean)) return Date.now() - since; await sleep(100); }
+  return null;
+}
+// Settled: both editors back on the relay with equal version vectors (each holds every edit the
+// other made) and the same shared project (a digest of the replica's canonical view). Waits up to
+// ms after since; null when they never settled. Lost edits are counted only after this (or at its
+// deadline), so lateness on a loaded machine is not reported as a loss, and a real loss still is.
+const shared = p => p.evaluate(() => {
+  const S = AtriumCollabLive.session(), text = AtriumCollabCRDT.canon(S.r.project());
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return {vv: Object.entries(S.r.vv()).sort().join(), digest: (h >>> 0).toString(36) + ":" + text.length};
+});
+async function settled(s, since, ms = 60000) {
+  while (Date.now() - since < ms) {
+    const [h, g] = [await state(s.host), await state(s.guest)];
+    if (relayUp(h) && relayUp(g)) {
+      const [a, b] = [await shared(s.host), await shared(s.guest)];
+      if (a.vv === b.vv && a.digest === b.digest) return Date.now() - since;
+    }
+    await sleep(200);
+  }
   return null;
 }
 // Outage of the network both editors use (the relay dies). In flight: edits written into a socket
@@ -532,12 +556,12 @@ async function dropPass(s, relayRef) {
   await sleep(Math.max(0, 3000 - (Date.now() - killedAt)));
   relayRef.current = await relay(relayRef.current.port);
   const back = Date.now(), reopen = await waitOpen(s, back), converged = reopen === null ? null : await waitAll(checks, back);
-  const final = await arrived(checks);
+  const settledMs = await settled(s, back), final = await arrived(checks);
   const after = {name: "liveAfterReturn", page: s.guest, id: await mark(s.host, "part:1", "value", "after-" + Date.now() % 1e5), field: "value"};
   after.value = await read(s.host, after.id, "value");
   const liveMs = await waitAll([after], Date.now(), 15000);
   return {downMs: back - killedAt, connectionWhileDown: during, relayJoinedWhileDown: joinedDuring, deliveredWhileDown: whileDown, reopenMsAfterReturn: reopen,
-    convergedMsAfterReturn: converged, arrived: final, lost: Object.values(final).filter(v => !v).length, liveEditAfterReturnMs: liveMs, pathsBefore, pathsAfter: (await state(s.host)).paths};
+    convergedMsAfterReturn: converged, settledMsAfterReturn: settledMs, arrived: final, lost: Object.values(final).filter(v => !v).length, liveEditAfterReturnMs: liveMs, pathsBefore, pathsAfter: (await state(s.host)).paths};
 }
 // The relay stalls (SIGSTOP) without closing: a half-open connection, as when a sleeping host's
 // network vanishes. When does each editor notice, do edits still arrive (on a direct data channel),
@@ -546,7 +570,7 @@ async function stallPass(s, relayRef, seconds = 25) {
   relayRef.current.proc.kill("SIGSTOP");
   const t0 = Date.now();
   const id = await mark(s.host, "via:2", "diameter", 0.62), gid = await mark(s.guest, "via:3", "diameter", 0.63);
-  const checks = [{page: s.guest, id, field: "diameter", value: 0.62}, {page: s.host, id: gid, field: "diameter", value: 0.63}];
+  const checks = [{name: "hostEdit", page: s.guest, id, field: "diameter", value: 0.62}, {name: "guestEdit", page: s.host, id: gid, field: "diameter", value: 0.63}];
   // Both at once: delivery over a data channel does not wait for the stall to be noticed.
   const [detectMs, deliveredMs] = await Promise.all([noticed(s, t0, seconds * 1000), waitAll(checks, t0, seconds * 1000)]);
   await sleep(Math.max(0, seconds * 1000 - (Date.now() - t0)));
@@ -555,9 +579,9 @@ async function stallPass(s, relayRef, seconds = 25) {
   relayRef.current.proc.kill("SIGCONT");
   const resumed = Date.now(), rejoinMs = await waitOpen(s, resumed, 40000);
   const afterResume = deliveredMs === null ? await waitAll(checks, resumed, 30000) : null;
-  const final = await arrived(checks.map((c, i) => ({...c, name: i ? "guestEdit" : "hostEdit"})));
+  const settledMs = await settled(s, resumed), final = await arrived(checks);
   return {stallSeconds: seconds, detectMs, stallsFound: stalls, connectionAfterStall: during, deliveredDuringStallMs: deliveredMs, rejoinMsAfterResume: rejoinMs,
-    deliveredAfterResumeMs: afterResume, lost: Object.values(final).filter(v => !v).length};
+    deliveredAfterResumeMs: afterResume, settledMsAfterResume: settledMs, arrived: final, lost: Object.values(final).filter(v => !v).length};
 }
 // A guest falls behind the CRDT's bounded log (LIMITS.log 4,000 operations; trim keeps 2,000):
 // it deletes 4,200 objects while disconnected. The session heartbeat trims every 20 s; it is called
@@ -643,8 +667,25 @@ const BUDGETS = {
   undoEditMs: 16,                                                     // personal undo on the host
   scoped: ["move", "property", "add", "delete"], drcItems: 2000       // a remote edit re-checks its neighbourhood
 };
-function budgets(result) {
+// No edit may be lost, in any run: every drop and stall pass settled and then held each edit on both
+// sides, and every trim variant reached the host. A pass that failed to run counts too (it measured
+// nothing). scripts/perf-collab.sh applies this to each run, not to the median.
+function lostEdits(result) {
   const failed = [];
+  for (const [mode, t] of Object.entries(result.transports)) {
+    if (t.error) failed.push(mode + ": a pass failed, so its edits were not checked: " + t.error);
+    for (const pass of ["drop", "stall"]) {
+      const r = t[pass];
+      if (!r) continue;
+      if (r.lost) failed.push(mode + " " + pass + ": " + r.lost + " edit(s) lost " + JSON.stringify(r.arrived));
+      if (r.settledMsAfterReturn === null || r.settledMsAfterResume === null) failed.push(mode + " " + pass + ": the editors never settled (equal version vectors and shared project)");
+    }
+    for (const [variant, r] of Object.entries(t.trim || {})) if (r.missingOnHost || r.vvAgree === false) failed.push(mode + " trim " + variant + ": " + r.missingOnHost + " missing on the host, vectors agree " + r.vvAgree);
+  }
+  return failed;
+}
+function budgets(result) {
+  const failed = lostEdits(result);
   for (const [mode, t] of Object.entries(result.transports)) {
     const c = t.cost;
     if (!c) continue;
@@ -662,5 +703,5 @@ function budgets(result) {
   }
   return failed;
 }
-module.exports = {BUDGETS, budgets, design, serve, relay, killRelay, session, setupKinds, runKind, guestSaw, instrument, scopeMark, scopeSince};
+module.exports = {BUDGETS, budgets, lostEdits, design, serve, relay, killRelay, session, setupKinds, runKind, guestSaw, instrument, scopeMark, scopeSince};
 if (require.main === module) main().catch(err => { console.error(err); process.exitCode = 1; });
