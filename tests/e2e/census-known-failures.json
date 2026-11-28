@@ -413,16 +413,6 @@
   },
   {
    "fixture": "altium-pidp11",
-   "check": "Pads6.LOCKED",
-   "bug": "4 lost of 100. First: Pads6/Data#32 LOCKED=true: locked in the source, unlocked in Waffle"
-  },
-  {
-   "fixture": "altium-pidp11",
-   "check": "Vias6.LOCKED",
-   "bug": "36 lost of 59. First: Vias6/Data#5 LOCKED=true: locked in the source, unlocked in Waffle"
-  },
-  {
-   "fixture": "altium-pidp11",
    "check": "Board6.V9_MASTERSTACK_NAME",
    "bug": "1 unmapped of 1. First: Board6/Data#0 V9_MASTERSTACK_NAME=\"Master layer stack\": unmapped: the census has no rule for this field, so nothing has checked it"
   },
@@ -603,28 +593,8 @@
   },
   {
    "fixture": "altium-pidp11",
-   "check": "Texts6.LOCKED",
-   "bug": "32 lost of 65. First: Texts6/Data#0 LOCKED=true: locked in the source, unlocked in Waffle"
-  },
-  {
-   "fixture": "altium-pidp11",
-   "check": "Tracks6.LOCKED",
-   "bug": "5 lost of 421. First: Tracks6/Data#128 LOCKED=true: locked in the source, unlocked in Waffle"
-  },
-  {
-   "fixture": "altium-pidp11",
-   "check": "Regions6.LOCKED",
-   "bug": "18 lost of 24. First: Regions6/Data#4 LOCKED=true: locked in the source, unlocked in Waffle"
-  },
-  {
-   "fixture": "altium-pidp11",
    "check": "Regions6.UNIONINDEX",
    "bug": "18 lost of 24. First: Regions6/Data#4 UNIONINDEX=\"8\": the union is not kept (no groupId)"
-  },
-  {
-   "fixture": "altium-pidp11",
-   "check": "Polygons6.LOCKED",
-   "bug": "2 lost of 2. First: Polygons6/Data#0 LOCKED=\"TRUE\": locked in the source, unlocked in Waffle"
   },
   {
    "fixture": "altium-pidp11",
@@ -635,11 +605,6 @@
    "fixture": "altium-pidp11",
    "check": "Polygons6.OPTIMALVOIDROTATION",
    "bug": "2 lost of 2. First: Polygons6/Data#0 OPTIMALVOIDROTATION=\"TRUE\": Waffle has no void-rotation setting"
-  },
-  {
-   "fixture": "altium-pidp11",
-   "check": "Components6.LOCKED",
-   "bug": "23 lost of 23. First: Components6/Data#0 LOCKED=\"TRUE\": locked in the source, unlocked in Waffle"
   },
   {
    "fixture": "altium-pidp11",
@@ -730,11 +695,6 @@
    "fixture": "altium-pidp11",
    "check": "PadViaLibraryCache.PADVIALIBRARY.DISPLAYUNITS",
    "bug": "1 unmapped of 1. First: PadViaLibraryCache/Data#0 PADVIALIBRARY.DISPLAYUNITS=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
-  },
-  {
-   "fixture": "altium-pidp11",
-   "check": "ShapeBasedRegions6.LOCKED",
-   "bug": "18 lost of 24. First: ShapeBasedRegions6/Data#4 LOCKED=true: locked in the source, unlocked in Waffle"
   },
   {
    "fixture": "altium-pidp11",

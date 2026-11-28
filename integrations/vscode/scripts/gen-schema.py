@@ -288,7 +288,7 @@ def schema(c):
                         for key in ("batch", "online")}},
                 "sourceRulesReplaced": {"const": True},
                 "sourceRuleLayers": {"type": "object", "additionalProperties": {"type": ["string", "null"]}},
-                "sourceArcVersion": {"const": 1}, **body_geometry}},
+                "sourceArcVersion": {"const": 1}, "sourceLockVersion": {"const": 1}, **body_geometry}},
             "item": {"type": "object", "required": ["id", "kind"], "allOf": [path_cond, position_cond, mark_cond, poly_cond, frame,
                 {"if": {"properties": {"kind": {"const": "netlabel"}}, "required": ["kind"]}, "then": {"properties": {"autoName": auto_name}}},
                 {"if": {"properties": {"kind": {"const": "offsheet"}}, "required": ["kind"]}, "then": {"required": ["text"], "properties": {"io": offsheet_io}}},

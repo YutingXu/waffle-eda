@@ -1281,6 +1281,9 @@
         "sourceArcVersion": {
           "const": 1
         },
+        "sourceLockVersion": {
+          "const": 1
+        },
         "bodyModelVersion": {
           "const": 1
         },

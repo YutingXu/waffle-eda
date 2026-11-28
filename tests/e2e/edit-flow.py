@@ -63,7 +63,8 @@ TARGETS = {"kicad": ("kicad",), "altium": ("altium-source-copy", "kicad")}
 # ("lossless or ask"); any other error is a failed save. app/formats/source-copy.js, pcb-patch.js.
 LOCKED = "Locked or grouped footprints"
 COPPER_LOCKED = "locked copper"
-WRITER_REFUSALS = "|".join((LOCKED, COPPER_LOCKED, "Only X/Y translation of an existing footprint", "new or unlinked", "added or removed",
+UNLOCKED = "Unlocking a source object"  # a lock is the source's own; the copy cannot change it
+WRITER_REFUSALS = "|".join((LOCKED, COPPER_LOCKED, UNLOCKED, "Only X/Y translation of an existing footprint", "new or unlinked", "added or removed",
                             "source library binding changed", "cannot be written to this Altium source format"))
 REFUSALS = {"rework": {"altium-source-copy": WRITER_REFUSALS}}
 BINARY = "altium-source-copy"
@@ -179,14 +180,20 @@ class Flow:
             if error:
                 self.results.append(row("import.components", False, {"error": error}))
                 return False
-            self.parts += [c for c in page["items"] if c.get("ref") and not c.get("locked")]
+            self.parts += [c for c in page["items"] if c.get("ref")]
             offset = page.get("next_offset")
-        # Waffle does not import Altium's lock flags; the independent reader says what the source fixes in place,
-        # so the edits go to objects the binary writer can hold when the board has any.
+        # The independent reader says what the source fixes in place, so the edits go to objects the binary
+        # writer can hold when the board has any. Footprints the import holds as locked are edited last, and
+        # only after the flow unlocks them as a user would (drag): on a board that locks every footprint,
+        # three are unlocked, and the Altium copy must then refuse, since it cannot change a source lock.
         self.fixed = self.node_json({"survey": True, "original": {"name": self.board, "path": str(self.source_dir / self.board)}}, "survey").get("fixed")
         fixed = {ref.upper() for ref in (self.fixed or {}).get("refs", [])}
+        locked = [c for c in self.parts if c.get("locked")]
+        if len(locked) < len(self.parts):
+            self.parts = [c for c in self.parts if not c.get("locked")]
         self.parts.sort(key=lambda c: (c["ref"].upper() in fixed, c["ref"]))
-        self.results.append(row("import.components", bool(self.parts), {"footprints": len(self.parts), "sourceFixes": len(fixed),
+        self.unlock = self.parts[:3] if self.parts and self.parts[0].get("locked") else []  # the three the flow moves, turns and flips
+        self.results.append(row("import.components", bool(self.parts), {"footprints": len(self.parts), "locked": len(locked), "sourceFixes": len(fixed),
                                                                          "freeVias": len((self.fixed or {}).get("free", []))}))
         return bool(self.parts)
 
@@ -242,19 +249,21 @@ class Flow:
     def protocol(self):
         """The server's own guarantees the flow depends on: a proposal writes nothing, a stale write is refused."""
         ref = self.parts[0]["ref"]
-        result, error = self.call(self.manifest, "move_component", {"document_id": self.pcb, "component": ref, "dx": 1}, transport="mcp")
+        # Any edit will do. A locked footprint does not move even as a proposal, so on a board that locks them all the edit is the unlock.
+        tool, args = ("run_command", {"command": "set_locked", "args": {"document_id": self.pcb, "designators": [ref], "locked": False}}) if self.unlock else \
+            ("move_component", {"document_id": self.pcb, "component": ref, "dx": 1})
+        result, error = self.call(self.manifest, tool, args, transport="mcp")
         summary, _ = self.call(self.manifest, "project_summary", flags=("--read-only",))
         unchanged = error is None and not result.get("written") and (summary or {}).get("file_revision") == self.revision
         self.results.append(row("mcp.proposal-writes-nothing", unchanged, {"error": error} if error else {"proposal": bool(result.get("proposal") or result.get("path"))}))
         for proposal in self.native.glob("*.waffle-ai"):  # one left beside the sources would fail the safety check
             proposal.unlink()
-        _, error = self.call(self.manifest, "move_component", {"document_id": self.pcb, "component": ref, "dx": 1, "mode": "write",
-                                                               "source_sha256": "0" * 64}, flags=("--allow-write",), transport="mcp")
+        _, error = self.call(self.manifest, tool, {**args, "mode": "write", "source_sha256": "0" * 64}, flags=("--allow-write",), transport="mcp")
         self.results.append(row("mcp.stale-write-refused", bool(error) and error.startswith("stale_source"), {"reply": error or "the write was accepted"}))
 
     def slide(self):
         """Drag one via with a script transaction: the scripting surface, and an edit the binary Altium writer holds.
-        Waffle does not import Altium's lock flags, so a via the source locks is put back and the next one tried."""
+        The via is one the independent reader says the source leaves free; failing that, one the writer refuses is put back and the next tried."""
         free = sorted((self.fixed or {}).get("free", []))
         for skip in range(3):
             pick = {"at": free[skip]} if skip < len(free) else {"skip": skip}
@@ -283,18 +292,30 @@ class Flow:
 
     def drag(self):
         """Translate one footprint. A footprint the Altium source locks or groups is put back and the next one tried."""
+        if self.unlock:
+            # A locked footprint does not move until it is unlocked.
+            first = self.unlock[0]
+            _, error = self.edit(None, "move_component", {"document_id": self.pcb, "component": first["ref"], "dx": DRAG[0], "dy": DRAG[1]})
+            self.results.append(row("drag.locked-move-refused", bool(error) and "lock" in error.lower(), {"component": first["ref"], "error": error}))
+            if not error:
+                self.edit("drag.undo.%s" % first["ref"], "move_component", {"document_id": self.pcb, "component": first["ref"], "x": first["x"], "y": first["y"]})
+            _, error = self.edit("drag.edit.unlock", "run_command", {"command": "set_locked", "args": {
+                "document_id": self.pcb, "designators": [p["ref"] for p in self.unlock], "locked": False}})
+            if error:
+                return
         tries = self.parts[:3]
         for index, part in enumerate(tries):
             _, error = self.edit(None, "move_component", {"document_id": self.pcb, "component": part["ref"], "dx": DRAG[0], "dy": DRAG[1]})
             if error:
                 self.results.append(row("drag.edit.move", False, {"component": part["ref"], "error": error}))
                 return
-            if index < len(tries) - 1 and self.refuses("drag", LOCKED):
+            if index < len(tries) - 1 and (self.refuses("drag", LOCKED) or self.unlock and self.refuses("drag", UNLOCKED)):
                 self.edit("drag.undo.%s" % part["ref"], "move_component", {"document_id": self.pcb, "component": part["ref"], "x": part["x"], "y": part["y"]})
                 continue
             saved = self.save_back("drag")
-            # Waffle moved a footprint its Altium source locks; the binary writer will not. Reported, not gated.
-            locked = {s["target"]: LOCKED for s in saved if s["error"] and LOCKED in s["error"]}
+            # The footprint is locked or grouped in the Altium source (and here unlocked first, where the import
+            # holds the lock); the binary writer will not move it. Reported, not gated.
+            locked = {s["target"]: reason for s in saved for reason in (LOCKED, UNLOCKED) if s["error"] and reason in s["error"]}
             for target in locked:
                 self.results.append(row("drag.%s.source-locks-footprints" % target, False, {"tried": [p["ref"] for p in tries[:index + 1]]}, gating=False))
             self.dragged = part["ref"]
