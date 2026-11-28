@@ -237,6 +237,8 @@ globalThis.AtriumDesignReader = (() => {
       const imported = replacing && format?.group === "design"
         ? await prepareImported({read,reports,plan,format,names,signal:work.signal}) : null;
       work.check();
+      // Edits made in an editor tab while the files loaded ask now (doc-views.js).
+      if (replacing && globalThis.AtriumDocViews?.mayDiscard?.() === false) return false;
       options.beforeCommit?.();
       bar?.stage?.(.97, 1, 0, "Opening the project…");
       if (replacing) H?.clearProjectPath?.();
