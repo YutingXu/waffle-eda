@@ -214,6 +214,28 @@ globalThis.Atrium = (() => {
     const t = Math.max(0, Math.min(1, ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy || 1)));
     return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
   }
+  // A land centred on the origin (a w by h rectangle, or a circle across its short side) lies within
+  // a simple outline when the origin does and no edge of the outline enters the land. Touching counts
+  // as within. Testing the land's corners alone misses a notch cut into it between them.
+  function landWithin(round, w, h, ring) {
+    const x = w / 2 * .999, y = h / 2 * .999, r = Math.min(x, y);
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i], b = ring[j];
+      if ((a[1] > 0) !== (b[1] > 0) && 0 < a[0] - (b[0] - a[0]) * a[1] / (b[1] - a[1])) inside = !inside;
+      if (round) { if (nearSegment([0, 0], a, b) < r) return false; continue; }
+      // The stretch of the edge between the rectangle's sides (Liang-Barsky).
+      let from = 0, to = 1;
+      for (const k of [0, 1]) {
+        const d = b[k] - a[k], side = k ? y : x;
+        if (Math.abs(d) < 1e-12) { if (Math.abs(a[k]) >= side) from = 2; continue; }
+        const u = (-side - a[k]) / d, v = (side - a[k]) / d;
+        from = Math.max(from, Math.min(u, v)); to = Math.min(to, Math.max(u, v));
+      }
+      if (from < to) return false;
+    }
+    return inside;
+  }
   // Keep input vertices and winding order stable. Electrical checks require
   // full coverage. Paint recovers slit contours, including touching bridges.
   function triangulateRing(points, area, mode) {
@@ -1377,5 +1399,5 @@ globalThis.Atrium = (() => {
     do{step=steps.next();}while(!step.done);
     return step.value;
   }
-  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,pinTags,pinGroups,sameGroups,wireTaps,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind,AUTO_NET_NAME,isAutoNetName};
+  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,landWithin,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,pinTags,pinGroups,sameGroups,wireTaps,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind,AUTO_NET_NAME,isAutoNetName};
 })();

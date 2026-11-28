@@ -52,6 +52,10 @@ assert.equal(render({hidden:new Set(["Source pours"])}),0);assert.equal(render({
 assert.equal(view.hit(doc,defs,[8,8],{}),null);assert.deepEqual(view.snapPoint(doc,defs,[8.13,8.27],{grid:false}),[8.13,8.27]);
 const graph=AtriumConnectivity.inspect(doc,defs);
 assert.equal(graph.nets.length,0);
+// Unedited, the stored islands are the pour's current copper, and a KiCad save carries them as filled polygons.
+const filledPolygons=text=>(text.match(/\(filled_polygon \(layer "F\.Cu"\)/g)||[]).length;
+{const fresh=Atrium.project("Pours");fresh.documents=[doc];
+  assert.equal(filledPolygons(AtriumKiCad.exportBoard(fresh,doc.id).content),doc.pcbDrawing.pours.length,"stored islands as filled polygons");}
 const track={id:Atrium.id(),kind:"track",layer:"Top",net:"SIG",width:.3,points:[[9,9],[13,9]]};
 doc.items.push(track);view.invalidate(doc,[track]);assert.equal(render(),0);assert.equal(view.pourState(doc,defs),"stale");
 const project=Atrium.project("Pours");project.documents=[doc];
@@ -60,11 +64,12 @@ function reopened(){return nativeRoundTrip(project).documents[0];}
 assert.equal(view.pourState(reopened(),defs),"stale");
 const output=AtriumKiCad.exportBoard(project,doc.id);
 assert.match(output.content,/\(segment /);
-// The pour exports as a KiCad zone on its layer and net, with its stored islands as filled polygons.
+// The pour exports as a KiCad zone on its layer and net. The board has changed since the fill was stored, so
+// the zone carries the copper the fabrication outputs plot (the fill made on a copy), never the stale islands.
 const zones=output.content.split("\n").filter(l=>/^\s*\(zone /.test(l));
 assert.equal(zones.length,1,"one zone for the one pour");
 assert.match(zones[0],/\(net_name "GND"\) \(layer "F\.Cu"\)/);assert.doesNotMatch(zones[0],/\(keepout /);
-assert.equal((zones[0].match(/\(filled_polygon \(layer "F\.Cu"\)/g)||[]).length,doc.pcbDrawing.pours.filter(r=>r.polygon===doc.items.find(i=>i.kind==="polygon").id).length,"stored islands as filled polygons");
+assert.equal(filledPolygons(zones[0]),AtriumPolygonPour.outputCopper(doc,defs,{project}).regions.filter(r=>r.polygon===doc.items.find(i=>i.kind==="polygon").id).length,"the outputs' copper as filled polygons");
 assert.match(output.content,/\(width 0\.3\)/);
 doc.items.pop();view.invalidate(doc);assert.equal(render(),2);assert.equal(view.pourState(reopened(),defs),"source");
 assert.equal(view.pourState(Atrium.sheet("pcb","Older project"),defs),"none");

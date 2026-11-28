@@ -17,7 +17,7 @@
     "adapter": {"import": "design", "export": "exchange"},
     "extensions": [".kicad_pro", ".kicad_sch", ".kicad_pcb", ".kicad_dru", ".kicad_sym", ".kicad_mod"],
     "projectExtensions": [".kicad_pro"], "libraryExtensions": [".kicad_sym", ".kicad_mod"],
-    "group": "design", "modules": {"import": ["import-formats"], "export": ["translator-precision", "kicad-schematic"]}
+    "group": "design", "modules": {"import": ["import-formats"], "export": ["translator-precision", "kicad-schematic", "polygon-pour"]}
   },
   {
     "id": "eagle", "label": "Eagle XML", "import": true, "export": true,
