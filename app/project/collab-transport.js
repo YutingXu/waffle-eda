@@ -40,7 +40,13 @@ if (!globalThis.AtriumBase64 && typeof require === "function") require("../core/
 //
 //   const t = await AtriumCollabTransport.connect({url, roomKey, onMessage(kind, body, from, info), onState(state, detail)})
 //   t.send(kind, body)        // body.to (a peer id) addresses one peer; otherwise everyone
-//   t.peer, t.room, t.state, t.paths(), t.close()
+//   t.peer, t.room, t.state, t.paths(), t.joined(), t.wake(), t.close()
+//
+// Bad networks. The relay socket's keepalive is answered, so a stalled socket is found within two
+// beats (BEAT) and replaced; reconnecting retries about once a second, and at once on wake().
+// Messages for everyone wait in the relay queue while disconnected. Working data channels outlive the
+// relay connection at both ends (state stays "open" while one works): an editor that reconnects with
+// a new connection id proves who it is, and its channel moves to that id.
 //   AtriumCollabTransport.newRoomKey(), invitation({relay, roomKey, host}), parseInvitation(text)
 globalThis.AtriumCollabTransport = (() => {
   const G = globalThis;
@@ -51,9 +57,20 @@ globalThis.AtriumCollabTransport = (() => {
   // Earlier peers retain fewer CRDT register writers and can disagree after undo.
   const PROTOCOL = 4, MIN_MANUAL_KEY = 24, INBOX_BYTES = 24 * 1024 * 1024, PENDING_BYTES = 2 * 1024 * 1024, HELD_BYTES = 32 * 1024 * 1024;
   const CONTROL = new Set(["id", "path"]);
-  // Energy: the relay socket gets a tiny keepalive only after this long without traffic; data
-  // channels carry the session's own heartbeat (collab-presence.js, 20 s).
-  const KEEPALIVE = 45000, BARRIER_WAIT = 10000, LINK_HIGH = 1024 * 1024, LINK_LOW = 256 * 1024, LINK_STALL = 64 * 1024 * 1024;
+  // Liveness of the relay socket, on its keepalive: one timer per BEAT. A beat that finds the socket
+  // quiet for half a beat sends {t:"p"}, which the relay answers; a socket that hears nothing for the
+  // whole next beat and is not draining is dead and is replaced, so a stalled link is found within
+  // two beats. A relay that never answers (an older one) gets the old keepalive every KEEPALIVE. Data
+  // channels carry the session's own heartbeat (collab-presence.js, 20 s). wake() (a network change,
+  // the window back on screen) probes at once, or redials at once when disconnected.
+  const KEEPALIVE = 45000, BEAT = 4000, PROBE = 2000, BARRIER_WAIT = 10000, LINK_HIGH = 1024 * 1024, LINK_LOW = 256 * 1024, LINK_STALL = 64 * 1024 * 1024;
+  // Reconnecting: about once a second for RETRY_FAST attempts, then doubling to RETRY_MAX; an attempt
+  // that has not joined within DIAL_WAIT is abandoned. While disconnected, messages for everyone wait
+  // in the relay queue up to OFFLINE_QUEUE bytes (the session's catch-up covers anything beyond).
+  const RETRY_FAST = 20, RETRY_MAX = 30000, DIAL_WAIT = 8000, OFFLINE_QUEUE = 8 * 1024 * 1024;
+  // A ping's answer may wait behind what was sent before it: a socket that sent a lot is given the
+  // time those bytes need at this rate (256 kbit/s), so a slow uplink in a large transfer is not dead.
+  const SLOW_LINK = 32 * 1024;
   const RETRY = [20000, 60000, 180000];
   const enc = new TextEncoder(), dec = new TextDecoder();
   const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
@@ -198,10 +215,13 @@ globalThis.AtriumCollabTransport = (() => {
     const RTC = o.RTCPeerConnection || G.RTCPeerConnection, WS = o.WebSocket || G.WebSocket;
     const mode = o.path === "relay" || o.path === "turn" ? o.path : "auto";
     const useRTC = !local && mode !== "relay" && typeof RTC === "function";
+    // Liveness and reconnect timing; o.beat (tests) scales all of it.
+    const scale = (o.beat || BEAT) / BEAT, beatMs = BEAT * scale, probeMs = PROBE * scale, dialMs = DIAL_WAIT * scale, retryMs = 1000 * scale;
+    const keepMs = KEEPALIVE * scale, offlineQueue = o.offlineQueue || OFFLINE_QUEUE;
     let closed = false, cid = null, ice = [], iceAt = 0, iceTtl = 3600e3;
     const last = new Map(), rate = new Map(), chunks = new Map();
     const peerOfCid = new Map(), cidOfPeer = new Map(), pending = new Map(), links = new Map();
-    const stats = {sent: 0, received: 0, dropped: 0, bad: 0, relayed: 0, direct: 0};
+    const stats = {sent: 0, received: 0, dropped: 0, bad: 0, relayed: 0, direct: 0, stalls: 0, kept: 0};
     const t = {peer, room: k.room, state: "connecting", stats, rtc: typeof RTC === "function", owner: false};
     const now = () => G.performance?.now?.() ?? Date.now();
     const onState = (s, d) => {
@@ -300,10 +320,16 @@ globalThis.AtriumCollabTransport = (() => {
       const who = await verifyProof(k.room, from, m.b).catch(() => null);
       if (closed) return;
       if (who !== m.p) { stats.bad++; return; }
-      const old = cidOfPeer.get(who);
-      if (old && old !== from) { peerOfCid.delete(old); closeLink(links.get(old)); chunks.delete(who); }   // the same editor, reconnected
       if (peerOfCid.get(from) && peerOfCid.get(from) !== who) { stats.bad++; return; }
+      // The same editor on a new relay connection. A data channel to it that still works is kept and
+      // answers to the new connection; anything else starts over.
+      const old = cidOfPeer.get(who), K = old && old !== from ? links.get(old) : null;
+      if (K?.ready) migrate(K, from);
+      else if (old && old !== from) { peerOfCid.delete(old); closeLink(K); chunks.delete(who); }
       peerOfCid.set(from, who); cidOfPeer.set(who, from);
+      // A channel offer waits for the proof while kept channels may already reach this editor.
+      const L = links.get(from);
+      if (L?.deferred) { L.deferred = false; if (!L.ready) negotiate(L); }
       // As the room's owner, vouch to the relay that this connection holds the room key (TURN).
       if (t.owner && joined && !local) raw({t: "attest", id: from});
       // The proof needs no sequence check (its signature names this connection); messages this
@@ -386,63 +412,129 @@ globalThis.AtriumCollabTransport = (() => {
 
     // ---- the relay socket -------------------------------------------------------------------------
     // One paced queue. The relay admits 24 MiB and 400 messages per 10 s per connection (and slows a
-    // faster sender); stay under that and let the socket's buffer drain.
-    let ws = null, joined = false, backoff = 1000, retryTimer = 0, keepTimer = 0, pumpTimer = 0, refused = "";
-    const relayQueue = [], sent = [], windowMs = 10250, maxBytes = 20 * 1024 * 1024, maxFrames = 320;
-    let sentBytes = 0;
+    // faster sender); stay under that and let the socket's buffer drain. Entries: {f: the frame,
+    // all: a message for everyone, which stays queued across a reconnect}.
+    let ws = null, joined = false, attempts = 0, retryTimer = 0, keepTimer = 0, pumpTimer = 0, refused = "";
+    let relayQueue = [], queued = 0, sentBytes = 0;
+    // Liveness: lastIn (anything heard), pingAt (an unanswered ping), owed (bytes sent since we last
+    // heard anything, when the ping went: its answer may wait behind them, at SLOW_LINK at least).
+    let dialAt = 0, lastIn = 0, pingAt = 0, echo = null, silent = 0, outBytes = 0, outAtIn = 0, owed = 0;
+    const sent = [], windowMs = 10250, maxBytes = 20 * 1024 * 1024, maxFrames = 320;
+    const kept = () => { for (const L of links.values()) if (L.ready) return true; return false; };
+    function enqueue(f, all, first = false) {
+      if (first) relayQueue.unshift({f, all}); else relayQueue.push({f, all});
+      queued += f.length;
+      // Disconnected: the oldest messages give way (the session's catch-up sends their edits again).
+      while (!joined && queued > offlineQueue && relayQueue.length > 1) queued -= relayQueue.shift().f.length;
+      pump();
+    }
     function relaySend(text, to, transient) {
       if (local) return;
       if (transient && (!joined || ws?.bufferedAmount >= CHUNK || relayQueue.length)) return;
-      relayQueue.push(JSON.stringify(to ? {t: "m", d: text, to} : {t: "m", d: text}));
-      pump();
+      enqueue(JSON.stringify(to ? {t: "m", d: text, to} : {t: "m", d: text}), !to);
     }
-    function raw(obj) { relayQueue.push(JSON.stringify(obj)); pump(); }
+    function raw(obj) { enqueue(JSON.stringify(obj), false); }
     function pump() {
       if (pumpTimer || closed) return;
       while (relayQueue.length && joined && ws?.readyState === 1) {
         const at = now();
         while (sent.length && at - sent[0].at >= windowMs) sentBytes -= sent.shift().bytes;
-        const frame = relayQueue[0];
+        const frame = relayQueue[0].f;
         let delay = 0;
         if (sent.length >= maxFrames || sentBytes + frame.length > maxBytes) delay = Math.ceil(sent[0].at + windowMs - at);
         if (ws.bufferedAmount >= 4 * CHUNK) delay = Math.max(delay, 25);
         if (delay > 0) { pumpTimer = setTimeout(() => { pumpTimer = 0; pump(); }, delay); return; }
-        relayQueue.shift();
-        ws.send(frame); sent.push({at, bytes: frame.length}); sentBytes += frame.length;
-        keepAlive();
+        relayQueue.shift(); queued -= frame.length;
+        ws.send(frame); sent.push({at, bytes: frame.length}); sentBytes += frame.length; outBytes += frame.length;
       }
     }
-    function keepAlive() {
-      clearTimeout(keepTimer);
-      keepTimer = setTimeout(() => { if (joined && ws?.readyState === 1 && !relayQueue.length) { ws.send('{"t":"p"}'); keepAlive(); } }, KEEPALIVE);
+    // The session's one steady timer. The keepalive's beat (BEAT above) also runs the session's own
+    // heartbeat (o.onBeat, every o.heartbeat ms), so nothing else wakes the window while nobody moves.
+    // While dialing, it abandons an attempt that has not joined; without a relay socket the retry
+    // timer and, in a local session, a plain heartbeat timer stand in.
+    let beatAt = now(), pingedAt = 0;
+    const heartbeatMs = o.onBeat ? Math.max(beatMs, +o.heartbeat || 20000) : Infinity;
+    function heartbeat(at = now()) {
+      if (at - beatAt < heartbeatMs - beatMs / 2 || closed) return;
+      beatAt = at;
+      try { o.onBeat(); } catch (e) { G.console?.error?.(e); }
     }
-    async function joinedRelay(m) {
+    function beat() {
+      clearTimeout(keepTimer); keepTimer = 0;
+      if (closed) return;
+      const sock = ws, at = now();
+      heartbeat(at);
+      if (closed) return;   // the heartbeat may have ended the session
+      if (local) { if (heartbeatMs < Infinity) keepTimer = setTimeout(beat, heartbeatMs); return; }
+      if (!sock || ws !== sock) return;
+      if (!joined) {
+        if (at - dialAt >= dialMs) { detach(sock); ws = null; retry(); }
+        else keepTimer = setTimeout(beat, dialMs - (at - dialAt));
+        return;
+      }
+      if (pingAt && lastIn < pingAt) {   // nothing heard since the last ping
+        // The answer may still wait behind what was sent before the ping (the bytes sent since we
+        // last heard anything, at a slow uplink's rate): give it that long. (The socket's own buffer
+        // is no guide: the system takes bytes into its buffers while the link is dead.)
+        const busy = at - pingAt < owed / SLOW_LINK * 1000;
+        if (echo === true && !busy) { stats.stalls++; detach(sock); lost(); return; }
+        if (echo === true) { keepTimer = setTimeout(beat, beatMs); return; }
+        if (echo === null && ++silent >= 3) echo = false;   // a relay that does not answer pings
+      }
+      pingAt = 0;
+      // An older relay that never answers gets the old keepalive; the beat still keeps the heartbeat.
+      const ping = echo === false ? at - pingedAt >= keepMs && !relayQueue.length : at - lastIn >= beatMs / 2;
+      if (sock.readyState === 1 && ping) { sock.send('{"t":"p"}'); pingAt = pingedAt = at; owed = outBytes - outAtIn; }
+      keepTimer = setTimeout(beat, echo === false ? Math.min(keepMs, heartbeatMs) : beatMs);
+    }
+    function detach(sock) {
+      sock.onopen = sock.onmessage = sock.onclose = sock.onerror = null;
+      try { sock.close(); } catch { /* closing */ }
+    }
+    async function joinedRelay(m, sock) {
       cid = String(m.id); t.owner = m.owner === true;
       ice = Array.isArray(m.ice) ? m.ice : []; iceAt = Date.now(); iceTtl = (+m.ttl || 3600) * 1000;
-      joined = true; backoff = 1000;
-      const sig = b64(await subtle().sign({name: "ECDSA", hash: "SHA-256"}, me.pair.privateKey, proofText(k.room, cid)));
-      if (closed || !joined) return;
+      joined = true; attempts = 0; sent.length = 0; sentBytes = 0;
+      // Ask at once whether this relay answers the keepalive, so a stall right after a reconnect
+      // (when traffic leaves no quiet beat to ask in) is still found.
+      try { sock.send('{"t":"p"}'); pingAt = pingedAt = now(); owed = 0; } catch { /* closing */ }
+      clearTimeout(keepTimer); keepTimer = setTimeout(beat, beatMs);
+      const sig =b64(await subtle().sign({name: "ECDSA", hash: "SHA-256"}, me.pair.privateKey, proofText(k.room, cid)));
+      if (closed || ws !== sock) return;
       t.proof = {key: me.raw, sig};
-      // The proof goes out before anything this connection sends afterwards. Messages sealed
-      // earlier wait at the receivers until it arrives.
-      await control("id", t.proof);
+      // The proof goes out first, ahead of messages queued while disconnected (receivers hold a
+      // connection's messages until it proves who it is). It takes no place in the sequence.
+      const proof = await seal(k, {p: peer, s: me.seq = (me.seq || 0) + 1, t: "id", b: t.proof}, "", peer);
+      if (closed || ws !== sock) return;
+      stats.sent++;
+      enqueue(JSON.stringify({t: "m", d: proof}), false, true);
       onState("open", {peers: (m.peers || []).length, rtc: typeof RTC === "function"});
       if (typeof RTC !== "function" && !local) onState("rtc", false);
-      for (const other of m.peers || []) if (typeof other === "string") addLink(other, true);
+      // Data channels that outlived the relay connection keep working. While there are any, an offer
+      // to a connection waits for its proof: it may be one of those editors, on a new connection.
+      const waitForProof = kept();
+      for (const other of m.peers || []) if (typeof other === "string") addLink(other, true, waitForProof);
       pump();
     }
     function dial() {
-      if (closed) return;
-      onState("connecting");
-      try { ws = new WS(url); } catch (e) { onState("error", e.message); retry(); return; }
-      ws.onopen = () => { if (closed) { ws.close(); return; } ws.send(JSON.stringify({t: "join", room: k.room, auth: k.auth, v: 2, own: o.owner || undefined, host: o.hostToken || undefined})); };
-      ws.onmessage = ev => {
-        if (closed) return;
+      clearTimeout(retryTimer); retryTimer = 0;
+      heartbeat();
+      if (closed || ws) return;
+      if (t.state !== "offline" && !kept()) onState("connecting");
+      let sock;
+      try { sock = ws = new WS(url); } catch (e) { ws = null; onState("error", e.message); retry(); return; }
+      dialAt = lastIn = now(); pingAt = 0; echo = null; silent = 0;
+      clearTimeout(keepTimer); keepTimer = setTimeout(beat, dialMs);
+      sock.onopen = () => { if (closed) { sock.close(); return; } sock.send(JSON.stringify({t: "join", room: k.room, auth: k.auth, v: 2, own: o.owner || undefined, host: o.hostToken || undefined})); };
+      sock.onmessage = ev => {
+        if (closed || ws !== sock) return;
+        lastIn = now(); outAtIn = outBytes;
         let m; try { m = JSON.parse(typeof ev.data === "string" ? ev.data : ""); } catch { return; }
         if (!m || typeof m !== "object") return;
+        if (m.t === "p") { echo = true; return; }   // the keepalive's answer
         if (m.t === "joined" && !joined) {
-          if (typeof m.id !== "string" || !Array.isArray(m.peers)) { closed = true; onState("error", "This relay is too old for this Waffle. Update collab/relay/waffle_relay.py on the server."); ws.close(); return; }
-          joinedRelay(m).catch(e => onState("error", e.message));
+          if (typeof m.id !== "string" || !Array.isArray(m.peers)) { closed = true; onState("error", "This relay is too old for this Waffle. Update collab/relay/waffle_relay.py on the server."); sock.close(); return; }
+          joinedRelay(m, sock).catch(e => onState("error", e.message));
         } else if (!joined) {
           // Refused before joining (wrong key, a private relay without a host invitation, full): retrying would repeat it.
           if (m.t === "error") { refused = String(m.e || "The relay refused the connection.").slice(0, 200); onState("error", refused); }
@@ -458,39 +550,86 @@ globalThis.AtriumCollabTransport = (() => {
           const first = !ice.some(s => s?.username);
           ice = m.ice; iceAt = Date.now(); iceTtl = (+m.ttl || 3600) * 1000;
           // TURN arrives once the host vouched for us: retry channels that did not connect without it.
-          if (first && useRTC) for (const L of links.values()) if (!L.ready && (L.initiator || cid < L.cid)) { L.attempt = 0; L.initiator = true; negotiate(L, true); }
+          if (first && useRTC) for (const L of links.values()) if (!L.ready && !L.deferred && (L.initiator || cid < L.cid)) { L.attempt = 0; L.initiator = true; negotiate(L, true); }
         }
         else if (m.t === "error") onState("error", String(m.e || "Relay error").slice(0, 200));
       };
-      ws.onclose = () => {
-        const was = joined;
-        ws = null; joined = false; cid = null; clearTimeout(pumpTimer); pumpTimer = 0; clearTimeout(keepTimer);
-        if (closed) return;
-        // A new connection id follows: links and bindings start over (the session resyncs on "open").
-        for (const L of [...links.values()]) closeLink(L);
-        links.clear(); peerOfCid.clear(); cidOfPeer.clear(); pending.clear();
-        relayQueue.length = 0;
-        if (refused && !was) { closed = true; onState("error", refused); return; }
-        onState(was ? "offline" : "connecting"); retry();
-      };
-      ws.onerror = () => { /* onclose follows */ };
+      sock.onclose = () => { if (ws === sock) lost(); };
+      sock.onerror = () => { /* onclose follows */ };
     }
-    function retry() { clearTimeout(retryTimer); retryTimer = setTimeout(dial, backoff); backoff = Math.min(backoff * 2, 30000); }
+    // The relay connection is gone: closed, refused, or found dead by the keepalive.
+    function lost() {
+      const was = joined;
+      ws = null; joined = false; cid = null; clearTimeout(pumpTimer); pumpTimer = 0; clearTimeout(keepTimer); keepTimer = 0;
+      if (closed) return;
+      if (refused && !was) { closed = true; onState("error", refused); return; }
+      if (!was) { retry(); return; }   // a failed attempt: the state stays "offline" or "connecting"
+      // A new connection id follows. Working data channels stay (the editors at their other end may
+      // still be here, or come back on new connections: bind); everything else starts over and the
+      // session resyncs on "open". Messages for everyone stay queued; replies, path markers and
+      // catch-ups for one connection are made again after the resync.
+      for (const L of [...links.values()]) if (!L.ready) forget(L.cid, false, true);
+      pending.clear();
+      relayQueue = relayQueue.filter(e => e.all); queued = relayQueue.reduce((n, e) => n + e.f.length, 0);
+      if (kept()) { stats.kept++; onState("peers", {peers: cidOfPeer.size, relay: false}); }
+      else onState("offline");
+      retry(retryMs / 4);
+    }
+    function retry(ms) {
+      clearTimeout(retryTimer);
+      if (closed) return;
+      const n = attempts++;
+      retryTimer = setTimeout(dial, ms ?? Math.min(RETRY_MAX * scale, retryMs * 2 ** Math.max(0, n - RETRY_FAST)) * (0.75 + Math.random() / 2));
+    }
+    // At once rather than on the backoff: the network changed, or the window came back on screen
+    // (after sleep). Joined: probe the socket. Disconnected: dial now.
+    function wake() {
+      if (closed || local) return;
+      const at = now();
+      if (joined) {
+        if (echo === true && ws?.readyState === 1 && !pingAt) {
+          ws.send('{"t":"p"}'); pingAt = at; owed = outBytes - outAtIn;
+          clearTimeout(keepTimer); keepTimer = setTimeout(beat, probeMs);
+        }
+        return;
+      }
+      if (ws && at - dialAt < retryMs) return;   // an attempt has just started
+      if (ws) { detach(ws); ws = null; }
+      attempts = 0; dial();
+    }
+    // The relay says connection c left. A working data channel to it stays: that editor may only
+    // have lost the relay, and comes back on a new connection (bind).
     function left(c) {
+      const L = links.get(c);
+      if (L?.ready) { L.orphan = true; return; }
+      forget(c, true);
+    }
+    function forget(c, tell, quiet = false) {
       const who = peerOfCid.get(c);
       closeLink(links.get(c)); links.delete(c); pending.delete(c);
-      if (who && cidOfPeer.get(who) === c) { cidOfPeer.delete(who); chunks.delete(who); onState("left", {peer: who}); }
+      if (who && cidOfPeer.get(who) === c) { cidOfPeer.delete(who); chunks.delete(who); if (tell) onState("left", {peer: who}); }
       waiting.delete(c); gate.delete(c);
       peerOfCid.delete(c);
-      onState("peers", {peers: cidOfPeer.size});
+      if (quiet) return;
+      onState("peers", {peers: cidOfPeer.size, relay: joined || local});
+      // The last channel that outlived the relay connection has gone too.
+      if (!joined && !local && !kept() && t.state === "open") onState("offline");
+    }
+    // A working channel to an editor that now answers to relay connection c (bind checked its proof).
+    function migrate(K, c) {
+      const old = K.cid, P = links.get(c);
+      if (P && P !== K) { clearTimeout(P.retry); clearTimeout(P.heldTimer); closePc(P); }
+      links.delete(old); peerOfCid.delete(old); waiting.delete(old); gate.delete(old);
+      for (const e of inbox) if (e[1] === old) e[1] = c;
+      K.cid = c; K.orphan = false; links.set(c, K);
     }
 
     // ---- WebRTC links --------------------------------------------------------------------------------
-    function addLink(c, initiator) {
+    function addLink(c, initiator, waitForProof = false) {
       if (links.has(c) || c === cid) return links.get(c);
       const L = {cid: c, initiator, pc: null, dc: null, ready: false, barrier: false, held: [], heldTimer: 0, queue: [], queued: 0, frames: [], path: "relay", attempt: 0, retry: 0, candidates: []};
       links.set(c, L);
-      if (useRTC && initiator) negotiate(L);
+      if (useRTC && initiator) { if (waitForProof && !peerOfCid.has(c)) L.deferred = true; else negotiate(L); }
       return L;
     }
     function rtcConfig() {
@@ -585,6 +724,8 @@ globalThis.AtriumCollabTransport = (() => {
     // A broken or stalled channel: back to the relay, resync, and retry the channel later.
     function fallBack(L, retryLater) {
       if (!L || closed) return;
+      // A channel that outlived the relay connection (ours or theirs) has no relay to fall back to.
+      if (L.orphan || !joined && !local) { forget(L.cid, joined); return; }
       const was = L.ready;
       closePc(L);
       L.queue.length = 0; L.queued = 0; L.frames.length = 0;
@@ -655,10 +796,20 @@ globalThis.AtriumCollabTransport = (() => {
       return {send(text) { ch.postMessage({c: mine, d: text}); }, hello() { ch.postMessage({c: mine, hi: true}); }, close() { ch.close(); }};
     }
 
+    // Retry at once when the network comes back (online) or the window does: AtriumPower reports the
+    // page becoming visible and, in the macOS app, the window no longer occluded, as after a wake.
+    let onScreen = G.AtriumPower?.visible?.() !== false;
+    const onOnline = () => wake();
+    const offPower = local ? null : G.AtriumPower?.onChange?.(s => { const was = onScreen; onScreen = s.visible !== false; if (onScreen && !was) wake(); });
+    if (!local) G.addEventListener?.("online", onOnline);
+    t.wake = wake;
+    // Whether the relay connection is up (the session may still reach editors over data channels).
+    t.joined = () => local || joined;
     t.close = () => {
       if (closed) return;
       closed = true; inbox.length = 0; chunks.clear(); queuedPoint = null;
       clearTimeout(retryTimer); clearTimeout(keepTimer); clearTimeout(pumpTimer);
+      try { offPower?.(); G.removeEventListener?.("online", onOnline); } catch { /* gone */ }
       for (const L of links.values()) closeLink(L);
       links.clear();
       try { ws?.close(); } catch { /* closed */ }
@@ -672,7 +823,7 @@ globalThis.AtriumCollabTransport = (() => {
       return out;
     };
     t.connectionId = () => cid;
-    if (o.cancelled?.()) { closed = true; return t; }
+    if (o.cancelled?.()) { closed = true; try { offPower?.(); G.removeEventListener?.("online", onOnline); } catch { /* gone */ } return t; }
     if (local) {
       carrier = localCarrier();
       const sig = b64(await subtle().sign({name: "ECDSA", hash: "SHA-256"}, me.pair.privateKey, proofText(k.room, cid)));
@@ -680,9 +831,10 @@ globalThis.AtriumCollabTransport = (() => {
       control("id", t.proof);
       carrier.hello();
       setTimeout(() => onState("open", {peers: 0, rtc: false}), 0);
+      if (heartbeatMs < Infinity) keepTimer = setTimeout(beat, heartbeatMs);
     } else dial();
     return t;
   }
   return Object.freeze({connect, keys, newRoomKey, newSalt, normalise, seal, open, invitation, parseInvitation, parseHostInvitation, relayAddress, rtcAvailable, verifyProof,
-    constants: Object.freeze({ITERATIONS, MAX_BODY, CHUNK, RATE, KEEPALIVE, PROTOCOL, MIN_MANUAL_KEY})});
+    constants: Object.freeze({ITERATIONS, MAX_BODY, CHUNK, RATE, KEEPALIVE, BEAT, PROBE, DIAL_WAIT, PROTOCOL, MIN_MANUAL_KEY})});
 })();

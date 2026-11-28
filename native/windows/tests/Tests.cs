@@ -115,6 +115,7 @@ namespace Waffle.Windows.Tests
             if (args.Length == 2 && args[0] == "--folder-mcp") return FolderMcp.Run(new PortableFs(),args[1],Console.In,Console.Out);
             if (args.Length == 4 && args[0] == "--folder-worker") return FolderWorker.Run(args);
             if (args.Length == 1 && args[0] == "--native-member-check") return StandaloneMemberCheck();
+            if (args.Length == 3 && args[0] == "--lan-relay") return LanRelayDriver(args[1], args[2]);
             if (args.Length == 1 && args[0] == "--workspace-routing")
             {
                 WorkspaceRoutingTests();
@@ -155,6 +156,7 @@ namespace Waffle.Windows.Tests
                 RendererFailureTests(scratch);
                 GitTests();
                 CollabLockTests(scratch);
+                LanTests(scratch);
                 ExternalApprovalTests(scratch);
             }
             catch (Exception e) { failed++; Console.WriteLine("FAIL " + group + ": unexpected " + e); }

@@ -22,16 +22,30 @@ async function until(test, what, ms = 4000) {
 }
 
 // ---- an in-process relay (protocol v2) --------------------------------------------------------
-function fakeRelay({ice = []} = {}) {
-  const sockets = new Map(), relay = {sockets, log: [], drop: null};
+// Bad networks: echo answers the keepalive as the relay does (false: an older relay); stalled holds
+// sockets whose traffic vanishes both ways while they look open; refuse makes new connections fail;
+// cut(id) closes one from the relay's side.
+function fakeRelay({ice = [], echo = true} = {}) {
+  // unheard: what stalled sockets sent ({from, t, size}), in order; onAnswer(ws): a keepalive answer reached ws.
+  const sockets = new Map(), relay = {sockets, log: [], drop: null, echo, stalled: new Set(), refuse: false, unheard: [], onAnswer: null};
   let n = 0;
-  const post = (ws, obj) => setImmediate(() => { if (ws.readyState === 1) ws.onmessage?.({data: JSON.stringify(obj)}); });
+  const post = (ws, obj) => setImmediate(() => {
+    if (ws.readyState !== 1 || relay.stalled.has(ws)) return;
+    ws.onmessage?.({data: JSON.stringify(obj)});
+    if (obj.t === "p") relay.onAnswer?.(ws);
+  });
+  relay.cut = id => sockets.get(id)?.close();
   relay.WebSocket = class {
-    constructor(url) { this.url = url; this.readyState = 0; this.bufferedAmount = 0; this.id = "c" + String(++n).padStart(16, "0"); setImmediate(() => { this.readyState = 1; this.onopen?.(); }); }
+    constructor(url) {
+      this.url = url; this.readyState = 0; this.bufferedAmount = 0; this.id = "c" + String(++n).padStart(16, "0");
+      setImmediate(() => { if (relay.refuse) { this.readyState = 3; this.onclose?.(); } else { this.readyState = 1; this.onopen?.(); } });
+    }
     send(text) {
+      if (relay.stalled.has(this)) { relay.unheard.push({from: this.id, t: JSON.parse(text).t, size: text.length}); return; }
       const m = JSON.parse(text);
       relay.log.push({from: this.id, m});
-      if (m.t === "join") {
+      if (m.t === "p") { if (relay.echo) post(this, {t: "p"}); }
+      else if (m.t === "join") {
         const others = [...sockets.values()].filter(s => s.room === m.room);
         this.room = m.room; sockets.set(this.id, this);
         this.owner = !others.length;
@@ -359,6 +373,177 @@ async function testStalledPeerAndForcedRelay() {
   if (saved) globalThis.RTCPeerConnection = saved;
 }
 
+// Bad networks: a stalled relay socket is found within two beats of its keepalive and replaced;
+// messages for everyone wait while disconnected and arrive in order; a network change (online) or
+// the window coming back (AtriumPower) redials at once instead of on the backoff; an older relay that
+// does not answer the keepalive is never declared dead.
+async function testStallAndRetry() {
+  const target = new EventTarget(), power = new Set();
+  let visible = true;
+  Object.assign(globalThis, {addEventListener: target.addEventListener.bind(target), removeEventListener: target.removeEventListener.bind(target),
+    AtriumPower: {visible: () => visible, onChange(fn) { power.add(fn); return () => power.delete(fn); }}});
+  try {
+    const key = T.newRoomKey(), relay = fakeRelay(), beat = 120, beats = [];
+    const o = {RTCPeerConnection: null, beat, heartbeat: beat * 4, onBeat: () => beats.push(Date.now())};
+    const A = editor("A", relay, null, o), B = editor("B", relay, null, {RTCPeerConnection: null, beat});
+    const a = await A.connect(key);
+    await until(() => a.state === "open", "A open");
+    const b = await B.connect(key);
+    await until(() => a.paths().has(b.peer) && b.paths().has(a.peer), "bound");
+    const t0q = Date.now();
+    await tick(beat * 12);
+    assert.equal(a.stats.stalls + b.stats.stalls, 0, "an answered socket stays up while nobody speaks");
+    assert.ok(relay.log.filter(l => l.m.t === "p").length >= 8, "the keepalive pings while the socket is quiet");
+    // The session's heartbeat rides the same beat (no timer of its own), every fourth beat here.
+    const quiet = beats.filter(at => at >= t0q).length;
+    assert.ok(quiet >= 2 && quiet <= 4, "the heartbeat every " + o.heartbeat + " ms: " + quiet + " in " + (beat * 12) + " ms");
+
+    // A's socket stalls: open to all appearances, nothing passes. It is found and replaced.
+    relay.refuse = true;
+    relay.stalled.add(relay.sockets.get(a.connectionId()));
+    const t0 = Date.now();
+    await until(() => a.stats.stalls === 1, "the stalled socket found", 5000);
+    const found = Date.now() - t0;
+    assert.ok(found <= 2 * beat + 150, "found within two beats (" + found + " ms)");
+    await until(() => A.states.some(([s]) => s === "offline"), "offline");
+    // Messages for everyone wait in order while the relay is unreachable; the backoff grows.
+    for (let i = 0; i < 5; i++) a.send("ops", {q: i});
+    await tick(beat * 20);
+    relay.refuse = false;
+    const t1 = Date.now();
+    target.dispatchEvent(new Event("online"));
+    await until(() => a.state === "open" && b.paths().has(a.peer), "back at once on online", 2000);
+    const back = Date.now() - t1;
+    assert.ok(back < 150, "online redials at once, not on the backoff (" + back + " ms)");
+    await until(() => B.got.filter(g => g.body?.q !== undefined).length === 5, "the queued messages");
+    assert.deepEqual(B.got.filter(g => g.body?.q !== undefined).map(g => g.body.q), [0, 1, 2, 3, 4], "in order, once each");
+
+    // The window comes back on screen (a wake from sleep): the same.
+    relay.refuse = true; relay.cut(a.connectionId());
+    await until(() => !a.joined(), "dropped");
+    await tick(beat * 20);
+    relay.refuse = false; visible = false; for (const f of power) f({visible: false});
+    const t2 = Date.now();
+    visible = true; for (const f of power) f({visible: true});
+    await until(() => a.state === "open", "back at once on screen", 2000);
+    assert.ok(Date.now() - t2 < 150, "visible redials at once");
+    // A socket that stalls just after a large send is given the time those bytes need on a slow
+    // uplink (SLOW_LINK) before it is declared dead: a big transfer on a slow link is not a stall.
+    // The socket stalls just after a keepalive answer reached A, so no ping is in flight: a ping whose
+    // answer the stall swallows finds the dead link within two beats, rightly, whatever follows it
+    // (under load the beat could land between the stall and the large send).
+    await until(() => a.joined() && b.paths().has(a.peer), "A settled");
+    await tick(beat * 2);
+    const sock = relay.sockets.get(a.connectionId());
+    await new Promise((resolve, reject) => {
+      const limit = realTimeout(() => reject(Error("no keepalive answer reached A")), 4000);
+      relay.onAnswer = ws => { if (ws === sock) { relay.onAnswer = null; realClear(limit); relay.stalled.add(ws); resolve(); } };
+    });
+    const t3 = Date.now(), stalls = a.stats.stalls;
+    a.send("ops", {pad: "x".repeat(40 * 1024)});
+    await until(() => a.stats.stalls === stalls + 1, "found after the grace", 8000);
+    const waited = Date.now() - t3, first = relay.unheard.find(u => u.from === sock.id);
+    if (first?.t === "m") assert.ok(waited >= 1000, "the large send went first: waited for it (" + waited + " ms)");
+    else assert.equal(first?.t, "p", "otherwise a keepalive went first, and found the dead link (" + waited + " ms)");
+    await until(() => a.state === "open" && a.joined(), "A back");
+    a.close(); b.close();
+
+    // An older relay never answers: its quiet sockets are not declared dead, and they fall back to
+    // the long keepalive; the heartbeat keeps its own cadence.
+    beats.length = 0;
+    const old = fakeRelay({echo: false}), C = editor("C", old, null, o), c = await C.connect(key);
+    await until(() => c.state === "open", "C open");
+    await tick(beat * 14);
+    assert.equal(c.stats.stalls, 0);
+    assert.ok(old.log.filter(l => l.m.t === "p").length <= 4, "three unanswered pings, then the long keepalive");
+    assert.ok(beats.length >= 2, "the heartbeat goes on: " + beats.length);
+    c.close();
+    // A session on this computer (BroadcastChannel) has no relay socket: the beat is the heartbeat alone.
+    if (typeof BroadcastChannel === "function") {
+      beats.length = 0;
+      const L = await T.connect({url: "local", roomKey: key, beat, heartbeat: beat * 2, onBeat: () => beats.push(Date.now()), onMessage() {}});
+      await tick(beat * 7);
+      assert.ok(beats.length >= 2 && beats.length <= 4, "local heartbeat: " + beats.length);
+      L.close();
+    }
+  } finally { delete globalThis.addEventListener; delete globalThis.removeEventListener; delete globalThis.AtriumPower; }
+}
+
+// A relay drop keeps working data channels at both ends: the editors keep exchanging messages in
+// order, and when the relay returns (with new connection ids, also after a relay restart) each
+// editor proves who it is again and its channel moves to the new id, with no new peer connection.
+// A member cannot take over the move with someone else's proof.
+async function testChannelsOutliveRelay() {
+  const key = T.newRoomKey(), relay = fakeRelay(), rtc = fakeRTC(), beat = 150;
+  const A = editor("A", relay, rtc, {beat}), B = editor("B", relay, rtc, {beat});
+  const a = await A.connect(key);
+  await until(() => a.state === "open", "A open");
+  const b = await B.connect(key);
+  await until(() => a.paths().get(b.peer) === "direct" && b.paths().get(a.peer) === "direct", "a direct channel");
+  const pcs = rtc.all.length, count = (G, k) => G.got.filter(g => g.body?.[k] !== undefined).map(g => g.body[k]);
+  const exchange = async (k, n) => {
+    for (let i = 0; i < n; i++) { a.send("ops", {[k]: i}); b.send("ops", {[k]: i}); }
+    await until(() => count(A, k).length === n && count(B, k).length === n, "both ways: " + k);
+    assert.deepEqual(count(B, k), [...Array(n).keys()]); assert.deepEqual(count(A, k), [...Array(n).keys()]);
+  };
+
+  // A loses the relay; B still has it and hears that A's connection left.
+  relay.refuse = true; relay.cut(a.connectionId());
+  await until(() => !a.joined(), "A lost the relay");
+  await tick(20);
+  assert.equal(a.state, "open", "still open: a data channel works");
+  assert.equal(a.paths().get(b.peer), "direct"); assert.equal(b.paths().get(a.peer), "direct");
+  await exchange("down", 10);
+  assert.ok(!B.states.some(([s, d]) => s === "left" && d.peer === a.peer), "B keeps A");
+  assert.ok(!A.states.some(([s]) => s === "offline"));
+
+  // A member who knows the room key replays A's proof on its own connection: refused, nothing moves.
+  const keys = await T.keys(key), M = new relay.WebSocket("wss://relay.test");
+  relay.refuse = false;
+  await tick(5); M.onmessage = () => {};
+  M.send(JSON.stringify({t: "join", room: keys.room, auth: keys.auth, v: 2}));
+  await tick(10);
+  const bad = b.stats.bad;
+  M.send(JSON.stringify({t: "m", d: await T.seal(keys, {p: a.peer, s: 1e6, t: "id", b: a.proof})}));
+  M.send(JSON.stringify({t: "m", d: await T.seal(keys, {p: a.peer, s: 1e6 + 1, t: "ops", b: {forged: true}})}));
+  await tick(60);
+  assert.ok(b.stats.bad > bad, "a replayed proof is refused");
+  assert.ok(!B.got.some(g => g.body?.forged));
+  assert.equal(b.paths().get(a.peer), "direct", "the channel stays with A");
+  M.close();
+
+  // The relay is back: A rejoins on a new connection id; its channel moves to it at B.
+  a.wake();
+  await until(() => a.joined(), "A back on the relay");
+  await tick(beat);
+  assert.equal(rtc.all.length, pcs, "no new peer connection");
+  assert.equal(a.paths().get(b.peer), "direct"); assert.equal(b.paths().get(a.peer), "direct");
+  await exchange("moved", 20);
+
+  // The relay restarts: both connections go at once and come back with new ids.
+  relay.refuse = true; relay.cut(a.connectionId()); relay.cut(b.connectionId());
+  await until(() => !a.joined() && !b.joined(), "both lost the relay");
+  await exchange("restart", 10);
+  relay.refuse = false; a.wake(); b.wake();
+  await until(() => a.joined() && b.joined(), "both back");
+  await tick(beat * 2);
+  assert.equal(rtc.all.length, pcs, "still no new peer connection");
+  assert.equal(a.paths().get(b.peer), "direct"); assert.equal(b.paths().get(a.peer), "direct");
+  await exchange("after", 10);
+  assert.equal(a.stats.kept + b.stats.kept, 3, "three relay drops kept the channel");
+
+  // A channel that fails while the relay is down: nobody is reachable, so the session is offline.
+  relay.refuse = true; relay.cut(a.connectionId());
+  await until(() => !a.joined(), "A lost the relay again");
+  rtc.all.find(pc => pc.owner === "A" && pc.dc.readyState === "open").dc.close();
+  await until(() => A.states.some(([s]) => s === "offline"), "offline once the last channel is gone");
+  assert.equal(a.paths().size, 0);
+  relay.refuse = false; a.wake();
+  await until(() => a.state === "open" && a.paths().get(b.peer) === "direct" && b.paths().get(a.peer) === "direct", "a new channel after the relay returns");
+  await exchange("fresh", 5);
+  a.close(); b.close();
+}
+
 async function testGroupLibrary() {
   for (const m of ["model", "library-store", "library-panel", "group-library", "group-library-sync"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
   const info = {id: "group-encrypted", name: "Test group"}, actor = {...await AtriumGroupLibrary.newSigningKey(), name: "Fixture"}, relay = fakeRelay(), roomKey = T.newRoomKey();
@@ -414,16 +599,21 @@ async function testGroupLibrary() {
   } finally { rooms.forEach(r => r.close()); connects.forEach(s => s.close()); }
 }
 
-const watchdog = realTimeout(() => { console.error("Collaboration transport tests timed out"); process.exit(1); }, 90000);
+// Each section has its own time limit, and the run ends with an explicit exit either way: a section
+// that fails leaves its transports open, and their beat and retry timers would keep the process
+// alive at no CPU with nothing printed (a failed timing assertion under load once sat 18 minutes).
+const SECTION_LIMIT = 60000;
+const sections = [["group library", testGroupLibrary], ["invitations", testInvitations], ["keys", testKeys], ["budgets", testBudgets],
+  ["identity and paths", testIdentityAndPaths], ["stalled peer and forced relay", testStalledPeerAndForcedRelay], ["stall and retry", testStallAndRetry],
+  ["channels outlive the relay", testChannelsOutliveRelay], ["pacing", testPacing]];
 globalThis.__testDone = (async () => {
-  await testGroupLibrary();
-  await testInvitations();
-  await testKeys();
-  await testBudgets();
-  await testIdentityAndPaths();
-  await testStalledPeerAndForcedRelay();
-  await testPacing();
+  for (const [name, test] of sections) {
+    let timer;
+    const limit = new Promise((_, reject) => { timer = realTimeout(() => reject(Error("did not finish within " + SECTION_LIMIT / 1000 + " s")), SECTION_LIMIT); });
+    try { await Promise.race([test(), limit]); }
+    catch (e) { e.message = "collab-transport section \"" + name + "\": " + e.message; throw e; }
+    finally { realClear(timer); }
+  }
 })().then(
-  () => console.log("collab-transport: ok (pacing, invitations, host invitations, per-session salt, sender keys, protocol, host tokens, attestations, budgets, verified identity, ordered path switch, fallback, stalled peer, forced relay, TURN, no WebRTC)"),
-  e => { console.error(e); process.exitCode = 1; }
-).finally(() => realClear(watchdog));
+  () => { console.log("collab-transport: ok (pacing, invitations, host invitations, per-session salt, sender keys, protocol, host tokens, attestations, budgets, verified identity, ordered path switch, fallback, stalled peer, forced relay, TURN, no WebRTC, stalled relay socket, queue across reconnect, online and on-screen retry, older relay, channels outlive the relay, channel moves, replayed proof)"); process.exit(0); },
+  e => { console.error(e); process.exit(1); });

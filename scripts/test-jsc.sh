@@ -44,13 +44,14 @@ for test_path in $test_paths; do
     import-worker|live-pour-worker) reason="requires Node worker threads" ;;
     diff-worker) reason="requires URL to place diff-worker.js beside diff.js (the Node inventory runs it)" ;;
     altium-links) reason="requires URL to check link addresses (the Node inventory runs it)" ;;
-    integration-browser|collab-pair-browser|palette-actions.browser|browser-apricot-readonly|browser-apricot-native-query|browser-import-export-target|browser-butter-ai|butter-macros-browser|browser-butter-ai-ui|browser-butter-query-ui|browser-butter-macros-ui|browser-butter-links-ui|butter-intel-ui-shared|browser-library-drag|browser-owner-layers|browser-route-no-op|browser-scripting-console|browser-step-worker|browser-wire-finish) reason="requires Node, Playwright and Chromium" ;;
+    integration-browser|collab-pair-browser|collab-remote-scope-browser|palette-actions.browser|browser-apricot-readonly|browser-apricot-native-query|browser-import-export-target|browser-butter-ai|butter-macros-browser|browser-butter-ai-ui|browser-butter-query-ui|browser-butter-macros-ui|browser-butter-links-ui|butter-intel-ui-shared|browser-library-drag|browser-owner-layers|browser-route-no-op|browser-scripting-console|browser-step-worker|browser-wire-finish) reason="requires Node, Playwright and Chromium" ;;
     browser-format-2-git|browser-butter-history) reason="requires Node child processes, Playwright, Chromium, Python 3 and Git (runs in Chromium CI)" ;;
     browser-dialog-geometry|browser-dialog-safe-area|browser-titlebar-safe-area|browser-surface-motion|browser-workbench-spatial|browser-dock-beta|browser-ui-gallery|browser-ui-snapshots) reason="requires Node and real Chromium layout, focus and animations" ;;
     browser-gpu-pour-lod) reason="runs in the GPU CI step with Node, Playwright and hardware WebGL2" ;;
     native-palette-extension-detail) reason="requires Node to build and drive the macOS AppKit/WKWebView harness" ;;
     collab-transport) reason="requires Web Crypto for authenticated encryption and signatures (the Node job runs it)" ;;
     collab-pair) reason="requires Web Crypto and compression streams (the Node job runs it)" ;;
+    collab-resilience) reason="runs each editor in its own Node vm context (the Node job runs it)" ;;
     notebook-foreign) reason="uses Node zlib to independently verify retained PNG bytes" ;;
     odb-output|odb-profile-conformance) reason="uses Node zlib to independently verify ODB++ gzip and tar bytes (runs in the Node suites)" ;;
     notebook-font-assets) reason="uses the Node crypto digest to verify the asset provider" ;;

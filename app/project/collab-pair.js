@@ -100,20 +100,23 @@ globalThis.AtriumCollabPair = (() => {
     b.close = () => a.close();
     return [a, b];
   }
-  // A WebSocket look-alike for the transport (o.WebSocket): open(): a socket, or null when gone.
+  // A WebSocket look-alike for the transport (o.WebSocket): open(url): a socket, null when gone, or a
+  // promise of either (the Windows host's socket, native/bridge.js lanSocket).
   function socketClass(open) {
     return class {
-      constructor() {
+      constructor(url) {
         this.readyState = 0; this.onopen = null; this.onmessage = null; this.onclose = null; this.onerror = null;
-        const s = open();
-        setTimeout(() => {
-          if (this.readyState === 3) return;
+        const ready = s => {
+          if (this.readyState === 3) { if (s && s !== opening) s.close(); return; }
           if (!s) { this.readyState = 3; this.onclose?.({}); return; }
           this.s = s; this.readyState = 1;
           s.onmessage = text => { if (this.readyState === 1) this.onmessage?.({data: text}); };
           s.onclose = () => { if (this.readyState === 3) return; this.readyState = 3; this.onclose?.({}); };
           this.onopen?.();
-        }, 0);
+        };
+        const opening = open(url);
+        if (typeof opening?.then === "function") opening.then(ready, () => ready(null));
+        else setTimeout(() => ready(opening), 0);
       }
       get bufferedAmount() { return this.s?.bufferedAmount || 0; }
       send(text) { if (this.readyState === 1) this.s.send(text); }
@@ -156,6 +159,7 @@ globalThis.AtriumCollabPair = (() => {
           const to = Array.isArray(m.to) ? m.to.slice(0, 64).filter(c => c !== id && members.has(c)) : [...members.keys()].filter(c => c !== id);
           for (const c of to) deliver(c, out);
         } else if (m.t === "sig" && typeof m.d === "string" && m.d.length <= 64 * 1024 && typeof m.to === "string" && m.to !== id) send(m.to, {t: "sig", from: id, d: m.d});
+        else if (m.t === "p") send(id, {t: "p"});   // the keepalive's answer, as the relay gives it
       };
       sock.onclose = () => {
         if (!id || !members.has(id)) return;

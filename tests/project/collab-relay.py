@@ -175,6 +175,9 @@ async def main():
     await b.send({"t": "m", "d": "only-c", "to": [jc["id"], "c0000000000000000", ja["id"] + "x"]})
     assert await c.next("m") == {"t": "m", "d": "only-c", "from": jb["id"]}
     assert await a.nothing() is None, "an addressed message reaches only its recipients"
+    await b.send({"t": "m", "d": "once", "to": [jc["id"], jc["id"], [1], jc["id"]]})
+    assert await c.next("m") == {"t": "m", "d": "once", "from": jb["id"]}
+    assert await c.nothing() is None, "each named recipient gets one copy"
     # Signalling goes to one peer, marked with its sender.
     await c.send({"t": "sig", "to": ja["id"], "d": "sealed-offer"})
     assert await a.next("sig") == {"t": "sig", "from": jc["id"], "d": "sealed-offer"}
@@ -184,6 +187,9 @@ async def main():
     # Only well-formed messages are forwarded; anything else is dropped.
     await a.send({"t": "m", "d": 5}); await a.send({"t": "join", "room": other_room, "auth": other_auth}); await a.send({"t": "x"}); await a.send({"t": "p"})
     assert await b.nothing() is None
+    # The keepalive is answered to its sender alone (the editor's liveness check), never forwarded.
+    assert await a.next("p") == {"t": "p"}
+    assert await a.nothing() is None and await c.nothing() is None
 
     # Close the third peer before reusing its client variable later in this scenario.
     c.writer.close()

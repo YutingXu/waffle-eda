@@ -3211,8 +3211,8 @@ final class Desktop: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScript
             lan.start(room: request["room"] as? String ?? "", salt: request["salt"] as? String ?? "", name: request["name"] as? String ?? "") { result in
                 DispatchQueue.main.async { switch result { case .success(let v): self.reply(id, v); case .failure(let e): self.reply(id, error: e.localizedDescription) } }
             }
-        case "lanHost": lan.setHost(request["host"] as? String); reply(id, ["ok": true])
-        case "lanStop": lan.stop(); reply(id, ["stopped": true])
+        case "lanHost": reply(id, lan.setHost(request["host"] as? String))
+        case "lanStop": reply(id, lan.stop())
         case "lanBrowse": LanRelay.browse { found in self.reply(id, ["sessions": found]) }
         case "crashHistory": reply(id, CrashHistory.listing())
         case "supportDiagnostics":

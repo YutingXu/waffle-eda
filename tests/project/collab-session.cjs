@@ -168,11 +168,13 @@ const edit = fn => { fn(project); for (const f of listeners.get("change") || [])
   assert.ok(!Live.active(), "confirming leaves the session first");
   assert.deepEqual(jumps, [[0, "tip-1"]], "then opens the branch privately");
 
-  // Energy: one 20 s heartbeat; nothing faster while nobody drags.
+  // Energy: one 20 s heartbeat, on the transport's keepalive beat (no interval of the session's
+  // own); nothing faster while nobody drags.
   const energy = [...intervals];
   assert.deepEqual(intervals.filter(ms => ms < 15000), [], "no fast timers: " + intervals.join(", "));
   void notes;
-  assert.ok(intervals.includes(20000));
+  assert.equal(wire.heartbeat, 20000);
+  assert.equal(typeof wire.onBeat, "function");
   Live.leave(true);
   assert.deepEqual(energy.filter(ms => ms < 15000), []);
 
