@@ -169,8 +169,13 @@ globalThis.AtriumProblemHover = (() => {
     });
     return {...out, at:group.at, radius:group.reach, entries, get boxes() { resolve(); return boxes; }};
   }
+  // A check pass that finishes during the hover pause replaces its finding objects: an insight or a
+  // check-store finding is the same one while its key and its wording are (a key names the objects, not
+  // the measured value, so a finding whose value changed shows its new text).
+  const sameEntry = (a, b) => a.raw === b.raw || a.kind === b.kind && a.raw?.key != null && a.raw.key === b.raw?.key &&
+    a.title === b.title && a.text === b.text && a.value === b.value;
   const same = (a, b) => !!a && !!b && a.pane.canvas === b.pane.canvas && a.d === b.d &&
-    a.entries.length === b.entries.length && a.entries.every((e, i) => e.raw === b.entries[i].raw);
+    a.entries.length === b.entries.length && a.entries.every((e, i) => sameEntry(e, b.entries[i]));
 
   // ---------------------------------------------------------------- the card
   const el = (tag, cls, text) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -231,8 +236,12 @@ globalThis.AtriumProblemHover = (() => {
     }));
     actions.append(action(t("problems.hover.messages"), () => {
       hide(true);
-      const ctx = host.messageContext?.();
-      G.AtriumLazy?.need?.("AtriumMessages").then(() => G.AtriumMessages?.open?.(ctx, {view: "problems", domain: null, fab: false, waived: false}), e => host.info?.(e.message));
+      // The problem itself, selected, in view and focused in Messages (the first of a stacked marker).
+      const ctx = host.messageContext?.(), raw = first.raw;
+      G.AtriumLazy?.need?.("AtriumMessages").then(() => {
+        const M = G.AtriumMessages;
+        if (!M?.revealProblem?.(raw, ctx)) M?.open?.(ctx, {view: "problems", domain: null, fab: false, waived: false});
+      }, e => host.info?.(e.message));
     }));
     parts.push(actions);
     card.replaceChildren(...parts);

@@ -258,7 +258,7 @@ globalThis.AtriumSourceCopy = (() => {
     const file=AtriumSourceFile.open(bytes), streams=new Map();
     for (const path of file.paths()) streams.set(path.toLowerCase(),file.read(path));
     const kind=doc.kind, drawing=kind==="pcb"?doc.pcbDrawing:doc.schDrawing;
-    const result=(kind==="pcb"?AtriumPCB:AtriumSCH).read(name,streams,null,{appearance:!!drawing,drillDrawing:!!doc.sourceDrillDrawing,textPlacement:drawing?.textPlacement||false,nativeText:!!drawing?.nativeText,legacyArcPaths:doc.sourceArcVersion!==1,bodyGeometry:!!doc.bodyModelVersion});
+    const result=(kind==="pcb"?AtriumPCB:AtriumSCH).read(name,streams,null,{appearance:!!drawing,drillDrawing:!!doc.sourceDrillDrawing,textPlacement:drawing?.textPlacement||false,nativeText:!!drawing?.nativeText,legacyArcPaths:doc.sourceArcVersion!==1,locks:doc.sourceLockVersion===1,bodyGeometry:!!doc.bodyModelVersion});
     if (result.documents.length!==1) throw Error("The selected file does not contain one supported Altium document.");
     const source=result.documents[0];
     // Earlier Waffle saves had no imported origin. An absent override leaves

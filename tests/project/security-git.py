@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Defensive Git integration checks using isolated local repositories.
 
-Run with python3 -I -B tests/security-git.py. External transports use a test double.
+Run with python3 -I -B tests/project/security-git.py. External transports use a test double.
 """
 import contextlib
 import importlib.util

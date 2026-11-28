@@ -23,6 +23,7 @@
 .ui-gallery-stage > .ui-gallery-floating {flex:0 1 auto}
 .ui-gallery-art {display:block;inline-size:100%;background:linear-gradient(var(--line) 0 0) center/60% 1px no-repeat,var(--paper)}
 .ui-gallery-split {display:flex;block-size:64px;border-radius:var(--r-md);background:var(--panel-head)}
+.ui-gallery-split.ui-split[data-orientation=vertical] {display:grid;grid-template-rows:minmax(0,1fr) 1px minmax(0,1fr);block-size:80px}
 .ui-gallery-split > div:not(.ui-splitter) {flex:1;display:grid;place-items:center;color:var(--muted);font-size:var(--fs-11)}
 .ui-gallery-drop {display:grid;place-items:center;inline-size:96px;block-size:48px;border-radius:var(--r-md);background:var(--panel-head);color:var(--muted);font-size:var(--fs-11)}
 .ui-gallery-stage > .ui-drop-line {flex:0 0 160px}
@@ -33,3 +34,7 @@
 .ui-gallery-graph {position:relative;inline-size:min(100%,420px)}
 .ui-gallery-graph > canvas {position:absolute;inset-block-start:0;inset-inline-start:var(--s-4);pointer-events:none}
 .ui-gallery-graph > .ui-row {padding-inline-start:calc(var(--ui-graph-w,40px) + var(--s-8))}
+/* A document strip too narrow for its tabs (the overflow fades and ⋯). */
+.ui-gallery-tabbar {display:flex;max-inline-size:320px;min-inline-size:0;background:var(--app)}
+.ui-gallery-tabbar > .ui-editor-tab-strip {flex:1 1 auto;min-inline-size:0}
+.ui-gallery-tabbar .ui-tab {flex:none;white-space:nowrap}

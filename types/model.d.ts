@@ -521,6 +521,8 @@ interface PcbDocument extends DocumentBase, PcbBodyGeometry {
   sourcePourSignature?: string;
   sourceSha256?: string;
   sourceArcVersion?: 1;
+  /** Set by an import that read the source's locks and found some: a lock removed since is an edit (source-copy.js). */
+  sourceLockVersion?: 1;
 }
 /** A panel (step and repeat) document: no items, the layout is in `panel` (panel.js). */
 interface PanelDocument extends DocumentBase { kind: "panel"; panel: Record<string, unknown>; }
@@ -570,6 +572,8 @@ interface SheetConnectivity {
   /** wire id -> net name. */
   byWire: Map<string, string>;
   nets: SheetNet[];
+  /** Generated names recognised from this sheet's pin connectivity. */
+  autoNames: Set<string>;
 }
 
 // ------------------------------------------------------------------ rules (app/rules.js)

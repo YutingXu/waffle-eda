@@ -18,7 +18,7 @@ const fs = require("node:fs"), path = require("node:path");
 const ROOT = path.resolve(__dirname, "../..");
 const shots = (i => i >= 0 ? path.resolve(process.argv[i + 1]) : null)(process.argv.indexOf("--shots"));
 let chromium;
-try { ({chromium} = require("playwright-core")); } catch { console.log("collab-pair-browser: SKIP (no playwright-core)"); process.exit(0); }
+try { ({chromium} = require("../support/playwright.cjs")); } catch { console.log("collab-pair-browser: SKIP (no playwright-core)"); process.exit(0); }
 const chrome = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find(c => c && fs.existsSync(c));
 if (!chrome) { console.log("collab-pair-browser: SKIP (no Chrome)"); process.exit(0); }
 
@@ -31,19 +31,22 @@ function relay() {
     p.on("exit", c => reject(Error("relay exited " + c + ": " + out)));
   });
 }
-async function editor(browser, port, name, relayUrl) {
+// prefs adds profile values, such as {"labs.notebook": true} for a suite that covers notebook features.
+// setup(page) runs before the page loads, for routes that must see the app's first WebSocket.
+async function editor(browser, port, name, relayUrl, {prefs = {}, setup} = {}) {
   const ctx = await browser.newContext({viewport: {width: 1280, height: 860}});
-  await ctx.addInitScript(([name, relayUrl]) => {
-    try { localStorage.setItem("atrium.prefs", JSON.stringify({format: "atrium-prefs", version: 1, values: {"general.startPage": "never", "collab.displayName": name, "collab.realtime": true, "collab.relay": relayUrl}})); } catch { /* storage */ }
-  }, [name, relayUrl]);
+  await ctx.addInitScript(([name, relayUrl, prefs]) => {
+    try { localStorage.setItem("atrium.prefs", JSON.stringify({format: "atrium-prefs", version: 1, values: {"general.startPage": "never", "collab.displayName": name, "collab.realtime": true, "collab.relay": relayUrl, ...prefs}})); } catch { /* storage */ }
+  }, [name, relayUrl, prefs]);
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   page.setDefaultTimeout(15000);
+  const setupResult = await setup?.(page);
   await page.goto("http://127.0.0.1:" + port + "/app/index.html");
   await page.waitForFunction(() => globalThis.AtriumNavHost?.project?.() && globalThis.AtriumLazy);
   await page.evaluate(() => AtriumLazy.need(["AtriumCollabPresence", "AtriumCollabTransport"]));
-  return {ctx, page, errors};
+  return {ctx, page, errors, setup: setupResult};
 }
 const dialog = page => page.locator("dialog.collab-dialog[open]");
 const networkExplanation = page => page.getByRole("dialog", {name: "Local network access", exact: true});

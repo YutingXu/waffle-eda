@@ -214,6 +214,28 @@ globalThis.Atrium = (() => {
     const t = Math.max(0, Math.min(1, ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy || 1)));
     return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
   }
+  // A land centred on the origin (a w by h rectangle, or a circle across its short side) lies within
+  // a simple outline when the origin does and no edge of the outline enters the land. Touching counts
+  // as within. Testing the land's corners alone misses a notch cut into it between them.
+  function landWithin(round, w, h, ring) {
+    const x = w / 2 * .999, y = h / 2 * .999, r = Math.min(x, y);
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i], b = ring[j];
+      if ((a[1] > 0) !== (b[1] > 0) && 0 < a[0] - (b[0] - a[0]) * a[1] / (b[1] - a[1])) inside = !inside;
+      if (round) { if (nearSegment([0, 0], a, b) < r) return false; continue; }
+      // The stretch of the edge between the rectangle's sides (Liang-Barsky).
+      let from = 0, to = 1;
+      for (const k of [0, 1]) {
+        const d = b[k] - a[k], side = k ? y : x;
+        if (Math.abs(d) < 1e-12) { if (Math.abs(a[k]) >= side) from = 2; continue; }
+        const u = (-side - a[k]) / d, v = (side - a[k]) / d;
+        from = Math.max(from, Math.min(u, v)); to = Math.min(to, Math.max(u, v));
+      }
+      if (from < to) return false;
+    }
+    return inside;
+  }
   // Keep input vertices and winding order stable. Electrical checks require
   // full coverage. Paint recovers slit contours, including touching bridges.
   function triangulateRing(points, area, mode) {
@@ -413,41 +435,63 @@ globalThis.Atrium = (() => {
       const match=/^Inner (\d+)$/.exec(name);
       return match && inner>0 && +match[1]<=inner ? "Inner "+(inner+1-+match[1]) : name;
     }
-    function padArtwork(p,inner){
+    const keep=name=>name;
+    function padArtwork(p,inner,side=layer){
       const out={...p};
       if(Array.isArray(p.poly))out.poly=p.poly.map(reflect);
       if(Array.isArray(p.pasteApertures))out.pasteApertures=p.pasteApertures.map(q=>Number.isFinite(q?.x)?{...q,x:-q.x}:q);
-      if(p.padStack)out.padStack=Object.fromEntries(Object.entries(p.padStack).map(([k,row])=>[layer(k,inner),row?{
+      if(p.padStack)out.padStack=Object.fromEntries(Object.entries(p.padStack).map(([k,row])=>[side(k,inner),row?{
         ...row,...(Number.isFinite(row.x)&&{x:-row.x}),...(Number.isFinite(row.angle)&&{angle:angle(-row.angle)}),
         ...(Array.isArray(row.poly)&&{poly:row.poly.map(reflect)})
       }:row]));
       return out;
     }
     const rotatedSlot=p=>p.slotLength>p.drill && Number.isFinite(p.slotAngle) && p.slotAngle!==0;
-    function pad(p,inner=0,legacy=false){
+    function pad(p,inner=0,legacy=false,side=layer){
       const out={...p,x:-(p.x||0),angle:angle(-(p.angle||0))};
       if(!legacy && rotatedSlot(p))out.slotAngle=-p.slotAngle;
-      for(const k of ["layer","fromLayer","toLayer"])if(p[k]!=null)out[k]=layer(p[k],inner);
-      return legacy?out:padArtwork(out,inner);
+      for(const k of ["layer","fromLayer","toLayer"])if(p[k]!=null)out[k]=side(p[k],inner);
+      return legacy?out:padArtwork(out,inner,side);
     }
-    function shape(s,inner=0){
+    // The exact curved outline (regionShape) reflects with its polygon: arcs turn to 180 - angle and
+    // reverse sense. Its signature follows the reflected polygon only when it matched the original,
+    // so a stale outline stays stale. Without the board-shape module the extents check decides.
+    const contour=c=>c.map(g=>g.kind==="arc"?transformArc(g,reflect,0,true):{kind:"line",a:reflect(g.a),b:reflect(g.b)});
+    function region(r,before,after){
+      const S=globalThis.AtriumBoardShape,{sig,cutoutRegions,...rest}=r;
+      const out={...rest,contour:contour(r.contour||[]),cutouts:(r.cutouts||[]).map(contour)};
+      if(sig!=null && S)out.sig=sig===S.signature(before)?S.signature(after):sig;
+      return cutoutRegions&&S?S.mapCutoutRegions(r,out,contour):out;
+    }
+    // side===keep is a part's own mirror flag, which keeps lettering readable: the board moves only the
+    // anchor (pcb-appearance.js placeText). Flipping to the other side mirrors the lettering too.
+    // legacy reproduces the earlier derivation, which left the curved outline as it was.
+    function shape(s,inner=0,side=layer,legacy=false){
       const out={...s};
-      if(s.layer!=null)out.layer=layer(s.layer,inner);
+      if(s.layer!=null)out.layer=side(s.layer,inner);
       if(Array.isArray(s.points)){
         out.points=s.points.map(reflect);
         if(s.arc?.kind==="arc")out.arc=transformArc(s.arc,reflect,0,true);
+        if(!legacy&&s.regionShape&&typeof s.regionShape==="object")out.regionShape=region(s.regionShape,s.points,out.points);
       }
       if(s.x!=null)out.x=-s.x;
-      if(s.kind==="text"){
+      if(s.kind==="text"&&side!==keep){
         out.angle=angle(-(s.angle||0));
         if(typeof s.mirrored==="boolean")out.mirrored=!s.mirrored;
       }
       return out;
     }
-    function footprint(fp,inner=0,legacy=false){
-      return fp && {...clone(fp),pads:(fp.pads||[]).map(p=>pad(p,inner,legacy)),shapes:(fp.shapes||[]).map(s=>shape(s,inner))};
+    function footprint(fp,inner=0,legacy=false,side=layer){
+      return fp && {...clone(fp),pads:(fp.pads||[]).map(p=>pad(p,inner,legacy,side)),shapes:(fp.shapes||[]).map(s=>shape(s,inner,side,legacy))};
     }
-    return {layer,pad,padArtwork,rotatedSlot,shape,footprint};
+    // A PCB part's own `mirror` flag reflects its footprint about the local Y axis and keeps every
+    // layer (pcb-appearance.js padTurn, drillCore). Writers that place footprint-local geometry
+    // use the reflected footprint in an unmirrored frame, which puts every pad, slot and outline
+    // where the board draws it.
+    function placed(item,fp){
+      return item?.mirror===true && fp ? {item:{...item,mirror:false},footprint:footprint(fp,0,false,keep)} : {item,footprint:fp};
+    }
+    return {layer,pad,padArtwork,rotatedSlot,shape,footprint,placed,placedShape:s=>shape(s,0,keep)};
   })();
   function pins(item, def, kind) {
     const g = gate(geometries(def, kind), item);
@@ -517,6 +561,17 @@ globalThis.Atrium = (() => {
   }
   // Unnamed nets on Altium sheets get Altium's name, Net<designator>_<pin> of the lowest designator (NetC1_2), as in the PcbDoc.
   function autoNetName(doc,pins){if(doc?.netNaming!=="first-pin"&&!/\.schdoc$/i.test(doc?.sourceName||""))return "";let b=pins[0];for(const p of pins)if(p[0]<b[0]||p[0]===b[0]&&p[1]<b[1])b=p;return "Net"+b[0]+"_"+b[1];}
+  // The one test for a generated net name, matched whole. Ours: an unnamed net is Net-<designator>-<pin>
+  // of its first pin (connectivity, ERC, hierarchy), Net<designator>_<pin> on Altium sheets (autoNetName),
+  // Net-<n> without pins, and the hierarchy adds _<sheet> or _<n> to a name two nets share. Other tools':
+  // KiCad Net-(R1-Pad2) and unconnected-(…), Eagle N$1, OrCAD N00012, EasyEDA $1N5, PADS $$$12.
+  // A designator has a digit or "?" (R1, U1_CH1, R?) and then any pin (Net-R1-PAD-1); a bare prefix (J, TP)
+  // or none takes a numbered pin (Net-J-1, Net--1), so Net-3V3, Net-USB-DP and Net-VCC-3V3 stay named.
+  const AUTO_NET_NAME=/^(?:Net-\(.*\)|unconnected-\(.*\)|Net-?\d+(?:_\S+)?|Net-[^\s\d()-][^\s()-]*[\d?][^\s()-]*-\S+|Net-[^\s\d()-]*-\d+(?:_\S+)?|Net[^\s\d()_-][^\s()_-]*[\d?][^\s()-]*_\S+|Net[A-Za-z#]+_\d+(?:_\S+)?|N\$\d+|N_\d+|N\d{4,}|\$\$\$\d+|\$\d\w*)$/;
+  // pins: what the net connects, when known: a connectivity() result (its autoNames) or [designator, pin]
+  // pairs. A name spelled exactly as one of its own pins' generated names is generated too (Net-U1-1 2).
+  const isAutoNetName=(name,pins)=>typeof name==="string"&&(AUTO_NET_NAME.test(name)||(pins?.autoNames instanceof Set?pins.autoNames.has(name):
+    Array.isArray(pins)&&/^Net/.test(name)&&pins.some(p=>Array.isArray(p)&&(name==="Net-"+p[0]+"-"+p[1]||name==="Net"+p[0]+"_"+p[1]))));
   const wireContactTolerance = 0.00011;
   // Wires connect at terminals and explicit junctions. A bare crossing joins neither net.
   function connectivity(doc, defs) {
@@ -554,16 +609,18 @@ globalThis.Atrium = (() => {
     for(const [k,name] of names)group(k).names.add(name);
     for(const c of contacts)group(c.key).pins.push(c);
     for(const [w,k] of wires)group(k).wires.push(w);
-    const byPin=new Map(),byWire=new Map(),nets=[];
+    const byPin=new Map(),byWire=new Map(),nets=[],autoNames=new Set();
     for(const g of groups.values()){
       if(g.pins.length<2 && !g.wires.length && !g.names.size)continue;
       const first=g.pins[0];
       const name=[...g.names][0] || (first ? autoNetName(doc,g.pins.map(c=>[c.i.ref,c.pin.number]))||"Net-"+first.i.ref+"-"+first.pin.number : "Net-"+(nets.length+1));
+      // Generated here, or a label spelled as one of the net's own pins' generated names (isAutoNetName).
+      if(!g.names.size||name.startsWith("Net")&&isAutoNetName(name,g.pins.map(c=>[c.i.ref,c.pin.number])))autoNames.add(name);
       for(const c of g.pins)byPin.set(c.i.id+"/"+c.pin.number,name);
       for(const w of g.wires)byWire.set(w.id,name);
       nets.push({name,pins:g.pins.length,wires:g.wires.length,conflict:g.names.size>1});
     }
-    return {byPin,byWire,nets};
+    return {byPin,byWire,nets,autoNames};
   }
   function sheetEntry(project, doc, defs, host) {
     return globalThis.AtriumUndoStore?.sheetEntry?.(project, doc, defs, host);
@@ -577,7 +634,9 @@ globalThis.Atrium = (() => {
   const keepoutBits={via:1,track:2,copper:4,smdPad:8,throughPad:16};
   const keepoutBlocks=(item,kind)=>item.keepoutRestrictions==null||!!(item.keepoutRestrictions&keepoutBits[kind]);
   // An absolute drag reuses the geometry captured at its mark.
+  // An image markup has no x/y: it sits in its image's own coordinates and moves with the image.
   function moveItem(item,dx,dy,src=item) {
+    if(item.kind==="imageMarkup")return;
     if(src.points){
       const S=globalThis.AtriumBoardShape,region=S?.regionOf?.(src);
       const move=([x,y])=>[x+dx,y+dy];
@@ -619,8 +678,12 @@ globalThis.Atrium = (() => {
     function lead(p, q, target, stop) {
       const bend = elbow(p, q, target, stop);
       // A turn can put another pin between the moved end and the fixed span.
-      if (!turn || !same(bend, stop) || !turn.pins.some(pin =>
-        !same(pin, start) && !same(pin, end) && !same(pin, stop) && onWireSpan(pin, target, stop))) return [bend];
+      const crosses = c => turn.pins.some(pin => !same(pin, start) && !same(pin, end) && !same(pin, stop) &&
+        (onWireSpan(pin, target, c) || onWireSpan(pin, c, stop)));
+      if (!turn || !crosses(bend)) return [bend];
+      // An L-shaped lead turns at its other corner instead.
+      const other = [target[0] + stop[0] - bend[0], target[1] + stop[1] - bend[1]];
+      if (!same(bend, stop)) return [crosses(other) ? bend : other];
       const across = Math.abs(p[1] - q[1]) < .0001 ? 1 : 0, along = 1 - across;
       const offset = Math.sign(stop[along] - p[along]) * turn.step;
       const departure = target.slice(), arrival = stop.slice();
@@ -745,7 +808,7 @@ globalThis.Atrium = (() => {
       r.session = wireStretch(r.wire, [...stops.values()]);
     }
     const affected = [...routed.keys(), ...dots.map(d => d.dot)];
-    return {affected, apply(targetFor, turn = undefined) {
+    return {affected, get linked() {return routed.size + dots.length + branches.length;}, apply(targetFor, turn = undefined) {
       let structural = false;
       for (const {session, ends} of routed.values()) {
         session.apply(ends[0] && targetFor(ends[0]), ends[1] && targetFor(ends[1]), turn);
@@ -781,37 +844,101 @@ globalThis.Atrium = (() => {
       return !!collapsed.size;
     }};
   }
+  // Power ports, ports, off sheet connectors and net labels alone on a part's pin turn with it.
+  const tagKinds = new Set(["power", "port", "offsheet", "netlabel"]);
+  function pinTags(doc, defs, item, selected = new Set([item.id]), query) {
+    const ε = wireContactTolerance, out = [];
+    for (const {at} of pins(item, defs.get(item.def), "schematic")) {
+      const near = query ? query([at[0] - ε, at[1] - ε, at[0] + ε, at[1] + ε]) : doc.items;
+      const on = o => o.kind === "wire" ? onWirePath(at, o.points) : terminalContacts(o, defs).some(p => same(p, at));
+      for (const t of near) if (tagKinds.has(t.kind) && !t.locked && !selected.has(t.id) && !out.includes(t) && on(t) && !near.some(o => o !== t && o !== item && on(o))) out.push(t);
+    }
+    return out;
+  }
+  // The schematic's pins grouped by net: pin -> the first pin of its net (a pin on no net stands alone).
+  function pinGroups(items, defs) {
+    const c = connectivity({kind:"schematic", items}, defs), nets = new Map(), out = new Map();
+    for (const [pin, net] of c.byPin) {if (!nets.has(net)) nets.set(net, []); nets.get(net).push(pin);}
+    for (const group of nets.values()) {group.sort(); for (const pin of group) out.set(pin, group[0]);}
+    return out;
+  }
+  const sameGroups = (a, b) => [...a].every(([pin, first]) => (b.get(pin) ?? pin) === first) && [...b].every(([pin, first]) => (a.get(pin) ?? pin) === first);
+  // Contacts of stationary objects along a wire, other than its ends, that a stretch must keep.
+  function wireTaps(items, defs, wire, moving) {
+    const points = wire.points, ends = [points[0], points.at(-1)], stops = new Map(), box = bounds(points);
+    const ε = wireContactTolerance;
+    const add = p => {if (!ends.some(end => same(p, end)) && onWirePath(p, points)) stops.set(pointKey(p), p);};
+    for (const o of items) {
+      if (o.id === wire.id || moving.has(o.id)) continue;
+      if (o.kind === "wire") {
+        const b = bounds(o.points);
+        if (!b || b[0] > box[2] + ε || b[2] < box[0] - ε || b[1] > box[3] + ε || b[3] < box[1] - ε) continue;
+        o.points.forEach(add);
+        for (const p of points) if (onWirePath(p, o.points)) add(p);
+      } else if (o.kind === "part" || o.kind === "junction" || tagKinds.has(o.kind) || globalThis.AtriumSchObjects?.KINDS.has(o.kind)) terminalContacts(o, defs).forEach(add);
+    }
+    return [...stops.values()];
+  }
+  // avoidPinShorts keeps pin nets through a turn: leads avoid other pins, pin tags follow
+  // (callers passing `wires` list the tags there), and when the routed wires would still join
+  // or split nets, the plain stretch is used if it keeps them.
   /** @param {{defs?: Map<string, Definition>, query?: (box: Box) => Item[], junctionCopies?: Map<string, JunctionItem>, avoidPinShorts?: boolean}} [options] */
   function transformPart(doc, item, def, change, wires, options = {}) {
-    const {defs = new Map([[item.def, def]]), query, junctionCopies, avoidPinShorts = false} = options;
+    const {defs = new Map([[item.def, def]]), query, junctionCopies, avoidPinShorts = true} = options;
     const before = pins(item, def, doc.kind);
     if (doc.kind !== "schematic") {Object.assign(item, change); return [item];}
+    const angle = item.angle || 0, mirror = !!item.mirror;
+    const turns = avoidPinShorts && ("mirror" in change && !!change.mirror !== mirror || "angle" in change && (change.angle || 0) !== angle);
+    // Without the whole library a tag on a pin of another part looks alone.
+    const tags = turns && options.defs && !wires ? pinTags(doc, defs, item, undefined, query) : [];
     const dotted = junctionCopies && new Set([...junctionCopies.values()].map(dot => pointKey([dot.x, dot.y])));
     const terminals = before.map(p => p.at).filter(at => !dotted || dotted.has(pointKey(at)));
     const edges = !wires || dotted?.size
-      ? schematicAttachments(doc, defs, terminals, new Set([item.id]), {query, existingOnly:!!wires, junctionCopies})
+      ? schematicAttachments(doc, defs, terminals, new Set([item.id, ...tags.map(t => t.id)]), {query, existingOnly:!!wires, junctionCopies})
       : null;
-    const angle = item.angle || 0, mirror = !!item.mirror;
     Object.assign(item, change);
     const after = pins(item, def, doc.kind);
     const moved = new Map(before.map((p, i) => [pointKey(p.at), after[i].at]));
-    const turn = avoidPinShorts && (!!item.mirror !== mirror || (item.angle || 0) !== angle)
-      ? {pins: [...moved.values()], step: Math.max(doc.grid || 1.27, 1.27) * 2} : undefined;
-    if (edges) {
-      edges.apply(p => moved.get(pointKey(p)), turn);
-      edges.finish();
-      if (!wires) return [item, ...edges.affected];
-    }
+    const turn = turns ? {pins: [...moved.values()], step: Math.max(doc.grid || 1.27, 1.27) * 2} : undefined;
+    const carry = t => {const to = moved.get(pointKey([t.x, t.y])); return to && !same(to, [t.x, t.y]) && ([t.x, t.y] = to);};
     // Some callers supply detached wire copies or an explicit subset, e.g. a mirror
-    // operation that transforms the selection's own wires separately.
-    const changed = [item, ...(edges?.affected || [])];
+    // operation that transforms the selection's own wires separately. Those wires keep
+    // their taps (contacts along them) as the attached ones do.
+    const target = p => {const to = moved.get(pointKey(p)); return to && !same(to, p) ? to : null;};
+    const moving = new Set([item.id, ...(wires || []).filter(w => tagKinds.has(w.kind)).map(t => t.id)]);
+    const sessions = [];
+    for (const wire of wires || []) if (wire.kind === "wire") {
+      const start = target(wire.points[0]), end = target(wire.points.at(-1));
+      if (start || end) sessions.push({wire, old:wire.points, start, end});
+    }
+    // Pin nets before the turn (copies stand for the objects they replace, unchanged so far).
+    const groups = turns && (tags.length || edges?.linked || sessions.length) ? pinGroups(doc.items, defs) : null;
+    for (const s of sessions) s.session = wireStretch(s.wire, wireTaps(doc.items, defs, s.wire, moving));
+    tags.forEach(carry);
+    const carried = new Set((wires || []).filter(t => tagKinds.has(t.kind) && carry(t)));
+    const route = lead => {
+      edges?.apply(p => moved.get(pointKey(p)), lead);
+      for (const {start, end, session} of sessions) session.apply(start, end, lead);
+    };
+    route(turn);
+    if (groups) {
+      const copies = new Map([item, ...(wires || []), ...(junctionCopies?.values() || [])].map(o => [o.id, o]));
+      const now = () => pinGroups(doc.items.map(o => copies.get(o.id) || o), defs);
+      if (!sameGroups(groups, now())) {
+        route(undefined);
+        if (!sameGroups(groups, now())) route(turn);
+      }
+    }
+    if (edges) {
+      edges.finish();
+      if (!wires) return [item, ...edges.affected, ...tags];
+    }
+    const changed = [item, ...(edges?.affected || [])], routed = new Map(sessions.map(s => [s.wire, s.old]));
     for (const wire of wires) {
+      if (carried.has(wire)) {changed.push(wire); continue;}
       if (wire.kind !== "wire") continue;
-      const old = wire.points, first = moved.get(pointKey(old[0])), last = moved.get(pointKey(old.at(-1)));
-      const start = first && !same(first, old[0]) ? first : null;
-      const end = last && !same(last, old.at(-1)) ? last : null;
-      if (start || end) wireStretch(wire).apply(start, end, turn);
-      else if (old.some((p, i) => i && same(p, old[i - 1]))) wire.points = old.filter((p, i) => !i || !same(p, old[i - 1]));
+      const old = routed.get(wire) || wire.points;
+      if (!routed.has(wire) && old.some((p, i) => i && same(p, old[i - 1]))) wire.points = old.filter((p, i) => !i || !same(p, old[i - 1]));
       if (wire.points !== old) changed.push(wire);
     }
     return changed;
@@ -1216,6 +1343,7 @@ globalThis.Atrium = (() => {
         }
       }
       if(d.sourceArcVersion!=null){if(d.kind!=="pcb")invalid();sourceVersion(d.sourceArcVersion);}
+      if(d.sourceLockVersion!=null){if(d.kind!=="pcb")invalid();sourceVersion(d.sourceLockVersion);}
       if(d.kind==="pcb")yield* bodyGeometry(d);
       else if(d.bodyModelVersion!=null||d.bodyModels!=null||d.bodies3d!=null)invalid();
       }
@@ -1271,5 +1399,5 @@ globalThis.Atrium = (() => {
     do{step=steps.next();}while(!step.done);
     return step.value;
   }
-  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind};
+  return {gate,gateLabel,special,projectText,id,withRevisionIds,clone,padCornerRatio,padNumericSpec,padDimensions,partParameters,projectNumber,pointKey,same,viaLimits,preferredViaSize,viaSize,snap,units,rad,rotate,world,placement,drillCore,arcPoint,arcSweep,arcProjection,transformArc,pathArc,pathLength,nearSegment,landWithin,triangulateRing,mergeConvex,pathBetween,sheet,documentMetadata,sameDocumentMetadata,isOffsheet,offsheetAngle,offsheetIO,project,preferredDocument,pristineImportPlaceholder,geometries,pins,terminalId,terminalGeometry,similarProperties,definitionGeometry,pcbMirror,footprintPadKeys,symbolPoints,itemPoints,bounds,docBounds,nextRef,instantiate,connectivity,sheetEntry,sheetNets,autoNetName,keepoutBlocks,moveItem,wireStretch,wireStretchState,restoreWireStretch,transformPart,pinTags,pinGroups,sameGroups,wireTaps,schematicAttachments,validOutline,validate,validationSteps,validInfinitePdfOptions,notebookImage,notebookItemKind,AUTO_NET_NAME,isAutoNetName};
 })();

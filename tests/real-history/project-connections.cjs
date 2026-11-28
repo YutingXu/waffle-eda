@@ -2,7 +2,7 @@
 // Accepts the format baseline's in-memory file selection on stdin. Only aggregate
 // counts leave the page; all geometry, edits and Undo steps live in its temporary profile.
 const assert = require("node:assert/strict"), path = require("node:path");
-const {pathToFileURL} = require("node:url"), {chromium} = require("playwright-core");
+const {pathToFileURL} = require("node:url"), {chromium} = require("../support/playwright.cjs");
 async function main() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);

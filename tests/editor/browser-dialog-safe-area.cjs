@@ -109,7 +109,8 @@ async function checkQuickAdd(browser) {
     await dialogs[0][1](page);
     const state = () => page.evaluate(() => ({
       shapes:structuredClone(__fe.draft.footprint.shapes),
-      checks:[...document.querySelectorAll(".fe-checks li")].map(li => li.textContent),
+      // The checks are library rows (.ui-row in .fe-checks); a build without the kit lists them as li.
+      checks:[...document.querySelectorAll(".fe-checks .ui-row, .fe-checks li")].map(row => row.textContent),
       selected:[...document.querySelectorAll(".fe-props .fe-section h3, .fe-props h3")].map(h => h.textContent)
     }));
     const painted = () => page.evaluate(() => {
@@ -163,7 +164,7 @@ module.exports = dialogSafeArea;
 
 async function main() {
   let chromium;
-  try { ({chromium} = require("playwright-core")); }
+  try { ({chromium} = require("../support/playwright.cjs")); }
   catch { console.log("SKIP dialog safe area: Playwright Core is unavailable."); return; }
   const executablePath = process.env.CHROME;
   const browser = await chromium.launch({headless:true, args:["--allow-file-access-from-files"], ...(executablePath ? {executablePath} : {channel:"chrome"})});

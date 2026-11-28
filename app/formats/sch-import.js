@@ -45,7 +45,9 @@ globalThis.AtriumSCH = (() => {
       off=found.end;
       let record;
       if(found.flag!==0){
-        record=found.payload.length>=4 && found.payload[0]===2 ? binaryPin(found.payload) : {RECORD:"binary"};
+        // The frame is intact, so a damaged pin is omitted and the records after it are still read.
+        try{record=found.payload.length>=4 && found.payload[0]===2 ? binaryPin(found.payload) : {RECORD:"binary"};}
+        catch{record={RECORD:"damaged binary pin"};}
       }else record=AtriumAltiumRecords.propertyRecord(found.payload,true,false);
       if(record.HEADER && !records.length)continue;
       records.push(record);
@@ -92,15 +94,33 @@ globalThis.AtriumSCH = (() => {
     const a=at(r),b=at(r,"CORNER");
     return [a,[b[0],a[1]],b,[a[0],b[1]]];
   }
-  function ellipse(r,t) {
+  // Arcs (12), ellipses (8) and elliptical arcs (11): points at most 8° apart and the exact curve
+  // (sch-curves.js). Altium angles turn counterclockwise from +X on its Y-up sheet; Waffle's Y is down.
+  function curve(r,t) {
     const [x,y]=at(r),rx=mm(r,"RADIUS"), ry=t===8||t===11?mm(r,"SECONDARYRADIUS")||rx:rx;
-    if(rx<=0||ry<=0)return [];
+    if(rx<=0||ry<=0)return null;
     const full=t===8,start=full?0:numeric(r.STARTANGLE),end=full?360:numeric(r.ENDANGLE);
     const span=((end-start)%360+360)%360 || 360;
-    const n=Math.max(4,Math.ceil(span/8));
-    return Array.from({length:n+1},(_,i)=>{
+    const n=Math.max(4,Math.ceil(span/8)),s=A.rad(start);
+    const points=Array.from({length:n+1},(_,i)=>{
       const a=A.rad(start+span*i/n);return [x+rx*Math.cos(a),y-ry*Math.sin(a)];
     });
+    return {points,c:[x,y],r:rx,circle:rx===ry,start,span,
+      ellipse:{a:[rx*Math.cos(s),-ry*Math.sin(s)],b:[-rx*Math.sin(s),-ry*Math.cos(s)],sweep:span}};
+  }
+  // Bézier curves (5): cubic segments p0 c1 c2 p1 c3 c4 p2 …, sampled evenly per segment as
+  // AtriumSchCurves.bezierPoints does (sch-curves.js reads the curve back from the same samples).
+  function bezier(r) {
+    const controls=vertices(r);
+    if(controls.length<4||(controls.length-1)%3)return {points:controls};
+    let longest=0;
+    for(let k=0;k+3<controls.length;k+=3){let l=0;for(let i=k;i<k+3;i++)l+=Math.hypot(controls[i+1][0]-controls[i][0],controls[i+1][1]-controls[i][1]);longest=Math.max(longest,l);}
+    const steps=Math.min(64,Math.max(8,Math.ceil(longest/.5))),points=[controls[0]];
+    for(let k=0;k+3<controls.length;k+=3)for(let i=1;i<=steps;i++){
+      const t=i/steps,u=1-t,w=[u*u*u,3*u*u*t,3*u*t*t,t*t*t],p=controls.slice(k,k+4);
+      points.push([0,1].map(j=>w[0]*p[0][j]+w[1]*p[1][j]+w[2]*p[2][j]+w[3]*p[3][j]));
+    }
+    return {points,controlPoints:controls.map(q=>[q[0]-controls[0][0],q[1]-controls[0][1]])};
   }
   const sheetSizes=[[1150,760],[1550,1110],[2230,1570],[3150,2230],[4460,3150],[950,750],[1500,950],[2000,1500],[3200,2000],[4200,3200],[1100,850],[1400,850],[1700,1100],[990,790],[1540,990],[2060,1560],[3260,2060],[4280,3280]];
   function ink(raw,fallback){
@@ -141,7 +161,7 @@ globalThis.AtriumSCH = (() => {
     9:"Pie chart", 10:"Rounded rectangle", 11:"Elliptical arc", 12:"Arc", 13:"Line", 14:"Rectangle", 15:"Sheet symbol", 16:"Sheet entry",
     17:"Power port", 18:"Port", 22:"No ERC marker", 25:"Net label", 26:"Bus", 27:"Wire", 28:"Text frame", 29:"Junction",
     30:"Image", 31:"Sheet settings", 32:"Sheet name", 33:"Sheet filename", 34:"Designator", 37:"Bus entry", 39:"Sheet template", 41:"Parameter",
-    43:"Parameter set", 44:"Implementation list", 45:"Implementation", 46:"Implementation map", 47:"Map definition", 48:"Parameter map"};
+    43:"Parameter set", 44:"Implementation list", 45:"Implementation", 46:"Implementation map", 47:"Map definition", 48:"Parameter map", 226:"Hyperlink"};
   function read(name,streams,ascii,{appearance=true,textPlacement=2,fidelity=null,selectedImage=null}={}) {
     if(textPlacement && textPlacement!==1)textPlacement=2;
     const library=[],documents=[],notes=[], skipped=new Map(), simplified=new Set();
@@ -176,8 +196,10 @@ globalThis.AtriumSCH = (() => {
     function parse(records,libraryStream,sourceSection) {
       section = sourceSection;
       evidence = fidelity ? new Array(records.length) : null;
+      // Records of another part of a placed multi-part component: [component, part] (import report only).
+      const inactive = fidelity ? new Map() : null;
       recs=records;
-      const components=new Map(),ports=[],sheetSymbols=new Map(),harness=[],crossRefs=new Map(),connectorLabels=new Map();
+      const components=new Map(),ports=[],sheetSymbols=new Map(),harness=[],crossRefs=new Map(),connectorLabels=new Map(),parameterSets=new Map();
       const sheet=records.find(r=>Number(r.RECORD)===31)||{};
       const settings=appearance?sheetSettings(sheet):null;
       if(settings && textPlacement && streams && doc)settings.textPlacement=textPlacement;
@@ -194,12 +216,97 @@ globalThis.AtriumSCH = (() => {
         const {c,part,s,p,x}=tagging;
         for(const list of [[c.symbol.shapes,s],[c.symbol.pins,p],[c.pinText,x]])for(let k=list[1];k<list[0].length;k++)list[0][k].part=part;
       };
+      // Parameter sets (Altium directives) become signal directive fields on the wire, or the net
+      // label, at their location (signals.js §7): ClassName is a net class (an exact net tag),
+      // DifferentialPair a leg of the pair named by the net without its P/N suffix, and
+      // DifferentialPairClassName a tag on that pair. Run after ports have become net labels.
+      function directives(sets){
+        let graph=null;
+        const nets=()=>{if(!graph)try{graph=A.connectivity(doc,footprints);}catch{graph={byWire:new Map(),byPin:new Map()};}return graph;};
+        const netOf=item=>item.kind==="netlabel"?item.text:nets().byWire.get(item.id)||"";
+        // Altium applies a directive on a pin end to that pin's net. Waffle keeps it on a wire or net
+        // label of the net; the native writer has no record for a stand-alone directive item.
+        const pinAt=p=>{
+          for(const i of doc.items)if(i.kind==="part")for(const pin of A.pins(i,footprints.get(i.def),"schematic"))
+            if(A.same(pin.at,p))return {name:i.ref+"-"+pin.number,net:nets().byPin.get(i.id+"/"+pin.number)||""};
+          return null;
+        };
+        const onWire=(p,i)=>i.points.some((q,k)=>k>0&&A.nearSegment(p,i.points[k-1],q)<.0001);
+        const label=i=>i.kind==="netlabel"&&!globalThis.AtriumSchObjects?.isBus?.(i.text);
+        const NI=globalThis.AtriumNetIntent,key=q=>q.name.toUpperCase();
+        // The pair is the net name without its polarity suffix (CAN_P → CAN), as Altium names it.
+        const legOf=net=>{
+          if(NI?.polarity){const p=NI.polarity(net);return p&&{base:String(p.stem||"").replace(/^.*\//,"")||net,polarity:p.known===false?0:p.polarity};}
+          const m=/^(.+?)[_\-.]?([PN+-])$/i.exec(net);
+          return m&&{base:m[1],polarity:/[P+]/i.test(m[2])?1:-1};
+        };
+        const legs=[];
+        for(const set of sets.values()){
+          const p=at(set.record),out=set.out=new Map(),drop=(q,why)=>out.set(q.index,["dropped",why]);
+          let target=set.target=doc.items.find(i=>i.kind==="wire"&&onWire(p,i))||doc.items.find(i=>label(i)&&A.same([i.x,i.y],p));
+          const pin=!target&&pinAt(p);
+          if(pin?.net){
+            target=set.target=doc.items.find(i=>i.kind==="wire"&&netOf(i)===pin.net)||doc.items.find(i=>label(i)&&i.text===pin.net);
+            if(target)set.note="The directive is on pin "+pin.name+"; a wire or net label of its net "+pin.net+" carries it.";
+          }
+          if(!target){
+            set.why=pin?"The directive is on pin "+pin.name+", and its net"+(pin.net?" "+pin.net:"")+" has no wire or net label on this sheet to carry it. "+
+                "Waffle's native format has no stand-alone directive record that this or earlier releases could save.":
+              doc.items.some(i=>i.kind==="bus"&&onWire(p,i))?"Directives on buses are not translated; place one on each member wire.":
+              "The directive is not attached to a wire, net label or pin in the source. Altium applies an unattached directive to no net.";
+            for(const q of set.params)drop(q,set.why);
+            continue;
+          }
+          const net=netOf(target),pair=set.params.find(q=>key(q)==="DIFFERENTIALPAIR"&&isTrue(q.text)),leg=pair&&net?legOf(net):null;
+          for(const q of set.params){
+            const k=key(q),text=q.text.trim();
+            if(k==="CLASSNAME"&&text){
+              target.netClass=[...new Set([...String(target.netClass||"").split(",").map(x=>x.trim()).filter(Boolean),text])].join(",");
+              out.set(q.index,["kept"]);
+            }else if(k==="DIFFERENTIALPAIR"){
+              if(q!==pair)drop(q,"DifferentialPair is not True.");
+              else if(!leg)drop(q,"The net"+(net?" "+net:"")+" has no _P/_N or +/- suffix to name its differential pair.");
+              else legs.push({set,target,net,...leg,param:q});
+            }else if(k==="DIFFERENTIALPAIRCLASSNAME"&&text){
+              if(leg){target.tags=[...new Set([...(target.tags||[]),text])];out.set(q.index,["kept"]);}
+              else drop(q,pair?"The differential pair could not be named.":"A differential pair class needs DifferentialPair=True in the same directive.");
+            }else drop(q,"Directive parameter "+q.name.slice(0,40)+" is not translated (only ClassName, DifferentialPair and DifferentialPairClassName are)."+(k==="RULE"?" Recreate the rule in Waffle's rules.":""));
+          }
+        }
+        // Legs pair by base name: an explicit polarity when the two names tell it, else Waffle's assumption.
+        const groups=new Map();
+        for(const leg of legs){const k=leg.base.toLowerCase();if(!groups.has(k))groups.set(k,[]);groups.get(k).push(leg);}
+        for(const group of groups.values()){
+          const nets=[...new Set(group.map(l=>l.net))];
+          let sign=null;
+          if(nets.length===2){
+            const o=NI?.orient?.(nets);
+            if(o)sign=o.known===false?null:new Map([[o.positive,1],[o.negative,-1]]);
+            else{const a=group.find(l=>l.net===nets[0]).polarity,b=group.find(l=>l.net===nets[1]).polarity;if(a&&a===-b)sign=new Map([[nets[0],a],[nets[1],b]]);}
+          }else if(nets.length===1&&group[0].polarity)sign=new Map([[nets[0],group[0].polarity]]);
+          for(const leg of group){
+            const polarity=sign?.get(leg.net),t=leg.target;
+            if(polarity){t.signal=leg.base;t.polarity=polarity;leg.set.out.set(leg.param.index,["kept"]);}
+            else{t.diffPair=leg.base;leg.set.out.set(leg.param.index,["approximated","Polarity of "+leg.net+" is not told by its name; Waffle assumes it."]);}
+            if(nets.length!==2)leg.set.note="Differential pair "+leg.base+" has "+(nets.length<2?"only one net with a directive (":"more than two nets (")+nets.join(", ")+").";
+          }
+        }
+        for(const set of sets.values()){
+          const rows=[...set.out.values()],dropped=rows.filter(r=>r[0]==="dropped").length;
+          for(const q of set.params){const [status,why]=set.out.get(q.index);mark(q.index,status,status==="dropped"?null:set.target,why);}
+          if(!set.target||dropped===rows.length){mark(set.index,"dropped",null,set.why||"None of its parameters is translated.");continue;}
+          const why=set.note||(dropped?dropped+" of its "+rows.length+" parameters "+(dropped>1?"are":"is")+" not translated.":rows.find(r=>r[1])?.[1]);
+          mark(set.index,why?"approximated":"kept",set.target,why);
+        }
+      }
       for(let idx=0;idx<records.length;idx++){
         tag();tagging=null;
         const r=records[idx],t=Number(r.RECORD);
         const kept = obj => mark(idx, "kept", obj);
         const approximated = reason => mark(idx,"approximated",null,reason);
         const dropped = reason => mark(idx,"dropped",null,reason);
+        // Altium bookkeeping with no Waffle meaning. The original file keeps it.
+        const inapplicable = reason => mark(idx,"notApplicable",null,reason);
         const owner=r.OWNERINDEX===undefined?(libraryStream?activeLibraryRoot:-1):numeric(r.OWNERINDEX,-1);
         const ancestor=owner>=0 && owner<idx ? ancestors[owner] : undefined;
         if(t===39 || template.has(owner)){
@@ -220,7 +327,7 @@ globalThis.AtriumSCH = (() => {
           const defName=r.LIBREFERENCE||r.DESIGNITEMID||"Symbol";
           const c={origin:at(r),activePart:numeric(r.CURRENTPARTID,1)||1,partCount:numeric(r.PARTCOUNT),mode:numeric(r.DISPLAYMODE),
             angle:libraryStream?0:((4-numeric(r.ORIENTATION,0)%4)%4)*90,
-            symbol:{shapes:[],pins:[]},params:Object.create(null),prefix:"U",ref:"",value:"",name:defName,
+            symbol:{shapes:[],pins:[]},params:Object.create(null),paramNames:Object.create(null),prefix:"U",ref:"",value:"",name:defName,
             footprintName:"",desc:r.COMPONENTDESCRIPTION||"",index:idx,pinText:[],captions:[],kind:numeric(r.COMPONENTKIND,0)};
           kept();ancestors[idx]=c;components.set(idx,c);activeLibraryRoot=idx;recognized++;continue;
         }
@@ -229,17 +336,32 @@ globalThis.AtriumSCH = (() => {
         const ownerPart=numeric(r.OWNERPARTID,-1),gates=libraryStream && c && c.partCount>2;
         if(c && ((!gates && ownerPart>0 && ownerPart!==c.activePart) || numeric(r.OWNERPARTDISPLAYMODE)!==c.mode)){
           dropped("Inactive component part or alternate display mode.");
+          if(inactive && doc && !libraryStream && numeric(r.OWNERPARTDISPLAYMODE)===c.mode)inactive.set(idx,[c,ownerPart]);
           if(libraryStream)simplified.add(gates?"Only the normal display mode of library symbols is imported (alternate De Morgan views are left out).":"Only the active part and display mode of multi-part symbols are available.");
           continue;
         }
         if(gates && ownerPart>0)tagging={c,part:ownerPart,s:c.symbol.shapes.length,p:c.symbol.pins.length,x:c.pinText.length};
         if(t===31){if(doc&&settings)kept(settings);recognized++;continue;}
-        if([44,46,47,48].includes(t))continue;
+        if([44,46,47,48].includes(t)){
+          // Containers: their models, maps and parameters are reported as their own records.
+          if(t!==47)inapplicable(t===44?"Altium's list of the component's models. Each model is reported separately.":
+            t===46?"Altium's list of a model's pin-to-pad maps. Each map entry is reported separately.":"Altium's list of a model's parameters. Each parameter is reported separately.");
+          continue;
+        }
         if(t===45){
-          if(c && (!r.MODELTYPE || r.MODELTYPE.toUpperCase()==="PCBLIB") && (!c.footprintName || isTrue(r.ISCURRENT))){c.footprintName=r.MODELNAME||"";if(c.footprintName)approximated("Footprint name retained as a component association.");}
+          const footprint=c && (!r.MODELTYPE || r.MODELTYPE.toUpperCase()==="PCBLIB");
+          if(footprint && (!c.footprintName || isTrue(r.ISCURRENT))){
+            // A current footprint replaces an alternate read before it.
+            if(c.footprintRecord!=null)mark(c.footprintRecord,"dropped",null,"Alternate footprint. Waffle keeps the component's current footprint.");
+            c.footprintName=r.MODELNAME||"";c.footprintRecord=c.footprintName?idx:null;
+            if(c.footprintName)approximated("Footprint name retained as a component association.");
+          }else if(footprint && r.MODELNAME)dropped("Alternate footprint. Waffle keeps the component's current footprint.");
           continue;
         }
         const position=at(r),local=p=>c?delta(p,c.origin):p;
+        // A parameter set is a directive: its parameters apply to the wire under its location.
+        if(t===43 && doc && !c){parameterSets.set(idx,{index:idx,record:r,params:[]});recognized++;continue;}
+        if(t===41 && parameterSets.has(owner)){parameterSets.get(owner).params.push({index:idx,name:String(r.NAME||""),text:String(r.TEXT??"")});continue;}
         if(t===34 || t===41){
           if(t===41 && doc && appearance && textPlacement===2 && r.NAME?.toUpperCase()==="CROSSREF" && [17,18].includes(Number(records[owner]?.RECORD))){
             if(!isTrue(r.ISHIDDEN) && r.TEXT){
@@ -249,14 +371,18 @@ globalThis.AtriumSCH = (() => {
             continue;
           }
           if(!c&&t===41&&r.NAME&&doc){sheetParams.set(r.NAME.toUpperCase(),r.TEXT||"");approximated("Sheet parameter used for resolving template text.");}
+          const ownerRecord=Number(records[owner]?.RECORD);
+          if(t===41 && ownerRecord===2 && /^PinUniqueId$/i.test(r.NAME||""))inapplicable("Altium's identifier for this pin. Waffle identifies a pin by its component and number.");
+          if(t===41 && ownerRecord===48 && /^Available Preview Images$/i.test(r.NAME||""))inapplicable("Altium's list of preview images for this model.");
           if(c && (libraryStream || owner===c.index)){
             kept();
-            const field=(r.NAME||"").toUpperCase();
+            // Names keep Altium's spelling ("Manufacturer Part Number"); lookups match them in any case.
+            const field=(r.NAME||"").toUpperCase(),key=c.paramNames[field]??=r.NAME||"";
             if(t===34){c.ref=r.TEXT||"";c.prefix=c.ref.match(/^[^0-9?]+/)?.[0]||"U";c.refAt=local(position);c.showRef=!isTrue(r.ISHIDDEN);if(appearance)c.refPaint=textPaint(r,fonts,"#000080",c.angle);}
             else {
-              c.params[field]=r.TEXT||"";
+              c.params[key]=r.TEXT||"";
               if(appearance && textPlacement && doc && !isTrue(r.ISHIDDEN) && r.NAME && r.TEXT)
-                c.captions.push({name:r.NAME,field,text:r.TEXT,at:local(position),paint:textPaint(r,fonts,"#000080",c.angle),showName:isTrue(r.SHOWNAME)});
+                c.captions.push({name:r.NAME,field,key,text:r.TEXT,at:local(position),paint:textPaint(r,fonts,"#000080",c.angle),showName:isTrue(r.SHOWNAME)});
               if(field==="VALUE"||field==="COMMENT"){
                 const visible=!isTrue(r.ISHIDDEN);
                 if(visible || !c.valueAt){c.valueAt=local(position);if(appearance)c.valuePaint=textPaint(r,fonts,"#000080",c.angle);}
@@ -310,7 +436,29 @@ globalThis.AtriumSCH = (() => {
         if(t===6||t===7){graphic(vertices(r),t===7,isTrue(r.ISSOLID));continue;}
         if(t===13){graphic([position,at(r,"CORNER")]);continue;}
         if(t===10||t===14){graphic(rectangle(r),true,isTrue(r.ISSOLID));if(t===10){simplified.add("Rounded rectangles use square corners.");approximated("Rounded rectangles use square corners.");}continue;}
-        if([8,11,12].includes(t)){graphic(ellipse(r,t),t===8,isTrue(r.ISSOLID));simplified.add("Curves use line segments.");approximated("Curve tessellated to line segments.");continue;}
+        if([8,11,12].includes(t)){
+          const g=curve(r,t),closed=t===8,fill=isTrue(r.ISSOLID),paint=appearance?{schPaint:stroke(r)}:{};
+          if(!g)continue;
+          if(c){
+            // A full circle is a circle shape. Circular arcs use the symbol editor's arc
+            // (screen degrees, clockwise from start to end); other ellipses carry an ellipse.
+            const turn=v=>(v%360+360)%360,from=turn(-(g.start+g.span));
+            const shape=g.circle&&closed?{kind:"circle",...xy(local(g.c)),r:g.r,style:"body",fill,...paint}:
+              {...path(g.points.map(local),closed,fill),...(g.circle?{arc:{...xy(local(g.c)),r:g.r,start:from,end:from+g.span}}:
+                {ellipse:g.ellipse}),...paint};
+            c.symbol.shapes.push(shape);kept(shape);
+          }else if(doc)addItem({id:A.id(),kind:"graphic",points:g.points,...(g.circle?{arc:{kind:"arc",c:g.c,r:g.r,start:g.start,end:g.start+g.span,ccw:true}}:{ellipse:g.ellipse}),
+            ...paint,...(appearance?{closed,fill}:{})},idx);
+          recognized++;continue;
+        }
+        if(t===5){
+          const g=bezier(r);
+          if(!g.controlPoints){graphic(g.points);approximated("A Bézier curve with "+g.points.length+" points is drawn through its points.");continue;}
+          const paint=appearance?{schPaint:stroke(r)}:{},exact={bezier:{controlPoints:g.controlPoints}};
+          if(c){const shape={...path(g.points.map(local)),...exact,...paint};c.symbol.shapes.push(shape);kept(shape);}
+          else if(doc)addItem({id:A.id(),kind:"graphic",points:g.points,...exact,...paint,...(appearance?{closed:false,fill:false}:{})},idx);
+          recognized++;continue;
+        }
         if(t===27 && doc && !c){
           const points=vertices(r);if(points.length>=2)addItem({id:A.id(),kind:"wire",points,...(appearance?{schPaint:stroke(r,"#000080")}:{})},idx);
           recognized++;continue;
@@ -336,14 +484,17 @@ globalThis.AtriumSCH = (() => {
             recognized++;continue;
           }
         }
-        if([4,17,25].includes(t)){
+        // Text (4) and hyperlinks (226) carry an optional URL: an Altium hyperlink is a text that opens it.
+        if([4,17,25,226].includes(t)){
+          const hyper=t===226,linked=(t===4||hyper)&&typeof r.URL==="string"&&r.URL.trim()?r.URL.trim():"";
+          if(hyper&&!r.TEXT&&linked)r.TEXT=linked;
           if(!isTrue(r.ISHIDDEN) && r.TEXT){
             const paint=appearance?textPaint(r,fonts,"#000080",c?.angle||0):null;
             if(c){c.symbol.shapes.push({kind:"text",...xy(local(position)),text:r.TEXT,size:1.8,style:"body",...(paint?{schPaint:paint}:{})});kept(c.symbol.shapes.at(-1));}
             else if(doc){
               if(paint&&t===17)Object.assign(paint,{type:"power",style:numeric(r.STYLE),direction:numeric(r.ORIENTATION),showName:isTrue(r.SHOWNETNAME)});
-              const item={id:A.id(),kind:t===4?"label":"netlabel",...xy(position),text:r.TEXT,...(paint?{schPaint:paint}:{})};
-              const rich=t===4 && liveString(r.TEXT);
+              const item={id:A.id(),kind:t===4||hyper?"label":"netlabel",...xy(position),text:r.TEXT,...(linked?{url:linked}:{}),...(paint?{schPaint:paint}:{})};
+              const rich=(t===4||hyper) && liveString(r.TEXT);
               if(rich) {item.kind="textframe";Object.assign(item,{w:Math.max(22,String(r.TEXT).length*2),h:5,border:false,richText:rich});}
               addItem(item,idx);
               if(t===17 && paint && textPlacement===2 && isTrue(r.ISCROSSSHEETCONNECTOR)){
@@ -390,17 +541,21 @@ globalThis.AtriumSCH = (() => {
       tag();tagging=null;
       const symbolDefs=new Map(),footprints=new Map(),kinds=new Map();
       for(const c of components.values()){
-        const params=c.params;
+        const params=c.params,param=name=>params[c.paramNames[name.toUpperCase()]];
         // Gates of a multi-part library symbol: Altium counts part 0 (shared) in PARTCOUNT.
         if(libraryStream && c.partCount>2){const top=Math.max(c.partCount-1,...c.symbol.pins.map(p=>p.part||0),...c.symbol.shapes.map(s=>s.part||0));if(top>1)c.symbol.parts=top;}
-        let value=params.VALUE||params.COMMENT||params["PART NUMBER"]||c.name;
-        if(value.startsWith("="))value=params[value.slice(1).toUpperCase()]||params["PART NUMBER"]||c.name;
+        let value=param("Value")||param("Comment")||param("Part Number")||c.name;
+        if(value.startsWith("="))value=param(value.slice(1))||param("Part Number")||c.name;
         // Undo the placed instance rotation before sharing its library geometry.
         // Rounding removes harmless binary float differences after translation.
         const normalize=p=>A.rotate(p,-c.angle).map(v=>Math.round(v*1e8)/1e8);
+        const turned=a=>Math.round((a-c.angle)*1e8)/1e8;
         for(const s of c.symbol.shapes){
           if(s.points)s.points=s.points.map(normalize);
           else Object.assign(s,xy(normalize([s.x,s.y])));
+          if(s.arc){const [x,y]=normalize([s.arc.x,s.arc.y]);s.arc={...s.arc,x,y,start:turned(s.arc.start),end:turned(s.arc.end)};}
+          if(s.ellipse)s.ellipse={...s.ellipse,a:normalize(s.ellipse.a),b:normalize(s.ellipse.b)};
+          if(s.bezier)s.bezier={...s.bezier,controlPoints:s.bezier.controlPoints.map(normalize)};
         }
         for(const p of c.symbol.pins)Object.assign(p,xy(normalize([p.x,p.y])));
         const def={id:A.id(),name:c.name,description:c.desc,category:"Imported symbols",prefix:c.prefix,value,
@@ -427,7 +582,7 @@ globalThis.AtriumSCH = (() => {
           if(c.refAt)item.refAt=normalize(c.refAt);if(c.valueAt)item.valueAt=normalize(c.valueAt);
           if(c.showRef!==undefined)item.showRef=c.showRef;if(c.showValue!==undefined)item.showValue=c.showValue;
           if(c.captions.length){
-            const resolved=caption=>caption.text.startsWith("=")?params[caption.text.slice(1).toUpperCase()]||caption.text:caption.text;
+            const resolved=caption=>caption.text.startsWith("=")?param(caption.text.slice(1))||caption.text:caption.text;
             const valueFields=c.captions.filter(p=>p.field==="VALUE"||p.field==="COMMENT");
             const primary=valueFields.find(p=>!p.showName && resolved(p)===value);
             if(primary){
@@ -435,8 +590,8 @@ globalThis.AtriumSCH = (() => {
             }else if(valueFields.length)item.showValue=false;
             const custom=c.captions.filter(p=>p!==primary);
             if(custom.length){
-              item.paramShow=Object.fromEntries(custom.map(p=>[p.field,true]));
-              (item.schPaint||={}).parameters=Object.fromEntries(custom.map(p=>[p.field,{...p.paint,at:normalize(p.at),text:resolved(p),...(p.showName?{caption:p.name}:{})}]));
+              item.paramShow=Object.fromEntries(custom.map(p=>[p.key,true]));
+              (item.schPaint||={}).parameters=Object.fromEntries(custom.map(p=>[p.key,{...p.paint,at:normalize(p.at),text:resolved(p),...(p.showName?{caption:p.name}:{})}]));
             }
           }
           addItem(item,c.index);
@@ -469,6 +624,7 @@ globalThis.AtriumSCH = (() => {
         const item=connectorLabels.get(owner);
         if(item?.schPaint)item.schPaint.crossReferences=captions.map(caption=>({...caption,at:delta(caption.at,[item.x,item.y])}));
       }
+      if(doc && parameterSets.size)directives(parameterSets);
       if(doc&&settings){
         sheetParams.set("DOCUMENTNAME",name);
         sheetParams.set("DOCUMENTFULLPATHANDNAME",name);
@@ -478,11 +634,18 @@ globalThis.AtriumSCH = (() => {
         }
       }
       if(!recognized)throw Error("No supported schematic records were found.");
+      if (evidence && doc && !libraryStream) for (const c of components.values()) if (c.ref) fidelity.confirm?.("schematic part\u0000" + c.ref + "\u0000" + c.activePart);
       if (evidence) records.forEach((r,i) => {
         const kind = Object.hasOwn(objectNames,r.RECORD) ? objectNames[r.RECORD] : "Unsupported schematic record";
         const src = {file:name,object:section+"#"+i};
-        const e = evidence[i];
-        if (e?.object) fidelity.track(kind,e.status,src,e.object,e.reason);
+        const e = evidence[i], other = inactive.get(i);
+        // A placed multi-part component stores every part; a part placed elsewhere in the project imports there.
+        if (other && other[0].ref && fidelity.decide) {
+          const [c,part] = other, key = "schematic part\u0000" + c.ref + "\u0000" + part;
+          fidelity.decide(kind,src,placed => placed(key) ? {status:"notApplicable",reason:"Copy of another part of a multi-part component. That part imports where it is placed."} :
+            {status:"dropped",reason:"Another part of a multi-part component, not placed in the selected files."});
+        }
+        else if (e?.object) fidelity.track(kind,e.status,src,e.object,e.reason);
         else fidelity.add(kind,e?.status || "dropped",src,e?.reason || "Schematic record "+String(r.RECORD||"unknown").slice(0,60)+" has no editable representation.");
       });
     }

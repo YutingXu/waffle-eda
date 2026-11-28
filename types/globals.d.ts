@@ -151,6 +151,8 @@ interface SchematicAttachmentOptions {
 }
 interface SchematicAttachmentSession {
   affected: Item[];
+  /** How many wires, dots and stationary branches the moving terminals meet. */
+  readonly linked: number;
   apply(targetFor: (point: Point) => Point | null | undefined): Item[] | null;
   finish(): boolean;
 }
@@ -192,6 +194,8 @@ interface AtriumModelAPI {
     rotatedSlot(pad: {drill?: number; slotLength?: number; slotAngle?: number}): boolean;
     shape<T extends object>(shape: T, inner?: number): T;
     footprint<T>(footprint: T, inner?: number, legacy?: boolean): T;
+    placed<I extends {mirror?: boolean}, F>(item: I, footprint: F): {item: I | (Omit<I, "mirror"> & {mirror: false}); footprint: F};
+    placedShape<T extends object>(shape: T): T;
   };
   footprintPadKeys(definition: string, pad: PadDef, index: number, count: number): {padKey: string; padFallback?: string};
   padCornerRatio(pad?: {roundrectRadiusRatio?: number} | null): number;
@@ -242,6 +246,7 @@ interface AtriumModelAPI {
   pathLength(item: object): number;
   keepoutBlocks(item: object, kind: "via"|"track"|"copper"|"smdPad"|"throughPad"): boolean;
   nearSegment(p: readonly number[], a: readonly number[], b: readonly number[]): number;
+  landWithin(round: boolean, w: number, h: number, ring: readonly (readonly number[])[]): boolean;
   triangulateRing<T extends readonly number[]>(points: readonly T[], area?: number, mode?: "paint"): T[][];
   triangulateRing<T extends readonly number[]>(points: readonly T[], area: number, mode: "complete"): T[][] | null;
   mergeConvex<T extends readonly number[]>(triangles: readonly (readonly T[])[], isConvex: (piece: readonly T[]) => boolean): T[][];
@@ -274,12 +279,23 @@ interface AtriumModelAPI {
   sheetNets(project: Project, doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, host?: any): SheetConnectivity;
   /** An Altium sheet's name for an unnamed net from its [designator, pin] pairs (NetC1_2), or "" for other sheets. */
   autoNetName(doc: {sourceName?: string} | null | undefined, pins: [string, string | number][]): string;
+  readonly AUTO_NET_NAME: RegExp;
+  isAutoNetName(name: unknown, pins?: SheetConnectivity | ReadonlyArray<readonly [string | undefined, string | number | undefined]>): boolean;
   moveItem(item: Item, dx: number, dy: number, source?: {x?: number; y?: number; points?: Point[]; arc?: boolean | CircularArc; regionShape?: PcbRegionShape}): void;
   wireStretch(wire: WireItem, anchors?: Point[], options?: {spur?: boolean}): WireStretchSession;
   wireStretchState(wire: WireItem): WireStretchState | undefined;
   restoreWireStretch(wire: WireItem, state?: WireStretchState): void;
   schematicAttachments(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, terminals: Point[], selected: Set<string>, options?: SchematicAttachmentOptions): SchematicAttachmentSession;
-  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: WireItem[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem)[];
+  /** `wires` may also list pin tags (pinTags) to carry with their pins. avoidPinShorts defaults to true. */
+  transformPart(doc: AtriumDocument | DocumentBase, item: PartItem, def: Definition | undefined, change: Partial<PartItem>, wires?: (WireItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[], options?: {defs?: Map<string, Definition>; query?: (box: Box) => Item[]; junctionCopies?: Map<string, JunctionItem>; avoidPinShorts?: boolean}): (PartItem | WireItem | JunctionItem | PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
+  /** Power ports, ports, off sheet connectors and net labels placed on one of a part's pins alone. */
+  pinTags(doc: AtriumDocument | DocumentBase, defs: Map<string, Definition>, item: PartItem, selected?: Set<string>, query?: (box: Box) => Item[]): (PowerItem | PortItem | OffSheetItem | NetLabelItem)[];
+  /** Each schematic pin ("part id/number") mapped to the first pin of its net. */
+  pinGroups(items: Item[], defs: Map<string, Definition>): Map<string, string>;
+  /** True when two pinGroups results put the same pins together (a missing pin stands alone). */
+  sameGroups(a: Map<string, string>, b: Map<string, string>): boolean;
+  /** Points along a wire, other than its ends, where objects not in `moving` touch it. */
+  wireTaps(items: Item[], defs: Map<string, Definition>, wire: {id: string; points: Point[]}, moving: Set<string>): Point[];
   validOutline(pts: unknown): boolean;
   /** Throws Error("This file is not a supported Waffle project.") or a module's own message. */
   validate(p: unknown): Project;
@@ -317,9 +333,14 @@ interface AltiumStreams extends Map<string, Uint8Array> {
   modelStream?(path: string, cap: number): Uint8Array | null;
 }
 /** app/io.js: open, save and export files. */
+type ImportSourceStatus = "kept" | "approximated" | "dropped" | "notApplicable";
 interface ImportSourceFidelity {
-  add(kind: string, status: "kept" | "approximated" | "dropped", source: {file: string, object?: string}, reason?: string, count?: number): void;
-  track(kind: string, status: "kept" | "approximated" | "dropped", source: {file: string, object?: string}, target: object, reason?: string): void;
+  add(kind: string, status: ImportSourceStatus, source: {file: string, object?: string}, reason?: string, count?: number): void;
+  track(kind: string, status: ImportSourceStatus, source: {file: string, object?: string}, target: object, reason?: string): void;
+  /** Settles a record's status once every selected file is read and linked (translator-adapters.js). */
+  decide?(kind: string, source: {file: string, object?: string}, resolve: (confirmed: (key: string) => boolean) => {status: ImportSourceStatus, reason?: string}): void;
+  /** Records a fact that a deferred decision in another file can check. */
+  confirm?(key: string): void;
   produced(documentKind: string, source: {file: string, object?: string}, target: {kind: string, id: string}): void;
   reject(target: object): void;
   note(message: string): void;
@@ -394,8 +415,14 @@ declare var AtriumHistoryEntry: AtriumGen<"AtriumHistoryEntry">; // app/history/
 declare var AtriumHistoryView: AtriumGen<"AtriumHistoryView">; // app/history/history-view.js
 declare var AtriumIntelUI: AtriumGen<"AtriumIntelUI">; // app/editor/workspace-tools.js
 declare var AtriumLandContours: AtriumGen<"AtriumLandContours">; // app/pcb/land-contours.js
+declare var AtriumLayer: AtriumGen<"AtriumLayer">; // app/ui/owner-layer.js
 declare var AtriumLegacyCommandContract: AtriumGen<"AtriumLegacyCommandContract">; // app/automation/legacy-command-contract.js
+declare var AtriumLibraryDockUI: AtriumGen<"AtriumLibraryDockUI">; // app/library/library-ui.js
+declare var AtriumLibraryFacetsUI: AtriumGen<"AtriumLibraryFacetsUI">; // app/library/library-ui.js
+declare var AtriumLibraryInspector: AtriumGen<"AtriumLibraryInspector">; // app/library/library-ui.js
 declare var AtriumLibraryPairing: AtriumGen<"AtriumLibraryPairing">; // app/library/library-pairing.js
+declare var AtriumLibraryRows: AtriumGen<"AtriumLibraryRows">; // app/library/library-ui.js
+declare var AtriumLibraryView: AtriumGen<"AtriumLibraryView">; // app/library/library-workspace.js
 declare var AtriumLinkRecord: AtriumGen<"AtriumLinkRecord">; // app/link-record.js
 declare var AtriumLinks: AtriumGen<"AtriumLinks">; // app/links.js
 declare var AtriumLinksDesktop: AtriumGen<"AtriumLinksDesktop">; // app/links-desktop.js
@@ -413,6 +440,7 @@ declare var AtriumResolvedLand: AtriumGen<"AtriumResolvedLand">; // app/pcb/pcb-
 declare var AtriumRuleScopeDemand: AtriumGen<"AtriumRuleScopeDemand">; // app/checks/rule-scope-demand.js
 declare var AtriumSavedViews: AtriumGen<"AtriumSavedViews">; // app/saved-views.js
 declare var AtriumSlides: AtriumGen<"AtriumSlides">; // app/slides.js
+declare var AtriumTabOverflow: AtriumGen<"AtriumTabOverflow">; // app/ui/tab-overflow.js
 declare var AtriumUIGallery: AtriumGen<"AtriumUIGallery">; // app/ui/gallery.js
 declare var AtriumUIKit: AtriumGen<"AtriumUIKit">; // app/ui/kit.js
 declare var AtriumUUID: AtriumGen<"AtriumUUID">; // app/uuid-v7.js
@@ -839,6 +867,7 @@ declare var AtriumSaveCache: AtriumGen<"AtriumSaveCache">; // app/save-cache.js
 declare var AtriumSCH: AtriumGen<"AtriumSCH">; // app/sch-import.js
 declare var AtriumSHA256: AtriumGen<"AtriumSHA256">; // app/sha256.js
 declare var AtriumSchAppearance: AtriumGen<"AtriumSchAppearance">; // app/sch-appearance.js
+declare var AtriumSchCurves: AtriumGen<"AtriumSchCurves">; // app/schematic/sch-curves.js
 declare var AtriumSchAuthor: AtriumGen<"AtriumSchAuthor">; // app/sch-author.js
 declare var AtriumSchematicOutput: AtriumGen<"AtriumSchematicOutput">; // app/schematic-output.js
 declare var AtriumSchMarkers: AtriumGen<"AtriumSchMarkers">; // app/sch-markers.js

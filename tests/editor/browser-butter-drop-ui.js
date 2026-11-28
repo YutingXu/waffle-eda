@@ -3,7 +3,7 @@
 // ready and over on the canvas pane, a denied target with its reason, reading with Cancel,
 // cancellation, completion, a mixed offer, approval before a STEP model changes a shared footprint,
 // and the arrow cursor on chrome drag sources.
-// node tests/browser-butter-drop-ui.cjs [--shots OUTPUT_DIRECTORY]
+// node tests/editor/browser-butter-drop-ui.js [--shots OUTPUT_DIRECTORY]
 const assert = require("node:assert/strict"), path = require("node:path"), fs = require("node:fs"), os = require("node:os");
 const {boot, run} = require("../support/butter-design.cjs");
 const fixtures = path.join(__dirname, "../fixtures/butter-acceptance/drop");

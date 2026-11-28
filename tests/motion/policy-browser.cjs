@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("node:assert/strict"), path = require("node:path"), {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const serveApp = require("../support/browser-app-server.cjs");
 
 async function checkColdFlags(browser) {

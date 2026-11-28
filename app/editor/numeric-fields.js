@@ -367,6 +367,8 @@ globalThis.AtriumNumericFields = (() => {
           junctionCopies.set(i.id,{...i}); originals.set(i.id,i);
         }
       }
+      // A turn carries a power port or label sitting alone on a pin (Atrium.pinTags).
+      if(field==="angle")for(const tag of A.pinTags(doc,defs,owner)){wires.push({...tag});originals.set(tag.id,tag);}
       const [part,...changed]=A.transformPart(doc,{...owner},definition,{[field]:value},wires,{defs,junctionCopies});
       return [{original:owner,next:part,fields:[field]},...changed.flatMap(next=>{
         const original=originals.get(next.id);
@@ -469,7 +471,8 @@ globalThis.AtriumNumericFields = (() => {
           if(!at && tableTarget(entry.target))return {id,entry,result:error("This table cell is unavailable for a numeric edit.",[0,entry.source.length],"target")};
           if (!at || !writeAllowed(project,at.owner,at.doc,host)) return null;
           if(at.owner.kind==="via" && ["full","tmb"].includes(at.owner.stackMode) && !G.AtriumViaStack)await G.AtriumLazy?.need("AtriumViaStack");
-          if(entry.target.scope==="rule" && !G.AtriumProjectRules)await G.AtriumLazy?.need("AtriumProjectRules");
+          // project-rules.js is a file of the AtriumRules module.
+          if(entry.target.scope==="rule" && !G.AtriumProjectRules)await G.AtriumLazy?.need("AtriumRules");
           state.evaluations++;
           const result=await evaluate("="+entry.source,entry,{project,host,revision,prior:entry,signal:controller.signal});
           return {id,entry,result};
@@ -668,7 +671,8 @@ globalThis.AtriumNumericFields = (() => {
       if(state.clearAfterClick){input.removeAttribute("aria-invalid");return;}
       if (!status && line) {
         status=doc.createElement("span"); status.className="numeric-field-preview"; status.id="numeric-preview-"+(++eventId);
-        status.setAttribute("role","status"); status.setAttribute("aria-live","polite"); input.after(status);
+        // In a property row the unit shares the field's box (ui-library.md › Property rows): the preview goes under the box.
+        status.setAttribute("role","status"); status.setAttribute("aria-live","polite"); (input.closest(".ui-prop-row > .ui-field-measure") || input).after(status);
         const before=input.getAttribute("aria-describedby"); input.setAttribute("aria-describedby",[before,status.id].filter(Boolean).join(" "));
       }
       if (status) {status.textContent=line || "";status.hidden=!line;status.classList.toggle("is-error",bad);}

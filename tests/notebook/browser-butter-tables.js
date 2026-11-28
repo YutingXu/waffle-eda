@@ -369,7 +369,7 @@ async function verifyGridUpdates(page){
 }
 
 if(require.main===module){
-  const {chromium}=require("playwright-core"),executablePath=process.env.CHROME;
+  const {chromium}=require("../support/playwright.cjs"),executablePath=process.env.CHROME;
   (async()=>{const browser=await chromium.launch({headless:true,...(executablePath?{executablePath}:{channel:"chrome"}),args:["--allow-file-access-from-files"]});
     try{await module.exports(browser);}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});
 }

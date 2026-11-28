@@ -3,10 +3,15 @@
 // pane beside the documents. A view covers its pane's canvas and has a tab in the document strip, or in its
 // pane's strip while the editor is split (split-tabs.js calls decorate() after each render). Choosing a document
 // in that pane shows the canvas again; the view keeps its tab until it is closed (its ×, a middle click, or Delete
-// on the focused tab). One view per id; opening an open view shows it.
+// on the focused tab). One view per id; opening an open view shows it. A view's canClose() is asked first when
+// the user closes its tab: false keeps the tab (an editor with unsaved changes asks, then closes itself).
+// close(id) always closes. A project switch (the nav host's "replace") closes every view here, without asking:
+// a view or an editor draft built for the old project must not act on the next one (a Save would write the part
+// into it). The host marks a replace that keeps the same project ({sameProject:true}: an undo-tree branch switch,
+// a workspace window's mirror refresh), and the views stay. showCanvas() hides the views over the active pane's canvas.
 //
-//   AtriumDocViews.open(id, {title, icon?, mount(el), onClose?}) -> the view's element (mount runs once)
-//   AtriumDocViews.show(id) / hide(id) / close(id) / isOpen(id) / decorate()
+//   AtriumDocViews.open(id, {title, icon?, mount(el), onClose?, canClose?}) -> the view's element (mount runs once)
+//   AtriumDocViews.show(id) / hide(id) / close(id) / isOpen(id) / decorate() / showCanvas()
 globalThis.AtriumDocViews = (() => {
   const G = globalThis, views = new Map(), MIME = "application/x-atrium-document-view";
   const D = () => G.document;
@@ -23,7 +28,7 @@ globalThis.AtriumDocViews = (() => {
       const box = el("div", null, "doc-view");
       box.id = "doc-view-" + id; box.setAttribute("role", "tabpanel");
       box.setAttribute("aria-labelledby", "doc-view-tab-" + id); box.dataset.view = id; box.hidden = true;
-      v = {id, title: o.title || id, tip: o.tip || o.title || id, icon: o.icon || "book", pane: activeIndex(), el: box, onClose: o.onClose || null, tab: null};
+      v = {id, title: o.title || id, tip: o.tip || o.title || id, icon: o.icon || "book", pane: activeIndex(), el: box, onClose: o.onClose || null, canClose: o.canClose || null, tab: null};
       views.set(id, v);
       place(v);
       o.mount?.(box);
@@ -61,6 +66,9 @@ globalThis.AtriumDocViews = (() => {
       host()?.canvas?.()?.focus?.({preventScroll:true});
     }
   }
+  // The tab's ×, a middle click or Delete: the view may keep itself open.
+  function ask(v) { if (v.canClose?.() !== false) close(v.id); }
+  function showCanvas() { const k = activeIndex(); for (const v of views.values()) if (v.pane === k && !v.el.hidden) hide(v.id); }
   function focusPane(canvas) {
     const v = [...views.values()].find(view => !view.el.hidden && view.el.parentElement === canvas.parentElement);
     if (!v) {canvas.focus({preventScroll:true}); return;}
@@ -85,9 +93,9 @@ globalThis.AtriumDocViews = (() => {
     x.setAttribute("aria-hidden", "true");
     G.AtriumNavCommon?.shortcutTitle?.(x, "Close", "Delete");
     t.append(G.AtriumNavCommon.icon(v.icon), el("span", v.title), x);
-    t.addEventListener("click", e => { e.stopPropagation(); if (e.target.closest(".view-tab-close")) close(v.id); else show(v.id); });
-    t.addEventListener("auxclick", e => { if (e.button === 1) { e.preventDefault(); close(v.id); } });
-    t.addEventListener("keydown", e => { if (e.key === "Delete") { e.preventDefault(); e.stopPropagation(); close(v.id); } });
+    t.addEventListener("click", e => { e.stopPropagation(); if (e.target.closest(".view-tab-close")) ask(v); else show(v.id); });
+    t.addEventListener("auxclick", e => { if (e.button === 1) { e.preventDefault(); ask(v); } });
+    t.addEventListener("keydown", e => { if (e.key === "Delete") { e.preventDefault(); e.stopPropagation(); ask(v); } });
     return v.tab = t;
   }
   // Each view's tab in its strip: the document strip, or its pane's strip while split.
@@ -123,7 +131,7 @@ globalThis.AtriumDocViews = (() => {
       const strip = split() ? d.querySelector('.pane-tabs[data-pane="' + v.pane + '"]') : d.getElementById("document-tabs");
       if (!strip) continue;
       const t = tabOf(v), nextDocument = [...strip.querySelectorAll(":scope > [data-tab]")].find(tab => tab.dataset.tab === v.before);
-      const before = nextDocument || strip.querySelector(":scope > :is(.pane-arrange,.pane-close)");
+      const before = nextDocument || strip.querySelector(":scope > :is(.ui-tab-strip-end,.pane-arrange,.pane-close)");
       let next = t.nextElementSibling;
       while (next?.dataset.view) next = next.nextElementSibling;
       if (t.parentElement !== strip || next !== before) {
@@ -160,9 +168,10 @@ globalThis.AtriumDocViews = (() => {
   if (typeof document !== "undefined") {
     document.addEventListener("click", documentChosen, true);
     G.AtriumNavCommon?.ready?.(h => {
-      h.on?.("document", () => { const k = activeIndex(); for (const v of views.values()) if (v.pane === k && !v.el.hidden) hide(v.id); decorate(); });
+      h.on?.("document", () => { showCanvas(); decorate(); });
       h.on?.("panes", decorate);
+      h.on?.("replace", detail => { if (!detail?.sameProject) for (const id of [...views.keys()]) close(id); });
     });
   }
-  return Object.freeze({open, show, hide, close, decorate, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
+  return Object.freeze({open, show, hide, close, decorate, showCanvas, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
 })();

@@ -206,7 +206,7 @@ globalThis.AtriumKeymap = (() => {
     ["nudge-up","Nudge selection up","Edit",nudge("nudge",[0,-1],1)],["nudge-down","Nudge selection down","Edit",nudge("nudge",[0,1],1)],
     ["nudge-left-10","Nudge selection left ×10","Edit",nudge("nudge",[-1,0],10)],["nudge-right-10","Nudge selection right ×10","Edit",nudge("nudge",[1,0],10)],
     ["nudge-up-10","Nudge selection up ×10","Edit",nudge("nudge",[0,-1],10)],["nudge-down-10","Nudge selection down ×10","Edit",nudge("nudge",[0,1],10)],
-    ["library","Place component","Place",{short:"Component"}],["library-catalogue","Component catalogue…","Place",{short:"Catalogue"}],["route","Route","Place",{titles:{pcb:"Route track",schematic:"Wire"}}],
+    ["library","Place component","Place",{short:"Component"}],["quick-place","Quick place component…","Place",{palette:"library"}],["library-catalogue","Component catalogue…","Place",{short:"Catalogue"}],["route","Route","Place",{titles:{pcb:"Route track",schematic:"Wire"}}],
     ["start-wire","Start wire at cursor","Place",{when:"schematic"}],
     ["via","Place via","Place",{when:"pcb",short:"Via"}],["label","Place label","Place",{titles:{pcb:"String",schematic:"Net label"}}],
     ["junction","Place junction","Place",{when:"schematic",short:"Junction"}],["select","Select tool","Place"],

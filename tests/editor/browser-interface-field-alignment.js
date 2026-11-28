@@ -76,8 +76,9 @@ async function surfaces(page, sample, profile) {
   await inspector.getByRole("combobox",{name:"Component class filter"}).waitFor();
   await sample("PCB · document Properties",inspector,["Component class filter"],"properties");
   await changeDocument(page,"pcb",["part"]);
-  await inspector.getByRole("combobox",{name:"Side",exact:true}).waitFor();
-  await sample("PCB · placed component",inspector,["Designator","Side",/^Rotation/,/^3D height/]);
+  // Side is a segmented control (no text field); Height keeps its name "3D height (mm)".
+  await inspector.getByRole("group",{name:"Side",exact:true}).waitFor();
+  await sample("PCB · placed component",inspector,["Designator",/^Rotation/,/^3D height/]);
   await changeDocument(page,"pcb",["track"]);
   await sample("PCB · copper track",inspector,[/^Width/,"Layer","Net",/^Solder mask expansion/]);
   await changeDocument(page,"pcb",["track","track"]);
@@ -121,16 +122,22 @@ async function surfaces(page, sample, profile) {
     {control:"Search the library",mode:"standalone"},{control:"Library source",mode:"standalone"},
   ],"library");
   for (const [editor, trigger, fields] of [
-    ["Symbol Editor","New symbol",["Name","Prefix"]],
-    ["Footprint Editor","New footprint",["Name",{control:"Drawing layer",mode:"stacked"},{control:"Body height",mode:"compound"}]],
+    ["Symbol Editor","New symbol…",["Name","Prefix"]],
+    ["Footprint Editor","New footprint…",["Name",{control:"Drawing layer",mode:"stacked"},{control:"Body height",mode:"compound"}]],
   ]) {
-    await click(library.getByRole("button",{name:trigger,exact:true}));
+    // New symbol… and New footprint… are in the Library's "Library commands" menu.
+    await click(library.getByRole("button",{name:"Library commands",exact:true}));
+    // New symbol… also names its shortcut, so match the start of the item's name.
+    await click(page.getByRole("menuitem",{name:new RegExp("^" + trigger)}));
     const window = page.getByRole("dialog",{name:editor,exact:false});
     await sample(editor + " · Properties and toolbar",window,fields);
     await page.keyboard.press("Escape");
     await window.waitFor({state:"hidden"});
   }
-  await click(library.getByRole("button",{name:"Close the Library panel"}));
+  // A closable dock tab takes over its panel header's Close (dock.css), so close through whichever shows:
+  // the dock tab's or the heading's.
+  await click(page.locator('button:is([aria-label="Close Library"],[aria-label="Close the Library panel"]):visible').first());
+  await library.waitFor({state:"hidden"});
 
   await windowPanel(page,"nets",{touch:profile.touch});
   const nets = page.locator(".panel-nets:visible");
@@ -152,13 +159,13 @@ async function surfaces(page, sample, profile) {
     {id:"pcb-list", action:"pcb-list", selector:".pl-panel", fields:[{control:"Object kind",mode:"standalone"}]},
     {id:"navigator", action:"navigator-panel", selector:".panel-navp", fields:[{control:"Search the Navigator",mode:"standalone"}]},
     {id:"filter", action:"query-panel", selector:".panel-query", fields:[{control:"Query expression",mode:"standalone"}]},
-    {id:"comments", action:"comments-panel", selector:".panel-rc", fields:[{control:"Show comments",mode:"standalone"}]},
+    {id:"comments", action:"comments-panel", selector:'.ui-dock-panel[data-dock="comments"]', fields:[{control:"Show comments",mode:"standalone"}]},
     {id:"calculators", action:"calculators", selector:".panel-calc", fields:[{control:"Calculator",mode:"standalone"}]},
-    {id:"clipboard", action:"clipboard-panel", selector:".panel-clip"},
+    {id:"clipboard", action:"clipboard-panel", selector:'.ui-dock-panel[data-dock="clipboard"]'},
     {id:"scripting", action:"scripting-console", selector:".script-console", fields:[{control:"Script",mode:"standalone"}]},
     {id:"pours", action:"pour-manager", selector:".panel-pours", close:null},
     {id:"mcad", action:"mcad-panel", selector:".panel-mcad"},
-    {id:"history", action:"history-panel", selector:".panel-history"},
+    {id:"history", action:"history-panel", selector:'.ui-dock-panel[data-dock="history"]'},
   ]) {
     await openAction(page,action);
     const scope = page.locator(selector + ":visible");
@@ -275,8 +282,10 @@ async function run(browser) {
         report.push({title,results,panel,census});
         const row = async expected => (await read(scope)).find(item => item.control === expected || item.label === expected);
         if (title === "PCB · document Properties") {
-          const control = scope.getByRole("combobox",{name:"Component class filter"});
-          probes.push(...await geometry.assertBaselinePerturbations(control,() => row("Component class filter")));
+          // A property row puts its caption and its field on one baseline, so text moved inside the field
+          // takes the caption with it. Move the caption alone: the measurement must still see the 1px.
+          const caption = scope.getByRole("combobox",{name:"Component class filter"}).locator("xpath=preceding-sibling::*[1]");
+          probes.push(...await geometry.assertBaselinePerturbations(caption,() => row("Component class filter"),{captionOnly:true}));
         }
         if (name === "light" && title === "PCB · View Configuration") {
           const control = scope.locator('output[aria-labelledby="vc-opacity-track"]');
@@ -309,7 +318,7 @@ async function run(browser) {
 module.exports = run;
 
 if (require.main === module) {
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   (async () => {
     const browser = await chromium.launch({
       ...(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"}),

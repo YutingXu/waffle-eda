@@ -210,5 +210,26 @@ namespace Waffle.Windows
 
         /// A screen point packed as a mouse message's lParam (signed 16-bit coordinates).
         public static IntPtr PointParam(int x, int y) => (IntPtr)(((y & 0xFFFF) << 16) | (x & 0xFFFF));
+
+        // ------------------------------------------------------------------ power saving (PowerSaving.cs)
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SYSTEM_POWER_STATUS { public byte ACLineStatus, BatteryFlag, BatteryLifePercent, SystemStatusFlag; public uint BatteryLifeTime, BatteryFullLifeTime; }
+
+        [DllImport("kernel32.dll")]
+        public static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
+
+        /// The fixed head of POWERBROADCAST_SETTING; the setting's value (a DWORD here) follows at PowerSettingData.
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POWERBROADCAST_SETTING { public Guid PowerSetting; public uint DataLength; }
+        public const int PowerSettingData = 20;
+
+        public const int WM_POWERBROADCAST = 0x0218, PBT_APMPOWERSTATUSCHANGE = 0x000A, PBT_POWERSETTINGCHANGE = 0x8013;
+        public const int DEVICE_NOTIFY_WINDOW_HANDLE = 0;
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr RegisterPowerSettingNotification(IntPtr recipient, ref Guid setting, int flags);
+
+        [DllImport("user32.dll")]
+        public static extern bool UnregisterPowerSettingNotification(IntPtr handle);
     }
 }

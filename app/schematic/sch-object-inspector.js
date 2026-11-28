@@ -16,24 +16,111 @@ globalThis.AtriumSchObjectInspector = (() => {
     }), {options:IO.map(v => [v, v[0].toUpperCase() + v.slice(1)])});
   }
   const el=(...args)=>globalThis.AtriumSchObjects.toolHost.el(...args);
+  // A property row (docs/ui-library.md › Property rows). A check is a switch; a unit suffix in the label,
+  // as in "Width (mm)", moves from the caption into the field. The label stays the field's name.
   function defaultField(parent, label, value, update, opt = {}) {
-    const l = el("label", null, "field-row"); l.append(el("span", label));
+    if (opt.check) return AtriumNavCommon.appendSwitchRow(parent, label, !!value, update);
+    const m = / \(([^()]{1,4})\)$/.exec(label), l = el("label", null, "ui-prop-row"); l.append(el("span", m ? label.slice(0, m.index) : label));
     let input;
-    if (opt.options) {input = el("select"); for (const [v, t] of opt.options) input.add(new Option(t, v)); input.value = value;}
-    else if (opt.check) {input = el("input"); input.type = "checkbox"; input.checked = !!value;}
-    else if (opt.area) {input = el("textarea"); input.rows = 4; input.value = value ?? "";}
-    else {input = el("input"); input.type = "text"; input.value = value ?? "";}
+    if (opt.options) {input = el("select", null, "ui-field"); for (const [v, t] of opt.options) input.add(new Option(t, v)); input.value = value;}
+    else if (opt.area) {input = el("textarea", null, "ui-field"); input.rows = 4; input.value = value ?? "";}
+    else {input = el("input", null, "ui-field"); input.type = "text"; input.value = value ?? "";}
     input.setAttribute("aria-label", label);
-    input.onchange = () => update(opt.check ? input.checked : input.value);
-    l.append(input); parent.append(l); return input;
+    input.onchange = () => update(input.value);
+    l.append(m && !opt.options ? AtriumNavCommon.measure(input, m[1]) : input); parent.append(l); return input;
+  }
+  // Web links. Altium's component Links are parameter pairs ComponentLink<N>URL and
+  // ComponentLink<N>Description, and HelpURL is the part's help page; datasheet and supplier links
+  // are ordinary parameters with an http(s) value. The parameters stay the record and export as
+  // they are: Links lists them, labelled by their description or name, and opens each one in the
+  // system browser. A schematic text's url (Altium's hyperlinked text) opens on Cmd/Ctrl+click.
+  // Only http and https without credentials open, as for every external link (shell.js).
+  function webURL(raw) {
+    if (typeof raw !== "string" || raw.length > 2048 || !/^\s*https?:\/\//i.test(raw)) return "";
+    try {const u = new URL(raw.trim()); return /^https?:$/.test(u.protocol) && u.hostname && !u.username && !u.password ? u.href : "";} catch {return "";}
+  }
+  function openURL(url) {
+    const href = webURL(url), H = globalThis.AtriumHost;
+    if (!href) return false;
+    if (H?.openURL) Promise.resolve(H.openURL(href)).catch(() => {});
+    else if (!H) globalThis.open?.(href, "_blank", "noopener,noreferrer");
+    return true;
+  }
+  function linksOf(...bags) {
+    const rows = bags.flatMap(bag => !bag || typeof bag !== "object" ? [] : Array.isArray(bag) ? bag.map(r => [r?.name, r?.value]) :
+      Object.entries(bag).map(([k, v]) => [k, v && typeof v === "object" ? v.value : v])).filter(([k]) => typeof k === "string");
+    const key = k => k.replace(/[\s_]+/g, "").toUpperCase(), titles = new Map(), out = [], seen = new Set();
+    for (const [k, v] of rows) {
+      const n = /^COMPONENTLINK(\d+)DESCRIPTION$/.exec(key(k))?.[1];
+      if (n && typeof v === "string" && v.trim() && !titles.has(n)) titles.set(n, v.trim());
+    }
+    for (const [k, v] of rows) {
+      const url = webURL(v), n = /^COMPONENTLINK(\d+)URL$/.exec(key(k))?.[1];
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({name: k, url, title: n ? titles.get(n) || "Link " + n : key(k) === "HELPURL" ? "Help" : k, order: n ? +n : key(k) === "HELPURL" ? 1e6 : 2e6});
+    }
+    // Altium's Links first, by number, then Help, then the other parameters by name: the same order
+    // however the parameters are stored.
+    return out.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).map(({order, ...link}) => link);
+  }
+  // A real text link (a[href]): shell.js opens it in the system browser on click, Enter or tap.
+  function linkRow(el, {title, url, name = ""}) {
+    const row = /** @type {HTMLAnchorElement} */ (el("a", null, "ui-row part-link")), text = el("span", null, "ui-row-text");
+    const host = new URL(url).host, titleRow = el("span", null, "ui-row-title");
+    row.href = url; row.title = url;
+    row.setAttribute("aria-label", title + " (" + host + ")");
+    titleRow.append(title, externalGlyph());
+    text.append(titleRow, el("span", host + (name && name !== title ? " · " + name : ""), "ui-row-detail"));
+    row.append(text);
+    return row;
+  }
+  // An arrow leaving a box: the page opens outside Waffle.
+  function externalGlyph() {
+    const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg"), path = document.createElementNS(ns, "path");
+    svg.setAttribute("class", "icon"); svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("aria-hidden", "true");
+    path.setAttribute("d", "M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4");
+    svg.append(path); return svg;
+  }
+  // A part's web links: its own and its library parameters, then on the other side of the design
+  // the linked part's (a board footprint shows the links of its schematic symbol, as in Altium).
+  // Titled "Web links", apart from the Links section of Waffle links between objects (links-ui.js).
+  // c.linked: the parts linked to this one, which the editor already found for Show on board / in
+  // schematic, so the section scans no documents; without it, the other documents are searched.
+  // c.place(section): the section's slot in the inspector's group order (editor.js), else the panel's end.
+  const linkable = i => globalThis.AtriumSchObjects.linkable(i);
+  function partLinks(panel, part, def, c, {el}) {
+    const defs = c.defs?.(), other = [];
+    const linked = Array.isArray(c.linked) ? c.linked : !part.link ? [] :
+      (c.project()?.documents || []).flatMap(d => d === c.doc() ? [] : d.items.filter(i => i.kind === "part" && i.link === part.link));
+    for (const i of linked) other.push(i.parameters, defs?.get(i.def)?.parameters);
+    const links = linksOf(part.parameters, def?.parameters, ...other);
+    if (!links.length) return;
+    const s = el("section", null, "inspect-section"), list = el("div", null, "ui-list");
+    list.setAttribute("role", "list"); list.setAttribute("aria-label", "Web links");
+    for (const link of links) list.append(linkRow(el, link));
+    s.append(el("h3", "Web links"), list);
+    if (typeof c.place === "function") c.place(s); else panel.append(s);
+  }
+  // Cmd+click on macOS (where Ctrl+click is the secondary click, so a contextmenu), Ctrl+click elsewhere.
+  // A Ctrl+right-click on Windows and Linux is a context menu click, never a link.
+  const mac = () => globalThis.AtriumNavCommon?.isMac?.() ?? /Mac|iPhone|iPad/i.test(globalThis.navigator?.platform || "");
+  globalThis.document?.addEventListener?.("click", followText, true);
+  globalThis.document?.addEventListener?.("contextmenu", e => {if (mac() && e.ctrlKey) followText(e);}, true);
+  function followText(e) {
+    const h = globalThis.AtriumNavHost, modified = e.type === "contextmenu" ? mac() && e.ctrlKey : e.button === 0 && (mac() ? e.metaKey : e.ctrlKey);
+    if (!modified || e.target !== h?.canvas?.() || h.doc?.()?.kind !== "schematic" || h.tool?.() && h.tool() !== "select") return;
+    const r = e.target.getBoundingClientRect(), item = h.hitAt?.(h.view().screenToWorld([e.clientX - r.left, e.clientY - r.top]));
+    if (item?.richText || !openURL(item?.url)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
   }
   // c: {edit, info, project(), doc(), units:{parse,value,unit}, selectDocument, choose}
   function inspector(s, item, c, {el, button, field = defaultField, descend, grid}) {
     const A = globalThis.Atrium;
-    const {POWER_TITLES, IO, SIDES, reflow, repeatOf, command, fitSymbol, make} = globalThis.AtriumSchObjects;
+    const {POWER_TITLES, IO, SIDES, reflow, repeatOf, command, fitSymbol, make, entryWires} = globalThis.AtriumSchObjects;
     const edit = fn => c.edit(fn), project = c.project();
     const len = (label, key, obj = item, min = 0) => {const input=field(s, label + " (" + c.unit() + ")", A.units.value(obj[key], c.unit()), v => {
-      const n = A.units.parse(v, c.unit()); if (!(n > min)) {c.info("Enter a length such as 0.25mm or 10mil."); return;} edit(() => {if (obj.widget && globalThis.AtriumSheetWidgets) {const [w,h]=AtriumSheetWidgets.size(obj.widget.type,key==="w"?n:obj.w,key==="h"?n:obj.h);obj.w=w;obj.h=h;} else obj[key]=n; if (obj.kind === "sheetsymbol") reflow(obj);});
+      const n = A.units.parse(v, c.unit()); if (!(n > min)) {c.info("Enter a length such as 0.25mm or 10mil."); return;} edit(() => {if (obj.widget && globalThis.AtriumSheetWidgets) {const [w,h]=AtriumSheetWidgets.size(obj.widget.type,key==="w"?n:obj.w,key==="h"?n:obj.h);obj.w=w;obj.h=h;} else if (obj.kind === "sheetsymbol") {const wires = entryWires(c.doc(), c.defs?.(), obj); obj[key]=n; reflow(obj); wires.apply(); wires.finish();} else obj[key]=n;});
     });
       globalThis.AtriumLazy?.numericField?.(input,{unit:c.unit(),storageUnit:"mm",nanometres:true,min:min+1e-6,
         locals:()=>globalThis.AtriumNumericFields.geometryLocals(item,c.doc().id),
@@ -47,7 +134,7 @@ globalThis.AtriumSchObjectInspector = (() => {
           if (now && now !== item.style && item.style === was) {const down = x => ["gnd", "signal", "earth"].includes(x) ? 3 : 1; if (item.direction === down(was)) item.direction = down(now); item.style = now;}
         })), "power", c);
         field(s, "Style", item.style, v => edit(() => {item.style = v;}), {options:Object.entries(POWER_TITLES)});
-        field(s, "Rotation (°)", String(item.direction), v => edit(() => {item.direction = +v;}), {options:[["0", "0 · Right"], ["1", "90 · Up"], ["2", "180 · Left"], ["3", "270 · Down"]]});
+        field(s, "Rotation (°)", String(item.direction), v => edit(() => {item.direction = +v;}), {options:[["0", "0° · Right"], ["1", "90° · Up"], ["2", "180° · Left"], ["3", "270° · Down"]]});
         field(s, "Show net name", item.showName !== false, v => edit(() => {item.showName = v;}), {check:true});
         break;
       case "port": case "offsheet":
@@ -56,7 +143,7 @@ globalThis.AtriumSchObjectInspector = (() => {
         if (item.kind === "port") {
           field(s, "Width (" + c.unit() + ")", item.width ? A.units.value(item.width, c.unit()) : "", v => edit(() => {const n = A.units.parse(v, c.unit()); if (n > 0) item.width = n; else delete item.width;}));
         }
-        field(s, "Rotation (°)", String((A.offsheetAngle(item) % 360 + 360) % 360), v => edit(() => {item.angle = +v + (item.schPaint?.offSheet ? (item.schPaint.direction || 0) * 90 : 0);}), {options:[["0", "0"], ["90", "90"], ["180", "180"], ["270", "270"]]});
+        field(s, "Rotation (°)", String((A.offsheetAngle(item) % 360 + 360) % 360), v => edit(() => {item.angle = +v + (item.schPaint?.offSheet ? (item.schPaint.direction || 0) * 90 : 0);}), {options:["0", "90", "180", "270"].map(a => [a, a + "°"])});
         break;
       case "sheetsymbol": {
         field(s, "Designator", item.name, v => v.trim() && edit(() => {item.name = v.trim();}));
@@ -68,7 +155,7 @@ globalThis.AtriumSchObjectInspector = (() => {
         const child = project.documents.find(d => d.id === item.sheet);
         const actions = el("div", null, "inspect-actions");
         if (child) actions.append(button("Open " + child.name, () => descend(item, null, c)), button("Sync entries", () => command("sch-sync-entries", {...c, selected:() => item})));
-        if (item.entries.length) actions.append(button("Fit to entries", () => edit(() => fitSymbol(item, {snug:true}))));
+        if (item.entries.length) actions.append(button("Fit to entries", () => edit(() => fitSymbol(item, {snug:true, doc:c.doc(), defs:c.defs?.()}))));
         else actions.append(button("Create child sheet", () => {
           const d = A.sheet("schematic", item.name.replace(/^U_/, "") || "Sheet");
           item.entries.forEach((e, n) => d.items.push(make("port", [0, n * grid * 2], {text:e.name, io:e.io})));
@@ -121,9 +208,11 @@ globalThis.AtriumSchObjectInspector = (() => {
         break;
     }
   }
-  // Parameters grid for a part: name, value, visible-on-sheet. Writes part.parameters, which
-  // the BOM reads over the library parameters.
+  // A part's Links (sheet and board), then on the sheet its Parameters grid: name, value,
+  // visible-on-sheet. Writes part.parameters, which the BOM reads over the library parameters.
   function partParameters(panel, part, def, c, {el, button}) {
+    partLinks(panel, part, def, c, {el});
+    if (c.doc()?.kind !== "schematic") return;
     const s = el("section", null, "inspect-section sch-params"); s.append(el("h3", "Parameters")); panel.append(s);
     const own = part.parameters || {}, lib = def?.parameters || {};
     const entries=bag=>Array.isArray(bag)?bag.map(r=>/** @type {[string,any]} */([r.name,r])):Object.entries(bag);
@@ -189,6 +278,13 @@ globalThis.AtriumSchObjectInspector = (() => {
   // Signal directive fields (signals.js §7): the net this item names becomes (part of) a signal, with a
   // polarity for a differential leg, and tags that follow the signal across series parts. Live on the board.
   function directives(s, item, c, {el, field = defaultField}) {
+    // A text takes a URL even when it has none yet (Altium's hyperlinked text); other items show one they carry.
+    if (item.url != null || linkable(item)) {
+      s.append(el("h4", "Link", "sch-subhead"));
+      field(s, "URL", item.url, v => c.edit(() => {if (v.trim()) item.url = v.trim(); else delete item.url;}));
+      if (webURL(item.url)) s.append(linkRow(el, {title: "Open link", url: webURL(item.url)}));
+    }
+    if (item.kind === "label" || item.kind === "textframe") return;
     // The editor's Text field of a net label, above these fields (once a lazily built fragment is in place).
     if (item.kind === "netlabel") Promise.resolve().then(() => complete(s.querySelector?.('input[aria-label="Text"]') || s.ownerDocument?.getElementById?.("inspector")?.querySelector?.('input[aria-label="Text"]'), "netlabel", c));
     if (item.kind === "netlabel" && Atrium.isOffsheet(item)) ioField(s, item, c, field);
@@ -201,5 +297,5 @@ globalThis.AtriumSchObjectInspector = (() => {
     if (item.diffPair) field(s, "Differential pair", item.diffPair, v => set("diffPair", v.trim()));
   }
 
-  return {inspector, partParameters, directives};
+  return {inspector, partParameters, directives, linksOf, webURL};
 })();

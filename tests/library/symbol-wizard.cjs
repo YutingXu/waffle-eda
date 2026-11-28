@@ -132,6 +132,13 @@ const onGrid = v => Math.abs(v / G - Math.round(v / G)) < 1e-6;
   const lm = W.build(W.pinsOf(W.detect(W.SAMPLES.opamp.text)).pins, {layout: "gates"}).def;
   const back = run(W.tableFromDef(lm)).pins;
   assert.deepEqual(back.map(p => [p.number, p.part]), lm.symbol.pins.map(p => [p.number, p.part]));
+  // Hidden pins stay hidden through def -> table -> symbol (the table has a Hidden column only when a pin is hidden).
+  const hid = W.build(run("Number\tName\tType\tHidden\n1\tVDD\tPower\tyes\n2\tOUT\tOutput\t\n3\tGND\tPower\tyes").pins, {}).def;
+  assert.deepEqual(hid.symbol.pins.filter(p => p.hidden).map(p => p.number).sort(), ["1", "3"]);
+  const hidBack = run(W.tableFromDef(hid));
+  assert.deepEqual(hidBack.pins.filter(p => p.hidden).map(p => p.number).sort(), ["1", "3"], "hidden pins round-trip");
+  assert.deepEqual(W.build(hidBack.pins, {}).def.symbol.pins.filter(p => p.hidden).map(p => p.number).sort(), ["1", "3"]);
+  assert.ok(!/Hidden/.test(W.tableFromDef(lm)), "no Hidden column when nothing is hidden");
   const kicad = `(kicad_symbol_lib (version 20231120) (generator test)
     (symbol "TestAmp" (property "Reference" "U" (at 0 0 0))
       (symbol "TestAmp_0_1" (polyline (pts (xy 0 0) (xy 1 1))))

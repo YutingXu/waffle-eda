@@ -136,6 +136,7 @@ namespace Waffle.Windows.Tests
                 PolicyTests();
                 NativeSupportPathTests(scratch);
                 SupportArchitectureTests(scratch);
+                PowerSavingTests();
                 PromisedDropTests();
                 WinPathTests();
                 WindowedInputControllerTests();
@@ -191,6 +192,36 @@ namespace Waffle.Windows.Tests
                 string native = Native.SupportArchitecture();
                 Check(native == "x64" || native == "arm64", "the native query reports a supported 64-bit host");
             }
+        }
+
+        // As tests/core/power.cjs: Automatic follows energy saver / battery saver, never the battery alone.
+        static void PowerSavingTests()
+        {
+            group = "Windows power saving";
+            var p = new PowerSaving();
+            Check(!p.LowPower && p.State() == "{\"lowPower\":false}", "nothing reported: not saving power");
+            var first = p.Script(false);
+            Check(first != null && first.Contains("globalThis.__atriumPowerState={\"lowPower\":false}") &&
+                  first.Contains("new CustomEvent('atrium-power',{detail:{\"lowPower\":false}})"), "the page hears the first state: " + first);
+            Check(p.Script(false) == null, "no script when nothing changed");
+            Check(p.Script(true) != null, "a navigation sends the state again");
+            p.StatusFlag(0);
+            Check(!p.LowPower && p.Script(false) == null, "on battery with battery saver off is not low power");
+            p.StatusFlag(1);
+            Check(p.LowPower && p.Script(false).Contains("{\"lowPower\":true}"), "SystemStatusFlag 1: battery saver on");
+            p.StatusFlag(0);
+            Check(!p.LowPower, "battery saver off again");
+            Check(p.Setting(PowerSaving.PowerSavingStatus, 1) && p.LowPower, "GUID_POWER_SAVING_STATUS 1");
+            Check(p.Setting(PowerSaving.PowerSavingStatus, 0) && !p.LowPower, "GUID_POWER_SAVING_STATUS 0");
+            Check(p.Setting(PowerSaving.EnergySaverStatus, 2) && p.LowPower, "energy saver high savings");
+            Check(p.Setting(PowerSaving.EnergySaverStatus, 1) && p.LowPower, "energy saver standard");
+            Check(p.Setting(PowerSaving.EnergySaverStatus, 0) && !p.LowPower, "energy saver off");
+            Check(!p.Setting(Guid.NewGuid(), 1) && !p.LowPower, "another power setting is ignored");
+            Check(System.Runtime.InteropServices.Marshal.SizeOf<Native.SYSTEM_POWER_STATUS>() == 12, "SYSTEM_POWER_STATUS is 12 bytes");
+            Check(System.Runtime.InteropServices.Marshal.SizeOf<Native.POWERBROADCAST_SETTING>() == Native.PowerSettingData,
+                "POWERBROADCAST_SETTING's value follows its 20-byte head");
+            if (OperatingSystem.IsWindows())
+                Check(Native.GetSystemPowerStatus(out var status) && status.SystemStatusFlag <= 1, "GetSystemPowerStatus answers on Windows");
         }
 
         static void NativeSupportPathTests(string scratch)

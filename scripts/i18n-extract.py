@@ -59,6 +59,8 @@ SOURCES = [
     ("app/editor/nav-common.js", "shell", r'"nav-command-centre", ' + STR),
     ("app/editor/nav-common.js", "shell", r'cc\.append\(svg, el\("span", ' + STR + r'\)'),
     ("app/editor/editor.js", "status", r'\binfo\(\s*' + STR + r'\s*\)'),
+    ("app/pcb/smart-guides.js", "status", r'\binfo\(\s*' + STR + r'\s*\)'),
+    ("app/schematic/sch-place.js", "status", r'(?<!\.)\binfo\(\s*' + STR + r'\s*\)'),
     ("app/project/editor-files.js", "status", r'\binfo\(\s*' + STR + r'\s*\)'),
     ("app/formats/design-reader.js", "status", r'\binfo\(\s*' + STR + r'\s*\)'),
     ("app/pcb/rigid-flex.js", "status", r'\binfo\(\s*' + STR + r'\s*\)'),

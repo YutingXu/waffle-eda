@@ -77,15 +77,33 @@ globalThis.Atrium3D = (() => {
     return {eye: add(cam.target, back, cam.dist), fwd, up, right: cross(fwd, up), back};
   }
   // View-projection for an aspect ratio; near/far hug the scene sphere {c, r}.
-  function matrices(cam, aspect, sphere) {
+  // clearance: the least distance from the eye to anything drawn (clearanceOf). Inside the sphere the near
+  // plane would otherwise sit at far/4000 (about 0.05 mm on a 150 mm board), leaving a 24-bit depth step of
+  // 5-12 µm at 40-115 mm: the 1-3 µm package markings of STEP models then fight the body top they sit on
+  // (WebKit drops them; Chrome happens to keep the later draw). Geometry clearance away along any ray inside
+  // the frustum is at least clearance × cos(corner angle) deep, so the near plane can move out that far.
+  function matrices(cam, aspect, sphere, clearance = 0) {
     const f = frame(cam), {eye, up, right, back} = f;
     const view = new Float32Array([right[0], up[0], back[0], 0, right[1], up[1], back[1], 0, right[2], up[2], back[2], 0,
       -dot(right, eye), -dot(up, eye), -dot(back, eye), 1]);
     const r = sphere?.r || cam.dist, dc = sphere ? len(sub(sphere.c, eye)) : cam.dist;
-    const far = Math.max(dc + r * 1.2, 1e-3), near = Math.max(dc - r * 1.2, far / 4000);
+    const tan = Math.tan(cam.fov * D2R / 2), corner = 1 / Math.hypot(1, tan * Math.hypot(1, aspect));
+    const far = Math.max(dc + r * 1.2, 1e-3), clear = clearance > 0 && Number.isFinite(clearance) ? Math.min(clearance * corner * 0.98, far / 2) : 0;
+    const near = Math.max(dc - r * 1.2, far / 4000, clear);
     const t = 1 / Math.tan(cam.fov * D2R / 2);
     const proj = new Float32Array([t / aspect, 0, 0, 0, 0, t, 0, 0, 0, 0, (far + near) / (near - far), -1, 0, 0, 2 * far * near / (near - far), 0]);
     return {...f, view, proj, vp: mul(proj, view), near, far};
+  }
+  // Least distance from point p to the boxes [x0, y0, z0, x1, y1, z1] that pass keep (0 inside one).
+  function clearanceOf(p, batches, keep = () => true) {
+    let d2 = Infinity;
+    for (const b of batches) for (const x of b.instances) {
+      if (!keep(x)) continue;
+      const q = x.box, dx = Math.max(q[0] - p[0], 0, p[0] - q[3]), dy = Math.max(q[1] - p[1], 0, p[1] - q[4]), dz = Math.max(q[2] - p[2], 0, p[2] - q[5]);
+      d2 = Math.min(d2, dx * dx + dy * dy + dz * dz);
+      if (!d2) return 0;
+    }
+    return Math.sqrt(d2);
   }
   // Ray through normalised device coordinates (x right, y up, both in [-1, 1]).
   function ray(cam, aspect, nx, ny) {
@@ -1357,7 +1375,7 @@ void main(){
       const w = Math.max(1, Math.round(cw * dpr)), h = Math.max(1, Math.round(ch * dpr));
       globalThis.AtriumCanvas.resizeBacking(canvas, w, h);
       if (colorsDirty) colors();
-      const m = matrices(cam, w / h, scene.sphere);
+      const m = matrices(cam, w / h, scene.sphere, clearanceOf(frame(cam).eye, scene.batches, visibleInst));
       const light = add(add(m.back, m.right, -0.45), m.up, 0.55), ll = len(light);
       const opaque = [], blend = [], openings = [];
       for (const b of scene.batches) (b.translucent ? blend : b.kind === "opening" ? openings : opaque).push(b);
@@ -1861,7 +1879,7 @@ void main(){
   function refresh() { for (const v of [...viewers.values()]) v.refresh(); }
   function stats(stage) { const v = stage === undefined ? [...viewers.values()][0] : viewers.get(stage); return v ? v.stats() : null; }
   return Object.freeze({open, isOpen, close, command, refresh, stats, viewers,
-    math: Object.freeze({mul, invert, frame, matrices, ray, project, rayBox, rayTri, boxOf,
+    math: Object.freeze({mul, invert, frame, matrices, clearanceOf, ray, project, rayBox, rayTri, boxOf,
       cameraFor, cameraFrom2D, orbit, pan, zoomAt, flipped, lerpCam, ease, TOP, BOTTOM, HOME}),
     buildScene, pick, outerCaps, createRenderer, meshFor, loadBodyMeshes, MASKS, DEFAULTS, reducedMotion});
 })();

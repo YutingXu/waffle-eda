@@ -1226,6 +1226,17 @@ globalThis.AtriumDrawing = (() => {
   function notice(text) { const n = el("div", null, "ui-notice drawing-warning"), body = el("div", text, "ui-notice-text"), dot = el("span", null, "ui-dot"); n.dataset.tone = dot.dataset.tone = "warning"; n.append(dot, body); return n; }
   function selectOf(values, value, label) { const s = el("select", null, "ui-field"); for (const [v, t] of values) s.add(new Option(t, v)); s.value = value; if (label) s.setAttribute("aria-label", label); return s; }
   function labelled(label, control, cls = "drawing-row") { const l = el("label", null, cls); l.append(el("span", label), control); return l; }
+  // A Properties row (docs/ui-library.md › Property rows): a unit suffix such as "(mm)" moves from the caption
+  // into the field, and a check is a switch. The label stays the control's name.
+  function prop(label, control) {
+    if (control.type === "checkbox") {
+      const row = el("div", null, "ui-prop-row"), w = el("label", null, "ui-switch-row");
+      control.className = "ui-switch"; control.setAttribute("role", "switch"); w.append(control); row.append(el("span", label), w); return row;
+    }
+    const m = / \(([^()]{1,4})\)$/.exec(label), l = el("label", null, "ui-prop-row");
+    control.classList.add("ui-field");
+    l.append(el("span", m ? label.slice(0, m.index) : label), m ? AtriumNavCommon.measure(control, m[1]) : control); return l;
+  }
   function modal(title, build, onOk, okText = "Add") {
     const d = el("dialog", null, "work-dialog drawing-dialog"); d.setAttribute("aria-label", title);
     const form = el("form", null, "work-form drawing-form"); form.method = "dialog";
@@ -1369,7 +1380,7 @@ globalThis.AtriumDrawing = (() => {
     const s1 = section("Drawing");
     const boards = boardsOf(p), board = selectOf(boards.length ? boards.map(b => [b.id, b.name]) : [["", "No board"]], boardOf(p, D, null)?.id || "", "Board");
     board.onchange = () => run([{op: "set_board", board: board.value}], "The drawing now shows " + boards.find(b => b.id === board.value)?.name + ".");
-    s1.append(labelled("Board", board, "field-row"));
+    s1.append(prop("Board", board));
     const add = el("div", null, "drawing-actions");
     add.append(button("Add View…", () => addView(host)), button("Section", () => startTool("drawing-section")), button("Detail", () => startTool("drawing-detail")),
       button("Break", () => startTool("drawing-break")), button("Linear", () => startTool("drawing-dim-linear")), button("Radial", () => startTool("drawing-dim-radial")),
@@ -1420,7 +1431,7 @@ globalThis.AtriumDrawing = (() => {
     for (const [k, label] of [["Title", "Title"], ["DocumentNumber", "Drawing number"], ["DrawnBy", "Drawn by"], ["CheckedBy", "Checked by"], ["ApprovedBy", "Approved by"], ["CompanyName", "Company"]]) {
       const i = el("input"); i.value = D.parameters[k] || ""; i.placeholder = "From the project"; i.setAttribute("aria-label", label);
       i.onchange = () => run([{op: "set_parameters", parameters: {[k]: i.value}}]);
-      s5.append(labelled(label, i, "field-row"));
+      s5.append(prop(label, i));
     }
     if (ctx) {
       // Variant and board revision (from the variants and revisions modules) shown in the title block.
@@ -1437,12 +1448,12 @@ globalThis.AtriumDrawing = (() => {
     const newer = !!V().newerView?.(v);
     const s = section(newer ? "View from a newer version" : VIEW_LABELS[v.type] + (v.side ? " · " + v.side : "") + (v.label ? " " + v.label : ""));
     if (newer) s.append(el("p", "A newer Waffle made this view. This version can't draw or edit it, and keeps it unchanged when you save. You can move it.", "drawing-hint"));
-    const num = (label,value,step,set,unit="mm")=>{const i=el("input");i.type="number";i.dataset.numericUnit=unit; i.step = String(step); i.value = String(value); i.setAttribute("aria-label", label); i.onchange = () => { if (fin(+i.value)) set(+i.value); }; s.append(labelled(label, i, "field-row")); return i; };
+    const num = (label,value,step,set,unit="mm")=>{const i=el("input");i.type="number";i.dataset.numericUnit=unit; i.step = String(step); i.value = String(value); i.setAttribute("aria-label", label); i.onchange = () => { if (fin(+i.value)) set(+i.value); }; s.append(prop(label, i)); return i; };
     if (newer) { /* its scale means what the newer version says */ } else if (V().BOARD_TYPES.has(v.type) || V().LINKED.has(v.type)) {
       const sc = selectOf(V().SCALES.map(k => [String(k), V().ratio(k)]), String(V().SCALES.includes(v.scale) ? v.scale : 1), "Scale");
       if (!V().SCALES.includes(v.scale)) sc.add(new Option(V().ratio(v.scale), String(v.scale)), 0), sc.value = String(v.scale);
       sc.onchange = () => run([{op: "set_view", id: v.id, scale: +sc.value}], "Scale " + V().ratio(+sc.value) + ".");
-      s.append(labelled("Scale", sc, "field-row"));
+      s.append(prop("Scale", sc));
     } else num("Scale", v.scale, .05, k => run([{op: "set_view", id: v.id, scale: Math.max(.05, k)}]),"");
     num("X (mm)", v.x, 1, x => run([{op: "set_view", id: v.id, x}]));
     num("Y (mm)", v.y, 1, y => run([{op: "set_view", id: v.id, y}]));
@@ -1450,18 +1461,18 @@ globalThis.AtriumDrawing = (() => {
     if (D && D.sheets.length > 1) {
       const sh = selectOf(D.sheets.map((x, i) => [x.id, (i + 1) + ". " + x.name]), v.sheet, "Sheet");
       sh.onchange = () => run([{op: "set_view", id: v.id, sheet: sh.value}]);
-      s.append(labelled("Sheet", sh, "field-row"));
+      s.append(prop("Sheet", sh));
     }
     if (newer) { s.append(button("Remove View", () => removeSelection(), "drawing-remove")); return; }
     if (v.type === "assembly") {
       const side = selectOf([["Top", "Top"], ["Bottom", "Bottom (mirrored)"]], v.side, "Side");
       side.onchange = () => run([{op: "set_view", id: v.id, side: side.value}]);
-      s.append(labelled("Side", side, "field-row"));
+      s.append(prop("Side", side));
     }
     if (V().LINKED.has(v.type)) {
       const lab = el("input"); lab.value = v.label || ""; lab.maxLength = 3; lab.setAttribute("aria-label", "Letter");
       lab.onchange = () => run([{op: "set_view", id: v.id, label: lab.value}]);
-      s.append(labelled("Letter", lab, "field-row"));
+      s.append(prop("Letter", lab));
       const up = D?.views.find(x => x.id === v.parent);
       if (up) s.append(el("p", "Taken from the " + VIEW_LABELS[up.type].toLowerCase() + (up.side ? " (" + up.side.toLowerCase() + ")" : "") + "; it follows the board.", "drawing-hint"));
       if (v.type === "detail") num("Radius (mm)", v.radius, .5, r => run([{op: "set_view", id: v.id, radius: Math.max(.1, r)}]));
@@ -1469,7 +1480,7 @@ globalThis.AtriumDrawing = (() => {
         const z = selectOf([1, 2, 3, 4, 5, 8, 10].map(k => [String(k), k === 1 ? "True scale" : "×" + k]), String(v.options?.zscale || 1), "Vertical scale");
         if (![1, 2, 3, 4, 5, 8, 10].includes(v.options?.zscale || 1)) z.add(new Option("×" + v.options.zscale, String(v.options.zscale)), 0), z.value = String(v.options.zscale);
         z.onchange = () => run([{op: "set_view", id: v.id, options: {zscale: +z.value}}]);
-        s.append(labelled("Vertical scale", z, "field-row"));
+        s.append(prop("Vertical scale", z));
       }
     }
     if (V().BOARD_TYPES.has(v.type)) {
@@ -1485,7 +1496,7 @@ globalThis.AtriumDrawing = (() => {
     for (const [k, label, def] of checks) {
       const c = el("input"); c.type = "checkbox"; c.checked = v.options?.[k] ?? def; c.setAttribute("aria-label", label);
       c.onchange = () => run([{op: "set_view", id: v.id, options: {[k]: c.checked}}]);
-      const l = el("label", null, "drawing-check"); l.append(c, el("span", label)); s.append(l);
+      s.append(prop(label, c));
     }
     if (v.type === "bom") num("Rows", v.options?.rows || 40, 1, n => run([{op: "set_view", id: v.id, options: {rows: n}}]),"ea");
     if (v.type === "notes") num("Width (mm)", v.options?.width || 130, 5, n => run([{op: "set_view", id: v.id, options: {width: n}}]));
@@ -1499,14 +1510,14 @@ globalThis.AtriumDrawing = (() => {
     s.append(el("p", r ? "Value: " + (Array.isArray(r.value) ? r.value.map(v => v.toFixed(m.precision ?? 2)).join(", ") : (r.value ?? 0).toFixed(m.precision ?? 2)) + " mm" + (r.ok ? "" : " (feature gone: last position)") : "Its view or features are gone.", "drawing-hint"));
     const prec = selectOf([0, 1, 2, 3, 4].map(n => [String(n), n + " decimals"]), String(m.precision ?? 2), "Precision");
     prec.onchange = () => run([{op: "set_dimension", id: m.id, precision: +prec.value}]);
-    s.append(labelled("Precision", prec, "field-row"));
+    s.append(prop("Precision", prec));
     const t = el("input"); t.value = m.text || ""; t.placeholder = "<> is the value, e.g. <> ±0.1"; t.setAttribute("aria-label", "Text");
     t.onchange = () => run([{op: "set_dimension", id: m.id, text: t.value}]);
-    s.append(labelled("Text", t, "field-row"));
+    s.append(prop("Text", t));
     if (m.type === "radial") {
       const k = selectOf([["diameter", "Diameter (⌀)"], ["radius", "Radius (R)"]], m.kind, "Kind");
       k.onchange = () => run([{op: "set_dimension", id: m.id, kind: k.value}]);
-      s.append(labelled("Kind", k, "field-row"));
+      s.append(prop("Kind", k));
     }
     s.append(button("Remove Dimension", () => removeSelection(), "drawing-remove"));
   }
@@ -1515,7 +1526,7 @@ globalThis.AtriumDrawing = (() => {
     const s = section("Callout"), n = D.notes.findIndex(x => x.id === c.note);
     const note = selectOf(D.notes.map((x, i) => [x.id, (i + 1) + ". " + x.text.slice(0, 40)]), c.note, "Note");
     note.onchange = () => edit(dd => { const x = dd.drawing.callouts.find(q => q.id === c.id); if (x) x.note = note.value; });
-    s.append(labelled("Note", note, "field-row"), el("p", n >= 0 ? D.notes[n].text : "", "drawing-hint"));
+    s.append(prop("Note", note), el("p", n >= 0 ? D.notes[n].text : "", "drawing-hint"));
     s.append(button("Remove Callout", () => removeSelection(), "drawing-remove"));
   }
   function inspectText(section, t) {
@@ -1523,7 +1534,7 @@ globalThis.AtriumDrawing = (() => {
     const s = section("Text");
     const area = el("textarea"); area.value = t.text; area.rows = 3; area.setAttribute("aria-label", "Text");
     area.onchange = () => { if (area.value.trim()) run([{op: "set_text", id: t.id, text: area.value}]); };
-    s.append(labelled("Text", area, "field-row"));
+    s.append(prop("Text", area));
     const size = selectOf([1.8, 2.5, 3.5, 5, 7, 10].map(v => [String(v), v + " mm"]), String(t.height || 2.5), "Height");
     if (![1.8, 2.5, 3.5, 5, 7, 10].includes(t.height || 2.5)) size.add(new Option(t.height + " mm", String(t.height)), 0), size.value = String(t.height);
     size.onchange = () => run([{op: "set_text", id: t.id, height: +size.value}]);
@@ -1532,8 +1543,7 @@ globalThis.AtriumDrawing = (() => {
     ang.onchange = () => run([{op: "set_text", id: t.id, angle: +ang.value}]);
     const bold = el("input"); bold.type = "checkbox"; bold.checked = !!t.bold; bold.setAttribute("aria-label", "Bold");
     bold.onchange = () => run([{op: "set_text", id: t.id, bold: bold.checked}]);
-    const bl = el("label", null, "drawing-check"); bl.append(bold, el("span", "Bold"));
-    s.append(labelled("Height", size, "field-row"), labelled("Angle", ang, "field-row"), bl, button("Remove Text", () => removeSelection(), "drawing-remove"));
+    s.append(prop("Height", size), prop("Angle", ang), prop("Bold", bold), button("Remove Text", () => removeSelection(), "drawing-remove"));
   }
   function inspectLine(section, l) {
     if (!l) return;
@@ -1542,7 +1552,7 @@ globalThis.AtriumDrawing = (() => {
     w.onchange = () => run([{op: "set_line", id: l.id, weight: w.value}]);
     const st = selectOf(STYLES.map(k => [k, k[0].toUpperCase() + k.slice(1)]), l.style, "Style");
     st.onchange = () => run([{op: "set_line", id: l.id, style: st.value}]);
-    s.append(labelled("Weight", w, "field-row"), labelled("Style", st, "field-row"), el("p", l.points.length + " points", "drawing-hint"), button("Remove Line", () => removeSelection(), "drawing-remove"));
+    s.append(prop("Weight", w), prop("Style", st), el("p", l.points.length + " points", "drawing-hint"), button("Remove Line", () => removeSelection(), "drawing-remove"));
   }
 
   // ---------------------------------------------------------------- install

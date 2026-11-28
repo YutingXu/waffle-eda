@@ -514,11 +514,11 @@ globalThis.AtriumReviewComments = (() => {
   function build() {
     const nav = document.getElementById("navigator");
     if (!nav) return false;
-    panel = el("section", null, "panel panel-rc"); panel.setAttribute("aria-labelledby", "rc-heading"); panel.hidden = true;
+    panel = el("section", null, "panel ui-dock-panel"); panel.dataset.dock = "comments"; panel.setAttribute("aria-labelledby", "rc-heading"); panel.hidden = true;
     const head = el("header", null, "pane-heading"), h2 = el("h2", "Comments"); h2.id = "rc-heading";
-    const count = el("span", null, "rc-count");
-    const close = btn("×", () => toggle(false), "rc-close", "Close Comments");
-    close.title = "Close Comments";
+    const count = el("span", null, "ui-dock-count");
+    const close = el("button", "×", "ui-close ui-dock-close"); close.type = "button"; close.onclick = () => toggle(false);
+    close.title = "Close Comments"; close.setAttribute("aria-label", "Close Comments");
     head.append(h2, count, close);
     const tools = el("div", null, "rc-tools");
     const addPoint = btn("Add comment", () => startAdd(false), "rc-add");
@@ -540,8 +540,8 @@ globalThis.AtriumReviewComments = (() => {
     const actions = el("div", null, "rc-actions");
     actions.append(addPoint, addArea);
     tools.append(actions, row, AtriumUI.searchField(search), show);
-    const list = el("div", null, "rc-list pane-scroll"); list.setAttribute("role", "list"); list.setAttribute("aria-label", "Comment threads");
-    const empty = el("p", null, "rc-empty"); empty.hidden = true;
+    const list = el("div", null, "ui-dock-list pane-scroll"); list.setAttribute("role", "list"); list.setAttribute("aria-label", "Comment threads");
+    const empty = el("p", null, "empty-state ui-dock-empty"); empty.hidden = true;
     panel.append(head, tools, list, empty);
     nav.append(panel);
     ui = {count, list, empty, status, scope, search, show: box};

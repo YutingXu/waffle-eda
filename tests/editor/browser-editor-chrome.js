@@ -87,7 +87,7 @@ async function measure(page,{peers = 0} = {}) {
       return getComputedStyle(colorProbe).color;
     };
     const sampleTokens = ["--accent","--focus","--selection","--selection-ink","--raised","--ink","--muted",
-      "--chrome","--bar-bg","--panel-head","--pressed","--layer-on","--line","--line-strong"];
+      "--chrome","--bar-bg","--panel-head","--pressed","--layer-on","--line","--line-strong","--button-face-hover"];
     const colors = Object.fromEntries(sampleTokens.map(prop=>[prop,rgba(resolve("var("+prop+")"))]));
     for (const selector of [".appbar",".quick-access button","#collab-share",
       ".editor-tabbar",".document-tab[aria-selected=true]","#tools","#tools .tool[aria-pressed=true]",
@@ -195,7 +195,7 @@ async function measure(page,{peers = 0} = {}) {
         fill:rgba(getComputedStyle(node).backgroundColor),weight:getComputedStyle(node).fontWeight})),
       coords:pick(one("#coords"),["font-variant-numeric","flex-shrink"]),
       statusButtons:all(".statusbar .status-action",node=>pick(node,["font-size","border-top-width"])),
-      propertyRows:all("#inspector .property-row",node=>box(node)),
+      propertyRows:all("#inspector div.ui-prop-row:has(> .ui-prop-value)",node=>box(node)),
       snapColors,chips,colors,indicators,
       filterHeader:{rect:box(filterHeading),action:box(filterAction),text:styles(filterAction,["text-decoration-line"])["text-decoration-line"],
         edge:getComputedStyle(filterHeading || document.body).paddingInlineEnd,
@@ -395,7 +395,7 @@ function geometryProblems(m) {
       check(equalPaletteColor(chip.ink,m.colors["--muted"]),"inactive chip uses muted ink",chip.ink);
     }
   }
-  for (const row of m.propertyRows) rect(row,null,24,"Properties row");
+  for (const row of m.propertyRows) rect(row,null,m.coarse ? 44 : 32,"Properties row"); // a field row's height (docs/ui-library.md › Property rows)
   if (m.kind==="pcb") {
     const layer = m.layer;
     rect(layer?.bar,null,30,"PCB layer strip");
@@ -679,12 +679,17 @@ async function selectionAndSnap(page) {
   // The click rebuilds the filter, and the pointer can hover the replacement chip.
   await page.mouse.move(1,1);
   await page.locator("#inspector .pcb-edit-filter .ui-chip:hover").waitFor({state:"hidden"});
+  // The fill eases back over --motion-instant; under load a measure can land inside that fade.
+  await page.locator("#inspector .pcb-edit-filter .ui-chip").evaluateAll(nodes=>Promise.all(nodes.flatMap(node=>node.getAnimations()).map(animation=>animation.finished)));
   assert.deepEqual(geometryProblems(await measure(page)).filter(x=>x.startsWith("inactive chip")),[]);
   await off.hover();
   await off.and(page.locator(":hover")).waitFor();
-  const hover=await measure(page);
-  assert.deepEqual(hover.chips.find(chip=>!chip.pressed && chip.hovered)?.outline,hover.colors["--line-strong"],
-    "hovered inactive chip uses the stronger outline");
+  // Hover changes the fill over --motion-instant and keeps the resting border (docs/ui-library.md › Chips).
+  await off.evaluate(node=>Promise.all(node.getAnimations().map(animation=>animation.finished)));
+  const hover=await measure(page),hovered=hover.chips.find(chip=>!chip.pressed && chip.hovered);
+  assert.deepEqual(hovered?.outline,hover.colors["--line"],"hovered inactive chip keeps its resting outline");
+  assert.ok(equalPaletteColor(hovered.fill,hover.colors["--button-face-hover"]) && hovered.fill[3]>0,
+    "hovered inactive chip takes the library hover fill: "+hovered.fill);
   await off.click();
   const snap=page.locator(".statusbar .status-snap:visible");
   await snap.click();

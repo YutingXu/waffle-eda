@@ -138,7 +138,12 @@ globalThis.AtriumInsightsUI = (() => {
     host.invalidate?.({overlay:true});
     publishTo(d);
     refreshMessages(d);
-    if (cardFor && !current(d).some(x => x.key === cardFor.key)) closeCard();
+    // A pass makes new insight objects. The hovered and the open insight follow their key, so the
+    // overlay keeps their highlight and a pending hover still opens; an open card whose insight is gone closes.
+    const fresh = new Map(current(d).map(x => [x.key, x]));
+    if (hover?.doc === d.id) hover = fresh.get(hover.key) || null;
+    if (cardFor && !fresh.has(cardFor.key)) closeCard();
+    else if (cardFor?.doc === d.id) cardFor = fresh.get(cardFor.key);
   }
   // The insights to show for a document: the engine's, without dismissed ones (re-read when the store changes).
   function current(d) {
@@ -232,9 +237,11 @@ globalThis.AtriumInsightsUI = (() => {
           if (rep.severity === "advice") diamond(advice, at, radius);
           else { tips.moveTo(at[0] + dot, at[1]); tips.arc(at[0], at[1], dot, 0, Math.PI * 2); }
         }
-        ctx.globalAlpha = 1; ctx.lineWidth = 3 * px * w; ctx.strokeStyle = BOARD.halo; ctx.stroke(outlines);
-        ctx.fillStyle = ink; ctx.globalAlpha = .85; ctx.fill(advice);
-        ctx.globalAlpha = 1; ctx.lineWidth = 1.3 * px * w; ctx.strokeStyle = ink; ctx.stroke(outlines);
+        // Thinner than a problem marker and a little see-through: a note, not a fault.
+        const S = PM().STROKE;
+        ctx.globalAlpha = .8; ctx.lineWidth = S.halo * px * w; ctx.strokeStyle = BOARD.halo; ctx.stroke(outlines);
+        ctx.fillStyle = ink; ctx.globalAlpha = .55; ctx.fill(advice);
+        ctx.globalAlpha = .9; ctx.lineWidth = S.line * px * w; ctx.strokeStyle = ink; ctx.stroke(outlines);
         ctx.fill(tips);
       }
       for (const {rep, at} of rows) if (hot.includes(rep)) { ctx.lineWidth = 1.2 * px * w; ctx.strokeStyle = BOARD.ring; ctx.globalAlpha = .9; ctx.beginPath(); ctx.arc(at[0], at[1], r * 1.8, 0, Math.PI * 2); ctx.stroke(); }
@@ -303,8 +310,10 @@ globalThis.AtriumInsightsUI = (() => {
     if (ins && !pinned && expandOnHover() && (!cardFor || cardFor.key !== ins.key || cardCanvas !== p.canvas)) {
       const {clientX: x, clientY: y} = e;
       canvasHover.queue("insight", p.canvas, HOVER_MS, ins, () => {
-        if (hover !== ins || hoverAt(p.canvas, x, y) !== ins || !canvasHover.preferred("insight", p.canvas, x, y)) return;
-        canvasHover.show("insight", p.canvas, () => openCard(ins, p));
+        // By key: a pass that finishes during the pause replaces the objects; the card shows the current one.
+        const now = hoverAt(p.canvas, x, y);
+        if (!now || hover?.key !== ins.key || now.key !== ins.key || !canvasHover.preferred("insight", p.canvas, x, y)) return;
+        canvasHover.show("insight", p.canvas, () => openCard(now, p));
       });
     } else if (!ins) leaveHover(true);
   }

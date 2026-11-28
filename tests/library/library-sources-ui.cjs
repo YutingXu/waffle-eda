@@ -27,22 +27,23 @@ async function run() {
   await until(() => document.querySelector(".panel-library select.lib-source"), "Library panel");
   const panel = document.querySelector(".panel-library"), sel = panel.querySelector("select.lib-source");
   await until(() => [...sel.querySelectorAll("option")].some(o => /Lab KiCad \(7\) · folder/.test(o.textContent)), "the folder library in the source list");
-  assert.ok([...sel.querySelectorAll("option")].some(o => o.textContent === "Add library folder…"));
-  assert.ok([...sel.querySelectorAll("option")].some(o => o.textContent === "Get KiCad libraries…"));
-  assert.ok([...sel.querySelectorAll("option")].some(o => o.textContent === "Import library files…"));
+  // The select lists sources only; Add library folder…, Import library files… and Get KiCad libraries… are in the
+  // source bar's "Add library" menu (its entries are not asserted here: the menu is built when it opens).
+  assert.ok(![...sel.querySelectorAll("option")].some(o => o.value.startsWith("@")), "the source list holds sources, not commands");
+  assert.ok(panel.querySelector('.lib-source-bar button[aria-label="Add library"][aria-haspopup="menu"]'), "the Add library menu button");
   sel.value = scanned.library.id; sel.dispatchEvent(new window.Event("change", {bubbles: true}));
   // The folder detail before a selection: what was scanned, Rescan and Remove folder (outlined buttons).
   await until(() => [...panel.querySelectorAll(".lib-folder button")].length === 2, "folder actions");
   const folderButtons = [...panel.querySelectorAll(".lib-folder button")];
   assert.deepEqual(folderButtons.map(b => [b.textContent, b.type]), [["Rescan", "button"], ["Remove folder", "button"]]);
   for (const button of folderButtons) {
-    assert.ok(button.matches(".lib-mini.ui-button[data-size=sm]"), button.textContent + " uses the compact shared button style");
+    assert.ok(button.matches(".ui-button[data-size=sm]"), button.textContent + " uses the compact shared button style");
   }
   assert.match(panel.querySelector(".lib-folder").textContent, /5 symbols with footprints/);
   // Search across the folder; select a stub row: its files are read, then it can join the project.
   const search = panel.querySelector('input[type="search"]');
   search.value = "OPA_DUAL"; search.dispatchEvent(new window.Event("input", {bubbles: true}));
-  const rowOf = n => [...panel.querySelectorAll(".lib-row")].find(r => r.querySelector("strong")?.textContent === n);
+  const rowOf = n => [...panel.querySelectorAll(".lib-row")].find(r => r.querySelector(".ui-row-title")?.textContent === n);
   await until(() => rowOf("OPA_DUAL"), "the OPA_DUAL row");
   assert.ok(!rowOf("R_Test"), "search filters the folder's rows");
   rowOf("OPA_DUAL").click();

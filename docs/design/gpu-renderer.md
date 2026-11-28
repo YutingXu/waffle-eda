@@ -106,6 +106,13 @@ WebGPU when WebKitGTK ships it, or if GPU compute becomes useful, for example:
   positioned at the same place and device size, `pointer-events: none`; the 2D canvas gets `position: relative`.
   The context is `alpha: false`, `antialias: true` (4× MSAA), `stencil: true`, and Automatic asks
   `failIfMajorPerformanceCaveat`.
+- **Resizing panes.** Reallocating the multisampled backing took 14 ms for a 1758 × 1568 pane in Chrome on Apple
+  M5 Pro. A pane that resizes (a dock or split sash, the window, a panel shown or hidden) keeps a backing that holds
+  its view and grows one with a quarter to spare each way; the view is drawn in the backing's bottom-left corner,
+  placed and clipped (`clip-path`) to lie exactly under the 2D canvas. The frame at rest trims the backing to the
+  view. The editor marks a frame whose only change is the pane's size as camera-only, so it is drawn like a zoom
+  gesture frame: the retained text bands and world overlay, drawn for the old size, are moved to keep the centre,
+  and the exact frame follows once the size rests.
 - **Per frame** (`render(I, doc, defs, opts, gesture)`): scene update, the text layer (redrawn only if its key
   changed), GL draw with the text texture composited in layer order, then the top 2D layer.
 - **Which frames.** Editor frames only: the active pane's (`reuseBase` in opts) and the other split pane's
@@ -298,20 +305,20 @@ The earlier comparison measured 1.9–2.2 ms for a synchronous journal scan and 
 | `app/canvas.js` | `padText` on `I`, and the gesture flag passed to the hook. |
 | `app/editor.js` | `editorPane: true` on the other split pane's render. |
 | `app/about.js` | About shows "Board renderer: GPU (WebGL2, device)" or "2D: reason". |
-| `tests/gpu-pixels.js`, `scripts/gpu-pixels.sh`, `scripts/gpu-pixels-report.py` | The pixel test in Chrome with its GPU (§5); `FAULTS=all` the fault matrix, `CALIBRATE=1` the budgets. |
-| `tests/gpu-pixels-budgets.json` | Per-case, per-host budgets of the pixel test (calibrated from the real GPU output). |
+| `tests/canvas/gpu-pixels.js`, `scripts/gpu-pixels.sh`, `scripts/gpu-pixels-report.py` | The pixel test in Chrome with its GPU (§5); `FAULTS=all` the fault matrix, `CALIBRATE=1` the budgets. |
+| `tests/canvas/gpu-pixels-budgets.json` | Per-case, per-host budgets of the pixel test (calibrated from the real GPU output). |
 | `native/tests/macos-harness/gpu-pixels.sh`, `gpu-pixels-probes.js` | The same in WKWebView through the real `Desktop` class. |
-| `tests/gpu-pref.cjs` | The decision: software rasterizers by name and by caveat, GPU and 2D choices, no WebGL2, migration, no page. |
-| `tests/perf-gpu.js`, `scripts/perf-gpu.sh`, `native/tests/macos-harness/gpu.sh` | The benchmark (§4). |
+| `tests/canvas/gpu-pref.cjs` | The decision: software rasterizers by name and by caveat, GPU and 2D choices, no WebGL2, migration, no page. |
+| `tests/canvas/perf-gpu.js`, `scripts/perf-gpu.sh`, `native/tests/macos-harness/gpu.sh` | The benchmark (§4). |
 | `scripts/click-through.sh` | `RENDERER=gpu|2d|auto` sets the renderer for every page (gpu: Chrome with its GPU) and prints the renderer in use. |
 | `native/tests/macos-harness/frame.sh` | `FRAME_RENDERER=2d|gpu|auto`. |
 | `scripts/ci-local.sh` step `gpu`, `.github/workflows/ci.yml`, `scripts/ci/linux-steps.sh` (browser step) | Pixel test in Chrome (skipped cleanly without WebGL2) and WKWebView, click-through pcb with Renderer GPU. |
 
-Eager JS is unchanged by the GPU files (both lazy); `tests/startup-budget.py`: 1030.4 KB of 1050 KB.
+Eager JS is unchanged by the GPU files (both lazy); `tests/maintenance/startup-budget.py`: 1030.4 KB of 1050 KB.
 
 ## 4. Benchmarks
 
-The 25.6k-object board (`tests/dense-board.js`) with 64 nets and ten poured polygons; both renderers in the same
+The 25.6k-object board (`tests/pcb/dense-board.js`) with 64 nets and ten poured polygons; both renderers in the same
 session, 2D first. WKWebView: WebKit 22625.2.8.11.9, macOS 27.2.1, Apple GPU, 58.8 Hz display, canvas 875×755 at
 dpr 1, 1 ms timers. Chrome 158 headless with its GPU (ANGLE Metal, Apple M6), 914×652 at dpr 1, 2D GPU-rastered.
 `work` is the main-thread time of the editor's render; `lat` input to the frame after it; "flush" rows include a
@@ -393,7 +400,7 @@ answer from entries recorded so far without syncing.
 
 ## 5. Pixel test
 
-`tests/gpu-pixels.js` renders each case twice with the same options, 2D then GPU (`noReuse`, caller overlays such as
+`tests/canvas/gpu-pixels.js` renders each case twice with the same options, 2D then GPU (`noReuse`, caller overlays such as
 DRC markers left out), and compares the composited GPU frame (WebGL canvas plus 2D canvas) with the 2D frame.
 Run: `scripts/gpu-pixels.sh [out.json]` (Chrome with its GPU) and `native/tests/macos-harness/gpu-pixels.sh <work>`
 (WKWebView through the real `Desktop` class); env `IMAGES`, `BOARDS`, `CASES`, `VIEWS`, `BUDGET`, `BUDGETS=none`,
@@ -439,7 +446,7 @@ pass. It is replaced by:
 | `solidPx` | Centres of 3×3 blocks all over 48 levels anywhere. |
 | `over8`, `over48`, `meanAbs` | For information only. |
 
-**Budgets are per case and per host** (`tests/gpu-pixels-budgets.json`, 157 Chrome and 157 WebKit cases: "starter"
+**Budgets are per case and per host** (`tests/canvas/gpu-pixels-budgets.json`, 157 Chrome and 157 WebKit cases: "starter"
 has one view): from a calibration run of the real GPU output (`CALIBRATE=1 BUDGETS=none`), `interiorPx`, `solidPx`
 and every `c_*` at 1.2 × measured + 6 px, `edgeMean` at 1.1 × measured + 0.15 levels. Ranges (Chrome; WebKit):
 

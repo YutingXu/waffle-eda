@@ -128,10 +128,10 @@ async function scrollbars(browser) {
     ...(at > 0 ? {executablePath:process.argv[at + 1]} : {channel:"chrome"})});
   try {
     const {page, errors} = await boot(classic, {width:1400, height:1000});
-    const fieldWidth = () => page.evaluate(() => document.querySelector("#inspector .field-row .ui-field")?.getBoundingClientRect().width);
+    const fieldWidth = () => page.evaluate(() => document.querySelector("#inspector .ui-prop-row .ui-field")?.getBoundingClientRect().width);
     const overflowing = () => page.evaluate(() => { const i = document.getElementById("inspector"); return i.scrollHeight > i.clientHeight; });
     await page.evaluate(() => { const h = AtriumNavHost; h.select([h.doc().items.find(i => i.kind === "via").id]); });
-    await page.locator("#inspector .field-row .ui-field").first().waitFor();
+    await page.locator("#inspector .ui-prop-row .ui-field").first().waitFor();
     assert.equal(await overflowing(), false, "Properties fits a tall window");
     const before = await fieldWidth();
     await page.setViewportSize({width:1400, height:420});

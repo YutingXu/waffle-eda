@@ -158,7 +158,11 @@ globalThis.AtriumContextMenu = (() => {
       ["Ignore Until Next Check", "drc-ignore"],
       ["Waive…", "drc-waive", {enabled:ctx => waivable(ctx.marker)}],
       SEP,
-      ["Show in Messages", "messages", {run:ctx => {const M = globalThis.AtriumMessages; if (!M?.focusWhere?.(m => m.drc === ctx.marker)) ctx.host.act("messages");}}],
+      ["Show in Messages", "messages", {run:ctx => {
+        const show = () => {if (!globalThis.AtriumMessages?.revealProblem?.(ctx.marker, ctx.host.messageContext?.())) ctx.host.act("messages");};
+        const L = globalThis.AtriumLazy;
+        if (globalThis.AtriumMessages || !L?.need) show(); else L.need("AtriumMessages").then(show, e => ctx.host.info?.(e.message));
+      }}],
       ["Rules…", "rules"], ["Run Design Rule Check", "drc"], ["Clear DRC Markers", "drc-clear"],
       ["DRC Markers", "drc-markers", {check:checked}]
     ],
@@ -648,7 +652,11 @@ globalThis.AtriumContextMenu = (() => {
     globalThis.AtriumHost.revealProject().catch(e => { if (e.name !== "AbortError") host.info(e.message); });
   }
 
-  function popup(ctx, list, heading, x, y, focus, dropdown = false, above = false) {
+  // A menu opened at the pointer starts this far up and left of it, so the pointer lands inside the
+  // menu's rounded corner instead of falling through to the row or object under it (which would show
+  // its hover fill beside the context ring).
+  const POINTER_INSET = 2;
+  function popup(ctx, list, heading, x, y, focus, dropdown = false, above = false, pointer = !dropdown) {
     const switching = !!root;
     close(false, true);
     root = build(list, ctx, 0);
@@ -689,6 +697,7 @@ globalThis.AtriumContextMenu = (() => {
     }
     // Fit the menu to the pointer before the entrance starts.
     const r = {width:root.offsetWidth, height:root.offsetHeight};
+    if (pointer) {x -= POINTER_INSET; y -= POINTER_INSET;}
     root.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + "px";
     root.style.top = Math.max(4 + captionTop(), Math.min(above ? y - r.height : y, innerHeight - r.height - 4)) + "px";
     fitMenu(root); // menu-fit: a menu taller than the window scrolls
@@ -862,17 +871,43 @@ globalThis.AtriumContextMenu = (() => {
     if (field) add("Select All", true, () => {
       restore(); if (input) field.select(); else doc.execCommand("selectAll");
     });
-    popup({host}, list, tx("Text"), x, y, target, true);
+    popup({host}, list, tx("Text"), x, y, target, true, false, true);
   }
   function dropdown(trigger, entries, {host = globalThis.AtriumNavHost, above = false} = {}) {
     if (root && back === trigger) {close(); return;}
     const box = trigger.getBoundingClientRect(), label = trigger.getAttribute("aria-label") || trigger.textContent.trim();
-    const commands = entries.map(entry => entry instanceof HTMLElement
-      ? {label:entry.textContent, enabled:!entry.disabled, run:() => entry.click()} : entry);
+    // A command object is enabled unless it says enabled:false (as callers that normalised it themselves did).
+    const command = entry => entry instanceof HTMLElement ? {label:entry.textContent, enabled:!entry.disabled, run:() => entry.click()}
+      : !entry || typeof entry !== "object" ? entry // the "-" separator: a string, whose legacy String.prototype.sub is truthy
+      : entry.sub ? {...entry, items:entry.items.map(command)} : {...entry, enabled:entry.enabled ?? true};
+    const commands = entries.map(command);
     popup({host, doc:host?.doc?.()}, commands, label, box.left, above ? box.top : box.bottom, trigger, true, above);
     hang(trigger);
   }
+  function statusItems(statusMore) {
+    const bar = statusMore.closest(".statusbar"), items = [];
+    for (const control of bar.querySelectorAll(":is(.status-sync,.hv-status,.variant-switch,.revision-chip):not([hidden])")) {
+      if (control.matches(".variant-switch")) {
+        const select = control.querySelector("select");
+        items.push({sub:"Assembly variant", items:[...select.options].filter(option => !option.disabled).map(option => ({
+          label:option.textContent, enabled:!select.disabled, checked:option.value === "@manage" ? null : option.selected, radio:true,
+          run:() => {
+            if (option.parentElement !== select) return;
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", {bubbles:true}));
+          }
+        }))});
+      } else {
+        const label = control.textContent.trim();
+        if (!label) continue;
+        items.push({label, enabled:!control.disabled, run:() => {
+          if (control.isConnected && !control.hidden) control.click();
+        }});
+      }
+    }
+    return items;
+  }
   NC()?.ready?.(attach);
 
-  return Object.freeze({open, explorer, projectActions, editing, dropdown, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
+  return Object.freeze({open, explorer, projectActions, editing, dropdown, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
 })();

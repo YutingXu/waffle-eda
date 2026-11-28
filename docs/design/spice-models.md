@@ -48,7 +48,7 @@ simulate-a-selection, a second engine (ngspice in WebAssembly) and the checks th
 | Netlister | `extensions/spice/export.js` | Reads part and def parameters: `Spice`, `Spice.Prefix`, `Spice.Pins`, `Spice.Lib`, `Spice.Exclude`, source fields. Aliases accept KiCad-style `Sim.*` names. Templates use `%1`, `%{pin}` and `%ref`. Pin roles are matched by name for D/Q/M/op-amp. The assembly variant is honoured. A table of "generic built-in models: rounded typical values" is keyed by real part numbers (1N4148, 2N3904, BSS138 …), plus a single-pole `OPAMP` subckt. Parts without a model are skipped and noted as `* omitted` comments. |
 | Extension | `extensions/spice/main.js`, `manifest.json` | Built-in and enabled by default. Dedicated worker, 120 s timeout. Permissions: `read:project`, `outputs:write`, `ui:panel`, `ui:command`. It **cannot store anything in the design** today. The panel has analyses, net probes, a plot with cursors and zoom, netlist and CSV export, and op values indexed by wire. |
 | Menu | `app/sim-menu.js` | Design › Simulate (Mixed Sim, OP/DC/AC/Tran). Calls only the public commands. |
-| CLI/tests | `cli.js`, `tests/spice.cjs`, `tests/spice-limits.cjs` | Analytic checks per device, the netlister, the extension in a realm host, and fan-out limits |
+| CLI/tests | `cli.js`, `tests/analysis/spice.cjs`, `tests/analysis/spice-limits.cjs` | Analytic checks per device, the netlister, the extension in a realm host, and fan-out limits |
 | SI overlap | `extensions/si/` (`ibis.js`, `solver.js`) | IBIS 1.1–7.x reader and behavioural buffer. Models live in `project.simulation.models` (`kind: "ibis"`) and assignments in `project.simulation.assign`, both written only through reviewed proposals. Read with `api.simulation.get/model`. |
 | Stress | `app/stress.js`, MCP `stress_check` | Derating. It already takes a SPICE `.op` via `spice.simulate` |
 | Library | `component-families.js`, `generic-parts.js`, `starter-library.js`, [Library management](library-management.md) | Families group parts into family → chip (`member.part`) → package (one def each). Generic parts carry value, tolerance, voltage and dielectric. Library records get `source` provenance and `state` (draft/released). |
@@ -56,7 +56,7 @@ simulate-a-selection, a second engine (ngspice in WebAssembly) and the checks th
 | Sandbox | `app/extensions.js`, `docs/extension-api.md` | Worker in a CSP `default-src 'none'` iframe, with `wasm-unsafe-eval` allowed. `api.assets.read()` loads `.wasm` from the package (32 MB package cap). `api.transfer` moves buffers. `files.pickText` is available. Dedicated workers get up to 10 min. Storage is 256 KB per value. There is no overlay or decoration API for extensions. |
 
 A cross-check
-harness against a native ngspice already exists for SI (`tests/si-ngspice.py`).
+harness against a native ngspice already exists for SI (`tests/analysis/si-ngspice.py`).
 
 **One correction is needed now.** The `MODELS` table in `export.js` attaches approximate values to
 real part numbers. That reads as "the 1N4148 model". It must be relabelled **Generic (Waffle
@@ -611,7 +611,7 @@ WASM and no vendor files.
   - `.include` cannot reach the file system.
   - Encrypted blocks are refused.
   - Expression and nesting fuzzing under the time and memory budgets. This extends
-    `tests/spice-limits.cjs`.
+    `tests/analysis/spice-limits.cjs`.
   - ngspice MEMFS has no `NODEFS`.
   - The decorations API caps and scrubs input.
 - **Cross-engine.** Quick vs ngspice native (`tests/spice-ngspice.py`, which skips without

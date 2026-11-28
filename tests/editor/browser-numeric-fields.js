@@ -1,6 +1,6 @@
 "use strict";
 const assert=require("node:assert/strict"),path=require("node:path");
-const {pathToFileURL}=require("node:url"),{chromium}=require("playwright-core");
+const {pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
 async function run() {
   const browser=await chromium.launch({channel:"chrome",headless:true});
   const themes=process.env.WAFFLE_NUMERIC_THEME?[process.env.WAFFLE_NUMERIC_THEME]:["light","dark"];
@@ -205,6 +205,25 @@ async function run() {
       await page.waitForFunction(()=>{const pad=AtriumNavHost.doc().items.find(i=>i.id==="field-pad");return pad.drill===1 && pad.layer==="Multi";});
       await padHole.focus();await padHole.fill("0 mm");await padHole.press("Enter");
       await page.waitForFunction(()=>{const pad=AtriumNavHost.doc().items.find(i=>i.id==="field-pad");return pad.drill===undefined && pad.layer==="Top";});
+      // A module that arrives in the background (here rich PCB text, which the board requests on first
+      // draw) does not rebuild Properties under a draft: the field, its text and its caret stay until focus leaves.
+      await padWidth.focus();await padWidth.fill("3 mm");
+      const draft=await padWidth.evaluate(input=>{window.draftField=input;AtriumNavHost.moduleLoaded("AtriumPCBTextRich");
+        return {same:document.activeElement===input && input.isConnected,value:input.value,caret:input.selectionStart};});
+      assert.deepEqual(draft,{same:true,value:"3 mm",caret:4},"a background module load keeps the field being typed in");
+      await padWidth.press("Escape");
+      await page.locator("#canvas").focus();
+      await page.waitForFunction(()=>!window.draftField.isConnected); // the held rebuild runs once focus leaves Properties
+      assert.equal(await page.evaluate(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w),2,"Escape discarded the draft");
+      // A length typed under a held rebuild commits when focus leaves at once, before the calculation answers:
+      // the held rebuild waits for that commit instead of replacing the field under it.
+      await padWidth.focus();await padWidth.fill("3 mm");
+      await padWidth.evaluate(()=>AtriumNavHost.moduleLoaded("AtriumPCBTextRich"));
+      await page.locator("#canvas").focus();
+      await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===3,null,{timeout:5000})
+        .catch(()=>assert.fail("a length committed on blur under a held rebuild was dropped"));
+      await padWidth.focus();await padWidth.fill("2 mm");await padWidth.press("Enter");
+      await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===2);
       await page.evaluate(()=>{
         const h=AtriumNavHost;
         h.edit(()=>{

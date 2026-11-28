@@ -6,7 +6,7 @@ const {execFileSync} = require("node:child_process");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const G = require("../support/dialog-geometry.cjs");
 const {fieldCoverage} = require("../support/field-coverage.cjs");
 const {cases} = require("../support/dialog-geometry-fixtures.cjs");
@@ -572,7 +572,7 @@ async function actions(page, kind) {
       drawing:["drawing-view", "drawing-table", "drawing-text"],
     };
     return [...new Set(menu.concat(commands, ["about", "grid-picker", "grid-custom", "library-catalogue", "shortcuts", "find-replace",
-      "library-sources", "rule-sets", "collab-status", "collab-live", "clipboard-picker", "project-connections", "check-updates"],
+      "library-sources", "rule-sets", "collab-status", "collab-live", "clipboard-picker", "project-connections", "check-updates", "customise-waffle"],
       related[kind] || []))].filter(Boolean);
   }, kind);
 }

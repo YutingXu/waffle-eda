@@ -1,0 +1,899 @@
+{
+ "comment": "Readings of three reports Altium Designer 21.5.1 wrote for this exact PcbDoc in the RevA release (Design Rules Check.html, Electrical Rules Check.html, Bill of Materials.xlsx), made by tests/support/altium-reports.cjs. The HTML files carry the author's machine paths, so only these readings are vendored; with the full-tier cache (tests/altium-fidelity/fetch.py) the suites read the originals again and check this file against them. BSD-2-Clause, see NOTICE.",
+ "source": {
+  "release": "https://github.com/sstallion/PCB-PiDP11IOExpander/releases/download/RevA/PCB-PiDP11IOExpander-RevA.zip",
+  "releaseSha256": "87c4064f8b7168c1ddfd187b0eb81a24474d54a8a174ba0d8a8518d9b0841643",
+  "revision": "3a4fe6f68b1ae437ce63bfbbe1f34fabaf4faacd",
+  "files": [
+   {
+    "name": "Design Rules Check.html",
+    "member": "Fabrication/Design Rules Check.html",
+    "sha256": "6ca049d16095ebba1bfc7c1f4748dd3b12ac85537157799dd30b39b177056f6c"
+   },
+   {
+    "name": "Electrical Rules Check.html",
+    "member": "Fabrication/Electrical Rules Check.html",
+    "sha256": "8d819428ca29a83efdd261cb7c0d3642e493db4916c84f2f95d1e3a3eac34004"
+   },
+   {
+    "name": "Bill of Materials.xlsx",
+    "member": "Assembly/Bill of Materials.xlsx",
+    "sha256": "77eb7feb32be2a72135146b353c85dd9354c3fb94f55b2d9f7b71253011d7c13"
+   }
+  ]
+ },
+ "drc": {
+  "warnings": 0,
+  "violations": 0,
+  "waivedViolations": 15,
+  "summary": {
+   "warnings": {
+    "rows": [],
+    "total": 0
+   },
+   "rules": {
+    "rows": [
+     {
+      "rule": "Clearance Constraint (Gap=6mil) (All),(All)",
+      "count": 0
+     },
+     {
+      "rule": "Short-Circuit Constraint (Allowed=No) (All),(All)",
+      "count": 0
+     },
+     {
+      "rule": "Un-Routed Net Constraint ( (All) )",
+      "count": 0
+     },
+     {
+      "rule": "Modified Polygon (Allow modified: No), (Allow shelved: No)",
+      "count": 0
+     },
+     {
+      "rule": "Width Constraint (Min=12mil) (Max=100mil) (Preferred=12mil) (InNetClass('1A'))",
+      "count": 0
+     },
+     {
+      "rule": "Width Constraint (Min=6mil) (Max=100mil) (Preferred=6mil) (All)",
+      "count": 0
+     },
+     {
+      "rule": "Power Plane Connect Rule(Direct Connect )(Expansion=20mil) (Conductor Width=10mil) (Air Gap=10mil) (Entries=4) (All)",
+      "count": 0
+     },
+     {
+      "rule": "Minimum Annular Ring (Minimum=3.937mil) (IsVia)",
+      "count": 0
+     },
+     {
+      "rule": "Minimum Annular Ring (Minimum=6mil) (NOT IsVia)",
+      "count": 0
+     },
+     {
+      "rule": "Hole Size Constraint (Min=7.874mil) (Max=248.031mil) ((HoleDiameter > 0) And (PadIsPlated = 'False'))",
+      "count": 0
+     },
+     {
+      "rule": "Hole Size Constraint (Min=7.874mil) (Max=228.346mil) ((HoleDiameter > 0) And (PadIsPlated = 'True'))",
+      "count": 0
+     },
+     {
+      "rule": "Hole To Hole Clearance (Gap=12mil) (All),(All)",
+      "count": 0
+     },
+     {
+      "rule": "Minimum Solder Mask Sliver (Gap=15.748mil) (All),(All)",
+      "count": 0
+     },
+     {
+      "rule": "Silk To Solder Mask (Clearance=6mil) (IsPad),(All)",
+      "count": 0
+     },
+     {
+      "rule": "Silk to Silk (Clearance=6mil) (All),(All)",
+      "count": 0
+     },
+     {
+      "rule": "Net Antennae (Tolerance=0mil) (All)",
+      "count": 0
+     },
+     {
+      "rule": "Board Clearance Constraint (Gap=0mil) (All)",
+      "count": 0
+     },
+     {
+      "rule": "Height Constraint (Min=0mil) (Max=1000mil) (Prefered=500mil) (All)",
+      "count": 0
+     }
+    ],
+    "total": 0
+   },
+   "waived": {
+    "rows": [
+     {
+      "rule": "Minimum Solder Mask Sliver (Gap=15.748mil) (All),(All)",
+      "count": 15
+     }
+    ],
+    "total": 15
+   }
+  },
+  "listed": [
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (2.835mil < 15.748mil) Between Pad C1-1(947.716mil,260mil) on Top Layer And Pad C1-2(912.284mil,260mil) on Top Layer [Top Solder] Mask Sliver [2.835mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 2.835,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "C1-1",
+      "at": [
+       947.716,
+       260
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "C1-2",
+      "at": [
+       912.284,
+       260
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (10.906mil < 15.748mil) Between Pad C1-2(912.284mil,260mil) on Top Layer And Pad U1-7(844.803mil,260mil) on Top Layer [Top Solder] Mask Sliver [10.906mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 10.906,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "C1-2",
+      "at": [
+       912.284,
+       260
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "U1-7",
+      "at": [
+       844.803,
+       260
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (2.835mil < 15.748mil) Between Pad C2-1(1430mil,167.716mil) on Top Layer And Pad C2-2(1430mil,132.284mil) on Top Layer [Top Solder] Mask Sliver [2.835mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 2.835,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "C2-1",
+      "at": [
+       1430,
+       167.716
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "C2-2",
+      "at": [
+       1430,
+       132.284
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (2.835mil < 15.748mil) Between Pad C3-1(1480mil,717.716mil) on Top Layer And Pad C3-2(1480mil,682.284mil) on Top Layer [Top Solder] Mask Sliver [2.835mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 2.835,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "C3-1",
+      "at": [
+       1480,
+       717.716
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "C3-2",
+      "at": [
+       1480,
+       682.284
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R10-1(175mil,375.827mil) on Top Layer And Pad R10-2(175mil,414.173mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R10-1",
+      "at": [
+       175,
+       375.827
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R10-2",
+      "at": [
+       175,
+       414.173
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R1-1(910.827mil,310mil) on Top Layer And Pad R1-2(949.173mil,310mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R1-1",
+      "at": [
+       910.827,
+       310
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R1-2",
+      "at": [
+       949.173,
+       310
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (11.476mil < 15.748mil) Between Pad R1-1(910.827mil,310mil) on Top Layer And Pad U1-8(844.803mil,310mil) on Top Layer [Top Solder] Mask Sliver [11.476mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 11.476,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R1-1",
+      "at": [
+       910.827,
+       310
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "U1-8",
+      "at": [
+       844.803,
+       310
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R2-1(375mil,375.827mil) on Top Layer And Pad R2-2(375mil,414.173mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R2-1",
+      "at": [
+       375,
+       375.827
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R2-2",
+      "at": [
+       375,
+       414.173
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R3-1(275mil,375.827mil) on Top Layer And Pad R3-2(275mil,414.173mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R3-1",
+      "at": [
+       275,
+       375.827
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R3-2",
+      "at": [
+       275,
+       414.173
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R4-1(1480mil,169.173mil) on Top Layer And Pad R4-2(1480mil,130.827mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R4-1",
+      "at": [
+       1480,
+       169.173
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R4-2",
+      "at": [
+       1480,
+       130.827
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R5-1(1730mil,169.173mil) on Top Layer And Pad R5-2(1730mil,130.827mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R5-1",
+      "at": [
+       1730,
+       169.173
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R5-2",
+      "at": [
+       1730,
+       130.827
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R6-1(1730mil,680.827mil) on Top Layer And Pad R6-2(1730mil,719.173mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R6-1",
+      "at": [
+       1730,
+       680.827
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R6-2",
+      "at": [
+       1730,
+       719.173
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R7-1(1680mil,719.173mil) on Top Layer And Pad R7-2(1680mil,680.827mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R7-1",
+      "at": [
+       1680,
+       719.173
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R7-2",
+      "at": [
+       1680,
+       680.827
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R8-1(1630mil,719.173mil) on Top Layer And Pad R8-2(1630mil,680.827mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R8-1",
+      "at": [
+       1630,
+       719.173
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R8-2",
+      "at": [
+       1630,
+       680.827
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   },
+   {
+    "text": "Minimum Solder Mask Sliver Constraint: (9.803mil < 15.748mil) Between Pad R9-1(1580mil,719.173mil) on Top Layer And Pad R9-2(1580mil,680.827mil) on Top Layer [Top Solder] Mask Sliver [9.803mil]",
+    "rule": "Minimum Solder Mask Sliver",
+    "actualMil": 9.803,
+    "limitMil": 15.748,
+    "objects": [
+     {
+      "kind": "Pad",
+      "name": "R9-1",
+      "at": [
+       1580,
+       719.173
+      ],
+      "layer": "Top Layer"
+     },
+     {
+      "kind": "Pad",
+      "name": "R9-2",
+      "at": [
+       1580,
+       680.827
+      ],
+      "layer": "Top Layer"
+     }
+    ],
+    "waived": true
+   }
+  ]
+ },
+ "erc": {
+  "messages": [],
+  "notes": [
+   "Successful Compile; No Violations Found."
+  ]
+ },
+ "bom": {
+  "rows": [
+   [
+    "",
+    "",
+    "Bill of Materials",
+    "",
+    "",
+    "",
+    "USE OF THIS DESIGN IS\r\nGOVERNED BY A BSD-STYLE\r\nLICENSE THAT CAN BE\r\nFOUND IN THE LICENSE FILE",
+    "",
+    "",
+    ""
+   ],
+   [
+    "",
+    "",
+    "PiDP-11 I/O Expander",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   [
+    "",
+    "",
+    "Revision A",
+    "A",
+    "",
+    "",
+    "https://github.com/sstallion/PCB-PiDP11IOExpander",
+    "",
+    "",
+    ""
+   ],
+   [
+    "",
+    "Quantity",
+    "Description",
+    "Manufacturer",
+    "Manufacturer Part Number",
+    "Supplier",
+    "Supplier Part Number",
+    "Supplier Unit Price",
+    "Supplier Subtotal",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "LABEL SHIPPING 6X4IN MOQ200",
+    "Brother",
+    "DK-1241",
+    "Brother",
+    "DK-1241",
+    "0.20749999999999999",
+    "0.20749999999999999",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "BAG STATIC METAL-IN 2X4\"",
+    "Desco",
+    "10024",
+    "Digi-Key",
+    "SCP467-ND",
+    "0.1",
+    "0.1",
+    ""
+   ],
+   [
+    "",
+    "2",
+    "CAP CER 0.1UF 25V X7R 0402",
+    "AVX",
+    "04023C104KAT2A",
+    "Digi-Key",
+    "478-7868-1-ND",
+    "0.1",
+    "0.2",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CAP CER 33PF 25V C0G/NP0 0402",
+    "AVX",
+    "04023A330JAT2A",
+    "Digi-Key",
+    "478-12613-1-ND",
+    "0.1",
+    "0.1",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "DIODE SCHOTTKY 20V 1A SOD323",
+    "ON Semiconductor",
+    "NSVR0320MW2T1G",
+    "Digi-Key",
+    "NSVR0320MW2T1GOSCT-ND",
+    "0.4",
+    "0.4",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "LABEL ESD/STATIC 2X2 500PC",
+    "Desco",
+    "06722",
+    "Digi-Key",
+    "16-1001-ND",
+    "3.124E-2",
+    "3.124E-2",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "RES SMD 1.8K OHM 1% 1/10W 0402",
+    "Vishay Beyschlag",
+    "MCS04020C1801FE000",
+    "Digi-Key",
+    "749-1558-1-ND",
+    "0.13",
+    "0.13",
+    ""
+   ],
+   [
+    "",
+    "2",
+    "RES SMD 2.2K OHM 1% 1/10W 0402",
+    "Vishay Beyschlag",
+    "MCS04020C2201FE000",
+    "Digi-Key",
+    "749-1564-1-ND",
+    "0.13",
+    "0.26",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "RES SMD 3.9K OHM 1% 1/10W 0402",
+    "Vishay Beyschlag",
+    "MCS04020C3901FE000",
+    "Digi-Key",
+    "749-1578-1-ND",
+    "0.13",
+    "0.13",
+    ""
+   ],
+   [
+    "",
+    "3",
+    "RES SMD 10K OHM 1% 1/10W 0402",
+    "Vishay Beyschlag",
+    "MCS0402MC1002FE000",
+    "Digi-Key",
+    "MCS0402-10.0K-MFCT-ND",
+    "0.26",
+    "0.78",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "RES SMD 200K OHM 1% 1/10W 0402",
+    "Vishay Beyschlag",
+    "MCS04020C2003FE000",
+    "Digi-Key",
+    "749-1562-1-ND",
+    "0.13",
+    "0.13",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "TAPE DBL COAT CLR 1/2\"X 1\" 25/PK",
+    "3M",
+    "3M 4910 0.5\" X 1\"-25",
+    "Digi-Key",
+    "3M49100.5\"X1\"-25-ND",
+    "0.67520000000000002",
+    "0.67520000000000002",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CABLE ASSY 5V 12CM MOQ100",
+    "DirtyPCBs",
+    "MTO",
+    "DirtyPCBs",
+    "MTO",
+    "0.3",
+    "0.3",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CABLE ASSY I2C 18CM MOQ100",
+    "DirtyPCBs",
+    "MTO",
+    "DirtyPCBs",
+    "MTO",
+    "0.43",
+    "0.43",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "PCB FR4 2-LAYER MATTE BLACK HASL MOQ5",
+    "Fusion PCB",
+    "MTO",
+    "Fusion PCB",
+    "MTO",
+    "3.98",
+    "3.98",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CONN HEADER R/A 4POS 2.54MM",
+    "Amphenol ICC",
+    "10129379-904003BLF",
+    "Mouser",
+    "649-1012937990403BLF",
+    "0.14000000000000001",
+    "0.14000000000000001",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CONN HEADER VERT 2POS 2.54MM",
+    "Amphenol ICC",
+    "10129378-902001BLF",
+    "Mouser",
+    "649-1012937890201BLF",
+    "0.1",
+    "0.1",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CONN HEADER VERT 4POS 2.54MM",
+    "Amphenol ICC",
+    "10129378-904001BLF",
+    "Mouser",
+    "649-1012937890401BLF",
+    "0.14000000000000001",
+    "0.14000000000000001",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "CONN HEADER VERT 16POS 2.54MM",
+    "Amphenol ICC",
+    "10129381-916001BLF",
+    "Mouser",
+    "649-1012938191601BLF",
+    "0.42",
+    "0.42",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "IC I/O EXPANDER I2C 16B 28SOIC",
+    "Microchip",
+    "MCP23016-I/SO",
+    "Mouser",
+    "579-MCP23016-I/SO",
+    "1.83",
+    "1.83",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "IC TRNSLTR BIDIRECTIONAL 8SO",
+    "NXP",
+    "PCA9306D",
+    "Mouser",
+    "771-PCA9306DP-T",
+    "0.77",
+    "0.77",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "BAG RECLOSEABLE 2MIL 2X3IN MOQ1000",
+    "ULINE",
+    "S-1291",
+    "ULINE",
+    "S-1291",
+    "1.2999999999999999E-2",
+    "1.2999999999999999E-2",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "DESSICANT SILICA GEL 1/2G MOQ6000",
+    "ULINE",
+    "S-8032",
+    "ULINE",
+    "S-8032",
+    "2.5499999999999998E-2",
+    "2.5499999999999998E-2",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "LABEL SERIAL NUMBER 1/2X3/4IN MOQ22400",
+    "ULINE",
+    "S-16986",
+    "ULINE",
+    "S-16986",
+    "1.4E-3",
+    "1.4E-3",
+    ""
+   ],
+   [
+    "",
+    "1",
+    "MAILER POLY BUBBLE 6X10IN BLACK MOQ250",
+    "ULINE",
+    "S-22402",
+    "ULINE",
+    "S-22402",
+    "0.29599999999999999",
+    "0.29599999999999999",
+    ""
+   ],
+   [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "11.589839999999999",
+    ""
+   ]
+  ]
+ }
+}

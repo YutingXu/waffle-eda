@@ -19,7 +19,8 @@ globalThis.AtriumPalette = (() => {
     "palette.edit_options":"Options…",
     "palette.insert_item":"Insert {name}",
     "palette.run_item":"Run {name}",
-    "palette.open_item":"Open {name}"
+    "palette.open_item":"Open {name}",
+    "palette.open_library_tab":"Open in Library tab"
   });
   const RECENT_KEY = "atrium-palette-recent", RECENT_MAX = 12, LIMIT = 60;
   let calculationAvailable = false;
@@ -446,7 +447,7 @@ globalThis.AtriumPalette = (() => {
     return aliases?.length ? {...e,aliases,keywords:[...aliases,e.keywords || ""].join(" ")} : e;
   }
   const KINDS = {">":new Set(["command"]), "@":new Set(["component","net","netclass","port","pin","document"]),
-    find:new Set(["component","net","port","pin","notebook"]), files:new Set(["document","file"])};
+    find:new Set(["component","net","port","pin","notebook"]), files:new Set(["document","file"]), library:new Set(["library"])};
   const now = () => globalThis.performance?.now?.() ?? Date.now();
   const section = r => r.kind === "insert" || r.kind === "library" ? "Insert" : r.kind === "command" || r.kind === "setting" ? "Commands" : "Jumps";
   const sourceNames = {library:"Library",component:"Components",pin:"Pins and pads",net:"Nets",netclass:"Nets",
@@ -690,7 +691,7 @@ globalThis.AtriumPalette = (() => {
     // Give the index their fixed group and the exact-title and usage boosts directly.
     const libraryRanking = ctx && libraryView && (!kinds || kinds.has("library")) && indexedAt === indexChanges ?
       {group:bySource ? "Library" : "Insert",exact:exactKind === "Insert" ? exactText : null,usage} : null;
-    const hits = IX.search(text,{kinds,families:notebook,usage:usageBoost,currentDoc:ctx?.docId || host.currentId(),limit:mode ? LIMIT : 24,
+    const hits = IX.search(text,{kinds,families:notebook,usage:usageBoost,currentDoc:ctx?.docId || host.currentId(),limit:mode || narrow === "library" ? LIMIT : 24,
       libraryView,libraryRanking,
       group:localGroup,bonus:r => pinRef && (r.pinNumber === pin || r.pinName === pin) ? 500 : exactKind && r.ln === exactText && section(r) === exactKind ? 35 : 0,
       filter:r => scope !== "provider" && (!pinRef || r.pinRef === pinRef && (r.pinNumber.startsWith(pin) || r.pinName.startsWith(pin))) && recordAllowed(r,ctx,notebook) && (!facet || r.kind === "library" && AtriumCatalogue.matches(r.def,facet)),
@@ -720,7 +721,7 @@ globalThis.AtriumPalette = (() => {
       const e = rows[i].e, name = ctx && !mode && i === 0 ? "Top hit" : localGroup(e);
       if (!groups.has(name)) groups.set(name,[]);
       const group = groups.get(name);
-      if (group.length < (mode ? LIMIT : 8)) group.push(e);
+      if (group.length < (mode || narrow === "library" ? LIMIT : 8)) group.push(e);
     }
     const out = groupEntries(groups,null,hits.total + rows.length - hits.length);
     out.ms = now() - t;
@@ -976,7 +977,7 @@ globalThis.AtriumPalette = (() => {
     const timing = globalThis.AtriumDiagnostics?.performance?.begin("search", "search");
     let next;
     try {
-      next = !rich && !q && mode !== ":" ? search(sources(mode,q),"",{recent}) : ranked(mode,q,rich ? session : null,true);
+      next = !rich && !q && mode !== ":" && entryScope() !== "library" ? search(sources(mode,q),"",{recent}) : ranked(mode,q,rich ? session : null,true);
       timing?.end("completed");
     } catch (error) {
       timing?.end("failed");
@@ -1046,6 +1047,8 @@ globalThis.AtriumPalette = (() => {
     }
     if (session.enhanced) list.push(...globalThis.AtriumPaletteActions?.actions?.(e,req) || [],
       ...e.actions || [], ...globalThis.AtriumPalettePersonal?.actions?.(e,req) || []);
+    const rec = e.kind === "library" && IX?.get(e.key);
+    if (rec?.def) list.push({id:"show-in-library-tab",label:t("palette.open_library_tab"),hint:"Mod+L",run:() => libraryTab(rec)});
     if (e.options?.length) list.push({id:"options",label:t("palette.edit_options"),keepOpen:true,run:() => options(i)});
     if (globalThis.navigator?.clipboard?.writeText) list.push({id:"copy-label",label:t("palette.copy_name"),run:() => navigator.clipboard.writeText(label)});
     return list.map(a => ({...a,run:() => {
@@ -1054,6 +1057,8 @@ globalThis.AtriumPalette = (() => {
       Promise.resolve().then(() => !signal?.aborted && a.run({...req,signal})).catch(error=>report(error,signal));
     }}));
   }
+  // Mod+L or the action: show a library hit in the Library tab.
+  const libraryTab = rec => AtriumLazy.need("AtriumLibrary").then(() => AtriumLazy.need("AtriumLibraryView")).then(v => v.reveal(rec.def,rec.library));
   function actions(i) {return !!session && view?.actions(i,actionList(i));}
   function options(i) { if (results[i]?.options?.length) view?.options(i,requestOf(results[i])); else actions(i); }
   function report(error,signal) {if (!signal?.aborted) host?.info?.(error?.message || String(error));}
@@ -1090,6 +1095,8 @@ globalThis.AtriumPalette = (() => {
     const step = {ArrowDown:1,ArrowUp:-1,PageDown:10,PageUp:-10}[e.key];
     if (step && results.length) {e.preventDefault(); setActive(Math.abs(step) === 1 ? (active+step+results.length)%results.length : Math.max(0,Math.min(results.length-1,active+step)),true,e); return;}
     if (e.key === "Enter") {e.preventDefault(); run(active,{},e.altKey ? "insert" : e.shiftKey ? "apply" : null); return;}
+    const rec = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "l" && results[active]?.kind === "library" && IX?.get(results[active].key);
+    if (rec?.def) {e.preventDefault(); close(false); libraryTab(rec).catch(err => host?.info?.(err?.message)); return;}
     if (e.key === "Escape") {e.preventDefault(); close(); return;}
     if (e.key === "Tab" && !e.shiftKey && results[active]?.options?.length) {e.preventDefault(); options(active);}
   }
@@ -1231,6 +1238,7 @@ globalThis.AtriumPalette = (() => {
     if (!raw.supportDeferred) loadSupport(raw);
   }
   function open(prefix = ">", continuation = null, at = {}) {return typeof document !== "undefined" ? C.openPalette(prefix,continuation,at) : null;}
+  function openLibrary(at = {}) {return open("library",null,at);}
   function setScope(kind,text,providerId) {
     if (!dialog?.open || !["library","help","provider",""].includes(kind)) return;
     setCommandScope(false);
@@ -1275,7 +1283,7 @@ globalThis.AtriumPalette = (() => {
   }
   C?.ready(attach);
   if (typeof window !== "undefined" && enhanced()) queueMicrotask(() => {if (enhanced()) globalThis.dispatchEvent(new CustomEvent("waffle-palette-ready"));});
-  return {parse, parseLocation, search, titleCase, objectEntries, open, resume, close, resetMode, isOpen:() => !!dialog?.open, registerProvider,invalidateProvider,
+  return {parse, parseLocation, search, titleCase, objectEntries, open, openLibrary, resume, close, resetMode, isOpen:() => !!dialog?.open, registerProvider,invalidateProvider,
     actions, scope:setScope, present:(model,callbacks) => dialog?.open && session?.enhanced && view?.present?.(model,callbacks),context:() => session,
     entries:mode => sources(mode || "", ""), recent:() => recent.slice(), remember, attach,
     searchAll(q,mode="") {

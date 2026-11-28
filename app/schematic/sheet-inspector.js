@@ -15,7 +15,7 @@ globalThis.AtriumSheetInspector = (() => {
     const source=doc.schDrawing||doc.schRestored?.sheet;
     const current=sheetOf(doc);
     const change=fn=>apply(()=>{if(!plain(doc.sheet))doc.sheet={};fn(doc.sheet);});
-    function row(label,input){const l=node("label",null,"field-row");l.append(node("span",label),input);input.setAttribute("aria-label",label);container.append(l);return input;}
+    function row(label,input){const l=node("label",null,"ui-prop-row");input.classList.add("ui-field");l.append(node("span",label),input);input.setAttribute("aria-label",label);container.append(l);return input;}
     function choice(label,options,value,update){
       const s=node("select");
       for(const [group,rows] of options){

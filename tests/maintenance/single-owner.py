@@ -225,7 +225,7 @@ ADAPTERS = {
         """app/checks/constraints.js app/checks/rules.js app/editor/keymap-editor.js app/editor/prefs.js
            app/editor/signals-panel.js app/editor/start-page.js app/editor/theme-editor.js
            app/editor/vscode-keys.js app/formats/bom.js app/history/diff-view.js app/history/git-picker.js
-           app/history/review-comments.js app/library/component-swap.js app/library/library-panel.js
+           app/history/review-comments.js app/library/component-swap.js
            app/notebook/calculation-sheet.js app/project/variants.js app/schematic/eco.js"""),
     "UI03": adapter_sites("AtriumUI.nativeButton(", r'\bfunction\s+button\s*\(',
         """app/analysis/pdn-view.js app/analysis/si.js app/analysis/stress.js app/analysis/thermal-view.js
@@ -305,9 +305,9 @@ ADAPTERS.update({
     },
     "UI06": {
         **adapter_sites("ui/history-panels.css", r'ui/history-close\.css', "app/lazy.js"),
-        **adapter_sites(".clip-item", r'\.panel-clip\s*\{\s*display\s*:\s*flex', "app/history/clip-history.css"),
-        **adapter_sites(".hist-row", r'\.panel-history\s*\{\s*display\s*:\s*flex', "app/history/history-panel.css"),
-        **adapter_sites(".rc-thread", r'\.panel-rc\s*\{\s*display\s*:\s*flex', "app/history/review.css"),
+        **adapter_sites(".clip-item", r'\.ui-dock-panel\b[^{}]*\{\s*display\s*:\s*flex', "app/history/clip-history.css"),
+        **adapter_sites(".hist-row", r'\.ui-dock-panel\b[^{}]*\{\s*display\s*:\s*flex', "app/history/history-panel.css"),
+        **adapter_sites(".rc-thread", r'\.ui-dock-panel\b[^{}]*\{\s*display\s*:\s*flex', "app/history/review.css"),
     },
     "XF02": {
         **adapter_sites("AtriumAltiumRecords.frame(", r'\bconst (?:kind = data\.getUint16|n=view\(bytes\)|header=view\.getUint32|frame=view\.getUint32|size=data\.getUint32\(pos,true\)&0xffffff)',

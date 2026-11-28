@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const {pathToFileURL} = require("node:url");
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const argument = key => { const at = process.argv.indexOf(key); return at < 0 ? null : process.argv[at + 1]; };
 const root = path.resolve(argument("--app") || path.resolve(__dirname, "../.."));
 const output = argument("--screenshots"), key = "command:ext:example.divider:divider", chord = "Control+Alt+Shift+G", alias = "vdivideqa";
@@ -176,7 +176,12 @@ async function themeRun(browser, theme) {
     await page.evaluate(() => { AtriumPalette.close(false); AtriumNavHost.executeKey("undo"); }); await page.waitForFunction(n => AtriumNavHost.doc().items.length === n, before);
     await search(page, "Calculate voltage divider"); await row(page, "Calculate voltage divider").click(); const form = detail.locator("form"); await form.waitFor(); pictures.form = await capture(page, theme, "form");
     const upper = form.getByLabel("Upper resistor (Ω)"), submit = form.getByRole("button", {name: "Calculate"});
-    await upper.fill("-1"); await submit.click(); assert.equal(await upper.evaluate(el => el.validity.rangeUnderflow), true);
+    // Number fields take expressions (the host's numeric fields turn them into text entries, lazy.js ›
+    // watchNumericInputs), so the host, not the browser's rangeUnderflow, enforces min: it holds the submit,
+    // marks the field invalid and returns focus to it.
+    await upper.fill("-1"); await submit.click();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-invalid") === "true");
+    assert.deepEqual(await upper.evaluate(el => ({focused: document.activeElement === el, invalid: el.getAttribute("aria-invalid"), min: el.min})), {focused: true, invalid: "true", min: "0"});
     assert.equal(await page.evaluate(() => !!globalThis.AtriumMath), false, "search and form controls do not demand equation typesetting");
     await upper.fill("1000"); await submit.click(); await detail.getByText("3.333 V", {exact: true}).waitFor();
     const equation = await renderedDetail(page, detail);

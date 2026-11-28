@@ -86,7 +86,7 @@ The registry adds discovery. It adds no new trust in code: the extension sandbox
 
 | Threat | Defence |
 | --- | --- |
-| Waffle contacting a server the user did not choose | Off by default; no request until a registry URL is saved; only that index and the packages the user installs are fetched (`tests/extension-registry.cjs` records every request). |
+| Waffle contacting a server the user did not choose | Off by default; no request until a registry URL is saved; only that index and the packages the user installs are fetched (`tests/extensions/extension-registry.cjs` records every request). |
 | A tampered or substituted package (compromised host, mirror, or network) | The package's SHA-256 is computed in the editor and compared with the index **before the package is parsed**. Any mismatch, or a size other than `size`, is refused and nothing is installed or prompted. |
 | A package that asks for more than the listing showed | The manifest's `id`, `version` and `permissions` must equal the entry's. Otherwise nothing is installed. |
 | Permissions hidden until after download | The Browse view lists every requested permission from the index; installing then shows Waffle's own permission prompt again, from the verified manifest. Declining installs nothing. |

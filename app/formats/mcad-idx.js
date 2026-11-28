@@ -202,8 +202,8 @@ globalThis.AtriumIDX = (() => {
     }
     for (const p of snap.parts) {
       if (!want(p.key)) continue;
-      // One package body per footprint, height and model: shared by every instance.
-      const k = p.def + "|" + p.height + "|" + (p.model || "");
+      // One package body per footprint, height, model and mirror: shared by every instance.
+      const k = p.def + "|" + p.height + "|" + (p.model || "") + (p.mirror ? "|mirrored" : "");
       let s = shared.get(k);
       if (!s) {
         const fp = footprintOutline(snap, p);
@@ -218,11 +218,16 @@ globalThis.AtriumIDX = (() => {
     }
     for (const h of snap.holes) {
       if (!want(h.key)) continue;
-      const k = "hole|" + h.d + "|" + h.plated;
+      // A slot is its stadium outline along local X, turned to the slot's axis (theta: degrees CCW, Y up).
+      const [sa, sb] = h.slot || [], half = h.slot ? Math.round(Math.hypot(sb[0] - sa[0], sb[1] - sa[1]) * 5e3) / 1e4 : 0;
+      const k = "hole|" + h.d + "|" + h.plated + (h.slot ? "|" + 2 * half : "");
       let s = shared.get(k);
-      if (!s) { s = b.single((h.plated ? "PTH " : "NPTH ") + h.d, [b.shape(b.curveSet(b.circle([0, 0], h.d), 0, t), true)]); shared.set(k, s); }
+      if (!s) {
+        const curve = h.slot ? b.contour(MC.slotContour([-half, 0], [half, 0], h.d)) : b.circle([0, 0], h.d);
+        s = b.single((h.plated ? "PTH " : "NPTH ") + h.d + (h.slot ? " x " + Math.round((2 * half + h.d) * 1e4) / 1e4 : ""), [b.shape(b.curveSet(curve, 0, t), true)]); shared.set(k, s);
+      }
       out.set(h.key, b.assembly(h.via ? "VIA" : h.plated ? "HOLE_PLATED" : "HOLE_NON_PLATED", h.owner ? (snap.index.get(h.owner)?.ref || "") + " " + h.key.split("/").pop() : "Hole",
-        MC.identOf(doc, h.key), ver(h.key), s, h.key, {theta: 0, tx: h.x, ty: -h.y}));
+        MC.identOf(doc, h.key), ver(h.key), s, h.key, {theta: h.slot ? Math.atan2(sa[1] - sb[1], sb[0] - sa[0]) / D2R : 0, tx: h.x, ty: -h.y}));
     }
     for (const k of snap.keepouts) {
       if (!want(k.key)) continue;
@@ -248,7 +253,7 @@ globalThis.AtriumIDX = (() => {
     const S = G.AtriumSTEP, def = snap.defs?.get(p.def) || snap.def;
     if (S && def?.footprint) {
       try {
-        const m = S.model({name: "p", documents: [{id: "x", kind: "pcb", name: "x", grid: 1, outline: [[-1, -1], [1, -1], [1, 1], [-1, 1]], items: [{id: "q", kind: "part", def: p.def, ref: p.ref, value: "", x: 0, y: 0, angle: 0}], notes: []}], library: [def]}, "x", {holes: false, models: false});
+        const m = S.model({name: "p", documents: [{id: "x", kind: "pcb", name: "x", grid: 1, outline: [[-1, -1], [1, -1], [1, 1], [-1, 1]], items: [{id: "q", kind: "part", def: p.def, ref: p.ref, value: "", x: 0, y: 0, angle: 0, mirror: p.mirror === true}], notes: []}], library: [def]}, "x", {holes: false, models: false});
         const part = m.parts[0];
         if (part?.body?.loops?.[0]) { const f = S.flattenLoop(part.body.loops[0], 0.02), out = []; for (let i = 0; i < f.length; i += 2) out.push([Math.round(f[i] * 1e4) / 1e4, -Math.round(f[i + 1] * 1e4) / 1e4]); if (out.length >= 3) return out; }
       } catch { /* box below */ }
@@ -470,12 +475,19 @@ globalThis.AtriumIDX = (() => {
         } else if (t === "HOLE_PLATED" || t === "HOLE_NON_PLATED") {
           const s = sh[0];
           if (!s) { opts.trace?.omitted("Drilled hole", source, "The hole has no readable shape."); notes.push("A hole item has no shape."); continue; }
+          // A slot (stadium): two semicircles of one radius. Its ends are their centres.
+          const semi = s.circle || s.arcs.length !== 2 ? [] : s.arcs.map(a => {
+            const [p, m, q] = [a.a, a.m, a.b].map(v => apply(pl.T, v)), o = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], r = Math.hypot(p[0] - q[0], p[1] - q[1]) / 2;
+            return Math.abs(Math.hypot(m[0] - o[0], m[1] - o[1]) - r) <= 1e-4 ? {o, r} : null;
+          });
+          const slot = semi.length === 2 && semi[0] && semi[1] && Math.abs(semi[0].r - semi[1].r) <= 1e-4 ? semi.map(e => e.o) : null;
           let c, d;
           if (s.circle) { c = apply(pl.T, s.circle.c); d = s.circle.d; }
+          else if (slot) { c = [(slot[0][0] + slot[1][0]) / 2, (slot[0][1] + slot[1][1]) / 2]; d = semi[0].r + semi[1].r; }
           else { const w = world(s), b = bounds(w); c = [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]; d = Math.min(b[2] - b[0], b[3] - b[1]); notes.push("A non-circular hole was read as its inscribed diameter."); }
-          const hole = {ident:id0, x:c[0], y:-c[1], d, plated:t === "HOLE_PLATED"};
+          const hole = {ident:id0, x:c[0], y:-c[1], d, plated:t === "HOLE_PLATED", ...(slot && {slot: slot.map(o => [o[0], -o[1]])})};
           design.holes.push(hole);
-          if (!s.circle) opts.trace?.approximate(hole, "The non-circular hole was read as its inscribed diameter.");
+          if (!s.circle && !slot) opts.trace?.approximate(hole, "The non-circular hole was read as its inscribed diameter.");
         } else if (/^KEEP(OUT|IN)_AREA_/.test(t)) {
           const s = sh[0];
           if (!s) { opts.trace?.omitted("Mechanical keep-out", source, "The keep-out has no readable boundary."); continue; }

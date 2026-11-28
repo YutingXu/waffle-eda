@@ -27,6 +27,7 @@ globalThis.AtriumLazy = (() => {
     AtriumUIKit: {scripts:["ui/kit.js"]},
     AtriumLayer: {scripts:["ui/owner-layer.js"]},
     AtriumOverlayScroll: {scripts:["ui/overlay-scroll.js"],deps:["AtriumLayer"]},
+    AtriumTabOverflow: {scripts:["ui/tab-overflow.js"]},
     AtriumUIGallery: {scripts:["ui/gallery.js"],css:["ui/gallery.css","ui/analysis-panels.css"],deps:["AtriumUIKit"]},
     AtriumPlacement: {scripts:["pcb/placement.js"]},
     AtriumPastePlan: {scripts:["editor/paste-plan.js"],deps:["AtriumPlacement"]},
@@ -36,7 +37,7 @@ globalThis.AtriumLazy = (() => {
     AtriumRichTextView: {scripts:["notebook/rich-text-view.js"],deps:["AtriumNotebookFonts","AtriumNoteFields"]},
     AtriumRichText: {scripts:["notebook/rich-text.js"],deps:["AtriumNotebook","AtriumRichTextView"]},
     AtriumRichTextEditor: {scripts:["notebook/rich-text-editor.js"],css:["notebook/rich-text-editor.css"],deps:["AtriumLayer","AtriumRichText"]},
-    AtriumWireEdit: {scripts: ["schematic/wire-edit.js"]},
+    AtriumWireEdit: {scripts: ["schematic/wire-edit.js"]}, AtriumSchCurves: {scripts: ["schematic/sch-curves.js"]},
     AtriumCanvasInput: {scripts: ["canvas/canvas-input.js"], deps:["AtriumWireEdit"]},
     AtriumActiveBarMenu: {scripts: ["editor/active-bar-menu.js"]},
     AtriumNavigator: {scripts: ["editor/navigator.js"]},
@@ -74,6 +75,7 @@ globalThis.AtriumLazy = (() => {
     AtriumFolderProjectUI: {scripts: ["project/folder-project.js", "project/folder-project-ui.js"], deps: ["AtriumFolderDrafts", "AtriumUndoStore", "AtriumWorkerPool"]},
     AtriumEditorWorkflows: {scripts: ["editor/editor-workflows.js"]},
     AtriumEditorDemand: {scripts: ["editor/editor-demand.js"]},
+    AtriumConnectivity: {scripts: ["checks/connectivity.js"], deps: ["AtriumGeometryCurves"]},
     AtriumNetsPanel: {scripts: ["editor/nets-panel.js"]},
     AtriumCrossProbe: {scripts: ["editor/crossprobe.js"], deps:["AtriumNetsPanel"]},
     AtriumContextMenu: {scripts: ["editor/context-menu.js"]},
@@ -87,7 +89,7 @@ globalThis.AtriumLazy = (() => {
     AtriumTableData: {scripts:["notebook/table-data.js"],deps:["AtriumSourceFile"]},
     AtriumTableFormat: {scripts:["notebook/table-format.js"],deps:["AtriumTableData","AtriumFormat2Closure"]},
     AtriumTableExchange: {scripts:["notebook/table-exchange.js"],deps:["AtriumTableData"]},
-    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationDesign","AtriumTableData"]},
+    AtriumTableFormulas: {scripts:["notebook/table-formulas.js"],deps:["AtriumCalculationIntent","AtriumCalculationDesign","AtriumTableData"]},
     AtriumTableVisual: {scripts:["notebook/table-visual.js"],deps:["AtriumTableFormulas","AtriumTableExchange","AtriumSheetWidgets"]},
     AtriumTableQuery: {scripts:["notebook/table-query.js"],deps:["AtriumTableData","AtriumDesignQuery"]},
     AtriumTableEditor: {scripts:["notebook/table-editor.js"],css:["notebook/table-editor.css"],deps:["AtriumTableVisual","AtriumNotebook"]},
@@ -192,7 +194,7 @@ globalThis.AtriumLazy = (() => {
     AtriumEngine: {scripts: ["engine-core.js"]}, // Rust/WebAssembly kernels; callers fall back to JS
     // Altium muscle memory (altium-keys.js): net highlight, pick tools, Un-Route, layer keys.
     AtriumAltiumKeys: {scripts: ["editor/altium-keys.js"], deps: ["AtriumCrossProbe"]},
-    AtriumPinSwap: {scripts: ["pcb/pin-swap.js"], css: ["pcb/pin-swap.css"], deps: ["AtriumLayer","AtriumECO"]},
+    AtriumPinSwap: {scripts: ["pcb/pin-swap.js"], css: ["pcb/pin-swap.css"], deps: ["AtriumLayer","AtriumECO","AtriumConnectivity"]},
     // Board core (lazy pass 2): the stack-up, via stacks, polygon pours and the rule engine are
     // engines plus large dialogs. Eager code only reaches them through optional lookups, and they
     // are prefetched once a board layout is open (see BOARD below), so editing a board has them
@@ -219,7 +221,7 @@ globalThis.AtriumLazy = (() => {
     AtriumVariants: {scripts: ["project/variants.js"], css: ["project/variants.css"]},
     // PDF writer and printing (pdf.js, print.js). The Path2D recorder stays eager (path-record.js).
     AtriumPDF: {scripts: ["formats/pdf.js"], deps: ["AtriumPCBText"]},
-    AtriumPrint: {scripts: ["formats/print.js"], css: ["formats/print.css"], deps: ["AtriumPDF", "AtriumPDFFonts", "AtriumFabOutputs"]},
+    AtriumPrint: {scripts: ["formats/print.js"], css: ["formats/print.css"], deps: ["AtriumPDF", "AtriumPDFFonts", "AtriumFabOutputs", "AtriumSchCurves"]},
     // Reports (BOM, Messages, comparisons) as PDF pages for the same print path and dialog.
     AtriumPrintReport: {scripts: ["formats/print-report.js"], deps: ["AtriumPrint"]},
     AtriumNotebookOutput: {scripts:["formats/notebook-output.js"]},
@@ -248,7 +250,7 @@ globalThis.AtriumLazy = (() => {
     AtriumComponentFamilies: {scripts: ["library/component-families.js"]},
     // Library panel, footprint wizard (+ package families) and editors (the panel opens them).
     AtriumLibraryPairing: {scripts: ["library/library-pairing.js"]},
-    AtriumLibrary: {scripts: ["library/library-store.js", "library/library-panel.js", "library/library-diff.js", "library/library-families-ui.js", "library/footprint-wizard.js", "library/footprint-packages.js", "library/footprint-editor.js", "library/symbol-editor.js"], css: ["ui/spreadsheet.css", "library/library-panel.css"], deps: ["AtriumComponentFamilies", "AtriumLibraryPairing", "AtriumCamera", "AtriumSpatialMotion", "AtriumPCBText", "AtriumSHA256", "AtriumPCBEdit", "AtriumUIKit"]},
+    AtriumLibrary: {scripts: ["library/library-store.js", "library/library-ui.js", "library/library-panel.js", "library/library-diff.js", "library/library-families-ui.js", "library/footprint-wizard.js", "library/footprint-packages.js", "library/footprint-editor.js", "library/symbol-editor.js"], css: ["ui/spreadsheet.css", "library/library-panel.css"], deps: ["AtriumComponentFamilies", "AtriumLibraryPairing", "AtriumCamera", "AtriumSpatialMotion", "AtriumPCBText", "AtriumSHA256", "AtriumPCBEdit", "AtriumUIKit"]},
     AtriumGroupLibraryUI: {scripts: ["library/group-library.js", "library/group-library-local.js", "library/group-library-sync.js", "library/group-library-ui.js"], deps: ["AtriumLibrary", "AtriumNetIntent"]},
     // "New component…" in the component library dialog (editor.js showLibrary).
     AtriumLibraryEditor: {scripts: ["library/library-editor.js"], css: ["library/library-editor.css"], deps: ["AtriumPCBText"]},
@@ -262,13 +264,13 @@ globalThis.AtriumLazy = (() => {
     AtriumSupportPlace: {scripts: ["editor/support-placement.js"], css: ["editor/support-placement.css"], deps: ["AtriumNetIntent"]},
     AtriumArrange: {scripts: ["pcb/arrange.js"]},
     AtriumAnnotate: {scripts: ["notebook/annotate.js"], css: ["notebook/annotate.css"], deps: ["AtriumECO"]},
-    AtriumAutorouter: {scripts: ["pcb/autorouter.js", "pcb/fanout.js"], css: ["pcb/autorouter.css"], deps: ["AtriumRules"]},
+    AtriumAutorouter: {scripts: ["pcb/autorouter.js", "pcb/fanout.js"], css: ["pcb/autorouter.css"], deps: ["AtriumRules", "AtriumConnectivity"]},
     AtriumFabProfiles: {scripts: ["formats/fab-profiles.js"], deps: ["AtriumRules", "AtriumFabPresetsJLCPCB"]},
     AtriumViaStubs: {scripts: ["pcb/via-stubs.js"], css: ["pcb/via-stubs.css"], deps: ["AtriumRules"]},
     AtriumRuleSets: {scripts: ["checks/rule-sets.js"], css: ["checks/rule-sets.css"], deps: ["AtriumFabProfiles", "AtriumRuleGroups"]},
     AtriumRuleGroups: {scripts: ["checks/rule-groups.js"], css: ["ui/rule-set-lists.css", "checks/rule-groups.css"], deps: ["AtriumRules"]},
     AtriumZClearance: {scripts: ["checks/z-clearance.js"], deps: ["AtriumRules", "AtriumStackup"]},
-    AtriumDRC: {scripts: ["checks/drc.js"], deps: ["AtriumImpedance", "AtriumRules", "AtriumPCBDraw", "AtriumZClearance", "AtriumFlexDRC", "AtriumPCBTextRich", "AtriumMaskOpenings"]},
+    AtriumDRC: {scripts: ["checks/drc.js"], deps: ["AtriumConnectivity", "AtriumImpedance", "AtriumRules", "AtriumPCBDraw", "AtriumZClearance", "AtriumFlexDRC", "AtriumPCBTextRich", "AtriumMaskOpenings"]},
     // DFA spacing matrix (dfa.js): the dfaSpacing DRC rule and the live placement overlay.
     AtriumDFA: {scripts: ["checks/dfa.js"], deps: ["AtriumRules"]},
     AtriumViaFence: {scripts: ["pcb/via-fence.js"], css: ["pcb/via-fence.css"], deps: ["AtriumRouter", "AtriumBoardShapeAuthoring"]},
@@ -283,10 +285,10 @@ globalThis.AtriumLazy = (() => {
     AtriumWindowWorkspace: {scripts: ["native-bridge/window-workspace.js"]},
     AtriumProjectWindowClient: {scripts: ["native-bridge/project-window-client.js"], deps:["AtriumWindowWorkspace"]},
     AtriumAI: {scripts: ["automation/ai.js"], deps: ["AtriumProposal"]},
-    AtriumSchematicOutput: {scripts: ["formats/schematic-output.js"]},
+    AtriumSchematicOutput: {scripts: ["formats/schematic-output.js"], deps: ["AtriumSchCurves"]},
     AtriumKiCad: {scripts: ["formats/kicad-export.js", "formats/kicad-schematic.js"], deps: ["AtriumSchematicOutput", "AtriumRules", "AtriumPCBDraw", "AtriumZip", "AtriumVariants", "AtriumPCBTextRich"]},
     AtriumRevisionReview: {scripts: ["history/revision-review.js", "history/revision-present.js", "history/revision-geometry.js", "history/revision-panel.js"], deps: ["AtriumDiff", "AtriumLandContours"]},
-    AtriumDesignReview: {scripts: ["history/design-review.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput"]},
+    AtriumDesignReview: {scripts: ["history/design-review.js"], css: ["formats/fab-outputs.css"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput", "AtriumConnectivity"]},
     AtriumZip: {scripts: ["core/zip.js"]},
     AtriumFormat2Models: {scripts: ["formats/sexpr.js", "vendor/zipjs-deflate.js", "formats/format-2-models.js"], deps: ["AtriumZip", "AtriumSourceFile"]},
     AtriumBOM: {scripts: ["formats/bom.js", "formats/bom-optimiser.js"], css: ["ui/spreadsheet.css", "formats/bom.css", "formats/bom-optimiser.css"], deps: ["AtriumZip", "AtriumVariants", "AtriumMultichannel"]},
@@ -434,7 +436,7 @@ globalThis.AtriumLazy = (() => {
   // so the schematic module loads only for the action on a sheet).
   register("AtriumImportReports", {scripts: ["formats/import-reports.js"], css: ["formats/import-reports.css"], deps: ["AtriumDocViews","AtriumTranslatorRegistry"]}, ["import-report"]);
   register("AtriumAltiumBridge", {scripts: ["formats/altium-bridge.js"], deps:["AtriumTranslatorRegistry"]}, ["import-altium"]);
-  register("AtriumAltiumExport", {scripts: ["formats/sexpr.js", "formats/altium-export.js"], deps: ["AtriumSchematicOutput", "AtriumZip", "AtriumRules", "AtriumPCBDraw"]});
+  register("AtriumAltiumExport", {scripts: ["formats/sexpr.js", "formats/altium-export.js"], deps: ["AtriumSchematicOutput", "AtriumSchCurves", "AtriumZip", "AtriumRules", "AtriumPCBDraw"]});
   register("AtriumAltiumProjectExport", {scripts: ["formats/altium-project-export.js"], deps: ["AtriumTranslatorClient", "AtriumZip", "AtriumSchematicOutput"]}, ["export-altium"]);
   // Design review comments (review-comments.js).
   register("AtriumSchNoteInk", {scripts:["notebook/sch-note-ink.js"]});
@@ -467,7 +469,7 @@ globalThis.AtriumLazy = (() => {
   register("AtriumClipHistory", {scripts: ["history/clip-history.js"], css: ["ui/history-panels.css", "history/clip-history.css"], deps:["AtriumHistoryArtwork"]}, ["clipboard-panel", "clipboard-picker"]);
   // History panel (history-panel.js): undo steps, branches and the local history timeline.
   register("AtriumUndoStore", {scripts: ["history/undo-store.js"]});
-  register("AtriumConnectivityLive", {scripts: ["checks/connectivity-live.js"]});
+  register("AtriumConnectivityLive", {scripts: ["checks/connectivity-live.js"], deps: ["AtriumConnectivity"]});
   register("AtriumHistoryPanel", {scripts:["history/history-panel.js"], css:["ui/history-panels.css", "history/history-panel.css"], deps:["AtriumUndoStore"]}, ["history-panel"]);
   register("AtriumVisualHistory", {scripts:["history/history-edits.js","history/visual-history.js"], deps:["AtriumHistoryArtwork"]});
   register("AtriumHistorySession", {scripts:["history/history-session.js"], deps:["AtriumHistoryPanel","AtriumVisualHistory","AtriumClipHistory","AtriumPastePlan","AtriumProposal"]});
@@ -536,7 +538,7 @@ globalThis.AtriumLazy = (() => {
   register("AtriumMultiRoute", {scripts: ["pcb/multi-route.js", "pcb/bus-route.js"], css: ["pcb/bus-route.css"], deps: ["AtriumRouter"]}, ["route-multi", "route-bus", "bus-tune-group"]);
   // Help › Your First Board Tutorial (tutorial.js): the docked coach card.
   /* perf-ui: design authoring (sch-author.js) is lazy; only the tutorial uses it in the app */ register("AtriumSchAuthor", {scripts: ["schematic/sch-author.js"]});
-  register("AtriumTutorial", {scripts: ["editor/tutorial.js"], css: ["editor/tutorial.css"], deps: ["AtriumSchAuthor"]}, ["tutorial"]);
+  register("AtriumTutorial", {scripts: ["editor/tutorial.js"], css: ["editor/tutorial.css"], deps: ["AtriumSchAuthor", "AtriumConnectivity"]}, ["tutorial"]);
   // Get set up (welcome.js): the first-launch walkthrough.
   register("AtriumWelcome", {scripts: ["editor/welcome.js"], css: ["editor/welcome.css"]}, ["customise-waffle"]);
   // Camera and mouse (camera.js; Preferences › Mouse): wheel presets, view history, saved views, fly-to, arrow/WASD pan,
@@ -593,7 +595,7 @@ globalThis.AtriumLazy = (() => {
   on(["AtriumECO"], "save", "sync-settings");
   on(["AtriumRules"], "repour", "repour-selected");
   on({pcb: ["AtriumViaStack","AtriumRules"]}, "via");
-  on(["AtriumLibrary"], "library-panel", "library-sources", "footprint-wizard", "footprint-editor", "symbol-editor", "edit-footprint", "edit-symbol");
+  on(["AtriumLibrary"], "library-panel", "library-workspace", "library-sources", "footprint-wizard", "footprint-editor", "symbol-editor", "edit-footprint", "edit-symbol");
   // Symbol Wizard (symbol-wizard.js): a symbol from a datasheet pin table.
   register("AtriumSymbolWizard", {scripts: ["library/symbol-wizard.js"], css: ["library/symbol-wizard.css"], deps: ["AtriumLibrary"]}, ["symbol-wizard"]);
   on(["AtriumSwap"], "swap-components", "swap-components-origin", "swap-library", "swap-variant", "swap-variant-back", "swap-variant-pick");
@@ -735,9 +737,8 @@ globalThis.AtriumLazy = (() => {
     const marker = d.createComment(name);
     parent.append(marker);
     // A control can request another control while the outer fragment is being assembled.
-    // Its marker moves into the live section when the outer fragment is inserted.
-    const current = () => parent.nodeType === 11 && marker.isConnected ||
-      marker.parentNode === parent && (!wasConnected || parent.isConnected);
+    // Its marker moves into the live section when the outer fragment is inserted (or into its body).
+    const current = () => parent.nodeType === 11 && marker.isConnected || parent.contains(marker) && (!wasConnected || parent.isConnected);
     need(name).then(ui => {
       if (!current()) return;
       const fields = d.createDocumentFragment();
@@ -796,9 +797,11 @@ globalThis.AtriumLazy = (() => {
     const out = [];
     // Reference-only board rows need no geometry. Materialized owners can inspect
     // copper synchronously on their first frame, including after a folder reload.
-    if (!globalThis.AtriumGeometryCurves && project?.documents?.some?.(d => d?.kind === "pcb" &&
-      (Array.isArray(d.items) || d.boardShape?.cutouts?.length)))
-      out.push("AtriumGeometryCurves");
+    if ((!globalThis.AtriumGeometryCurves || !globalThis.AtriumConnectivity) && project?.documents?.some?.(d =>
+      d?.kind === "pcb" && (Array.isArray(d.items) || d.boardShape?.cutouts?.length))) {
+      if (!globalThis.AtriumGeometryCurves) out.push("AtriumGeometryCurves");
+      if (!globalThis.AtriumConnectivity) out.push("AtriumConnectivity");
+    }
     if (!globalThis.AtriumNetsPanel && project?.documents?.some?.(d => d.kind === "pcb" && Object.keys(d.netColors || {}).length))
       out.push("AtriumNetsPanel");
     if (!globalThis.AtriumPCBPours && project?.documents?.some?.(d => d.kind === "pcb" && d.pcbDrawing?.pours?.length))
@@ -837,6 +840,7 @@ globalThis.AtriumLazy = (() => {
     if (project?.rules != null || documents.some(d => d?.kind === "pcb" || d?.rules != null)) out.push("AtriumRules");
     if (AtriumRuleScopeDemand(project?.rules) || documents.some(d=>AtriumRuleScopeDemand(d?.rules))) out.push("AtriumDesignQuery");
     if (project?.signals != null) out.push("AtriumSignals");
+    if (documents.some(d => d?.items?.some?.(i => i?.url))) out.push("AtriumSchObjectInspector");
     if (notebook) {
       if (documents.some(d => d?.kind === "schematic" && d.items?.some?.(i => i?.kind === "textframe" && i.math === true))) out.push("AtriumMath");
       if (documents.some(d => d.items?.some(i => i.richText))) out.push("AtriumNotebook");
@@ -1062,7 +1066,11 @@ globalThis.AtriumLazy = (() => {
     host.on?.("replace", lockFile);
     d.addEventListener("visibilitychange", () => { if (visible()) lockFile(); });
     lockFile();
-    requestAnimationFrame(() => idle(() => need("AtriumHistoryEntry").catch(() => {})));
+    requestAnimationFrame(() => idle(() => {
+      need("AtriumHistoryEntry").catch(() => {});
+      // Exact schematic curves: sheets drawn before it loaded show their points until this redraw.
+      need("AtriumSchCurves").then(() => globalThis.AtriumNavHost?.redraw?.(true), () => {});
+    }));
     if (/^#atrium(-host)?=1&/.test(globalThis.location?.hash || "")) need("AtriumCollabPresence").catch(() => {}); // invitation link
     start();
     power();
@@ -1078,6 +1086,7 @@ globalThis.AtriumLazy = (() => {
         need("AtriumUIKit").then(() => surface.removeEventListener("focusin", searchFocus, true), () => {});
       };
       surface.addEventListener("focusin", searchFocus, true);
+      prefetch(["AtriumUIKit", "AtriumMotionUI"]); // the kit adopts .ui-search and slides .ui-segmented
       const hintEvents = ["pointerover","pointerout","pointerdown","pointerup","pointercancel","focusin","focusout"];
       let firstHint, loadingHint = false;
       const loadHint = () => {

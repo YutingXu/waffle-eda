@@ -509,10 +509,11 @@ globalThis.AtriumSymbolWizard = (() => {
   const TYPE_NAME = e => Lib().ELECTRICAL[e ?? 4];
   // Not a spreadsheet export: this table is read back by detect(), so pin names stay verbatim (no formula guard).
   const cell = v => /[\t\n"]/.test(v) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  // Hidden pins keep a Hidden column (the source table's hidden role, as kicadSymbols writes), so they stay hidden.
   function tableFromDef(def) {
-    const pins = def?.symbol?.pins || [], gates = (def?.symbol?.parts || 1) > 1;
-    const lines = [["Number", "Name", "Type", "Alternates", ...(gates ? ["Gate"] : [])].join("\t")];
-    for (const p of pins) lines.push([p.number, p.name || "", p.noConnect ? "NC" : TYPE_NAME(p.electrical), (p.alternates || []).join(", "), ...(gates ? [p.part ?? 0] : [])].map(cell).join("\t"));
+    const pins = def?.symbol?.pins || [], gates = (def?.symbol?.parts || 1) > 1, hidden = pins.some(p => p.hidden);
+    const lines = [["Number", "Name", "Type", "Alternates", ...(gates ? ["Gate"] : []), ...(hidden ? ["Hidden"] : [])].join("\t")];
+    for (const p of pins) lines.push([p.number, p.name || "", p.noConnect ? "NC" : TYPE_NAME(p.electrical), (p.alternates || []).join(", "), ...(gates ? [p.part ?? 0] : []), ...(hidden ? [p.hidden ? "yes" : ""] : [])].map(cell).join("\t"));
     return lines.join("\n");
   }
   const KICAD_TYPE = {input: "Input", output: "Output", bidirectional: "I/O", tri_state: "HiZ", passive: "Passive", free: "Passive", unspecified: "Passive",

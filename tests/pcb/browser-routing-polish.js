@@ -397,7 +397,7 @@ module.exports = async function routingPolish(browser, {audit} = {}) {
 
 if (require.main === module) (async () => {
   if (process.env.ATRIUM_ROUTING_SHOTS) await fs.mkdir(process.env.ATRIUM_ROUTING_SHOTS, {recursive: true});
-  const {chromium} = require("playwright-core");
+  const {chromium} = require("../support/playwright.cjs");
   const browser = await chromium.launch({headless: true, ...(process.env.CHROME ? {executablePath: process.env.CHROME} : {channel: "chrome"})});
   try { await module.exports(browser); } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -10,6 +10,15 @@ function cases(page) {
   const panel = page.locator(".panel-library:visible");
   const source = panel.getByRole("combobox", {name:"Library source", exact:true});
   const add = (name, open) => outcomes.push({name, open});
+  // The Library's menus: its sources ("Add library"), its commands ("Library commands") and the selected
+  // component's actions ("More component actions" in the detail).
+  async function menu(trigger, name) {
+    await trigger.click();
+    await page.getByRole("menuitem", {name, exact:typeof name === "string"}).click();
+  }
+  const addLibrary = name => menu(button(panel, "Add library"), name);
+  const libraryCommand = name => menu(button(panel, "Library commands"), name);
+  const componentCommand = name => menu(button(panel.locator(".lib-detail"), "More component actions"), name);
 
   async function action(action) {
     await page.evaluate(async action => {
@@ -113,7 +122,7 @@ function cases(page) {
       });
     });
     await library();
-    await source.selectOption("@group");
+    await addLibrary("Group library…");
     const target = dialog("Group library");
     await target.getByLabel("Your display name", {exact:true}).fill("Geometry reviewer");
     await button(target, "Propose revision…").waitFor();
@@ -200,24 +209,24 @@ function cases(page) {
     await library("geometry-source");
     await panel.getByLabel("Search the library", {exact:true}).fill(name);
     await panel.locator('.lib-row[data-def="geometry-source-resistor"]').click();
-    await button(panel, /^Update project \(/).click();
+    await componentCommand(/^Update project \(/);
     await dialog(/^Update Geometry linked resistor from Geometry library /).locator("svg.ld-svg").first().waitFor();
   });
   add("Update placed parts with a linked older library copy", async () => {
     const {id, name} = await linkedComponent();
     await selectDefinition(id, name);
-    await button(panel, "Update parts").click();
+    await componentCommand("Update placed parts");
     await dialog("Update parts from " + name).getByRole("checkbox", {name:/Earlier geometry resistor/}).waitFor();
   });
   add("Check the project library", async () => {
     await library();
-    await button(panel, /^Check library/).click();
+    await libraryCommand("Check library…");
     await dialog("Check project library").getByText(/error\(s\), .*warning\(s\)/).waitFor();
   });
   add("Check a registered portable library", async () => {
     await linkedComponent();
     await library("geometry-source");
-    await button(panel, /^Check library/).click();
+    await libraryCommand("Check library…");
     await dialog("Check Geometry library").getByText(/error\(s\), .*warning\(s\)/).waitFor();
   });
   add("Check a folder library while its native entries load", async () => {
@@ -239,14 +248,14 @@ function cases(page) {
     await library();
     await panel.getByLabel("Search the library", {exact:true}).fill("Resistor");
     await library(sourceId);
-    await button(panel, /^Check library/).click();
+    await libraryCommand("Check library…");
     const target = dialog("Check Geometry folder library");
     await target.getByRole("status").filter({hasText:/Checking 0 of 1 components/}).waitFor();
     await target.evaluate(d => d.addEventListener("close", () => window.geometryReleaseLibraryCheck(), {once:true}));
   });
   add("Manage component family memberships", async () => {
     await selectDefinition("std-r", "Resistor");
-    await button(panel, "Group component…").click();
+    await componentCommand("Group component…");
     const target = dialog("Component families");
     await target.getByRole("combobox", {name:"Component to add", exact:true}).selectOption("std-c");
     await button(target, "Add component").click();
@@ -262,19 +271,19 @@ function cases(page) {
       return {id, name};
     });
     await selectDefinition(id, name);
-    await button(panel, "Attach footprint…").click();
+    await componentCommand("Attach footprint…");
     const target = dialog("Attach footprint to " + name);
     await target.getByRole("combobox", {name:"Footprint to use", exact:true}).selectOption("std-r");
     await target.getByRole("button", {name:"Attach footprint", exact:true}).waitFor();
   });
   add("Add a package to a library component", async () => {
     await selectDefinition("std-r", "Resistor");
-    await button(panel, "Add package…").click();
+    await componentCommand("Add package…");
     await dialog("Add package to Resistor").getByRole("combobox").first().waitFor();
   });
   add("Save a library component to a new portable library", async () => {
     await selectDefinition("std-r", "Resistor");
-    await button(panel, "Save to library…").click();
+    await componentCommand("Save to library…");
     const target = dialog("Save Resistor to a library");
     await target.getByRole("combobox", {name:"Target library", exact:true}).selectOption("@new");
     await target.getByRole("textbox", {name:"New library name", exact:true}).waitFor();
@@ -286,7 +295,7 @@ function cases(page) {
   });
   add("Save a library component to a folder", async () => {
     await selectDefinition("std-r", "Resistor");
-    await button(panel, "Save to folder…").click();
+    await componentCommand("Save to folder…");
     await dialog("Save to folder").getByRole("combobox", {name:"Library folder", exact:true}).waitFor();
   });
   add("Manage KiCad 3D model folders", async () => {
@@ -297,13 +306,13 @@ function cases(page) {
   add("Import a real KiCad library symbol", async () => {
     await library();
     const chooser = page.waitForEvent("filechooser");
-    await source.selectOption("@import");
+    await addLibrary("Import library files…");
     await (await chooser).setFiles(path.join(__dirname, "../fixtures/kicad/Lab_Amp.kicad_sym"));
     await dialog("Import library components").locator(".lib-import-table tbody tr").first().waitFor();
   });
   add("Choose whether to download the KiCad libraries", async () => {
     await library();
-    await source.selectOption("@kicad");
+    await addLibrary("Get KiCad libraries…");
     await button(dialog("Get KiCad libraries"), "Download").waitFor();
   });
 

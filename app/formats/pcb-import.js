@@ -11,6 +11,9 @@ globalThis.AtriumPCB = (() => {
   const decoder = new TextDecoder("windows-1252");
   const noOwner = 0xffff;
   const yes=s=>/^(true|1|t)$/i.test(s||"");
+  // Arcs, pads, vias, tracks, texts, fills and regions share one binary header. Bit 2 of its flags
+  // byte (offset 1) is set while the primitive is unlocked. base is the header's first byte.
+  const primitiveLocked=(bytes,base=0)=>(bytes[base+1]&4)===0;
   const numbers = {1:"Top",32:"Bottom",33:"Silk",34:"Bottom silk",35:"Top paste",36:"Bottom paste",
     37:"Top mask",38:"Bottom mask",55:"Drill guide",56:"Keepout",73:"Drill drawing",74:"Multi"};
   function layer(n) {
@@ -51,12 +54,67 @@ globalThis.AtriumPCB = (() => {
   // The board's class, pair and xSignal records (doc.sourceClasses): the signal model reads its classes, pairs
   // and xSignals from them (signals.js).
   function keepClasses(doc,lines,notes){
+    const components=Object.keys(doc.componentClasses||{}).length,automatic=automaticClasses.get(doc)||0;
+    // Read, not kept: settleComponentClasses notes the classes that equal the ones Waffle generates per sheet.
+    if(components)notes.push("Read "+components+" component class"+(components===1?"":"es")+"."+
+      (automatic?" "+automatic+" of them "+(automatic===1?"follows":"follow")+" component placement in Altium; Waffle keeps their members from the import.":""));
     if(!lines.length)return;
     doc.sourceClasses=lines;
     const n={0:0,6:0,10:0,pair:0,xs:0};for(const l of lines){const p=props(l),r=(p.RECORD||"").toLowerCase();if(r==="differentialpair")n.pair++;else if(r==="xsignal")n.xs++;else if(/^(0|6|10)$/.test(p.KIND||"")&&!/^(true|t)$/i.test(p.SUPERCLASS||""))n[p.KIND]++;}
     const kept=[[n[0],"net class","net classes"],[n[6],"differential pair class","differential pair classes"],[n[10],"xSignal class","xSignal classes"],[n.pair,"differential pair","differential pairs"],[n.xs,"xSignal","xSignals"]].filter(([k])=>k).map(([k,one,many])=>k+" "+(k===1?one:many));
     if(kept.length)notes.push("Kept "+kept.join(", ")+" (signals and tags).");
+    // Altium measures an xSignal as its routed copper, pad to pad; a series part's own body adds nothing.
+    // Waffle adds the part's pad-to-pad span by default (length-tuning.js seriesModel "pads"), so an
+    // imported board keeps Altium's measurement and its Matched Lengths results.
+    if(n.xs&&!doc.lengthTuning)doc.lengthTuning={version:1,groups:[],targets:{},seriesModel:"none"};
   }
+  // Altium class kinds (docs/design/altium-pairs-xsignals-format.md) and the built-in "superclasses"
+  // (SUPERCLASS=TRUE): one per kind, it names every object of that kind and stores no members. Waffle's
+  // rules and queries know three of them by name (rules.js, design-query-context.js).
+  const CLASS_OBJECTS={0:"net",1:"component",2:"from-to",3:"pad",4:"layer",6:"differential pair",7:"polygon",10:"xSignal"};
+  const BUILT_IN_CLASSES={0:"All Nets",1:"All Components",6:"All Differential Pairs"};
+  const objectsOf=kind=>CLASS_OBJECTS[kind]||"kind "+kind+" object";
+  function superclass(p,rules){
+    const kind=String(p.KIND??"0"),name=String(p.NAME||""),what="Altium's built-in class of every "+objectsOf(kind)+".";
+    if(BUILT_IN_CLASSES[kind]===name)return {status:"kept",reason:what+" Waffle's rules and queries read "+name+" the same way."};
+    // A rule that names it is reported with that rule; the class itself is then a loss too.
+    const quoted="'"+name.replace(/'/g,"''").toLowerCase()+"'";
+    if(name&&(rules||[]).some(line=>String(line).toLowerCase().includes(quoted)))
+      return {status:"dropped",reason:what+" Waffle has no class of this name, so a rule that names it matches nothing."};
+    return {status:"notApplicable",reason:what+" It stores no members and no rule names it."};
+  }
+  // Component classes (KIND 1) become the board's stored component classes (component-classes.js
+  // doc.componentClasses), which InComponentClass('Name') rule scopes match. Altium's automatic classes
+  // (Top Side, Bottom Side, Inside Board and Outside Board Components) follow placement in Altium; Waffle
+  // stores their members at import. A class Altium generated per schematic sheet is settled after
+  // linking (import-link.js settleComponentClasses).
+  const naturalOrder=typeof Intl==="object"&&Intl.Collator?new Intl.Collator(undefined,{numeric:true}).compare:(a,b)=>String(a).localeCompare(String(b));
+  const classMemberName=v=>typeof v==="string"&&!!v.trim()&&v===v.trim()&&v.length<=200&&!/[\u0000-\u001f']/.test(v);
+  const automaticClasses=new WeakMap();
+  function componentClass(doc,p,decide){
+    const field=k=>p["%UTF8%"+k]??p[k],name=field("NAME"),members=[];
+    for(let i=0;i<20000&&field("M"+i)!=null;i++){const m=String(field("M"+i));if(classMemberName(m)&&!members.includes(m))members.push(m);}
+    const store=doc.componentClasses||{};
+    const problem=!classMemberName(name)?"Waffle class names have 1 to 200 characters, without quotes or control characters.":
+      Object.hasOwn(store,name)?"An earlier component class has the same name.":Object.keys(store).length>=2048?"A board holds at most 2048 component classes.":null;
+    if(problem){decide(()=>({status:"dropped",reason:problem}));return;}
+    const stored=members.sort(naturalOrder),automatic=truth(p.AUTOGENERATEDCLASS);
+    (doc.componentClasses||=store)[name]=stored;
+    if(automatic)automaticClasses.set(doc,(automaticClasses.get(doc)||0)+1);
+    decide(()=>automatic?{status:"approximated",reason:"Altium updates this class from component placement. Waffle stores its members at import and does not update them."}:
+      doc.componentClasses?.[name]===stored?{status:"kept",reason:"Stored as a component class of the board."}:
+      {status:"kept",reason:"Waffle generates this class, with the same members, from the schematic sheet of the same name."});
+  }
+  // One Classes6 or SignalClasses record (or ASCII Class line) of a board. kinds: the class kinds the signal
+  // model reads from doc.sourceClasses (signals.js). Every record stays in doc.sourceClasses either way.
+  function boardClass(doc,p,kinds,evidence,decide){
+    const kind=String(p.KIND??"0");
+    if(truth(p.SUPERCLASS)){const r=superclass(p,doc.sourceRules);evidence?.(r.status,r.reason);}
+    else if(kinds.test(kind))evidence?.("kept");
+    else if(kind==="1")componentClass(doc,p,decide);
+    else evidence?.("dropped","Waffle has no "+objectsOf(kind)+" classes.");
+  }
+  // Per-sheet classes are settled after linking: import-link.js settleComponentClasses.
   function props(s) { return AtriumAltiumRecords.properties(s, true, true); }
   // PCB ASCII contains a DXPRule and (in Designer's own Save As) a Protel
   // compatibility Rule with the same index. That copy can be disabled or have
@@ -360,7 +418,7 @@ globalThis.AtriumPCB = (() => {
     const v=view(bytes),start=base+22+v.getUint32(base+18,true);
     if(start+4>end)throw Error("Truncated region properties.");
     const p=props(decoder.decode(bytes.subarray(base+22,start)));
-    return {p,start,layer:layer(p.V7_LAYER||bytes[base]),keep:!!(bytes[base+2]&2)||truth(p.KEEPOUT),
+    return {p,start,layer:layer(p.V7_LAYER||bytes[base]),keep:!!(bytes[base+2]&2)||truth(p.KEEPOUT),locked:primitiveLocked(bytes,base),
       net:v.getUint16(base+3,true),poly:v.getUint16(base+5,true),owner:v.getUint16(base+7,true),holes:v.getUint16(base+14,true)};
   }
   function regionRecords(bytes,extended,report,onInvalid){
@@ -641,6 +699,7 @@ globalThis.AtriumPCB = (() => {
       fields.removeDeadCopper=false;fields.minPrimLength=0;fields.arcApproximation=.001;
     }
     if(yes(p.SHELVED))fields.shelved=true;
+    if(yes(p.LOCKED))fields.locked=true;
     if(yes(p.KEEPOUT))fields.cutout=true;
     const min=length(p.MINPRIMLENGTH),arc=length(p.ARCRESOLUTION);
     if(min>=0)fields.minPrimLength=min;
@@ -845,7 +904,7 @@ globalThis.AtriumPCB = (() => {
         try{g=regionGeometry(b,r.start,b.length,r.holes,false);}
         catch{g=regionGeometry(b,r.start,b.length,r.holes,true);}
         if(truth(r.p.ISSHAPEBASED)&&!g.contour)report("Shape-based footprint regions retained as stored outlines");
-        return {obj:regionItem(kind,r.layer,g,r.p),owner:r.owner,net:r.net};
+        return {obj:regionItem(kind,r.layer,g,r.p),owner:r.owner,net:r.net,locked:r.locked};
       }catch(error){report("Unreadable footprint region: "+error.message);return null;}
     }
     if(![1,2,3,4,5,6].includes(type)){
@@ -854,6 +913,8 @@ globalThis.AtriumPCB = (() => {
       if(type!==12)throw Error("Unsupported binary primitive "+type);
       report("3D bodies");return null;
     }
+    // The frame is intact, so a payload too short for its kind's fixed fields drops only this record.
+    if(geom.length<{1:45,2:60,3:31,4:33,5:21,6:37}[type]){report("Truncated binary "+["","arc","pad","via","track","text","fill"][type]+" records");return null;}
     const v=view(geom),U=i=>v.getUint16(i,true),L=i=>tickMM(v.getInt32(i,true)),D=i=>v.getFloat64(i,true);
     const position=i=>[L(i),-L(i+4)];
     const l=layer(geom[0]),owner=U(7),net=U(3),polygon=U(5);
@@ -936,7 +997,7 @@ globalThis.AtriumPCB = (() => {
     }
     if(geom[2]===2&&Object.hasOwn(keepoutMaskOffset,type))
       obj=keepoutObject(obj,keepoutExtension?binaryKeepoutMask(geom,type,l,report):undefined);
-    return {owner,net,obj,mirrored:type===5&&!!geom[35],polygon:type===1||type===4?polygon:noOwner};
+    return {owner,net,obj,locked:primitiveLocked(geom),mirrored:type===5&&!!geom[35],polygon:type===1||type===4?polygon:noOwner};
   }
   // LettersGeometry is the board's saved tessellation of the characters actually
   // used. A set ends with its Texts6 record indices. Its contours are already
@@ -1135,7 +1196,7 @@ globalThis.AtriumPCB = (() => {
       const mask=/^\d+$/.test(p.KEEPOUTRESTRICTIONS?.trim())?Number(p.KEEPOUTRESTRICTIONS):undefined;
       obj=keepoutObject(obj,mask);
     }
-    return {owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,obj,mirrored:type==="text"&&!!obj.mirrored};
+    return {owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,obj,locked:yes(p.LOCKED),mirrored:type==="text"&&!!obj.mirrored};
   }
 
   function newPart(params,index) {
@@ -1147,6 +1208,26 @@ globalThis.AtriumPCB = (() => {
     const item={id:A.id(),kind:"part",def:def.id,ref,value:params.SOURCECOMMENT||params.COMMENT||name,
       x,y,angle:-Number(params.ROTATION||0),layer:layer(params.LAYER||"TOP"),link:A.id(),pinNets:{}};
     return {def,item};
+  }
+  // PrimitiveParameters/Data: a header row per component (ID=Component#<Components6 row>, COUNT=n)
+  // followed by its n NAME/VALUE rows; UNICODE__<key> carries the exact text as character codes.
+  // Rows without APPURTENANCE are the component's own parameters (datasheet and supplier links
+  // among them). System rows hold vault GUIDs and Footprint rows the library's; neither is kept.
+  // The values go on the placement's own footprint definition, as a schematic symbol keeps its
+  // parameters on its definition, so the ECO does not see them as per-placement edits.
+  function componentParameters(rows,placed) {
+    let target=null,left=0;
+    const field=(r,key)=>r["UNICODE__"+key]!=null&&/^\d+(,\d+)*$/.test(r["UNICODE__"+key])?String.fromCharCode(...r["UNICODE__"+key].split(",").map(Number)):r[key];
+    for(const r of rows){
+      if(r.PRIMITIVEID!=null){
+        const m=/^Component#(\d+)$/i.exec(r.ID||"");
+        target=m&&r.APPURTENANCE==null?placed[+m[1]]:null;left=Math.max(0,Number(r.COUNT)||0);continue;
+      }
+      if(!left)continue;left--;
+      const name=field(r,"NAME"),value=field(r,"VALUE");
+      if(!target||typeof name!=="string"||!name||value==null)continue;
+      (target.def.parameters??={})[name]=String(value);
+    }
   }
   function local(point,item) {return A.rotate([point[0]-item.x,point[1]-item.y],-item.angle);}
   function addToFootprint(part,obj) {
@@ -1331,7 +1412,7 @@ globalThis.AtriumPCB = (() => {
     if (counts.missing) notes.push(counts.missing + " STEP body reference(s) need a matching project model.");
     if (counts.unsupported) notes.push(counts.unsupported + " body record(s) use an unsupported 3D model type.");
   }
-  function read(name,streams,ascii,{appearance=true,drillDrawing=true,textPlacement=2,bodyGeometry=true,legacyArcPaths=false,nativeText=true,fidelity=null}={}) {
+  function read(name,streams,ascii,{appearance=true,drillDrawing=true,textPlacement=2,bodyGeometry=true,legacyArcPaths=false,nativeText=true,locks=true,fidelity=null}={}) {
     if(textPlacement && textPlacement!==1)textPlacement=2;
     const isLib=/\.pcblib$/i.test(name),doc=A.sheet("pcb",name.replace(/\.[^.]+$/,""));
     // Stable ids (altium-ids.js): UNIQUEIDs and primitive GUIDs, else content; libraries keep fresh ids.
@@ -1353,6 +1434,13 @@ globalThis.AtriumPCB = (() => {
       if(target)fidelity.track(kind,status,src,target,reason);
       else fidelity.add(kind,status,src,reason);
     });
+    // A status that depends on the other selected files (translator-adapters.js decide), else settled now.
+    const decided=(kind,ref)=>resolve=>{
+      if(!fidelity)return;
+      const src={file:name,object:ref};
+      if(fidelity.decide)fidelity.decide(kind,src,resolve);
+      else{const r=resolve(()=>false);fidelity.add(kind,r.status,src,r.reason);}
+    };
     function produced(target,ref){
       if(target&&ref)fidelity?.produced?.("pcb",{file:name,object:ref},target);
     }
@@ -1391,6 +1479,7 @@ globalThis.AtriumPCB = (() => {
         else part.item.link=ids.link("part:"+(p.UNIQUEID||part.item.id));
       }
       if(sourceRecord)part.item.sourceRecord=sourceRecord;
+      if(yes(p.LOCKED))part.item.locked=true;
       if(drawing && sourceRecord || preserveText && ascii!=null && !isLib){
         part.showDesignator=!/^(false|0)$/i.test(p.NAMEON||"");
         part.showComment=/^(true|1)$/i.test(p.COMMENTON||"");
@@ -1430,6 +1519,8 @@ globalThis.AtriumPCB = (() => {
       if(sourcePour&&obj.kind==="track")obj.sourcePour=sourcePour;
       const part=partOverride||parts.get(owner);
       if(part){
+        // A footprint's primitives and a part's designator and comment strings have no lock of their own.
+        if(row.locked&&!isLib&&locks)report("Locks on primitives inside components not kept");
         if(obj.sourceTextBox && /^\.(?:designator|comment)$/i.test(obj.text))
           obj.sourceTextBox.text=/^\.designator$/i.test(obj.text)?part.item.ref:part.item.value;
         if(obj.role && obj.size>0 && (drawing && part.item.sourceRecord || preserveText && ascii!=null && !isLib)){
@@ -1444,7 +1535,7 @@ globalThis.AtriumPCB = (() => {
         return addToFootprint(part,obj);
       }
       if(!isLib){
-        const item={id:ids?stableId(obj,sourceRecord,row.uid):A.id(),...obj,...(sourceRecord?{sourceRecord}:{})};
+        const item={id:ids?stableId(obj,sourceRecord,row.uid):A.id(),...obj,...(sourceRecord?{sourceRecord}:{}),...(row.locked?{locked:true}:{})};
         doc.items.push(item);produced(item,ref);return item;
       }
     }
@@ -1476,9 +1567,10 @@ globalThis.AtriumPCB = (() => {
         if(t==="component")component(p,compIndex++,null,at(p));
         if(t==="board")evidence?.("Board settings",at(p),"approximated",null,"Board outline, origin and supported stack settings translated.");
         if(t==="library")evidence?.("Library metadata",at(p),"approximated",null,"Library entries are imported separately.");
-        if(t==="class"||t==="differentialpair"){
-          const kept=!isLib && (t==="differentialpair" || /^(0|6|10)$/.test(p.KIND||"0")) && !truth(p.SUPERCLASS);
-          evidence?.(t==="class"?"Class":"Differential pair",at(p),kept?"kept":"dropped",null,kept?undefined:"Class has no editable native membership.");
+        if(t==="differentialpair")evidence?.("Differential pair",at(p),isLib?"dropped":"kept",null,isLib?"Class has no editable native membership.":undefined);
+        if(t==="class"){
+          if(isLib)evidence?.("Class",at(p),"dropped",null,"Class has no editable native membership.");
+          else boardClass(doc,p,/^(0|6|10)$/,evidence&&((status,reason)=>evidence("Class",at(p),status,null,reason)),decided("Class",at(p)));
         }
         if(t==="net")evidence?.("Net",at(p),"kept");
         if(t==="net"){nets.set(p.ID!=null?Number(p.ID):netIndex,p.NAME||"Net "+netIndex);netIndex++;}
@@ -1537,7 +1629,7 @@ globalThis.AtriumPCB = (() => {
             }else{
               let target;
               if(kind==="board cutout")addBoardCutout(doc,g);
-              else target=put({obj:regionItem(kind,l,g,p),owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,uid:p.UNIQUEID},null,null,at(p));
+              else target=put({obj:regionItem(kind,l,g,p),owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,uid:p.UNIQUEID,locked:yes(p.LOCKED)},null,null,at(p));
               evidence?.("Region",at(p),"kept",target);
             }
           }catch(error){
@@ -1611,7 +1703,11 @@ globalThis.AtriumPCB = (() => {
       if(drillDrawing && board.DRILLSYMBOLASENUM==="0"){
         try{drillMap=drillManager(get("drillmanager"));}catch{ /* Unknown framing keeps the native drill drawing. */ }
       }
-      records(get("components")).forEach((p,i)=>component(p,i,dataPath("components")+"#"+i));
+      const placed=records(get("components")).map((p,i)=>component(p,i,dataPath("components")+"#"+i));
+      if(!isLib&&get("primitiveparameters")?.length){
+        try{componentParameters(records(get("primitiveparameters")),placed);}
+        catch(error){notes.push("Component parameters unavailable. "+error.message);}
+      }
       // Polygons6: each copper pour becomes a Waffle polygon pour (outline,
       // net, pour order, island removal, hatch). Its stored Regions6 islands
       // become that pour's current copper (tagged region.polygon), so the board
@@ -1695,6 +1791,7 @@ globalThis.AtriumPCB = (() => {
       }
       if(missingFontOutlines)notes.push(missingFontOutlines+" older TrueType string(s) have no usable embedded outlines; these use the available system font.");
       const mapped=new Set(["board","nets","components",...Object.keys(binaryTypes)]);
+      if(placed.some(part=>part.def.parameters))mapped.add("primitiveparameters");
       if(bodyGeometry && (streams.get("componentbodies6/data")?.length || streams.get("shapebasedcomponentbodies6/data")?.length)){
         componentBodies(doc,parts,streams,null,notes,null,evidence);
         for(const section of ["componentbodies","shapebasedcomponentbodies","models","modelsnoembed"])mapped.add(section);
@@ -1745,7 +1842,7 @@ globalThis.AtriumPCB = (() => {
             }
             if(kind==="board cutout"){addBoardCutout(doc,g);boards++;evidence?.("Region",ref,warning?"approximated":"kept",null,warning);continue;}
             const obj=regionItem(kind,r.layer,g,p);
-            const target=put({obj,owner,net},null,ref);evidence?.(overlay?"Silkscreen polygon region":"Region",ref,warning?"approximated":"kept",target,warning);
+            const target=put({obj,owner,net,locked:r.locked},null,ref);evidence?.(overlay?"Silkscreen polygon region":"Region",ref,warning?"approximated":"kept",target,warning);
             if(kind==="polygon cutout")cutouts++;
             else if(kind==="keepout")keepouts++;
             else if(overlay)artwork.regions++;
@@ -1805,19 +1902,19 @@ globalThis.AtriumPCB = (() => {
           while(c.i<bytes.length){const src=stream+"#"+index++;const b=block(bytes,c);if(!b.length)continue;
             const line=AtriumAltiumRecords.textLine(b,true);
             const p=props(line);
-            if(kinds&&/^(true|t)$/i.test(p.SUPERCLASS||"")){evidence?.(record,src,"dropped",null,"Superclass membership is not represented.");continue;}
-            // Other class kinds (component, pad, layer, polygon) have no native model yet. Their records stay
-            // as source data so rule conversion can tell a class that exists from one that matches nothing.
-            if(kinds&&!kinds.test(p.KIND||"")){otherClasses++;evidence?.(record,src,"dropped",null,"Unsupported class kind "+p.KIND);
-              classLines.push("RECORD="+record+"|"+line.replace(/(?:^|\|)RECORD=[^|]*/i,"").replace(/^\|/,""));continue;}
-            evidence?.(record==="Class"?"Class":"Differential pair",src,"kept");
+            // Every class record stays as source data, so rule conversion can tell a class that exists (a
+            // superclass, or a pad, layer or polygon class with no native model yet) from one that matches nothing.
+            if(kinds){
+              if(!truth(p.SUPERCLASS)&&!kinds.test(p.KIND||"")&&p.KIND!=="1")otherClasses++;
+              if(!isLib)boardClass(doc,p,kinds,evidence&&((status,reason)=>evidence("Class",src,status,null,reason)),decided("Class",src));
+            }else evidence?.("Differential pair",src,"kept");
             classLines.push("RECORD="+record+"|"+line.replace(/(?:^|\|)RECORD=[^|]*/i,"").replace(/^\|/,""));
           }
           mapped.add(stream.replace(/6?\/data$/,""));
         }catch(error){notes.push("Class records could not be read: "+error.message);}
       }
       if(!isLib)keepClasses(doc,classLines,notes);
-      if(otherClasses)notes.push("Omitted "+otherClasses+" other class(es) (component, pad, layer, polygon).");
+      if(otherClasses)notes.push("Omitted "+otherClasses+" other class(es) (pad, layer, polygon, from-to).");
       if(streams.get("pinpairssection/data")?.length)notes.push("PinPairsSection records were not read (their layout is not known); xSignals come from the board record.");
       mapped.add("pinpairssection");
       for(const [key,bytes] of streams.entries()){
@@ -1877,6 +1974,11 @@ globalThis.AtriumPCB = (() => {
         if(used.size)fp.bodyModels=[...used];
       }
     }
+    // A board with source locks is stamped, so that unlocking one later is a change from the source.
+    // An import made before locks were read has no stamp and no locks; its Altium copy re-reads the
+    // source the same way (source-copy.js passes locks: false).
+    if(!locks)for(const i of doc.items)delete i.locked;
+    else if(!isLib&&doc.items.some(i=>i.locked===true))doc.sourceLockVersion=1;
     for(const [label,n] of counts)notes.push(label+" ("+n+").");
     notes.push((doc.bodyModelVersion ? "PCB import includes 3D bodies. " : "PCB import projects 2D geometry. ") + "Layer-specific pad stacks, pours and manufacturing settings require review in the source design.");
     doc.notes=notes.slice();
@@ -1885,5 +1987,5 @@ globalThis.AtriumPCB = (() => {
   function netNames(streams){
     return records(streams.get("nets6/data")||streams.get("nets/data")).map((p,i)=>p.NAME||"Net "+i);
   }
-  return {read,asciiRuleRecords,netNames,polygon,outline,regionGeometry,drillPlots,gerberPlots,addProfileJobs};
+  return {read,asciiRuleRecords,netNames,primitiveLocked,polygon,outline,regionGeometry,drillPlots,gerberPlots,addProfileJobs};
 })();

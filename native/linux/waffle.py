@@ -1187,6 +1187,62 @@ def main():
     return application.run([sys.argv[0], str(args.project)] if args.project else [sys.argv[0]])
 
 
+class PowerSaver:
+    """Efficiency mode's signal for one editor page (app/core/power.js): lowPower is true in the
+    Power Saver power mode. GLib's GPowerProfileMonitor (2.70 and later) follows power-profiles-daemon's
+    "power-saver" profile (net.hadess.PowerProfiles, or the portal in a sandbox). Without it (an older
+    GLib) nothing is reported and Automatic stays off. Running on battery alone is not a signal."""
+
+    def __init__(self, monitor):
+        self.monitor, self.run, self.sent, self.handler = monitor, None, None, None
+
+    def low_power(self):
+        try:
+            return bool(self.monitor.get_power_saver_enabled())
+        except Exception:  # no monitor, or one that cannot answer
+            return False
+
+    def state(self):
+        return json.dumps({"lowPower": self.low_power()})
+
+    def start(self, run):
+        """run(script) delivers to the editor page; the monitor's changes follow from here."""
+        self.run = run
+        if self.monitor is not None and self.handler is None:
+            self.handler = self.monitor.connect("notify::power-saver-enabled", lambda *_: self.push())
+
+    def script(self, force=False):
+        """The script that tells the page, or None when it already knows (force: after a load)."""
+        if self.monitor is None:
+            return None
+        low = self.low_power()
+        if not force and low == self.sent:
+            return None
+        self.sent = low
+        state = json.dumps({"lowPower": low})
+        return ("globalThis.__atriumPowerState=" + state +
+                ";window.dispatchEvent(new CustomEvent('atrium-power',{detail:" + state + "}))")
+
+    def push(self, force=False):
+        script = self.script(force)
+        if script and self.run:
+            self.run(script)
+
+    def stop(self):
+        if self.handler is not None:
+            self.monitor.disconnect(self.handler)
+        self.handler = self.run = None
+
+
+def power_profile_monitor():
+    """GLib's power-profile monitor, or None where this GLib has none (before 2.70)."""
+    try:
+        from gi.repository import Gio
+        return Gio.PowerProfileMonitor.dup_default()
+    except Exception:  # ImportError, or AttributeError on an older GLib
+        return None
+
+
 def bridge_message(raw, capability):
     """GTK's message signal does not supply the sending frame. Authenticate before dispatch."""
     if not isinstance(raw, str) or not raw.startswith(capability):
@@ -1333,6 +1389,9 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
     if initial_files or workspace:
         bridge = "window.__atriumOpeningProject = true;\n" + bridge
     bridge = "window.__atriumHostAccent = " + json.dumps(system_accent(Gtk.Button().get_style_context())) + ";\n" + bridge
+    power = PowerSaver(power_profile_monitor())
+    if power.monitor is not None:
+        bridge = "window.__atriumPowerState = " + power.state() + ";\n" + bridge
     manager.add_script(WebKit2.UserScript.new(
         bridge, WebKit2.UserContentInjectedFrames.TOP_FRAME,
         WebKit2.UserScriptInjectionTime.START, None, None))
@@ -1348,6 +1407,12 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
             return
         accent = color
         view.run_javascript("window.__waffleSystemAccent?.(" + json.dumps(color) + ")", None, None, None)
+
+    def power_changed(script):
+        if editor is not None and editor.get_uri() == PAGE.as_uri():
+            editor.run_javascript(script, None, None, None)
+
+    power.start(power_changed)
 
     async_git_reply = hasattr(editor, "call_async_javascript_function")
     # Live sessions use WebRTC data channels where this WebKitGTK provides them (2.38+, built with
@@ -2921,6 +2986,7 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
             lan.stop()   # a reloaded page has no session to share
         if event == WebKit2.LoadEvent.FINISHED:
             accent_changed(editor)
+            power.push(force=True)
             if workspace_group is not None and workspace_peer is not workspace_group.writer:
                 workspace_event({"type": "arrival", "tab": workspace_peer["tab"]})
         if event == WebKit2.LoadEvent.FINISHED and startup_link and editor.get_uri() == PAGE.as_uri():
@@ -3019,6 +3085,7 @@ def create_editor_window(Gdk, GLib, Gtk, WebKit2, initial_files, open_window, wi
         # so a worker's Python garbage collection cannot release the closed WebKit view.
         manager.disconnect(message_handler)
         manager.unregister_script_message_handler("atriumHost")
+        power.stop()
         for handler in editor_handlers:
             editor.disconnect(handler)
         for handler in window_handlers:

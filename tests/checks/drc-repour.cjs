@@ -7,6 +7,9 @@ const assert = require("node:assert/strict");
 for (const m of ["model", "nav-common", "spatial", "connectivity", "rules", "drc", "pcb-edit", "drc-view", "problem-marks", "drc-markers", "drc-fixes", "drc-pours", "diagnostics", "checks", "undo-store"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 require("../support/drc-geometry.cjs");
 const V = AtriumDRCView, U = AtriumUndoStore, F0 = AtriumDRCFixes, scheduler = AtriumChecks.scheduler;
+// Missing Courtyard is off by default; this board's user has turned it on (Preferences › Design Checks).
+let courtyardPref = true;
+globalThis.AtriumPref = {get: (key, fallback) => key === "checks.courtyard" ? courtyardPref : fallback};
 let passed = 0;
 const test = (name, fn) => { fn(); passed++; console.log("ok - " + name); };
 
@@ -127,4 +130,81 @@ test("a pour-only repour reuses the extra checks; real edits re-check", () => {
   } finally { scheduler.reset(); U.reset(); globalThis.AtriumDRCFixes = F0; }
 });
 
-console.log(passed + " drc-repour tests passed");
+// Preferences › Design Checks › Missing Courtyard on or off: only that type's findings join or leave the
+// published results. Nothing else is checked again, and with online DRC off the batch results stay.
+test("the courtyard preference adds or drops only Missing Courtyard, online and after a batch run", () => {
+  const bare = {id: "bare", name: "R", footprint: {name: "R0603", shapes: [], pads: fp.footprint.pads}};
+  const doc = {kind: "pcb", id: "b3", name: "T", outline: [[-20, -20], [40, -20], [40, 20], [-20, 20]], layerNames: {},
+    items: [track("t1", "A", [[0, 0], [5, 0]]), {kind: "part", id: "p1", def: "bare", ref: "R1", x: 20, y: 0, pinNets: {"1": "C", "2": "D"}}]};
+  const project = {format: "atrium", name: "P", library: [bare], documents: [doc]};
+  const defs = new Map(project.library.map(d => [d.id, d]));
+  let redraws = 0, onlineCalls = 0;
+  const host = {doc: () => doc, docById: () => doc, defs: () => defs, project: () => project, units: () => "mm", info() {},
+    registerAction() {}, addRenderer() {}, on() {}, invalidate() {redraws++;}, redraw() {}, act() {}, tool: () => "select",
+    selectDocument() {}, currentId: () => doc.id, revision: () => 1, stageEdit() {return {cancel() {}};}};
+  globalThis.AtriumDRCFixes = {...F0, online(...args) {onlineCalls++; return F0.online(...args);}};
+  const types = () => V.violations(doc.id).map(v => v.type).sort();
+  const others = () => V.violations(doc.id).filter(v => v.type !== "courtyard");
+  courtyardPref = true;
+  U.reset(); U.touch(project); U.sync();
+  try {
+    V.attach(host);
+    V.check();
+    assert.deepEqual(types(), ["courtyard", "netAntennae"], "online: both extras");
+    const kept = others(), calls = onlineCalls;
+    for (const on of [false, true, false]) {
+      courtyardPref = on; redraws = 0;
+      V.retype("courtyard");
+      assert.equal(types().includes("courtyard"), on, "online: Missing Courtyard follows the preference (" + on + ")");
+      assert.deepEqual(others(), kept, "online: the other findings stay, the same objects");
+      assert.equal(V.status(), null, "nothing waits for a new check");
+      assert.ok(redraws > 0, "the board is drawn again");
+    }
+    assert.equal(onlineCalls, calls, "online: no check runs again");
+    // A copper-only pass afterwards reuses the extras as they are now.
+    V.check();
+    assert.ok(!types().includes("courtyard"), "a later pass keeps the preference");
+
+    // Online DRC off, after a batch run: the batch findings stay through the toggle.
+    V.setEnabled(false);
+    courtyardPref = true;
+    V.run();
+    assert.ok(types().includes("courtyard") && types().includes("netAntennae"), "batch: both extras " + JSON.stringify(types()));
+    const batch = others();
+    for (const on of [false, true]) {
+      courtyardPref = on;
+      V.retype("courtyard");
+      assert.equal(types().includes("courtyard"), on, "batch: Missing Courtyard follows the preference (" + on + ")");
+      assert.deepEqual(others(), batch, "batch: the other findings stay with online DRC off");
+    }
+  } finally { V.setEnabled(true); scheduler.reset(); U.reset(); globalThis.AtriumDRCFixes = F0; courtyardPref = true; }
+});
+
+// A board with pours that is open when the view attaches (the view loads lazily after the board opens,
+// so the scheduler's document event has passed): the online check waits for pour clearance, which must
+// then be planned by the view itself. Before, the status stayed "Checking…" until some later edit.
+async function settlesWithoutAnEdit() {
+  const doc = {kind: "pcb", id: "b2", name: "T", outline: [[-20, -20], [40, -20], [40, 20], [-20, 20]], layerNames: {},
+    items: [track("t1", "A", [[0, 0], [5, 0]])], pcbDrawing: {pours: [region(0, 2, 0)]}};
+  const project = {format: "atrium", name: "P", library: [fp], documents: [doc]};
+  const defs = new Map(project.library.map(d => [d.id, d])), jobs = new Map();
+  const host = {doc: () => doc, docById: () => doc, defs: () => defs, project: () => project, units: () => "mm", info() {},
+    registerAction() {}, addRenderer() {}, on() {}, invalidate() {}, redraw() {}, act() {}, tool: () => "select",
+    stageEdit(phase, key, run) { jobs.set(key, run); return {cancel() {if (jobs.get(key) === run) jobs.delete(key);}}; }};
+  U.reset(); U.touch(project); U.sync();
+  try {
+    V.attach(host);
+    const t0 = Date.now();
+    // Run whatever the scheduler stages, the way idle slices would, and let its debounce timers fire.
+    while (V.status() !== null && Date.now() - t0 < 5000) {
+      for (const [key, run] of [...jobs]) { jobs.delete(key); run(() => true, {timeRemaining: () => 8}); }
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(V.status(), null, "online DRC settles after opening, without another edit");
+    assert.ok(Date.now() - t0 < 2000, "and promptly: " + (Date.now() - t0) + " ms");
+    assert.ok(V.violations(doc.id).some(v => v.type === "pourClearance" && v.otherId === "t1"), "pour clearance is published");
+    passed++; console.log("ok - a board open before the view attaches settles without an edit");
+  } finally { scheduler.reset(); U.reset(); }
+}
+
+settlesWithoutAnEdit().then(() => console.log(passed + " drc-repour tests passed"), e => { console.error(e); process.exitCode = 1; });

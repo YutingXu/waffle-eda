@@ -303,7 +303,7 @@ async function speculate() {
   // Efficiency pauses speculation even when a saved preference opts in.
   globalThis.AtriumPower={efficient:()=>true};
   const sp=S.stats.skippedPower;S.intent("submenu",true);await idle();
-  assert.equal(S.stats.started,started,"no speculation on battery");assert.equal(S.stats.skippedPower,sp+1);
+  assert.equal(S.stats.started,started,"no speculation in Efficiency mode");assert.equal(S.stats.skippedPower,sp+1);
   S.setMode("always");S.intent("submenu",true);await idle();
   assert.equal(S.stats.started,started,"Efficiency still pauses opted-in speculation");
   S.setMode("off");S.intent("submenu",true);await idle();assert.equal(S.stats.started,started,"off");

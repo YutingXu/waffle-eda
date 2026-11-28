@@ -3,6 +3,7 @@
 // release.json and RELEASE.md, vendor bundles, zip packages, per-variant releases, the input-hash
 // cache, release records and compare, v1 job-set migration, the worker's module list and the
 // Gerber thumbnail renderer (app/formats/release-preview.js, DOM-free part).
+require("../support/utc.cjs");   // package names carry the local date of a fixed instant
 const assert = require("node:assert/strict");
 const fs = require("node:fs"), path = require("node:path");
 if (!globalThis.performance) globalThis.performance = {now: () => Date.now()};

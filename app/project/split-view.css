@@ -51,7 +51,7 @@
 .pane-close {flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;
   margin:auto var(--s-4) auto auto;width:var(--s-24);height:var(--s-24);color:var(--split-ink)}
 /* The split control is a library icon button; this only places it before the Follow eye and the close button. */
-.pane-tabs > .pane-arrange {flex:none;margin:auto 0 auto auto}
+.pane-tabs .pane-arrange {flex:none;margin:auto 0}
 .pane-follow + .pane-arrange {margin-inline-start:2px}
 .pane-arrange + .pane-close {margin-inline-start:2px}
 .pane-close .icon {width:var(--chrome-glyph-dense);height:var(--chrome-glyph-dense)}

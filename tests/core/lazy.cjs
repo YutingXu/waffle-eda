@@ -67,6 +67,8 @@ assert.deepEqual(L.forAction("route", "pcb"), ["AtriumRouter"], "interactive rou
 for (const a of ["repour", "repour-selected", "drc", "connectivity"])
   assert.ok(L.forAction(a, "pcb").includes("AtriumEngine"), a + " requests its board kernel");
 assert.equal(L.forAction("select", "pcb"), null);
+// Design Review's Board connectivity dialog reads the solver's result (ctx.connections), so it loads the solver.
+assert.ok(L.files("AtriumDesignReview").includes("checks/connectivity.js"), "Design Review loads the connectivity solver");
 
 // Eager modules must not capture a lazy global when they load (it would stay undefined).
 const lazyGlobals = new Set(L.modules().concat(["AtriumDiffPair", "AtriumFanout", "AtriumAPI", "AtriumScripting", "AtriumBOMOptimiser", "AtriumSCH", "AtriumPCB", "AtriumSourceFile", "CFB"]));
@@ -128,6 +130,7 @@ assert.ok(L.files().includes("pcb/board-shape.js") && !eager.includes("pcb/board
 const curves = "pcb/resolved-geometry-curves.js";
 assert.ok(!eager.includes(curves), "the curve resolver loads only on board or format demand");
 assert.deepEqual(L.files("AtriumBoardShape"), [curves, "pcb/board-shape.js"], "authoring loads its physical curve dependency first");
+assert.deepEqual(L.files("AtriumConnectivity"), [curves, "checks/connectivity.js"], "physical connectivity loads its copper geometry first");
 assert.ok(L.boardRenderers({documents:[{kind:"pcb", boardShape:{cutouts:[[]]}}]}).includes("AtriumGeometryCurves"));
 assert.ok(!L.boardRenderers({documents:[{kind:"pcb"}]}).includes("AtriumGeometryCurves"), "board references stay cold");
 assert.ok(L.boardRenderers({documents:[{kind:"pcb", items:[]}]}).includes("AtriumGeometryCurves"), "materialized boards load synchronous copper geometry before paint");
@@ -147,7 +150,7 @@ assert.deepEqual(L.validatorsFor({documents: [{kind: "schematic", items: [{kind:
   for (const f of ["canvas/stroke-font.js", "pcb/pcb-text.js", "canvas/vectorize.js", "pcb/pcb-text-rich.js", "canvas/pcb-net-labels.js"])
     assert.ok(L.files().includes(f) && !eager.includes(f), f + " is lazy");
   const base = "AtriumPCBText", nets = "AtriumPCBNetLabels", rich = "AtriumPCBTextRich", board = items => ({documents: [{kind: "pcb", items}]});
-  const boardReaders = ["AtriumRules", "AtriumGeometryCurves"];
+  const boardReaders = ["AtriumRules", "AtriumGeometryCurves", "AtriumConnectivity"];
   assert.deepEqual(L.validatorsFor(board([{kind: "label", text: "A", font: "truetype"}])), [...boardReaders, base, nets, rich]);
   assert.deepEqual(L.validatorsFor(board([{kind: "label", text: "A", inverted: true}])), [...boardReaders, base, nets, rich]);
   assert.deepEqual(L.validatorsFor(board([{kind: "label", text: "A"}, {kind: "part"}])), [...boardReaders, base, nets]);
@@ -193,6 +196,7 @@ async function main() {
   const motionProviders = new Set(["ui/surface-motion.js", "editor/editor-motion.js", "automation/command-broker.js",
     "automation/command-catalog.js", "editor/motion-service.js"]);
   const defines = {"core/zip.js": "AtriumZip", "formats/bom.js": "AtriumBOM", "formats/bom-optimiser.js": "AtriumBOMOptimiser", "pcb/router.js": "AtriumRouter", "core/geometry.js": "AtriumGeometry", "pcb/land-contours.js": "AtriumLandContours", [curves]: "AtriumGeometryCurves",
+    "checks/connectivity.js": "AtriumConnectivity",
     "formats/altium-records.js": "AtriumAltiumRecords", "checks/altium-rules.js": "AtriumAltiumRules", "checks/design-query-record.js":"AtriumDesignQueryRecord", "pcb/designator-place.js": "AtriumDesignators",
     "pcb/diffpair.js": "AtriumDiffPair", "pcb/route-feel.js": "AtriumRouteFeel", "pcb/teardrops.js": "AtriumTeardrops", "analysis/impedance.js": "AtriumImpedance", "checks/drc.js": "AtriumDRC",
     "canvas/stroke-font.js": "AtriumStrokeFont", "pcb/pcb-pours.js": "AtriumPCBPours", "pcb/pour-marker.js": "AtriumPourMarker",

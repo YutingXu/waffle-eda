@@ -91,7 +91,7 @@
   padding-block:0;
   vertical-align:middle;
 }
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
+:where(.ui-field,.ui-compact-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
   appearance:none;
   border-radius:var(--chrome-control-radius);
   padding-inline-end:calc(var(--s-12) + 2 * var(--s-8));
@@ -103,7 +103,7 @@
   background-position:right var(--s-16) center,right var(--s-12) center;
 }
 :where(.statusbar select.status-action) {appearance:none}
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))):where(:dir(rtl)) {
+:where(.ui-field,.ui-compact-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))):where(:dir(rtl)) {
   background-position:left var(--s-12) center,left var(--s-16) center;
 }
 :where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=search]) {
@@ -119,7 +119,9 @@
 :where(.ui-field-measure) {display:flex;align-items:baseline;gap:var(--s-4);min-inline-size:0}
 :where(.ui-field-measure) > input {flex:0 1 var(--field-number-width);min-inline-size:0}
 :where(.ui-field-unit) {flex:none;color:var(--muted);font:var(--fs-11)/var(--lh) var(--font-ui);white-space:nowrap}
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is([aria-invalid=true],:user-invalid) {border-color:var(--error)}
+/* An invalid field. :is(input,textarea,select) gives it the specificity of the shared face above (0,1,1),
+   which it follows, so the error border is not overwritten by that face's border shorthand. */
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input,textarea,select):is([aria-invalid=true],:user-invalid) {border-color:var(--error)}
 :is(input,select):is(.ui-field,.lib-dialog *)[data-edit-rejected] {border-color:var(--ui-field-error,var(--err-mark))}
 input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(--error-ink);color:var(--ui-field-error)}
 :is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=none] {--ui-severity-color:var(--erc-none,var(--tint-success))}
@@ -131,12 +133,20 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 .ui-severity-cell:hover {outline:1px solid var(--focus)}
 .ui-severity-swatch {width:12px;height:12px}
 .ui-severity-field[data-severity] {width:120px;border-inline-start-color:var(--ui-severity-color,var(--erc-none))}
-.ui-compact-field {height:var(--ctl-h-sm);border:1px solid var(--input-line);border-radius:var(--r-sm);background:var(--field);color:var(--ink);font-size:var(--fs-11)}
+.ui-compact-field {height:var(--ctl-h-sm);padding-inline-start:var(--s-6);border:1px solid var(--input-line);border-radius:var(--chrome-control-radius);background-color:var(--field);color:var(--ink);font-size:var(--fs-11)}
 .ui-field[data-grid-editing] {width:100%;border-color:var(--focus)}
 #inspector input:not([type="checkbox"]):focus,#inspector select:focus {border-color:var(--focus);outline:none}
 .ui-field[data-field-face=paper] {min-height:36px;max-width:100%;color:var(--ink);background:var(--sheet);border:1px solid var(--line)}
 :where(.ui-field)::placeholder {color:var(--muted)}
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea,select)):disabled {color:var(--muted)}
+/* Disabled fields read as unavailable: a hairline instead of the field line, a muted well and muted text.
+   Read-only fields hold a value to read or copy: no box line, ink text on a quiet well. Both outrank the
+   shared face above (same :is() specificity plus the state). */
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select):disabled {
+  border-color:var(--line);background-color:color-mix(in srgb,var(--field) 55%,var(--soft));color:var(--muted);-webkit-text-fill-color:var(--muted);opacity:1;
+}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea)[readonly]:not(:disabled) {
+  border-color:transparent;background-color:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink);
+}
 
 @media (forced-colors:active) {
   :where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
@@ -152,10 +162,37 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
   > span:first-child:not([aria-hidden=true],.icon) +
     :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select,textarea,.ui-field-measure)
 ) {align-items:baseline}
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]) {accent-color:var(--accent);flex:none}
+/* Checkbox and radio: the library draws both (2026-11-27 prototype) instead of the platform's widget, so they
+   share the field's line, the primary fill and the icon stroke. Inputs paint no pseudo-element in WebKit, so
+   the tick is a background glyph (--glyph-check) and the radio dot a gradient; both appear with the
+   fill's fade over --motion-fast, at once with Reduced motion. Full-cell grid checkboxes keep their own face. */
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {
+  --ui-check-time:calc(var(--motion-fast) * var(--motion-move));
+  appearance:none;-webkit-appearance:none;flex:none;box-sizing:border-box;display:inline-block;vertical-align:middle;
+  inline-size:14px;block-size:14px;margin:0;border:1px solid var(--input-line);
+  background:center/0 0 no-repeat var(--field);cursor:default;
+  transition:background-color var(--ui-check-time) var(--ease-decelerate),border-color var(--ui-check-time) var(--ease-decelerate);
+}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)) {border-radius:var(--r-md);background-image:var(--glyph-check)}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)):checked {background-size:10px 10px}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)):indeterminate {
+  background-image:linear-gradient(var(--on-primary),var(--on-primary));background-size:8px 2px}
+:where(.ui-radio) {border-radius:var(--r-pill);background-image:radial-gradient(circle,var(--on-primary) 0 2.5px,transparent 3px)}
+:where(.ui-radio):checked {background-size:12px 12px}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):is(:checked,:indeterminate) {
+  border-color:var(--primary);background-color:var(--primary)}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):disabled {
+  border-color:var(--line);background-color:color-mix(in srgb,var(--field) 55%,var(--soft))}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):disabled:is(:checked,:indeterminate) {
+  border-color:transparent;background-color:color-mix(in srgb,var(--primary) 45%,var(--field))}
+:where(.ui-checkbox-row,.ui-radio-row):has(> :disabled) {color:var(--muted)}
+@media (forced-colors:active) {
+  :where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {appearance:auto;-webkit-appearance:auto;background:none}
+}
 :where(.ui-checkbox-row) {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h)}
 :where(.ui-checkbox-row) > :where(.ui-checkbox) {margin:0}
-/* Switch: input.ui-switch[role=switch] at the inline end of its label.ui-switch-row, centred on the
+/* Switch: input.ui-switch[role=switch] at the inline end of its label.ui-switch-row (at the value column's
+   start in a property row, components.css), centred on the
    nearest positioned ancestor (the row by default). The row paints the knob because WebKit paints no
    pseudo-element on an input. A change crossfades the track and slides the knob over --motion-toggle;
    Reduced motion (--motion-move 0) and Off apply the new state at once. A switch never animates when it
@@ -178,6 +215,13 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
   border-radius:var(--r-pill);background:var(--focus-edge-light);box-shadow:var(--elev-1);
   transition:transform var(--ui-switch-time) var(--ease-decelerate);
 }
+/* Disabled: the track keeps its state colour but fades toward the field, the knob loses its lift and the
+   caption mutes. data-locked (K.switchRow({locked})) adds a lock to the knob; the row's title says why. */
+.ui-switch-row:has(> .ui-switch:disabled) {color:var(--muted)}
+.ui-switch-row > .ui-switch:disabled {border-color:var(--line);background:color-mix(in srgb,var(--line-strong) 45%,var(--field))}
+.ui-switch-row > .ui-switch:disabled:checked {border-color:transparent;background:color-mix(in srgb,var(--primary) 45%,var(--field))}
+.ui-switch-row:has(> .ui-switch:disabled)::after {box-shadow:none;background-color:color-mix(in srgb,var(--focus-edge-light) 72%,var(--field))}
+.ui-switch-row[data-locked]:has(> .ui-switch)::after {background:var(--glyph-lock) center/10px 10px no-repeat color-mix(in srgb,var(--focus-edge-light) 72%,var(--field))}
 /* Reduced: the knob moves at once (it has no fade of its own). */
 :root:is([data-motion=reduce],[data-efficient]) .ui-switch-row:has(> .ui-switch)::after {transition:none}
 @media (prefers-reduced-motion:reduce) {:root .ui-switch-row:has(> .ui-switch)::after {transition:none}}
@@ -266,6 +310,10 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 }
 
 #inspector input:not([type="checkbox"]):focus-visible,#inspector select:focus-visible {outline:var(--focus-w) solid var(--focus);outline-offset:-1px}
+/* A unit inside the field (property rows): the box takes the field's focus, so the input inside draws none. */
+#inspector .ui-prop-row > .ui-field-measure > input:focus-visible {outline:0}
+#inspector .ui-prop-row > .ui-field-measure:has(> input:focus) {border-color:var(--focus)}
+#inspector .ui-prop-row > .ui-field-measure:has(> input:focus-visible) {outline-offset:-1px}
 
 :where(dialog:is(.ui-dialog,.work-dialog,.message-dialog),#library-dialog) {
   width:var(--ui-dialog-width,min(560px,calc(100vw - 40px)));
@@ -395,6 +443,14 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
   & .ui-segmented > .ui-segment:is(button,label) {min-height:calc(var(--ui-control-height) - 4px);margin:0;border-color:transparent;border-radius:var(--r-md);background:transparent;color:var(--muted);font-weight:var(--fw-medium)}
   & .ui-segmented > .ui-segment:hover:not(:disabled,:has(:disabled)) {background:var(--button-face);color:var(--ink)}
   & .ui-segmented > .ui-segment:is([aria-pressed=true],[aria-checked=true],:has(input:checked)) {background:light-dark(var(--field),var(--raised));border-color:transparent;color:var(--ink)}
+  /* A change slides the raised face (ui/kit.js sets data-sliding and the thumb's x and width for one move). */
+  & .ui-segmented {position:relative}
+  /* It keeps the old segment's width and moves by translate and scale only (the motion contract). */
+  & .ui-segmented[data-sliding]::before {content:"";position:absolute;inset-block:2px;left:0;width:var(--ui-thumb-w);
+    translate:var(--ui-thumb-x) 0;scale:var(--ui-thumb-s) 1;transform-origin:left center;
+    border-radius:var(--r-md);background:light-dark(var(--field),var(--raised));pointer-events:none}
+  & .ui-segmented[data-sliding=go]::before {transition:translate calc(var(--motion-toggle) * var(--motion-move)) var(--ease-decelerate),scale calc(var(--motion-toggle) * var(--motion-move)) var(--ease-decelerate)}
+  & .ui-segmented[data-sliding] > .ui-segment:is(button,label) {background:transparent}
   /* Toggle chips: off is a hairline and muted text, on is a raised neutral fill with ink text. */
   & .bom-chip {font-weight:var(--fw-medium)}
   /* Every text field and select has the control radius, whichever panel styled it. */
@@ -406,7 +462,7 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
    aligned, option text on the field's own text inset (1 px border + 4 px padding + 4 px option inset). */
 .ui-select-list {
   box-sizing:border-box;max-inline-size:min(420px,calc(100vw - 16px));overflow:auto;overscroll-behavior:contain;
-  padding:var(--s-4);border:1px solid var(--line-strong);border-radius:var(--r-sm);
+  padding:var(--s-4);border:1px solid var(--line-strong);border-radius:var(--r-lg);
   background:var(--menu-bg);color:var(--ink);box-shadow:var(--elev-2);outline:none;
 }
 /* Focus shows as the active option, as in a menu. */

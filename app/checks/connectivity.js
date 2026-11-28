@@ -145,6 +145,23 @@ globalThis.AtriumConnectivity = (() => {
     }
     return {...bore,core,radius};
   }
+  // A net's islands as the ratsnest's terminals, when the net has lands of unplated pads (entity.pin).
+  // The lands of one pad are one terminal, like a pin: no copper joins them (no barrel, so they stay apart
+  // for shorts), and the ratsnest never asks for a zero-length join between them; reaching the pad on
+  // any layer reaches it. A terminal of nothing but such lands is optional: nothing plates the hole to a
+  // pin and pours keep clear of it (polygon-pour.js), so the ratsnest asks for it only through copper
+  // of its net that touches it. A net of optional terminals only keeps its first as its one island.
+  function terminals(islands){
+    const first=new Map(),join=sets(islands.length);let merged=false;
+    islands.forEach((members,k)=>{for(const e of members)if(e.pin){const j=first.get(e.pin);if(j==null)first.set(e.pin,k);else if(join.join(j,k))merged=true;}});
+    let out=islands;
+    if(merged){
+      const by=new Map();out=[];
+      islands.forEach((members,k)=>{const r=join.root(k);let g=by.get(r);if(!g){by.set(r,g=[]);out.push(g);}for(const e of members)g.push(e);});
+    }
+    const wanted=out.filter(members=>members.some(e=>!e.pin));
+    return wanted.length===out.length?out:wanted.length?wanted:out.slice(0,1);
+  }
   function airwireEdges(islands,net) {
     if(islands.length<2)return [];
     // Anchors of each island (its pads when it has any); n is the point's slot in rootOf.
@@ -252,8 +269,19 @@ globalThis.AtriumConnectivity = (() => {
     function addEntity(i,parent,slot,cutouts=[]){
       const declared=padLayer(parent,i);
       if(index(declared)<0&&declared!=="Multi")return;
+      // The land of an unplated hole is copper of its pad's net (none when the pad has none), as the DRC
+      // sees it (rules.js extract): a track of another net touching it is a short, and netless lands
+      // can join two nets. Nothing plates the hole, so no barrel joins its lands: one node per copper
+      // layer, one object for the counts. The ratsnest takes the lands of one pad as one terminal (terminals()).
+      if(i.kind==="pad"&&i.plated===false&&i.drill>0&&declared==="Multi"){
+        const excluded=b.excluded,unassigned=b.unassigned,first=b.entities.length,pin=JSON.stringify([parent?.id||i.id,slot]);
+        for(const key of copper())addEntity({...i,layer:key},parent,slot+"/"+key);
+        for(let n=first;n<b.entities.length;n++){b.entities[n].pin=pin;if(n>first)b.entities[n].twin=true;}
+        b.excluded=Math.min(b.excluded,excluded+1);b.unassigned=Math.min(b.unassigned,unassigned+1);
+        return;
+      }
       const layers=copperSpan(i,parent,declared);
-      if(!layers||i.kind==="pad"&&i.plated===false&&i.drill>0){if(!drillOnly(i))b.excluded++;return;}
+      if(!layers){if(!drillOnly(i))b.excluded++;return;}
       const id=parent?.id||i.id,key=JSON.stringify([id,slot]);
       const net=parent&&i.kind==="pad"&&Object.hasOwn(parent.pinNets||{},i.number)?parent.pinNets[i.number]:i.net||"";
       const label=parent ? parent.ref+(i.kind==="pad"?"."+String(i.number||"?"):" copper") : i.kind==="pad"?"Pad "+(i.number||"?"):i.kind==="track"?"Track":i.kind==="region"?(i.teardrop?"Teardrop":"Copper region"):"Via";
@@ -279,7 +307,8 @@ globalThis.AtriumConnectivity = (() => {
         if(i.closed&&!A.same(line[0],line.at(-1)))shapes.push({core:[line.at(-1),line[0]],radius:i.width/2});
         points.push(line[0]);if(!A.same(line[0],line.at(-1)))points.push(line.at(-1));
       }else{
-        for(const key of padPlanes(i,declared,copper)){
+        // A back-drill removes the land and barrel beyond its stop layer (AtriumViaStack.padOn, as DRC).
+        for(const key of i.kind==="via"&&i.backdrill?copper():padPlanes(i,declared,copper)){
           const plane=key==null?-1:index(key);
           if(plane>=0&&(plane<layers[0]||plane>layers[1]))continue;
           const geom=padGeometry(i,parent,key);
@@ -387,11 +416,12 @@ globalThis.AtriumConnectivity = (() => {
     const copper=globalThis.AtriumPolygonPour?.contactRegions?.(doc,defs,o);
     joinIslandLinks(union,entities,copper);
     const tied=T?T.resolve(union):null;
-    const roots=new Map(),byNet=new Map();
+    const roots=new Map(),byNet=new Map(),pinned=new Set();
     for(let n=0;n<entities.length;n++){
       const e=entities[n],r=union.root(n);
       if(!roots.has(r))roots.set(r,[]);roots.get(r).push(e);
       if(!e.net)continue;
+      if(e.pin)pinned.add(e.net);
       if(!byNet.has(e.net))byNet.set(e.net,new Map());
       const groups=byNet.get(e.net);if(!groups.has(r))groups.set(r,[]);groups.get(r).push(e);
     }
@@ -415,11 +445,13 @@ globalThis.AtriumConnectivity = (() => {
     if(tied)for(const s of tied.shorts){shorts.push(s);s.nets.forEach(n=>shorted.add(n));}
     {const key=new Map(shorts.map(s=>[s,JSON.stringify([s.nets,s.fromId,s.toId,s.from])]));shorts.sort((a,b)=>cmp(key.get(a),key.get(b)));}
     // Airwires: Rust/WebAssembly (engine-core.js, lazy) for all nets at once, else airwireEdges.
-    const air=o?.airwires!==false,nets=[],airwires=[],names=[...byNet.keys()].sort(cmp),groups=names.map(n=>[...byNet.get(n).values()]),batch=air?globalThis.AtriumEngine?.airwires?.(groups,names):null;
+    // Unplated lands: groups are the ratsnest's terminals (terminals()); the counts take every island.
+    const air=o?.airwires!==false,nets=[],airwires=[],names=[...byNet.keys()].sort(cmp),all=names.map(n=>[...byNet.get(n).values()]),
+      groups=all.map((g,k)=>pinned.has(names[k])?terminals(g):g),batch=air?globalThis.AtriumEngine?.airwires?.(groups,names):null;
     for(const [k,name] of names.entries()){
-      const islands=groups[k], items=islands.flat();
+      const islands=groups[k], items=all[k].flat();
       const links=!air?null:batch?batch[k]:airwireEdges(islands,name);
-      nets.push({name,pads:items.filter(i=>i.kind==="pad").length,tracks:items.filter(i=>i.kind==="track").length,
+      nets.push({name,pads:items.filter(i=>i.kind==="pad"&&!i.twin).length,tracks:items.filter(i=>i.kind==="track").length,
         vias:items.filter(i=>i.kind==="via").length,islands:islands.length,missing:links?links.length:null,shorted:shorted.has(name)});
       if(links)for(const link of links)airwires.push(link);
     }
@@ -427,5 +459,5 @@ globalThis.AtriumConnectivity = (() => {
     return {nets,airwires,shorts,excluded,unassigned,stats,sourceNotes,...(tied?{ties:tied.allowed}:{})};
   }
   const inspect=(doc,defs,journal,o)=>doc.kind==="pcb"&&o?.airwires!==false&&globalThis.AtriumConnectivityLive?.inspect(doc,defs,journal,o)||inspectFull(doc,defs,o);
-  return {inspect,inspectFull,fillPieces,copperSpan,kit:{A,EPS,cmp,compareKey,sets,contact,builder,airwireEdges,joinIslandLinks}};
+  return {inspect,inspectFull,fillPieces,copperSpan,kit:{A,EPS,cmp,compareKey,sets,contact,builder,terminals,airwireEdges,joinIslandLinks}};
 })();

@@ -709,7 +709,7 @@ globalThis.AtriumSupportPlace = (() => {
     kindSel.onchange = () => { pinSel.disabled = !cands.length || !kindSel.value || kindSel.value === "none" || kindSel.value === "connector"; if (!kindSel.value || kindSel.value === "none" || kindSel.value === "connector" || pinSel.value) save(); };
     pinSel.onchange = save;
     kindSel.setAttribute("aria-label", "Placement role"); pinSel.setAttribute("aria-label", "Target pin");
-    const row = (label, ctl) => { const l = el("label", null, "field-row"); l.append(el("span", label), ctl); s.append(l); };
+    const row = (label, ctl) => { const l = el("label", null, "ui-prop-row"); ctl.classList.add("ui-field"); l.append(el("span", label), ctl); s.append(l); };
     row("Role", kindSel); if (cands.length) row("Serves", pinSel);
     if (r && r.kind !== "connector") s.append(H.ui.button("Place next to its pin", () => { H.select([item.id], item.id); open("support"); }));
   }

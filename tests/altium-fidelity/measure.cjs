@@ -236,7 +236,8 @@ assert.deepEqual(archivedCopper(recovered.documents.find(d => d.kind === "pcb"))
   "Altium project exchange changed original polygons, islands, holes or hatch strokes");
 function sourceTotals(report) {
   return Object.fromEntries(report.kinds.map(row => {
-    const totals = {kept:0,approximated:0,dropped:0};
+    const quiet = row.notApplicable ? {notApplicable:row.notApplicable} : {};
+    const totals = {kept:0,approximated:0,dropped:0,...(row.notApplicable ? {notApplicable:0} : {})};
     let references = 0;
     for (const ref of AtriumTranslatorRegistry.references(row)) {
       assert(ref.source.file && Number.isSafeInteger(ref.count) && ref.count > 0 && Object.hasOwn(totals,ref.status),
@@ -245,7 +246,7 @@ function sourceTotals(report) {
       references++;
     }
     assert.equal(references,row.referenceCount,"missing source references for "+row.kind);
-    assert.deepEqual(totals,{kept:row.kept,approximated:row.approximated,dropped:row.dropped},"source outcomes for "+row.kind);
+    assert.deepEqual(totals,{kept:row.kept,approximated:row.approximated,dropped:row.dropped,...quiet},"source outcomes for "+row.kind);
     return [row.kind,totals];
   }));
 }

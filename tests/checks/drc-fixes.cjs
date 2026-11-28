@@ -36,6 +36,15 @@ test("net antennae: dangling track ends and unconnected tracks are reported", ()
   assert.ok(v.every(x => x.warning && x.ruleName === "Net Antennae"));
 });
 
+test("net antennae: a track ending on an unplated land of its net reaches it (land-contours, as connectivity)", () => {
+  const mh = {kind: "pad", id: "mh", net: "GND", number: "1", x: 0, y: 0, w: 6, h: 6, shape: "round", layer: "Multi", drill: 3.2, plated: false};
+  const ends = items => F.checks(board(items), defs, ["netAntennae"]).filter(x => x.type === "netAntennae").map(x => [x.id, x.end]).sort();
+  const items = net => [mh, pad("p", "GND", 10, 0), track("top", net, [[10, 0], [2.5, 0]]), track("bottom", "GND", [[0, -2.5], [0, -10], [10, -10]], .25, "Bottom")];
+  assert.deepEqual(ends(items("GND")), [["bottom", 1]], "both ends on the land are reached, on each side");
+  assert.deepEqual(ends(items("VCC")).map(x => x[0]), ["bottom", "top"], "another net's track does not end on it");
+  assert.deepEqual(ends([{...mh, w: 3.2, h: 3.2}, pad("p", "GND", 10, 0), track("top", "GND", [[10, 0], [1.4, 0]])]), [["top", 1]], "no land around the drill");
+});
+
 test("dangling contacts follow the placed land through preview, commit and Undo", () => {
   const {F4,F5,mirroredLandPoint,mirroredTopRow}=require("../support/a1-geometry.cjs");
   require("../../app/pcb/stackup.js");
@@ -117,6 +126,25 @@ test("missing courtyard: only footprints without one", () => {
   const b = board([{kind: "part", id: "u", def: "r2", ref: "R1", x: 0, y: 0, angle: 0, pinNets: {}}, {kind: "part", id: "j", def: "tht", ref: "J1", x: 5, y: 0, angle: 0, pinNets: {}}]);
   const v = F.checks(b, defs).filter(x => x.type === "courtyard");
   assert.deepEqual(v.map(x => x.id), ["u"]);
+});
+
+test("missing courtyard is off by default; asked for by type or turned on in Preferences", () => {
+  const b = board([{kind: "part", id: "u", def: "r2", ref: "R1", x: 0, y: 0, angle: 0, pinNets: {}}]);
+  const courtyards = (o = {}, d = b) => F.augment(R.drc(d, defs, rules, o), d, defs, o).violations.filter(v => v.type === "courtyard").map(v => v.id);
+  const previous = globalThis.AtriumPref;
+  try {
+    delete globalThis.AtriumPref;
+    assert.deepEqual(courtyards(), [], "batch DRC without the preference");
+    assert.deepEqual(courtyards({checkMode: "online"}), [], "online DRC without the preference");
+    assert.equal(R.checkSelected(b, "courtyard", {checkMode: "online"}), false);
+    assert.equal(R.checkSelected(b, "netAntennae", {checkMode: "online"}), true, "net antennae stays on");
+    assert.deepEqual(courtyards({types: ["courtyard"]}), ["u"], "asked for by type");
+    globalThis.AtriumPref = {get: (key, fallback) => key === "checks.courtyard" ? true : fallback};
+    assert.deepEqual(courtyards(), ["u"], "turned on in Preferences");
+    const excluded = {...b, ruleCheckSelection: {batch: ["courtyard"], online: []}};
+    assert.deepEqual(courtyards({}, excluded), [], "a board's own exclusion still applies");
+    assert.deepEqual(courtyards({checkMode: "online"}, excluded), ["u"]);
+  } finally { if (previous === undefined) delete globalThis.AtriumPref; else globalThis.AtriumPref = previous; }
 });
 
 test("augment adds the extra checks and their rule rows to a DRC result", () => {

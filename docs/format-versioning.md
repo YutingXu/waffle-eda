@@ -73,6 +73,13 @@ single-owner edit and compare the archived assets byte for byte. The editor test
 discards and restores the retained precision through ordinary Save and Undo.
 [Physical project](../tests/fixtures/format-2/instrument)
 
+The immutable `schematic-curves` project carries the optional schematic fields that a 2.0 reader
+keeps as ordinary item and shape values: a symbol circle, a symbol editor arc, ellipses
+(`ellipse {a, b, sweep}`) and Bézier curves (`bezier {controlPoints}`) beside their points, a sheet
+arc in the board form, and the signal, polarity, tags, netClass and diffPair directive fields on wires
+and net labels. Releases 0.8.0 to 0.8.2 open, draw and re-save it with those fields intact.
+[Physical project](../tests/fixtures/format-2/schematic-curves) · [Curves](../app/schematic/sch-curves.js)
+
 ## Butter optional project metadata
 
 Saved queries, saved views, slides, links, link anchors, datasheet references
@@ -136,7 +143,7 @@ expected closure digest. Native opaque records, unknown required features and fu
 majors follow the native policy above.
 
 Run `scripts/compat-corpus.py --check`, `scripts/compat-guard.py --check` and
-`python3 tests/format-2-independent-reader.py`. The independent reader uses
+`python3 tests/formats/format-2-independent-reader.py`. The independent reader uses
 Python's standard library to verify the disk fixtures, header policy, byte
 retention and the published project digest. [Independent reader](../tests/formats/format-2-independent-reader.py)
 For an additive native contract change, append a physical example and its digest,
@@ -164,7 +171,7 @@ Stored values from a newer build retain their original data when this build cann
 | ECO files | `atrium-eco` 2 (reads 1) | |
 
 When you change one: bump its version, keep reading the old one (an upgrader in its reader), add a fixture to `tests/fixtures/compat/stores/` and a check to
-`tests/compat-stores.cjs`. For local storage, either keep the old layout readable or move to a
+`tests/formats/compat-stores.cjs`. For local storage, either keep the old layout readable or move to a
 new key, so a rollback still finds its data.
 
 ## Updates

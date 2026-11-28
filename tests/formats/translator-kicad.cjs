@@ -95,7 +95,7 @@ const project = file("main.kicad_pro", JSON.stringify({net_settings: {classes: [
   const offsetPad = ofKind(sink, "pad")[1];
   assert.equal(offsetPad.target.slotLength, 2);
   assert.match(offsetPad.reason, /Pad copper offsets were ignored/);
-  assert.match(offsetPad.reason, /copper capsule is drawn as an ellipse/);
+  assert.doesNotMatch(offsetPad.reason, /ellipse/, "a KiCad oval is the same capsule in the editor");
   assert.doesNotMatch(offsetPad.reason, /slotted holes import as round/i);
   assert.deepEqual(statuses(sink, "pad-field"), ["dropped"]);
   assert.deepEqual(statuses(sink, "via"), ["approximated"]);

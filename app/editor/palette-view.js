@@ -7,6 +7,7 @@ globalThis.AtriumPaletteView = (() => {
     "palette.command_name": "Command palette",
     "palette.insert_name": "Insert palette",
     "palette.search": "Search commands, parts, settings…",
+    "palette.search_components": "Search components…",
     "palette.commands": "Type a command…",
     "palette.objects": "Designator, net or pad…",
     "palette.position": "X, Y",
@@ -309,7 +310,8 @@ globalThis.AtriumPaletteView = (() => {
       const name = isInsert ? t("palette.insert_name") : t("palette.command_name");
       dialog.setAttribute("aria-label", name); input.setAttribute("aria-label", name);
       const placeholder = isInsert ? t("palette.insert_search") : mode === ">" ? t("palette.commands") :
-        mode === "@" ? t("palette.objects") : mode === ":" ? t("palette.position") : t("palette.search");
+        mode === "@" ? t("palette.objects") : mode === ":" ? t("palette.position") :
+        dialog.dataset.paletteScope === "library" ? t("palette.search_components") : t("palette.search");
       // Chromium replaces its painted placeholder text node even for a same-value write.
       if (input.placeholder !== placeholder) input.placeholder = placeholder;
       list.setAttribute("aria-label", t("palette.results")); aside.setAttribute("aria-label", t("palette.preview"));

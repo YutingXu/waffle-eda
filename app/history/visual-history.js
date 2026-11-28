@@ -218,7 +218,7 @@ globalThis.AtriumVisualHistory = (() => {
         const kind=info.rows?.some(c=>c.added?.length)?"plus":info.rows?.some(c=>c.removed?.length)?"minus":i?"select":"project";
         const icon=K().icon(kind);icon.classList.add("ui-row-icon","hist-edit-icon");
         r.classList.add("ui-row");
-        const words=el("span","hist-text ui-row-text"),name=el("span","hist-label ui-row-title",info.label),meta=el("span","hist-meta ui-row-detail",
+        const words=el("span","ui-dock-text ui-row-text"),name=el("span","hist-label ui-row-title",info.label),meta=el("span","hist-meta ui-row-detail",
           info.docs?.map(d=>d.name||d.kind).join(", ")||"");
         const status=el("span","hist-state-label",i===state.at?"Current":i>state.at?"Undone":"");meta.append(status);
         words.append(name,meta);

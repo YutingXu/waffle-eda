@@ -30,10 +30,10 @@ async function run(browser){
     assert.equal(await page.evaluate(()=>!!window.AtriumVisualHistory),false);
     await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
     await page.evaluate(async()=>{await AtriumLazy.need("AtriumHistoryPanel");AtriumNavHost.act("history-panel");});
-    await page.locator(".panel-history .hist-list:visible").first().waitFor();
+    await page.locator('.ui-dock-panel[data-dock="history"] .ui-dock-list:visible').first().waitFor();
     await page.locator(".hist-scrub").waitFor();
-    assert.equal(await page.locator(".hist-list > .hist-row").count(),0,"only reviewed Undo rows are mounted");
-    await page.locator(".panel-history").getByRole("button",{name:"Close History",exact:true}).click();
+    assert.equal(await page.locator(".ui-dock-list > .hist-row").count(),0,"only reviewed Undo rows are mounted");
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
     await page.evaluate(async()=>{
       const prefs=await AtriumLazy.need("AtriumPrefs");
       prefs.set("butter.visualHistory",true);prefs.set("labs.notebook",true);
@@ -65,7 +65,7 @@ async function run(browser){
         h.edit(()=>{i.value="Butter test";},"Set value "+i.ref,[i]);
         AtriumNavHost.act("history-panel");
       },kind);
-      const panel=page.locator(".panel-history"),list=panel.locator(".hist-list[aria-label='Undo steps']");
+      const panel=page.locator('.ui-dock-panel[data-dock="history"]'),list=panel.locator(".ui-dock-list[aria-label='Undo steps']");
       await panel.waitFor();await list.locator(".hist-row").first().waitFor();
       const index=await page.evaluate(()=>histCase.len+1), entry=panel.locator('.hist-row[data-index="'+index+'"]');
       await entry.click();await panel.locator('.hist-design-preview[data-ready=true]').waitFor();
@@ -89,13 +89,13 @@ async function run(browser){
       assert.equal(await page.evaluate(()=>AtriumNavHost.doc().items.find(i=>i.id===histCase.id).value),"Butter test");
       await list.focus();await page.keyboard.press("Home");await panel.locator(".hist-preview:not([hidden])").waitFor();
       await page.keyboard.press("Escape");await panel.locator(".hist-preview").waitFor({state:"hidden"});
-      await panel.getByRole("button",{name:"Close History"}).click();
+      await page.getByRole("button",{name:"Close History",exact:true}).click();
       await page.evaluate(async()=>{
         const h=AtriumNavHost,d=h.doc(),i=d.items.find(x=>x.kind==="part");h.select([i.id]);
         const transfer=new DataTransfer();h.canvas().dispatchEvent(new ClipboardEvent("copy",{bubbles:true,cancelable:true,clipboardData:transfer}));
         await AtriumLazy.need("AtriumClipHistory");AtriumNavHost.act("clipboard-panel");
       });
-      const clip=page.locator(".panel-clip");await clip.waitFor();
+      const clip=page.locator('.ui-dock-panel[data-dock="clipboard"]');await clip.waitFor();
       const pins=clip.getByRole("button",{name:"Pinned",exact:true});if(await pins.getAttribute("aria-pressed")==="true")await pins.click();
       const rows=clip.locator(".clip-item");await clip.getByRole("searchbox").fill("");await rows.first().waitFor();
       await clip.getByRole("searchbox").fill("does-not-occur");await clip.getByText("No matching clips.").waitFor();
@@ -103,7 +103,7 @@ async function run(browser){
       await rows.first().getByRole("button",{name:/^Pin/}).click();
       await clip.getByRole("button",{name:"Pinned",exact:true}).click();await rows.first().waitFor();
       if(process.env.WAFFLE_HISTORY_SHOTS)await clip.screenshot({path:path.join(process.env.WAFFLE_HISTORY_SHOTS,kind+"-clips.png")});
-      await clip.getByRole("button",{name:"Close Clipboard"}).click();
+      await page.getByRole("button",{name:"Close Clipboard",exact:true}).click();
     }
     await page.evaluate(()=>AtriumNavHost.act("clipboard-picker"));
     const picker=page.getByRole("dialog",{name:"Clipboard history"});await picker.waitFor();
@@ -137,7 +137,7 @@ async function run(browser){
       h.edit(()=>{i.x+=2;},"Anchor fork",[i]);h.edit(()=>{i.y+=3;},"Later fork edit",[i]);
       window.forksBefore=AtriumUndoStore.branches().length;h.act("history-panel");
     });
-    const sessionPanel=page.locator(".panel-history");
+    const sessionPanel=page.locator('.ui-dock-panel[data-dock="history"]');
     const anchor=sessionPanel.getByRole("option").filter({hasText:"Anchor fork"});
     await anchor.click();await sessionPanel.locator(".hist-design-preview[data-ready=true]").waitFor();
     await sessionPanel.getByRole("button",{name:"Fork here"}).click();
@@ -145,7 +145,7 @@ async function run(browser){
     await sessionPanel.locator(".hist-branches summary").click();
     await sessionPanel.locator(".hist-branch").first().getByRole("button",{name:"Preview"}).click();
     await sessionPanel.locator(".hist-design-preview[data-ready=true]").waitFor();
-    await sessionPanel.getByRole("button",{name:"Close History"}).click();
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
 
     const photo=await page.evaluate(async()=>{
       const c=document.createElement("canvas");c.width=24;c.height=12;
@@ -243,11 +243,11 @@ async function measure(browser){
     const baseline=(await cdp.send("Runtime.getHeapUsage")).usedSize;
     const firstAt=performance.now();
     await page.evaluate(()=>AtriumNavHost.act("history-panel"));
-    const panel=page.locator(".panel-history"),list=panel.locator(".hist-list[aria-label='Undo steps']");
+    const panel=page.locator('.ui-dock-panel[data-dock="history"]'),list=panel.locator(".ui-dock-list[aria-label='Undo steps']");
     await list.locator(".hist-row").first().waitFor();
     const firstMs=performance.now()-firstAt;
     const run=await page.evaluate(async()=>{
-      const box=document.querySelector(".hist-list[aria-label='Undo steps']"),frames=[];
+      const box=document.querySelector(".ui-dock-list[aria-label='Undo steps']"),frames=[];
       let previous,peakRows=0;
       for(let n=0;n<=80;n++){
         const stamp=await new Promise(requestAnimationFrame);if(previous)frames.push(stamp-previous);previous=stamp;
@@ -266,7 +266,7 @@ async function measure(browser){
       latencies.push(performance.now()-start);
       peaks.push((await cdp.send("Runtime.getHeapUsage")).usedSize);
     }
-    await panel.getByRole("button",{name:"Close History"}).click();
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
     await cdp.send("HeapProfiler.collectGarbage");
     const idleStart=await page.evaluate(()=>AtriumHistoryArtwork.stats());
     const task=async()=>Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map(({name,value})=>[name,value])).TaskDuration;
@@ -286,7 +286,7 @@ async function measure(browser){
       for(let i=0;i<100;i++)h.recordText((i%2?"Filter":"Clock")+" node "+i,{kind:i%4?"schematic":"pcb"});
       AtriumNavHost.act("clipboard-panel");
     });
-    const clip=page.locator(".panel-clip"),search=clip.getByRole("searchbox");
+    const clip=page.locator('.ui-dock-panel[data-dock="clipboard"]'),search=clip.getByRole("searchbox");
     await clip.locator(".clip-thumb[data-ready=true]").first().waitFor();
     const searches=[],heap=[(await cdp.send("Runtime.getHeapUsage")).usedSize];
     for(const query of ["Clock","Filter schematic","node 9","node","missing","pcb"]){
@@ -296,7 +296,7 @@ async function measure(browser){
       assert.deepEqual(actual,expected,"incremental search agrees with the full result list");
       searches.push(performance.now()-t);heap.push((await cdp.send("Runtime.getHeapUsage")).usedSize);
     }
-    await clip.getByRole("button",{name:"Close Clipboard"}).click();
+    await page.getByRole("button",{name:"Close Clipboard",exact:true}).click();
     const clipStart=await page.evaluate(()=>AtriumHistoryArtwork.stats().draws);
     await cdp.send("HeapProfiler.collectGarbage");await new Promise(resolve=>setTimeout(resolve,1000));
     const stats=await page.evaluate(()=>({...AtriumClipHistory.stats(),art:AtriumHistoryArtwork.stats()}));
@@ -309,6 +309,6 @@ async function measure(browser){
 }
 module.exports=run;
 if(require.main===module)(async()=>{
-  const {chromium}=require("playwright-core"),browser=await chromium.launch({headless:true,...(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})});
+  const {chromium}=require("../support/playwright.cjs"),browser=await chromium.launch({headless:true,...(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})});
   try{if(process.argv.includes("--measure"))await measure(browser);else await run(browser);}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,7 +1,7 @@
 "use strict";
 // Independent minimal reader for KiCad 6+ boards (.kicad_pcb): the test oracle.
 //
-// It shares no code with app/formats/import-kicad.js or app/sexpr.js. It reads only the copper the
+// It shares no code with app/formats/import-kicad.js or app/formats/sexpr.js. It reads only the copper the
 // end-to-end suite compares (pads with shape and corner ratio, segments, arcs, vias, zones),
 // footprint placement, pad nets and the Edge.Cuts outline. KiCad's frame is millimetres with
 // Y down; angles in the file are counter-clockwise as seen on screen. The rows it returns use

@@ -217,6 +217,6 @@ module.exports = async function touchPrecision(browser) {
     console.log("PASS touch precision: cold grip, loupe, cancellation, modifiers, two library editors, pen tolerance, keyboard viewport and idle");
   } finally {await page.close();}
 };
-if(require.main===module)require("playwright-core").chromium.launch(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})
+if(require.main===module)require("../support/playwright.cjs").chromium.launch(process.env.CHROME?{executablePath:process.env.CHROME}:{channel:"chrome"})
   .then(async b=>{try{await module.exports(b);}finally{await b.close();}})
   .catch(error=>{console.error(error);process.exitCode=1;});

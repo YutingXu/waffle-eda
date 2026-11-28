@@ -144,6 +144,87 @@ const pinAt = (doc, defs, ref, n, kind) => {
   assert.deepEqual(tracks[0].points, [[0, 5.08], [7.62, 10.16]]);
   assert.ok(result.notes.some(note => /malformed required values/.test(note)));
 }
+// Pro pad nets name their component by id, so a PADNET row may come before the COMPONENT row.
+{
+  const pro = (name, rows) => I.readSet([{name, bytes: enc.encode(rows.map(r => JSON.stringify(r)).join("\n"))}])[0];
+  for (const net of [["PADNET", "n1", 0, "c1", "1", "SIG"], ["PAD_NET", "c1", "1", "SIG", "p1"]]) {
+    const comp = ["COMPONENT", "c1", 0, 1, 0, 0, 0, {}];
+    for (const rows of [[net, comp], [comp, net]]) {
+      const r = pro("nets.epcb", [["DOCTYPE", "PCB", "1.1"], ...rows]);
+      assert.deepEqual(r.documents[0].items.find(i => i.kind === "part").pinNets, {1: "SIG"}, net[0] + " in either order");
+    }
+  }
+  // A value that is present but not a number rejects its record instead of reading as 0.
+  const malformed = r => assert.ok(r.notes.some(note => /malformed required values/.test(note)));
+  const wire = pro("wire.esch", [["DOCTYPE", "SCH", "1.1"], ["WIRE", "w1", [[0, 0, 10, 0, "X", 30, 40, 30]], "st"], ["WIRE", "w2", [[0, 0, 10, 0]], "st"]]);
+  assert.deepEqual(wire.documents[0].items.filter(i => i.kind === "wire").map(w => w.points), [[[0, 0], [2.54, 0]]]);
+  malformed(wire); valid(wire);
+  const line = pro("line.epcb", [["DOCTYPE", "PCB", "1.1"], ["LINE", "l1", 0, "N", 1, 10, 10, "bad", 20, 10], ["LINE", "l2", 0, "N", 1, 0, 0, 10, 0, 10]]);
+  assert.deepEqual(line.documents[0].items.filter(i => i.kind === "track").map(t => t.points), [[[0, 0], [.254, 0]]]);
+  malformed(line);
+  const path = pro("path.epcb", [["DOCTYPE", "PCB", "1.1"], ["POLY", "p1", 0, "", 3, 10, [0, 0, "L", 10, "X", 20, 0]], ["VIA", "v1", 0, "", "", "nope", 0, 12, 24]]);
+  assert.deepEqual(path.documents[0].items.filter(i => i.kind === "graphic" || i.kind === "via"), []);
+  malformed(path);
+  // A Pro schematic component with a malformed position is skipped without failing the sheet.
+  const comp = pro("comp.esch", [["DOCTYPE", "SCH", "1.1"], ["COMPONENT", "c1", "sym.1", "bad", 0, 0, 0], ["WIRE", "w1", [[0, 0, 10, 0]], "st"]]);
+  assert.equal(comp.documents[0].items.filter(i => i.kind === "wire").length, 1);
+  malformed(comp);
+  // Standard: a bad footprint child drops that child only, and a stray path token rejects the path.
+  const std = {head: {docType: "3"}, shape: [
+    "LIB~100~100~package`R0603`~0~~g1~~~#@$TRACK~1~3~~100 100 bad 110#@$TRACK~1~3~~90 100 110 100~t2~0#@$TEXT~P~100~95~0.8~0~0~3~~4~R1~~~t3",
+    "ARC~1~3~~M 0 0 A 5 5 0 0 1 X 10 10~a1~0",
+    "ARC~1~3~~M 0 0 A 5 5 0 0 1 10~a2~0"
+  ]};
+  const [board] = I.readSet([{name: "std.json", bytes: enc.encode(JSON.stringify(std))}]);
+  const R1 = board.documents[0].items.find(i => i.kind === "part");
+  assert.equal(R1.ref, "R1");
+  assert.deepEqual(board.library.find(d => d.id === R1.def).footprint.shapes.map(s => s.points.length), [2]);
+  assert.equal(board.documents[0].items.filter(i => i.kind === "graphic").length, 0, "malformed arc paths are skipped");
+  malformed(board);
+  assert.throws(() => AtriumEasyEDAImport.svgPath("M 0 0 L 10 X 20 30"), /Invalid EasyEDA path/);
+  const [sheet] = I.readSet([{name: "sheet.json", bytes: enc.encode(JSON.stringify({head: {docType: "1"}, shape: ["J~bad~0", "J~10~0"]}))}]);
+  assert.deepEqual(sheet.documents[0].items.filter(i => i.kind === "junction").map(j => [j.x, j.y]), [[2.54, 0]]);
+  console.log("PASS EasyEDA malformed numbers reject their record; pad nets read in any order");
+}
+// A record is read in full before anything is added, and only required fields reject it: a
+// malformed minor field (rotation, drill, label angle or position) reads as its default with a note.
+{
+  const pro = (name, rows) => I.readSet([{name, bytes: enc.encode(rows.map(r => JSON.stringify(r)).join("\n"))}])[0];
+  const std = (name, data) => I.readSet([{name, bytes: enc.encode(JSON.stringify(data))}])[0];
+  const skippedNote = r => r.notes.some(note => /malformed required values/.test(note));
+  const minorNote = r => r.notes.some(note => /optional values were replaced by their defaults/.test(note));
+  // A Pro wire with a malformed later segment is skipped whole, so no segment is left without its net.
+  const wires = pro("w.esch", [["DOCTYPE", "SCH", "1.1"], ["WIRE", "w1", [[0, 0, 10, 0], [10, 0, 10, "X"]], "st"], ["WIRE", "w2", [[0, 20, 10, 20]], "st"],
+    ["ATTR", "a1", "w1", "NET", "VCC", false, 0, 0, 0], ["ATTR", "a2", "w2", "NET", "VCC", false, 1, 0, 20, "bad"]]);
+  const sheetItems = wires.documents[0].items;
+  assert.deepEqual(sheetItems.filter(i => i.kind === "wire").map(w => [w.points, w.net]), [[[[0, -5.08], [2.54, -5.08]], "VCC"]]);
+  // The wire's net label keeps its place when only its angle is malformed.
+  assert.deepEqual(sheetItems.filter(i => i.kind === "netlabel").map(l => [l.text, l.angle]), [["VCC", 0]]);
+  assert.ok(skippedNote(wires) && minorNote(wires)); valid(wires);
+  // Standard footprint pad: a malformed rotation keeps the pad and its net; a malformed position drops it.
+  const board = std("s.json", {head: {docType: "3"}, shape: [
+    "LIB~100~100~package`R`~0~~g1~~~#@$PAD~RECT~100~100~6~6~1~NETA~1~0~~0~p1#@$PAD~RECT~110~100~6~6~1~NETB~2~0~~bad~p2#@$PAD~RECT~bad~100~6~6~1~NETC~3~0~~0~p3#@$TEXT~P~100~95~0.8~0~0~3~~4~R1~~~t3",
+    "VIA~120~100~2.4~SIG~bad~v1~~"]});
+  const part = board.documents[0].items.find(i => i.kind === "part");
+  assert.deepEqual(part.pinNets, {1: "NETA", 2: "NETB"});
+  assert.deepEqual(board.library.find(d => d.id === part.def).footprint.pads.map(p => [p.number, p.angle]), [["1", 0], ["2", 0]]);
+  // A via with a malformed drill keeps the default drill (half its diameter).
+  assert.deepEqual(board.documents[0].items.filter(i => i.kind === "via").map(v => [v.net, v.drill]), [["SIG", .3048]]);
+  assert.ok(skippedNote(board) && minorNote(board));
+  // A Pro pad with a malformed rotation keeps its place and net.
+  const pad = pro("pad.epcb", [["DOCTYPE", "PCB", "1.1"], ["PAD", "p1", 0, "SIG", 1, "1", 0, 0, "bad", null, ["RECT", 20, 20]]]);
+  assert.deepEqual(pad.documents[0].items.filter(i => i.kind === "pad").map(p => [p.net, p.angle, p.w]), [["SIG", 0, .508]]);
+  assert.ok(minorNote(pad) && !skippedNote(pad));
+  // A Standard symbol pin whose name label has a malformed position keeps its connection point.
+  const pin = (n, label) => "P~show~0~" + n + "~" + (370 + 10 * n) + "~300~180~g" + n + "~0^^" + (370 + 10 * n) + "~300^^M " + (370 + 10 * n) + " 300 h 10~#880000^^" + label + "~300~0~P" + n + "~start~~~#0000FF^^1~380~300~0~" + n + "~end~~~#0000FF";
+  const sheet = std("sym.json", {head: {docType: "1"}, shape: ["LIB~400~300~package`R0603`pre`R?`~bad~0~gge1~0#@$T~P~395~285~0~#000080~Arial~~~~~comment~R1~1~start~gge2~0#@$" + pin(1, "1~bad") + "#@$" + pin(2, "1~395")]});
+  const sym = sheet.documents[0].items.find(i => i.kind === "part");
+  const symbol = sheet.library.find(d => d.id === sym.def).symbol;
+  assert.deepEqual(symbol.pins.map(p => [p.number, p.x, p.y]), [["1", -5.08, 0], ["2", -2.54, 0]]);
+  assert.deepEqual(symbol.shapes.filter(s => s.kind === "text").map(s => s.text), ["P2"]);
+  assert.ok(minorNote(sheet) && !skippedNote(sheet));
+  console.log("PASS EasyEDA records parse in full before they are added; malformed minor fields read as defaults");
+}
 
 assert.throws(() => I.read("x.json", enc.encode('{"head":{"docType":"2"}}')), /library/);
 assert.throws(() => I.read("x.json", enc.encode('{"a":1}')), /not an EasyEDA/);

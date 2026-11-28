@@ -21,6 +21,8 @@
 globalThis.AtriumFootprintPackages = function footprintPackages(K) {
   const {r6, near, up, tol, rss, lands, goal, GOALS, pad, thPad, padBox, dressing, pin1Dot, clipSegment, n2, heightCode, clampWidth, thtLand, rowName, depopulated, SILK_W, SILK_GAP} = K;
   const R = (min, max) => ({min, max});
+  // Pad 1 by its number, not its place in the list (a pin grid may list pin 2 first); else the first pad.
+  const padOne = fp => fp.pads.find(p => String(p.number) === "1") || fp.pads[0];
   const PM = (nom, t) => ({min: r6(nom - t), max: r6(nom + t), nom});
   const RECALLED = "Dimensions recalled from the outline/datasheet named in the source; not re-checked against the document. Verify before production use.";
   const EXAMPLE = "Example layout of a typical part: enter the pin positions and sizes from your part's datasheet.";
@@ -141,7 +143,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
     ctx.fp.pads.push(pad(1, -r.padCentre, 0, r.padLength, r.X, ctx.shape), pad(2, r.padCentre, 0, r.padLength, r.X, ctx.shape));
     const bl = tol(spec.BL ?? spec.L, "body length"), bw = tol(spec.BW ?? spec.W, "body width");
     const bodyMax = [-bl.max / 2, -bw.max / 2, bl.max / 2, bw.max / 2], bodyNom = [-bl.nom / 2, -bw.nom / 2, bl.nom / 2, bw.nom / 2];
-    dressing(ctx.fp, bodyMax, g, {chamfer: false, silkBody: bodyNom, pin1: o.polar ? pin1Dot(ctx.fp.pads[0]) : null, assembly: o.assembly});
+    dressing(ctx.fp, bodyMax, g, {chamfer: false, silkBody: bodyNom, pin1: o.polar ? pin1Dot(padOne(ctx.fp)) : null, assembly: o.assembly});
     if (o.polar) ctx.fp.shapes.push(asmPath([[-bl.nom / 2 + bl.nom * .2, -bw.nom / 2], [-bl.nom / 2 + bl.nom * .2, bw.nom / 2]], false));
     return {r, g, bl, bw};
   }
@@ -171,8 +173,9 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
     const t = thtLand(diag, Number.isFinite(room) ? room : 0, g, {minHole: spec.minHole});
     push(ctx, t.note);
     const oval = spec.padShape === "oval" && o.oval !== false, long = oval ? up(Math.max(t.land * 1.45, t.land + .5), .05) : t.land;
+    const one = Math.max(0, list.findIndex(q => String(q.n) === "1"));
     list.forEach((q, i) => {
-      const shape = q.shape || (i === 0 && o.pin1Square !== false ? "rect" : oval ? "oval" : "round");
+      const shape = q.shape || (i === one && o.pin1Square !== false ? "rect" : oval ? "oval" : "round");
       const [w, h] = o.ovalAxis === "x" ? [long, t.land] : [t.land, long];
       ctx.fp.pads.push(thPad(q.n, q.x, q.y, w, t.hole, shape, h));
     });
@@ -206,7 +209,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
       for (let i = 0; i < per; i++) ctx.fp.pads.push(pad(i + 1, -r.padCentre, (i - (per - 1) / 2) * pitch, r.padLength, r.X, ctx.shape));
       for (let i = 0; i < per; i++) ctx.fp.pads.push(pad(per + i + 1, r.padCentre, ((per - 1) / 2 - i) * pitch, r.padLength, r.X, ctx.shape));
       const L = tol(spec.L), D = tol(spec.D, "body length");
-      dressing(ctx.fp, [-L.max / 2, -D.max / 2, L.max / 2, D.max / 2], g, {silkBody: [-L.nom / 2, -D.nom / 2, L.nom / 2, D.nom / 2], pin1: pin1Dot(ctx.fp.pads[0])});
+      dressing(ctx.fp, [-L.max / 2, -D.max / 2, L.max / 2, D.max / 2], g, {silkBody: [-L.nom / 2, -D.nom / 2, L.nom / 2, D.nom / 2], pin1: pin1Dot(padOne(ctx.fp))});
       const cap = spec.kind === "CAP";
       return {name: (cap ? "CAPCAV" : "RESCAV") + n2(pitch) + "P" + n2(D.nom) + "X" + n2(L.nom) + "X" + heightCode(ctx.height ?? .5) + "-" + n + lv(ctx), prefix: cap ? "C" : "RN",
         ipc: {...r, goal: g, sources: srcOf(spec)}};
@@ -289,7 +292,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
       clampWidth(r, pitch, spec, ctx.flagged);
       for (const [num, side, k] of sotLayout(n)) ctx.fp.pads.push(pad(num, side * r.padCentre, k * pitch, r.padLength, r.X, ctx.shape));
       const D = tol(spec.D, "body length"), E = tol(spec.E, "body width");
-      dressing(ctx.fp, [-E.max / 2, -D.max / 2, E.max / 2, D.max / 2], g, {silkBody: [-E.nom / 2, -D.nom / 2, E.nom / 2, D.nom / 2], pin1: pin1Dot(ctx.fp.pads[0])});
+      dressing(ctx.fp, [-E.max / 2, -D.max / 2, E.max / 2, D.max / 2], g, {silkBody: [-E.nom / 2, -D.nom / 2, E.nom / 2, D.nom / 2], pin1: pin1Dot(padOne(ctx.fp))});
       return {name: "SOTFL" + n2(pitch) + "P" + n2(nom(spec.L)) + "X" + heightCode(ctx.height ?? .6) + "-" + n + lv(ctx), prefix: n === 3 ? "Q" : "U", ipc: {...r, goal: g, sources: srcOf(spec)}};
     }}));
 
@@ -318,7 +321,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
       ctx.fp.pads.push(pad(1, -r.padCentre, y1, r.padLength, r1.X, ctx.shape), pad(2, -r.padCentre, p / 2, r.padLength, r.X, ctx.shape),
         pad(3, r.padCentre, p / 2, r.padLength, r.X, ctx.shape), pad(4, r.padCentre, -p / 2, r.padLength, r.X, ctx.shape));
       const D = tol(spec.D), E = tol(spec.E);
-      dressing(ctx.fp, [-E.max / 2, -D.max / 2, E.max / 2, D.max / 2], g, {silkBody: [-E.nom / 2, -D.nom / 2, E.nom / 2, D.nom / 2], pin1: pin1Dot(ctx.fp.pads[0])});
+      dressing(ctx.fp, [-E.max / 2, -D.max / 2, E.max / 2, D.max / 2], g, {silkBody: [-E.nom / 2, -D.nom / 2, E.nom / 2, D.nom / 2], pin1: pin1Dot(padOne(ctx.fp))});
       return {name: "SOT" + n2(p) + "P" + n2(nom(spec.L)) + "X" + heightCode(ctx.height ?? 1.1) + "-4" + lv(ctx), prefix: "Q", ipc: {...r, pin1Width: r1.X, goal: g, sources: srcOf(spec)}};
     }}));
 
@@ -337,7 +340,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
       ctx.fp.pads.push(pad(2, (inner + outer) / 2, 0, outer - inner, tabX, "rect"));
       const E = tol(spec.E), D = tol(spec.D), bx1 = Lsp.nom / 2, bx0 = bx1 - E.nom;
       dressing(ctx.fp, [r6(Lsp.max / 2 - E.max), -D.max / 2, Lsp.max / 2, D.max / 2], g, {silk: false});
-      ctx.fp.shapes.push(...silkPoly(ctx.fp, box(bx0, -D.nom / 2, bx1, D.nom / 2), true), dot(ctx.fp.pads[0].x - ctx.fp.pads[0].w / 2 - .35, -p));
+      ctx.fp.shapes.push(...silkPoly(ctx.fp, box(bx0, -D.nom / 2, bx1, D.nom / 2), true), dot(padOne(ctx.fp).x - padOne(ctx.fp).w / 2 - .35, -p));
       return {name: "SOT" + n2(p) + "P" + n2(Lsp.nom) + "X" + heightCode(ctx.height ?? 1.6) + "-3" + lv(ctx), prefix: "Q", ipc: {...r, tabX, goal: g, sources: srcOf(spec)}};
     }}));
 
@@ -370,7 +373,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
       ctx.fp.pads.push(pad(tabNum, (inner + outer) / 2, 0, outer - inner, tabX, "rect"));
       const E = tol(spec.E), D = tol(spec.D), bx1 = Lsp.nom / 2 - .5, bx0 = bx1 - D.nom;
       dressing(ctx.fp, [r6(Lsp.max / 2 - .5 - D.max), -E.max / 2, Lsp.max / 2, E.max / 2], g, {silk: false});
-      ctx.fp.shapes.push(...silkPoly(ctx.fp, box(bx0, -E.nom / 2, bx1, E.nom / 2), true), dot(ctx.fp.pads[0].x - ctx.fp.pads[0].w / 2 - .35, ctx.fp.pads[0].y));
+      ctx.fp.shapes.push(...silkPoly(ctx.fp, box(bx0, -E.nom / 2, bx1, E.nom / 2), true), dot(padOne(ctx.fp).x - padOne(ctx.fp).w / 2 - .35, padOne(ctx.fp).y));
       return {name: "TO" + n2(p) + "P" + n2(Lsp.nom) + "X" + heightCode(ctx.height ?? 2.4) + "-" + (ctx.fp.pads.length) + lv(ctx), prefix: "Q", ipc: {...r, tabX, tab: tabNum, goal: g, sources: srcOf(spec)}};
     }}));
 
@@ -419,7 +422,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
         quadPads(ctx, perimeter(perY, perX, "top-centre"), perY, perX, p, rx, ry, ctx.shape);
         name = "PLCC" + n2(p) + "P" + n2(nom(spec.L)) + "X" + n2(nom(spec.L2 ?? spec.L)) + "X" + heightCode(ctx.height ?? 4.57) + "-" + n + lv(ctx);
       }
-      const p1 = ctx.fp.pads[0];
+      const p1 = padOne(ctx.fp);
       dressing(ctx.fp, [-E.max / 2, -D.max / 2, E.max / 2, D.max / 2], g, {silkBody: [-E.nom / 2, -D.nom / 2, E.nom / 2, D.nom / 2],
         pin1: spec.style === "SOJ" ? pin1Dot(p1) : [p1.x, p1.y - p1.h / 2 - .35]});
       return {name, prefix: "U", ipc: {...rx, goal: g, sources: srcOf(spec)}};
@@ -438,7 +441,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
         clampWidth(r, p, spec, ctx.flagged);
         cornerFix(r, (per - 1) / 2 * p, r.X, ctx);
         quadPads(ctx, perimeter(per, per, "top-centre"), per, per, p, r, r, ctx.shape);
-        const D = tol(spec.D), p1 = ctx.fp.pads[0];
+        const D = tol(spec.D), p1 = padOne(ctx.fp);
         dressing(ctx.fp, [-D.max / 2, -D.max / 2, D.max / 2, D.max / 2], g, {silkBody: [-D.nom / 2, -D.nom / 2, D.nom / 2, D.nom / 2], pin1: [p1.x, p1.y - p1.h / 2 - .35]});
         return {name: "LCC" + n2(p) + "P" + n2(D.nom) + "X" + n2(D.nom) + "X" + heightCode(ctx.height ?? 2) + "-" + n + lv(ctx), prefix: "U", ipc: {...r, goal: g, sources: srcOf(spec)}};
       }}));
@@ -547,7 +550,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
         else if (q.side === "B") ctx.fp.pads.push(pad(n, off, c, iw, il, ctx.shape)); else ctx.fp.pads.push(pad(n, off, -c, iw, il, ctx.shape));
       });
       if (spec.EP) K.exposedPad(ctx.fp, spec, "EP", ctx.ipc);
-      dressing(ctx.fp, [-D.max / 2, -D.max / 2, D.max / 2, D.max / 2], g, {silkBody: [-D.nom / 2, -D.nom / 2, D.nom / 2, D.nom / 2], pin1: pin1Dot(ctx.fp.pads[0])});
+      dressing(ctx.fp, [-D.max / 2, -D.max / 2, D.max / 2, D.max / 2], g, {silkBody: [-D.nom / 2, -D.nom / 2, D.nom / 2, D.nom / 2], pin1: pin1Dot(padOne(ctx.fp))});
       const count = 4 * (po + pi) + (spec.EP ? 1 : 0);
       return {name: "QFN" + n2(p) + "P" + n2(D.nom) + "X" + n2(D.nom) + "X" + heightCode(ctx.height ?? .9) + "-" + count + lv(ctx), prefix: "U", ipc: {...r, inner: {length: il, width: iw, centre: r6(c)}, goal: g, sources: srcOf(spec)}};
     }}));
@@ -631,7 +634,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
         const bl = +spec.BL, bw = +spec.BW;
         dressing(ctx.fp, [-bl / 2, -bw / 2, bl / 2, bw / 2], g, {silk: false, chamfer: o.chamfer !== false});
         ctx.fp.shapes.push(...silkPoly(ctx.fp, box(-bl / 2 - SILK_W / 2 - .05, -bw / 2 - SILK_W / 2 - .05, bl / 2 + SILK_W / 2 + .05, bw / 2 + SILK_W / 2 + .05), true));
-        const p1 = ctx.fp.pads.find(p => p.number === "1") || ctx.fp.pads[0];
+        const p1 = padOne(ctx.fp);
         if (o.polar !== false) ctx.fp.shapes.push(dot(p1.x - p1.w / 2 - .35, p1.y));
         const pins = ctx.fp.pads.length;
         return {name: o.name(spec, ctx, pins), prefix: o.prefix, ipc: {goal: g, sources: srcOf(spec), terminals: list.length}};
@@ -684,7 +687,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
       else ctx.fp.pads.push(pad(1, -r.padCentre, -y, r.padLength, r.X, ctx.shape), pad(2, -r.padCentre, y, r.padLength, r.X, ctx.shape), pad(3, r.padCentre, y, r.padLength, r.X, ctx.shape), pad(4, r.padCentre, -y, r.padLength, r.X, ctx.shape));
       const bl = +spec.BL, bw = +spec.BW;
       dressing(ctx.fp, [-bl / 2, -bw / 2, bl / 2, bw / 2], g, {silk: false});
-      ctx.fp.shapes.push(...silkPoly(ctx.fp, box(-bl / 2 - .14, -bw / 2 - .14, bl / 2 + .14, bw / 2 + .14), true), ...silkPoly(ctx.fp, arc(0, 0, Math.min(bl, bw) * .3, 0, 360), true), dot(ctx.fp.pads[0].x - ctx.fp.pads[0].w / 2 - .35, ctx.fp.pads[0].y));
+      ctx.fp.shapes.push(...silkPoly(ctx.fp, box(-bl / 2 - .14, -bw / 2 - .14, bl / 2 + .14, bw / 2 + .14), true), ...silkPoly(ctx.fp, arc(0, 0, Math.min(bl, bw) * .3, 0, 360), true), dot(padOne(ctx.fp).x - padOne(ctx.fp).w / 2 - .35, padOne(ctx.fp).y));
       return {name: "SWT" + n2(bl) + "X" + n2(bw) + "X" + heightCode(ctx.height ?? 4) + "-" + (spec.pins | 0) + lv(ctx), prefix: "SW", ipc: {...r, goal: g, sources: srcOf(spec)}};
     }}));
 
@@ -747,7 +750,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
         } else if (side === "L" || side === "R") ctx.fp.pads.push(pad(n++, (side === "L" ? -1 : 1) * rx.padCentre, off, rx.padLength, rx.X, ctx.shape));
         else ctx.fp.pads.push(pad(n++, off, (side === "T" ? -1 : 1) * ry.padCentre, ry.X, ry.padLength, ctx.shape));
       }
-      dressing(ctx.fp, [-Wm.max / 2, -Lm.max / 2, Wm.max / 2, Lm.max / 2], g, {silkBody: [-Wm.nom / 2, -Lm.nom / 2, Wm.nom / 2, Lm.nom / 2], pin1: pin1Dot(ctx.fp.pads[0])});
+      dressing(ctx.fp, [-Wm.max / 2, -Lm.max / 2, Wm.max / 2, Lm.max / 2], g, {silkBody: [-Wm.nom / 2, -Lm.nom / 2, Wm.nom / 2, Lm.nom / 2], pin1: pin1Dot(padOne(ctx.fp))});
       if (half) ctx.ipc.halfHoles = {drill: hole, note: "Castellated (half-hole) plating is a fab option: JLCPCB needs ≥ 0.5 mm holes and ≥ 1 mm hole-to-edge on the module."};
       return {name: (half ? "MODCAST" : "MODLAND") + n2(p) + "P" + n2(Wm.nom) + "X" + n2(Lm.nom) + "X" + heightCode(ctx.height ?? 3) + "-" + (n - 1) + lv(ctx), prefix: "U", ipc: {...rx, goal: g, sources: srcOf(spec)}};
     }}));
@@ -1022,7 +1025,7 @@ globalThis.AtriumFootprintPackages = function footprintPackages(K) {
         if (new Set(list.map(q => q.n)).size !== list.length) throw Error("Pin numbers must be unique.");
         const t = thtPins(spec, ctx, list);
         const l = +spec.BL / 2, w = +spec.BW / 2;
-        dressing(ctx.fp, [-l, -w, l, w], t.g, {pin1: pin1Dot(ctx.fp.pads[0])});
+        dressing(ctx.fp, [-l, -w, l, w], t.g, {pin1: pin1Dot(padOne(ctx.fp))});
         return {name: "PINGRID" + list.length + "_" + n2(2 * l) + "X" + n2(2 * w) + "X" + heightCode(ctx.height ?? 10) + lv(ctx), prefix: /relay/i.test(spec.preset || "") ? "K" : /transformer/i.test(spec.preset || "") ? "T" : "U", ipc: {goal: t.g, sources: srcOf(spec)}};
       }}));
     return out;

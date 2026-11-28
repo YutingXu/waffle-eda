@@ -103,8 +103,12 @@ const plot = F.build(multiple, first.id, common);
 const mixed = F.build(multiple, first.id, {...common, drillOrigin: "absolute"});
 assert.deepEqual(F.drillOriginFor(mixed.model, mixed.options), [0, 0]);
 assert.deepEqual(F.originFor(mixed.model, mixed.options), first.origin);
-assert.deepEqual(mixed.files.filter(f => !["drill", "readme"].includes(f.kind)), plot.files.filter(f => !["drill", "readme"].includes(f.kind)),
-  "Gerber, drill drawings, reports and placement files retain their bytes");
+const drillOwned = ["drill", "readme", "drillreport"];
+assert.deepEqual(mixed.files.filter(f => !drillOwned.includes(f.kind)), plot.files.filter(f => !drillOwned.includes(f.kind)),
+  "Gerber, drill drawings, other reports and placement files retain their bytes");
+assert.match(byKind(mixed.files, "drillreport")[0].content, /^Units: millimetres\. Coordinates: design origin, viewed from the top, Y up\.\r?$/m,
+  "the drill report names the origin the drill files use");
+assert.match(byKind(plot.files, "drillreport")[0].content, /^Units: millimetres\. Coordinates: board origin \(Edit > Origin\), viewed from the top, Y up\.\r?$/m);
 assert.match(byKind(mixed.files, "readme")[0].content, /^NC drill coordinates: design origin, viewed from the top, Y up\.$/m);
 const drillData = viewDrills(mixed.files), sharedDrills = viewDrills(plot.files);
 assert.equal(drillData.length, 2);

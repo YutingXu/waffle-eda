@@ -8,7 +8,7 @@ const path = require("node:path");
 const {createHash} = require("node:crypto");
 const {promisify} = require("node:util");
 const exec = promisify(require("node:child_process").execFile);
-const {chromium} = require("playwright-core");
+const {chromium} = require("../support/playwright.cjs");
 const root = path.resolve(__dirname, "../..");
 const [design, rowsPath, output, shots, publicRevision] = process.argv.slice(2);
 

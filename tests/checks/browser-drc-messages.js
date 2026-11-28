@@ -221,7 +221,7 @@ module.exports = run;
 if (require.main === module && process.argv.includes("--guard-only")) onlyOneOwner();
 else if (require.main === module) {
   (async () => {
-    const browser = await require("playwright-core").chromium.launch({...(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"}),
+    const browser = await require("../support/playwright.cjs").chromium.launch({...(process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"}),
       args:["--allow-file-access-from-files"]});
     try {await run(browser);} finally {await browser.close();}
   })().catch(e => {console.error(e); process.exitCode = 1;});

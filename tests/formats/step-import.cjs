@@ -46,6 +46,15 @@ for(const authored of [false,true]){
   d+="#"+id()+"=STYLED_ITEM('',(#5),#"+so+");\n#5=PRESENTATION_STYLE_ASSIGNMENT((#6));\n#6=SURFACE_STYLE_USAGE(.BOTH.,#7);\n#7=SURFACE_SIDE_STYLE('',(#8));\n#8=SURFACE_STYLE_FILL_AREA(#9);\n#9=FILL_AREA_STYLE('',(#3));\n#3=FILL_AREA_STYLE_COLOUR('',#4);\n#4=COLOUR_RGB('',1.,0.,0.);";
   const r=SI.tessellate(wrap(d,"(CONVERSION_BASED_UNIT('INCH',#99)LENGTH_UNIT()NAMED_UNIT(*));\n#99=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#98);\n#98=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))"));
   assert.equal(r.stats.faceted,6);near(vol(r),25.4**3,1e-3,"inch cube volume");assert.deepEqual(r.parts[0].color,[1,0,0]);
+  // Every SI prefix scales by its power of ten, and a conversion-based unit by its stated factor.
+  const si=p=>"(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT("+p+",.METRE.))";
+  const sized=[[si(".DECI."),100],[si(".CENTI."),10],[si(".MILLI."),1],[si("$"),1000],[si(".MICRO."),.001],[si(".NANO."),1e-6],[si(".KILO."),1e6],
+    ["(CONVERSION_BASED_UNIT('MIL',#99)LENGTH_UNIT()NAMED_UNIT(*));\n#99=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.001),#98);\n#98=(CONVERSION_BASED_UNIT('INCH',#97)LENGTH_UNIT()NAMED_UNIT(*));\n#97=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0254),#96);\n#96="+si("$"),.0254],
+    ["(CONVERSION_BASED_UNIT('FOOT',#99)LENGTH_UNIT()NAMED_UNIT(*));\n#99=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(304.8),#98);\n#98="+si(".MILLI."),304.8]];
+  for(const [unit,mm] of sized){
+    const box=SI.tessellate(wrap(d.replace(/#\d+=STYLED_ITEM[^]*$/,""),unit)).bbox;
+    assert.deepEqual(box.map(v=>+(v/mm).toFixed(6)),[0,0,0,1,1,1],unit.split("\n")[0]+" scales a unit cube to "+mm+" mm");
+  }
 }
 // 3. A cylinder (two full circles, no seam) between two planar discs, and a B-spline edge.
 function cylinderModel(r=2,h=5){
