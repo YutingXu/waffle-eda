@@ -637,7 +637,10 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   const context=vm.createContext({
     navigator:{userAgent:"AppleWebKit"},
     AtriumPCBAppearance:{...AtriumPCBAppearance,ink(...args){inkChecks++;return AtriumPCBAppearance.ink(...args);}},
-    AtriumPCBPours:{contours:()=>rings}
+    // The pour engine's API the coverage reads: rings, their boxes ([x0, y0, x1, y1] per ring), the
+    // data's size and the key caches compare (the data text here, so an in-place edit is seen).
+    AtriumPCBPours:{contours:()=>rings,ringBoxes:()=>rings.flatMap(r=>{const x=r.filter((_,i)=>i%2===0),y=r.filter((_,i)=>i%2===1);return [Math.min(...x),Math.min(...y),Math.max(...x),Math.max(...y)];}),
+      dataLength:r=>typeof r.data==="string"?r.data.length:0,dataKey:r=>r.data}
   });
   vm.runInContext(gpuCode.replace(sceneExport,"{pourCoverage, render, damage, stats,"),context);
   const ctx={setTransform(){},clearRect(){},getImageData(...rect){reads.push(rect);return {};}};
@@ -2066,7 +2069,9 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   sliceVM.AtriumIdle.idle = run => task(() => run({timeRemaining:()=>6}), time + .25);
   vm.runInContext(fs.readFileSync(appFile("pcb/pcb-pours.js"),"utf8"),sliceVM);
   const pours = sliceVM.AtriumPCBPours;
-  const ring = Array.from({length:1800},(_,n)=>[20*Math.cos(n*Math.PI/900),20*Math.sin(n*Math.PI/900)]);
+  // A ring of its own per case: the pour engine builds a level at once for runs another region already has it for.
+  const ringOf = r => Array.from({length:1800},(_,n)=>[r*Math.cos(n*Math.PI/900),r*Math.sin(n*Math.PI/900)]);
+  let radius = 20;
   for (const kind of ["gesture","stationary","2D","split","covered","different board"]) {
     const {I,st} = viewForSlices("display LOD "+kind);
     st.exact = {doc:board, rev:1};
@@ -2077,7 +2082,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     const host = sliceVM.AtriumNavHost = hostForLOD({view,panes,activePane:active,schedule(){redraws++;}});
     if (kind==="2D") slices.views.delete(I);
     else if (kind!=="stationary") slices.settleAfterMove(I,st,board,new Map(),{},[],false,true);
-    const region = pours.region([ring],"Top","GND");
+    const region = pours.region([ringOf(radius++)],"Top","GND");
     const stamp = pours.lod.version;
     assert.equal(pours.lodRingsAt(region,4),null);
     runNext();
