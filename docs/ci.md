@@ -137,6 +137,22 @@ The summaries include sample counts and p50, p95, p99 and maximum times in milli
 
 `workMs` covers layout, style, paint and animation-frame callbacks on the editor thread. `longTasks` counts tasks over 50 ms starting in the window. `callbacks` ranks inclusive callback time and `samples` ranks the nearest application function on sampled stacks. These measurements can overlap. `components` contains the editor's own timing records for each automated action.
 
+### Timing input through a visible result
+
+Run the result probes with the same Chromium and Playwright installation. The default runs 20 repetitions of each interaction, one suite at a time.
+
+```sh
+NODE_PATH="$PWD/scripts/ci/node_modules" node scripts/perf-results.cjs --out /tmp/waffle-results
+```
+
+Use `--help` for suite names or pass a comma-separated list to `--suite`. Each suite writes its observed results to JSON and records a compressed Chromium trace. Open the trace in DevTools Performance and look for the `waffle.result-input.` and `waffle.result-frame.` marks. `--no-trace` runs the same assertions and records just the samples.
+
+Each timer starts at a trusted browser event. The probe checks the requested result in an animation frame and records `frameMs` in a task posted from that frame. This measures a browser rendering opportunity. Search debounces start at the final key. Palette, Quick Open and library searches start at the first key in a burst paced at 24 ms per character and finish when the intended row is visible and enabled. Enter has its own timer.
+
+The PDF probe checks the position of the matched text in a decoded page image. The Git picker calls the desktop Git helper on a temporary local repository. Review Comments uses locally stored threads. Navigator checks the destination sheet, selected pin owner and net highlight after drawing. The resize probe starts a recovery save on pointer press and verifies that movement preceded completion of the IndexedDB checkpoint.
+
+The notebook probes check four on-screen formula results after paste and fill. They exercise Undo with the grid focused and again from the canvas after closing the table. A grid shortcut with no matching update during the one-second observation window is recorded as `no-result`. Percentiles use completed samples only.
+
 ### Recording component performance
 
 Open **Help › Troubleshooting › Frame Monitor** and reproduce the operation. The monitor shows the five operations with the longest p95 times. **Crash Diagnostics…** previews the shareable report. The latest capture stays in memory after the monitor closes and is replaced when the next capture starts. A browser test can acquire its own recording lease. Closing the monitor or completing a test releases only that caller’s lease.
