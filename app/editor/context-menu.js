@@ -447,7 +447,8 @@ globalThis.AtriumContextMenu = (() => {
       if (e.checked != null) b.setAttribute("aria-checked", String(e.checked));
       b.disabled = !e.enabled;
       b.append(NC().el("span", e.label));
-      if (e.action) NC().shortcutBadge(b, K?.hintKey(e.action, kind));
+      // A keymap action's binding; a command without one may name its own key (`shortcut`).
+      NC().shortcutBadge(b, (e.action && K?.hintKey(e.action, kind)) || e.shortcut);
       b.onclick = () => {
         close();
         const run = () => {

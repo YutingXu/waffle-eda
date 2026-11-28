@@ -1125,7 +1125,10 @@
     if(globalThis.AtriumBoardShapeUI)show(AtriumBoardShapeUI);
     else globalThis.AtriumLazy?.need("AtriumBoardShapeUI").then(show,e=>info(e.message));
   }
+  // Open editor tabs ask about their unsaved changes before any switch to another project (doc-views.js).
+  const viewsMayGo=()=>globalThis.AtriumDocViews?.mayDiscard?.()!==false;
   function mayReplace(force=false){
+    if(!viewsMayGo())return Promise.resolve(false);
     if(globalThis.AtriumForeignDrafts?.needsReview(navHost))return globalThis.AtriumForeignDrafts.review(navHost);
     return dirty||force?fileUI().then(ui=>ui.confirmReplace({name:project.name||"Untitled",dirty,isDirty:()=>dirty,save:()=>save({all:true})})):Promise.resolve(true);
   }
@@ -2517,7 +2520,8 @@
     isDirty:()=>dirty,markUnsaved(){dirtyState(true);},openFiles:importFiles,openFilePicker,saveProject:save,
     moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);refresh(lazy,!lazy||name==="AtriumMultichannel");},
     async replaceProject(p,o={}){
-      if(!o.force&&!await mayReplace()||o.current&&!o.current())return false;
+      // A forced replace skips the project's own prompt, not the editor tabs' (a mirror of this project keeps them).
+      if((o.force?!(o.workspaceMirror&&p.id&&project?.id===p.id)&&!viewsMayGo():!await mayReplace())||o.current&&!o.current())return false;
       const old=project, stamp=authoredRevision, L=globalThis.AtriumLazy;
       const readers=L?.boardRenderers(p) || [];
       // The first schematic refresh can resolve the project's net scope synchronously.

@@ -499,8 +499,12 @@ globalThis.AtriumSymbolEditor = (() => {
       if (!v.ok) { hint.textContent = v.errors[0]; hint.classList.add("bad"); return; }
       saved = state(); dlg.close(); ctx.commit?.(d, place);
     }
-    function tryClose() { if (state() !== saved && typeof confirm === "function" && !confirm("Discard the changes to this symbol?")) return; dlg.close(); }
+    // Unsaved changes ask first: closing the editor, or a project switch closing its tab (dlg.mayDiscard).
+    const mayDiscard = () => state() === saved || typeof confirm !== "function" || confirm("Discard the changes to this symbol?");
+    function tryClose() { if (mayDiscard()) dlg.close(); }
     dlg.requestClose = () => tryClose();
+    dlg.unsaved = () => state() !== saved;
+    dlg.mayDiscard = mayDiscard;
     ui.paletteSurface(dlg, "symbol", canvas, stage, {
       pins: () => model.pins,
       select: i => { clearSel(); gate = model.pins[i].part || gate; selection.pins.add(i); refresh(); },

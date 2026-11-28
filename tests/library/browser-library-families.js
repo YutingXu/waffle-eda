@@ -125,7 +125,8 @@ module.exports = async function libraryFamilies(browser) {
     const details = panel.locator(".lib-detail");
     const command = async name => {
       await details.getByRole("button", {name: "More component actions", exact: true}).click();
-      await page.getByRole("menuitem", {name, exact: true}).click();
+      // A menu item's name ends with its spoken shortcut, when it has one.
+      await page.getByRole("menuitem", {name: new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))}).click();
     };
     assert.equal(await details.locator('.cat-pv[data-def="family-bga"] canvas').count(), 2, "the exact package has both previews");
     assert.equal(await row("family-qfn").count(), 0, "package search disambiguates the chip's variants");
@@ -157,6 +158,38 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(await saveKey.locator('[aria-hidden="true"]').textContent(), expectedSave.visual);
     await footprintEditor.getByRole("button", {name: "Cancel", exact: true}).press("Space");
     await footprintEditor.waitFor({state: "hidden"});
+
+    // The menu shows each command's own key, as the list's keys run it.
+    await details.getByRole("button", {name: "More component actions", exact: true}).click();
+    const hints = await page.locator(".nav-menu.action-menu [role=menuitem]").evaluateAll(items => Object.fromEntries(items
+      .map(item => [item.querySelector(":scope > span")?.textContent, item.querySelector(":scope > .ui-shortcut")?.dataset.binding || null])));
+    assert.equal(hints["Edit symbol"], "E");
+    assert.equal(hints["Edit footprint"], "Shift+E");
+    assert.equal(hints["Duplicate"], "Mod+D");
+    assert.equal(hints["Update placed parts"], null, "a command without a key has no hint");
+    await page.keyboard.press("Escape");
+
+    // A project switch asks about an editor tab's unsaved changes; keeping them keeps the project and the tab.
+    const kept = await page.evaluate(async () => {
+      const def = AtriumNavHost.defs().get("family-bga"), project = AtriumNavHost.project(), V = AtriumDocViews;
+      const asked = [], ask = globalThis.confirm, clean = "footprint-editor:" + def.id, tab = "symbol-editor:" + def.id;
+      AtriumLibrary.openFootprintEditor({project, info() {}}, def, {asTab: true});
+      const editor = AtriumLibrary.openSymbolEditor({project, info() {}}, def, {asTab: true});
+      editor.change(() => { editor.meta.description = "An unsaved edit"; });
+      V.hide(tab);
+      globalThis.confirm = text => { asked.push(text); return false; };
+      const other = Atrium.project("Another project", []);
+      const forced = await AtriumNavHost.replaceProject(other, {force: true, dirty: false});
+      const plain = await AtriumNavHost.replaceProject(other);
+      const result = {forced, plain, asked, same: AtriumNavHost.project() === project, open: V.isOpen(tab), shown: V.isShown(tab), clean: V.isOpen(clean)};
+      globalThis.confirm = ask;
+      V.close(tab); V.close(clean);
+      return result;
+    });
+    assert.equal(kept.forced, false, "a forced switch still asks the editor tabs");
+    assert.equal(kept.plain, false);
+    assert.deepEqual(kept.asked, ["Discard the changes to this symbol?", "Discard the changes to this symbol?"], "only the edited tab asks");
+    assert.ok(kept.same && kept.open && kept.shown && kept.clean, "the project and both tabs stay; the asking tab is shown");
 
     assert.equal(await page.evaluate(() => !!globalThis.AtriumSchPlace), false, "browsing and editing do not load schematic placement");
     await command("Place symbol on sheet");

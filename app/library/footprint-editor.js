@@ -880,11 +880,14 @@ globalThis.AtriumFootprintEditor = (() => {
         globalThis.AtriumNavHost?.showImportReport?.(stepTranslation.result, [], [def.footprint.model3d.file]);
     }
     function tryClose(force) {
-      if (!force && snapshot() !== saved && !confirmDiscard()) return;
+      if (!force && !dlg.mayDiscard()) return;
       dlg.close();
     }
     function confirmDiscard() { return typeof confirm === "function" ? confirm("Discard the changes to this footprint?") : true; }
     dlg.requestClose = () => tryClose();
+    // A project switch closing the editor tab asks first (doc-views.js mayDiscard).
+    dlg.unsaved = () => snapshot() !== saved;
+    dlg.mayDiscard = () => snapshot() === saved || confirmDiscard();
     ui.paletteSurface(dlg, "footprint", canvas, stage, {
       pins: () => fp().pads,
       select: i => { clearSelection(); selection.pads.add(i); refresh(); },
