@@ -39,7 +39,7 @@ async function exportShape(browser,writers,project) {
   const {p,port}=await relay(),url="ws://127.0.0.1:"+port;
   const browser=await chromium.launch({channel:"chrome",args:["--allow-file-access-from-files"]});
   try{
-    const alice=await editor(browser,port,"Ada",url),bob=await editor(browser,port,"Ben",url),A=alice.page,B=bob.page;
+    const labs={prefs:{"labs.notebook":true}},alice=await editor(browser,port,"Ada",url,labs),bob=await editor(browser,port,"Ben",url,labs),A=alice.page,B=bob.page;
     await Promise.all([A,B].map(x=>x.evaluate(()=>{globalThis.RTCPeerConnection=undefined;})));
     const docId=await A.evaluate(async()=>{const h=AtriumNavHost,p=Atrium.project("Collaborative sketch"),d=Atrium.sheet("schematic","Shape sheet");
       p.documents=[d];await h.replaceProject(p,{force:true,copy:true,dirty:false});h.selectDocument(d.id);return d.id;});

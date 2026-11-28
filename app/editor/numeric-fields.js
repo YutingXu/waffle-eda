@@ -471,7 +471,8 @@ globalThis.AtriumNumericFields = (() => {
           if(!at && tableTarget(entry.target))return {id,entry,result:error("This table cell is unavailable for a numeric edit.",[0,entry.source.length],"target")};
           if (!at || !writeAllowed(project,at.owner,at.doc,host)) return null;
           if(at.owner.kind==="via" && ["full","tmb"].includes(at.owner.stackMode) && !G.AtriumViaStack)await G.AtriumLazy?.need("AtriumViaStack");
-          if(entry.target.scope==="rule" && !G.AtriumProjectRules)await G.AtriumLazy?.need("AtriumProjectRules");
+          // project-rules.js is a file of the AtriumRules module.
+          if(entry.target.scope==="rule" && !G.AtriumProjectRules)await G.AtriumLazy?.need("AtriumRules");
           state.evaluations++;
           const result=await evaluate("="+entry.source,entry,{project,host,revision,prior:entry,signal:controller.signal});
           return {id,entry,result};

@@ -30,9 +30,11 @@ async function main(){
   const {p,port}=await relay(),url="ws://127.0.0.1:"+port;
   const browser=await chromium.launch({channel:"chrome",headless:true});
   try{
-    const alice=await editor(browser,port,"Ada",url),bob=await editor(browser,port,"Ben",url),A=alice.page,B=bob.page;
+    // Playwright routes only the WebSockets of a page loaded after routeWebSocket, so wire before loading.
+    const options={prefs:{"labs.notebook":true},setup:page=>wire(page,port)};
+    const alice=await editor(browser,port,"Ada",url,options),bob=await editor(browser,port,"Ben",url,options),A=alice.page,B=bob.page;
     await Promise.all([A,B].map(page=>page.evaluate(()=>{globalThis.RTCPeerConnection=undefined;})));
-    const [wa,wb]=await Promise.all([wire(A,port),wire(B,port)]);
+    const [wa,wb]=[alice.setup,bob.setup];
     await A.evaluate(async()=>{
       const h=AtriumNavHost,p=Atrium.project("Collaborative review"),d=Atrium.sheet("schematic","Review sheet");p.documents=[d];
       await h.replaceProject(p,{force:true,copy:true,dirty:false});await AtriumLazy.need("AtriumReviewNotes");

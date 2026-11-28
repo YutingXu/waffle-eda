@@ -652,7 +652,11 @@ globalThis.AtriumContextMenu = (() => {
     globalThis.AtriumHost.revealProject().catch(e => { if (e.name !== "AbortError") host.info(e.message); });
   }
 
-  function popup(ctx, list, heading, x, y, focus, dropdown = false, above = false) {
+  // A menu opened at the pointer starts this far up and left of it, so the pointer lands inside the
+  // menu's rounded corner instead of falling through to the row or object under it (which would show
+  // its hover fill beside the context ring).
+  const POINTER_INSET = 2;
+  function popup(ctx, list, heading, x, y, focus, dropdown = false, above = false, pointer = !dropdown) {
     const switching = !!root;
     close(false, true);
     root = build(list, ctx, 0);
@@ -693,6 +697,7 @@ globalThis.AtriumContextMenu = (() => {
     }
     // Fit the menu to the pointer before the entrance starts.
     const r = {width:root.offsetWidth, height:root.offsetHeight};
+    if (pointer) {x -= POINTER_INSET; y -= POINTER_INSET;}
     root.style.left = Math.max(4, Math.min(x, innerWidth - r.width - 4)) + "px";
     root.style.top = Math.max(4 + captionTop(), Math.min(above ? y - r.height : y, innerHeight - r.height - 4)) + "px";
     fitMenu(root); // menu-fit: a menu taller than the window scrolls
@@ -866,7 +871,7 @@ globalThis.AtriumContextMenu = (() => {
     if (field) add("Select All", true, () => {
       restore(); if (input) field.select(); else doc.execCommand("selectAll");
     });
-    popup({host}, list, tx("Text"), x, y, target, true);
+    popup({host}, list, tx("Text"), x, y, target, true, false, true);
   }
   function dropdown(trigger, entries, {host = globalThis.AtriumNavHost, above = false} = {}) {
     if (root && back === trigger) {close(); return;}

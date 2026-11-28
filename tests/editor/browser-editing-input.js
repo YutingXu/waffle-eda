@@ -178,6 +178,13 @@ async function canvasContextMenu(page) {
   const [first, second] = parts;
   async function show(at) {
     await page.mouse.move(...at);
+    // Count only what the right click paints: let live checks planned by the edits above (Lock and
+    // Unlock) finish first. On mains power Design Insights run 400 ms after an edit and repaint the
+    // overlay when they finish, which a draw counter running at that moment would blame on the menu.
+    await page.waitForFunction(() => {
+      const S = AtriumChecks.scheduler, d = AtriumNavHost.doc();
+      return S.clients().every(id => !S.pending(id, d)) && !S.running();
+    });
     await page.evaluate(async () => {
       const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => {
         const {port1, port2} = new MessageChannel();

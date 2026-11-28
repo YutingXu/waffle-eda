@@ -33,7 +33,7 @@ async function run(browser){
     await page.locator('.ui-dock-panel[data-dock="history"] .ui-dock-list:visible').first().waitFor();
     await page.locator(".hist-scrub").waitFor();
     assert.equal(await page.locator(".ui-dock-list > .hist-row").count(),0,"only reviewed Undo rows are mounted");
-    await page.locator('.ui-dock-panel[data-dock="history"]').getByRole("button",{name:"Close History",exact:true}).click();
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
     await page.evaluate(async()=>{
       const prefs=await AtriumLazy.need("AtriumPrefs");
       prefs.set("butter.visualHistory",true);prefs.set("labs.notebook",true);
@@ -89,7 +89,7 @@ async function run(browser){
       assert.equal(await page.evaluate(()=>AtriumNavHost.doc().items.find(i=>i.id===histCase.id).value),"Butter test");
       await list.focus();await page.keyboard.press("Home");await panel.locator(".hist-preview:not([hidden])").waitFor();
       await page.keyboard.press("Escape");await panel.locator(".hist-preview").waitFor({state:"hidden"});
-      await panel.getByRole("button",{name:"Close History"}).click();
+      await page.getByRole("button",{name:"Close History",exact:true}).click();
       await page.evaluate(async()=>{
         const h=AtriumNavHost,d=h.doc(),i=d.items.find(x=>x.kind==="part");h.select([i.id]);
         const transfer=new DataTransfer();h.canvas().dispatchEvent(new ClipboardEvent("copy",{bubbles:true,cancelable:true,clipboardData:transfer}));
@@ -103,7 +103,7 @@ async function run(browser){
       await rows.first().getByRole("button",{name:/^Pin/}).click();
       await clip.getByRole("button",{name:"Pinned",exact:true}).click();await rows.first().waitFor();
       if(process.env.WAFFLE_HISTORY_SHOTS)await clip.screenshot({path:path.join(process.env.WAFFLE_HISTORY_SHOTS,kind+"-clips.png")});
-      await clip.getByRole("button",{name:"Close Clipboard"}).click();
+      await page.getByRole("button",{name:"Close Clipboard",exact:true}).click();
     }
     await page.evaluate(()=>AtriumNavHost.act("clipboard-picker"));
     const picker=page.getByRole("dialog",{name:"Clipboard history"});await picker.waitFor();
@@ -145,7 +145,7 @@ async function run(browser){
     await sessionPanel.locator(".hist-branches summary").click();
     await sessionPanel.locator(".hist-branch").first().getByRole("button",{name:"Preview"}).click();
     await sessionPanel.locator(".hist-design-preview[data-ready=true]").waitFor();
-    await sessionPanel.getByRole("button",{name:"Close History"}).click();
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
 
     const photo=await page.evaluate(async()=>{
       const c=document.createElement("canvas");c.width=24;c.height=12;
@@ -266,7 +266,7 @@ async function measure(browser){
       latencies.push(performance.now()-start);
       peaks.push((await cdp.send("Runtime.getHeapUsage")).usedSize);
     }
-    await panel.getByRole("button",{name:"Close History"}).click();
+    await page.getByRole("button",{name:"Close History",exact:true}).click();
     await cdp.send("HeapProfiler.collectGarbage");
     const idleStart=await page.evaluate(()=>AtriumHistoryArtwork.stats());
     const task=async()=>Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map(({name,value})=>[name,value])).TaskDuration;
@@ -296,7 +296,7 @@ async function measure(browser){
       assert.deepEqual(actual,expected,"incremental search agrees with the full result list");
       searches.push(performance.now()-t);heap.push((await cdp.send("Runtime.getHeapUsage")).usedSize);
     }
-    await clip.getByRole("button",{name:"Close Clipboard"}).click();
+    await page.getByRole("button",{name:"Close Clipboard",exact:true}).click();
     const clipStart=await page.evaluate(()=>AtriumHistoryArtwork.stats().draws);
     await cdp.send("HeapProfiler.collectGarbage");await new Promise(resolve=>setTimeout(resolve,1000));
     const stats=await page.evaluate(()=>({...AtriumClipHistory.stats(),art:AtriumHistoryArtwork.stats()}));
