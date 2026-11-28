@@ -251,10 +251,79 @@ async function groupedMarkers(browser) {
   } finally { await page.close(); }
 }
 
+// An Insights pass that finds the open card's insight again (same key) with a new via suggestion moves
+// the Fix preview, and the focused Fix then applies that suggestion, never the one before. New wording
+// rebuilds the card with the focus still on Fix; an insight that is gone closes the card and the
+// focus returns to the canvas.
+async function cardFollowsPass(browser) {
+  const page = await browser.newPage({viewport:{width:1440, height:960}, reducedMotion:"reduce"});
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  page.setDefaultTimeout(8000);
+  try {
+    await page.goto(editor);
+    await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
+    await page.locator("#doc-name", {hasText:"Sensor board"}).waitFor();
+    await page.evaluate(async () => {
+      await AtriumLazy.need("AtriumInsightsUI");
+      AtriumPrefs.set(Object.fromEntries(AtriumInsights.enabledChecks("pcb").map(c => ["insights.check." + c.id, false])));
+      const track = AtriumNavHost.doc().items.find(x => x.kind === "track" && x.net);
+      const fixture = globalThis.viaFixture = {x:20, message:"Add a stitching via here", ran:[], gone:false};
+      AtriumInsights.register({id:"via-fixture", kind:"pcb", title:"Via fixture", run:() => {
+        if (fixture.gone) return [];
+        const x = fixture.x;
+        return [{at:[20,10], objects:[track.id], message:fixture.message, fix:{label:"Add via",
+          preview:{kind:"via", at:[x,10], diameter:.6}, apply:() => { fixture.ran.push(x); }}}];
+      }});
+      AtriumInsightsUI.schedule({force:true, now:true});
+    });
+    await page.waitForFunction(() => AtriumInsightsUI.current().some(x => x.check === "via-fixture"));
+    const pass = async change => {
+      const done = await page.evaluateHandle(change => {
+        Object.assign(globalThis.viaFixture, change);
+        const before = AtriumInsightsUI.lastPass();
+        AtriumInsightsUI.schedule({force:true, now:true});
+        return () => AtriumInsightsUI.lastPass() !== before && !AtriumInsightsUI.running();
+      }, change);
+      await page.waitForFunction(done => done(), done);
+    };
+    const state = () => page.evaluate(() => {
+      const card = AtriumInsightsUI._card(), active = document.activeElement;
+      return {open:!!AtriumInsightsUI.cardFor(), previewAt:AtriumInsightsUI.cardFor()?.fix?.preview.at[0], previewOn:card?.dataset.preview === "1",
+        focus:active?.matches?.(".insight-card .insight-fix") ? "fix" : active === AtriumNavHost.canvas() ? "canvas" : active?.tagName,
+        message:card?.querySelector(".insight-msg")?.textContent, ran:globalThis.viaFixture.ran.slice()};
+    });
+    const open = async () => {
+      await page.evaluate(() => AtriumInsightsUI.open(AtriumInsightsUI.current().find(x => x.check === "via-fixture"), {focus:true}));
+      await page.locator(".insight-card:visible .insight-fix").waitFor();
+    };
+    await open();
+    assert.deepEqual(await state(), {open:true, previewAt:20, previewOn:true, focus:"fix", message:"Add a stitching via here", ran:[]});
+    await pass({x:24});
+    assert.deepEqual(await state(), {open:true, previewAt:24, previewOn:true, focus:"fix", message:"Add a stitching via here", ran:[]},
+      "a refreshed suggestion moves the preview and keeps the focus on Fix");
+    await page.keyboard.press("Enter");
+    assert.deepEqual((await state()).ran, [24], "Enter on the focused Fix applies the suggestion the preview shows");
+    await open();
+    await pass({x:28, message:"Add a stitching via a little further on"});
+    assert.deepEqual(await state(), {open:true, previewAt:28, previewOn:true, focus:"fix", message:"Add a stitching via a little further on", ran:[24]},
+      "new wording rebuilds the card in place, focus and preview kept");
+    await page.keyboard.press("Enter");
+    assert.deepEqual((await state()).ran, [24, 28], "the rebuilt Fix applies the new suggestion");
+    await open();
+    await pass({gone:true});
+    assert.deepEqual(await state(), {open:false, previewAt:undefined, previewOn:false, focus:"canvas", message:"Add a stitching via a little further on", ran:[24, 28]},
+      "a card whose insight is gone closes and returns the focus to the canvas");
+    assert.deepEqual(errors, []);
+    console.log("PASS Insights card follows a pass: preview, Fix action, wording and focus stay in step");
+  } finally { await page.close(); }
+}
+
 module.exports = async function insightsPolish(browser, {theme = "light", capture, audit} = {}) {
   if (theme === "light") {
     await rotatedMarkers(browser);
     await groupedMarkers(browser);
+    await cardFollowsPass(browser);
   }
   const page = await browser.newPage({viewport: {width: 1440, height: 1000}, reducedMotion: "reduce"});
   const errors = [];
@@ -379,3 +448,4 @@ module.exports = async function insightsPolish(browser, {theme = "light", captur
 module.exports.rotatedMarkers = rotatedMarkers;
 
 module.exports.groupedMarkers = groupedMarkers;
+module.exports.cardFollowsPass = cardFollowsPass;
