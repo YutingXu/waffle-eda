@@ -74,7 +74,7 @@ globalThis.AtriumWorkbench = (() => {
     if (!host) return;
     const entry = target.closest(".project-entry"), project = entry ? projectOwners.get(entry) : host.project();
     if (project && host.project() === project) globalThis.AtriumLazy.need("AtriumContextMenu").then(
-      menu => menu.explorer(host, target, x, y, {project, returnFocus:prior}), error => host.info(error.message));
+      menu => menu.explorer(host, target, x, y, {project, returnFocus:prior, pointer:!keyboard}), error => host.info(error.message));
   }
   // Read before the press focuses the row (Chrome focuses on mousedown; WebKit does not). A press while a
   // menu is open keeps the focus from before that menu.
@@ -102,7 +102,7 @@ globalThis.AtriumWorkbench = (() => {
     for (const type of ["beforeinput", "compositionstart"]) target.addEventListener(type, stop, {signal:request.signal});
     globalThis.AtriumLazy.need("AtriumContextMenu").then(menu => {
       if (!request.signal.aborted && target.isConnected && document.activeElement === focus)
-        menu.editing(target, field, keyboard ? box.left : e.clientX, keyboard ? box.bottom : e.clientY);
+        menu.editing(target, field, keyboard ? box.left : e.clientX, keyboard ? box.bottom : e.clientY, !keyboard);
     }, err => globalThis.AtriumNavHost?.info(err.message)).finally(() => {
       stop(); if (textMenuRequest === request) textMenuRequest = null;
     });

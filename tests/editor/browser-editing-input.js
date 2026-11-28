@@ -59,6 +59,16 @@ async function coldTextMenu(page, release) {
 
     await field.click(); await page.keyboard.press("Shift+F10");
     await menu.waitFor();
+    // A keyboard menu hangs flush from the field; only a pointer menu starts 2 px up and left.
+    const box = await field.evaluate(node => { const r = node.getBoundingClientRect(); return [r.left, r.bottom]; });
+    assert.deepEqual(await menu.evaluate(node => [parseFloat(node.style.left), parseFloat(node.style.top)]), box,
+      "a Shift+F10 text menu sits flush with the field");
+    await page.keyboard.press("Escape"); await menu.waitFor({state:"hidden"});
+    const at = await field.evaluate(node => { const r = node.getBoundingClientRect(); return [r.left + 10, r.top + 6]; });
+    await page.mouse.click(...at, {button:"right"});
+    await menu.waitFor();
+    assert.deepEqual(await menu.evaluate(node => [parseFloat(node.style.left), parseFloat(node.style.top)]), [at[0] - 2, at[1] - 2],
+      "a right-click text menu starts 2 px up and left of the pointer");
     await page.keyboard.press("Escape"); await menu.waitFor({state:"hidden"});
     assert.ok(await field.evaluate(node => node === document.activeElement));
   } finally {release();}
@@ -164,7 +174,7 @@ async function canvasContextMenu(page) {
       if (item.kind !== "part") continue;
       const [x, y] = h.view().worldToScreen([item.x, item.y]);
       if (x < 30 || y < 30 || x > r.width - 30 || y > r.height - 30) continue;
-      const at = [r.left + x, r.top + y];
+      const at = [Math.round(r.left + x), Math.round(r.top + y)]; // whole pixels, as a mouse event reports them
       if (h.hit(c, ...at)?.item === item) parts.push({id:item.id, ref:item.ref, at});
       if (parts.length === 2) break;
     }
@@ -213,9 +223,16 @@ async function canvasContextMenu(page) {
     return page.evaluate(() => window.menuFirstFrame);
   }
   const menu = page.locator(".nav-menu-portal > .nav-menu");
+  // Where a menu anchored at [x, y] is placed, kept 4 px inside the window as popup() does.
+  const placed = () => menu.evaluate(node => [parseFloat(node.style.left), parseFloat(node.style.top)]);
+  const fitted = at => menu.evaluate((node, [x, y]) => {
+    const caption = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--window-caption-height")) || 0;
+    return [Math.max(4, Math.min(x, innerWidth - node.offsetWidth - 4)), Math.max(4 + caption, Math.min(y, innerHeight - node.offsetHeight - 4))];
+  }, at);
   try {
     assert.deepEqual(await show(first.at), {draws:0, selection:[first.id], rebuilt:false, finalDraws:0});
     await menu.filter({hasText:first.ref}).waitFor();
+    assert.deepEqual(await placed(), await fitted([first.at[0] - 2, first.at[1] - 2]), "a right-click canvas menu starts 2 px up and left of the pointer");
     await page.keyboard.press("ArrowDown");
     assert.equal(await menu.locator("[role=menuitem]:focus").count(), 1);
     await page.keyboard.press("Escape");
@@ -229,6 +246,15 @@ async function canvasContextMenu(page) {
     await page.waitForFunction(id => AtriumNavHost.doc().items.find(i => i.id === id)?.locked, second.id);
     await menu.waitFor({state:"hidden"});
     await page.keyboard.press("Shift+F10");
+    await menu.locator("[data-menu-action=unlock]").waitFor();
+    // A keyboard menu opens at the middle of the selection, with no pointer inset.
+    const centre = await page.evaluate(id => {
+      const h = AtriumNavHost, d = h.doc(), b = h.canvas().getBoundingClientRect();
+      const box = AtriumNavCommon.itemBox(d, h.defs(), d.items.find(item => item.id === id));
+      const s = h.view().worldToScreen([(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]);
+      return [b.left + s[0], b.top + s[1]];
+    }, second.id);
+    assert.deepEqual(await placed(), await fitted(centre), "a Shift+F10 canvas menu opens at the selection with no pointer inset");
     await menu.locator("[data-menu-action=unlock]").click();
     await page.waitForFunction(id => !AtriumNavHost.doc().items.find(i => i.id === id)?.locked, second.id);
     await menu.waitFor({state:"hidden"});

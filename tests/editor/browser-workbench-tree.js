@@ -215,6 +215,28 @@ async function projectMenus(browser) {
       assert.deepEqual(await page.evaluate(() => __acts.splice(0)), ["new"], where + " dispatches New Project");
       assert.deepEqual((await state()).targets, []);
     }
+    // A pointer menu starts 2 px up and left of the pointer, so the pointer lands inside its rounded
+    // corner. A keyboard menu (Shift+F10, the menu key) hangs flush from the focused row: 8 px in from
+    // its left edge, its top on the row's bottom.
+    const placed = () => menu.evaluate(node => [parseFloat(node.style.left), parseFloat(node.style.top)]);
+    const edges = locator => locator.evaluate(node => { const r = node.getBoundingClientRect(); return [r.left, r.top, r.bottom]; });
+    {
+      const [left, top] = await edges(other);
+      await other.click({button:"right", position:{x:20, y:10}});
+      await menu.waitFor();
+      assert.deepEqual(await placed(), [left + 20 - 2, top + 10 - 2], "a right-click menu starts 2 px up and left of the pointer");
+      await page.keyboard.press("Escape");
+      await menu.waitFor({state:"detached"});
+    }
+    for (const [name, row] of [["project row", title], ["document row", other]]) {
+      const [left, , bottom] = await edges(row);
+      await row.focus();
+      await page.keyboard.press("Shift+F10");
+      await menu.waitFor();
+      assert.deepEqual(await placed(), [left + 8, bottom], "a Shift+F10 menu sits flush with the " + name);
+      await page.keyboard.press("Escape");
+      await menu.waitFor({state:"detached"});
+    }
     await title.focus();
     await page.keyboard.press("Shift+F10");
     assert.equal(await menu.getAttribute("aria-label"), "Sensor interface");

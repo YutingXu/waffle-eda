@@ -268,7 +268,7 @@ globalThis.AtriumCanvasInput = (() => {
       if(s.pane.input?.hold(d)) return;
       const h = host(s), hit = s.hit;
       if (d.item && !hit.pick && !s.selected) h.select([d.itemId]);
-      const open = m => { if (valid(s) && active(s) && h.currentId() === d.docId) m.open(h,d.clientX,d.clientY,{hit,returnFocus:d.canvas}); };
+      const open = m => { if (valid(s) && active(s) && h.currentId() === d.docId) m.open(h,d.clientX,d.clientY,{hit,returnFocus:d.canvas,pointer:true}); };
       // After the release has run, as a right-click menu opens after its mouse-up.
       time.later(() => {
         const loader = globalThis.AtriumLazy, context = globalThis.AtriumContextMenu;

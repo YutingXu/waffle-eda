@@ -36,6 +36,18 @@ module.exports = async function slidesUI(browser) {
     await page.evaluate(() => AtriumNavHost.act("undo"));
     await page.waitForFunction(() => AtriumNavHost.project().slides[1].name === "Sensor input, close");
 
+    // Context menu: a right-click on a tile opens its menu 2 px up and left of the pointer; Escape closes it.
+    {
+      const box = await tiles.first().boundingBox(), at = [Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2)];
+      await page.mouse.click(...at, {button:"right"});
+      const menu = page.locator(".nav-menu[role=menu]", {has:page.getByRole("menuitem", {name:"Show slide", exact:true})});
+      await menu.waitFor();
+      assert.deepEqual(await menu.evaluate(node => [parseFloat(node.style.left), parseFloat(node.style.top)]), [at[0] - 2, at[1] - 2],
+        "a slide's context menu starts 2 px up and left of the pointer");
+      await page.keyboard.press("Escape");
+      await menu.waitFor({state:"hidden"});
+    }
+
     // Presentation: chrome hides, the bar steps, notes show as text, End returns the camera.
     const before = await page.evaluate(() => ({doc:AtriumNavHost.currentId(), cx:AtriumNavHost.view().camera().cx}));
     await pane.getByRole("button", {name:"Present", exact:true}).click();
