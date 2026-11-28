@@ -69,7 +69,8 @@ globalThis.AtriumBars = (() => {
     const was = normalize(stored), active = {...(was?.active || {})}, met = {...(was?.seen || {})};
     const next = Array.isArray(list) ? normalize({active:{[kind]:list}}).active[kind] : null;
     if (!next || same(next, def)) { delete active[kind]; delete met[kind]; }
-    else { active[kind] = next; met[kind] = [...new Set([...(met[kind] || []), ...seen])]; }
+    // The buttons present now first, so a full seen list still holds them (normalize keeps 64).
+    else { active[kind] = next; met[kind] = [...new Set([...seen, ...(met[kind] || [])])]; }
     return Object.keys(active).length ? normalize({version:VERSION, active, seen:met}) : null;
   }
   // Extension buttons a customised bar has not met yet: they join its end once.
@@ -133,10 +134,15 @@ globalThis.AtriumBars = (() => {
     for (let i = arrived.length - 1; i >= 0; i--) if (arrived[i].parentNode !== bar && arrived[i].parentNode !== parked) arrived.splice(i, 1);
     return arrived.slice();
   };
+  // A context belongs on a kind's bar when it can hold there at all, in some selection or placing state.
+  // Whether it holds now is the owner's business: the extension host hides the button, the editor
+  // disables a command.
   const assume = k => ({kind:k, tool:"select", interactive:false, selected:true, selectionCount:1, canvas:true, __assume:true});
+  const STATES = [{}, {selected:false, selectionCount:0}, {interactive:true}, {selected:false, selectionCount:0, interactive:true}];
+  const ever = (test, k) => STATES.some(s => test({...assume(k), ...s}, true) !== false);
   function allows(when, k) {
     if (!when) return true;
-    try { return K()?.compileWhen(when)?.(assume(k), true) !== false; } catch { return true; }
+    try { const test = K()?.compileWhen(when); return !test || ever(test, k); } catch { return true; }
   }
   const defaultList = k => defaults(entries().filter(e => e.sep || !hiddenOn(k).has(e.id)), k, extNodes().map(n => ({id:idOf(n), when:n.dataset.when || ""})), allows);
   const effective = k => listFor(k) ?? defaultList(k);
@@ -171,7 +177,7 @@ globalThis.AtriumBars = (() => {
     if (extNodes().some(x => idOf(x) === id)) return true;
     if (known.get(id)?.group) return true;
     const c = command(id);
-    return !!c && (!c.whenTest || c.whenTest(assume(k), true));
+    return !!c && (!c.whenTest || ever(c.whenTest, k));
   }
   const groundNet = net => (G.AtriumSchPlace?.powerStyleFor?.(net) ?? (/^(GND|VSS|0V|AGND|DGND|PGND|EARTH)/i.test(net) ? "gnd" : "bar")) !== "bar";
   // The name of an id in a flyout or a list: a built-in group's wording, the menu's, the command's.
@@ -332,8 +338,11 @@ globalThis.AtriumBars = (() => {
     if (list && !Array.isArray(given)) {
       const fresh = newcomers(G.AtriumPref?.get(PREF), k, extIds(k));
       if (fresh.length) queueMicrotask(() => {
-        const now = listFor(k), add = newcomers(G.AtriumPref?.get(PREF), k, extIds(k));
-        if (now && add.length) write(put(G.AtriumPref?.get(PREF), k, [...now, ...add].slice(0, LIMITS.bar), defaultList(k), extIds(k)));
+        const was = G.AtriumPref?.get(PREF), now = listFor(k), add = newcomers(was, k, extIds(k));
+        if (!now || !add.length) return;
+        // A write that changes nothing (a full bar) is skipped: it would only draw again and come back here.
+        const next = put(was, k, [...now, ...add].slice(0, LIMITS.bar), defaultList(k), extIds(k));
+        if (!same(next, normalize(was))) write(next);
       });
     }
     // An extension button no group uses any more is a plain button again.

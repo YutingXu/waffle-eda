@@ -644,6 +644,48 @@ async function facesFollowSettings(browser) {
   } finally { await fresh.close(); }
 }
 
+// [P2] An extension button whose context depends on the selection still belongs to the kind's bar.
+async function conditionalExtensions(browser) {
+  const page = await open(browser);
+  try {
+    await page.evaluate(async () => { await AtriumLazy.need("AtriumActiveBarMenu"); await AtriumLazy.need("AtriumPrefs"); });
+    await extensionButton(page, "test.idle", "!selection");
+    await extensionButton(page, "test.board", "pcb");
+    await settle(page);
+    const defaults = await page.evaluate(() => AtriumBars.defaultList("schematic"));
+    assert.equal(defaults.includes("test.idle"), true, "a !selection button is on the schematic's default bar: " + defaults.slice(-3));
+    assert.equal(defaults.includes("test.board"), false);
+    await page.evaluate(() => { document.querySelector('#tools [data-command="test.idle"]').remove(); AtriumBars.setList("schematic", ["select", "pan"]); });
+    await extensionButton(page, "test.idle", "!selection");
+    await settle(page);
+    assert.deepEqual(await page.evaluate(() => AtriumPrefs.get("workbench.bars").active.schematic), ["select", "pan", "test.idle"], "it joins a customised bar once");
+    console.log("PASS conditional extension buttons belong to their kinds");
+  } finally { await page.close(); }
+}
+// [P2] A newcomer a full bar cannot take is written once, not on every pass.
+async function fullBarWrites(browser) {
+  const page = await open(browser);
+  try {
+    await page.evaluate(async () => { await AtriumLazy.need("AtriumActiveBarMenu"); await AtriumLazy.need("AtriumPrefs"); });
+    await extensionButton(page, "test.late");
+    const writes = await page.evaluate(async () => {
+      const P = AtriumPrefs, wait = () => new Promise(r => setTimeout(r, 30));
+      let n = 0;
+      globalThis.AtriumPrefs = {...P, set(k, v) { if (k === "workbench.bars" && ++n > 20) throw Error("runaway writes"); return P.set(k, v); }};
+      try {
+        // 24 items, and 64 other buttons met before: the seen list is full too.
+        P.set("workbench.bars", {version:1, active:{schematic:["select", ...Array(23).fill("|")]}, seen:{schematic:Array.from({length:64}, (_, i) => "gone.ext" + i)}});
+        await wait();
+        const first = n;
+        for (let i = 0; i < 6; i++) { AtriumBars.render(); await wait(); }
+        return {first, later:n - first, met:P.get("workbench.bars").seen.schematic.includes("test.late")};
+      } finally { globalThis.AtriumPrefs = P; }
+    });
+    assert.deepEqual(writes, {first:1, later:0, met:true}, "renders that change nothing write nothing");
+    console.log("PASS a full bar is written once for a newcomer it cannot take, then not again");
+  } finally { await page.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -683,7 +725,7 @@ async function shots(browser) {
 
 async function run(browser) {
   const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
-    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, shots};
+    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, facesFollowGroups, facesFollowSettings, conditionalExtensions, fullBarWrites, shots};
   for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)

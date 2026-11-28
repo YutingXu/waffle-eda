@@ -81,6 +81,17 @@ const entries = [...bar.matchAll(/<span class="tool-divider"[^>]*>|<button\b([^>
     "seen lists are ids, deduplicated, and only for customised kinds");
 }
 {
+  // A full bar that has met as many buttons as it keeps: the write that cannot add a newcomer still
+  // records it as met, so the next pass finds nothing to add (and writes nothing).
+  const def = B.defaults(entries, "pcb"), full = Array.from({length:LIMITS.bar}, (_, i) => "cmd-" + i);
+  const v = B.normalize({version:1, active:{pcb:full}, seen:{pcb:Array.from({length:64}, (_, i) => "gone." + i)}});
+  assert.deepEqual(B.newcomers(v, "pcb", ["ext.late"]), ["ext.late"]);
+  const next = B.put(v, "pcb", [...full, "ext.late"].slice(0, LIMITS.bar), def, ["ext.late"]);
+  assert.deepEqual(next.active.pcb, full, "the full bar cannot take it");
+  assert.deepEqual(B.newcomers(next, "pcb", ["ext.late"]), [], "the buttons present now are kept in the seen list first");
+  assert.deepEqual(B.put(next, "pcb", next.active.pcb, def, ["ext.late"]), next, "a second pass leaves the stored value as it was");
+}
+{
   // Flyouts and separators.
   assert.deepEqual(B.members({face:"route", more:["a", "b"]}), ["route", "a", "b"]);
   assert.deepEqual(B.members({face:"route", more:["a", "route", "b"]}), ["a", "route", "b"], "the list may place the face");
