@@ -51,7 +51,9 @@ function textMeasure(text, mirror, clip = null) {
     let capHeight = cap.getBoundingClientRect().height;
     if (!CSS.supports("text-box", "trim-both cap alphabetic") || !(capHeight > 0 && capHeight < offset)) {
       const canvas = doc.createElement("canvas").getContext("2d");
-      canvas.font = doc.defaultView.getComputedStyle(cap).font;
+      // The computed font shorthand is empty when a longhand (such as font-variant-numeric) has no shorthand form.
+      const face = doc.defaultView.getComputedStyle(cap);
+      canvas.font = [face.fontStyle, face.fontWeight, face.fontSize, face.fontFamily].join(" ");
       capHeight = canvas.measureText("H").actualBoundingBoxAscent;
     }
     cache.set(key, {offset, capHeight});
@@ -99,6 +101,10 @@ function collect(root, {selector, source}) {
     explicit.push(...ids.map(id => [doc.getElementById(id), "ARIA label"]));
     const row = node.closest(".prf-row,.field-row,.ui-field-row,.ui-prop-row,.thp-field,.fw-row");
     if (row) explicit.push([row.querySelector(".prf-label,label,.field-label,.thp-label,.fw-label") || row.firstElementChild, "field row caption"]);
+    // A generic-part row that is not a label (its Value row stacks hints under the field): the caption names the
+    // row's first control.
+    const part = node.closest(".gp-field");
+    if (part && part.querySelector(selector) === node) explicit.push([part.firstElementChild, "field row caption"]);
     const cell = node.closest("td,th");
     if (cell) {
       explicit.push(...(cell.getAttribute("headers")?.split(/\s+/) || []).map(id => [doc.getElementById(id), "table heading"]));
@@ -335,7 +341,21 @@ async function measureNativeOption(page, item) {
   }
 }
 
+// A surface that re-renders while it is measured (Properties rebuilds when a lazy module arrives) replaces its
+// controls, and a replaced native control has no painted text left to read. Measure again, up to three times,
+// until the controls the measurement started with are all still in the document.
 async function measureFieldText(page, session, scope) {
+  let items;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let replaced;
+    ({items, replaced} = await measureOnce(page, session, scope));
+    if (!replaced) break;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  }
+  return items;
+}
+
+async function measureOnce(page, session, scope) {
   const objectGroup = "field-text-alignment";
   const nativeDeclaration = `function (index, multiline) {
     const mirror = this.ownerDocument.getElementById("waffle-qa-field-text-probe");
@@ -363,7 +383,8 @@ async function measureFieldText(page, session, scope) {
       Object.assign(item, centres(item));
       item.disposition = item.valueText ? "measured" : item.value || item.segmented || !item.native ? "missing painted text" : "empty value";
     }
-    return items;
+    const replaced = await page.evaluate(count => document.querySelectorAll("[data-field-text-control]").length !== count, items.length);
+    return {items, replaced};
   } finally {
     await session.send("Runtime.releaseObjectGroup", {objectGroup});
     await page.evaluate(() => {

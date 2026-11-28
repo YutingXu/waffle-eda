@@ -177,7 +177,6 @@ input:is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected=ink] 
       > span:first-child:not([aria-hidden=true],.icon) +
         :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select:not([multiple],[size]:not([size="1"])),.ui-field-measure)
     ) > span:first-child,
-    .ui-prop-row:not([data-stacked],:has(> .ui-prop-value)) > :first-child,
     .work-row:has(> span:first-child + :is(select:not([multiple],[size]:not([size="1"])),input:not([type=checkbox],[type=radio]))) > span:first-child,
     .work-form > label > span:first-child,
     .work-form > label:not(:has(input,select,textarea,button)):has(+ :is(select:not([multiple],[size]:not([size="1"])),input:not([type=checkbox],[type=radio]))),
@@ -448,9 +447,10 @@ p:where(.ui-dialog-body),:where(.ui-dialog-body,.work-dialog,.message-dialog) p 
   :where(.ui-button,.ui-tab,.ui-segment) {--ui-control-height:var(--ctl-h-touch)}
   :where(label.ui-field-row,.ui-field-measure) {min-block-size:var(--ctl-h-touch);align-content:center}
   /* The 44 px measure keeps its field at the top, so the caption is centred on the field, not on the measure: it takes
-     the field's 28 px slot and centres its text there, overflowing evenly when it wraps to more than the slot holds. */
+     the field's 28 px slot and centres its text there (trimmed to its cap height, unpadded, so two lines still fit).
+     A longer caption grows the slot downwards. */
   :where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:not(.ui-prop-row):has(> span:first-child:not([aria-hidden=true],.icon) + .ui-field-measure) > span:first-child {
-    align-self:start;box-sizing:border-box;block-size:var(--field-height);align-content:unsafe center;
+    align-self:start;box-sizing:border-box;min-block-size:var(--field-height);padding-block:0;align-content:center;
   }
   #inspector label.field-row:has(> select:not([multiple],[size]:not([size="1"]))) {min-block-size:var(--ctl-h-touch)}
   :where(.ui-checkbox-row) {min-height:var(--ctl-h-touch)}

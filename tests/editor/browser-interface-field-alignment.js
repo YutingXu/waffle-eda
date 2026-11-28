@@ -227,6 +227,15 @@ async function surfaces(page, sample, profile) {
   await sample("Schematic · placed component",inspector,["Designator","Comment",/^Rotation/]);
   await changeDocument(page,"schematic",["netlabel"]);
   await sample("Schematic · net label",inspector,["Text",/^X/]);
+  // A property row whose value is a four-row textarea: the caption keeps to the textarea's first line.
+  await page.evaluate(() => {
+    const host = AtriumNavHost, frame = {id:Atrium.id(), kind:"textframe", x:10, y:10, w:40, h:20,
+      text:"Field text fixture\nSecond line\nThird line"};
+    host.edit(() => host.doc().items.push(frame), "Place text frame", [frame]);
+    host.select([frame.id]);
+  });
+  await inspector.locator(".ui-prop-row > textarea[aria-label=Text]").waitFor();
+  await sample("Schematic · text frame",inspector,[{control:"Text",mode:"multiline"}]);
   await sample("Workbench · schematic Active Bar",page.locator("#tools"),[]);
 
   await populateDrawings(page);
@@ -299,6 +308,10 @@ async function run(browser) {
           probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=../../span[1]"),read,{move:"caption"}));
           probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=.."),read,{move:"field"}));
           probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=../span[contains(@class,'ui-field-unit')]"),read,{move:"unit"}));
+        }
+        if (name === "light" && title === "Schematic · text frame") {
+          const caption = scope.locator(".ui-prop-row > textarea[aria-label=Text]").locator("xpath=../span[1]");
+          probes.push(...await geometry.assertFieldTextPerturbations(caption,() => row("Text"),{move:"caption"}));
         }
         if (name === "light" && title === "PCB · View Configuration") {
           const control = scope.locator('output[aria-labelledby="vc-opacity-track"]');

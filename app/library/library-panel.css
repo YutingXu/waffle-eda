@@ -253,5 +253,5 @@
 /* On touch a number's 44 px measure keeps its field at the top, so the caption is centred on the field (ui/controls.css).
    The narrow layout stacks the caption above the field instead. */
 @media (any-pointer:coarse) and (min-width:431px) {
-  .fw-row > .fw-label:has(+ .ui-field-measure) {align-self:start;box-sizing:border-box;block-size:var(--field-height);align-content:unsafe center}
+  .fw-row > .fw-label:has(+ .ui-field-measure) {align-self:start;box-sizing:border-box;min-block-size:var(--field-height);padding-block:0;align-content:center}
 }

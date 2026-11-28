@@ -134,8 +134,9 @@ The [UI library](ui-library.md) is the full component reference. The notes below
   beside the value (`.ui-field-unit`, `.prf-unit`) shares the value's
   alphabetic baseline within 0.5 CSS px. Beside a multiline field (a textarea
   or a list box) the caption's first line is centred on the field's first text
-  line. Beside read-only text or an `output`, which have no field box, the
-  caption shares the text's first baseline. A stacked caption precedes its
+  line. Beside a value that is not a field (read-only text, code, badges, an
+  `output`), which has no field box, the caption shares the value's first
+  baseline. A stacked caption precedes its
   control on a separate row. Associate the caption through a native label,
   `aria-labelledby` or the shared field row. The shared rows (dialog labels,
   `.ui-prop-row`, `.work-row`, `.work-form`, Preferences rows) centre their
@@ -145,7 +146,8 @@ The [UI library](ui-library.md) is the full component reference. The notes below
   line box, which can leave the capitals up to about a pixel off, depending on
   the font and the line height. On touch a
   number's 44 px measure keeps its field at the top, and the caption is
-  centred on the field.
+  centred on the field's 28 px slot; a caption longer than two lines grows
+  the slot downwards.
   The Chromium check reads rendered text runs, including native select and
   input text, and records blank values, hidden or accessibility-only captions,
   and controls whose value is a swatch or toggle. Operating-system pickers use
