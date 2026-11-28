@@ -415,8 +415,14 @@ declare var AtriumHistoryEntry: AtriumGen<"AtriumHistoryEntry">; // app/history/
 declare var AtriumHistoryView: AtriumGen<"AtriumHistoryView">; // app/history/history-view.js
 declare var AtriumIntelUI: AtriumGen<"AtriumIntelUI">; // app/editor/workspace-tools.js
 declare var AtriumLandContours: AtriumGen<"AtriumLandContours">; // app/pcb/land-contours.js
+declare var AtriumLayer: AtriumGen<"AtriumLayer">; // app/ui/owner-layer.js
 declare var AtriumLegacyCommandContract: AtriumGen<"AtriumLegacyCommandContract">; // app/automation/legacy-command-contract.js
+declare var AtriumLibraryDockUI: AtriumGen<"AtriumLibraryDockUI">; // app/library/library-ui.js
+declare var AtriumLibraryFacetsUI: AtriumGen<"AtriumLibraryFacetsUI">; // app/library/library-ui.js
+declare var AtriumLibraryInspector: AtriumGen<"AtriumLibraryInspector">; // app/library/library-ui.js
 declare var AtriumLibraryPairing: AtriumGen<"AtriumLibraryPairing">; // app/library/library-pairing.js
+declare var AtriumLibraryRows: AtriumGen<"AtriumLibraryRows">; // app/library/library-ui.js
+declare var AtriumLibraryView: AtriumGen<"AtriumLibraryView">; // app/library/library-workspace.js
 declare var AtriumLinkRecord: AtriumGen<"AtriumLinkRecord">; // app/link-record.js
 declare var AtriumLinks: AtriumGen<"AtriumLinks">; // app/links.js
 declare var AtriumLinksDesktop: AtriumGen<"AtriumLinksDesktop">; // app/links-desktop.js

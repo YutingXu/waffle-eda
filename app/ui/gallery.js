@@ -272,6 +272,7 @@ globalThis.AtriumUIGallery = (() => {
           k.row({title: "Project", icon: "project", depth: 0, expanded: true}),
           k.row({title: "Schematics", icon: "folder", depth: 1, expanded: false}),
           k.row({title: "Board.PcbDoc", icon: "board", depth: 1, expanded: undefined, selected: true, current: true}),
+          k.row({title: "AP2112K-3.3", icon: (() => { const g = k.el("span", "ui-row-icons"); g.append(k.icon("schematic"), k.icon("chip")); return g; })(), detail: "SOT-23-5", depth: 1}),
           k.row({title: "Notes", icon: "comment", depth: 1})], {role: "tree", label: "Project"})),
         specimen("Choice", k.list([
           k.row({title: "Shortest path", detail: "Fewest vias", checked: true}),
@@ -334,7 +335,8 @@ globalThis.AtriumUIGallery = (() => {
         specimen("Turns", k.el("div", "ui-transcript ui-gallery-transcript"))),
       family("recording", "Recording indicator", "A dot with a halo while a macro records.", specimen("Recording", k.recording("Recording · 4 steps"))),
       family("splitter", "Splitters", "1 px divider, 4 px hit area (16 px on touch), lit on hover, drag and keyboard focus.",
-        specimen("Vertical", (() => { const w = k.el("div", "ui-gallery-split"); w.append(k.el("div", null, "List"), k.splitter({label: "Resize list"}), k.el("div", null, "Detail")); return w; })())),
+        specimen("Vertical", (() => { const w = k.el("div", "ui-gallery-split"); w.append(k.el("div", null, "List"), k.splitter({label: "Resize list"}), k.el("div", null, "Detail")); return w; })()),
+        specimen("Horizontal", (() => { const w = k.el("div", "ui-split ui-gallery-split"); w.dataset.orientation = "vertical"; w.append(k.el("div", null, "List"), k.splitter({orientation: "horizontal", label: "Resize detail"}), k.el("div", null, "Detail")); return w; })())),
       family("drag", "Drag handles and drop targets", "Handles keep the arrow cursor; targets say ready, over, denied or busy.",
         specimen("Handle", (() => { const r = k.row({title: "Step 2", detail: "Drag to reorder"}); r.prepend(k.dragHandle()); r.style.gridTemplateColumns = "auto auto minmax(0,1fr)"; return r; })()),
         specimen("Targets", ...["ready", "over", "denied", "busy"].map(state => k.dropState(k.el("div", "ui-gallery-drop", state), state))),

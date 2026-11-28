@@ -14,6 +14,9 @@
 #            through the MCP server -> save back as KiCad and Altium -> each saved file read by the
 #            independent reader -> outputs; known defects in tests/e2e/edit-known-failures.json).
 #            Its full tier (--tier full --fetch) runs the same corpora and is not gated yet.
+#            Then the import census: tests/e2e/census.cjs lists every object and field each vendored KiCad,
+#            Altium and Eagle file holds with an independent reader and fails on any the import neither
+#            holds nor reports (known losses in tests/e2e/census-known-failures.json).
 #            WAFFLE_E2E_PRIVATE=/folder adds a local private corpus (never printed or committed).
 #   mcp      tests/automation/mcp.py, mcp_runner.py, headless-parity.py, eco-e2e.py
 #            and the feature MCP suites (diff, review, MCAD, authoring, bus route, generic parts, symbol wizard, fab parity, collab relay, Git security, model types, ngspice)
@@ -77,6 +80,8 @@ e2e_full() {
   $node tests/formats/pour-oracle.cjs --require-corpus || rc=1
   # Edit the vendored boards through the MCP server, save back, read every saved file independently.
   python3 tests/e2e/edit-flow.py --node $node --mutations || rc=1
+  # Everything each vendored source file holds is held by the import, reported, or declared outside (tests/e2e/census.cjs).
+  $node tests/e2e/census.cjs || rc=1
   return $rc
 }
 rust_build() {

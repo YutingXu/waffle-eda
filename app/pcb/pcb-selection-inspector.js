@@ -20,7 +20,7 @@ globalThis.AtriumPCBSelectionInspector = (() => {
     }
     const kindLabel = kind => (ctx.pcb() ? LABELS[kind] : SCH_LABELS[kind]) || kind;
     // group(key) (editor.js): the named Properties group a row belongs to; without it every row stays in the object's section.
-    function inspectItem(section, item, group = () => section) {
+    function inspectItem(section, item, group = /** @param {string} _key */ _key => section) {
       const ui = globalThis.AtriumNavHost.ui;
       const placed = ctx.pcb() && item.kind === "part" && ctx.defs().get(item.def)?.footprint, at = placed ? group("Placement") : section;
       if (placed) {

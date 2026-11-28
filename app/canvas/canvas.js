@@ -1336,6 +1336,13 @@ globalThis.AtriumCanvas = (() => {
     }
     function boardConnectivity(doc,defs) {
       if(doc.kind!=="pcb")return null;
+      // The solver is lazy (lazy.js boardRenderers preloads it for a project's boards). A board added to an
+      // open project can draw first: load it, show no airwires until then, and draw again once it is here.
+      if(!globalThis.AtriumConnectivity){
+        if(globalThis.AtriumLazy?.need&&!globalThis.AtriumLazy.pending?.("AtriumConnectivity"))
+          globalThis.AtriumLazy.need("AtriumConnectivity").then(()=>{repaint?.();globalThis.AtriumNavHost?.invalidate?.();},()=>{});
+        return null;
+      }
       const rev=sync(doc,defs).rev;
       if(!connectivity || connectivity.doc!==doc || connectivity.rev!==rev){
         if(deferred?.doc===doc)cancelAirwires();

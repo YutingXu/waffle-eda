@@ -41,8 +41,9 @@ def panel_id(classes):
 
 
 def string_property(spec, name):
-    match = re.search(rf"""\b{name}\s*:\s*["']([^"']+)["']""", spec)
-    return match[1] if match else None
+    # The value runs to its own closing quote: a selector may hold the other quote ('[data-dock="x"]').
+    match = re.search(rf"""\b{name}\s*:\s*(["'])((?:(?!\1).)+)\1""", spec)
+    return match[2] if match else None
 
 
 def dock_registrations(source, script):
