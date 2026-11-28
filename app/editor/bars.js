@@ -271,13 +271,16 @@ globalThis.AtriumBars = (() => {
     const focused = bar.contains(D.activeElement) ? slots.get(/** @type {Element} */ (D.activeElement)) : null;
     const list = Array.isArray(given) ? given.map(item).filter(x => x != null) : listFor(k), chosen = faces()[k] || {}, used = new Set(), dividers = pristine.filter(isDivider), out = [];
     groups.clear();
+    // An extension button keeps its own node (and click) wherever it is drawn, a group's face included.
+    const grouped = new Set(), extNode = id => extNodes().find(n => idOf(n) === id && !used.has(n));
+    const asFace = (n, key, from) => { if (n.classList.contains("ext-tool")) grouped.add(n); return flyoutOn(n, key, from); };
     // The remembered flyout choice for a button (slot), drawn with that button's group.
     const face = (slot, key, node) => {
       const f = chosen[slot], id = typeof f === "string" ? f : f?.id;
       if (!id || id === slot) return node;
       if (typeof f === "object") known.set(id, {label:f.label, icon:f.icon, group:f.group});
       if (!drawable(id, k) && !(groups.get(key) || M()?.rows(key, k)?.map(r => r.id) || []).includes(id)) return node;
-      const n = flyoutOn(build(id, k), key, node);
+      const n = asFace(extNode(id) || build(id, k), key, node);
       slots.set(n, slot); return n;
     };
     if (!list) {
@@ -287,17 +290,17 @@ globalThis.AtriumBars = (() => {
         used.add(n); slots.set(n, idOf(n));
         out.push(n.dataset.toolGroup ? face(idOf(n), n.dataset.toolGroup, n) : n);
       }
-      for (const n of extNodes()) { used.add(n); out.push(n); }
+      for (const n of extNodes()) if (!used.has(n)) { used.add(n); out.push(n); }
     } else {
       let g = 0;
       for (const x of list) {
         if (x === SEP) { out.push(dividers.find(d => !used.has(d) && used.add(d)) || divider()); continue; }
         const id = object(x) ? x.face : x;
         if (!drawable(id, k)) continue;
-        const ext = extNodes().find(n => idOf(n) === id && !used.has(n));
+        const ext = extNode(id);
         let n;
-        if (ext) n = ext;
-        else if (object(x) && members(x).length > 1) { const key = "bar-" + g++; groups.set(key, members(x)); n = flyoutOn(build(id, k), key, template(id)); slots.set(n, id); n = face(id, key, n); }
+        if (object(x) && members(x).length > 1) { const key = "bar-" + g++; groups.set(key, members(x)); n = asFace(ext || build(id, k), key, ext ? null : template(id)); slots.set(n, id); n = face(id, key, n); }
+        else if (ext) n = ext;
         else if (object(x)) {
           // A group whose flyout was emptied: the button alone.
           n = build(id, k); slots.set(n, id); n.classList.remove("has-flyout");
@@ -318,6 +321,11 @@ globalThis.AtriumBars = (() => {
         const now = listFor(k), add = newcomers(G.AtriumPref?.get(PREF), k, extIds(k));
         if (now && add.length) write(put(G.AtriumPref?.get(PREF), k, [...now, ...add].slice(0, LIMITS.bar), defaultList(k), extIds(k)));
       });
+    }
+    // An extension button no group uses any more is a plain button again.
+    for (const n of extNodes()) if (!grouped.has(n) && n.dataset.toolGroup) {
+      n.classList.remove("has-flyout");
+      for (const a of ["data-tool-group", "aria-haspopup", "aria-expanded", "aria-controls"]) n.removeAttribute(a);
     }
     const shown = list ? tidy(out, n => isDivider(n)) : out;
     for (const n of shown) if (n.nodeType === 1 && n.dataset.scope && !n.classList.contains("ext-tool")) n.hidden = n.dataset.scope !== k;
@@ -414,6 +422,9 @@ globalThis.AtriumBars = (() => {
         if (m) return m.click();
         throw Error(t("bars.unavailable", {name:id.slice(6)}));
       }
+      // An extension button runs as its own click does (the extension host's handler), from a flyout too.
+      const ext = extNodes().find(n => idOf(n) === id);
+      if (ext) return ext.click();
       const group = known.get(id)?.group;
       if (group && !command(id)) {
         const row = (await provided(group, kind())).find(r => r.id === id);

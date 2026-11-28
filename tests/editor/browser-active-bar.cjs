@@ -551,6 +551,41 @@ async function iconsAfterKindSwitch(browser) {
   } finally { await page.close(); }
 }
 
+// [P2] An extension button can be a group's face: it keeps its own click, and its flyout opens.
+async function extensionFace(browser) {
+  const page = await open(browser);
+  try {
+    await page.evaluate(() => AtriumLazy.need("AtriumActiveBarMenu"));
+    await extensionButton(page, "test.hello");
+    await page.evaluate(() => AtriumBars.setList("schematic", ["select", "pan", "|", {face:"test.hello", more:["fit"]}]));
+    await settle(page);
+    const ext = 'document.querySelector(\'#tools .ext-tool[data-command="test.hello"]\')';
+    assert.deepEqual(await page.evaluate(`[${ext}?.getClientRects().length > 0, ${ext}?.getAttribute("aria-haspopup"), !!${ext}?.dataset.toolGroup]`), [true, "menu", true],
+      "the extension button is drawn as the group's face");
+    await page.evaluate(`${ext}.click()`);
+    assert.equal(await page.evaluate(() => globalThis.__ran["test.hello"]), 1, "a click runs the extension's command");
+    await page.evaluate(`${ext}.focus()`);
+    await page.keyboard.press("ArrowDown");
+    await waitFlyout(page);
+    const rows = await flyoutRows(page);
+    assert.equal(rows.length, 2, "its flyout: " + rows.join(", "));
+    assert.equal(rows[0], "test.hello");
+    // Another command becomes the face; choosing the extension again brings its own button back and runs it.
+    await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter"); await settle(page);
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem("atrium.bar-faces"))), {schematic:{"test.hello":"fit"}});
+    await page.evaluate(() => AtriumActiveBar.open(document.querySelector('#tools [data-action="fit"]')));
+    await waitFlyout(page);
+    await page.evaluate(() => [...document.querySelectorAll("#active-bar-flyout [role=menuitem]")].find(b => b.getAttribute("aria-label") === "test.hello").click());
+    await settle(page);
+    assert.deepEqual(await page.evaluate(() => [localStorage.getItem("atrium.bar-faces"), globalThis.__ran["test.hello"]]), [null, 2]);
+    assert.equal(await page.evaluate(`${ext}?.getClientRects().length > 0`), true);
+    // Out of the group it is a plain button again.
+    await page.evaluate(() => AtriumBars.setList("schematic", ["select", "test.hello"]));
+    assert.deepEqual(await page.evaluate(`[${ext}.hasAttribute("aria-haspopup"), ${ext}.hasAttribute("data-tool-group"), ${ext}.classList.contains("has-flyout")]`), [false, false, false]);
+    console.log("PASS an extension button can be a group's face");
+  } finally { await page.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -590,7 +625,7 @@ async function shots(browser) {
 
 async function run(browser) {
   const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
-    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, shots};
+    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, extensionFace, shots};
   for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)
