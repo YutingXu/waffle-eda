@@ -227,6 +227,27 @@ async function surfaces(page, sample, profile) {
   await sample("Schematic · placed component",inspector,["Designator","Comment",/^Rotation/]);
   await changeDocument(page,"schematic",["netlabel"]);
   await sample("Schematic · net label",inspector,["Text",/^X/]);
+  // A generic resistor's Properties section stacks its Value caption above the field and its hints
+  // (library/generic-parts.css), beside same-row Package and rating rows.
+  await page.evaluate(async () => {
+    await AtriumLazy.need("AtriumGenericPartsUI");
+    const host = AtriumNavHost;
+    let part;
+    host.edit(() => { part = AtriumGenericParts.place(host.project(),host.doc(),[40,40],{family:"resistor",value:"4k7"}).part; },
+      "Place generic resistor");
+    host.select([part.id]);
+  });
+  await inspector.locator(".gp-inspector input[aria-label=Value]").waitFor();
+  await sample("Schematic · generic resistor",inspector,[{control:"Value",mode:"stacked"},"Package"]);
+  // A property row whose value is a four-row textarea: the caption keeps to the textarea's first line.
+  await page.evaluate(() => {
+    const host = AtriumNavHost, frame = {id:Atrium.id(), kind:"textframe", x:10, y:10, w:40, h:20,
+      text:"Field text fixture\nSecond line\nThird line"};
+    host.edit(() => host.doc().items.push(frame), "Place text frame", [frame]);
+    host.select([frame.id]);
+  });
+  await inspector.locator(".ui-prop-row > textarea[aria-label=Text]").waitFor();
+  await sample("Schematic · text frame",inspector,[{control:"Text",mode:"multiline"}]);
   await sample("Workbench · schematic Active Bar",page.locator("#tools"),[]);
 
   await populateDrawings(page);
@@ -264,7 +285,7 @@ async function run(browser) {
       await page.evaluate(theme => AtriumTheme.set({preset:theme,followSystem:false,motion:"off"}),theme);
       assert.equal(await page.evaluate(() => matchMedia("(any-pointer:coarse)").matches),touch);
       const probes = [], failures = [];
-      const read = scope => geometry.textBaselines(page,session,scope);
+      const read = scope => geometry.measureFieldText(page,session,scope);
       await surfaces(page,async (title, scope, required, panel) => {
         await scope.waitFor();
         const results = await read(scope);
@@ -278,18 +299,57 @@ async function run(browser) {
             result.disposition === "measured"),
           `${name} ${title}: expected measured ${String(control)}${mode ? " (" + mode + ")" : ""}; saw ${results.map(row=>row.label + "/" + row.mode).join(", ")}`);
         }
-        failures.push(...geometry.failures([...geometry.baselineResults(results), ...metrics]).map(item => ({surface:title, ...item})));
+        failures.push(...geometry.failures([...geometry.fieldTextResults(results), ...metrics]).map(item => ({surface:title, ...item})));
         report.push({title,results,panel,census});
         const row = async expected => (await read(scope)).find(item => item.control === expected || item.label === expected);
         if (title === "PCB · document Properties") {
-          // A property row puts its caption and its field on one baseline, so text moved inside the field
-          // takes the caption with it. Move the caption alone: the measurement must still see the 1px.
-          const caption = scope.getByRole("combobox",{name:"Component class filter"}).locator("xpath=preceding-sibling::*[1]");
-          probes.push(...await geometry.assertBaselinePerturbations(caption,() => row("Component class filter"),{captionOnly:true}));
+          // Properties rows are library .ui-prop-row grids that centre their cells, so the caption sits on the
+          // select's centre. Move the caption's painted text, then the select, to prove the checker rejects
+          // a 1px drift either way, in every profile.
+          const control = scope.getByRole("combobox",{name:"Component class filter"});
+          const caption = control.locator("xpath=preceding-sibling::*[1]");
+          probes.push(...await geometry.assertFieldTextPerturbations(caption,() => row("Component class filter"),{move:"caption"}));
+          probes.push(...await geometry.assertFieldTextPerturbations(control,() => row("Component class filter"),{move:"field"}));
+        }
+        if (name === "light" && title === "PCB · copper track") {
+          // A number with its unit inside the field's box: the caption centres on the box, and the unit shares
+          // the value's baseline. Moving the caption, the box (with its text and unit) or the unit by 1px must each fail.
+          const control = scope.locator(".ui-prop-row > .ui-field-measure > input[aria-label^=\"Width\"]").first();
+          const read = () => row("Width");
+          assert.equal((await read())?.mode,"compound","the track width carries its unit");
+          probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=../../span[1]"),read,{move:"caption"}));
+          probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=.."),read,{move:"field"}));
+          probes.push(...await geometry.assertFieldTextPerturbations(control.locator("xpath=../span[contains(@class,'ui-field-unit')]"),read,{move:"unit"}));
+        }
+        if (name === "light" && title === "Schematic · text frame") {
+          const caption = scope.locator(".ui-prop-row > textarea[aria-label=Text]").locator("xpath=../span[1]");
+          probes.push(...await geometry.assertFieldTextPerturbations(caption,() => row("Text"),{move:"caption"}));
+        }
+        if (name === "light" && title === "Schematic · generic resistor") {
+          // A stacked caption keeps its own line and its row's start: the check rejects one trimmed to its cap
+          // height, one given the field's 28 px slot, and one moved off its row's start.
+          const caption = scope.locator(".gp-inspector > .gp-field-value > span:first-child");
+          const original = await caption.getAttribute("style");
+          const stackedFailures = async () => geometry.failures(geometry.fieldTextResults([await row("Value")]))
+            .filter(metric => metric.kind.startsWith("stacked caption")).map(metric => metric.kind);
+          assert.deepEqual(await stackedFailures(),[],"The Properties Value caption keeps its stacked line");
+          try {
+            for (const [style, kind] of [
+              ["text-box:trim-both cap alphabetic", "stacked caption keeps its line (above)"],
+              ["box-sizing:border-box;min-block-size:28px;padding-top:0;align-content:center", "stacked caption keeps its line (above)"],
+              ["justify-self:center", "stacked caption starts its row"],
+            ]) {
+              await caption.evaluate((node, value) => node.setAttribute("style", value), style);
+              assert.ok((await stackedFailures()).includes(kind), `${style} must fail: ${kind}`);
+              probes.push({label:"Value stacked caption " + style});
+            }
+          } finally {
+            await caption.evaluate((node, value) => value === null ? node.removeAttribute("style") : node.setAttribute("style", value), original);
+          }
         }
         if (name === "light" && title === "PCB · View Configuration") {
           const control = scope.locator('output[aria-labelledby="vc-opacity-track"]');
-          probes.push(...await geometry.assertBaselinePerturbations(control,() => row("Tracks")));
+          probes.push(...await geometry.assertFieldTextPerturbations(control,() => row("Tracks"),{move:"field"}));
         }
         if (name === "light" && title === "Footprint Editor · Properties and toolbar") {
           const caption = scope.getByLabel("Drawing layer",{exact:true}).locator("xpath=../span[1]");
@@ -305,7 +365,7 @@ async function run(browser) {
         for (const row of census.unmeasured) noValue[row.family] = (noValue[row.family] || 0) + 1;
       }
       const count = report.filter(entry=>entry.panel).length;
-      console.log(`PASS field alignment ${name}: ${report.length} states, ${count} Dock panels, ${JSON.stringify(modes)}; controls without value text ${JSON.stringify(noValue)}; ±1px probes rejected`);
+      console.log(`PASS field alignment ${name}: ${report.length} states, ${count} Dock panels, ${JSON.stringify(modes)}; controls without value text ${JSON.stringify(noValue)}; ${probes.length} ±1px caption, field and unit probes rejected`);
       reports.push({profile:name, surfaces:report, probes, modes, noValue});
     } finally {
       await session.detach();

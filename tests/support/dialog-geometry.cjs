@@ -1,8 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const {textBaselines, baselineResults, assertBaselinePerturbations, assertStackedCaptionPerturbation,
-  BASELINE_CONTROL} = require("./field-text-baselines.cjs");
+const {measureFieldText, fieldTextResults, assertFieldTextPerturbations, assertStackedCaptionPerturbation,
+  FIELD_TEXT_CONTROL} = require("./field-text-alignment.cjs");
 const FIELD = "input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),select:not([multiple]),[role=combobox]:not(:has(input,select))";
 const TOLERANCE = 0.5;
 
@@ -448,6 +448,6 @@ async function shiftsByPixel(locator, axis, measure, label) {
   }, axis), measure);
 }
 
-module.exports = {FIELD, near, fields, fieldResults, textBaselines, baselineResults, assertBaselinePerturbations,
-  assertStackedCaptionPerturbation, BASELINE_CONTROL,
+module.exports = {FIELD, near, fields, fieldResults, measureFieldText, fieldTextResults, assertFieldTextPerturbations,
+  assertStackedCaptionPerturbation, FIELD_TEXT_CONTROL,
   preferenceGeometry, keyListGeometry, dialogSections, viewportGeometry, failures, changesByPixel, shiftsByPixel};

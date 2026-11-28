@@ -11,8 +11,7 @@
 .hdi-k {color:var(--muted)}
 .hdi-hint {color:var(--faint);font-size:var(--fs-11);margin:0}
 .hdi-summary {color:var(--muted);font-size:var(--fs-12);line-height:var(--lh)}
-.hdi-field:has(> .hdi-pair),.hdi-pair {align-items:baseline}
-.hdi-pair {display:inline-flex;gap:4px}
+.hdi-pair {display:inline-flex;align-items:baseline;gap:4px}
 .work-dialog .hdi-num {width:var(--field-number-width);font-variant-numeric:tabular-nums}
 .work-dialog .hdi-select {min-width:0;max-width:100%}
 .hdi-status {margin:0;padding:0 18px;color:var(--error);font-size:var(--fs-12);min-height:0}
@@ -36,3 +35,7 @@
 .hdi-bad {color:var(--error)}
 .hdi-findings {margin:0;padding-left:18px;font-size:var(--fs-12);line-height:var(--lh-loose)}
 @media (max-width:760px) {.hdi-body {grid-template-columns:minmax(0,1fr)}}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .hdi-field > .hdi-k:first-child:has(+ :is(.hdi-pair,select,input)) {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}

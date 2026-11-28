@@ -62,7 +62,6 @@
 .work-dialog .vs-danger:hover:not(:disabled) {box-shadow:inset 0 0 0 1px var(--err-mark)}
 .vs-note {color:var(--muted);font-size:var(--fs-11)}
 .vs-list > .vs-defaults {margin-block-start:var(--s-8)}
-.vs-defaults > .vs-field {align-items:baseline}
 .vs-defaults small {margin-top:2px}
 /* Fab profiles */
 .fp-warning {display:flex;gap:6px;flex-wrap:wrap;align-items:baseline;margin:10px 18px 0;padding:8px 12px;border:1px solid var(--warn-mark);border-radius:var(--r-sm);background:color-mix(in srgb,var(--warn-mark) 14%,var(--panel));font-size:var(--fs-13);line-height:1.45}

@@ -2,7 +2,13 @@
 
 const assert = require("node:assert/strict");
 
-const BASELINE_CONTROL = [
+// Field text alignment (docs/design-system.md). A same-row caption is centred on its field: the optical centre
+// of the caption's text, halfway between its cap line and its baseline, lies on the centre of the field's border
+// box. A wrapped caption is centred as one block, from its first line's cap line to its last line's baseline.
+// Beside a multiline field (a textarea or a list box) the caption's first line is centred on the field's first
+// text line instead. The field centres its own value text; a unit beside the value shares the value's alphabetic
+// baseline. Each is measured from rendered text runs, within 0.5 CSS px.
+const FIELD_TEXT_CONTROL = [
   "input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image])",
   "select", "textarea", ':is([role=combobox],[role=spinbutton],[role=searchbox],[role=textbox]):not(:has(input,select,textarea))',
   "output[aria-labelledby]",
@@ -34,20 +40,34 @@ function textMeasure(text, mirror, clip = null) {
     for (const [name, value] of css) if (value) line.style.setProperty(name, value);
     run.textContent = sample;
     anchor.style.cssText = "display:inline-block;width:0;height:0;padding:0;margin:0;border:0;vertical-align:baseline";
-    line.append(run, anchor); mirror.shadowRoot.append(line);
+    // The font's cap height: a box trimmed to the cap line above and the alphabetic baseline below is exactly
+    // that tall. Without text-box trimming, Canvas measures the ink of a capital H in the same font.
+    const cap = doc.createElement("span");
+    cap.style.cssText = "display:inline-block;padding:0;margin:0;border:0;line-height:normal;text-box:trim-both cap alphabetic";
+    cap.textContent = "H";
+    line.append(run, anchor, cap); mirror.shadowRoot.append(line);
     const calibration = doc.createRange(); calibration.selectNodeContents(run.firstChild);
     const offset = anchor.getBoundingClientRect().top - calibration.getBoundingClientRect().top;
-    cache.set(key, offset);
+    let capHeight = cap.getBoundingClientRect().height;
+    if (!CSS.supports("text-box", "trim-both cap alphabetic") || !(capHeight > 0 && capHeight < offset)) {
+      const canvas = doc.createElement("canvas").getContext("2d");
+      // The computed font shorthand is empty when a longhand (such as font-variant-numeric) has no shorthand form.
+      const face = doc.defaultView.getComputedStyle(cap);
+      canvas.font = [face.fontStyle, face.fontWeight, face.fontSize, face.fontFamily].join(" ");
+      capHeight = canvas.measureText("H").actualBoundingBoxAscent;
+    }
+    cache.set(key, {offset, capHeight});
     line.remove();
   }
-  return {baseline:first.top + cache.get(key), text:sample, x:first.left, right:first.right,
+  const {offset, capHeight} = cache.get(key), baselines = lines.map(box => box.top + offset);
+  return {baseline:baselines[0], lastBaseline:baselines.at(-1), capHeight, text:sample, x:first.left, right:first.right,
     top:first.top, bottom:first.bottom, lastBottom:Math.max(...lines.map(box => box.bottom)), lines:lines.length,
     fontFamily:style.fontFamily, fontSize:style.fontSize};
 }
 
 function collect(root, {selector, source}) {
-  const doc = root.ownerDocument, id = "waffle-qa-baseline-probe";
-  if (doc.getElementById(id)) throw Error("A field baseline measurement is already in progress.");
+  const doc = root.ownerDocument, id = "waffle-qa-field-text-probe";
+  if (doc.getElementById(id)) throw Error("A field text measurement is already in progress.");
   const mirror = doc.createElement("div");
   mirror.id = id;
   mirror.style.cssText = "all:initial;display:block;position:fixed;inset:0 auto auto -100000px;visibility:hidden;pointer-events:none";
@@ -81,6 +101,10 @@ function collect(root, {selector, source}) {
     explicit.push(...ids.map(id => [doc.getElementById(id), "ARIA label"]));
     const row = node.closest(".prf-row,.field-row,.ui-field-row,.ui-prop-row,.thp-field,.fw-row");
     if (row) explicit.push([row.querySelector(".prf-label,label,.field-label,.thp-label,.fw-label") || row.firstElementChild, "field row caption"]);
+    // A generic-part row that is not a label (its Value row stacks hints under the field): the caption names the
+    // row's first control.
+    const part = node.closest(".gp-field");
+    if (part && part.querySelector(selector) === node) explicit.push([part.firstElementChild, "field row caption"]);
     const cell = node.closest("td,th");
     if (cell) {
       explicit.push(...(cell.getAttribute("headers")?.split(/\s+/) || []).map(id => [doc.getElementById(id), "table heading"]));
@@ -117,13 +141,18 @@ function collect(root, {selector, source}) {
     }
     return null;
   }
+  // The nearest laid-out box that holds both the caption's text and its control.
+  function shared(control, named) {
+    let common = named.text.node;
+    while (common && !common.contains(control)) common = common.parentElement;
+    while (common && getComputedStyle(common).display === "contents") common = common.parentElement;
+    return common;
+  }
   function flow(control, named) {
     if (named.kind === "table heading") return "stacked";
     if (named.kind === "table row heading") return "inline";
     // Inspect the authored flow, never the measured vertical difference under test.
-    let common = named.text.node;
-    while (common && !common.contains(control)) common = common.parentElement;
-    while (common && getComputedStyle(common).display === "contents") common = common.parentElement;
+    const common = shared(control, named);
     if (!common || common.matches("td,th,tr,tbody,table")) return "inline";
     const layout = getComputedStyle(common);
     if (layout.display.includes("flex")) return layout.flexDirection.startsWith("column") ? "stacked" : "inline";
@@ -147,13 +176,50 @@ function collect(root, {selector, source}) {
     if ([prefix, field].some(node => node !== common && getComputedStyle(node).display === "block")) return "stacked";
     return "inline";
   }
+  // A caption stacked above its field keeps its own line (docs/design-system.md › Field text alignment): the box
+  // that holds its text is exactly its lines tall, with the font's own half-leading above the first line and
+  // below the last (no cap-height trim, no field-height slot), and it starts at its row's start edge. Same-row
+  // centring must never reach a stacked caption.
+  function stackedLine(control, named) {
+    if (named.kind === "table heading") return null;
+    const holder = named.text.node, style = getComputedStyle(holder), px = value => parseFloat(value) || 0;
+    const result = {};
+    if (!/^(inline|contents|table|ruby)/.test(style.display) || style.display.startsWith("inline-")) {
+      const box = holder.getBoundingClientRect(), text = named.text;
+      // The untrimmed line: the same text, font and line height in a plain block of the probe.
+      const line = doc.createElement("div");
+      line.style.cssText = "display:block;white-space:pre;padding:0;border:0;margin:0";
+      for (const name of ["font-family","font-size","font-style","font-weight","font-stretch","font-kerning","font-optical-sizing",
+        "font-variant","font-feature-settings","font-variation-settings","font-size-adjust","letter-spacing","line-height",
+        "text-rendering","text-transform"]) line.style.setProperty(name, style.getPropertyValue(name));
+      line.textContent = text.text;
+      mirror.shadowRoot.append(line);
+      const range = doc.createRange(); range.selectNodeContents(line.firstChild);
+      const outer = line.getBoundingClientRect(), run = range.getClientRects()[0];
+      const lead = {above:run.top - outer.top, below:outer.bottom - run.bottom};
+      line.remove();
+      result.above = text.top - (box.top + px(style.borderTopWidth) + px(style.paddingTop)) - lead.above;
+      // The box ends with the caption's last line only when it holds nothing else.
+      if (!holder.childElementCount) result.below = box.bottom - px(style.borderBottomWidth) - px(style.paddingBottom) - text.lastBottom - lead.below;
+    }
+    const common = shared(control, named);
+    let cell = null;
+    for (let node = holder; node && node !== common; node = node.parentElement) {
+      if (getComputedStyle(node).display !== "contents") cell = node;
+    }
+    if (common && cell && getComputedStyle(common).direction === "ltr") {
+      const row = getComputedStyle(common), own = getComputedStyle(cell), outer = common.getBoundingClientRect();
+      result.start = cell.getBoundingClientRect().left - px(own.marginLeft) - (outer.left + px(row.borderLeftWidth) + px(row.paddingLeft));
+    }
+    return result;
+  }
   const serializable = entry => {
     if (!entry) return null;
     const {node, textNode, ...metrics} = entry;
     return metrics;
   };
   return [...root.querySelectorAll(selector)].filter(inSurface).map((node, index) => {
-    node.dataset.baselineControl = index;
+    node.dataset.fieldTextControl = index;
     const native = node.matches("input,select,textarea"), box = node.getBoundingClientRect();
     const optionList = node.matches('select[multiple],select[size]:not([size="1"])');
     const segmented = node.matches('input[type=date],input[type=time],input[type=month],input[type=week],input[type=datetime-local]');
@@ -162,9 +228,10 @@ function collect(root, {selector, source}) {
     if (node.matches("input,textarea") && !value && !segmented) {
       node.value = node.type === "number" ? "7" : "Waffle";
       value = node.value;
-      if (value) { probed = true; node.dataset.baselineProbeValue = ""; }
+      if (value) { probed = true; node.dataset.fieldTextProbeValue = ""; }
     }
     const named = caption(node), structure = named ? flow(node, named) : null;
+    const stacked = structure === "stacked" ? stackedLine(node, named) : null;
     let centreOffset = null;
     if (structure === "centred") {
       let row = named.text.node;
@@ -192,9 +259,10 @@ function collect(root, {selector, source}) {
       fontFamily:optionStyle.fontFamily, fontSize:optionStyle.fontSize} : null;
     const matrix = node.closest(".fw-row")?.querySelectorAll(selector).length > 1;
     return {index, native, value:value || "", segmented, probed, outer:boxData, wrappedEditor:!!stepper,
+      multilineField:node.matches("textarea") || optionList,
       label:named?.text.text || node.getAttribute("aria-label") || node.name || node.id || node.placeholder || node.tagName,
       control:node.getAttribute("aria-label") || node.name || node.id || (node.type && node.tagName + "[" + node.type + "]") || node.tagName,
-      centreOffset, mode:!named ? "standalone" : structure === "stacked" || structure === "centred" ? structure : unit || matrix ? "compound" :
+      centreOffset, stacked, mode:!named ? "standalone" : structure === "stacked" || structure === "centred" ? structure : unit || matrix ? "compound" :
         named.text.lines > 1 || node.matches("textarea,select[multiple]") ? "multiline" : "inline",
       family, captionSource:named?.kind || "no visible caption", caption:serializable(named?.text), unit:serializable(unit),
       optionRaster, valueText:optionList ? options.find(option => option.top >= box.top - .5 && option.bottom <= box.bottom + .5) || null :
@@ -208,7 +276,7 @@ function descendants(node, matches) {
 }
 
 async function nativeValue(session, item, nativeDeclaration, group) {
-  const expression = `document.querySelector('[data-baseline-control="${item.index}"]')`;
+  const expression = `document.querySelector('[data-field-text-control="${item.index}"]')`;
   const {result} = await session.send("Runtime.evaluate", {expression, objectGroup:group});
   if (!result.objectId) return null;
   const {node} = await session.send("DOM.describeNode", {objectId:result.objectId, depth:-1, pierce:true});
@@ -267,7 +335,9 @@ async function nativeOptionInk(page, {text,box,font,fontFamily,fontSize}) {
     const reference = ctx.getImageData(0,0,canvas.width,canvas.height).data;
     const b = ink(reference,canvas.width,(data,i) => data[i + 3] >= 80);
     if (!b || Math.abs((a.bottom - b.bottom) - (a.top - b.top)) > 1) return null;
-    return {baseline:clip.y + a.bottom - b.bottom + 32,text, x:clip.x+a.left,right:clip.x+a.right+1,
+    const baseline = clip.y + a.bottom - b.bottom + 32;
+    return {baseline, lastBaseline:baseline, capHeight:ctx.measureText("H").actualBoundingBoxAscent,
+      text, x:clip.x+a.left,right:clip.x+a.right+1,
       top:clip.y+a.top,bottom:clip.y+a.bottom+1,lastBottom:clip.y+a.bottom+1,lines:1,fontFamily,fontSize,
       source:"painted native option"};
   },{image:image.toString("base64"),clip,text,font,fontFamily,fontSize});
@@ -275,7 +345,7 @@ async function nativeOptionInk(page, {text,box,font,fontFamily,fontSize}) {
 
 async function measureNativeOption(page, item) {
   const option = item.optionRaster;
-  const control = page.locator(`[data-baseline-control="${item.index}"]`);
+  const control = page.locator(`[data-field-text-control="${item.index}"]`);
   const original = await control.evaluateHandle((select, index) => {
     const row = select.options[index];
     const bounds = row.getBoundingClientRect();
@@ -304,7 +374,8 @@ async function measureNativeOption(page, item) {
     // Relate the actual painted text back to the field and caption's original layout.
     const x = option.box.left - box.left, y = option.box.top - box.top;
     return {...measured, x:measured.x + x, right:measured.right + x, top:measured.top + y,
-      bottom:measured.bottom + y, lastBottom:measured.lastBottom + y, baseline:measured.baseline + y};
+      bottom:measured.bottom + y, lastBottom:measured.lastBottom + y, baseline:measured.baseline + y,
+      lastBaseline:measured.lastBaseline + y};
   } finally {
     await original.evaluate(scroll => {
       for (const {ancestor,left,top} of scroll || []) ancestor.scrollTo({left,top,behavior:"instant"});
@@ -313,10 +384,24 @@ async function measureNativeOption(page, item) {
   }
 }
 
-async function textBaselines(page, session, scope) {
-  const objectGroup = "field-text-baselines";
+// A surface that re-renders while it is measured (Properties rebuilds when a lazy module arrives) replaces its
+// controls, and a replaced native control has no painted text left to read. Measure again, up to three times,
+// until the controls the measurement started with are all still in the document.
+async function measureFieldText(page, session, scope) {
+  let items;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let replaced;
+    ({items, replaced} = await measureOnce(page, session, scope));
+    if (!replaced) break;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  }
+  return items;
+}
+
+async function measureOnce(page, session, scope) {
+  const objectGroup = "field-text-alignment";
   const nativeDeclaration = `function (index, multiline) {
-    const mirror = this.ownerDocument.getElementById("waffle-qa-baseline-probe");
+    const mirror = this.ownerDocument.getElementById("waffle-qa-field-text-probe");
     const pair = mirror.pairs[index], measure = (${textMeasure});
     const valueText = measure(this, mirror, multiline ? pair.control.getBoundingClientRect() : null);
     if (!valueText) return null;
@@ -326,7 +411,7 @@ async function textBaselines(page, session, scope) {
     return {valueText, caption:measure(pair.caption,mirror), unit:measure(pair.unit,mirror), outer:{top,bottom,left,right}};
   }`;
   try {
-    const items = await scope.evaluate(collect, {selector:BASELINE_CONTROL, source:textMeasure.toString()});
+    const items = await scope.evaluate(collect, {selector:FIELD_TEXT_CONTROL, source:textMeasure.toString()});
     await Promise.all(items.map(async item => {
       if (!item.valueText && item.native && (item.value || item.segmented)) {
         const current = await nativeValue(session, item, nativeDeclaration, objectGroup);
@@ -337,55 +422,87 @@ async function textBaselines(page, session, scope) {
     // sequential and finish measuring DOM-backed text before moving any surfaces.
     for (const item of items) {
       if (!item.valueText && item.optionRaster) item.valueText = await measureNativeOption(page,item);
-      item.captionBaseline = item.caption?.baseline ?? null;
       item.valueBaseline = item.valueText?.baseline ?? null;
+      Object.assign(item, centres(item));
       item.disposition = item.valueText ? "measured" : item.value || item.segmented || !item.native ? "missing painted text" : "empty value";
     }
-    return items;
+    const replaced = await page.evaluate(count => document.querySelectorAll("[data-field-text-control]").length !== count, items.length);
+    return {items, replaced};
   } finally {
     await session.send("Runtime.releaseObjectGroup", {objectGroup});
     await page.evaluate(() => {
-      for (const control of document.querySelectorAll("[data-baseline-control]")) {
-        if (control.hasAttribute("data-baseline-probe-value")) {
+      for (const control of document.querySelectorAll("[data-field-text-control]")) {
+        if (control.hasAttribute("data-field-text-probe-value")) {
           control.value = "";
-          delete control.dataset.baselineProbeValue;
+          delete control.dataset.fieldTextProbeValue;
         }
-        delete control.dataset.baselineControl;
+        delete control.dataset.fieldTextControl;
       }
-      document.getElementById("waffle-qa-baseline-probe")?.remove();
+      document.getElementById("waffle-qa-field-text-probe")?.remove();
     });
   }
 }
 
-function baselineResults(items) {
+// The optical centre of a run of text is halfway between its cap line and its baseline; a wrapped caption's runs
+// from its first line's cap line to its last line's baseline. It is measured from the painted baseline and the
+// font's cap height, so it does not depend on the line height or on where the font's rounding puts the leading.
+function centres(item) {
+  const {caption, valueText, outer} = item;
+  if (!caption) return {captionCentre:null, fieldCentre:null, captionOffset:null};
+  // An output is read-only text with no field box: the caption reads with it as one line, on its baseline.
+  if (item.family === "output") {
+    return {captionCentre:caption.baseline, fieldCentre:valueText?.baseline ?? null,
+      captionOffset:valueText ? caption.baseline - valueText.baseline : null};
+  }
+  const capCentre = text => (text.baseline - text.capHeight + (item.multilineField ? text.baseline : text.lastBaseline)) / 2;
+  const captionCentre = capCentre(caption);
+  // Beside a multiline field the caption's first line is centred on the field's first text line.
+  const fieldCentre = item.multilineField ? (valueText ? capCentre(valueText) : null) : (outer.top + outer.bottom) / 2;
+  return {captionCentre, fieldCentre, captionOffset:fieldCentre === null ? null : captionCentre - fieldCentre};
+}
+
+function fieldTextResults(items) {
   return items.flatMap(item => {
-    const {label,control,mode,captionBaseline,valueBaseline, captionSource} = item;
+    const {label,control,mode,captionOffset,valueBaseline,captionSource} = item;
     const metric = (kind, actual, expected) => ({kind, label, control, mode, actual, expected,
-      captionBaseline, valueBaseline, captionSource});
-    if (item.disposition === "missing painted text") return [metric("field displayed text baseline measurable", 0, 1)];
+      captionOffset, valueBaseline, captionSource});
+    if (item.disposition === "missing painted text") return [metric("field displayed text measurable", 0, 1)];
     if (item.disposition === "empty value") return [];
     if (mode === "standalone") {
       const {top,bottom} = item.valueText, box = item.outer;
       return [metric("standalone field text contained", Math.max(0, box.top - top, bottom - box.bottom), 0)];
     }
+    const stacked = item.stacked || {};
     const results = mode === "centred" ? [metric("field centred on its row", item.centreOffset, 0)] : mode === "stacked" ? [
       metric("stacked field caption precedes value", Number(item.caption.lastBottom <= item.valueText.top + .5), 1),
-    ] : [metric("field text baseline", valueBaseline - captionBaseline, 0)];
+      ...["above","below"].filter(side => Number.isFinite(stacked[side]))
+        .map(side => metric(`stacked caption keeps its line (${side})`, stacked[side], 0)),
+      ...Number.isFinite(stacked.start) ? [metric("stacked caption starts its row", stacked.start, 0)] : [],
+    ] : [metric(item.family === "output" ? "caption shares the value's baseline" :
+      item.multilineField ? "caption centred on first field line" : "caption centred on field", captionOffset, 0)];
     if (item.unit) results.push(metric("field unit text baseline", valueBaseline - item.unit.baseline, 0));
     return results;
   });
 }
 
-async function assertBaselinePerturbations(target, measure, {captionOnly = false} = {}) {
+const CAPTION_METRIC = /^caption (?:centred on field|centred on first field line|shares the value's baseline)$/;
+
+// Proves the checker rejects a one-pixel drift, both ways, on a live pair. "caption" moves the caption's painted
+// text, "field" moves the field's box with its text, "unit" moves the unit beside the value, and "value" moves
+// the value text inside a stationary box, which only a unit's shared baseline (or a multiline field's first
+// line) can catch. Translations move paint without moving the row's layout.
+async function assertFieldTextPerturbations(target, measure, {move = "field"} = {}) {
   const original = await measure(), style = await target.getAttribute("style");
+  assert.ok(["caption","field","unit","value"].includes(move), "Move the caption, the field, the unit or the value text");
   assert.ok(original?.caption && original.valueText && original.mode !== "stacked", "The live control has both same-row text runs");
+  assert.ok(!["unit","value"].includes(move) || original.unit || move === "value" && original.multilineField,
+    "Only a unit or a multiline field shares the value text's position");
   const probes = [];
   for (const offset of [1,-1]) {
     try {
-      await target.evaluate((node, {offset, native, wrappedEditor, captionOnly}) => {
-        if (captionOnly || wrappedEditor) {
-          // The stepper's outer field and grid participation stay fixed while its inner
-          // text editor moves optically, independently of the intrinsic baseline.
+      await target.evaluate((node, {offset, native, wrappedEditor, move}) => {
+        if (move !== "value" || wrappedEditor) {
+          // In a stepper the inner editor moves inside the stationary outer field.
           node.style.translate = `0 ${offset}px`;
           return;
         }
@@ -400,28 +517,32 @@ async function assertBaselinePerturbations(target, measure, {captionOnly = false
           const text = walker.currentNode;
           if (!text.data.trim() || !text.parentElement.getClientRects().length) continue;
           const span = node.ownerDocument.createElement("span");
-          span.dataset.baselineOffsetProbe = "";
+          span.dataset.fieldTextOffsetProbe = "";
           span.style.cssText = `all:unset;position:relative;inset-block-start:${offset}px`;
           text.replaceWith(span); span.append(text);
           return;
         }
-      }, {offset,native:original.native,wrappedEditor:original.wrappedEditor,captionOnly});
+      }, {offset,native:original.native,wrappedEditor:original.wrappedEditor,move});
       const shifted = await measure();
-      assert.deepEqual(shifted.outer, original.outer, "The mutation must leave the field box stationary");
-      const moving = captionOnly ? "captionBaseline" : "valueBaseline";
-      const stationary = captionOnly ? "valueBaseline" : "captionBaseline";
-      assert.equal(shifted[stationary], original[stationary], "The opposing text line stays stationary");
-      const delta = shifted[moving] - original[moving];
-      assert.ok(Math.abs(delta - offset) <= .125, `Text should move ${offset}px, moved ${delta}px`);
-      const violations = baselineResults([shifted]).filter(metric => Math.abs(metric.actual - metric.expected) > .5);
-      assert.ok(violations.some(metric => /^field (?:unit )?text baseline$/.test(metric.kind)),
-        `The shared caption/value invariant should reject the ${offset}px text shift`);
-      probes.push({label:`${original.label} ${captionOnly ? "caption" : "field"} text ${offset > 0 ? "+" : ""}${offset}px`,
-        baseline:original[moving], perturbed:shifted[moving], outer:original.outer});
+      const parts = {caption:"captionCentre", box:null, value:"valueBaseline", ...(original.unit ? {unit:null} : {})};
+      const position = (item, part) => part === "box" ? item.outer.top : part === "unit" ? item.unit?.baseline : item[parts[part]];
+      const moves = {caption:["caption"], field:["box","value","unit"], unit:["unit"], value:["value"]}[move];
+      for (const part of Object.keys(parts)) {
+        const moved = position(shifted, part) - position(original, part), expected = moves.includes(part) ? offset : 0;
+        assert.ok(Math.abs(moved - expected) <= .125, `Moving the ${move} by ${offset}px should move the ${part} ${expected}px; it moved ${moved}px`);
+      }
+      const violations = fieldTextResults([shifted]).filter(metric => Math.abs(metric.actual - metric.expected) > .5);
+      const catches = ["unit","value"].includes(move) ? metric => metric.kind === "field unit text baseline" || CAPTION_METRIC.test(metric.kind) :
+        metric => CAPTION_METRIC.test(metric.kind);
+      assert.ok(violations.some(catches), `The caption/field invariant should reject the ${offset}px ${move} shift ` +
+        `(${original.label}: ${original.mode}, caption offset ${original.captionOffset} to ${shifted.captionOffset})`);
+      const reading = {caption:"captionCentre", field:"fieldCentre", unit:"valueBaseline", value:"valueBaseline"}[move];
+      probes.push({label:`${original.label} ${move} ${offset > 0 ? "+" : ""}${offset}px`,
+        original:original[reading], perturbed:shifted[reading], captionOffset:shifted.captionOffset, outer:original.outer});
     } finally {
       await target.evaluate((node, value) => {
         if (value === null) node.removeAttribute("style"); else node.setAttribute("style", value);
-        for (const probe of node.querySelectorAll("[data-baseline-offset-probe]")) probe.replaceWith(...probe.childNodes);
+        for (const probe of node.querySelectorAll("[data-field-text-offset-probe]")) probe.replaceWith(...probe.childNodes);
       }, style);
     }
   }
@@ -442,16 +563,16 @@ async function assertStackedCaptionPerturbation(caption, measure) {
   try {
     await move(gap);
     const touching = await measure();
-    assert.ok(!rejected(baselineResults([touching])), "Touching painted lines do not overlap");
+    assert.ok(!rejected(fieldTextResults([touching])), "Touching painted lines do not overlap");
     await move(gap + 1);
     const overlap = await measure();
     assert.deepEqual(overlap.outer,initial.outer);
     assert.equal(overlap.valueBaseline,initial.valueBaseline);
-    assert.ok(rejected(baselineResults([overlap])), "One pixel of caption/value overlap must fail");
+    assert.ok(rejected(fieldTextResults([overlap])), "One pixel of caption/value overlap must fail");
     return {label:`${initial.label} stacked caption overlap`,baseline:touching.caption.lastBottom,perturbed:overlap.caption.lastBottom};
   } finally {
     await caption.evaluate((node, value) => value === null ? node.removeAttribute("style") : node.setAttribute("style", value), style);
   }
 }
 
-module.exports = {textBaselines, baselineResults, assertBaselinePerturbations, assertStackedCaptionPerturbation, BASELINE_CONTROL};
+module.exports = {measureFieldText, fieldTextResults, assertFieldTextPerturbations, assertStackedCaptionPerturbation, FIELD_TEXT_CONTROL};

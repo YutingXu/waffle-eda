@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const {pathToFileURL} = require("node:url");
 const {chromium} = require("../support/playwright.cjs");
-const {fields, near, textBaselines, baselineResults, failures, assertBaselinePerturbations} = require("../support/dialog-geometry.cjs");
+const {fields, near, measureFieldText, fieldTextResults, failures, assertFieldTextPerturbations} = require("../support/dialog-geometry.cjs");
 
 const className = "Precision interface assembly components with long engineering provenance";
 const themeModes = [{theme:"light"}, {theme:"dark"}, {theme:"hc"}, {theme:"dark", touch:true}, {theme:"light", rtl:true}];
@@ -59,18 +59,20 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     assert.ok(near(filter.height,28) && near(comparison.height,28));
     // A property row is as tall as a field row plus 2 px above and below (docs/ui-library.md › Property rows).
     assert.ok(near(control.row.height,touch ? 44 : 32),"property row height " + control.row.height);
-    const readClass = async () => (await textBaselines(page,session,inspector))
+    const readClass = async () => (await measureFieldText(page,session,inspector))
       .find(item => item.control === "Component class filter");
     const text = await readClass();
     assert.equal(text.mode,"inline");
-    assert.deepEqual(failures(baselineResults([text])),[],"caption and displayed selection share the alphabetic baseline");
+    assert.deepEqual(failures(fieldTextResults([text])),[],"the caption is centred on the select");
     const leading = rtl ? control.field.right - filter.text.x - filter.text.width : filter.text.x - control.field.left;
     assert.ok(near(leading - control.margin,8),"the rendered native text has the shared leading inset");
 
-    // A property row puts the caption and the field on one baseline, so text moved inside the field takes
-    // the caption with it. Move the caption alone: the measurement must still see the 1px.
-    if (theme === "light" && !touch && !rtl)
-      await assertBaselinePerturbations(select.locator("xpath=preceding-sibling::*[1]"), readClass, {captionOnly:true});
+    // The row is a library .ui-prop-row grid that centres its cells, so the caption sits on the select's centre.
+    // Move the caption's painted text, then the select itself, to prove the checker rejects a 1px drift either way.
+    if (theme === "light" && !touch && !rtl) {
+      await assertFieldTextPerturbations(select.locator("xpath=preceding-sibling::*[1]"), readClass, {move:"caption"});
+      await assertFieldTextPerturbations(select, readClass, {move:"field"});
+    }
     await session.detach();
 
     if (touch) await page.touchscreen.tap(control.field.left + 10,control.row.top + 3);
@@ -115,7 +117,7 @@ async function check(browser, {theme, touch = false, rtl = false}) {
         return [style.appearance,style.backgroundImage];
       }),["auto","none"],"system high contrast leaves a single native arrow");
     }
-    console.log(`Class select ${theme}${touch ? " touch" : ""}${rtl ? " RTL" : ""}: baseline delta ${text.valueBaseline - text.captionBaseline} px, ${control.field.width}×${control.field.height} px`);
+    console.log(`Class select ${theme}${touch ? " touch" : ""}${rtl ? " RTL" : ""}: caption ${text.captionOffset} px from the field centre, ${control.field.width}×${control.field.height} px`);
   } finally { await page.close(); }
 }
 

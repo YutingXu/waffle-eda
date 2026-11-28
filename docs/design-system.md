@@ -126,11 +126,33 @@ The [UI library](ui-library.md) is the full component reference. The notes below
   make the surrounding row tappable. The command palette's main search bar
   carries its own larger, borderless treatment. A `.ui-checkbox` remains a native
   checkbox, with the optional `.ui-checkbox-row` on its wrapping label.
-- **Field text alignment.** A same-row caption, displayed value and inline unit
-  share a typographic baseline within 0.5 CSS px. Associate the caption through
-  a native label, `aria-labelledby` or the shared field row. Use the shared
-  typography for both sides. Align a side-by-side multiline caption with the
-  first editable line. A stacked caption precedes its control on a separate row.
+- **Field text alignment.** A same-row caption is centred on its field: the
+  optical centre of the caption's text, halfway between its cap line and its
+  baseline, lies on the centre of the field's border box within 0.5 CSS px. A
+  caption that wraps is centred as one block, from its first line's cap line to
+  its last line's baseline. The field centres its own value text, and a unit
+  beside the value (`.ui-field-unit`, `.prf-unit`) shares the value's
+  alphabetic baseline within 0.5 CSS px. Beside a multiline field (a textarea
+  or a list box) the caption's first line is centred on the field's first text
+  line. Beside a value that is not a field (read-only text, code, badges, an
+  `output`), which has no field box, the caption shares the value's first
+  baseline. A stacked caption precedes its
+  control on a separate row and is not centred: it keeps its own line box (no
+  cap-height trim, no field-height slot) and its place at the start of its
+  row. The dialog label rule lists the label layouts that stack
+  (`ui/controls.css`), and a layout that stacks only when narrow, such as
+  narrow Preferences or the narrow footprint wizard, centres its captions only
+  while they are side by side. Associate the caption through a native label,
+  `aria-labelledby` or the shared field row. The shared rows (dialog labels,
+  `.ui-prop-row`, `.work-row`, `.work-form`, Preferences rows) centre their
+  cells and trim a same-row caption to its cap height with `text-box`, padded
+  back to its line height, so the capitals are centred in any font and no box
+  changes size. Where `text-box` is unavailable the row centres the caption's
+  line box, which can leave the capitals up to about a pixel off, depending on
+  the font and the line height. On touch a
+  number's 44 px measure keeps its field at the top, and the caption is
+  centred on the field's 28 px slot; a caption longer than two lines grows
+  the slot downwards.
   The Chromium check reads rendered text runs, including native select and
   input text, and records blank values, hidden or accessibility-only captions,
   and controls whose value is a swatch or toggle. Operating-system pickers use

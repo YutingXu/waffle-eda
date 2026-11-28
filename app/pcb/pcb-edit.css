@@ -3,7 +3,6 @@
 /* The selection filter and the multi-selection kind chips are library .ui-chip; these rules only place them. */
 .pcb-edit-chips{padding:var(--s-6) 0 var(--s-4)}
 .pcb-edit-check{display:flex;align-items:center;gap:6px;font-size:var(--fs-12);padding:4px 0}
-.pcb-edit-check:has(> input[type=number]){align-items:baseline}
 .pcb-edit-check input[type=number]{width:4.5em}
 .pcb-edit-similar-grid{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;margin:6px 0 8px;font-size:var(--fs-12)}
 .pcb-edit-similar-grid strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16em}

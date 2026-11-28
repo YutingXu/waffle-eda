@@ -34,6 +34,7 @@
 .revisions-empty strong {font-size:var(--fs-13)}
 .revisions-empty p {margin:0;font-size:var(--fs-12);color:var(--muted);max-width:68ch;line-height:1.45}
 .revisions-row {display:flex;align-items:baseline;gap:8px;font-size:var(--fs-12)}
+.revisions-row:has(> .ui-field) {align-items:center}
 .revisions-dialog .revisions-letter {width:56px;text-transform:uppercase}
 
 
@@ -69,3 +70,7 @@
 :root[data-focus-nav=keys] .revisions-pick-list:focus-visible {box-shadow:0 0 0 2px var(--focus)}
 .revisions-pick-item {padding:6px 10px;font-size:var(--fs-12);border-bottom:1px solid var(--line)}
 @media (max-width:700px) {.revisions-form {grid-template-columns:1fr} .revisions-check-row {grid-template-columns:72px minmax(0,1fr)}}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .revisions-row:has(> label:first-child + .ui-field) > label:first-child {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}

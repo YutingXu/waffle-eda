@@ -16,6 +16,9 @@
 .gp-field > span:first-child {color:var(--muted)}
 .gp-field-value {align-items:start}
 .gp-field-value > span:first-child {padding-top:4px}
+/* In the dialog the Value row stacks hints under its field, so the caption takes the field's 28 px slot and centres on
+   the field. Properties stacks the caption above the field instead (.gp-inspector below), so it keeps its line. */
+.gp-form > .gp-field-value > span:first-child {box-sizing:border-box;min-block-size:var(--field-height);padding-top:0;align-content:center}
 .gp-field select,.gp-field input {width:100%;min-width:0}
 .gp-grid2 {display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
 .gp-grid2 .gp-field {grid-template-columns:96px minmax(0,1fr)}
@@ -80,3 +83,8 @@
 .ph-map .ph-line {stroke:var(--accent);stroke-width:1.2}
 .ph-map .ph-inferred {stroke-dasharray:4 3}
 .ph-table tr.ph-bad td:first-child {color:var(--error-ink);font-weight:600}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .gp-field:not(.gp-field-value) > span:first-child {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+  .gp-form > .gp-field-value > span:first-child {text-box:trim-both cap alphabetic}
+}

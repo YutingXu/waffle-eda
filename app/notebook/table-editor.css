@@ -5,9 +5,8 @@
 .table-editor header{display:flex;align-items:center;justify-content:space-between;gap:var(--s-8);margin-block-end:var(--s-4)}
 .table-editor h2{margin:0;font-size:var(--fs-14);font-weight:var(--fw-semibold)}
 .table-editor .table-tools.ui-toolbar{flex-wrap:wrap;row-gap:var(--s-4);padding-inline:0;margin-inline:calc(-1 * var(--s-4))}
-/* A caption shares its field's text baseline (docs/design-system.md, Field text alignment); a colour swatch has no text and stays centred. */
-.table-field{display:inline-flex;align-items:baseline;gap:var(--s-6);color:var(--muted);font-size:var(--fs-11);white-space:nowrap}
-.table-field:has(> input[type=color]){align-items:center}
+/* A caption is centred on its field or swatch (docs/design-system.md › Field text alignment). */
+.table-field{display:inline-flex;align-items:center;gap:var(--s-6);color:var(--muted);font-size:var(--fs-11);white-space:nowrap}
 .table-field > .ui-field{color:var(--ink)}
 .table-field > select.ui-field{inline-size:auto}
 .table-field > input.ui-field:not([type=search]){inline-size:var(--field-number-width)}
@@ -36,8 +35,8 @@
 .table-group-title{flex-basis:100%;margin:var(--s-8) 0 0;padding-block-end:var(--s-4);border-block-end:1px solid var(--line)}
 .table-group-title:first-child{margin-block-start:0}
 @media(any-pointer:coarse){
-  /* The touch target grows evenly around the 28 px field, which baseline alignment would otherwise pin to the top. */
-  .table-field{min-block-size:var(--ctl-h-touch);box-sizing:border-box;padding-block:calc((var(--ctl-h-touch) - var(--field-height)) / 2)}
+  /* The 44 px touch target grows evenly around the 28 px field, and the caption stays centred on the field. */
+  .table-field{min-block-size:var(--ctl-h-touch)}
   .table-resize{width:15px}
 }
 /* Authored cell borders: table-editor.js sets --swatch-<edge> to the colour (a data colour, ui/components.css). */
@@ -45,3 +44,7 @@
 .table-cell[style*="--swatch-right:"] {border-right:2px solid var(--swatch-right)!important}
 .table-cell[style*="--swatch-bottom:"] {border-bottom:2px solid var(--swatch-bottom)!important}
 .table-cell[style*="--swatch-left:"] {border-left:2px solid var(--swatch-left)!important}
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+@supports (text-box: trim-both cap alphabetic) {
+  .table-field > span:first-child {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+}

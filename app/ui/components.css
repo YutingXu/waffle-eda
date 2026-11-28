@@ -217,7 +217,18 @@ details[open] > [data-hover=raised]:not([aria-expanded=false]) {background:var(-
 :is(.ui-prop-row) > :is(.ui-prop-value) {min-inline-size:0;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 :is(.ui-prop-row):not([data-stacked]) > :is(.ui-prop-value) {padding-inline-start:calc(var(--s-8) + 1px)}
 :is(.ui-prop-row)[data-clip] > :is(.ui-prop-value) {white-space:nowrap}
-:is(.ui-prop-row):has(> :is(.ui-switch-row,input[type=checkbox])) {align-items:center}
+/* Field text alignment (docs/design-system.md). The caption is centred when the value is a single-line control: a
+   field, a select, a number with its unit, a segmented control, a switch, or a group of fields and selects. Beside
+   anything else (read-only text, code, badges, a textarea, a list box) it shares the value's first baseline, so it
+   stays on the value's first line. */
+:is(.ui-prop-row):has(> :is(input:not([type=radio],[type=hidden]),select:not([multiple],[size]:not([size="1"])),.ui-field-measure,.ui-segmented,.ui-switch-row,[role=combobox]), > :not(.ui-prop-value,.ui-prop-error) > :is(input:not([type=radio],[type=hidden]),select:not([multiple],[size]:not([size="1"])))) {align-items:center}
+/* In a centred row the caption is trimmed to its cap height and padded back to its line height, so the row centres
+   its capitals exactly in any font (ui/controls.css). */
+@supports (text-box: trim-both cap alphabetic) {
+  :is(.ui-prop-row):not([data-stacked]):has(> :is(input:not([type=radio],[type=hidden]),select:not([multiple],[size]:not([size="1"])),.ui-field-measure,.ui-segmented,.ui-switch-row,[role=combobox]), > :not(.ui-prop-value,.ui-prop-error) > :is(input:not([type=radio],[type=hidden]),select:not([multiple],[size]:not([size="1"])))) > :where(:first-child) {
+    text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2);
+  }
+}
 :is(.ui-prop-row)[data-stacked] {grid-template-columns:minmax(0,1fr);row-gap:var(--s-2)}
 :is(.ui-prop-row) > :is(.ui-prop-error) {grid-column:2;color:var(--error);font-size:var(--fs-11)}
 /* Boxed controls fill the value column, so their end edges line up too. */

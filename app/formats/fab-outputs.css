@@ -6,9 +6,8 @@
 .fab-panel h3 {color:var(--ink)}
 /* One label column for every row (the generic .work-row:has(...) grid sizes each row to its own label). */
 .fab-row,.fab-dialog .work-row.fab-row:has(> span:first-child + :is(select,input:not([type=checkbox]):not([type=radio]),textarea)) {display:grid;grid-template-columns:minmax(120px,160px) minmax(0,220px) minmax(0,1fr);align-items:center;gap:4px 12px;min-height:30px;padding:4px 0}
-.fab-dialog .work-row.fab-row:has(> span:first-child + .ui-field) {align-items:baseline;font-size:var(--fs-12);line-height:var(--lh)}
+.fab-dialog .work-row.fab-row:has(> span:first-child + .ui-field) {font-size:var(--fs-12);line-height:var(--lh)}
 .fab-row > span {color:var(--ink)}
-.fab-row:has(> input.ui-field) > span:first-child {position:relative;inset-block-start:.5px}
 .fab-row > small {margin:0}
 .fab-row input[type=checkbox] {justify-self:start}
 .fab-dialog select,.fab-dialog input:not([type=checkbox],[type=number]) {width:100%}
