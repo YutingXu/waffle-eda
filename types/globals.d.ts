@@ -246,6 +246,7 @@ interface AtriumModelAPI {
   pathLength(item: object): number;
   keepoutBlocks(item: object, kind: "via"|"track"|"copper"|"smdPad"|"throughPad"): boolean;
   nearSegment(p: readonly number[], a: readonly number[], b: readonly number[]): number;
+  landWithin(round: boolean, w: number, h: number, ring: readonly (readonly number[])[]): boolean;
   triangulateRing<T extends readonly number[]>(points: readonly T[], area?: number, mode?: "paint"): T[][];
   triangulateRing<T extends readonly number[]>(points: readonly T[], area: number, mode: "complete"): T[][] | null;
   mergeConvex<T extends readonly number[]>(triangles: readonly (readonly T[])[], isConvex: (piece: readonly T[]) => boolean): T[][];

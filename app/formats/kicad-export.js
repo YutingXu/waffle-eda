@@ -321,11 +321,19 @@ globalThis.AtriumKiCad = (() => {
       }
     }
     // A track that still follows its arc (model.js pathArc) is one KiCad arc through its start,
-    // middle and end. A full circle has no such record and keeps its chords.
+    // middle and end. A full circle has no such record and keeps its chords. So does a sliver whose
+    // three points, at the file's precision, no longer give its radius to 0.02 %: its sagitta is then
+    // under 8 um and its chords lie within 2 um of it.
     function track(o,layer){
-      const g=A.pathArc(o),a=g&&point(o.points[0]),b=g&&point(o.points.at(-1));
-      if(!g||a===b||!isCu(layer)||!(o.width>0))return segments(o.points,o.width,layer,o.net,o.id);
-      boardObjects.push("(arc (start "+a+") (mid "+point(A.arcPoint(g,g.start+A.arcSweep(g)/2))+") (end "+b+") (width "+n(o.width)+") (layer "+q(layer)+") (net "+(netId.get(o.net)||0)+") "+stamp(o.id+"/arc")+")");counts.arcs++;
+      const g=A.pathArc(o);
+      if(g&&isCu(layer)&&o.width>0){
+        const [a,m,b]=[o.points[0],A.arcPoint(g,g.start+A.arcSweep(g)/2),o.points.at(-1)].map(p=>[+n(p[0]),+n(p[1])]);
+        const twice=Math.abs((m[0]-a[0])*(b[1]-a[1])-(m[1]-a[1])*(b[0]-a[0])),side=(p,q)=>Math.hypot(q[0]-p[0],q[1]-p[1]);
+        if(twice>0&&Math.abs(side(a,m)*side(m,b)*side(a,b)/(2*twice)-g.r)<=g.r*2e-4){
+          boardObjects.push("(arc (start "+point(a)+") (mid "+point(m)+") (end "+point(b)+") (width "+n(o.width)+") (layer "+q(layer)+") (net "+(netId.get(o.net)||0)+") "+stamp(o.id+"/arc")+")");counts.arcs++;return;
+        }
+      }
+      segments(o.points,o.width,layer,o.net,o.id);
     }
     function via(o,p,key){
       if(o.stackMode||o.padStack||o.backdrill||(o.ipc4761&&o.ipc4761!=="none"))addNote("Via stacks (per-layer lands, back-drill, IPC-4761) export as plain vias at the nominal diameter. Recreate them in KiCad.");
@@ -514,7 +522,6 @@ globalThis.AtriumKiCad = (() => {
       }
       return lines;
     }
-    const insideRing=(v,r)=>{let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>v[1])!==(b[1]>v[1])&&v[0]<(b[0]-a[0])*(v[1]-a[1])/(b[1]-a[1])+a[0])c=!c;}return c;};
     // A custom outline that is exactly one of KiCad's parametric pads is written as that pad (the
     // importer holds a trapezoid and a chamfered rectangle as their outlines): a centred rectangle,
     // a trapezoid (size and rect_delta), or a rectangle with equal 45 degree chamfers on some corners.
@@ -537,12 +544,13 @@ globalThis.AtriumKiCad = (() => {
       // A corner of the bounding rectangle is either a vertex or cut by two, the same distance c along each side.
       if(poly.length<5||poly.length>8)return null;
       const has=(x,y)=>poly.some(v=>eq(v[0],x)&&eq(v[1],y));
-      const corners=[["top_left",-1,-1],["top_right",1,-1],["bottom_left",-1,1],["bottom_right",1,1]],cut=corners.filter(([,sx,sy])=>!has(sx*X,sy*Y));
+      const corners=[{name:"top_left",sx:-1,sy:-1},{name:"top_right",sx:1,sy:-1},{name:"bottom_left",sx:-1,sy:1},{name:"bottom_right",sx:1,sy:1}],cut=corners.filter(k=>!has(k.sx*X,k.sy*Y));
       if(!cut.length||poly.length!==4+cut.length)return null;
-      const [,fx,fy]=cut[0],c=Y-Math.max(...poly.filter(v=>eq(v[0],fx*X)&&v[1]*fy>E).map(v=>v[1]*fy),-Infinity);
-      if(!(c>E&&c<=Math.min(X,Y)+E)||!cut.every(([,sx,sy])=>has(sx*X,sy*(Y-c))&&has(sx*(X-c),sy*Y))||
+      // The chamfer's end on the first cut corner's vertical side; at half the short side it is on the middle line.
+      const {sx:fx,sy:fy}=cut[0],c=Y-Math.max(...poly.filter(v=>eq(v[0],fx*X)&&v[1]*fy>-E).map(v=>v[1]*fy),-Infinity);
+      if(!(c>E&&c<=Math.min(X,Y)+E)||!cut.every(k=>has(k.sx*X,k.sy*(Y-c))&&has(k.sx*(X-c),k.sy*Y))||
         !eq(Math.abs(signedArea(poly)),4*X*Y-cut.length*c*c/2))return null;
-      return {shape:"chamfered_rect",size:[2*X,2*Y],extra:" (roundrect_rratio 0) (chamfer_ratio "+n(c/(2*Math.min(X,Y)))+") (chamfer "+cut.map(k=>k[0]).join(" ")+")"};
+      return {shape:"chamfered_rect",size:[2*X,2*Y],extra:" (roundrect_rratio 0) (chamfer_ratio "+n(c/(2*Math.min(X,Y)))+") (chamfer "+cut.map(k=>k.name).join(" ")+")"};
     }
     function pad(o,parent,p,key,source){
       const w=o.w,h=o.h,d=o.drill||0,net=padNet(parent,o);
@@ -575,11 +583,9 @@ globalThis.AtriumKiCad = (() => {
       else if(outline){
         // Custom polygon pads (footprint editor, KiCad and EasyEDA imports): one polygon primitive, so
         // the copper is exactly the stored outline, around the source's own anchor while that still
-        // lies inside it (import-kicad.js sourceAnchor), else around a minimal one.
+        // lies within it (import-kicad.js sourceAnchor, model.js landWithin), else around a minimal one.
         shape="custom";
-        const a=o.sourceAnchor,round=a?.shape!=="rect",kept=a&&a.w>0&&a.h>0&&Math.min(a.w,a.h)>=d&&(round||!turn)&&
-          (round?Array.from({length:16},(_,i)=>A.rotate([Math.min(a.w,a.h)/2,0],i*22.5)):[[a.w/2,a.h/2],[-a.w/2,a.h/2],[-a.w/2,-a.h/2],[a.w/2,-a.h/2]])
-            .every(v=>insideRing([v[0]*.999,v[1]*.999],outline));
+        const a=o.sourceAnchor,round=a?.shape!=="rect",kept=a&&a.w>0&&a.h>0&&Math.min(a.w,a.h)>=d&&(round||!turn)&&A.landWithin(round,a.w,a.h,outline);
         const anchor=Math.max(d,.01);size=kept?[a.w,a.h]:[anchor,anchor];
         extra=" (options (clearance outline) (anchor "+(kept&&!round?"rect":"circle")+")) (primitives (gr_poly (pts "+outline.map(v=>"(xy "+point(spin(v))+")").join(" ")+") (width 0) (fill yes)))";
       }

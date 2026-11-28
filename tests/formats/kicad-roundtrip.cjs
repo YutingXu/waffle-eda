@@ -306,6 +306,8 @@ console.log("PASS KiCad round trip: " + [s2.parts + " footprints", s2.tracks + "
   assert.ok(!saved.diagnostics.some(m => /64-sided/.test(m)), "no ellipse stands in for a capsule");
   // The other forms, turned: a trapezoid along X, an octagon-like chamfer on every corner, and an
   // anchor that no longer fits its outline. Rounded corners beside a chamfer stay an outline.
+  // A slot cut into the outline between the corners of a 0.5 mm anchor, and through it.
+  const notch = [[-1, -1], [1, -1], [1, 1], [.05, 1], [.05, -.1], [-.05, -.1], [-.05, 1], [-1, 1]];
   const board2 = `(kicad_pcb (version 20221018) (generator test) (layers (0 "F.Cu" signal) (31 "B.Cu" signal)) (net 0 "")
     (footprint "Forms" (layer "F.Cu") (at 10 10 30) (property "Reference" "U9" (at 0 -3) (layer "F.SilkS"))
       (pad "1" smd trapezoid (at 0 0) (size 1.4 1) (rect_delta 0.3 0) (layers "F.Cu"))
@@ -313,7 +315,14 @@ console.log("PASS KiCad round trip: " + [s2.parts + " footprints", s2.tracks + "
       (pad "3" smd chamfered_rect (at 6 0) (size 2 1) (roundrect_rratio 0.2) (chamfer_ratio 0.2) (chamfer bottom_right) (layers "F.Cu"))
       (pad "4" smd custom (at 9 0) (size 0.4 0.4) (layers "F.Cu") (options (clearance outline) (anchor circle))
         (primitives (gr_poly (pts (xy -1 -1) (xy 1 -1) (xy 0 1)) (width 0) (fill yes))))
-      (pad "5" smd oval (at 12 0) (size 2 1) (layers "F.Cu"))))`;
+      (pad "5" smd oval (at 12 0) (size 2 1) (layers "F.Cu"))
+      (pad "6" smd custom (at 15 0) (size 0.5 0.5) (layers "F.Cu") (options (clearance outline) (anchor rect))
+        (primitives (gr_poly (pts (xy -1 -1) (xy 1 -1) (xy 1 1) (xy 0 1.2) (xy -1 1)) (width 0) (fill yes))))
+      (pad "7" smd custom (at 18 0) (size 0.5 0.5) (layers "F.Cu") (options (clearance outline) (anchor rect))
+        (primitives (gr_poly (pts ${"NOTCH"}) (width 0) (fill yes))))
+      (pad "8" smd chamfered_rect (at 21 0) (size 2 1) (chamfer_ratio 0.5) (chamfer top_left top_right) (layers "F.Cu"))
+      (pad "9" smd chamfered_rect (at 24 0) (size 2 1) (chamfer_ratio 0.5) (chamfer top_left bottom_left) (layers "F.Cu"))))`
+    .replace("NOTCH", notch.map(v => "(xy " + v.join(" ") + ")").join(" "));
   const forms = reimport({name: "forms.kicad_pcb", content: board2}), t2 = parse(K.exportBoard(forms.project, forms.board).content);
   const f = number => pad(t2, "U9", number);
   assert.deepEqual([f("1")[3], nums(f("1"), "size"), nums(f("1"), "rect_delta")], ["trapezoid", [1.4, 1], [.3, 0]]);
@@ -326,6 +335,30 @@ console.log("PASS KiCad round trip: " + [s2.parts + " footprints", s2.tracks + "
   fp.pads.find(q => q.number === "4").poly = [[.5, .5], [2, .5], [1, 2]];  // the outline moved off its anchor
   const off = pad(parse(K.exportBoard(forms.project, forms.board).content), "U9", "4");
   assert.deepEqual([nums(off, "size"), kids(kids(off, "options")[0], "anchor")[0][1]], [[.01, .01], "circle"], "an anchor outside its outline is not written");
+  // KiCad's copper is the anchor and the outline together. An anchor is kept only while the whole of
+  // it lies within the outline: with a notch through it, it would fill copper Waffle does not have.
+  const anchorOf = v => [nums(v, "size"), kids(kids(v, "options")[0], "anchor")[0][1]];
+  assert.deepEqual(anchorOf(f("6")), [[.5, .5], "rect"]);
+  const fpPad = number => fp.pads.find(q => q.number === number);
+  fpPad("6").poly = notch.map(v => [...v]);
+  assert.deepEqual(anchorOf(pad(parse(K.exportBoard(forms.project, forms.board).content), "U9", "6")), [[.01, .01], "circle"], "an anchor cut by its outline is not written");
+  assert.equal(fpPad("7").poly.length, 4, "the same pad read from a file is the anchor and the outline together");
+  // A chamfer of half the short side reaches the middle of that side.
+  for (const [number, corners] of [["8", ["top_left", "top_right"]], ["9", ["top_left", "bottom_left"]]])
+    assert.deepEqual([f(number)[3], nums(f(number), "size"), nums(f(number), "chamfer_ratio"), kids(f(number), "chamfer")[0].slice(1)], ["chamfered_rect", [2, 1], [.5], corners]);
+  // Three points at the file's precision do not hold a sliver of an arc: 0.05 degrees of a 5 mm
+  // radius reads back as 13.9 mm. Those keep their chords, and every arc written reads back as itself.
+  const arcTrack = src.board.items.find(i => i.kind === "track" && A.pathArc(i));
+  const sweeps = [.05, .5, 20];
+  for (const [k, sweep] of sweeps.entries()) {
+    const arc = {kind: "arc", c: [30.1234567, 40 + 12 * k + .7654321], r: 5, start: 17, end: 17 + sweep, ccw: true};
+    src.board.items.push({...A.clone(arcTrack), id: "sliver" + k, arc, points: A.arcProjection(arc)});
+  }
+  const slivers = K.exportBoard(src.project, src.board), written = kids(parse(slivers.content), "arc");
+  const radius = v => I.geom.circle3(nums(v, "start"), nums(v, "mid"), nums(v, "end")).r;
+  assert.deepEqual(written.map(v => Math.round(radius(v) * 1000) / 1000), [5, 5], "the arcs written: " + written.map(radius));
+  assert.equal(kids(parse(slivers.content), "segment").length, kids(t, "segment").length + 4, "two slivers as two chords each");
+  assert.equal(slivers.counts.arcs, 2);
   console.log("PASS KiCad source saved back: arc track, oval, chamfered, trapezoid and custom pads in their own records");
 }
 

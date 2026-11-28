@@ -705,8 +705,7 @@ globalThis.AtriumKiCadImport = (() => {
         if (g.circle) outlines.push(G().circlePoints(g.circle.c, g.circle.r + pw));
         else if (g.points?.length) outlines.push(pw > 0 && !g.closed ? g.points.flatMap(q => [[q[0] - pw, q[1] - pw], [q[0] + pw, q[1] + pw], [q[0] - pw, q[1] + pw], [q[0] + pw, q[1] - pw]]) : g.points);
       }
-      const inside = (q, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > q[1]) !== (yj > q[1]) && q[0] < (xj - xi) * (q[1] - yi) / (yj - yi) + xi) c = !c; } return c; };
-      if (outlines.length === 1 && prims.length === 1 && prims[0][0] === "gr_poly" && anchor.every(q => inside([q[0] * .999, q[1] * .999], outlines[0]))) custom(outlines[0]);
+      if (outlines.length === 1 && prims.length === 1 && prims[0][0] === "gr_poly" && A.landWithin(round, w, h, outlines[0])) custom(outlines[0]);
       else if (outlines.length) { custom(G().hull([...anchor, ...outlines.flat()])); notes.add("Custom pads with several primitives import as the convex hull of their copper"); }
       else pad.shape = round ? "round" : "rect";
       // The anchor is the land at the pad origin that the primitives join. The outline already holds
