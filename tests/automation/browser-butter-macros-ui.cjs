@@ -14,7 +14,8 @@ async function walk(browser, profile, shots) {
   const panel = page.locator(".panel-macros");
   const widths = ids => page.evaluate(ids => ids.map(id => AtriumNavHost.doc().items.find(i => i.id === id).width), ids);
   try {
-    assert.equal(await page.evaluate(() => !!document.querySelector(".intel-recording") || !!globalThis.AtriumIntelUI), false);
+    // AtriumIntelUI is already loaded for the graduated Links feature; Macros stays off until its flag.
+    assert.equal(await page.evaluate(() => !!document.querySelector(".intel-recording") || !!AtriumKeymap.command("assist.macros")), false);
     await page.evaluate(async () => { AtriumPrefs.set("butter.macros", true); await AtriumLazy.need("AtriumButterEditor"); });
     await page.waitForFunction(() => AtriumKeymap.command("assist.macros"));
     await page.evaluate(() => AtriumKeymap.command("assist.macros").run());

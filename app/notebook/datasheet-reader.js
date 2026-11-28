@@ -15,7 +15,8 @@ globalThis.AtriumDatasheetReader = (() => {
     K = await G.AtriumLazy.need("AtriumUIKit");
     host = G.AtriumNavHost;
     if (!panel) build();
-    panel.hidden = false;
+    // Opening a reader that sits behind another dock tab brings it to the front.
+    if (panel.hidden) panel.hidden = false; else G.AtriumDock?.reveal?.("datasheet");
     return true;
   }
   async function toggle() { if (panel && !panel.hidden) close(); else { await ensure(); paint(); } }
@@ -61,7 +62,7 @@ globalThis.AtriumDatasheetReader = (() => {
     pages.addEventListener("scroll", () => schedule(), {passive: true});
     pages.addEventListener("keydown", pageKeys);
     panel.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") { e.preventDefault(); toggleFind(true); } });
-    new ResizeObserver(() => { if (open_) { relayout(); schedule(); } }).observe(pages);
+    new ResizeObserver(() => { if (open_) { relayout(); if (open_.pending && sized()) goTo(open_.pending, {instant: true}); else schedule(); } }).observe(pages);
     host.on?.("change", () => { if (!panel.hidden && !open_) paint(); });
   }
 
@@ -241,7 +242,9 @@ globalThis.AtriumDatasheetReader = (() => {
       const r = p.getBoundingClientRect();
       const a = Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top));
       if (r.bottom >= box.top - r.height && r.top <= box.bottom + r.height) seen.push(Number(p.dataset.page));
-      if (a > bestArea) { bestArea = a; best = Number(p.dataset.page); }
+      // Pages that show within a pixel of each other tie, and the upper one wins: a page scrolled to
+      // the top keeps its number when the pages below it fit in view too.
+      if (a > bestArea + 1) { bestArea = a; best = Number(p.dataset.page); }
     }
     // At either end of the scroll the end page is current, even when a neighbour shows more of itself.
     const el = ui.pages;
@@ -249,8 +252,10 @@ globalThis.AtriumDatasheetReader = (() => {
     else if (el.scrollTop <= 0) best = 1;
     return {seen: seen.slice(0, 6), best};
   }
+  // A reader with no size (a hidden tab, a collapsed side) has no page in view.
+  const sized = () => ui.pages.clientHeight > 0;
   async function renderVisible() {
-    const o = open_; if (!o || !o.pages) return;
+    const o = open_; if (!o || !o.pages || !sized()) return;
     const {seen, best} = inView();
     if (best && best !== o.page) { o.page = best; ui.pager.set(best - 1, o.pages); ui.strip.select(String(best)); }
     const side = Math.round(Math.min(2400, (ui.pages.style.getPropertyValue("--docs-page-w").replace("px", "") * 1 || 600) * Math.min(2, G.devicePixelRatio || 1)) * o.aspect);
@@ -301,6 +306,9 @@ globalThis.AtriumDatasheetReader = (() => {
     const o = open_; if (!o || !o.pages) return;
     n = Math.max(1, Math.min(o.pages, n));
     o.page = n; ui.pager.set(n - 1, o.pages); ui.strip.select(String(n));
+    // Without a size there is nowhere to scroll: the resize observer goes to the page once there is.
+    o.pending = sized() ? 0 : n;
+    if (o.pending) return;
     pageNode(n)?.scrollIntoView({block: "start", behavior: instant || G.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "off" ? "instant" : "smooth"});
     schedule();
   }

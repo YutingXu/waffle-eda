@@ -24,13 +24,16 @@ async function checkColdFlags(browser) {
       const motion = await AtriumLazy.need("AtriumMotion");
       return {flags:earlyButterFlags, motion:motion.butterEnabled(), broker:!!globalThis.AtriumButter};
     });
+    // Before Preferences loads, only a stored boolean true counts ("true" and 1 do not).
     assert.deepEqual(cold, {flags:[true,false,false,false], motion:true, broker:false});
     release();
     await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
     await page.waitForFunction(() => AtriumNavHost.project().name === "Sensor interface" &&
       !!AtriumKeymap.command("butter.motion.policy"));
     const enabled = await page.evaluate(() => ["motion", "links", "numericFields", "macros"].map(feature => AtriumButter.state(feature).enabled));
-    assert.deepEqual(enabled, cold.flags);
+    // Once Preferences has bound AtriumLabs, the graduated links feature takes its default (on),
+    // since its stored value is not a boolean. The beta features keep their cold answers.
+    assert.deepEqual(enabled, [true, true, false, false]);
     await page.locator("#canvas").focus();
     await page.keyboard.press("F1");
     const palette = page.locator("#palette[open]");

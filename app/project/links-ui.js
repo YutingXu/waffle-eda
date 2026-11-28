@@ -22,9 +22,7 @@ globalThis.AtriumLinksUI = (() => {
     partial:"Part of the project is still loading, so this link could not be checked.",
     "invalid-link":"The stored address is not a valid Waffle link."
   };
-  const kindName = kind => ({part:"Component", schematic:"Sheet", pcb:"Board", savedQuery:"Saved query", savedView:"Saved view",
-    datasheet:"Datasheet", calculation:"Calculation", note:"Note", comment:"Comment", commit:"Git commit", rule:"Rule", net:"Net", pin:"Pin"}[kind] ??
-    (kind ? kind[0].toUpperCase() + kind.slice(1) : "Object"));
+  const kindName = kind => G.AtriumLinks.kindName(kind);
   const id = value => G.AtriumLinkRecord?.id(value);
   let section = null, version = 0, includeGit = false, shown = PAGE;
 
@@ -35,10 +33,10 @@ globalThis.AtriumLinksUI = (() => {
     const project = host().project();
     return project.documents.find(d => d.id === target.objectId)?.name ?? kindName(target.kind);
   }
-  function probeTarget(t) {
-    if (t.documentId && t.documentId !== t.objectId) return U.probe({documentId:t.documentId, id:t.objectId}, {focus:false});
-    return U.probe({url:G.AtriumLinks.format({projectId:host().project().id, objectId:t.objectId})});
-  }
+  // A stored link or a referring object opens through the one link opener with its whole address.
+  // Focus stays in Properties, as a cross-probe leaves it.
+  const openAddress = ({projectId = host().project().id, objectId, fragment}) =>
+    U.probe({url:G.AtriumLinks.format({projectId, objectId, ...(fragment && {fragment})})}, {focus:false});
 
   // ------------------------------------------------------------------ Properties section
   // The section matches the inspector's own disclosures and stays open unless the user closes it.
@@ -81,11 +79,11 @@ globalThis.AtriumLinksUI = (() => {
     const title = showSource ? label(record.source) + " → " + (record.label ?? label(target)) : record.label ?? label(target);
     const detail = broken ? REASONS[status.status] ?? "This link cannot be resolved." : [kindName(target.kind), where].filter(Boolean).join(" · ");
     const actions = broken ? [K.button("Inspect…", {variant:"quiet", size:"sm", run:() => inspectBroken(record, status)})] :
-      [U.more("Link actions", [{label:"Open", run:() => probeTarget(target)}, {label:"Copy link", run:() => copyAddress(target)},
+      [U.more("Link actions", [{label:"Open", run:() => openAddress(record.target)}, {label:"Copy link", run:() => copyAddress(target)},
         {label:"Rebind…", run:() => rebind(record)}, "-", {label:"Remove…", run:() => removeLink(record)}])];
     const row = K.row({title, detail, state:broken ? "broken" : undefined, actions, role:"listitem",
       meta:broken ? K.badge(status.status === "partial" ? "Not checked" : "Broken", status.status === "partial" ? "warning" : "danger") : undefined});
-    if (!broken) { row.tabIndex = 0; row.addEventListener("click", event => { if (!event.target.closest("button")) probeTarget(target); }); }
+    if (!broken) { row.tabIndex = 0; row.addEventListener("click", event => { if (!event.target.closest("button")) openAddress(record.target); }); }
     return row;
   }
   async function outgoing(project, subject, actions) {
@@ -112,8 +110,9 @@ globalThis.AtriumLinksUI = (() => {
       const rows = edges.map(edge => {
         const source = edge.source, isCommit = source.kind === "commit";
         const where = source.documentId && host().project().documents.find(d => d.id === source.documentId)?.name;
-        const row = K.row({title:isCommit ? edge.label ?? source.objectId.slice(0, 8) : label(source), detail:[where ?? kind, edge.field].filter(Boolean).join(" · "),
-          run:isCommit ? undefined : () => probeTarget(source)});
+        // A commit source carries its subject and revision (links.js gitReferences), not an object ID.
+        const row = K.row({title:isCommit ? source.label || source.commitId.slice(0, 8) : label(source), detail:[where ?? kind, edge.field].filter(Boolean).join(" · "),
+          run:isCommit ? undefined : () => openAddress({objectId:source.objectId})});
         return row;
       });
       out.append(K.list(rows, {role:"list", label:kind}));
@@ -253,20 +252,12 @@ globalThis.AtriumLinksUI = (() => {
     const message = K.el("div");
     const d = G.AtriumShell.dialog({title:"Open link", body:[K.propRow("Link", field), message], actions:[{label:"Cancel"}, {label:"Open", primary:true, run:async () => {
       const result = await U.probe({url:field.value.trim()}, {focus:true});
-      if (result.status === "found") { reveal(result); return; }
-      message.replaceChildren(K.notice({tone:result.status === "partial" ? "warning" : "danger", text:U.openMessage(result.status)}));
+      if (result.status === "found") return;
+      message.replaceChildren(K.notice({tone:result.status === "partial" ? "warning" : "danger", text:G.AtriumLinksDesktop.message(result.status)}));
       return false;
     }}]});
     field.focus();
     await d.done;
-  }
-  // Metadata with no place on the canvas opens where it lives.
-  function reveal(result) {
-    const t = result.target;
-    if (t?.kind === "savedQuery" && U.enabled("query")) {
-      const q = host().project().savedQueries?.find(r => r.id === t.objectId);
-      if (q) U.open("query", {source:q.query.source});
-    } else if (t && !t.documentId && !["comment", "slide", "savedView"].includes(t.kind)) host().info(kindName(t.kind) + " " + label(t) + " has no place on the canvas.");
   }
 
   function sync(on) { if (!on) G.document.getElementById("inspector")?.querySelector(":scope > .intel-links")?.remove(); }

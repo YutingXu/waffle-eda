@@ -67,13 +67,7 @@ globalThis.AtriumIntelUI = (() => {
   async function probe(target, {focus = false, activateOccurrence = true, current, status, order} = {}) {
     const h = host();
     if (!h || !target) return {status:"unavailable"};
-    if (target.url) {
-      const links = G.AtriumLinksDesktop ?? await L.need("AtriumLinksDesktop");
-      const address = G.AtriumLinks.parse(target.url);
-      const result = address ? await links.follow(address) : {status:"invalid-link"};
-      if (result.status !== "found") h.info(openMessage(result.status));
-      return result;
-    }
+    if (target.url) return (G.AtriumLinksDesktop ?? await L.need("AtriumLinksDesktop")).open(target.url, {focus});
     const project = h.project(), doc = project.documents.find(d => d.id === (target.documentId ?? target.docId));
     if (!doc) {
       if (!status) h.info("The document for this result is no longer in the project.");
@@ -103,22 +97,6 @@ globalThis.AtriumIntelUI = (() => {
     if (focus && !order) G.AtriumShell?.focusEditor?.();
     if (status) status(hit, doc);
     return {status:"found", label:hit.label};
-  }
-  function openMessage(status) {
-    return {
-      disabled:"Turn on Project Links in Experimental features to open Waffle links.",
-      "invalid-link":"This is not a Waffle link.",
-      "missing-project":"The project for this link could not be found.",
-      "project-mismatch":"The chosen project does not match this link.",
-      "ambiguous-project":"More than one recent project has this identity. Open the intended project first.",
-      "missing-object":"The object for this link is missing.",
-      "missing-fragment":"This datasheet page is unavailable.",
-      "missing-document":"The document for this link is unavailable.",
-      partial:"Part of the project is still loading. Try again in a moment.",
-      ambiguous:"More than one object has this identity.",
-      cancelled:"Opening the link was cancelled.",
-      busy:"Another Waffle link is opening."
-    }[status] ?? "The Waffle link was not opened.";
   }
 
   // A result row named the way the canvas names it: designator, then net, then kind.
@@ -345,6 +323,6 @@ globalThis.AtriumIntelUI = (() => {
   }
 
   async function install(feature) { await kit(); sync(feature); }
-  return Object.freeze({install, sync, open, view, dockPanel, probe, openMessage, review, receipt, applyOps, changeRows,
+  return Object.freeze({install, sync, open, view, dockPanel, probe, review, receipt, applyOps, changeRows,
     queryRows, paletteRows, showRecording, kit, enabled, host, refreshRecording, short, describe, quantity, more});
 })();

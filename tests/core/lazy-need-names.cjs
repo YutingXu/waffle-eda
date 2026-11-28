@@ -62,6 +62,11 @@ const SAFE = {
   // theme picker or the extension manager (both opened by the user) can run.
   "editor/theme-library.js|AtriumVSCode": "registered by prefs.js, loaded at startup",
   "extension-host/extensions.js|AtriumVSCode": "registered by prefs.js, loaded at startup",
+  // Every path that loads AtriumLinksDesktop first needs links on in AtriumPrefs, and prefs.js inserts
+  // editor-command-host.js whenever a Butter feature is on; it registers both for each feature that is on.
+  // Lazy scripts run in insertion order, so links-desktop.js cannot run first (browser-links-open.cjs checks it).
+  "native-bridge/links-desktop.js|AtriumDatasheetReader": "registered by editor-command-host.js, which runs before this file",
+  "native-bridge/links-desktop.js|AtriumIntelUI": "registered by editor-command-host.js, which runs before this file",
 };
 
 const files = [...inventoryFrom().values()].filter(f => /\.js$/.test(f) && !f.startsWith("vendor/")).sort();

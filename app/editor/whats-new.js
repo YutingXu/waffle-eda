@@ -4,6 +4,7 @@
 globalThis.AtriumWhatsNew = (() => {
   // [title, what it does, where, action]
   const ITEMS = [
+    ["Links to Waffle", "Copy a waffle:// link to any saved object and paste it into a note, a commit message or a chat. Opening the link brings you back to that object.", "Properties › Links", null],
     ["Context menus for every object", "Right-click a component, track, via, pour, room or DRC marker for its own commands; right-click empty canvas to place or change the view.", "Right-click", null, "context-menu"],
     ["Signal Integrity", "Impedance, reflections and crosstalk estimates for the selected nets, from the layer stack.", "Tools › Signal Integrity", "si-analysis"],
     ["Component Stress", "Voltage, current and power derating of each part against its ratings.", "Tools › Component Stress…", "component-stress"],

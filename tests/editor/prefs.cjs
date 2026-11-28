@@ -145,6 +145,31 @@ assert.equal(labs.butterEnabled("visualHistory"), true);
 assert.equal(labs.butterEnabled("numericFields"), true);
 assert.deepEqual(JSON.parse(P.exportJSON()).values, optIns);
 P.reset();
+// A graduated Butter feature (AtriumPrefs.GRADUATED) is on by default in prefs and labs alike.
+// A stored false still turns it off; Reset brings the default back. Beta features stay off.
+assert.deepEqual(P.GRADUATED, ["links"]);
+assert.ok(Object.isFrozen(P.GRADUATED));
+assert.equal(P.get("butter.links"), true);
+assert.equal(labs.butterEnabled("links"), true);
+assert.equal(P.get("butter.query"), false);
+assert.equal(labs.butterEnabled("query"), false);
+const graduatedEvents = [], offGraduated = P.on("butter.links", event => graduatedEvents.push(event.value));
+P.set("butter.links", true);
+assert.equal(JSON.parse(store.get(P.STORE) ?? "{\"values\":{}}").values["butter.links"], undefined, "the default is not stored");
+P.set("butter.links", false);
+assert.equal(P.get("butter.links"), false);
+assert.equal(labs.butterEnabled("links"), false);
+assert.equal(JSON.parse(store.get(P.STORE)).values["butter.links"], false);
+P.reload();
+assert.equal(P.get("butter.links"), false, "an explicit off switch survives a reload");
+P.reset(["butter.links"]);
+assert.equal(P.get("butter.links"), true);
+assert.deepEqual(graduatedEvents, [false, true]);
+offGraduated();
+store.set(P.STORE, JSON.stringify({format:P.FORMAT, version:P.VERSION, values:{"butter.links":"false"}}));
+P.reload();
+assert.equal(P.get("butter.links"), true, "only a stored boolean false turns a graduated feature off");
+P.reset();
 const page=P.registerPage({id:"demo",title:"Demo",order:50,render(){}});
 assert.ok(P.pages().some(p=>p.id==="demo"));page.dispose();assert.ok(!P.pages().some(p=>p.id==="demo"));
 // Lazy-loaded and small.

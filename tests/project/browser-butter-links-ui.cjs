@@ -1,8 +1,8 @@
 "use strict";
-// Links walk: flag off, the Links disclosure in Properties, the target picker, a stored link created
+// Links walk: on by default, the Links disclosure in Properties, the target picker, a stored link created
 // and removed in one Undo step, a broken link inspected and rebound, references grouped with what would
-// break, paging, project links with a missing source, a net anchor, Open link feedback, objects without
-// an identity, multiple selection and the palette's Open link row.
+// break, paging, a Git commit reference, project links with a missing source, a net anchor, Open link
+// feedback, objects without an identity, multiple selection, the palette's Open link row and the off switch.
 // node tests/project/browser-butter-links-ui.cjs [--shots OUTPUT_DIRECTORY]
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -22,9 +22,10 @@ async function walk(browser, profile, shots) {
   };
   try {
     const ids = await page.evaluate(() => AtriumNavHost.doc().items.filter(i => i.kind === "track").slice(0, 6).map(i => i.id));
+    // Links has graduated: a fresh profile shows the section without setting butter.links.
+    assert.equal(await page.evaluate(() => AtriumPrefs.changed()["butter.links"]), undefined);
+    await page.evaluate(() => AtriumLazy.need("AtriumButterEditor"));
     await select([ids[0]]);
-    assert.equal(await links.count(), 0, "flag off adds nothing to Properties");
-    await page.evaluate(async () => { AtriumPrefs.set("butter.links", true); await AtriumLazy.need("AtriumButterEditor"); });
     await links.waitFor();
     await links.locator(".ui-empty", {hasText:"No stored links start here"}).waitFor();
     await shot(page, "1-empty");
@@ -80,6 +81,15 @@ async function walk(browser, profile, shots) {
     await links.getByRole("button", {name:/^Show \d+ more$/}).waitFor();
     await shot(page, "6-paged");
 
+    // A Git commit that names the object (imported by History) is listed by its subject.
+    await page.evaluate(async id => {
+      const p = AtriumNavHost.project(), url = AtriumLinks.format({projectId:p.id, objectId:id});
+      (await AtriumLazy.need("AtriumLinksDesktop")).index(p.id).importCommits([{revision:"c".repeat(40), subject:"Widen the filter track", recordLinks:[url]}]);
+      AtriumLinksUI.refresh();
+    }, ids[1]);
+    await links.locator(".ui-section", {hasText:"Referenced by"}).locator(".ui-row", {hasText:"Widen the filter track"}).waitFor();
+    await page.evaluate(() => AtriumLinksDesktop.index(AtriumNavHost.project().id).importCommits([], {replace:true}));
+
     // Nothing selected: every stored link with its health, including a missing source.
     await page.evaluate(id => { const h = AtriumNavHost; h.edit(() => { const d = h.doc(); d.items.splice(d.items.findIndex(i => i.id === id), 1); }, "Delete source"); h.select([]); }, ids[4]);
     await links.locator(".ui-section", {hasText:"Links in this project"}).waitFor();
@@ -126,4 +136,4 @@ async function walk(browser, profile, shots) {
   } finally { await page.close(); }
 }
 
-H.runWalk(walk, "SKIP Links walk: Playwright Core unavailable.", "PASS Links in Properties: off, empty, picker, create and one Undo, broken and rebind, references, paging, project links, net anchor, open feedback, no identity, multiple selection.");
+H.runWalk(walk, "SKIP Links walk: Playwright Core unavailable.", "PASS Links in Properties: on by default, empty, picker, create and one Undo, broken and rebind, references, paging, Git commit, project links, net anchor, open feedback, no identity, multiple selection, off switch.");

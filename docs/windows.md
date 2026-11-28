@@ -6,11 +6,11 @@ Waffle EDA runs on Windows 10 (version 1903 or later) and Windows 11, on x64 and
 
 **Zip (portable).** Extract the Windows portable ZIP listed in the [release notes](release-notes.md) anywhere you can write to, for example `%LOCALAPPDATA%\Programs\Waffle`, and run `Waffle.exe`. To open a project or document directly, pass the file to `Waffle.exe` or drag it onto the executable. Quote names with spaces, as in `Waffle.exe "Power board.wpcb"`.
 
-For double-click from Explorer with the portable build, run `Register-WaffleDocumentTypes.ps1` from the extracted app folder. Then choose **Waffle EDA** under **Open with** as the default for each type you want to associate. The script adds Waffle as a choice for your Windows account. Run it with `-Unregister` before deleting this copy to remove its entries.
+For double-click from Explorer with the portable build, run `Register-WaffleDocumentTypes.ps1` from the extracted app folder. Then choose **Waffle EDA** under **Open with** as the default for each type you want to associate. The script adds Waffle as a choice for your Windows account and registers [`waffle://` links](links.md) for it, so links in a browser or another app open this copy. Run it with `-Unregister` before deleting this copy to remove its entries.
 
 The build is not code-signed yet, so the first time you run it SmartScreen shows **Windows protected your PC**. Choose **More info → Run anyway**.
 
-**Optional MSIX build.** The MSIX produced by the source build installs Waffle EDA in the Start menu and registers `.waffle`, `.wpcb`, `.wsch`, `.wlib`, `.wdraw`, and `.wpanel` for opening from Explorer. It is unsigned, so Windows 11 installs it only from an administrator PowerShell:
+**Optional MSIX build.** The MSIX produced by the source build installs Waffle EDA in the Start menu and registers `.waffle`, `.wpcb`, `.wsch`, `.wlib`, `.wdraw`, and `.wpanel` for opening from Explorer, and `waffle://` links. It is unsigned, so Windows 11 installs it only from an administrator PowerShell:
 
 ```powershell
 Add-AppxPackage -AllowUnsigned .\Waffle-0.8.0.msix

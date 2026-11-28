@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-for (const name of ["uuid-v7","model","link-record","design-query-record","calculation-records","links","links-desktop","source-file","format-2-units","format-2-codec","format-2-values","format-2-model",
+for (const name of ["uuid-v7","model","link-record","design-query-record","calculation-records","datasheet-record","links","links-desktop","source-file","format-2-units","format-2-codec","format-2-values","format-2-model",
   "format-2-closure","folder-project-engine","folder-project","undo-store","proposal","butter","butter-links",
   "camera","saved-views","slides","butter-slides"])
   require(require("../support/app-source-paths.cjs").appFile(name + ".js"));
@@ -104,7 +104,8 @@ Object.defineProperty(globalThis,"navigator",{configurable:true,value:{clipboard
   assert.equal(picked,3);
   await lazyFolderLinks();
   await graphLifecycle();
-  console.log("Desktop links passed: picker consent, recents, clipboard, partial hydration, duplicate identity, part zoom, disk conflict, Git refresh and missing slide source.");
+  await datasheetPages();
+  console.log("Desktop links passed: picker consent, recents, clipboard, partial hydration, duplicate identity, part zoom, disk conflict, Git refresh, missing slide source and datasheet pages.");
 })().catch(error => {console.error(error); process.exitCode = 1;});
 
 async function lazyFolderLinks() {
@@ -324,4 +325,33 @@ async function graphLifecycle() {
   assert.equal(command("copy-link",{objectId:sheet.id},{captured:original,stale:true,mode:"write"}).copied,false);
   tell("replace");
   U.reset();
+}
+
+// A datasheet page link opens the reader at that page while Datasheets is on. With Datasheets
+// off the link still resolves, but nothing outside Links opens.
+async function datasheetPages() {
+  const design = A.project("Datasheet pages", []), sheetId = A.id();
+  design.datasheets = [{id:sheetId, title:"Regulator", pageCount:4}];
+  const page = n => ({projectId:design.id, objectId:sheetId, fragment:"datasheet:page=" + n});
+  const opened = [], messages = [];
+  let datasheets = true, readable = true;
+  globalThis.AtriumNavHost = {project:() => design, folderProject:() => null, info:text => messages.push(text)};
+  globalThis.AtriumPrefs.get = key => key === "butter.links" || key === "butter.datasheets" && datasheets;
+  globalThis.AtriumDatasheetReader = {openLink:async args => { opened.push(args); return readable; }};
+  try {
+    assert.equal((await D.follow(page(3))).status, "found");
+    assert.deepEqual(opened, [{id:sheetId, page:3}]);
+    assert.equal(await D.receive(L.format({projectId:design.id, objectId:sheetId})), true);
+    assert.deepEqual(opened.at(-1), {id:sheetId, page:1});
+    assert.equal((await D.follow(page(9))).status, "missing-fragment");
+    assert.equal(opened.length, 2);
+    readable = false;
+    assert.equal(await D.receive(L.format(page(2))), false);
+    assert.equal(messages.at(-1), "This datasheet page is unavailable.");
+    datasheets = false;
+    assert.equal((await D.follow(page(2))).status, "found");
+    assert.equal(opened.length, 3);
+  } finally {
+    delete globalThis.AtriumDatasheetReader;
+  }
 }
