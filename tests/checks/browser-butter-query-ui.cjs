@@ -69,22 +69,96 @@ async function walk(browser, profile, shots) {
     await shot(page, "5-no-matches");
 
     // Paging a larger result.
-    await page.evaluate(() => { AtriumQueryUI.pageSize = 5; });
+    await page.evaluate(() => {
+      AtriumQueryUI.pageSize = 5;
+      const service = AtriumQueryService;
+      globalThis.AtriumQueryService = {...service,async search(query, options) {
+        const result = await service.search(query, options);
+        await new Promise(resolve => { window.finishQueryFixture = resolve; });
+        globalThis.AtriumQueryService = service;
+        return result;
+      }};
+    });
     await input.fill("track where width > 0 mm");
+    const firstMatch = await panel.locator(".ui-list .ui-row").first().elementHandle();
+    await firstMatch.evaluate(row => row.parentElement.focus());
+    await page.waitForFunction(() => window.finishQueryFixture);
+    await page.evaluate(() => window.finishQueryFixture());
     await panel.locator(".ui-status-line", {hasText:/Showing 5 of \d+/}).waitFor();
+    assert.equal(await firstMatch.evaluate(row => row.isConnected && document.activeElement === row.parentElement), true,
+      "The final count keeps streamed rows and list focus.");
     await shot(page, "6-paged");
     await panel.getByRole("button", {name:/^Show \d+ more$/}).click();
     await panel.locator(".ui-status-line", {hasText:/Showing 10 of \d+/}).waitFor();
+    assert.equal(await firstMatch.evaluate(row => row.isConnected), true, "Paging keeps the first page's rows.");
+    await firstMatch.dispose();
     await page.evaluate(() => { AtriumQueryUI.pageSize = 50; });
 
-    // An edit refreshes the preview; rows from the old revision never replace current ones.
-    await input.fill("resistor where value < 100 kΩ");
+    // A click on the old cursor in the same frame cannot cancel the new query.
+    await input.evaluate(box => {
+      const more = [...box.closest(".panel-design-query").querySelectorAll("button")].find(button => /^Show \d+ more$/.test(button.textContent));
+      box.value = "resistor where value < 100 kΩ";
+      box.dispatchEvent(new Event("input", {bubbles:true}));
+      more.click();
+    });
     await panel.locator(".ui-status-line", {hasText:"4 matches"}).waitFor();
+
+    // An edit refreshes the preview; rows from the old revision never replace current ones.
     await page.evaluate(() => {
       const h = AtriumNavHost, part = h.doc().items.find(i => i.kind === "part" && i.ref === "R1");
       h.edit(() => { part.value = "220k"; }, "Change R1");
     });
     await panel.locator(".ui-status-line", {hasText:"3 matches"}).waitFor();
+
+    // Closing aborts an owner read, then reopening restarts the query.
+    await page.evaluate(() => {
+      const h = AtriumNavHost, {folderProject,requireProjectClosure} = h;
+      const folder = {completeFor:() => false};
+      h.folderProject = () => folder;
+      window.heldFolderReads = 0;
+      h.requireProjectClosure = ({signal}) => new Promise(resolve => {
+        window.heldFolderReads++;
+        window.heldQuerySignal = signal;
+        signal.addEventListener("abort", resolve, {once:true});
+      });
+      window.restoreQueryFixture = () => Object.assign(h, {folderProject,requireProjectClosure});
+      void AtriumQueryUI.run();
+    });
+    await page.waitForFunction(() => window.heldQuerySignal);
+    const updatedQuery = "resistor where value < 100000 Ω";
+    for (const source of ["resistor where", "resistor where value <", updatedQuery]) {
+      await input.fill(source);
+      await page.waitForFunction(source => AtriumQueryUI.state().source === source && AtriumQueryUI.state().hydrating, source);
+    }
+    assert.equal(await page.evaluate(() => window.heldFolderReads), 1, "Typing reuses the open folder's owner read.");
+    await panel.getByRole("button", {name:"Document", exact:true}).click();
+    assert.equal(await page.evaluate(() => window.heldQuerySignal.aborted), true, "Document scope cancels the folder read.");
+    await panel.getByRole("button", {name:"Project", exact:true}).click();
+    await page.waitForFunction(() => window.heldFolderReads === 2 && !window.heldQuerySignal.aborted);
+    await page.evaluate(() => AtriumDock.toggle("design-query"));
+    await panel.waitFor({state:"hidden"});
+    assert.equal(await page.evaluate(() => window.heldQuerySignal.aborted), true);
+    await page.evaluate(() => { window.restoreQueryFixture(); return AtriumQueryUI.open(); });
+    await panel.locator(".ui-status-line", {hasText:"3 matches"}).waitFor();
+
+    // A completed result reopened without another search also owns a Select cancellation signal.
+    await page.evaluate(async () => {
+      AtriumDock.toggle("design-query");
+      await AtriumQueryUI.open();
+      const service = AtriumQueryService;
+      window.heldQuerySignal = null;
+      globalThis.AtriumQueryService = {...service,selection:(_query, {signal}) => new Promise(resolve => {
+        window.heldQuerySignal = signal;
+        signal?.addEventListener("abort", () => resolve({complete:false}), {once:true});
+      })};
+      window.restoreQueryFixture = () => { globalThis.AtriumQueryService = service; };
+    });
+    await panel.getByRole("button", {name:"Select", exact:true}).click();
+    await page.waitForFunction(() => window.heldQuerySignal);
+    await page.evaluate(() => AtriumDock.toggle("design-query"));
+    await panel.waitFor({state:"hidden"});
+    assert.equal(await page.evaluate(() => window.heldQuerySignal.aborted), true);
+    await page.evaluate(() => { window.restoreQueryFixture(); return AtriumQueryUI.open(); });
 
     // Save, then a duplicate name, rename and delete; a deleted group reads as missing.
     await panel.getByRole("button", {name:"Save…"}).click();

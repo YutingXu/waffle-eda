@@ -112,10 +112,14 @@ globalThis.AtriumTableExchange = (() => {
         content:value?.text?{kind:"literal",text:value.text}:null,...(value?.style?{style:value.style}:{})});
     }
     const rows=new Set(s.rows.slice(r0,r0+height).map(r=>r.id)),columns=new Set(s.columns.slice(c0,c0+width).map(c=>c.id));
-    for(const m of s.merges) if(m.rows.some(r=>rows.has(r))&&m.columns.some(c=>columns.has(c))&&
-      (!m.rows.every(r=>rows.has(r))||!m.columns.every(c=>columns.has(c))))throw Error("The paste would split a merged cell.");
-    s=T.batch({...s,merges:s.merges.filter(m=>!m.rows.some(r=>rows.has(r))||!m.columns.some(c=>columns.has(c)))},entries);
-    const merges=data.merges.map(m=>({id:makeId(),rows:s.rows.slice(r0+m.r,r0+m.r+m.rows).map(r=>r.id),columns:s.columns.slice(c0+m.c,c0+m.c+m.columns).map(c=>c.id)}));
+    const kept=s.merges.filter(m=>{
+      if(!m.rows.some(r=>rows.has(r))||!m.columns.some(c=>columns.has(c)))return true;
+      if(!m.rows.every(r=>rows.has(r))||!m.columns.every(c=>columns.has(c)))throw Error("The paste would split a merged cell.");
+      return false;
+    });
+    const next=T.batch(s,entries);
+    const added=data.merges.map(m=>({id:makeId(),rows:s.rows.slice(r0+m.r,r0+m.r+m.rows).map(r=>r.id),columns:s.columns.slice(c0+m.c,c0+m.c+m.columns).map(c=>c.id)}));
+    const merges=kept.length===s.merges.length&&!added.length?s.merges:[...kept,...added];
     let headerRows=s.headerRows,headerColumns=s.headerColumns;
     if(r0===0){
       let n=0;
@@ -127,7 +131,8 @@ globalThis.AtriumTableExchange = (() => {
       let n=0;while(dataRows.length&&dataRows.every(row=>row[n]?.header&&row[n]?.scope==="row"))n++;
       headerColumns=Math.max(headerColumns,n);
     }
-    return T.validate({...s,headerRows,headerColumns,merges:[...s.merges,...merges]});
+    return T.validateView(headerRows===s.headerRows&&headerColumns===s.headerColumns&&merges===s.merges?
+      next:{...next,headerRows,headerColumns,merges});
   }
   function plain(content) {
     if(!content)return "";

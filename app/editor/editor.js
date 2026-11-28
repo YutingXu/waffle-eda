@@ -54,11 +54,13 @@
   // pane keeps a copy of its state and re-renders only when its inputs change.
   const panes=[{canvas,stage:$("canvas-stage"),view,docId:null,state:null,version:0,sig:""}];
   // A view asks for an exact frame after a pan or zoom gesture and after deferred airwires (canvas.js).
-  function paneRepaint(p, cameraMoving=false){
+  function paneRepaint(p, cameraMoving=false, inFrame=false){
     if(!p.view)return;
     // A superseded GPU text job must not settle the camera before its queued gesture draws.
     if(cameraMoving&&p===activePane&&activeDirty&&frame&&viewportVisible&&!homeFit&&!p.covered&&!in3D(p))return;
-    p.version++;if(p.covered)return;if(p===activePane)draw();else schedule();
+    p.version++;if(p.covered)return;
+    if(p===activePane){activeDirty=true;prepareDraw();}
+    if(!inFrame)schedule();
   }
   view.onRepaint?.(cameraMoving=>paneRepaint(panes[0],cameraMoving));
   let activePane=panes[0],splitState=null;
@@ -79,8 +81,8 @@
   // draws a retained frame: the view keeps its centre, so the renderers move the pixels they hold, paint
   // what a larger pane uncovers, and draw the exact frame once the size has rested (as after a pan).
   function paneResized(p,rect){
-    const quiet=p.size?.[0]&&p.size[1]&&(p===activePane?!activeDirty:p.sig===otherSig(p));
-    p.size=[rect.width,rect.height];p.view?.resized?.(rect);
+    const quiet=p.size?.width&&p.size.height&&(p===activePane?!activeDirty:p.sig===otherSig(p));
+    p.size={width:rect.width,height:rect.height};p.view?.resized?.(rect);
     if(quiet)p.view?.moving?.();
     p.version++;if(p===activePane)activeDirty=true;
   }
@@ -92,7 +94,7 @@
     for(const e of entries||[]){
       const p=panes.find(q=>q.canvas===e.target);if(!p)continue;
       const w=e.contentRect.width,h=e.contentRect.height;
-      if(p.size&&p.size[0]===w&&p.size[1]===h)continue; // this frame's paint already measured and drew it
+      if(p.size?.width===w&&p.size.height===h)continue; // this frame's paint already measured and drew it
       paneResized(p,e.contentRect);
       if(homeFit&&p===panes[0]&&e.contentRect.width&&e.contentRect.height){
         const target=homeFit;homeFit=null;
@@ -124,8 +126,8 @@
     const opts={hidden:st.hidden,layer:st.layer,layerMode:st.layerMode,grid,selected:same?selected:ids.values().next().value??null,selectedIds:ids,highlight,showUnrouted,
       transientGeometry:same&&!!drag?.before,routing:false,width:routeWidth,netByWire,schematicHighlightIds,...navRender(d,{active:false,same}),editorPane:true};
     const started=trace?performance.now():0;
-    p.view.render(d,defs,opts);
-    if(trace&&p.size?.[0]&&p.size[1])trace.draw(p.canvas,started,performance.now());
+    p.view.render(d,defs,opts,p.size);
+    if(trace&&p.size?.width&&p.size.height)trace.draw(p.canvas,started,performance.now());
   }
   function activatePane(p){
     if(!p?.view||p===activePane)return;
@@ -324,8 +326,10 @@
     return pcb()?null:t?{id:t.item.id,key:t.key,mode:"drag"}:fieldSel?{...fieldSel,mode:"selected"}:fieldHover&&tool==="select"&&!drag?{...fieldHover,mode:"hover"}:null;
   }
   function textAt(p){
+    const d=doc();
+    if(d.kind!=="schematic"&&d.kind!=="pcb")return null;
     if(!SF())globalThis.AtriumLazy?.need?.("AtriumSchFields").catch(()=>{});
-    return tool==="select"?SF()?.pick(view,doc(),defs,p,{...lineOpts(),selectable:i=>selectable(i)&&!notebookLocked(i)}):null;
+    return tool==="select"?SF()?.pick(view,d,defs,p,{...lineOpts(),selectable:i=>selectable(i)&&!notebookLocked(i)}):null;
   }
   const routing=()=>tool==="route"||tool==="route-diffpair";
   const useRouter=()=>pcb()&&routing()&&!!globalThis.AtriumRouter;
@@ -581,7 +585,8 @@
     if(p&&globalThis.AtriumPrefs)p.request(needsBoardRenderer);
     else rendererPref??=globalThis.AtriumLazy?.need?.(["AtriumPrefs","AtriumCanvasGPUPref"]).then(requestBoardRenderer,()=>{});
   }
-  function draw(){activeDirty=true;pointerOnly=false;for(const p of panes)p.view?.settle?.();schedule();}
+  function draw(){activeDirty=true;prepareDraw();schedule();}
+  function prepareDraw(){pointerOnly=false;for(const p of panes)p.view?.settle?.();}
   function redraw(all=false){if(all===true)for(const p of panes)p.version++;draw();}
   function redrawPourLOD(){
     const d=viewportVisible&&panes.length===1&&visibleBoardForPaint(activePane);
@@ -599,7 +604,7 @@
     for(const p of panes){
       const c=p.canvas;if(!p.view||!c?.isConnected)continue;
       const r=c.getBoundingClientRect(),w=r.width,h=r.height;
-      if(p.size&&p.size[0]===w&&p.size[1]===h)continue;
+      if(p.size?.width===w&&p.size.height===h)continue;
       paneResized(p,r);
     }
   }
@@ -634,8 +639,8 @@
     const measure=measureStart&&measureTo?{a:measureStart,b:measureTo,text:measureText(measureStart,measureTo)}:null;
     const d=doc(),schematicHighlightIds=schematicHighlight(d)?.ids,drawDefs=pcbEdit&&ghost?pcbEdit.renderDefs(defs,ghost):defs,opts={...lineOpts(),measure,block:blockOverlay(),marquee:drag?.kind==="box"&&drag.moved?boxOf(drag.origin,pointer||drag.origin):pickFrom&&pointer?boxOf(pickFrom,pointer):null,paste:drag?.copy?.plan||paste,pasteAt:drag?.copy?.at||(paste&&pointer?pastePoint(pointer):null),route,routePreview:pcb()&&globalThis.AtriumRouteFeel?AtriumRouteFeel.frame(routeSession?routePreview:dragPreview,!!routeSession,!routeSession&&useRouter()&&pointer?snapAt(pointer):null):routeSession?routePreview:dragPreview,pointer,lengthTuning:lengthSession?.overlay?.(),viaFence:fencePreview,guides:drag?.kind==="move"?guideResult:null,fieldFocus:fieldFocus(),ghost,netByWire:!pcb()&&highlight&&!schematicHighlightIds?nets().byWire:undefined,schematicHighlightIds,snapAt:(chain.length||keyboardPoint)&&pointer?snapAt(pointer):null,...navRender(doc(),{active:true,ghost}),reuseBase:pointerOnly};
     const started=trace?performance.now():0;
-    const reused=view.render(d,drawDefs,opts);pointerOnly=false;
-    if(renderedPane?.size?.[0]&&renderedPane.size[1])trace.draw(renderedPane.canvas,started,performance.now());
+    const reused=view.render(d,drawDefs,opts,activePane.size);pointerOnly=false;
+    if(renderedPane?.size?.width&&renderedPane.size.height)trace.draw(renderedPane.canvas,started,performance.now());
     if(viewportVisible&&folder())FUI().present(folder(),current);
     const zoom=$("zoom-value");
     if(zoom){const z=view.scale()/(96/25.4)*100,label=(z>=10?Math.round(z):+z.toFixed(1))+"%";if(zoom.textContent!==label)zoom.textContent=label;}
@@ -1184,6 +1189,13 @@
     clipboard=copy;if(cut)deleteSelection();syncTools();
     info(copy.items.length+(copy.items.length===1?" object":" objects")+(cut?" cut":" copied"));return copy;
   }
+  function placePlan(plan){
+    if(!plan)return;
+    const at=pointer,refreshProperties=tool!=="select"||selectedIds.size||fieldSel;
+    resetTools();single(null);paste=plan;pointer=at;tool="paste";
+    if(document.activeElement!==canvas)canvas.focus();
+    syncTools();if(refreshProperties)inspect();drawPointer();
+  }
   async function beginPaste(clip){
     if(!clip)return;
     if(notebookOff()){
@@ -1200,9 +1212,9 @@
     try{
       const target=doc(), pending=AtriumEditSelection.demand(clip);
       if(pending){await pending;if(signal?.aborted||doc()!==target)return;}
-      const plan=AtriumEditSelection.prepare(project,target,clip,defs),at=pointer;
-      resetTools();single(null);paste=plan;pointer=at;tool="paste";canvas.focus();
-      syncTools();inspect();draw();info("Click to place "+plan.items.length+(plan.items.length===1?" object.":" objects."));
+      const plan=AtriumEditSelection.prepare(project,target,clip,defs);
+      placePlan(plan);
+      info("Click to place "+plan.items.length+(plan.items.length===1?" object.":" objects."));
     }catch(error){info(error.message);}
   }
   function currentLayers(){return layerCache??=AtriumCanvas.routingLayers(doc(),defs);}
@@ -1301,7 +1313,13 @@
       }
       setTool("select");choose(item.id);return;
     }
-    if(tool==="paste"&&paste){const placed=paste;edit(()=>{const ids=placed.commit(p);resetTools();assignSelection(ids);});const again=placed.again?.();if(again){paste=again;pointer=p;tool="paste";syncTools();draw();info("Stamped "+placed.items.length+(placed.items.length===1?" object":" objects")+". Click for another; Escape or right-click ends.");return;}info(placed.items.length+" placed");return;}
+    if(tool==="paste"&&paste){
+      const placed=paste;
+      if(!edit(()=>{const ids=placed.commit(p);resetTools();assignSelection(ids);},undefined,[]))return;
+      const again=placed.again?.();
+      if(again){paste=again;pointer=p;tool="paste";syncTools();draw();info("Stamped "+placed.items.length+(placed.items.length===1?" object":" objects")+". Click for another; Escape or right-click ends.");return;}
+      info(placed.items.length+" placed");return;
+    }
     if(tool==="split-wire"||tool==="junction"){
       const plan=AtriumWireEdit.place(doc(),tool,p,5/view.scale(),bounds=>view.query(doc(),defs,bounds));
       if(plan.changed)edit(()=>plan.apply());info(plan.message);return;
@@ -1776,7 +1794,10 @@
   function hitList(v,d,p,o,limit=8){return v.hits(d,defs,p,o,limit);}
   function pointerDown(e){
     if(e.button===2){rightDown(e);return;}
-    if(e.button!==0&&e.button!==1)return;e.preventDefault();canvas.focus();if(!globalThis.AtriumCanvasInput?.isReplay(e))canvas.setPointerCapture(e.pointerId);const s=screen(e),p=view.screenToWorld(s);pointer=p;
+    if(e.button!==0&&e.button!==1)return;e.preventDefault();
+    if(document.activeElement!==canvas)canvas.focus();
+    const s=screen(e),p=view.screenToWorld(s);pointer=p;
+    if(!globalThis.AtriumCanvasInput?.isReplay(e))canvas.setPointerCapture(e.pointerId);
     // Move Selection / Drag (M S, M D): the objects follow the pointer and this click places them.
     if(drag?.sticky){const moved=!!drag.before;endDrag(false);info(moved?"Moved.":"Ready");return;}
     if(tool==="pan"||e.button===1||e.altKey&&e.pointerType!=="touch"||space){beginPan(e,false);return;}
@@ -2000,9 +2021,10 @@
   }
   function cameraFrame(p,inFrame,wheelEnd){
     if(p.covered)return;
-    paneRepaint(p);p.view.moving?.(wheelEnd);
     // The wheel animation already runs inside a frame. Include its camera in that paint.
-    if(inFrame&&frame){cancelAnimationFrame(frame);paintFrame();}
+    const now=inFrame&&viewportVisible;
+    paneRepaint(p,false,now);p.view.moving?.(wheelEnd);
+    if(now){if(frame)cancelAnimationFrame(frame);paintFrame();}
   }
   // Preserve first-contact ordering and its document while the idle camera module loads.
   const inputOps={find:c=>panes.find(q=>q.canvas===c),host:()=>navHost,docId:p=>p===activePane?current:p.docId,active:p=>p===activePane,
@@ -2304,7 +2326,7 @@
     space=false;
     if(heldShortcuts)heldShortcuts.events.push(new KeyboardEvent(e.type,e));
   });
-  document.addEventListener("keydown",e=>{
+  function handleShortcut(e){
     if(designClipboard.textShortcut(e)){shortcuts.clear();return;}
     const state=keyState(e),ready=AtriumKeymap.pendingPreset();
     if(ready){
@@ -2314,7 +2336,10 @@
     keyEvent=e;try{
       if(!shortcuts.handle(e,state))designClipboard.preventUnboundShortcut(e);
     }finally{keyEvent=null;}
-  });
+  }
+  // A grid that owns design history resolves those bindings before its cell keys.
+  document.addEventListener("keydown",e=>{if(AtriumEditorKeys.ownsHistory(e.target))handleShortcut(e);},true);
+  document.addEventListener("keydown",e=>{if(!AtriumEditorKeys.ownsHistory(e.target))handleShortcut(e);});
   window.addEventListener("atrium-command",e=>{act(e.detail);syncChecks();});
   window.addEventListener("dragover",e=>e.preventDefault());
   window.addEventListener("drop",e=>{
@@ -2434,6 +2459,7 @@
     liveTune:()=>lengthSession?{net:lengthSession.net,mode:lengthSession.mode,overlay:lengthSession.overlay?.()||null}:null,
     exportFile:(name,text)=>AtriumIO.exportFile(name,text),
     canvas:()=>canvas,view:()=>view,panes:()=>panes.filter(p=>p.view).map(paneInfo),paneCoverage,
+    cameraPanSize(){const kind=doc().kind;return kind==="schematic"||kind==="drawing"?activePane.size:undefined;},
     viewportDiagnostics(){
       const kind=starter?"home":in3D(activePane)?"3d":doc().kind;
       const node=kind==="3d"?activePane.stage:canvas;
@@ -2555,7 +2581,7 @@
     // search: place a library part from the palette's search box (palette.js).
     placeDef:(def,kind)=>placeDefinition(def,kind),
     // Paste Special / rubber stamp (paste-special.js): the clipboard and a ready paste plan on the cursor.
-    clipboard:()=>clipboard,placePlan(plan){if(!plan)return;const at=pointer;resetTools();single(null);paste=plan;pointer=at;tool="paste";canvas.focus();syncTools();inspect();draw();},activeLayer:()=>layer,copperLayers:()=>currentLayers(),pointer:()=>pointer,amend
+    clipboard:()=>clipboard,placePlan,activeLayer:()=>layer,copperLayers:()=>currentLayers(),pointer:()=>pointer,amend
   };
   globalThis.AtriumNavHost=navHost;
   globalThis.__waffleCopyNativeDocuments=rows=>fileUI().then(ui=>importFiles(ui.nativeFiles(rows),{into:true})).catch(error=>{info(error.message);return false;});

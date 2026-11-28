@@ -278,9 +278,11 @@ globalThis.AtriumInsightsUI = (() => {
   const paneOf = c => host?.panes?.().find(p => p.canvas === c) || null;
   function groupAt(pane, x, y) {
     const d = host.docById?.(pane.docId) || host.doc();
-    if (!d || !markers || !enabled) return null;
+    if (!d || (d.kind !== "pcb" && d.kind !== "schematic") || !markers || !enabled) return null;
+    const rows = drawn(d, pane.options, pane.canvas);
+    if (!rows.length) return null;
     const b = pane.canvas.getBoundingClientRect(), M = PM();
-    const group = M.pick(markerPlan(d, drawn(d, pane.options, pane.canvas), M.paneFrame(pane, b)), x - b.left, y - b.top);
+    const group = M.pick(markerPlan(d, rows, M.paneFrame(pane, b)), x - b.left, y - b.top);
     return group && {...group, get findings() { return group.members.map(G.AtriumChecks.fromInsight); }};
   }
   const markerAt = (pane, x, y) => groupAt(pane, x, y)?.rep || null;

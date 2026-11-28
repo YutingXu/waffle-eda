@@ -40,10 +40,14 @@ globalThis.AtriumDatasheetReader = (() => {
     // Tools on top; the pager sits with the status line at the foot, as in a page viewer.
     const bar = K.toolbar([zoom, "->", find, snip, more], {label: "Datasheet"});
     const findRow = K.el("div", "docs-find");
-    const search = K.search({placeholder: "Find text", label: "Find in datasheet", onInput: v => queueSearch(v)});
+    const search = K.search({placeholder: "Find text", label: "Find in datasheet", onInput: v => findText(v)});
     const matches = K.pager({unit: "match", label: "Matches", onStep: d => stepMatch(d)});
     findRow.append(search, matches); findRow.hidden = true;
-    search.input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); stepMatch(e.shiftKey ? -1 : 1); } else if (e.key === "Escape" && !search.input.value) toggleFind(false); });
+    search.input.addEventListener("keydown", e => {
+      if (e.defaultPrevented || e.isComposing) return;
+      if (e.key === "Enter") { e.preventDefault(); stepMatch(e.shiftKey ? -1 : 1); }
+      else if (e.key === "Escape" && !search.input.value) toggleFind(false);
+    });
     const notice = K.el("div", "docs-notice-slot");
     const reader = K.el("div", "docs-reader");
     const strip = F().strip(K, {label: "Pages", ratio: "1 / 1.294", onPick: n => goTo(Number(n))});
@@ -92,9 +96,11 @@ globalThis.AtriumDatasheetReader = (() => {
   }
   function status(text, busy) {
     const s = ui.status, t = s.querySelector(".ui-status-text");
-    s.querySelector(".ui-spinner")?.remove();
-    if (busy) s.prepend(K.spinner({size: "sm", label: text}));
-    t.textContent = text;
+    const spinner = s.querySelector(".ui-spinner");
+    if (!busy) spinner?.remove();
+    else if (!spinner) s.prepend(K.spinner({size: "sm", label: text}));
+    else if (spinner.getAttribute("aria-label") !== text) spinner.setAttribute("aria-label", text);
+    if (t.textContent !== text) t.textContent = text;
   }
   function setNotice(spec) {
     ui.notice.replaceChildren(...(spec ? [K.notice({live: true, ...spec})] : []));
@@ -111,7 +117,8 @@ globalThis.AtriumDatasheetReader = (() => {
     const project = host.project();
     const load = D().loadFor(project.id), current = () => enabled() && host.project() === project && !panel.hidden;
     const pagesReader = D().createReader(ref, {load, current}), thumbsReader = D().createReader(ref, {load, current});
-    open_ = {ref, project, pagesReader, thumbsReader, pages: 0, page, aspect: 1.294, zoom: open_?.zoom || "fit", cache: new Map(), failed: new Set(), matches: [], match: -1, epoch: 0};
+    open_ = {ref, project, pagesReader, thumbsReader, pages: 0, page, aspect: 1.294, zoom: ui.zoom.value,
+      cache: new Map(), failed: new Set(), matches: [], match: -1};
     const mine = open_;
     panel.querySelector("h2").textContent = ref.title || "Datasheet";
     paint();
@@ -122,8 +129,10 @@ globalThis.AtriumDatasheetReader = (() => {
       const info = await pagesReader.info();
       if (open_ !== mine) return false;
       mine.pages = info.pages;
-      layout(); goTo(page, {instant: true});
+      mine.aspect = info.aspect || mine.aspect;
+      layout(); goTo(page);
       status(statusText());
+      if (!ui.findRow.hidden && ui.search.input.value) findText(ui.search.input.value);
       return true;
     } catch (error) {
       if (open_ !== mine) return false;
@@ -163,9 +172,12 @@ globalThis.AtriumDatasheetReader = (() => {
   }
   function release() {
     if (!open_) return;
+    clearMatches(open_);
+    ui.search.input.value = "";
     open_.pagesReader.close(); open_.thumbsReader.close();
     for (const p of open_.cache.values()) URL.revokeObjectURL(p.url);
     open_ = null;
+    ui.pages.replaceChildren();
     ui.strip?.update([]);
     cancelAnimationFrame(frame); frame = 0;
   }
@@ -214,65 +226,85 @@ globalThis.AtriumDatasheetReader = (() => {
   // ------------------------------------------------------------------ pages
   function layout() {
     const o = open_;
-    const nodes = [];
+    const nodes = document.createDocumentFragment();
     for (let n = 1; n <= o.pages; n++) {
       const p = K.el("div", "docs-page"); p.dataset.page = String(n); p.dataset.state = "pending";
       p.setAttribute("aria-label", "Page " + n);
-      nodes.push(p);
+      nodes.append(p);
     }
-    ui.pages.replaceChildren(...nodes);
+    ui.pages.replaceChildren(nodes);
+    ui.pages.style.setProperty("--docs-page-ratio", "1 / " + o.aspect);
+    ui.strip.node.style.setProperty("--ui-thumb-ratio", "1 / " + o.aspect);
     relayout();
     ui.strip.update(Array.from({length: o.pages}, (_, i) => ({id: String(i + 1), label: String(i + 1), title: "Page " + (i + 1),
       draw: (canvas, signal) => drawThumb(o, i + 1, canvas, signal)})), String(o.page));
-    ui.pager.set(o.page - 1, o.pages);
   }
   function relayout() {
     const o = open_; if (!o) return;
     const fit = Math.max(120, ui.pages.clientWidth - 24), w = Math.round(o.zoom === "fit" ? fit : fit * Number(o.zoom));
+    if (w === o.width) return;
+    o.width = w;
     ui.pages.style.setProperty("--docs-page-w", w + "px");
-    ui.pages.style.setProperty("--docs-page-ratio", "1 / " + o.aspect);
-    ui.strip.node.style.setProperty("--ui-thumb-ratio", "1 / " + o.aspect);
   }
   function schedule() { if (open_ && !frame) frame = requestAnimationFrame(() => { frame = 0; void renderVisible(); }); }
   function inView() {
-    const box = ui.pages.getBoundingClientRect(), seen = [];
+    const el = ui.pages, nodes = el.children, box = el.getBoundingClientRect(), seen = [];
+    // Page slots are ordered. Skip the pages above the viewport without walking the document.
+    let low = 0, high = nodes.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (nodes[mid].getBoundingClientRect().bottom < box.top) low = mid + 1;
+      else high = mid;
+    }
     let best = null, bestArea = 0;
-    for (const p of ui.pages.children) {
-      const r = p.getBoundingClientRect();
+    for (let i = Math.max(0, low - 1); i < nodes.length; i++) {
+      const r = nodes[i].getBoundingClientRect(), n = i + 1;
+      if (r.top > box.bottom + r.height) break;
       const a = Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top));
-      if (r.bottom >= box.top - r.height && r.top <= box.bottom + r.height) seen.push(Number(p.dataset.page));
-      if (a > bestArea) { bestArea = a; best = Number(p.dataset.page); }
+      if (seen.length < 6 && r.bottom >= box.top - r.height) seen.push(n);
+      if (a > bestArea) { bestArea = a; best = n; }
     }
     // At either end of the scroll the end page is current, even when a neighbour shows more of itself.
-    const el = ui.pages;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2 && open_?.pages) best = open_.pages;
-    else if (el.scrollTop <= 0) best = 1;
-    return {seen: seen.slice(0, 6), best};
+    if (el.scrollTop <= 0) best = 1;
+    else if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) best = nodes.length;
+    return {seen, best};
   }
   async function renderVisible() {
     const o = open_; if (!o || !o.pages) return;
     const {seen, best} = inView();
-    if (best && best !== o.page) { o.page = best; ui.pager.set(best - 1, o.pages); ui.strip.select(String(best)); }
-    const side = Math.round(Math.min(2400, (ui.pages.style.getPropertyValue("--docs-page-w").replace("px", "") * 1 || 600) * Math.min(2, G.devicePixelRatio || 1)) * o.aspect);
-    const need = seen.filter(n => !o.cache.has(n) || o.cache.get(n).side < side * .9).filter(n => !o.failed.has(n));
-    for (const [n, entry] of o.cache) if (Math.abs(n - (best || 1)) > 12) { URL.revokeObjectURL(entry.url); o.cache.delete(n); const node = pageNode(n); if (node) { node.replaceChildren(); node.dataset.state = "pending"; } }
-    if (!need.length) { await o.pagesReader.visible([]).catch(() => {}); return; }
-    // Prioritise the page in view: one fast request first, then its neighbours.
-    const order = best && need.includes(best) ? [best, ...need.filter(n => n !== best)] : need;
+    const scrollTop = ui.pages.scrollTop;
+    if (scrollTop !== o.scrollTop && best && best !== o.page) selectPage(o, best);
+    o.scrollTop = scrollTop;
+    const side = Math.min(4096, Math.round(Math.min(2400, o.width * Math.min(2, G.devicePixelRatio || 1)) * Math.max(1, o.aspect)));
+    for (const [n, entry] of o.cache) if (Math.abs(n - o.page) > 12 && !seen.includes(n)) {
+      URL.revokeObjectURL(entry.url); o.cache.delete(n);
+      const node = pageNode(n); node.replaceChildren(); node.dataset.state = "pending";
+    }
+    const n = [o.page, ...seen].find(n => !o.failed.has(n) && (o.cache.get(n)?.side || 0) < side * .9);
+    if (o.render?.page === n && o.render?.side >= side * .9) return;
+    if (!n) {
+      if (o.render) { o.render = null; await o.pagesReader.visible([]); }
+      return;
+    }
+    const render = o.render = {page: n, side};
+    let continueRendering = false;
     try {
-      const first = await o.pagesReader.visible([order[0]], {side});
-      place(o, first.pages, side);
-      if (order.length > 1) place(o, (await o.pagesReader.visible(order.slice(1), {side})).pages, side);
+      const {pages} = await o.pagesReader.visible([n], {side});
+      if (open_ === o && o.render === render) { place(o, pages, side); continueRendering = true; }
     } catch (error) {
-      if (error?.name === "AbortError" || error?.code === "cancelled" || open_ !== o) return;
-      for (const n of order) if (!o.cache.has(n)) { o.failed.add(n); markFailed(n, error); }
+      if (open_ !== o || o.render !== render || error?.name === "AbortError" || error?.code === "cancelled") return;
+      // Keep an existing image and let the next viewport change retry its resolution upgrade.
+      if (o.cache.has(n)) return;
+      o.failed.add(n);
+      markFailed(n, error);
+      continueRendering = true;
+    } finally {
+      if (open_ === o && o.render === render) { o.render = null; if (continueRendering) schedule(); }
     }
   }
-  const pageNode = n => ui.pages.querySelector('[data-page="' + n + '"]');
+  const pageNode = n => ui.pages.children[n - 1];
   function place(o, rendered, side) {
-    if (open_ !== o) return;
     for (const r of rendered) {
-      if (r.page === 1 && r.width && r.height && Math.abs(r.height / r.width - o.aspect) > .01) { o.aspect = r.height / r.width; relayout(); }
       const url = URL.createObjectURL(new Blob([r.png], {type: "image/png"}));
       const old = o.cache.get(r.page); if (old) URL.revokeObjectURL(old.url);
       o.cache.set(r.page, {url, side});
@@ -291,21 +323,28 @@ globalThis.AtriumDatasheetReader = (() => {
   async function drawThumb(o, n, canvas, signal) {
     if (open_ !== o) return;
     const r = await o.thumbsReader.visible([n], {side: 160, signal});
-    const page = r.pages[0]; if (!page) return;
+    const page = r.pages[0]; if (!page || signal.aborted) return;
     const bitmap = await createImageBitmap(new Blob([page.png], {type: "image/png"}));
-    canvas.width = bitmap.width; canvas.height = bitmap.height;
-    canvas.getContext("2d").drawImage(bitmap, 0, 0); bitmap.close?.();
-    canvas.dataset.ready = "true";
+    if (!signal.aborted) {
+      canvas.width = bitmap.width; canvas.height = bitmap.height;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0);
+      canvas.dataset.ready = "true";
+    }
+    bitmap.close?.();
   }
-  function goTo(n, {instant} = {}) {
+  function selectPage(o, n) {
+    o.page = n; ui.pager.set(n - 1, o.pages); ui.strip.select(String(n));
+  }
+  function goTo(n) {
     const o = open_; if (!o || !o.pages) return;
     n = Math.max(1, Math.min(o.pages, n));
-    o.page = n; ui.pager.set(n - 1, o.pages); ui.strip.select(String(n));
-    pageNode(n)?.scrollIntoView({block: "start", behavior: instant || G.matchMedia?.("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "off" ? "instant" : "smooth"});
+    selectPage(o, n);
+    pageNode(n)?.scrollIntoView({block: "start", behavior: "instant"});
+    o.scrollTop = ui.pages.scrollTop;
     schedule();
   }
   function step(d) { const o = open_; if (o) goTo(d === -Infinity ? 1 : d === Infinity ? o.pages : o.page + d); }
-  function setZoom(v) { const o = open_; if (!o) return; const at = o.page; o.zoom = v; relayout(); goTo(at, {instant: true}); }
+  function setZoom(v) { const o = open_; if (!o) return; o.zoom = v; relayout(); goTo(o.page); }
   function pageKeys(e) {
     if (e.target !== ui.pages) return;
     const map = {PageDown: 1, PageUp: -1, Home: -Infinity, End: Infinity};
@@ -319,33 +358,51 @@ globalThis.AtriumDatasheetReader = (() => {
   }
 
   // ------------------------------------------------------------------ find
-  let searchTimer = 0;
   function toggleFind(on = ui.findRow.hidden) {
+    const wasHidden = ui.findRow.hidden;
     ui.findRow.hidden = !on; ui.find.setAttribute("aria-pressed", String(on));
-    if (on) ui.search.input.focus(); else { ui.pages.focus(); clearMatches(); }
-  }
-  function clearMatches() { const o = open_; if (!o) return; o.matches = []; o.match = -1; ui.matches.set(0, 0); ui.search.setCount(""); }
-  function queueSearch(text) { clearTimeout(searchTimer); searchTimer = setTimeout(() => void runSearch(text), 220); }
-  async function runSearch(text) {
-    const o = open_; if (!o) return;
-    const epoch = ++o.epoch; clearMatches();
-    if (!text.trim()) return;
-    let start = 1, found = [];
-    ui.search.setCount("…");
-    while (start && start <= o.pages && open_ === o && o.epoch === epoch) {
-      status("Searching page " + start + " of " + o.pages + "…", true);
-      let r;
-      try { r = await o.pagesReader.search({query: text, start, maxPages: 24}); }
-      catch (error) { if (o.epoch === epoch) status(error.message); return; }
-      if (o.epoch !== epoch) return;
-      found = found.concat(r.matches);
-      o.matches = found;
-      ui.search.setCount(found.length ? String(found.length) : "0");
-      if (found.length && o.match < 0) { o.match = 0; goTo(found[0].page); }
-      ui.matches.set(Math.max(0, o.match), found.length);
-      start = r.nextPage;
+    if (on) {
+      ui.search.input.focus();
+      if (wasHidden && ui.search.input.value) findText(ui.search.input.value);
+    } else {
+      ui.pages.focus();
+      if (open_) { clearMatches(open_); if (open_.pages) status(statusText()); }
     }
-    if (o.epoch === epoch) status(found.length ? statusText() : "No matches for “" + text + "”");
+  }
+  function clearMatches(o) {
+    o.search?.abort();
+    o.matches = []; o.match = -1; ui.matches.set(0, 0); ui.search.setCount("");
+  }
+  function findText(text) {
+    const o = open_; if (!o) return;
+    clearMatches(o);
+    if (!o.pages) return;
+    const query = text.trim();
+    if (!query) { status(statusText()); return; }
+    const search = o.search = new AbortController();
+    ui.search.setCount("…");
+    void runSearch(o, query, search.signal);
+  }
+  async function runSearch(o, query, signal) {
+    try {
+      for (let start = 1; start && !signal.aborted;) {
+        status("Searching page " + start + " of " + o.pages + "…", true);
+        // Yield the shared worker between batches so a jump or snip can get a turn.
+        const r = await o.pagesReader.search({query, start, maxPages: 8, signal});
+        if (signal.aborted) return;
+        start = r.nextPage;
+        if (!r.matches.length) continue;
+        o.matches.push(...r.matches);
+        if (o.match < 0) { o.match = 0; goTo(o.matches[0].page); }
+        ui.search.setCount(o.matches.length);
+        ui.matches.set(o.match, o.matches.length);
+      }
+      if (signal.aborted) return;
+      if (!o.matches.length) ui.search.setCount("0");
+      status(o.matches.length ? statusText() : "No matches for “" + query + "”");
+    } catch (error) {
+      if (!signal.aborted && error?.name !== "AbortError") status(error.message);
+    }
   }
   function stepMatch(d) {
     const o = open_; if (!o?.matches.length) return;

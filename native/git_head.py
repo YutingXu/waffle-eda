@@ -663,12 +663,14 @@ class ProjectHistory:
             commits = self.parse_commits(data)
         else:
             search = _text(search, 200)
-            merged = {}
-            for option in ("--grep=", "--author="):
+            def matches(option):
                 data = self.git([*base, "--fixed-strings", "--regexp-ignore-case", option + search, "-n", str(skip + limit + 1),
                                  *revs, "--"], "Unable to search the Git history.", max_output=8*1024*1024)
-                for c in self.parse_commits(data):
-                    merged[c["revision"]] = c
+                return self.parse_commits(data)
+            # Git combines these filters with AND. Run them concurrently to find either match.
+            with ThreadPoolExecutor(2) as pool:
+                merged = {commit["revision"]: commit for group in pool.map(matches, ("--grep=", "--author="))
+                          for commit in group}
             prefix = search.lower()
             if HEX_PREFIX.fullmatch(prefix):
                 listed = self.git(["rev-parse", "--disambiguate=" + prefix], "Unable to search the Git history.", max_output=64*1024) \

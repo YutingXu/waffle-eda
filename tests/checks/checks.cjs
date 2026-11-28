@@ -230,6 +230,12 @@ function harness(project, panes) {
   return host;
 }
 const emit = name => { for (const f of listeners.get(name) || []) f(); };
+function emitDocument() {
+  const browserDocument = globalThis.document;
+  if (!browserDocument) globalThis.document = {removeEventListener() {}};
+  try { emit("document"); }
+  finally { if (!browserDocument) delete globalThis.document; }
+}
 const timersOut = () => { for (const [id, t] of [...timers]) { timers.delete(id); t.fn(); } };
 function drain(budget = 100, order = []) {
   for (let guard = 0; guard < 500; guard++) {
@@ -335,6 +341,17 @@ test("one scheduler: layout rules first, hints and live ERC at idle, abandon, sl
     assert.ok(after.filter(v => v.text.includes("R4")).every(v => v.severity === "hint"), "a finding since Compile is a hint");
     assert.ok(after.filter(v => v.text.includes("R3")).every(v => v.severity === "warning"), "a compiled finding keeps its severity");
 
+    // A native folder can install an idle-loaded sheet before navigation, without emitting change.
+    const loaded = {...sheet, id:"loaded", name:"Hydrated sheet", items:[{...sheet.items[0], id:"loaded-r", ref:"R99"}]};
+    U.reconcile(project.value, () => project.value.documents.push(loaded), {structureChanged:true});
+    emitDocument();
+    const pass = jobs.get("erc:live");
+    assert.ok(pass, "opening a newly hydrated sheet queues ERC");
+    emitDocument();
+    assert.equal(jobs.get("erc:live"), pass, "navigation on the same generation keeps the scheduled ERC pass");
+    drain();
+    assert.ok(K.violations({source:"erc"}).some(v => v.text.includes("R99")));
+
     // A covered window: the edit waits until the window shows again.
     visible = false; for (const f of powerFns) f({visible: false});
     board.items[1].points = [[.4, -.25], [.4, .25]]; U.touch(project.value); U.sync(project.value); emit("change");
@@ -350,10 +367,7 @@ test("one scheduler: layout rules first, hints and live ERC at idle, abandon, sl
     jobs.get("owned:b").fn(() => true, {timeRemaining:() => 0});
     const previousTask = jobs.get("owned:b");
     const previousFindings = K.violations({doc:"b", source:"drc"});
-    const browserDocument = globalThis.document;
-    if (!browserDocument) globalThis.document = {removeEventListener() {}};
-    try {emit("document");}
-    finally {if (!browserDocument) delete globalThis.document;}
+    emitDocument();
     assert.equal(closed,0,"navigation within the same project keeps a project-owned check running");
     assert.deepEqual(K.violations({doc:"b",source:"drc"}),previousFindings);
     const replacement = {...board, items:[]};

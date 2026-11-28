@@ -614,13 +614,18 @@ globalThis.AtriumQuery = (() => {
   }
 
   // ------------------------------------------------------------------ geometry for overlays
-  function shapesOf(doc, defs, ids, subs, clip) {
+  function shapesOf(doc, defs, ids, subs, clip, byId) {
     const want = new Set(ids), lines = [], boxes = [];
+    let items = want.size ? doc.items : [];
+    if (byId && want.size === 1) {
+      const item = byId.get(want.values().next().value);
+      items = item ? [item] : [];
+    }
     const visible = b => b && b.every(Number.isFinite) &&
       (!clip || b[0] <= clip[2] && b[2] >= clip[0] && b[1] <= clip[3] && b[3] >= clip[1]);
     let box = null;
     const grow = b => {box = box ? [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])] : b.slice();};
-    for (const i of doc.items) {
+    for (const i of items) {
       if (!want.has(i.id)) continue;
       if ((i.kind === "track" || i.kind === "wire" || i.kind === "graphic" && !i.fill || i.kind === "bus") && i.points?.length > 1) {
         const w = Math.max(i.width || (doc.kind === "pcb" ? .25 : .3), .05);
@@ -713,12 +718,18 @@ globalThis.AtriumQuery = (() => {
     const doc = host.docById(docId);
     if (!doc) return null;
     if (docId !== host.currentId() && !o.inOther) host.selectDocument(docId);
-    const defs = host.defs(), shapes = shapesOf(doc, defs, ids, subs);
+    const defs = host.defs();
+    const byId = ids.length === 1 && !host.drag?.()?.before
+      ? globalThis.AtriumUndoStore?.documentItems?.(doc, host.project?.())?.byId : null;
+    const shapes = shapesOf(doc, defs, ids, subs, undefined, byId);
     const c = colours(doc.kind);
     applied = (m.mask || m.highlight) && (ids.length || subs.length || o.scope) ? {docId, ids:new Set(ids), subs, modes:{...m}, shapes,
       paths:ids.length || subs.length ? paths(shapes) : null, text:o.text || "", scope:o.scope && A().clone(o.scope), dim:c.dim, alpha:c.alpha,
       accent:c.accent, revision:host.revision()} : null;
-    if (m.select && !o.inOther) {const have = new Set(doc.items.map(i => i.id)); host.select(ids.filter(id => have.has(id)).slice(0, 50000));}
+    if (m.select && !o.inOther) {
+      const have = byId || (ids.length ? new Set(doc.items.map(i => i.id)) : null);
+      host.select(have ? ids.filter(id => have.has(id)).slice(0, 50000) : []);
+    }
     if (m.zoom && shapes.box && !o.inOther) host.zoomTo(shapes.box);
     host.invalidate();
     return shapes.box;

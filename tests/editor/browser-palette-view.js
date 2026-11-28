@@ -65,10 +65,14 @@ async function checkSelectionDuringTyping(page, dialog, input) {
   const options = dialog.getByRole("listbox");
   await options.getByRole("option", {selected:true}).waitFor();
   const probe = await options.evaluateHandle(list => {
-    const counts = {updates:0, selectionResets:0};
+    const input = list.closest("dialog").querySelector("[role=combobox]");
+    const counts = {updates:0, selectionResets:0, invalidSelection:0};
     const observer = new MutationObserver(records => {
       counts.updates += records.length;
-      counts.selectionResets += records.filter(record => record.oldValue === "false" && record.target.getAttribute("aria-selected") === "true").length;
+      counts.selectionResets += records.filter(record => record.oldValue === "true" && record.target.getAttribute("aria-selected") === "true").length;
+      const selected = list.querySelectorAll('[aria-selected="true"]');
+      const active = input.getAttribute("aria-activedescendant");
+      if (active ? selected.length !== 1 || selected[0].id !== active : list.children.length) counts.invalidSelection++;
     });
     observer.observe(list, {subtree:true, attributes:true, attributeOldValue:true, attributeFilter:["aria-selected"]});
     return {counts, observer};
@@ -78,7 +82,8 @@ async function checkSelectionDuringTyping(page, dialog, input) {
     await options.getByRole("option", {name:/^Resistor · 10 kΩ/, selected:true}).waitFor();
     const counts = await probe.evaluate(({counts, observer}) => {observer.disconnect(); return counts;});
     assert.ok(counts.updates > 0);
-    assert.equal(counts.selectionResets, 0, "each active row arrives with its selection already set");
+    assert.equal(counts.selectionResets, 0, "a retained active row keeps its selection");
+    assert.equal(counts.invalidSelection, 0, "each result update preserves the active descendant");
   } finally {await probe.dispose();}
 }
 
@@ -444,9 +449,17 @@ async function testMotion(browser) {
         run(){}
       }))});
     });
-    await input.fill("Motion Fixture");
+    await input.fill("Motion Fixt");
     const art = dialog.locator(".nav-palette-plain");
     await art.filter({hasText:"Preview A"}).waitFor();
+    const retained = await input.evaluate(node => {
+      const activeRow = () => document.getElementById(node.getAttribute("aria-activedescendant"));
+      const row = activeRow(), group = row.parentElement;
+      node.value = "Motion Fixture";
+      node.dispatchEvent(new Event("input",{bubbles:true}));
+      return {row:activeRow() === row, group:row.parentElement === group, highlight:row.querySelector("mark:last-of-type")?.textContent};
+    });
+    assert.deepEqual(retained,{row:true,group:true,highlight:"Fixture"},"typing updates the highlight on the live result row");
     const state = await input.evaluate(node => {
       const root = node.closest("dialog"), title = root.querySelector(".nav-palette-preview-title");
       const targets = [];

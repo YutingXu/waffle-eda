@@ -893,6 +893,7 @@ async function main(){
     await require("./project/browser-welcome-open.js")(browser);
     await require("./library/browser-library-families.js")(browser);
     await require("./library/browser-library-preview.js")(browser);
+    await require("./library/browser-symbol-wizard.js")(browser);
     await require("./library/browser-library-demand.js")(browser);
     await require("./library/browser-group-library.js")(browser);
     await require("./library/browser-component-match.js")(browser);

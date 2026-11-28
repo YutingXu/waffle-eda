@@ -99,6 +99,60 @@ async function columnsPanel(page) {
   console.log("PASS BOM Columns side panel: shows a column, resizes, collapses to a rail and remembers all three");
 }
 
+async function groupedEdits(page) {
+  const variantId = await page.evaluate(async () => {
+    const h = AtriumNavHost, V = await AtriumLazy.need("AtriumVariants"), project = h.project();
+    let variant;
+    h.edit(() => {
+      for (const doc of project.documents) for (const part of doc.items) {
+        if (/^bom-ui-[0-2]$/.test(part.link || "")) part.value = "BOM edit bank original";
+      }
+      variant = V.create(project, {name: "Bank of two"});
+      V.setParts(project, variant.id, ["bom-ui-0"], {fitted: false});
+    });
+    return variant.id;
+  });
+  const dialog = await openBom(page);
+  const search = dialog.getByRole("searchbox", {name: "Search BOM lines"});
+  const row = dialog.locator("tr.bom-line");
+  const cell = async key => row.locator('[data-c="' + await dialog.locator('th[data-key="' + key + '"]').evaluate(th => th.cellIndex - 1) + '"]');
+  await search.fill("BOM edit bank original");
+  assert.equal(await row.count(), 1);
+  assert.equal(await (await cell("quantity")).textContent(), "3");
+  await (await cell("comment")).click();
+  await page.keyboard.press("F2");
+  const editor = dialog.getByRole("textbox", {name: "Edit Comment"});
+  await editor.fill("BOM edit bank revised");
+  await editor.press("Enter");
+  await dialog.locator(".bom-empty").waitFor();
+  await search.fill("BOM edit bank revised");
+  assert.equal(await (await cell("quantity")).textContent(), "3");
+
+  const variant = dialog.getByRole("combobox", {name: "Assembly variant"});
+  await variant.selectOption(variantId);
+  assert.equal(await (await cell("quantity")).textContent(), "2");
+  await dialog.getByRole("checkbox", {name: "Show DNP", exact: true}).check();
+  await (await cell("dnp")).click();
+  await page.keyboard.press("F2");
+  await dialog.locator(".bom-empty").waitFor();
+  await variant.selectOption("");
+  assert.equal(await (await cell("quantity")).textContent(), "3");
+  await closeBom(page);
+
+  const state = () => page.evaluate(id => {
+    const project = AtriumNavHost.project(), variant = AtriumVariants.find(project, id);
+    const parts = project.documents.flatMap(doc => doc.items.filter(part => /^bom-ui-[0-2]$/.test(part.link || "")));
+    return {values: parts.map(part => part.value), baseDnp: parts.some(part => part.dnp),
+      variantDnp: Object.keys(variant.parts).filter(key => variant.parts[key].fitted === false).sort()};
+  }, variantId);
+  assert.deepEqual(await state(), {values: Array(6).fill("BOM edit bank revised"), baseDnp: false, variantDnp: ["bom-ui-0", "bom-ui-1", "bom-ui-2"]});
+  await page.evaluate(() => AtriumNavHost.act("undo"));
+  assert.deepEqual(await state(), {values: Array(6).fill("BOM edit bank revised"), baseDnp: false, variantDnp: ["bom-ui-0"]});
+  await page.evaluate(() => AtriumNavHost.act("undo"));
+  assert.deepEqual(await state(), {values: Array(6).fill("BOM edit bank original"), baseDnp: false, variantDnp: ["bom-ui-0"]});
+  console.log("PASS BOM filtered grouped edits update search, preserve variant quantities and undo once per edit");
+}
+
 // Per-frame main-thread work while scrolling, from Chrome's own counters.
 async function scrollBudget(page, lines, budget) {
   await bomProject(page, lines);
@@ -295,6 +349,7 @@ module.exports = async function bomUI(browser) {
     await bomProject(page, 200);
     await dnp(page);
     await columnsPanel(page);
+    await groupedEdits(page);
     await scrollBudget(page, 60, 8);
     await scrollBudget(page, 1000, 8);
     await dropdowns(page);

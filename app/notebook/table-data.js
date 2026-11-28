@@ -511,7 +511,7 @@ globalThis.AtriumTableData = (() => {
     else delete project.numericExpressions;
   }
   if(G.AtriumNumericFields?.registerTargetResolver)registerNumericFields(G.AtriumNumericFields);
-  return Object.freeze({feature,version,limits,is,isItem,create,upgrade,validate,validateNativeCells,index,get,change,cellId,savedQueryScope,
+  return Object.freeze({feature,version,limits,is,isItem,create,upgrade,validate,validateNativeCells,index,axisIndex,get,change,cellId,savedQueryScope,
     letters,label,range,merged,join,split,target,resolveTarget,readTarget,writeTarget,contentOK,styleOK,refOK,batch,axis,compareTables,presentationRows,equal,
     changedFrom,changedCells,recentCellEdit,cellTransition,cellUndoScope,replayCell,contentKinds,assertEditable,validateView,registerNumericFields,clearReplacedNumericTargets});
 })();

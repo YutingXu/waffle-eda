@@ -217,6 +217,12 @@ async function panelEdits(parseHTML) {
       await expectFresh();
     }
     assert.equal(other.ref,"R?");assert.equal(other.value,"Review sensor AB");
+    const loaded=Atrium.sheet("schematic","Hydrated sheet");
+    loaded.items.push({...part,id:"hydrated-part",value:"Review sensor late"});
+    U.reconcile(p,()=>p.documents.push(loaded),{structureChanged:true});
+    events.get("document")();
+    await expectFresh();
+    assert.ok(N.rows().some(r=>r.entry?.id==="hydrated-part"),"navigation sees an idle-loaded sheet");
     console.log("PASS Navigator refreshes queried rows for hidden-sheet annotation, closed-panel edits and undo");
   } finally {
     N.toggle(false);U.reset();delete globalThis.document;delete globalThis.AtriumQuery;

@@ -107,6 +107,49 @@ async function findReplaceReopening(page) {
   await page.keyboard.press("Escape");
   await page.locator("dialog.fr-dialog").waitFor({state:"detached"});
   assert.ok(await canvas.evaluate(node => node === document.activeElement), "Escape restores editor focus");
+
+  await clickEdit("find-text");
+  const find = dialog.getByRole("textbox", {name:"Find", exact:true});
+  const scope = dialog.getByLabel("Scope", {exact:true});
+  const rows = dialog.locator(".fr-hit");
+  await find.fill("R1");
+  await rows.first().waitFor();
+  assert.deepEqual(await rows.locator(".fr-doc").allTextContents(), ["Analog front end"], "typing respects document scope");
+  await scope.selectOption("project");
+  assert.deepEqual(await rows.locator(".fr-doc").allTextContents(), ["Analog front end", "Sensor board"]);
+  const boardHit = rows.filter({hasText:"Sensor board"});
+  await boardHit.click();
+  assert.equal(await boardHit.getAttribute("aria-current"), "true");
+  assert.deepEqual(await page.evaluate(() => AtriumNavHost.selection()), ["b-R1"], "the result selects the object on its own document");
+  await scope.selectOption("selection");
+  assert.deepEqual(await rows.locator(".fr-doc").allTextContents(), ["Sensor board"]);
+
+  const cdp = await page.context().newCDPSession(page);
+  await find.focus();
+  await find.evaluate(node => node.select());
+  await cdp.send("Input.imeSetComposition", {text:"R2", selectionStart:2, selectionEnd:2});
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await find.inputValue(), "R2");
+  assert.deepEqual(await rows.locator("mark").allTextContents(), ["R1"], "tentative IME input leaves results in place");
+  await cdp.send("Input.insertText", {text:"R2"});
+  await rows.waitFor({state:"detached"});
+  assert.equal(await dialog.locator(".fr-summary").textContent(), "0 matches", "the committed query applies to the selection");
+  await cdp.detach();
+
+  await scope.selectOption("doc");
+  await find.fill("R1");
+  await rows.locator("mark", {hasText:"R1"}).waitFor();
+  await dialog.getByLabel("Replace with", {exact:true}).fill("R99");
+  await dialog.evaluate(node => {
+    const input = node.querySelector(".fr-find");
+    input.value = "R2";
+    input.dispatchEvent(new InputEvent("input", {bubbles:true}));
+    Array.from(node.querySelectorAll("button")).find(b => b.textContent === "Replace").click();
+  });
+  assert.deepEqual(await page.evaluate(() => ["b-R1", "b-R2"].map(id => AtriumNavHost.doc().items.find(item => item.id === id).ref)),
+    ["R1", "R99"], "Replace uses the latest input even before the next frame");
+  await closeNative();
+  await page.evaluate(() => AtriumNavHost.act("undo"));
 }
 
 async function contextSelectNet(page) {

@@ -1,7 +1,7 @@
 "use strict";
 globalThis.AtriumTableVisual = (() => {
   const G=globalThis,T=G.AtriumTableData,X=G.AtriumTableExchange;
-  const positions=new WeakMap(),presentedRows=new WeakMap();
+  const positions=new WeakMap();
   function offsets(axis,key,fallback) {
     let out=positions.get(axis);if(out)return out;
     out=new Float64Array(axis.length+1);
@@ -19,12 +19,6 @@ globalThis.AtriumTableVisual = (() => {
     const c1=Math.min(s.columns.length,first(x,box[2])+1),r1=Math.min(s.rows.length,first(y,box[3])+1);
     return {x,y,c0,c1,r0,r1,width:x.at(-1),height:y.at(-1)};
   }
-  function rowNumbers(s,rows){
-    if(rows===s.rows)return T.index(s).rows;
-    let byId=presentedRows.get(rows);
-    if(!byId){byId=new Map(rows.map((row,i)=>[row.id,i]));presentedRows.set(rows,byId);}
-    return byId;
-  }
   // Sorting and filtering keep each merge's rows together in authored order, even if a
   // viewport starts inside the span. Resolve to the presented anchor before clipping.
   function projectedCell(s,rows,r,c,seen){
@@ -34,7 +28,7 @@ globalThis.AtriumTableVisual = (() => {
     if(!merge)return {rid:row.id,cid:col.id,x:c,y:r,nx:c+1,ny:r+1};
     if(seen?.has(merge.id))return null;
     const rid=merge.rows[0],cid=merge.columns[0];
-    const x=T.index(s).columns.get(cid),y=rowNumbers(s,rows).get(rid);
+    const x=T.index(s).columns.get(cid),y=T.axisIndex(rows).get(rid);
     if(x==null||y==null)return null;
     seen?.add(merge.id);
     return {merge,rid,cid,x,y,nx:x+merge.columns.length,ny:y+merge.rows.length};
@@ -44,7 +38,7 @@ globalThis.AtriumTableVisual = (() => {
     let report;
     if(T.contentKinds(s).has("formula") && G.AtriumTableFormulas)
       report=context.formulaReport?.() ?? G.AtriumTableFormulas.report(project,doc,item,context);
-    return (rowId,columnId)=>{
+    const value=(rowId,columnId)=>{
       const content=T.get(s,rowId,columnId)?.content;
       if(!content)return "";
       if(content.kind==="formula"){const v=report?.value(rowId,columnId);return v?.ok?v.display:v?.diagnostic?.message || "Formula unavailable";}
@@ -52,6 +46,8 @@ globalThis.AtriumTableVisual = (() => {
       if(content.kind==="rich")return G.AtriumNotebook?.bodyText(content.richText,project,doc,context)?.text ?? X.plain(content);
       return X.plain(content);
     };
+    value.formulaReport=report;
+    return value;
   }
   function view(project,doc,item,context={}) {
     const s=item.widget.state,value=values(project,doc,item,context),rows=T.presentationRows(s,value);
@@ -128,7 +124,7 @@ globalThis.AtriumTableVisual = (() => {
   function imageRequests(project,doc,item,windows) {
     const s=item.widget.state;
     if(!T.contentKinds(s).has("image"))return [];
-    const shown=T.presentationRows(s,values(project,doc,item)),rows=rowNumbers(s,shown),columns=T.index(s).columns;
+    const shown=T.presentationRows(s,values(project,doc,item)),rows=T.axisIndex(shown),columns=T.index(s).columns;
     const layoutState=shown===s.rows?s:{...s,rows:shown},g=layout(layoutState,[0,0,item.w,item.h]),out=[];
     const intersects=(a,b)=>a[0]<b[2]&&b[0]<a[2]&&a[1]<b[3]&&b[1]<a[3];
     const frame=[item.x,item.y,item.x+item.w,item.y+item.h];

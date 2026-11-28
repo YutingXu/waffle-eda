@@ -1,7 +1,7 @@
 "use strict";
 // Table editor: library faces (toolbar, fields, buttons, status line),
 // keyboard entry with Enter and arrows, a formula result, a failing formula marked on its cell with the
-// diagnostic in the status line and the authored source kept, grouped options, and the touch Edit cell.
+// diagnostic in the status line and the authored source kept, table and text history, grouped options, and the touch Edit cell.
 const assert = require("node:assert/strict"), path = require("node:path"), {pathToFileURL} = require("node:url");
 
 async function open(browser, touch) {
@@ -41,7 +41,8 @@ module.exports = async function tablesUI(browser) {
     // Keyboard entry: Enter commits and moves down.
     const entry = dialog.getByRole("textbox", {name:"Cell contents or formula"});
     const type = async value => { await entry.fill(value); await entry.press("Enter"); };
-    await dialog.getByRole("grid").focus();
+    const grid = dialog.getByRole("grid");
+    await grid.focus();
     for (const v of ["Gain", "Offset", "Total"]) await type(v);
     for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowRight");
@@ -58,6 +59,49 @@ module.exports = async function tablesUI(browser) {
     assert.equal(await entry.inputValue(), "=B4+1");
     await dialog.getByRole("gridcell", {name:"24.4", exact:true}).click();
     await page.waitForFunction(() => document.querySelector(".table-editor .table-status").dataset.tone === undefined);
+
+    const columnB = row => grid.locator(`[role=gridcell][aria-colindex="2"][aria-rowindex="${row}"]`);
+    const values = async () => Promise.all([1,2,3].map(row => columnB(row).textContent()));
+    await columnB(1).click();
+    await grid.evaluate(element => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "7\n1");
+      element.dispatchEvent(new ClipboardEvent("paste", {bubbles:true, cancelable:true, clipboardData}));
+    });
+    assert.deepEqual(await values(), ["7","1","15"]);
+    await grid.press("ControlOrMeta+z");
+    assert.deepEqual(await values(), ["12","0.4","24.4"], "range paste undoes in one step with its dependent formula");
+    await grid.press("ControlOrMeta+Shift+z");
+    assert.deepEqual(await values(), ["7","1","15"]);
+
+    await columnB(2).click({modifiers:["Shift"]});
+    await grid.press("ControlOrMeta+d");
+    assert.deepEqual(await values(), ["7","7","21"]);
+    await page.evaluate(() => AtriumKeymap.setBindings("undo", ["Mod+K U"]));
+    await grid.press("ControlOrMeta+z");
+    assert.deepEqual(await values(), ["7","7","21"], "the replaced shortcut no longer undoes a table edit");
+    await grid.press("ControlOrMeta+k");
+    await grid.press("u");
+    assert.deepEqual(await values(), ["7","1","15"], "the configured shortcut undoes fill and recalculates");
+    await page.evaluate(() => AtriumKeymap.resetCommand("undo"));
+
+    await columnB(1).click();
+    await grid.press("F2");
+    const revision = await page.evaluate(() => AtriumNavHost.revision());
+    await page.keyboard.insertText("draft");
+    assert.equal(await entry.inputValue(), "draft");
+    await entry.press("ControlOrMeta+z");
+    assert.equal(await entry.inputValue(), "7", "the entry retains native text undo");
+    await entry.press("ControlOrMeta+Shift+z");
+    assert.equal(await entry.inputValue(), "draft", "the entry retains native text redo");
+    await entry.press("Escape");
+
+    await page.evaluate(() => { AtriumUI.dialog({title:"Another modal"}); });
+    const other = page.getByRole("dialog", {name:"Another modal"});
+    await other.getByRole("button", {name:"Close", exact:true}).press("ControlOrMeta+z");
+    assert.equal(await page.evaluate(() => AtriumNavHost.revision()), revision, "text and other modal shortcuts leave project history alone");
+    await other.getByRole("button", {name:"Close", exact:true}).click();
+    assert.deepEqual(await values(), ["7","1","15"]);
     await dialog.getByRole("button", {name:"Done", exact:true}).click();
     assert.deepEqual(page.errors, []);
   } finally { await page.close(); }
@@ -72,7 +116,7 @@ module.exports = async function tablesUI(browser) {
     assert.equal(await touch.page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Cell contents or formula");
     assert.deepEqual(touch.page.errors, []);
   } finally { await touch.page.close(); }
-  console.log("PASS table editor: library faces, grouped options, keyboard entry, formula result, marked formula error with status, touch Edit cell");
+  console.log("PASS table editor: library faces, grouped options, keyboard entry, formulas, table and text history, touch Edit cell");
 };
 
 if (require.main === module) {

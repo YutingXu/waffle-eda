@@ -12,16 +12,23 @@ globalThis.AtriumPastePlan = (() => {
     const cutIds=clip.cut && clip.doc===doc.id?new Set(clip.items.map(i=>i.id)):null;
     const cutRefs=cutIds?new Set(clip.items.filter(i=>i.kind==="part").map(i=>i.ref.toUpperCase())):null;
     const restore=cutIds && !doc.items.some(i=>cutIds.has(i.id) || i.kind==="part"&&cutRefs.has(i.ref.toUpperCase()));
-    const newDefs=[],mapping=new Map(),dynamic=new Map(),nextRef=restore?null:P.refAllocator(project);
+    const newDefs=[],mapping=new Map(),dynamic=new Map(),libraryKeys=new Map();
+    let nextRef;
     const PCB=doc.kind==="pcb" && globalThis.AtriumPCBAppearance;
     for(const source of clip.library){
       if(!restore&&source.dynamic){dynamic.set(source.id,source);continue;}
-      const key=P.definitionKey(source);
       let target=defs.get(source.id);
       const geometry=target && (PCB ? PCB.readDefinition(defs,target.id,doc) : target);
-      if(!geometry || P.definitionKey(geometry)!==key){
-        target=project.library.find(d=>P.definitionKey(d)===key);
-        if(!target){target=A.clone(source);target.id=A.id();newDefs.push(target);}
+      // Clipboard copies usually retain the definition's property order.
+      if(!geometry || JSON.stringify(geometry)!==JSON.stringify(source)){
+        const key=P.definitionKey(source);
+        if(!geometry || P.definitionKey(geometry)!==key){
+          target=project.library.find(d=>{
+            if(!libraryKeys.has(d))libraryKeys.set(d,P.definitionKey(d));
+            return libraryKeys.get(d)===key;
+          });
+          if(!target){target=A.clone(source);target.id=A.id();newDefs.push(target);}
+        }
       }
       mapping.set(source.id,target.id);
     }
@@ -66,6 +73,7 @@ globalThis.AtriumPastePlan = (() => {
         }
         if(i.kind==="part"){
           const prefix=i.ref?.match(/^(.*?)(?:\d+[a-z]?)$/i)?.[1]||defsForPreview.get(i.def)?.prefix||"U";
+          nextRef??=P.refAllocator(project);
           i.ref=nextRef(prefix);
         }
       }

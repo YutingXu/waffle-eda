@@ -98,17 +98,25 @@ globalThis.AtriumReviewComments = (() => {
   }
   const order = (a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   // Threads, oldest first, each with its replies (oldest first) and a stable number per document.
-  function threads(p, {doc = null, status = "open", query = ""} = {}) {
-    const all = records(p), byThread = new Map(), list = [];
+  function orderedThreads(p) {
+    const all = records(p), byThread = new Map();
     for (const r of all) if (r.type === "reply") { if (!byThread.has(r.thread)) byThread.set(r.thread, []); byThread.get(r.thread).push(r); }
     const counters = new Map();
-    for (const t of all.filter(r => r.type === "thread").sort(order)) {
+    return all.filter(r => r.type === "thread").sort(order).map(t => {
       const n = (counters.get(t.doc) || 0) + 1; counters.set(t.doc, n);
-      list.push({...t, number: n, replies: (byThread.get(t.id) || []).sort(order)});
-    }
+      return {...t, number: n, replies: (byThread.get(t.id) || []).sort(order)};
+    });
+  }
+  function matchesThread(t, doc, status, query) {
+    if ((doc && t.doc !== doc) || (status !== "all" && t.status !== status)) return false;
+    if (!query) return true;
+    const matches = value => String(value).toLowerCase().includes(query);
+    return matches(t.text) || matches(t.author) || matches(t.anchor.label || "") ||
+      t.replies.some(r => matches(r.text) || matches(r.author));
+  }
+  function threads(p, {doc = null, status = "open", query = ""} = {}) {
     const q = line(query, 200).toLowerCase();
-    return list.filter(t => (!doc || t.doc === doc) && (status === "all" || t.status === status) &&
-      (!q || [t.text, t.author, t.anchor.label || "", ...t.replies.flatMap(r => [r.text, r.author])].some(s => String(s).toLowerCase().includes(q))));
+    return orderedThreads(p).filter(t => matchesThread(t, doc, status, q));
   }
   function thread(p, id) { return threads(p, {status: "all"}).find(t => t.id === id) || null; }
   function room(s) { if (Object.keys(s.records).length >= MAX_RECORDS) fail("This project has the maximum number of review comments."); }
@@ -467,7 +475,8 @@ globalThis.AtriumReviewComments = (() => {
 
   // ------------------------------------------------------------------ panel
   const PREF_AUTHOR = "review.author", PREF_NAME = "collab.displayName", FILTER_KEY = "atrium.comments.v1";
-  let host = null, panel = null, ui = null, selected = null, visible = true, filter = {status: "open", scope: "doc", query: ""}, timer = 0;
+  let host = null, panel = null, ui = null, selected = null, visible = true, filter = {status: "open", scope: "doc", query: ""};
+  let changeTimer = 0, filterFrame = 0;
   try { Object.assign(filter, JSON.parse(localStorage.getItem(FILTER_KEY) || "{}")); } catch {}
   if (!["open", "resolved", "all"].includes(filter.status)) filter.status = "open";
   if (!["doc", "all"].includes(filter.scope)) filter.scope = "doc";
@@ -531,7 +540,8 @@ globalThis.AtriumReviewComments = (() => {
     for (const [v, t] of [["doc", "This document"], ["all", "All documents"]]) scope.add(new Option(t, v));
     scope.value = filter.scope; scope.onchange = () => { filter.scope = scope.value; saveFilter(); paint(); };
     const search = el("input", null, "ui-field"); search.type = "search"; search.placeholder = "Search comments"; search.setAttribute("aria-label", "Search comments");
-    search.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { filter.query = search.value; paint(); }, 80); };
+    search.oninput = e => { if (!e.isComposing) filterSoon(search.value); };
+    search.addEventListener("compositionend", () => filterSoon(search.value));
     search.onkeydown = e => e.stopPropagation();
     const row = el("div", null, "rc-row");
     row.append(status, scope);
@@ -548,24 +558,33 @@ globalThis.AtriumReviewComments = (() => {
     return true;
   }
   function docName(id) { return host?.docById?.(id)?.name || host?.project?.().documents.find(d => d.id === id)?.name || "Document"; }
+  function filterSoon(query) {
+    filter.query = query;
+    if (!filterFrame) filterFrame = requestAnimationFrame(() => { filterFrame = 0; paint(); });
+  }
   function paint() {
+    if (filterFrame) { cancelAnimationFrame(filterFrame); filterFrame = 0; }
+    if (changeTimer) { clearTimeout(changeTimer); changeTimer = 0; }
     if (!panel || panel.hidden || !host) return;
-    const p = host.project(), cur = host.currentId?.();
-    const list = threads(p, {doc: filter.scope === "doc" ? cur : null, status: filter.status, query: filter.query});
-    const openCount = threads(p, {status: "open"}).length;
+    const doc = filter.scope === "doc" ? host.currentId?.() : null, query = line(filter.query, 200).toLowerCase();
+    const groups = new Map();
+    let openCount = 0;
+    for (const t of orderedThreads(host.project())) {
+      if (t.status === "open") openCount++;
+      if (!matchesThread(t, doc, filter.status, query)) continue;
+      let group = groups.get(t.doc);
+      if (!group) {
+        group = el("div", null, "rc-group"); group.setAttribute("role", "group");
+        const heading = el("h3", docName(t.doc)); group.setAttribute("aria-label", heading.textContent); group.append(heading);
+        groups.set(t.doc, group);
+      }
+      group.append(card(t));
+    }
     ui.count.textContent = openCount ? openCount + " open" : "";
-    ui.list.replaceChildren();
-    ui.empty.hidden = !!list.length;
+    ui.list.replaceChildren(...groups.values());
+    ui.empty.hidden = !!groups.size;
     ui.empty.textContent = filter.query ? "No comments match." : filter.status === "resolved" ? "No resolved comments." :
       "No comments yet. Choose Add comment, then click a part, net, track or point on the canvas.";
-    const groups = new Map();
-    for (const t of list) { if (!groups.has(t.doc)) groups.set(t.doc, []); groups.get(t.doc).push(t); }
-    for (const [docId, items] of groups) {
-      const g = el("div", null, "rc-group"); g.setAttribute("role", "group");
-      const h = el("h3", docName(docId)); g.setAttribute("aria-label", h.textContent); g.append(h);
-      for (const t of items) g.append(card(t));
-      ui.list.append(g);
-    }
   }
   function card(t) {
     const c = el("article", null, "rc-thread"); c.setAttribute("role", "listitem"); c.dataset.status = t.status;
@@ -824,7 +843,7 @@ globalThis.AtriumReviewComments = (() => {
     host.registerAction("comment-add-area", () => startAdd(true));
     host.registerAction("comments-show", () => setVisible(!visible));
     host.addRenderer(d => render(d));
-    host.on("change", () => { if (panel && !panel.hidden) { clearTimeout(timer); timer = setTimeout(paint, 120); } });
+    host.on("change", () => { if (panel && !panel.hidden) { clearTimeout(changeTimer); changeTimer = setTimeout(paint, 120); } });
     host.on("document", () => { if (panel && !panel.hidden) paint(); });
     document.addEventListener("pointerdown", onPointer, true);
     document.addEventListener("pointermove", onHover, {capture: true, passive: true});

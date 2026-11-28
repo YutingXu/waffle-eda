@@ -152,7 +152,7 @@ globalThis.AtriumCamera = (() => {
     const packet = wheelPacket(e);
     if (!packet) return true;
     const {steps, detent, pinch} = packet;
-    // Contact arbitration can decline this packet before measuring its canvas or moving the camera.
+    // Contact arbitration can decline the packet or supply a lazy pointer anchor.
     if (typeof at === "function" && !(at = at(pinch))) return true;
     if (steps?.length > 1) {
       for (const step of steps) wheelStep({...step, isTrusted:true, deltaMode:0, deltaX:0,
@@ -166,7 +166,8 @@ globalThis.AtriumCamera = (() => {
     // or tool change wins if it happened before the deferred DOM event reached this view.
     if (detent && e.isTrusted && globalThis.__waffleIsWheelNotch &&
         e.timeStamp < Math.max(wheelInterrupted, viewWheelInterrupted.get(view) ?? -Infinity)) return;
-    const a = action(e, cfg, canvas?.clientHeight || 800, detent, pinch);
+    const page = e.deltaMode === 2 || action !== wheelAction ? canvas?.clientHeight || 800 : undefined;
+    const a = action(e, cfg, page, detent, pinch);
     const glide = detent && a.zoom && redraw && view.zoomScale && globalThis.AtriumMotion?.animate && animate();
     if (!glide) {
       // Apply the accepted zoom before panning in screen pixels. One draw shows both changes.
@@ -175,7 +176,8 @@ globalThis.AtriumCamera = (() => {
     }
     takeCamera(view, true);
     if (a.zoom) {
-      const at = a.at === "centre" ? [(canvas?.clientWidth || 0) / 2, (canvas?.clientHeight || 0) / 2] : s;
+      const at = a.at === "centre" ? [(canvas?.clientWidth || 0) / 2, (canvas?.clientHeight || 0) / 2] :
+        typeof s === "function" ? s() : s;
       const trace = deliveredAt !== undefined && !pinch && Number.isFinite(e.timeStamp) ? {stamp:e.timeStamp, deliveredAt, source} : null;
       if (glide) { notchZoom(view, canvas, a.zoom, at, redraw, trace); return; }
       const scale = trace && view.camera().scale;
@@ -289,7 +291,9 @@ globalThis.AtriumCamera = (() => {
   }
   const DIR = {left: [1, 0], right: [-1, 0], up: [0, 1], down: [0, -1]};
   function panKey(d, fast) {
-    const c = host()?.canvas?.(), w = c?.clientWidth || 800, h = c?.clientHeight || 600;
+    // Use the viewport the editor has already measured for the displayed camera.
+    const H = host(), c = H?.canvas?.(), size = H?.cameraPanSize?.();
+    const w = Math.round(size?.width) || c?.clientWidth || 800, h = Math.round(size?.height) || c?.clientHeight || 600;
     const step = Math.min(w, h) * .12 * cfg["camera.panSpeed"] * (fast ? 3.5 : 1);
     panBy(DIR[d][0] * step, DIR[d][1] * step);
   }

@@ -641,21 +641,21 @@ globalThis.AtriumKeymap = (() => {
   function table(){return compiled||(compiled=build());}
 
   // ---------------------------------------------------------------- runtime helpers (no allocation)
-  function anyPass(list,s,c){for(let i=0;i<list.length;i++)if(list[i].test(s,c))return true;return false;}
-  function firstPass(list,s,c){for(let i=0;i<list.length;i++)if(list[i].test(s,c))return list[i];return null;}
-  const live=(n,s,c)=>anyPass(n.any,s,c);
-  const isPrefix=(n,s,c)=>n.children!==null&&anyPass(n.desc,s,c);
+  function firstPass(list,s,c,accept){for(let i=0;i<list.length;i++)if((!accept||accept(list[i]))&&list[i].test(s,c))return list[i];return null;}
+  const anyPass=(list,s,c,accept)=>firstPass(list,s,c,accept)!==null;
+  const live=(n,s,c,accept)=>anyPass(n.any,s,c,accept);
+  const isPrefix=(n,s,c,accept)=>n.children!==null&&anyPass(n.desc,s,c,accept);
   function chordName(chord,spellComma){return joinKeys(chordKeys({key:chord>>4,mods:chord&15,mod:false},false,spellComma),false);}
   function prefixName(n){
     const plain=n.path.map(ch=>(ch&15)?chordName(ch):names[ch>>4]).join(" ");
     return PREFIX_NAMES[plain]||n.path.map(chord=>chordName(chord,n.path.length>1)).join(", ");
   }
   function labelOf(rec,kind){return rec.label||rec.command.short||rec.command.titles?.[kind]||rec.command.title;}
-  function hintText(n,s,c){
+  function hintText(n,s,c,accept){
     const parts=[];
     for(const k of n.kids){
-      if(isPrefix(k,s,c))parts.push(chordName(k.chord)+" "+prefixName(k)+"…");
-      else{const rec=firstPass(k.bindings,s,c);if(rec)parts.push(chordName(k.chord)+" "+labelOf(rec,s.kind));}
+      if(isPrefix(k,s,c,accept))parts.push(chordName(k.chord)+" "+prefixName(k)+"…");
+      else{const rec=firstPass(k.bindings,s,c,accept);if(rec)parts.push(chordName(k.chord)+" "+labelOf(rec,s.kind));}
     }
     return prefixName(n)+" · "+parts.join("   ");
   }
@@ -781,7 +781,7 @@ globalThis.AtriumKeymap = (() => {
     return firstPass(n.bindings,s,c)?.id||null;
   }
   // A lead binding shares its key with a prefix (Modern: ⌘K opens the palette); editor-keys.js runs it.
-  function leadOf(n,s,c){for(const r of n?.bindings||[])if(r.lead&&r.test(s,c))return r;return null;}
+  function leadOf(n,s,c,accept){for(const r of n?.bindings||[])if(r.lead&&(!accept||accept(r))&&r.test(s,c))return r;return null;}
   function cheatSheet(kind,raw=false){
     const t=table(),groups=new Map();
     for(const cmd of [...commands.values()].sort(byCategory)){

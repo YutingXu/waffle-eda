@@ -239,11 +239,15 @@ globalThis.AtriumDrawing = (() => {
   function boardSig(project, board) {
     return hashText(JSON.stringify([board.items, board.outline, board.boardShape || null, board.stackup || null, board.pcbDrawing?.pours?.length || 0, project.activeVariant || null, project.library.length]));
   }
-  // cache: {rev, sigs: Map, geo: Map, iso: Map, memo: Map} kept by the editor between frames.
+  // A preview uses its own view object, so it can reuse the unchanged views' layouts.
   function contextFor(project, doc, o = {}) {
-    const D = drawingData(doc), cache = o.cache || {sigs: new Map(), geo: new Map(), iso: new Map(), memo: new Map()};
+    const D = drawingData(doc), cache = o.cache || {sigs: new Map(), geo: new Map(), iso: new Map()};
     cache.heights ||= new Map();
-    if (o.cache && o.revision !== undefined && cache.rev !== o.revision) { cache.rev = o.revision; cache.sigs.clear(); cache.memo.clear(); }
+    if (!cache.memo || cache.rev !== o.revision) {
+      cache.rev = o.revision;
+      cache.sigs.clear();
+      cache.memo = new WeakMap();
+    }
     const sig = b => { if (!cache.sigs.has(b.id)) cache.sigs.set(b.id, boardSig(project, b)); return cache.sigs.get(b.id); };
     const ctx = {project, doc, drawing: D, date: o.date instanceof Date ? o.date : null, dateText:o.dateText, variant: o.variant,
       boardDoc: () => boardOf(project, D, null),
@@ -277,7 +281,11 @@ globalThis.AtriumDrawing = (() => {
         cache.heights.set(b.id, {sig: s, H, project});
         return H;
       },
-      memo(key, fn) { if (!cache.memo.has(key)) cache.memo.set(key, fn()); return cache.memo.get(key); }};
+      memo(view, key, fn) {
+        let entry = cache.memo.get(view);
+        if (entry?.key !== key) cache.memo.set(view, entry = {key, value: fn()});
+        return entry.value;
+      }};
     return ctx;
   }
 
@@ -718,7 +726,7 @@ globalThis.AtriumDrawing = (() => {
   // ================================================================== editor UI
   const hasDOM = () => typeof document !== "undefined" && !!document.createElement;
   let H = null;                       // AtriumNavHost
-  const cache = {sigs: new Map(), geo: new Map(), iso: new Map(), memo: new Map(), heights: new Map(), rev: undefined};
+  const cache = {sigs: new Map(), geo: new Map(), iso: new Map()};
   const state = {sel: null, tool: null, pending: null, hover: null, drag: null, docId: null, flash: null};
   const GAP = 24, ORIGIN = -12.7;     // sheets side by side; sheet 1 sits where the editor draws its sheet
   function sheetOrigins(D) {
@@ -939,25 +947,25 @@ globalThis.AtriumDrawing = (() => {
 
   // ---------------------------------------------------------------- editing
   function edit(fn, message) {
-    const id = liveDoc()?.id;
-    if (!id) return;
+    if (!liveDoc()) return false;
     try {
-      H.edit(() => {
-        const d = H.project().documents.find(x => x.id === id);
-        d.drawing = drawingData(d);
-        fn(d);
-        d.drawing = normalize(d.drawing);
-        syncSheet(d);
-      });
-      if (message) H.info(message);
-    } catch (e) { H.info(e.message || String(e)); }
-    refreshInspector();
+      const changed = H.edit(() => fn(H.doc()), undefined, []);
+      if (!changed) refreshInspector();
+      else if (message) H.info(message);
+      return changed;
+    } catch (e) { H.info(e.message || String(e)); return false; }
+  }
+  function update(list, id, fields) {
+    return edit(d => {
+      const data = drawingData(d);
+      d.drawing = normalize({...data, [list]: data[list].map(o => o.id === id ? {...o, ...fields} : o)});
+      syncSheet(d);
+    });
   }
   // Runs operations as one undo step; returns their results (null when refused).
   function run(ops, message) {
     let out = null;
-    edit(d => { out = apply(H.project(), d, ops); }, message);
-    return out;
+    return edit(d => { out = apply(H.project(), d, ops); }, message) ? out : null;
   }
   // Placing something: run, select it, let it settle in.
   function place(kind, ops, message) {
@@ -965,7 +973,7 @@ globalThis.AtriumDrawing = (() => {
     if (id) { state.sel = {kind, id}; flash(kind, id); refreshInspector(); }
     return id;
   }
-  function refreshInspector() { try { H?.select?.([]); } catch { /* host gone */ } H?.redraw?.(); }
+  function refreshInspector() { H?.select?.([]); }
   const TOOLS = {
     "drawing-dim-linear": ["linear", "Linear dimension: click the first feature, then the second, then where the dimension line goes. Escape cancels.", "Linear dimension"],
     "drawing-dim-radial": ["radial", "Radial dimension: click a hole or an arc, then where the label goes.", "Radial dimension"],
@@ -992,9 +1000,9 @@ globalThis.AtriumDrawing = (() => {
     if (["section", "detail", "break"].includes(t[0]) && !d.drawing.views.some(v => V().BOARD_TYPES.has(v.type))) { H.info("Add a board or assembly view first (Place › Drawing View…)."); return; }
     setTool(t[0], t[1]);
   }
-  function pointerSheet(e) {
+  function pointerSheet(e, d) {
     const c = H.canvas(), v = H.view(), r = c.getBoundingClientRect(), w = v.screenToWorld([e.clientX - r.left, e.clientY - r.top]);
-    const d = liveDoc(), at = d && locate(d.drawing, w);
+    const at = locate(d.drawing, w);
     return at ? {...at, tol: Math.max(.8, 6 / (v.scale() || 1))} : null;
   }
   function toolClick(at, e) {
@@ -1141,22 +1149,25 @@ globalThis.AtriumDrawing = (() => {
     return {tool,item,box,label:"Drawing "+item.kind,pick(){state.sel={id:item.id,kind:item.kind};refreshInspector();}};
   }
   function onDown(e) {
-    if (!H || e.button !== 0 || !liveDoc() || e.target !== H.canvas?.()) return;
-    const at = pointerSheet(e);
+    if (!H || e.button !== 0 || e.target !== H.canvas?.()) return;
+    const d = liveDoc();
+    if (!d) return;
+    const at = pointerSheet(e, d);
     if (state.tool) { e.preventDefault(); e.stopPropagation(); if (at) toolClick(at, e); H.redraw(); return; }
     if (!at) { if (state.sel) { state.sel = null; refreshInspector(); } return; }
     const ctx = ctxNow(), hit = hitTest(ctx, at.sheet, at.p, at.tol);
     if (!hit) { if (state.sel) { state.sel = null; refreshInspector(); } return; }
     e.preventDefault(); e.stopPropagation();
+    const selected = state.sel?.kind === hit.kind && state.sel.id === hit.id;
     state.sel = {kind: hit.kind, id: hit.id};
     const D = ctx.drawing, obj = listOf(D, hit.kind).find(v => v.id === hit.id);
-    state.drag = {hit, pointerId:e.pointerId, start: at.p, sheet: at.sheet.id, orig:obj, box: hit.kind === "view" ? V().box(obj, ctx) : null};
+    state.drag = {hit, pointerId:e.pointerId, start: at.p, sheet: at.sheet.id, orig:obj, box: hit.handle ? V().box(obj, ctx) : null};
     try { H.canvas().setPointerCapture(e.pointerId); } catch { /* synthetic */ }
-    refreshInspector();
+    if (!selected) refreshInspector();
   }
-  function dragTo(at, e) {
-    const g = state.drag, d = liveDoc();
-    if (!g || !d || !at || at.sheet.id !== g.sheet) return;
+  function dragTo(at, e, d) {
+    const g = state.drag;
+    if (!at || at.sheet.id !== g.sheet) return;
     const dx = at.p[0] - g.start[0], dy = at.p[1] - g.start[1];
     if (!g.preview) {
       if(Math.hypot(dx,dy)<at.tol*.5)return;
@@ -1171,7 +1182,9 @@ globalThis.AtriumDrawing = (() => {
       if (g.hit.handle) {
         const b = g.box, w0 = b[2] - b[0], h0 = b[3] - b[1], k = Math.max(.05, Math.max((w0 + dx) / w0, (h0 + dy) / h0));
         const raw = g.orig.scale * k;
-        v.scale = (V().BOARD_TYPES.has(v.type) || V().LINKED.has(v.type)) && !e.altKey ? V().SCALES.reduce((a, s) => Math.abs(Math.log(s / raw)) < Math.abs(Math.log(a / raw)) ? s : a) : r4(Math.round(raw * 20) / 20 || .05);
+        const scale = (V().BOARD_TYPES.has(v.type) || V().LINKED.has(v.type)) && !e.altKey ? V().SCALES.reduce((a, s) => Math.abs(Math.log(s / raw)) < Math.abs(Math.log(a / raw)) ? s : a) : r4(Math.round(raw * 20) / 20 || .05);
+        if (v.scale === scale) return;
+        v.scale = scale;
       } else { v.x = snap(g.orig.x + dx); v.y = snap(g.orig.y + dy); }
     } else if (g.hit.kind === "callout") {
       g.preview.x=snap(g.orig.x+dx);g.preview.y=snap(g.orig.y+dy);
@@ -1188,24 +1201,22 @@ globalThis.AtriumDrawing = (() => {
       else if (m.type === "ordinate") m.offset = r4(g.orig.offset - (m.axis === "y" ? dx : dy));
       else m.offset = r4(g.orig.offset + (m.axis === "aligned" ? Math.hypot(dx, dy) * Math.sign(dy || dx) : dy));
     }
-    cache.memo.clear();
     H.redraw();
   }
   function endDrag(cancelled=false) {
     const g = state.drag; state.drag = null;
     if (!g?.preview) return;
-    cache.memo.clear();
-    if(cancelled){H.redraw();return;}
-    const doc=liveDoc(),list=drawingLists[g.hit.kind];
-    if(doc?.drawing[list].some(o=>o.id===g.hit.id))edit(d=>{
-      d.drawing={...d.drawing,[list]:d.drawing[list].map(o=>o.id===g.hit.id?g.preview:o)};
-    });
+    const list = drawingLists[g.hit.kind], d = liveDoc();
+    if (cancelled || !d?.drawing[list].some(o => o.id === g.hit.id)) { H.redraw(); return; }
+    if (!update(list, g.hit.id, g.preview)) H.redraw();
   }
   function removeSelection() {
     const s = state.sel; if (!s) return false;
     state.sel = null;
-    run([{op: "remove", id: s.id}], "Removed the " + s.kind + ".");
-    return true;
+    if (run([{op: "remove", id: s.id}], "Removed the " + s.kind + ".")) return true;
+    state.sel = s;
+    refreshInspector();
+    return false;
   }
   function onKey(e) {
     if (!H || !liveDoc() || e.target !== H.canvas?.()) return;
@@ -1298,9 +1309,7 @@ globalThis.AtriumDrawing = (() => {
     }, o => {
       if (o.type === "section") { startTool("drawing-section"); return; }
       if (o.type === "detail") { startTool("drawing-detail"); return; }
-      let id = null;
-      edit(dd => { id = apply(H.project(), dd, [{op: "add_view", type: o.type, side: o.side, sheet: o.sheet}])[0].id; }, VIEW_LABELS[o.type] + " added.");
-      if (id) { state.sel = {kind: "view", id}; flash("view", id); refreshInspector(); }
+      place("view", [{op: "add_view", type: o.type, side: o.side, sheet: o.sheet}], VIEW_LABELS[o.type] + " added.");
     });
   }
   // Text: the dialog after the click (or to edit a selected text).
@@ -1418,7 +1427,7 @@ globalThis.AtriumDrawing = (() => {
     const s4 = section("Revisions");
     D.revisions.forEach(r => {
       const row = el("div", null, "drawing-rev");
-      const f = (k, w, label) => { const i = el("input", null, "ui-field"); i.value = r[k]; i.size = w; i.setAttribute("aria-label", label); i.onchange = () => edit(dd => { const x = dd.drawing.revisions.find(q => q.id === r.id); if (x) x[k] = i.value; }); return i; };
+      const f = (k, w, label) => { const i = el("input", null, "ui-field"); i.value = r[k]; i.size = w; i.setAttribute("aria-label", label); i.onchange = () => update("revisions", r.id, {[k]: i.value}); return i; };
       row.append(f("rev", 3, "Revision"), f("date", 10, "Date"), f("description", 18, "Description"), f("by", 6, "By"), button("Remove", () => run([{op: "remove", id: r.id}]), "drawing-remove"));
       s4.append(row);
     });
@@ -1525,7 +1534,7 @@ globalThis.AtriumDrawing = (() => {
     if (!c) return;
     const s = section("Callout"), n = D.notes.findIndex(x => x.id === c.note);
     const note = selectOf(D.notes.map((x, i) => [x.id, (i + 1) + ". " + x.text.slice(0, 40)]), c.note, "Note");
-    note.onchange = () => edit(dd => { const x = dd.drawing.callouts.find(q => q.id === c.id); if (x) x.note = note.value; });
+    note.onchange = () => update("callouts", c.id, {note: note.value});
     s.append(prop("Note", note), el("p", n >= 0 ? D.notes[n].text : "", "drawing-hint"));
     s.append(button("Remove Callout", () => removeSelection(), "drawing-remove"));
   }
@@ -1588,14 +1597,16 @@ globalThis.AtriumDrawing = (() => {
       if (tabs) watch.observe(tabs, {subtree: true, attributes: true, attributeFilter: ["href", "data-kind"], childList: true});
       new MutationObserver(() => { accent = null; }).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme", "style", "class", "data-motion"]});
       // A drawing open before this module loaded: show it now.
-      if (liveDoc()) { refreshInspector(); host.redraw?.(); }
+      if (liveDoc()) refreshInspector();
       shell();
     });
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("pointermove", e => {
-      if (!H || !liveDoc()) return;
-      if (state.drag) { if(state.drag.pointerId===e.pointerId)dragTo(pointerSheet(e), e); return; }
-      if (state.tool && e.target === H.canvas?.()) { hover(pointerSheet(e), e); H.redraw(); }
+      if (!state.drag && !state.tool) return;
+      const d = liveDoc();
+      if (!d) return;
+      if (state.drag) { if(state.drag.pointerId===e.pointerId)dragTo(pointerSheet(e, d), e, d); return; }
+      if (e.target === H.canvas?.()) { hover(pointerSheet(e, d), e); H.redraw(); }
     }, true);
     document.addEventListener("pointerup", e => { if (state.drag?.pointerId===e.pointerId) { e.stopPropagation(); endDrag(); } }, true);
     const cancelPointer=e=>{if(state.drag?.pointerId===e.pointerId)endDrag(true);};

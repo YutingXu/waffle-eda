@@ -316,7 +316,7 @@ globalThis.AtriumDrawingViews = (() => {
     return {...out, cols, w, h, size, rowH, pad};
   }
   // Tables are rebuilt only when the drawing or the board changes (ctx.memo, kept by the editor).
-  const tab = (view, ctx) => ctx.memo ? ctx.memo("t|" + view.id + "|" + view.type + "|" + view.scale + "|" + (view.board || "") + "|" + JSON.stringify(view.options || {}), () => tableOf(view, ctx)) : tableOf(view, ctx);
+  const tab = (view, ctx) => ctx.memo ? ctx.memo(view, "t|" + view.type + "|" + view.scale + "|" + (view.board || "") + "|" + JSON.stringify(view.options || {}), () => tableOf(view, ctx)) : tableOf(view, ctx);
   function notesOf(view, ctx) {
     const k = view.scale > 0 ? view.scale : 1, size = TEXT * k, width = (view.options?.width > 20 ? view.options.width : 130) * k;
     const lines = [];
@@ -324,6 +324,7 @@ globalThis.AtriumDrawingViews = (() => {
     const rowH = size * 1.6;
     return {title: "NOTES", lines, size, rowH, w: width, h: rowH * (lines.length + 1.4) + (lines.length ? 0 : rowH)};
   }
+  const notes = (view, ctx) => ctx.memo ? ctx.memo(view, "n|" + view.scale + "|" + view.options?.width, () => notesOf(view, ctx)) : notesOf(view, ctx);
   // The box a view takes on the sheet.
   function box(view, ctx) {
     const k = view.scale > 0 ? view.scale : 1;
@@ -345,7 +346,7 @@ globalThis.AtriumDrawingViews = (() => {
       const w = I ? I.box[2] - I.box[0] : 60, h = I ? I.box[3] - I.box[1] : 40, cap = view.options?.caption === false ? 0 : 7;
       return [view.x, view.y, view.x + w * k, view.y + h * k + cap];
     }
-    if (view.type === "notes") { const n = notesOf(view, ctx); return [view.x, view.y, view.x + n.w, view.y + n.h]; }
+    if (view.type === "notes") { const n = notes(view, ctx); return [view.x, view.y, view.x + n.w, view.y + n.h]; }
     const t = tab(view, ctx);
     return [view.x, view.y, view.x + t.w, view.y + t.h];
   }
@@ -644,8 +645,8 @@ globalThis.AtriumDrawingViews = (() => {
     return {a, b, u, L, s, zs, k, solid, cuts, parts, layers, scaleZ: sum > 0 ? T / sum : 1, T, Ht, Hb, top: Ht * k, w: L * s, h: (Ht + T + Hb) * k};
   }
   function sectionOf(view, ctx) {
-    const key = "s|" + view.id + "|" + JSON.stringify([view.a, view.b, view.scale, view.options || {}, view.parent || ""]);
-    return ctx.memo ? ctx.memo(key, () => sectionBuild(view, ctx)) : sectionBuild(view, ctx);
+    const key = "s|" + JSON.stringify([view.a, view.b, view.scale, view.options || {}, view.board || "", view.parent || ""]);
+    return ctx.memo ? ctx.memo(view, key, () => sectionBuild(view, ctx)) : sectionBuild(view, ctx);
   }
   function hatch(c, env, x0, y0, x1, y1, step) {
     if (x1 - x0 <= 0 || y1 - y0 <= 0) return;
@@ -770,7 +771,7 @@ globalThis.AtriumDrawingViews = (() => {
     if (t.note) text(c, env, t.note, x0 + t.pad, y0 + t.h - t.rowH * .35, t.size * .8, {ink: env.muted || env.ink});
   }
   function paintNotes(c, view, ctx, env) {
-    const n = notesOf(view, ctx);
+    const n = notes(view, ctx);
     c.fillStyle = env.ink;
     text(c, env, n.title, view.x, view.y + n.rowH * .8, n.size * 1.1, {bold: true});
     n.lines.forEach((l, i) => {

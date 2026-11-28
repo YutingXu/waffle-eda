@@ -26,6 +26,7 @@ globalThis.AtriumQueryService = (() => {
     const {project,authority,signal} = options;
     const version = stamp(authority);
     const revision = options.revision ?? options.getRevision?.();
+    let defs;
     function check() {
       if (!(typeof options.enabled === "function" ? options.enabled() : options.enabled === true))
         return failure("disabled","Enable butter.query to use this query service.");
@@ -37,7 +38,7 @@ globalThis.AtriumQueryService = (() => {
         return failure("stale","The design snapshot changed.");
       return null;
     }
-    return {...options, revision, check};
+    return {...options, revision, check, definitions:() => defs ??= new Map((project.library || []).map(d => [d.id,d]))};
   }
   function scoped(input, options) {
     const bad = options.check();
@@ -72,12 +73,13 @@ globalThis.AtriumQueryService = (() => {
     if (typeof query === "string") query = {languageVersion:R.languageVersion,source:query};
     if (R.isFuture(query)) return failure("language-version","This saved query uses a newer expression language.");
     if (!R.valid(query,{allowUnknown:true})) return failure("record","Invalid native query scope.");
-    return {query,docs:docs.slice().sort((a,b) => I.order(a.id,b.id)),fields,instanceId:where.instanceId,occurrence};
+    return {query,docs:docs.sort((a,b) => I.order(a.id,b.id)),fields,instanceId:where.instanceId,occurrence};
   }
   function contextFor(doc, selected, options) {
     const {project,authority,revision} = options, store = options.store ?? G.AtriumUndoStore;
     const {instanceId,occurrence} = selected;
-    const make = () => Q.context(project,doc,{authority,revision,store,instanceId,occurrence});
+    const make = () => Q.context(project,doc,{authority,revision,store,instanceId,occurrence,
+      defs:authority ? undefined : options.definitions()});
     if (revision == null || authority && stamp(authority) == null) return make();
     let documents = contexts.get(project);
     if (!documents) contexts.set(project,documents = new WeakMap());
@@ -112,16 +114,22 @@ globalThis.AtriumQueryService = (() => {
     if (privateDependency(ready.plan,options,selected.fields,doc) || !ready.plan.authorized()) return denial();
     return {context,compiled:ready.plan,hints:ready.hints};
   }
-  async function plan(input, opts = {}) {
-    const options = request(opts), selected = scoped(input,options);
-    if (!selected.docs) return selected;
-    const planned = [];
+  async function prepareDocuments(selected,options) {
+    const prepared = [];
     for (const doc of selected.docs) {
       const ready = await prepare(selected.query,doc,selected,options);
       if (!ready.compiled) return ready;
-      planned.push({documentId:doc.id,plan:ready.compiled,hints:copy(ready.hints)});
+      prepared.push(ready);
     }
-    return options.check() || {status:"ready",complete:true,snapshotId:options.revision,plans:planned};
+    return options.check() || {prepared};
+  }
+  async function plan(input, opts = {}) {
+    const options = request(opts), selected = scoped(input,options);
+    if (!selected.docs) return selected;
+    const ready = await prepareDocuments(selected,options);
+    if (!ready.prepared) return ready;
+    const plans = ready.prepared.map(({compiled,hints},i) => ({documentId:selected.docs[i].id,plan:compiled,hints:copy(hints)}));
+    return {status:"ready",complete:true,snapshotId:options.revision,plans};
   }
   const wireRow = ({docId,...row}) => ({documentId:docId,...row});
   function cursorKey(query,selected,options) {
@@ -138,10 +146,20 @@ globalThis.AtriumQueryService = (() => {
     if (!Number.isSafeInteger(limit) || limit < 0 || limit > maxRows)
       return failure("limit","Choose a result limit from 0 to " + maxRows + ".");
     const {query,docs,fields,instanceId} = selected;
-    const key = cursorKey(query,selected,options), cursor = opts.cursor;
+    const cursor = opts.cursor, key = cursor ? cursorKey(query,selected,options) : null;
     if (cursor && (!key || cursor.key !== key || !Array.isArray(cursor.after) || cursor.after.length !== 3 ||
         !cursor.after.every(s => typeof s === "string" && !s.includes("\0") && s.length <= 1024) ||
         !docs.some(doc => doc.id === cursor.after[0]))) return failure("stale","The search cursor belongs to another snapshot or scope.");
+    // A preview validates every document before showing matches and uses those plans to run it.
+    let prepared;
+    if (opts.onPrepared) {
+      const ready = await prepareDocuments(selected,options);
+      if (!ready.prepared) return ready;
+      prepared = ready.prepared;
+      const bad = options.check();
+      if (bad) return bad;
+      opts.onPrepared(copy(prepared.flatMap(row => row.hints)));
+    }
     const afterId = cursor?.after.join("\0");
     const rows = [], summaries = [];
     let total = 0, visited = 0, unknown = 0, shown = false;
@@ -161,9 +179,9 @@ globalThis.AtriumQueryService = (() => {
       publish(result);
       return result;
     }
-    for (const doc of docs) {
+    for (const [i,doc] of docs.entries()) {
       if (!Array.isArray(doc.items)) return incomplete(failure("incomplete","The requested document has not been loaded."));
-      const ready = await prepare(query,doc,selected,options);
+      const ready = prepared ? prepared[i] : await prepare(query,doc,selected,options);
       if (!ready.compiled) return incomplete(ready);
       const {compiled,context,hints} = ready;
       const args = {...options,instanceId,budget,isCurrent:() => !options.check()};
@@ -180,20 +198,21 @@ globalThis.AtriumQueryService = (() => {
       });
       const bad = options.check();
       if (bad) return bad;
-      rows.push(...(result.rows || []).map(wireRow));
+      rows.push(...(result.rows || []).map((row,i) => streamed[i] ?? wireRow(row)));
       visited += result.checked ?? 0;
       unknown += result.unknown ?? 0;
       if (!result.complete) return incomplete(diagnosed(result.diagnostic),result.count ?? 0);
       total += result.count;
-      if (opts.onPage && !shown && limit && rows.length >= limit && doc !== docs.at(-1))
+      if (opts.onPage && !shown && rows.length && (prepared || rows.length >= limit) && doc !== docs.at(-1))
         counting(rows.slice(0,limit),total);
       if (hints.length || result.suggestions?.length || result.measurements?.length)
         summaries.push({documentId:doc.id,hints,...(result.suggestions?.length ? {suggestions:result.suggestions} : {}),
           ...(result.measurements?.length ? {measurements:result.measurements} : {})});
     }
     const visible = rows.slice(0,limit), last = visible.at(-1);
+    const nextKey = rows.length > limit ? key ?? cursorKey(query,selected,options) : null;
     const result = {status:"complete",complete:true,snapshotId:options.revision,count:total,rows:visible,visited,unknown,summaries,
-      cursor:key && rows.length > limit ? {key,after:[last.documentId,last.instanceId || "",last.id]} : null};
+      cursor:nextKey ? {key:nextKey,after:[last.documentId,last.instanceId || "",last.id]} : null};
     publish(result);
     return options.check() || result;
   }

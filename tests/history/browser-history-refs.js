@@ -84,6 +84,136 @@ async function demoHistoryDirty(browser) {
     });
   } finally { await page.close(); }
 }
+
+async function pickerSearch(page) {
+  await page.evaluate(() => {
+    const original = AtriumHost, reads = [];
+    const revision = (read,index) => (read * 10 + index).toString(16).padStart(40, "0");
+    const date = "2025-01-02T03:04:05Z", head = revision(1,0);
+    window.pickerFixture = {
+      original, reads,
+      input(text, isComposing = false) {
+        const input = document.querySelector(".gp-search");
+        input.value = text;
+        input.dispatchEvent(new InputEvent("input", {bubbles:true, isComposing}));
+      },
+      reply(i, rows, more = false) {
+        reads[i].resolve({commits:rows.map(([subject,touches], index) =>
+          ({revision:revision(i,index), subject, touches, author:"Fixture", date, parents:[]})), more});
+      }
+    };
+    window.AtriumHost = {...original, folderGitGrant:"picker-fixture", gitQuery(op,args) {
+      if (op === "refs") return new Promise(resolve => {
+        pickerFixture.replyRefs = () => resolve({head, ref:"refs/heads/feature",
+          refs:[{name:"refs/heads/feature", kind:"branch", short:"feature", revision:head, date}]});
+      });
+      if (op !== "log") throw Error("Unexpected Git query " + op);
+      return new Promise((resolve,reject) => reads.push({args, resolve, reject}));
+    }};
+    void AtriumGitPicker.pickPair().then(result => { pickerFixture.result = result; });
+  });
+  const reads = () => page.evaluate(() => pickerFixture.reads.map(read => read.args));
+  const waitForReads = count => page.waitForFunction(count => pickerFixture.reads.length >= count, count);
+  const search = page.locator(".gp-search");
+  const rows = page.locator(".gp-subject");
+  await waitForReads(1);
+  await page.evaluate(() => {
+    pickerFixture.input("partial", true);
+    pickerFixture.reply(0, [["Obsolete initial history",true]]);
+  });
+  await page.waitForFunction(() => !document.querySelector(".gp-list").hasAttribute("aria-busy"));
+  assert.equal((await reads()).length, 1, "history waits for committed IME input");
+  assert.equal(await rows.count(), 0, "obsolete history never appears under the new term");
+  await page.evaluate(() => {
+    pickerFixture.input("Panel",true);
+    document.querySelector(".gp-search").dispatchEvent(new CompositionEvent("compositionend"));
+    pickerFixture.input("Panel updates");
+  });
+  await search.press("Enter");
+  await waitForReads(2);
+  assert.deepEqual((await reads())[1],{refs:"all",skip:0,limit:150,search:"Panel updates"});
+  await search.press("Enter");
+  assert.equal((await reads()).length, 2, "Enter reuses the current search request");
+  await page.evaluate(() => pickerFixture.reply(1, [["Panel updates project",true],["Panel updates notes",false]], true));
+  await rows.filter({hasText:"Panel updates notes"}).waitFor();
+  await search.press("ArrowDown");
+  await page.evaluate(() => {
+    pickerFixture.selected = document.querySelector(".gp-row[aria-selected=true]");
+    pickerFixture.replyRefs();
+  });
+  await page.locator(".gp-chip").filter({hasText:"feature"}).waitFor();
+  assert.ok(await page.evaluate(() => pickerFixture.selected === document.querySelector(".gp-row[aria-selected=true]")),
+    "late refs add badges without rebuilding or unselecting the results");
+  await page.getByRole("checkbox",{name:"Only commits that changed this file"}).check();
+  assert.deepEqual(await rows.allTextContents(), ["Panel updates project"]);
+  const more = page.getByRole("button",{name:"Load more commits"});
+  await more.evaluate(button => { button.click(); button.click(); });
+  await waitForReads(3);
+  assert.equal((await reads())[2].skip, 2, "the offset counts all native rows");
+  await page.evaluate(() => pickerFixture.reply(2, [["Panel updates again",true]],true));
+  await rows.filter({hasText:"Panel updates again"}).waitFor();
+  await search.press("Enter");
+  assert.deepEqual(await rows.allTextContents(), ["Panel updates project","Panel updates again"]);
+  assert.equal((await reads()).length, 3, "Enter preserves pages from a completed search");
+  await more.click();
+  await waitForReads(4);
+  await page.locator(".gp-side").getByRole("button",{name:/feature/}).click();
+  await page.evaluate(() => {
+    pickerFixture.input("New term");
+    pickerFixture.reply(3, [["Obsolete additional page",true]]);
+  });
+  await waitForReads(5);
+  assert.deepEqual((await reads())[4],{refs:["refs/heads/feature"],skip:0,limit:150,search:"New term"});
+  assert.equal(await rows.count(), 0, "old pages cannot append after the query changes");
+  await page.evaluate(() => {
+    AtriumHost.projectGeneration++;
+    window.dispatchEvent(new CustomEvent("atrium-git-binding"));
+    pickerFixture.reply(4, [["Obsolete project",true]]);
+  });
+  await page.waitForFunction(() => pickerFixture.result === null);
+  assert.equal(await search.count(), 0);
+  assert.equal((await reads()).length, 5);
+  await page.evaluate(() => {
+    pickerFixture.reads.length = 0;
+    AtriumHost.parallelGitReads = true;
+    void AtriumGitPicker.pick();
+  });
+  await waitForReads(1);
+  await page.evaluate(() => pickerFixture.input("Second"));
+  await waitForReads(2);
+  await page.evaluate(async () => {
+    pickerFixture.input("Newest");
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  assert.deepEqual((await reads()).map(q => q.search), [undefined,"Second"], "at most two native reads overlap");
+  await page.evaluate(() => pickerFixture.reply(0, [["Obsolete first",true]]));
+  await waitForReads(3);
+  assert.equal((await reads())[2].search, "Newest");
+  await page.evaluate(() => pickerFixture.reply(1, [["Obsolete second",true]]));
+  assert.equal(await page.locator(".gp-list").getAttribute("aria-busy"), "true");
+  assert.equal(await rows.count(), 0);
+  await page.evaluate(() => pickerFixture.reply(2, [["Newest result",true]]));
+  await rows.filter({hasText:"Newest result"}).waitFor();
+  await page.evaluate(() => pickerFixture.input("Slow obsolete"));
+  await waitForReads(4);
+  await page.evaluate(() => pickerFixture.input("Failure"));
+  await waitForReads(5);
+  await page.evaluate(() => pickerFixture.reads[4].reject(Error("Fixture search failed")));
+  await page.getByText("Fixture search failed",{exact:true}).waitFor();
+  await page.evaluate(async () => {
+    pickerFixture.reply(3, [["Obsolete after failure",true]]);
+    await new Promise(requestAnimationFrame);
+  });
+  assert.equal((await reads()).length, 5, "a stale reply cannot retry a query that already failed");
+  await search.press("Enter");
+  await waitForReads(6);
+  await page.evaluate(() => pickerFixture.reply(5, [["Retried result",true]]));
+  await rows.filter({hasText:"Retried result"}).waitFor();
+  await page.locator("dialog.gp-dialog").getByRole("button",{name:"Cancel",exact:true}).click();
+  await search.waitFor({state:"detached"});
+  await page.evaluate(() => { window.AtriumHost = pickerFixture.original; delete window.pickerFixture; });
+}
+
 async function run(browser) {
   fs.cpSync(path.join(root,"mcp/examples/sensor-interface"),dir,{recursive:true});
   git("init","-q","-b","main");
@@ -291,6 +421,8 @@ async function run(browser) {
     assert.deepEqual({save:historyAfterSave, derived:derivedHistory}, {
       save:clean, derived:{...clean,transitions:[true,false]}
     }, "History shows and announces the editor's clean state after Save and a derived refresh");
+    await pickerSearch(page);
+    assert.deepEqual(errors, []);
     delete edit.x;
     // The receipt names the tested commit when there is one; a source archive has no .git.
     let source = null;

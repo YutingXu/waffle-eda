@@ -190,7 +190,7 @@ globalThis.AtriumCrossProbe = (() => {
       ...(doc.kind === "pcb" && {padIndex:slot,padId:pin.id}),at:pin.at,
       w:typeof pin.w === "number" ? pin.w : undefined,h:typeof pin.h === "number" ? pin.h : undefined};
   }
-  function terminal(doc, defs, part, {id, pin, padIndex, padId}) {
+  function terminal(doc, defs, part, {id, pin, padIndex, padId, includeNet = true}) {
     if (part.kind !== "part") return null;
     const pins = A().pins(part, defs.get(part.def), doc.kind);
     const counts = new Map(), board = doc.kind === "pcb";
@@ -202,8 +202,8 @@ globalThis.AtriumCrossProbe = (() => {
       if (pin != null && number !== String(pin) || (padId != null ? value.id !== padId : padIndex != null && slot !== padIndex)) continue;
       const reference=terminalReference(doc,part,value,slot,number,occurrence);
       if (id && id !== part.id && id !== reference.id) continue;
-      return {...reference,
-        net:board ? part.pinNets?.[value.number] ?? value.net : pinNet(doc,defs,part,value.number)};
+      const net = includeNet ? (board ? part.pinNets?.[value.number] ?? value.net : pinNet(doc,defs,part,value.number)) : undefined;
+      return {...reference, net};
     }
     return null;
   }

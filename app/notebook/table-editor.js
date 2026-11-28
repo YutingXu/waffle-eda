@@ -10,22 +10,22 @@ globalThis.AtriumTableEditor=(()=>{
     if(!T.isItem(get()))return false;
     const dialog=el("dialog"),header=el("header"),toolbar=el("div"),tools=el("details"),options=el("div"),extra=el("div"),viewport=el("div"),grid=el("div"),formula=el("textarea"),address=el("output"),status=el("p");
     dialog.className="work-dialog table-editor";dialog.setAttribute("aria-label","Edit table");header.append(el("h2","Table"));toolbar.className="table-tools";options.className="table-tools";
-    viewport.className="table-viewport";viewport.tabIndex=0;viewport.setAttribute("role","grid");viewport.setAttribute("aria-label","Table cells");
+    viewport.className="table-viewport";viewport.tabIndex=0;viewport.setAttribute("role","grid");viewport.setAttribute("aria-label","Table cells");viewport.dataset.editorHistory="";
     grid.className="table-grid";viewport.append(grid);formula.setAttribute("aria-label","Cell contents or formula");formula.autocomplete="off";formula.rows=1;
     status.setAttribute("role","status");status.className="table-status ui-status-line";tools.append(el("summary","Table options"),options,extra);
     formula.className="ui-field";address.className="table-address";address.setAttribute("aria-label","Cell address");tools.className="table-options";
     // Group headings for the options: one hairline heading per group, no boxes (docs/ui-library.md).
     const group=(parent,title)=>{const h=el("h3",title);h.className="table-group-title ui-section-title";parent.append(h);};
     const entry=el("div");entry.className="table-entry";entry.append(address,formula);dialog.append(header,toolbar,entry,viewport,status,tools);document.body.append(dialog);
-    let formulaReport=null,syncControls=()=>{},state,display,selected=initialCell,anchor=initialCell,visibleRows=[],windowLayout=null,frame=0,disposed=false,revision=-1,editing=null,queryEpoch=0;
+    let syncControls=()=>{},state,display,selected=initialCell,anchor=initialCell,visibleRows=[],windowLayout=null,frame=0,disposed=false,revision=-1,editing=null,queryEpoch=0;
     const gesture=new AbortController(),readable=()=>!disposed&&dialog.open&&G.AtriumPrefs?.get("butter.tables")===true&&!!get();
     const identity=()=>G.Atrium.id(),live=()=>readable()&&host.folderProject?.()?.canEdit?.(docId)!==false;
     let authoredItem,authoredState,projection,paintQueued=false,entryQueued=false,reveal=false,paintedViewport;
     const text=(r,c)=>String(display?.(r,c)??"");
     const currentSelection=()=>{
-      const range=T.range(state,anchor,selected),first=visibleRows.findIndex(r=>r.id===anchor.rowId),last=visibleRows.findIndex(r=>r.id===selected.rowId);
-      if(first>=0&&last>=0)range.rows=visibleRows.slice(Math.min(first,last),Math.max(first,last)+1).map(r=>r.id);
-      return range;
+      const rowNumbers=T.axisIndex(visibleRows);
+      const layout=rowNumbers.has(anchor.rowId)&&rowNumbers.has(selected.rowId)?windowLayout:state;
+      return T.range(layout,anchor,selected);
     };
     function feedback(message){status.textContent=message||"";}
     function button(parent,label,fn){
@@ -47,7 +47,7 @@ globalThis.AtriumTableEditor=(()=>{
       if(next===previous || !materialize && next===state)return;
       if(!T.changedFrom(next,previous)){
         if(T.equal(next,previous))return;
-        T.validate(next);
+        T.validateView(next);
       }
       const edit=host.edit(()=>{const same=get();if(!same||same.widget.state!==previous)throw Error("The table changed. Select the cell again.");T.clearReplacedNumericTargets(project,docId,same,previous,next);same.widget={...same.widget,state:next};},label,[T.cellUndoScope(doc,item,previous,next)]);
       // The editor normally emits change before edit() returns. Refresh also
@@ -89,18 +89,17 @@ globalThis.AtriumTableEditor=(()=>{
       const shown=projection?.authored===authored && auto.value==="on" ? projection.state : authored;
       if(force!==true&&item===authoredItem&&authored===authoredState&&nextRevision===revision&&shown===state)return;
       authoredItem=item;authoredState=authored;revision=nextRevision;state=shown;
-      // One formula report per refresh: the grid reads values and marks the cells whose formula fails.
+      // The grid and its diagnostics share the table's display values and formula report.
       const shownItem=state===authoredState?item:{...item,widget:{...item.widget,state}};
-      formulaReport=T.contentKinds(state).has("formula")&&R?R.report(project,doc,shownItem,{revision,host}):null;
-      display=V.values(project,doc,shownItem,{revision,host,formulaReport:()=>formulaReport});
+      display=V.values(project,doc,shownItem,{revision,host});
       if(!selected||!T.index(state).rows.has(selected.rowId)||!T.index(state).columns.has(selected.columnId)){
         selected={rowId:state.rows[0].id,columnId:state.columns[0].id};anchor={...selected};
       }
       if(!anchor||!T.index(state).rows.has(anchor.rowId)||!T.index(state).columns.has(anchor.columnId))anchor={...selected};
       visibleRows=T.presentationRows(state,text);
-      if(visibleRows.length&&!visibleRows.some(r=>r.id===selected.rowId)){selected={...selected,rowId:visibleRows[0].id};anchor={...selected};}
+      if(visibleRows.length&&!T.axisIndex(visibleRows).has(selected.rowId)){selected={...selected,rowId:visibleRows[0].id};anchor={...selected};}
       formula.disabled=!visibleRows.length;
-      windowLayout={...state,rows:visibleRows};
+      windowLayout=visibleRows===state.rows?state:{...state,rows:visibleRows};
       viewport.setAttribute("aria-rowcount",String(visibleRows.length));viewport.setAttribute("aria-colcount",String(state.columns.length));
       schedulePaint(true);queueQuery();
     }
@@ -135,7 +134,7 @@ globalThis.AtriumTableEditor=(()=>{
       const maxLeft=Math.max(0,Math.round(gridWidth)-width),maxTop=Math.max(0,Math.round(gridHeight)-height);
       let scrollLeft=Math.min(left,maxLeft),scrollTop=Math.min(top,maxTop);
       if(showSelection){
-        const x=T.index(state).columns.get(selected.columnId),y=visibleRows.findIndex(row=>row.id===selected.rowId);
+        const x=T.index(state).columns.get(selected.columnId),y=T.axisIndex(visibleRows).get(selected.rowId);
         const xx=l.x[x]*px,yy=l.y[y]*px;
         if(xx<scrollLeft||xx+30>scrollLeft+width)scrollLeft=Math.min(xx,maxLeft);
         if(yy<scrollTop||yy+50>scrollTop+height)scrollTop=Math.min(yy,maxTop);
@@ -173,11 +172,9 @@ globalThis.AtriumTableEditor=(()=>{
         if(st.fill)node.style.setProperty("--swatch", cssColor(st.fill));if(st.color)node.style.color=cssColor(st.color);
         if(st.wrap)node.style.whiteSpace="normal";for(const [edge,color] of Object.entries(st.borders||{}))node.style.setProperty("--swatch-"+edge,cssColor(color));
         node.setAttribute("aria-selected",String(selectedRows.has(rid)&&selectedColumns.has(cid)));
-        const problem=cell?.content?.kind==="formula"?formulaReport?.value(rid,cid):null;
+        const problem=cell?.content?.kind==="formula"?display.formulaReport?.value(rid,cid):null;
         if(problem&&!problem.ok){node.dataset.state="error";node.title=problem.diagnostic?.message||"Formula unavailable";}
         if(rid===selected.rowId&&cid===selected.columnId){node.id="table-active-cell";node.classList.add("current");}
-        node.onpointerdown=e=>{if(e.button!==0)return;set({rowId:rid,columnId:cid},e.shiftKey);viewport.focus({preventScroll:true});};
-        node.ondblclick=()=>editValue();
         if(!rowElements.has(y)){const group=el("div");group.setAttribute("role","row");group.setAttribute("aria-rowindex",String(y+1));group.style.display="contents";rowElements.set(y,group);}
         rowElements.get(y).append(node);
       }
@@ -186,7 +183,7 @@ globalThis.AtriumTableEditor=(()=>{
     }
     function cssColor(v){return v[0]==="#"?v:({paper:"var(--field)",text:"var(--ink)",line:"var(--line-strong)",accent:"var(--accent)",muted:"var(--muted)",header:"var(--field)",band:"var(--surface)",transparent:"transparent"}[v]??"");}
     function move(dr,dc,extend=false){
-      const x=T.index(state).columns.get(selected.columnId),y=visibleRows.findIndex(row=>row.id===selected.rowId);
+      const x=T.index(state).columns.get(selected.columnId),y=T.axisIndex(visibleRows).get(selected.rowId);
       const row=visibleRows[Math.max(0,Math.min(visibleRows.length-1,y+dr))],col=state.columns[Math.max(0,Math.min(state.columns.length-1,x+dc))];
       if(!row||!col)return;
       reveal=true;set({rowId:row.id,columnId:col.id},extend);
@@ -213,7 +210,7 @@ globalThis.AtriumTableEditor=(()=>{
       if(type==="Math")return {kind:"math",tex:value};
       if(type==="Design field"){const r=G.AtriumNoteFields.resolve(project,doc,value);return {kind:"field",expression:value,...(r.binding?{binding:r.binding}:{})};}
       if(type==="Link"){const url=G.AtriumNotebook.safeURL(value);if(!url)throw Error("Enter an HTTP, HTTPS or mail link.");return {kind:"link",label:value,url};}
-      if(type==="Formula"||value.startsWith("="))return R.report(project,doc,get(),{revision,host},state).bind(value);
+      if(type==="Formula"||value.startsWith("="))return (display.formulaReport??R.report(project,doc,get(),{revision,host},state)).bind(value);
       return {kind:"literal",text:value};
     };
     function editValue(start){
@@ -247,10 +244,11 @@ globalThis.AtriumTableEditor=(()=>{
       }
       apply("Format table selection",T.batch(state,edits));
     }
-    function fill(){const a=editableRange(),changes=[];if(a.rows.length<2)throw Error("Select the source row and the rows below it.");
-      for(const c of a.columns)for(const r of a.rows.slice(1)){T.assertEditable(state,r,c);const cell=T.get(state,a.rows[0],c);changes.push({rowId:r,columnId:c,content:cell?.content?.kind==="formula"?
-        R.copyTo(state,cell.content,{rowId:a.rows[0],columnId:c},{rowId:r,columnId:c}):cell?.content??null,style:cell?.style??null});}
-      apply("Fill table down",T.batch(state,changes));}
+    function fill(){
+      const range=editableRange();
+      if(range.rows.length<2)throw Error("Select the source row and the rows below it.");
+      apply("Fill table down",R.fillDown(state,range));
+    }
     function remove(selectedAxis){
       const rows=selectedAxis==="rows",index=T.index(state)[selectedAxis].get(rows?selected.rowId:selected.columnId);
       if(rows&&(state.rows[index]?.object||state.rows[index]?.queryEmpty))throw Error("Remove live query rows using the query commands.");
@@ -259,12 +257,19 @@ globalThis.AtriumTableEditor=(()=>{
     function add(selectedAxis){const rows=selectedAxis==="rows",index=T.index(state)[selectedAxis].get(rows?selected.rowId:selected.columnId)+1;apply("Insert table "+(rows?"row":"column"),T.axis(state,selectedAxis,index,1,true,identity));}
     function importData(transfer){const rich=transfer.getData("text/html"),data=rich&&X.html(rich)||X.tsv(transfer.getData("text/plain"));
       apply("Paste table cells",X.paste(state,selected,data,identity));feedback(data.notice);}
+    grid.onpointerdown=e=>{
+      const cell=e.target.closest(".table-cell");
+      if(e.button!==0||!cell)return;
+      set({rowId:cell.dataset.row,columnId:cell.dataset.column},e.shiftKey);
+      viewport.focus({preventScroll:true});
+    };
+    grid.ondblclick=e=>{if(e.target.closest(".table-cell"))editValue();};
     viewport.onpaste=e=>{try{if(!e.clipboardData)return;e.preventDefault();importData(e.clipboardData);}catch(error){feedback(error.message);}};
     viewport.oncopy=e=>{try{if(!e.clipboardData)return;const value=X.render(state,currentSelection(),text);e.preventDefault();e.clipboardData.setData("text/plain",value.text);e.clipboardData.setData("text/html",value.html);}catch(error){feedback(error.message);}};
     const keys={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1],Home:[0,-Infinity],End:[0,Infinity]};
     viewport.onkeydown=e=>{
       try{
-        if(e.isComposing)return;
+        if(e.defaultPrevented||e.isComposing)return;
         if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="d"){e.preventDefault();fill();return;}
         if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();move(e.key==="Enter"?(e.shiftKey?-1:1):0,e.key==="Tab"?(e.shiftKey?-1:1):0);return;}
         if(keys[e.key]){e.preventDefault();move(...keys[e.key],e.shiftKey);return;}
@@ -333,7 +338,7 @@ globalThis.AtriumTableEditor=(()=>{
     })}));
     syncControls=()=>{
       // A failing formula speaks in the status line while its cell is selected; the authored source stays in the entry.
-      const here=T.get(state,selected.rowId,selected.columnId),verdict=here?.content?.kind==="formula"?formulaReport?.value(selected.rowId,selected.columnId):null;
+      const here=T.get(state,selected.rowId,selected.columnId),verdict=here?.content?.kind==="formula"?display.formulaReport?.value(selected.rowId,selected.columnId):null;
       if(verdict&&!verdict.ok){status.dataset.tone="danger";feedback("Formula: "+(verdict.diagnostic?.message||"unavailable"));}
       else if(status.dataset.tone==="danger"){delete status.dataset.tone;feedback("");}
       const column=state.columns[T.index(state).columns.get(selected.columnId)],row=state.rows[T.index(state).rows.get(selected.rowId)];

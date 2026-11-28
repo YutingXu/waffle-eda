@@ -5,6 +5,8 @@ import "../vendor/pdfjs/pdf.worker.min.mjs";
 export const FULL_PAGE = [0,0,1000000,1000000];
 export const PDF_BYTES = 128 * 1024 ** 2;
 const PAGE_LIMIT = 100000, MAX_SIDE = 4096, MAX_PIXELS = 8 * 1024 ** 2;
+const SEARCH_PAGES = 256, SEARCH_TEXT = 2 * 1024 ** 2;
+const searchPages = new WeakMap();
 const cancelled = () => Object.assign(Error("The datasheet operation was cancelled."),{name:"AbortError"});
 const check = signal => {if (signal?.aborted) throw cancelled();};
 
@@ -99,6 +101,17 @@ function viewportFor(page,scale=1) {
   if (![viewport.width,viewport.height].every(v=>Number.isFinite(v) && v>0 && v<=1e7))
     throw Error("Unsupported datasheet page dimensions.");
   return viewport;
+}
+
+export async function pageAspect(pdf, page, signal) {
+  try {
+    const {width, height} = viewportFor(await pageAt(pdf, page, signal));
+    return height / width;
+  } catch {
+    check(signal);
+    // An unreadable first page should not prevent access to the other pages.
+    return null;
+  }
 }
 
 async function encodePixels(context,width,height) {
@@ -284,6 +297,29 @@ export async function pageTable(pdf,page,options) {
   return {...content,rows:table.rows,partial:content.partial || table.partial};
 }
 
+async function searchText(pdf, page, signal) {
+  let cache = searchPages.get(pdf);
+  if (!cache) searchPages.set(pdf, cache = {pages: new Map(), size: 0});
+  let entry = cache.pages.get(page);
+  if (entry) cache.pages.delete(page);
+  else {
+    const {fields,partial} = await pageText(pdf,page,{signal});
+    const text = fields.map(field=>field.text).join(" "), folded = text.toLowerCase();
+    entry = {text,folded,partial,size:text.length+folded.length};
+    if (entry.size > SEARCH_TEXT) return entry;
+    cache.size -= cache.pages.get(page)?.size || 0;
+    cache.pages.delete(page);
+    cache.size += entry.size;
+    while (cache.pages.size >= SEARCH_PAGES || cache.size > SEARCH_TEXT) {
+      const [oldest,old] = cache.pages.entries().next().value;
+      cache.pages.delete(oldest);
+      cache.size -= old.size;
+    }
+  }
+  cache.pages.set(page,entry);
+  return entry;
+}
+
 export async function search(pdf,{query,start=1,maxPages=16,limit=64},signal) {
   if (typeof query !== "string" || !query.trim() || query.length>200 ||
       !Number.isSafeInteger(start) || start<1 || start>pdf.numPages ||
@@ -292,10 +328,10 @@ export async function search(pdf,{query,start=1,maxPages=16,limit=64},signal) {
   const needle = query.trim().toLowerCase(), matches = [];
   let page = start, partial = false;
   for (; page <= pdf.numPages && page < start+maxPages && matches.length<limit; page++) {
-    const content = await pageText(pdf,page,{signal});
-    partial ||= content.partial;
-    const text = content.fields.map(field=>field.text).join(" ");
-    const at = text.toLowerCase().indexOf(needle);
+    check(signal);
+    const {text,folded,partial: incomplete} = await searchText(pdf,page,signal);
+    partial ||= incomplete;
+    const at = folded.indexOf(needle);
     if (at>=0) matches.push({page,excerpt:text.slice(Math.max(0,at-48),at+needle.length+48)});
   }
   return {pages:pdf.numPages,matches,partial,nextPage:page<=pdf.numPages ? page : null};

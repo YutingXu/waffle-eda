@@ -191,13 +191,16 @@ globalThis.AtriumMessages = (() => {
   // particular finding still use the individual rows and their original identities.
   function groupNetPairs(rows, expanded) {
     const groups = new Map(), membership = new Map();
+    let hasGroup = false;
     for (const m of rows) {
       const pair = pairOf(m);
       if (!pair) continue;
       let g = groups.get(pair.key);
-      if (!g) groups.set(pair.key, g = {pair, members:[]});
+      if (g) hasGroup = true;
+      else groups.set(pair.key, g = {pair, members:[]});
       g.members.push(m); membership.set(m, g);
     }
+    if (!hasGroup) return rows;
     const display = [];
     for (const m of rows) {
       const g = membership.get(m);
@@ -371,15 +374,16 @@ globalThis.AtriumMessages = (() => {
     if (typeof ResizeObserver === "function") new ResizeObserver(() => fit()).observe(panel);
     // perf-ui: virtualised rows follow the scroll position (scroll events arrive once per frame).
     grid.addEventListener("scroll", () => paintRows(false), {passive:true});
+    const chooseNumber = no => choose(ui.rows.findIndex(m => m.no === no));
     // One click chooses a row; in Problems it also goes to it (both editors), as a click on a board marker does.
     tbody.onclick = e => {
       const tr = e.target.closest("tr[data-no]");
       if (!tr) return;
-      choose(Number(tr.dataset.no));
+      chooseNumber(Number(tr.dataset.no));
       if (state.view === "problems") goTo(selectedMessage());
       else state.onActivate?.(selectedMessage());
     };
-    tbody.ondblclick = e => {const tr = e.target.closest("tr[data-no]"); if (tr) {choose(Number(tr.dataset.no)); locate(selectedMessage());}};
+    tbody.ondblclick = e => {const tr = e.target.closest("tr[data-no]"); if (tr) {chooseNumber(Number(tr.dataset.no)); locate(selectedMessage());}};
     panel.addEventListener("keydown", keys);
     grip.onpointerdown = e => {
       e.preventDefault(); grip.setPointerCapture(e.pointerId);
@@ -505,13 +509,14 @@ globalThis.AtriumMessages = (() => {
     const inField = e.target.closest("input,select,textarea,summary,button");
     if (e.key === "Escape") {e.preventDefault(); e.stopPropagation(); if (e.target === ui.search && ui.search.value) {ui.search.value = ""; state.query = ""; render();} else hide(); return;}
     if (!inField && e.target.closest(".msg-grid")) {
-      const rows = ui.rows, at = rows.findIndex(m => m.no === state.selected);
+      const rows = ui.rows;
       const step = {ArrowDown:1, ArrowUp:-1, PageDown:10, PageUp:-10}[e.key];
       if (step || e.key === "Home" || e.key === "End") {
         e.preventDefault(); e.stopPropagation();
         if (!rows.length) return;
+        const at = state.selected == null ? -1 : rows.findIndex(m => m.no === state.selected);
         const next = e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, (at < 0 ? -1 : at) + step));
-        choose(rows[next].no); return;
+        choose(next); return;
       }
       const selected = selectedMessage();
       if (state.view === "log" && (e.key === "Enter" || e.key === " ") && state.onActivate?.(selected)) {
@@ -527,9 +532,8 @@ globalThis.AtriumMessages = (() => {
     // Keep single-key editor shortcuts out of the panel; Ctrl/Cmd commands still reach the editor.
     if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
   }
-  const selectedMessage = () => ui?.rows.find(m => m.no === state.selected);
-  function syncActions() {
-    const selected = selectedMessage();
+  const selectedMessage = () => state.selected == null ? undefined : ui?.rows.find(m => m.no === state.selected);
+  function syncActions(selected = selectedMessage()) {
     ui.locateButton.disabled = !selected?.objectId && !selected?.activate;
     [...ui.extra.children].forEach((b, i) => {const a = state.actions[i]; b.disabled = a.enabled ? !a.enabled(selected) : false;});
   }
@@ -541,28 +545,32 @@ globalThis.AtriumMessages = (() => {
     if (m.problem && K()?.focus && host) {K().focus(host, m.problem); return;}
     if (m.objectId) locate(m, true);
   }
-  // choose(no, {center, focus}): select a row. center scrolls it to the middle of the list (Show in
+  // Select a row by its index in the displayed order. Center scrolls it to the middle of the list (Show in
   // Messages) instead of just into view; the keyboard focus follows the selection when it is on a row
   // already (arrow keys) or `focus` asks for it.
-  function choose(no, {center = false, focus = false} = {}) {
+  function choose(at, {center = false, focus = false} = {}) {
+    const row = ui.rows[at];
+    if (!row) return;
     const active = document.activeElement, rowFocus = focus || !!(active?.matches?.("tr[data-no]") && ui.tbody.contains(active));
-    state.selected = no;
+    state.selected = row.no;
     // Problems are rebuilt after every check pass: the selection follows the problem, not its row number.
-    const row = state.view === "problems" ? ui.rows.find(m => m.no === no) : null;
-    state.selectedKey = row ? row.problem?.key || (row.staleWaiver ? "waiver:" + row.staleWaiver.id : null) : null;
-    state.selectedPair = row?.netGroup?.key || null;
+    state.selectedKey = state.view === "problems" ? row.problem?.key || (row.staleWaiver ? "waiver:" + row.staleWaiver.id : null) : null;
+    state.selectedPair = state.view === "problems" ? row.netGroup?.key || null : null;
     // perf-ui: rows are virtualised; scroll the chosen row into view by index, then paint the window.
-    const at = ui.rows.findIndex(m => m.no === no);
-    if (at >= 0 && ui.grid.clientHeight) {
-      const h = rowHeight(), head = ui.grid.tHead?.offsetHeight || ui.grid.querySelector("thead")?.offsetHeight || 0, top = ui.grid.scrollTop, view = ui.grid.clientHeight - head;
+    const height = ui.grid.clientHeight;
+    if (height) {
+      const h = rowHeight(), head = ui.grid.tHead?.offsetHeight || ui.grid.querySelector("thead")?.offsetHeight || 0, top = ui.grid.scrollTop, view = height - head;
       if (center) ui.grid.scrollTop = Math.max(0, Math.round(at * h - (view - h) / 2));
       else if (at * h < top) ui.grid.scrollTop = at * h; else if ((at + 1) * h > top + view) ui.grid.scrollTop = (at + 1) * h - view;
       paintRows(false);
     }
-    for (const tr of ui.tbody.children) if (tr.dataset.no) tr.setAttribute("aria-selected", String(Number(tr.dataset.no) === no));
+    for (const tr of ui.tbody.children) if (tr.dataset.no) {
+      const selected = String(Number(tr.dataset.no) === row.no);
+      if (tr.getAttribute("aria-selected") !== selected) tr.setAttribute("aria-selected", selected);
+    }
     if (rowFocus) focusSelected();
-    syncActions();
-    if (state.view !== "problems") try {state.onChoose?.(selectedMessage());} catch (e) {globalThis.console?.error?.(e);}
+    syncActions(row);
+    if (state.view !== "problems") try {state.onChoose?.(row);} catch (e) {globalThis.console?.error?.(e);}
   }
   // The keyboard focus on the selected row (rows are focusable, tabIndex -1), else on the list.
   function focusSelected() {
@@ -596,7 +604,7 @@ globalThis.AtriumMessages = (() => {
   let filterFrame = 0;
   function filterSoon() {
     if (filterFrame) return;
-    if (typeof requestAnimationFrame !== "function" || viewList().length <= LIVE_FILTER_ROWS) {render(); return;}
+    if (typeof requestAnimationFrame !== "function" || !ui.counted || ui.counted.length <= LIVE_FILTER_ROWS) {render(); return;}
     filterFrame = requestAnimationFrame(() => {filterFrame = 0; render();});
   }
   function render(animate = false) {
@@ -616,7 +624,7 @@ globalThis.AtriumMessages = (() => {
     // Net-pair groups (Problems): built again only when the filtered rows or the open groups change.
     if (ui.groupedFrom !== visible || ui.groupedOpen !== expanded) {ui.groupedFrom = visible; ui.groupedOpen = expanded; ui.groupedRows = problems ? groupNetPairs(visible, state.expandedPairs) : visible;}
     const display = ui.groupedRows;
-    const grouped = display.some(m => m.netGroup);
+    const grouped = display !== visible;
     if (ui.grid.classList.toggle("msg-with-pairs", grouped) !== ui.grouped) {ui.rowH = null; ui.grouped = grouped;}
     if (problems && state.selectedKey) state.selected = display.find(m => (m.problem?.key || (m.staleWaiver ? "waiver:" + m.staleWaiver.id : null)) === state.selectedKey)?.no ?? null;
     if (problems && state.selectedPair) state.selected = display.find(m => m.netGroup?.key === state.selectedPair)?.no ?? null;
@@ -712,8 +720,8 @@ globalThis.AtriumMessages = (() => {
     const focusedPair = ui.tbody.contains(active) && active?.dataset.pair;
     const focusedRow = !focusedPair && ui.tbody.contains(active) && active.matches?.("tr[data-no]");
     if (!list.length) {
-      const none = displayedStatus() || (state.view === "problems" ? "No problems." : "No messages.");
-      const tr = el("tr", null, "msg-empty"), td = el("td", displayedStatus() || (viewList().length ? "No messages match the filter." : none)); td.colSpan = shownColumns().length; tr.append(td);
+      const none = state.view === "problems" ? "No problems." : "No messages.";
+      const tr = el("tr", null, "msg-empty"), td = el("td", ui.drcStatus || (ui.counted?.length ? "No messages match the filter." : none)); td.colSpan = shownColumns().length; tr.append(td);
       ui.tbody.replaceChildren(tr); ui.win = null; if (focusedPair) focusPair(focusedPair); else if (focusedRow) ui.grid.focus({preventScroll:true}); return;
     }
     const h = rowHeight(), top = ui.grid.scrollTop, view = ui.grid.clientHeight || 600;
@@ -855,8 +863,8 @@ globalThis.AtriumMessages = (() => {
     const settle = () => {
       if (!m) {if (focus) ui.grid.focus({preventScroll:true}); return;}
       // The shown row of that message (Problems rows are rebuilt by each check pass: match the finding).
-      const row = ui.rows.find(r => r === m || !r.netGroup && (m.problem ? r.problem === m.problem : m.staleWaiver ? r.staleWaiver === m.staleWaiver : r.no === m.no));
-      if (row) choose(row.no, {center:true, focus});
+      const at = ui.rows.findIndex(r => r === m || !r.netGroup && (m.problem ? r.problem === m.problem : m.staleWaiver ? r.staleWaiver === m.staleWaiver : r.no === m.no));
+      choose(at, {center:true, focus});
     };
     settle();
     // A tab brought to the front of its dock is laid out by the dock's next render: place the row again then.
