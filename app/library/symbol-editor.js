@@ -500,11 +500,17 @@ globalThis.AtriumSymbolEditor = (() => {
       saved = state(); dlg.close(); ctx.commit?.(d, place);
     }
     // Unsaved changes ask first: closing the editor, or a project switch closing its tab (dlg.mayDiscard).
-    const mayDiscard = () => state() === saved || typeof confirm !== "function" || confirm("Discard the changes to this symbol?");
+    // A switch may ask again before it commits; "Discard" holds for the same draft until keepDraft().
+    let discarded = null;
+    const unsaved = () => { const s = state(); return s !== saved && s !== discarded; };
+    function mayDiscard() {
+      if (!unsaved()) return true;
+      if (typeof confirm === "function" && !confirm("Discard the changes to this symbol?")) return false;
+      discarded = state(); return true;
+    }
     function tryClose() { if (mayDiscard()) dlg.close(); }
     dlg.requestClose = () => tryClose();
-    dlg.unsaved = () => state() !== saved;
-    dlg.mayDiscard = mayDiscard;
+    Object.assign(dlg, {unsaved, mayDiscard, keepDraft: () => { discarded = null; }});
     ui.paletteSurface(dlg, "symbol", canvas, stage, {
       pins: () => model.pins,
       select: i => { clearSel(); gate = model.pins[i].part || gate; selection.pins.add(i); refresh(); },

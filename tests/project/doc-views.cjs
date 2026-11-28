@@ -56,12 +56,16 @@ const {loadDOM} = require("../integration/integration.cjs");
   assert.equal(document.querySelector('.view-tab[data-view="compare"]').parentElement.id, "document-tabs");
   // A project switch asks every view; one that keeps its work keeps the project.
   assert.equal(V.mayDiscard(), true, "views without work to lose let a switch go");
-  let keep = true, asked = 0;
-  V.open("editor", {title: "Editor", mayDiscard: () => { asked++; return !keep; }});
+  let keep = true, asked = 0, kept = 0;
+  V.open("editor", {title: "Editor", mayDiscard: () => { asked++; return !keep; }, keep: () => { kept++; }});
+  V.open("other", {title: "Other", mayDiscard: () => true, keep: () => { kept++; }});
   assert.equal(V.mayDiscard(), false);
+  assert.equal(kept, 2, "a refusal tells every view the switch stopped");
   keep = false;
   assert.equal(V.mayDiscard(), true);
   assert.equal(asked, 2);
+  V.keep(); assert.equal(kept, 4);
+  V.close("other");
   V.close("editor");
   // × closes the view and runs its clean-up.
   tab.querySelector(".view-tab-close").dispatchEvent(new window.Event("click", {bubbles: true}));

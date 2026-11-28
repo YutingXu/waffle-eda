@@ -418,8 +418,9 @@
           AtriumHierarchy.invalidatePublished(project);navEmit("folder-owner",detail);
         }
       },explorer:renderExplorer,
-      adopt(session,close){closeSplit(true,false);leaveFolder();setFileSession({folder:session,close});(UNDO||=globalThis.AtriumUndoStore).reset(session.dirty?null:session.project);history=[];future=[];
-        showProject(session.project,session.activeId,false,true);importSessionChanged();
+      // fromSave: the project just saved, reopened from its folder; its editor tabs stay (doc-views.js).
+      adopt(session,close,{fromSave=false}={}){closeSplit(true,false);leaveFolder();setFileSession({folder:session,close});(UNDO||=globalThis.AtriumUndoStore).reset(session.dirty?null:session.project);history=[];future=[];
+        showProject(session.project,session.activeId,false,true,fromSave);importSessionChanged();
         FUI().restoreView?.(session,documentViews);if(restoreDocumentView(false))draw();}
     };
   }
@@ -1125,12 +1126,15 @@
     if(globalThis.AtriumBoardShapeUI)show(AtriumBoardShapeUI);
     else globalThis.AtriumLazy?.need("AtriumBoardShapeUI").then(show,e=>info(e.message));
   }
-  // Open editor tabs ask about their unsaved changes before any switch to another project (doc-views.js).
-  const viewsMayGo=()=>globalThis.AtriumDocViews?.mayDiscard?.()!==false;
-  function mayReplace(force=false){
-    if(!viewsMayGo())return Promise.resolve(false);
-    if(globalThis.AtriumForeignDrafts?.needsReview(navHost))return globalThis.AtriumForeignDrafts.review(navHost);
-    return dirty||force?fileUI().then(ui=>ui.confirmReplace({name:project.name||"Untitled",dirty,isDirty:()=>dirty,save:()=>save({all:true})})):Promise.resolve(true);
+  // Open editor tabs ask about their unsaved changes before any switch to another project, and again just
+  // before it commits (edits made while it loaded); viewsKept() forgets their answers when it stops (doc-views.js).
+  const viewsMayGo=()=>globalThis.AtriumDocViews?.mayDiscard?.()!==false, viewsKept=()=>globalThis.AtriumDocViews?.keep?.();
+  async function mayReplace(force=false){
+    if(!viewsMayGo())return false;
+    const ok=globalThis.AtriumForeignDrafts?.needsReview(navHost)?await globalThis.AtriumForeignDrafts.review(navHost)
+      :dirty||force?await fileUI().then(ui=>ui.confirmReplace({name:project.name||"Untitled",dirty,isDirty:()=>dirty,save:()=>save({all:true})})):true;
+    if(!ok)viewsKept();
+    return ok;
   }
   const boxOf=(a,b)=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])];
   const pastePoint=p=>touchFree()?p:p.map(v=>A.snap(v,doc().grid));
@@ -1440,7 +1444,8 @@
     openBusy=true;
     // Something is opening: the start page waiting on a chooser closes now (start-page.js).
     try{globalThis.dispatchEvent?.(new CustomEvent("atrium-opening",{detail:{into:!!o.into}}));}catch{}
-    try{return await (await fileUI()).open(selection,o,{host:navHost,info,folderUI,folderContext,context:workflowContext,mayReplace,adopt,fitOpened});}
+    try{const ok=await (await fileUI()).open(selection,o,{host:navHost,info,folderUI,folderContext,context:workflowContext,mayReplace,adopt,fitOpened});if(!ok)viewsKept();return ok;}
+    catch(error){viewsKept();throw error;}
     finally{openBusy=false;}
     function adopt({after,newDoc,openLib,libraryTarget:target},imported){
       if(drag)endDrag(true);
@@ -1459,7 +1464,8 @@
       }else {showProject(after,newDoc,true);if(!imported)importSessionChanged();}
     }
   }
-  // same: the same project again (a workspace window's mirror refresh); open document views stay (doc-views.js).
+  // same: the same project again (a workspace window's mirror refresh, a save reopening its folder); open
+  // document views stay (doc-views.js).
   function showProject(p,id,deferFit=false,clean=false,same=false){
     const replacement=p!==project;
     if(replacement)for(const pane of panes){pane.view?.invalidate?.();if(pane.view)globalThis.AtriumCanvasGPU?.release?.(pane.view.internals());}
@@ -2521,13 +2527,14 @@
     moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);refresh(lazy,!lazy||name==="AtriumMultichannel");},
     async replaceProject(p,o={}){
       // A forced replace skips the project's own prompt, not the editor tabs' (a mirror of this project keeps them).
-      if((o.force?!(o.workspaceMirror&&p.id&&project?.id===p.id)&&!viewsMayGo():!await mayReplace())||o.current&&!o.current())return false;
+      const mirror=!!(o.workspaceMirror&&p.id&&project?.id===p.id), stop=()=>{viewsKept();return false;};
+      if((o.force?!mirror&&!viewsMayGo():!await mayReplace())||o.current&&!o.current())return stop();
       const old=project, stamp=authoredRevision, L=globalThis.AtriumLazy;
       const readers=L?.boardRenderers(p) || [];
       // The first schematic refresh can resolve the project's net scope synchronously.
       if(p.rules!=null&&!globalThis.AtriumDesignQueryRecord)readers.push("AtriumDesignQueryRecord");
       await Promise.all([readers.length && L?.need(readers),prepareWorkbench(p,{starterView:!!o.starter})]);
-      if(project!==old || authoredRevision!==stamp || o.current&&!o.current())return false;
+      if(project!==old || authoredRevision!==stamp || o.current&&!o.current() || !mirror&&!viewsMayGo())return stop();
       if(drag)endDrag(true);if(!starter&&!o.workspaceMirror)checkpoint();
       const H=globalThis.AtriumHost;
       leaveFolder();

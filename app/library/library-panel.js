@@ -1296,7 +1296,8 @@ globalThis.AtriumLibrary = (() => {
       if (V.isOpen(id)) { surface.dispatchEvent(new Event("close")); V.show(id); return; }
       const title = surface.heading?.querySelector("h2")?.textContent || surface.getAttribute("aria-label") || "Editor";
       // A project switch asks first (AtriumDocViews.mayDiscard: the tab is shown, then the editor asks about
-      // unsaved changes), then closes the tab on "replace", so a later Save cannot write into the next project.
+      // unsaved changes; keep() forgets the answer when the switch stops), then closes the tab on "replace", so a
+      // later Save cannot write into the next project. A save that reopens the project keeps the tab.
       // The view's onClose closes the dialog; its close event then finds the view gone.
       surface.addEventListener("close", () => { surface.remove(); V.close(id); }, {once: true});
       V.open(id, {
@@ -1306,6 +1307,7 @@ globalThis.AtriumLibrary = (() => {
         // The tab's ×, middle click and Delete ask the editor, which closes itself unless unsaved changes are kept.
         canClose: () => { if (!Object.hasOwn(surface, "requestClose")) return true; surface.requestClose(); return false; },
         mayDiscard: () => { if (!surface.unsaved?.()) return true; V.show(id); return surface.mayDiscard(); },
+        keep: () => surface.keepDraft?.(),
         onClose: () => { if (surface.open) surface.close(); }
       });
       if (!surface.open) surface.show();
