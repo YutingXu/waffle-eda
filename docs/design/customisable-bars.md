@@ -93,13 +93,16 @@ without an icon use the same face.
 ## Extensions
 
 `api.ui.addActiveBarButton` keeps its signature. Its button becomes an ordinary item appended to the
-default list for the kinds its `when` allows. The user can move, group or hide it like any other. No
-API version change.
+default list for the kinds its `when` can hold on (in any selection or placing state; whether it holds
+now stays with the extension host, which hides the button). The user can move, group or hide it like
+any other, and it can be a group's face: its own button stays on the bar with its own click, and the
+flyout opens on it as on any group. No API version change.
 
 A kind the user has customised keeps its own list, so a button from an extension installed later is
 appended to its end once, the first time the bar meets it. The ids a customised kind has met are kept
 in `workbench.bars` as `seen`; a button the user then removes is in `seen` and stays removed, also
-after a reload.
+after a reload. The seen list keeps the buttons present now first, so a full bar records a newcomer
+it cannot take and is not rewritten on every drawing.
 
 ## Macros
 
@@ -130,6 +133,10 @@ As built, the choice is remembered **per button**, not per group. In the default
 share one group: Select and Pan share `select`; Component, Via, Junction and Net label share
 `library`. A face kept per group would turn every button of the group into the same tool. Each
 button (its original command id) keeps its own face instead.
+
+A remembered face is drawn only while the button's group still holds it (after the group is edited
+the button shows its own command again). Settings import, Reset All and Restore Defaults redraw the
+bar at once.
 
 ## Additions to the default bar
 
@@ -174,7 +181,9 @@ to the kit, the gallery and `docs/ui-library.md` in the same change.
 
 - At most 24 items per bar and 16 per flyout.
 - When the bar is wider than the canvas, trailing items move into a "⋯" flyout that uses the same
-  `nav-flyout` menu. Today the centre placement scrolls sideways instead; this replaces that.
+  `nav-flyout` menu. Today the centre placement scrolls sideways instead; this replaces that. An
+  overflowed group stays a group: its flyout's commands are a section of "⋯" between separators, and
+  choosing one there makes it the group's face. "⋯" opens on Down Arrow and a long press like any flyout.
 
 ## Phases
 
