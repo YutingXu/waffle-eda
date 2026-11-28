@@ -69,7 +69,7 @@ case $step in
     run "Rust kernels: cargo test + reproducible engine-core.js" python3 scripts/build-engine.py --check ;;
   node)
     node --version
-    SKIP="integration-browser palette-actions.browser collab-pair-browser browser-format-2-git browser-apricot-readonly browser-apricot-native-query browser-import-export-target browser-dialog-geometry browser-dialog-safe-area browser-titlebar-safe-area browser-surface-motion browser-workbench-spatial browser-dock-beta ${NODE_SKIP:-}" scripts/ci/node-suites.sh > /work/node.log; cat /work/node.log
+    SKIP="integration-browser palette-actions.browser collab-pair-browser collab-remote-scope-browser browser-format-2-git browser-apricot-readonly browser-apricot-native-query browser-import-export-target browser-dialog-geometry browser-dialog-safe-area browser-titlebar-safe-area browser-surface-motion browser-workbench-spatial browser-dock-beta ${NODE_SKIP:-}" scripts/ci/node-suites.sh > /work/node.log; cat /work/node.log
     run "node suites vs tests/known-failures.txt" python3 scripts/ci/check-results.py node /work/node.log ;;
   mcp)
     run "tests/automation/mcp.py" python3 tests/automation/mcp.py
@@ -184,6 +184,7 @@ case $step in
     run "Shared surface focus and motion in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/editor/browser-motion-contract.js
     run "Keyboard project, export, Undo and tutorial motion in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/editor/browser-rare-motion.js
     run "Collaboration pairing and local-network consent in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/project/collab-pair-browser.cjs
+    run "A remote live-session edit re-checks only what it touched, in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/project/collab-remote-scope-browser.cjs
     run "format 2 Git folder history in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/formats/browser-format-2-git.cjs
     run "widget and extension first use in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/notebook/browser-widget-demand.js
     run "Apricot Preview saved notebook artwork and editing in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/project/browser-apricot-readonly.cjs
