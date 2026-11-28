@@ -125,7 +125,9 @@ module.exports = async function libraryFamilies(browser) {
     const details = panel.locator(".lib-detail");
     const command = async name => {
       await details.getByRole("button", {name: "More component actions", exact: true}).click();
-      await page.getByRole("menuitem", {name, exact: true}).click();
+      // The open menu only (a closing one can linger); an item's name ends with its spoken shortcut, if any.
+      await page.locator(".nav-menu.action-menu:focus-within")
+        .getByRole("menuitem", {name: new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))}).click();
     };
     assert.equal(await details.locator('.cat-pv[data-def="family-bga"] canvas').count(), 2, "the exact package has both previews");
     assert.equal(await row("family-qfn").count(), 0, "package search disambiguates the chip's variants");
@@ -157,6 +159,74 @@ module.exports = async function libraryFamilies(browser) {
     assert.equal(await saveKey.locator('[aria-hidden="true"]').textContent(), expectedSave.visual);
     await footprintEditor.getByRole("button", {name: "Cancel", exact: true}).press("Space");
     await footprintEditor.waitFor({state: "hidden"});
+
+    // The menu shows each command's own key, as the list's keys run it.
+    await details.getByRole("button", {name: "More component actions", exact: true}).click();
+    const hints = await page.locator(".nav-menu.action-menu:focus-within [role=menuitem]").evaluateAll(items => Object.fromEntries(items
+      .map(item => [item.querySelector(":scope > span")?.textContent, item.querySelector(":scope > .ui-shortcut")?.dataset.binding || null])));
+    assert.equal(hints["Edit symbol"], "E");
+    assert.equal(hints["Edit footprint"], "Shift+E");
+    assert.equal(hints["Duplicate"], "Mod+D");
+    assert.equal(hints["Delete"], "Backspace");
+    assert.equal(hints["Update placed parts"], null, "a command without a key has no hint");
+    await page.keyboard.press("Escape");
+
+    // The list's keys are the same keymap commands: a rebinding moves both the key and the menu hint.
+    const editFromList = async key => {
+      await row("family-bga").focus();
+      await page.keyboard.press(key);
+      await symbolEditor.locator("h2", {hasText: "MX100-B"}).waitFor();
+      await symbolEditor.getByRole("button", {name: "Cancel", exact: true}).click();
+      await symbolEditor.waitFor({state: "hidden"});
+    };
+    await editFromList("e");
+    await page.evaluate(() => AtriumKeymap.setBindings("library-edit-symbol", ["Alt+E"]));
+    await details.getByRole("button", {name: "More component actions", exact: true}).click();
+    assert.equal(await page.locator(".nav-menu.action-menu:focus-within [role=menuitem]", {hasText: "Edit symbol"})
+      .locator(":scope > .ui-shortcut").getAttribute("data-binding"), "Alt+E", "the menu hint follows the rebinding");
+    await page.keyboard.press("Escape");
+    await editFromList("Alt+e");
+    await page.evaluate(() => AtriumKeymap.resetCommand("library-edit-symbol"));
+
+    // A project switch asks about an editor tab's unsaved changes; keeping them keeps the project and the tab.
+    const kept = await page.evaluate(async () => {
+      const def = AtriumNavHost.defs().get("family-bga"), project = AtriumNavHost.project(), V = AtriumDocViews;
+      const asked = [], ask = globalThis.confirm, clean = "footprint-editor:" + def.id, tab = "symbol-editor:" + def.id;
+      const answers = list => { globalThis.confirm = text => { asked.push(text); return list.length ? list.shift() : false; }; };
+      // An embedded STEP model is not an edit (snapshots tokenise its text).
+      const stepped = Atrium.clone(def); stepped.footprint.model3d = {file: "body.step", stepText: "ISO-10303-21;\nEND-ISO-10303-21;\n"};
+      AtriumLibrary.openFootprintEditor({project, info() {}}, stepped, {asTab: true});
+      const editor = AtriumLibrary.openSymbolEditor({project, info() {}}, def, {asTab: true});
+      const other = Atrium.project("Another project", []), r = {asked};
+      // Edits made while the destination loads ask before the switch commits.
+      answers([]);
+      const loading = AtriumNavHost.replaceProject(other, {force: true, dirty: false});
+      editor.change(() => { editor.meta.description = "Edited while loading"; });
+      r.loading = await loading; r.loadingAsked = asked.length;
+      V.hide(tab); asked.length = 0;
+      r.forced = await AtriumNavHost.replaceProject(other, {force: true, dirty: false});
+      r.plain = await AtriumNavHost.replaceProject(other);
+      // "Discard", then another edit before the commit: it asks again, and a "keep" there forgets the first answer.
+      answers([true, false]);
+      const twice = AtriumNavHost.replaceProject(other, {force: true, dirty: false});
+      editor.change(() => { editor.meta.description = "Edited after Discard"; });
+      r.twice = await twice;
+      answers([false]);
+      r.again = await AtriumNavHost.replaceProject(other, {force: true, dirty: false});
+      Object.assign(r, {same: AtriumNavHost.project() === project, open: V.isOpen(tab), shown: V.isShown(tab), clean: V.isOpen(clean)});
+      globalThis.confirm = ask;
+      return r;
+    });
+    const symbolAsk = "Discard the changes to this symbol?";
+    assert.equal(kept.loading, false, "an edit made while the project loaded is asked about");
+    assert.equal(kept.loadingAsked, 1);
+    assert.equal(kept.forced, false, "a forced switch still asks the editor tabs");
+    assert.equal(kept.plain, false);
+    assert.equal(kept.twice, false, "a draft changed after Discard asks again");
+    assert.equal(kept.again, false);
+    assert.deepEqual(kept.asked, Array(5).fill(symbolAsk), "only the edited symbol tab asks, never the STEP footprint");
+    assert.ok(kept.same && kept.open && kept.shown && kept.clean, "the project and both tabs stay; the asking tab is shown");
+    await page.evaluate(() => { for (const id of ["symbol-editor:family-bga", "footprint-editor:family-bga"]) AtriumDocViews.close(id); });
 
     assert.equal(await page.evaluate(() => !!globalThis.AtriumSchPlace), false, "browsing and editing do not load schematic placement");
     await command("Place symbol on sheet");
@@ -323,6 +393,27 @@ module.exports = async function libraryFamilies(browser) {
     await page.keyboard.press("Escape");
     await placed.click();
     await row("family-qfn").waitFor();
+
+    // Close Project asks the editor tabs before the project, and one Discard holds through the whole close.
+    const closeWith = answer => page.evaluate(answer => {
+      const def = AtriumNavHost.defs().get("family-bga"), editor = AtriumLibrary.openSymbolEditor({project: AtriumNavHost.project(), info() {}}, def, {asTab: true});
+      editor.change(() => { editor.meta.description = "Unsaved before close"; });
+      AtriumNavHost.markUnsaved();
+      globalThis.__asked = 0;
+      globalThis.confirm = () => { __asked++; return answer; };
+      AtriumNavHost.act("close-project");
+    }, answer);
+    await closeWith(false);
+    await page.waitForFunction(() => __asked === 1);
+    await page.waitForTimeout(150);
+    const refused = await page.evaluate(() => ({asked: __asked, prompt: !!document.querySelector("dialog.close-project-dialog[open]"),
+      starter: AtriumNavHost.isStarter(), open: AtriumDocViews.isOpen("symbol-editor:family-bga")}));
+    assert.deepEqual(refused, {asked: 1, prompt: false, starter: false, open: true}, "Cancel in the tab stops before the project prompt");
+    await closeWith(true);
+    await page.locator("dialog.close-project-dialog[open]").getByRole("button", {name: "Don’t Save", exact: true}).click();
+    await page.waitForFunction(() => AtriumNavHost.isStarter());
+    const afterClose = await page.evaluate(() => ({asked: __asked, open: AtriumDocViews.isOpen("symbol-editor:family-bga")}));
+    assert.deepEqual(afterClose, {asked: 1, open: false}, "the tab asked once, then closed with the project");
     assert.deepEqual(errors, []);
     console.log("PASS grouped component search, keyboard placement, package previews and long labels, exact editing, cold clicks, loose assets, family edits and external sources");
   } finally { releasePlacement(); await page.close(); }

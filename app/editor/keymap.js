@@ -128,6 +128,7 @@ globalThis.AtriumKeymap = (() => {
     tuning:s=>!!s.tuning&&typeof s.tool==="string"&&s.tool.startsWith("length-tune"),
     rotatable:s=>!!s.rotatable,canvas:(s,c)=>c,view3d:s=>!!s.view3d,canProperties:s=>!!s.canProperties,cursorAt:s=>!!s.cursorAt,dragging:s=>!!s.dragging,
     suggestion:s=>s.suggestion??!!globalThis.AtriumRouteSuggest?.visible?.(),suggestTab:s=>s.suggestTab??!!globalThis.AtriumRouteSuggest?.tabAccepts?.(),
+    focus:s=>s.focus||"",
     true:()=>true,false:()=>false
   };
   const whenCache=new Map();
@@ -170,6 +171,9 @@ globalThis.AtriumKeymap = (() => {
   // ---------------------------------------------------------------- commands
   // [id, title, category, extra]. `action`/`param` default to the id; `titles` name the
   // command per editor; `short` labels it in the sequence hint. `palette` opens that entrance.
+  // A command with `focus` (registerCommand) belongs to one focused list, such as the Library's:
+  // its context gains `focus == <name>`, the editor never dispatches it, and that list runs it
+  // through focusBinding(). Its single keys may reuse editor keys without a conflict.
   const nudge=(d,v,n)=>({action:d,param:v.map(x=>x*n),repeatable:true});
   const BUILTIN=[
     ["new","New project…","File"],["open","Open…","File"],["import-altium","Import Altium project or document…","File"],["import-report","Import report","Reports"],["save","Save project","File",{inForms:true}],["close-project","Close project","File"],
@@ -358,7 +362,9 @@ globalThis.AtriumKeymap = (() => {
   const commands=new Map();
   let commandOrder=0;
   function addCommand(spec,builtin){
-    const cmd={id:spec.id,title:String(spec.title||spec.id),category:spec.category||"Extensions",when:spec.when||"",
+    const focus=typeof spec.focus==="string"&&/^[A-Za-z_][\w-]*$/.test(spec.focus)?spec.focus:"";
+    const when=[focus&&"focus == "+focus,spec.when&&(focus&&/\|\|/.test(spec.when)?"("+spec.when+")":spec.when)].filter(Boolean).join(" && ");
+    const cmd={id:spec.id,title:String(spec.title||spec.id),category:spec.category||"Extensions",when,focus,
       action:spec.action??spec.id,param:spec.param,repeatable:!!spec.repeatable,inForms:!!spec.inForms,short:spec.short,
       titles:spec.titles||null,nativeKey:spec.nativeKey||"",run:typeof spec.run==="function"?spec.run:null,priority:!!spec.priority,notebook:!!spec.notebook,palette:builtin?spec.palette:undefined,builtin,order:commandOrder++};
     cmd.whenTest=compileWhen(cmd.when);
@@ -682,8 +688,8 @@ globalThis.AtriumKeymap = (() => {
   }
   function bits(rec){
     if(rec.bits)return rec.bits;
-    const ctx=contexts(),out=new Uint8Array(ctx.length);
-    for(let i=0;i<ctx.length;i++)out[i]=rec.test(ctx[i],ctx[i].canvas)?1:0;
+    const ctx=contexts(),out=new Uint8Array(ctx.length),focus=rec.command.focus;
+    for(let i=0;i<ctx.length;i++)out[i]=rec.test(focus?{...ctx[i],focus,canvas:false}:ctx[i],!focus&&ctx[i].canvas)?1:0;
     return rec.bits=out;
   }
   function overlap(a,b){const x=bits(a),y=bits(b);for(let i=0;i<x.length;i++)if(x[i]&&y[i])return true;return false;}
@@ -694,19 +700,20 @@ globalThis.AtriumKeymap = (() => {
   }
   const brief=rec=>({command:rec.id,title:rec.command.title,key:rec.key,when:rec.when,source:rec.source});
   // Same keys with overlapping contexts are conflicts; a sequence prefix that hides a
-  // shorter binding is a shadow warning.
+  // shorter binding is a shadow warning. A focused list's keys meet only that list's keys.
+  const apart=(a,b)=>a.command.focus!==b.command.focus;
   function conflicts(){
     const t=table(),out=[],seen=new Set();
     function walk(n){
       if(n.bindings.length>1)for(let i=0;i<n.bindings.length;i++)for(let j=i+1;j<n.bindings.length;j++){
         const a=n.bindings[i],b=n.bindings[j];
-        if(a.id===b.id||a.source!=="user"&&b.source!=="user"&&a.command.priority!==b.command.priority)continue;
+        if(a.id===b.id||apart(a,b)||a.source!=="user"&&b.source!=="user"&&a.command.priority!==b.command.priority)continue;
         const tag="c"+Math.min(a.uid,b.uid)+"/"+Math.max(a.uid,b.uid);
         if(seen.has(tag)||!overlap(a,b))continue;seen.add(tag);
         out.push({type:"conflict",key:a.key,a:brief(a),b:brief(b),message:display(a.key,true)+" runs "+a.command.title+" and "+b.command.title+" in the same context."});
       }
       if(n.bindings.length&&n.desc.length)for(const a of n.bindings)for(const b of n.desc){
-        if(a.lead)continue;
+        if(a.lead||apart(a,b))continue;
         const tag="s"+a.uid+"/"+b.uid;
         if(seen.has(tag)||!overlap(a,b))continue;seen.add(tag);
         out.push({type:"shadow",key:a.key,a:brief(a),b:brief(b),message:display(a.key,true)+" ("+a.command.title+") is hidden by the sequence "+display(b.key,true)+" ("+b.command.title+")."});
@@ -726,6 +733,12 @@ globalThis.AtriumKeymap = (() => {
     const t=table(),list=t.byCommand.get(action)||[];
     const s=IDLE[kind]||IDLE.schematic;
     for(const rec of [...list,...(t.byAction.get(action)||[]).filter(r=>r.id!==action)]){
+      const focus=rec.command.focus;
+      if(focus){
+        const fs={...s,focus,canvas:false};
+        if(rec.seqs[0].length===1&&focusPass(t.root.get(rec.seqs[0][0]),fs)===rec)return rec.key;
+        continue;
+      }
       if(!rec.test(s,true))continue;
       for(const seq of rec.seqs){
         const n=sequenceNode(t,seq,s,true);
@@ -779,6 +792,18 @@ globalThis.AtriumKeymap = (() => {
     if(!n)return null;
     if(isPrefix(n,s,c))return "prefix";
     return firstPass(n.bindings,s,c)?.id||null;
+  }
+  // A focused list's binding for one keydown, or null. `state` names the list (`focus`) and the
+  // editor kind; only that list's single keys count, so editor sequences on the same key wait.
+  function focusPass(n,state){
+    if(!n)return null;
+    for(let i=0;i<n.bindings.length;i++){const r=n.bindings[i];if(r.command.focus===state.focus&&r.test(state,false))return r;}
+    return null;
+  }
+  function focusBinding(e,state){
+    if(!state?.focus||e.defaultPrevented||e.isComposing||e.key==="Process")return null;
+    const k=eventKey(e);if(k<0)return null;
+    return focusPass(table().root.get(k*16+eventMask(e,k)),state);
   }
   // A lead binding shares its key with a prefix (Modern: ⌘K opens the palette); editor-keys.js runs it.
   function leadOf(n,s,c){for(const r of n?.bindings||[])if(r.lead&&r.test(s,c))return r;return null;}
@@ -866,7 +891,7 @@ globalThis.AtriumKeymap = (() => {
     unregisteredBindings:()=>[...user.keys()].filter(id=>!commands.has(id)&&user.get(id).length),
     exportJSON:()=>JSON.stringify(data(),null,2),
     importJSON(text){return applyData(typeof text==="string"?JSON.parse(text):text);},
-    conflicts,kinds,cheatSheet,hintKey,hintFor,menuHintKey,applyMenuHints,resolve,
+    conflicts,kinds,cheatSheet,hintKey,hintFor,menuHintKey,applyMenuHints,resolve,focusBinding,
     describeWhen:src=>globalThis.AtriumKeymapEditor?.describeWhen?.(src)??String(src??"").trim(),
     onChange(fn){listeners.add(fn);return ()=>listeners.delete(fn);},
     // Tests: choose the platform and a storage object.
