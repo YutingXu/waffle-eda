@@ -7,12 +7,13 @@ const {fixture} = require("../support/datasheet-pdf.cjs");
 
 module.exports = async function datasheets(browser) {
   const stage = await mkdtemp(path.join(os.tmpdir(),"waffle-datasheet-browser-"));
-  const app = pathToFileURL(path.join(__dirname,"../../app")).href;
+  // The trailing slash makes the base the app folder itself, not its parent.
+  const app = pathToFileURL(path.join(__dirname,"../../app/")).href;
   const entry = path.join(stage,"reader.html");
   const probe = await readFile(path.join(__dirname,"../support/datasheet-probe.js"),"utf8");
   await writeFile(entry, '<!doctype html><meta charset="utf-8"><base href="'+app+
-    '"><script src="datasheet-worker-source.js"></script><script src="datasheet-record.js"></script><script src="datasheets.js"></script>'+
-    '<script src="notebook-image-format.js"></script><script src="notebook-media.js"></script>'+
+    '"><script src="datasheet-worker-source.js"></script><script src="notebook/datasheet-record.js"></script><script src="notebook/datasheets.js"></script>'+
+    '<script src="notebook/notebook-image-format.js"></script><script src="notebook/notebook-media.js"></script>'+
     '<script>globalThis.AtriumLazy={need:async name=>window[name]};\n'+probe+'</script>');
   const page = await browser.newPage(), errors = [];
   page.on("pageerror",error=>errors.push(error.message));
