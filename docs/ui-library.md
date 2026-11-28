@@ -9,7 +9,7 @@ Build all Waffle UI from these components. Do not create your own controls. If a
 | Builders that add roles, state and keys | [`app/ui/kit.js`](../app/ui/kit.js): `await AtriumLazy.need("AtriumUIKit")` (lazy) |
 | Dialogs | `AtriumShell.dialog`, `adoptDialog`, `openDialog` ([`app/ui/dialog.js`](../app/ui/dialog.js)) |
 | Dropdown lists | native `<select>`; [`ui/select-popup.js`](../app/ui/select-popup.js) opens every one |
-| Menus | `AtriumContextMenu.popup`, `.dropdown`; `AtriumNavCommon.actionMenu` |
+| Menus | `AtriumContextMenu.popup` (context menus), `.dropdown` (menu buttons); `AtriumNavCommon.actionMenu` |
 | Tooltips and hover cards | `title` or `data-tooltip`; [`ui/tooltip.js`](../app/ui/tooltip.js) |
 | Keycaps | `AtriumShortcut.render(binding, {variant})` ([`ui/shortcut.js`](../app/ui/shortcut.js)) |
 | Toasts | `AtriumToast.show(text, {kind})` |
@@ -327,7 +327,8 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Menus](ui-library/menu.png)
 
-- **Use** `AtriumContextMenu.popup` for context menus and `AtriumNavCommon.actionMenu(trigger, commands)` for a "⋯" or "Options…" button. Commands are `{label, run, enabled, shortcut, checked, sub}`, and `"-"` is a separator. The menu bar uses `.work-menu > .menu-items`.
+- **Use** `AtriumContextMenu.popup(ctx, entries, heading, x, y, focus, {pointer})` for a panel's context menu. `ctx` is `{host}`, `heading` names the menu, and Escape or a command returns focus to `focus`. Pass `{pointer:true}` when a right-click or touch hold opened the menu at the pointer: it then starts 2 px up and left, so the pointer lands inside it. A keyboard menu (Shift+F10, the menu key) passes the element's corner and no `pointer`, so it sits flush. Use `AtriumContextMenu.dropdown(button, entries)` or `AtriumNavCommon.actionMenu(trigger, commands)` for a "⋯" or "Options…" button.
+- **Entries** are `{label, run, enabled, checked, radio, action}`, enabled unless `enabled:false`. A submenu is `{sub:label, items}` and `"-"` is a separator. A command without `run` dispatches its `action`, and its keycap comes from that action's binding in the keymap. The menu bar uses `.work-menu > .menu-items`.
 - **Header triggers** `.ui-chrome-action[data-hover=raised]` shares the menu bar hover and open faces. A button-only export list uses `.ui-menu-buttons`. Use `.ui-menu-picks` for browsable native command buttons with a preview selection. A native group disclosure can use `.ui-chrome-action-compact` for its radius and `data-fill="soft"` for the group header.
 - **Selection face** the library styles the active choice in a menu bar or context menu. A menu with custom placement such as Visual Diff uses `.ui-menu-item` for the same highlight.
 - **States** hover and keyboard (selection fill), disabled (faint), checked (✓), submenu (›). Shortcuts sit at the end and are drawn by `AtriumShortcut`.

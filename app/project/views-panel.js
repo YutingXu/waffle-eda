@@ -172,7 +172,7 @@ globalThis.AtriumViewsPanel = (() => {
       {label: many ? "Export " + views.selected.size + " views as PDF…" : "Export PDF…", run: () => exportViews()},
       "-",
       {label: many ? "Remove " + views.selected.size + " views" : "Remove", run: () => removeSelectedViews()}
-    ]), v.name, x, y, anchor);
+    ]), v.name, x, y, anchor, {pointer: true});
   }
   function viewKeys(e) {
     if (e.target.matches("input")) return;
@@ -440,7 +440,7 @@ globalThis.AtriumViewsPanel = (() => {
       {label: "Move later", run: () => move(s.id, 1), enabled: at < slides.rows.length - 1, shortcut: "Alt+ArrowRight"},
       "-",
       {label: "Remove", run: () => removeSlide(s.id)}
-    ]), s.name, x, y, anchor);
+    ]), s.name, x, y, anchor, {pointer: true});
   }
   function pickSlide(id) { slides.current = id; ui.slides.strip.select(id, {reveal: true}); ui.slides.detail.dataset.id = ""; paintDetail(); }
   async function showSlide(id) {

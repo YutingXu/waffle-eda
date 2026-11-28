@@ -879,13 +879,14 @@ globalThis.AtriumContextMenu = (() => {
     });
     popup({host}, list, tx("Text"), x, y, target, true, false, pointer);
   }
+  // A caller's entry for dropdown() and the exported popup(): a command object is enabled unless it says
+  // enabled:false (as callers that normalised it themselves did); a button runs its click.
+  const command = entry => entry instanceof HTMLElement ? {label:entry.textContent, enabled:!entry.disabled, run:() => entry.click()}
+    : !entry || typeof entry !== "object" ? entry // the "-" separator: a string, whose legacy String.prototype.sub is truthy
+    : entry.sub ? {...entry, items:entry.items.map(command)} : {...entry, enabled:entry.enabled ?? true};
   function dropdown(trigger, entries, {host = globalThis.AtriumNavHost, above = false} = {}) {
     if (root && back === trigger) {close(); return;}
     const box = trigger.getBoundingClientRect(), label = trigger.getAttribute("aria-label") || trigger.textContent.trim();
-    // A command object is enabled unless it says enabled:false (as callers that normalised it themselves did).
-    const command = entry => entry instanceof HTMLElement ? {label:entry.textContent, enabled:!entry.disabled, run:() => entry.click()}
-      : !entry || typeof entry !== "object" ? entry // the "-" separator: a string, whose legacy String.prototype.sub is truthy
-      : entry.sub ? {...entry, items:entry.items.map(command)} : {...entry, enabled:entry.enabled ?? true};
     const commands = entries.map(command);
     popup({host, doc:host?.doc?.()}, commands, label, box.left, above ? box.top : box.bottom, trigger, true, above);
     hang(trigger);
@@ -915,5 +916,10 @@ globalThis.AtriumContextMenu = (() => {
   }
   NC()?.ready?.(attach);
 
-  return Object.freeze({open, explorer, projectActions, editing, dropdown, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
+  // A panel's own context menu at [x, y], headed `heading`; focus returns to `focus` when it closes.
+  // Entries as for dropdown() (docs/ui-library.md › Menus). opts.pointer: a right-click or touch hold
+  // opened it there, so it takes POINTER_INSET; a keyboard menu passes the element's corner and no pointer.
+  const contextPopup = (ctx, entries, heading, x, y, focus, {pointer = false} = {}) =>
+    popup(ctx, entries.map(command), heading, x, y, focus, false, false, pointer);
+  return Object.freeze({open, explorer, projectActions, editing, dropdown, popup:contextPopup, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
 })();

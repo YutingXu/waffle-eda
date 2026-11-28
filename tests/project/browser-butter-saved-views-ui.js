@@ -57,6 +57,18 @@ module.exports = async function savedViewsUI(browser) {
     await page.evaluate(() => AtriumNavHost.act("undo"));
     await page.waitForFunction(n => document.querySelectorAll(".panel-views [data-pane=views] .ui-row").length === n, count);
 
+    // Context menu: a right-click on a row opens its menu 2 px up and left of the pointer; Escape closes it.
+    {
+      const box = await pane.locator(".ui-row").first().boundingBox(), at = [Math.round(box.x + 24), Math.round(box.y + box.height / 2)];
+      await page.mouse.click(...at, {button:"right"});
+      const menu = page.locator(".nav-menu[role=menu]", {has:page.getByRole("menuitem", {name:"Go to view", exact:true})});
+      await menu.waitFor();
+      assert.deepEqual(await menu.evaluate(node => [parseFloat(node.style.left), parseFloat(node.style.top)]), [at[0] - 2, at[1] - 2],
+        "a saved view's context menu starts 2 px up and left of the pointer");
+      await page.keyboard.press("Escape");
+      await menu.waitFor({state:"hidden"});
+    }
+
     // Export: progress while the PDF is prepared, then a receipt.
     const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", {name:"Export PDF…"}).click()]);
     assert.match(download.suggestedFilename(), /Saved views\.pdf$/);
