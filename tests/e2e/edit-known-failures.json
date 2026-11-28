@@ -3,53 +3,12 @@
  "failures": [
   {
    "project": "demo-kicad",
-   "bug": "KiCad save writes a copper arc as straight segments: demo.kicad_pcb has (arc (start 20 20) (mid 21.46 23.54) (end 25 25)) on F.Cu; the saved file has 16 (segment ...) chords and no arc (app/formats/kicad-export.js segments()). KiCad reads 16 tracks; top copper differs by 0.26 mm2",
+   "bug": "Not a writer defect: the suite's model rows have no parametric form for three pad kinds. The KiCad save now writes demo.kicad_pcb's chamfered rectangle, trapezoid and custom pad as the records they were read from (chamfered_rect with its ratio and corners, trapezoid with rect_delta, custom with its 0.5 mm rect anchor), and the saved file equals the original (untouched.pads passes). Waffle's model holds each of the three as its exact outline (shape custom, w and h the outline's extent), so the saved file against the model reports them as three missing and three extra pads. It passes once the oracle compares those shapes by outline, or the model gains them as native shapes",
    "checks": [
-    "clean.kicad.untouched.tracks",
-    "clean.kicad.untouched.arcs",
-    "clean.kicad.films",
-    "clean.kicad.tracks",
-    "clean.kicad.arcs",
-    "slide.kicad.tracks",
-    "slide.kicad.arcs",
-    "drag.kicad.tracks",
-    "drag.kicad.arcs",
-    "rework.kicad.tracks",
-    "rework.kicad.arcs",
-    "slide.kicad.untouched.tracks",
-    "slide.kicad.untouched.arcs",
-    "drag.kicad.untouched.tracks",
-    "drag.kicad.untouched.arcs",
-    "rework.kicad.untouched.tracks",
-    "rework.kicad.untouched.arcs"
-   ]
-  },
-  {
-   "project": "demo-kicad",
-   "bug": "KiCad save rewrites parametric pads as custom polygons (app/formats/kicad-export.js pad()). An oval through-hole pad (size 1.7 2.2, a capsule in KiCad) is saved as a 64-sided ellipse: 2.94 mm2 of copper where the source has 3.12 mm2, and each layer the pad is on plots 0.19 mm2 differently from Waffle's own outputs. A trapezoid (rect_delta), a chamfered rectangle and a custom pad keep their copper outline but lose their shape, size and anchor: each becomes (pad ... custom (size 0.01 0.01) ... gr_poly)",
-   "checks": [
-    "clean.kicad.untouched.pads",
-    "slide.kicad.untouched.pads",
-    "drag.kicad.untouched.pads",
     "clean.kicad.pads",
     "slide.kicad.pads",
     "drag.kicad.pads",
     "rework.kicad.pads"
-   ]
-  },
-  {
-   "project": "demo-kicad",
-   "bug": "KiCad save writes a copper arc as straight segments: demo.kicad_pcb has (arc (start 20 20) (mid 21.46 23.54) (end 25 25)) on F.Cu; the saved file has 16 (segment ...) chords and no arc (app/formats/kicad-export.js segments()). KiCad reads 16 tracks; top copper differs by 0.26 mm2; and after an edit: kiCad save writes the stored zone fill unchanged after an edit: the (filled_polygon ...) text is byte-identical before and after moving a via and a footprint, while Waffle's own fabrication outputs repour first. The saved board carries copper around the old positions until KiCad refills (bottom copper differs by 47-57 mm2)",
-   "checks": [
-    "slide.kicad.films",
-    "drag.kicad.films",
-    "rework.kicad.films",
-    "slide.kicad.untouched.tracks",
-    "slide.kicad.untouched.arcs",
-    "drag.kicad.untouched.tracks",
-    "drag.kicad.untouched.arcs",
-    "rework.kicad.untouched.tracks",
-    "rework.kicad.untouched.arcs"
    ]
   },
   {
@@ -72,151 +31,25 @@
  ],
  "limits": {
   "demo-kicad": {
-   "clean.kicad.untouched.tracks": {
-    "unattributed": 16
-   },
-   "clean.kicad.untouched.arcs": {
-    "unattributed": 1
-   },
-   "clean.kicad.untouched.pads": {
-    "unattributed": 10
-   },
-   "clean.kicad.tracks": {
-    "missing": 16,
-    "extra": 0,
-    "netMismatch": 0
-   },
-   "clean.kicad.arcs": {
-    "missing": 0,
-    "extra": 1,
-    "netMismatch": 0
-   },
    "clean.kicad.pads": {
-    "missing": 5,
-    "extra": 5,
-    "netMismatch": 0
-   },
-   "clean.kicad.films": {
-    "differing": 1,
-    "xorMm2.GTL": 0.256,
-    "xorMm2.G1": 0.19,
-    "xorMm2.G2": 0.19,
-    "xorMm2.GBL": 0,
-    "xorMm2.GTO": 0,
-    "xorMm2.GBO": 0,
-    "xorMm2.GTS": 0.19,
-    "xorMm2.GBS": 0.19,
-    "xorMm2.GTP": 0,
-    "xorMm2.GM1": 0
-   },
-   "slide.kicad.untouched.tracks": {
-    "unattributed": 16
-   },
-   "slide.kicad.untouched.arcs": {
-    "unattributed": 1
-   },
-   "slide.kicad.untouched.pads": {
-    "unattributed": 10
-   },
-   "slide.kicad.tracks": {
-    "missing": 16,
-    "extra": 0,
-    "netMismatch": 0
-   },
-   "slide.kicad.arcs": {
-    "missing": 0,
-    "extra": 1,
+    "missing": 3,
+    "extra": 3,
     "netMismatch": 0
    },
    "slide.kicad.pads": {
-    "missing": 5,
-    "extra": 5,
-    "netMismatch": 0
-   },
-   "slide.kicad.films": {
-    "differing": 2,
-    "xorMm2.GTL": 0.258,
-    "xorMm2.G1": 0.19,
-    "xorMm2.G2": 0.19,
-    "xorMm2.GBL": 47.463,
-    "xorMm2.GTO": 0,
-    "xorMm2.GBO": 0,
-    "xorMm2.GTS": 0.19,
-    "xorMm2.GBS": 0.19,
-    "xorMm2.GTP": 0,
-    "xorMm2.GM1": 0
-   },
-   "drag.kicad.untouched.tracks": {
-    "unattributed": 16
-   },
-   "drag.kicad.untouched.arcs": {
-    "unattributed": 1
-   },
-   "drag.kicad.untouched.pads": {
-    "unattributed": 6
-   },
-   "drag.kicad.tracks": {
-    "missing": 16,
-    "extra": 0,
-    "netMismatch": 0
-   },
-   "drag.kicad.arcs": {
-    "missing": 0,
-    "extra": 1,
+    "missing": 3,
+    "extra": 3,
     "netMismatch": 0
    },
    "drag.kicad.pads": {
-    "missing": 5,
-    "extra": 5,
-    "netMismatch": 0
-   },
-   "drag.kicad.films": {
-    "differing": 2,
-    "xorMm2.GTL": 0.255,
-    "xorMm2.G1": 0.188,
-    "xorMm2.G2": 0.188,
-    "xorMm2.GBL": 47.051,
-    "xorMm2.GTO": 0,
-    "xorMm2.GBO": 0,
-    "xorMm2.GTS": 0.188,
-    "xorMm2.GBS": 0.188,
-    "xorMm2.GTP": 0,
-    "xorMm2.GM1": 0
-   },
-   "rework.kicad.untouched.tracks": {
-    "unattributed": 16
-   },
-   "rework.kicad.untouched.arcs": {
-    "unattributed": 1
-   },
-   "rework.kicad.tracks": {
-    "missing": 16,
-    "extra": 0,
-    "netMismatch": 0
-   },
-   "rework.kicad.arcs": {
-    "missing": 0,
-    "extra": 1,
+    "missing": 3,
+    "extra": 3,
     "netMismatch": 0
    },
    "rework.kicad.pads": {
-    "missing": 8,
-    "extra": 8,
+    "missing": 6,
+    "extra": 6,
     "netMismatch": 0
-   },
-   "rework.kicad.films": {
-    "differing": 2,
-    "xorMm2.GTL": 0.255,
-    "xorMm2.G1": 0.188,
-    "xorMm2.G2": 0.188,
-    "xorMm2.GBL": 58.466,
-    "xorMm2.GTO": 0,
-    "xorMm2.GBO": 0,
-    "xorMm2.GTS": 0.188,
-    "xorMm2.GBS": 0.188,
-    "xorMm2.GTP": 0,
-    "xorMm2.GBP": 0,
-    "xorMm2.GM1": 0
    }
   },
   "pidp11-io-expander-edit": {
@@ -233,7 +66,7 @@
    },
    "slide.altium-source-copy.films": {
     "differing": 2,
-    "xorMm2.GTL": 6.686,
+    "xorMm2.GTL": 5.817,
     "xorMm2.GBL": 6.819,
     "xorMm2.GTO": 0,
     "xorMm2.GBO": 0,
@@ -244,8 +77,8 @@
    },
    "slide.kicad.films": {
     "differing": 2,
-    "xorMm2.GTL": 14.466,
-    "xorMm2.GBL": 14.598,
+    "xorMm2.GTL": 9.139,
+    "xorMm2.GBL": 9.665,
     "xorMm2.GTO": 0.001,
     "xorMm2.GBO": 0,
     "xorMm2.GTS": 0,
@@ -255,8 +88,8 @@
    },
    "drag.kicad.films": {
     "differing": 2,
-    "xorMm2.GTL": 19.264,
-    "xorMm2.GBL": 20.028,
+    "xorMm2.GTL": 9.108,
+    "xorMm2.GBL": 9.609,
     "xorMm2.GTO": 0.001,
     "xorMm2.GBO": 0,
     "xorMm2.GTS": 0,
@@ -266,8 +99,8 @@
    },
    "rework.kicad.films": {
     "differing": 2,
-    "xorMm2.GTL": 40.855,
-    "xorMm2.GBL": 22.923,
+    "xorMm2.GTL": 8.991,
+    "xorMm2.GBL": 9.59,
     "xorMm2.GTO": 0.693,
     "xorMm2.GBO": 0,
     "xorMm2.GTS": 0,

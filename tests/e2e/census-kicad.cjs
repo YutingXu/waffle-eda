@@ -440,7 +440,7 @@ const PAD = {
       const [w, h] = sizeOf(e);
       if (v === "circle") return t.shape === "round";
       if (v === "rect") return t.shape === "rect";
-      if (v === "oval") return t.shape === "oval" && near(w, h);
+      if (v === "oval") return t.shape === "oval";  // both are a capsule: a rectangle with its short sides rounded
       if (v === "roundrect") return t.shape === "roundrect" || +N(e.fields.roundrect_rratio ?? 0.25) === 0 && t.shape === "rect";
       if (v === "chamfered_rect") return chamferHeld(t, e);
       if (v === "trapezoid") return trapezoidHeld(t, e);
