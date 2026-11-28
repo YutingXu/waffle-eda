@@ -120,7 +120,7 @@ globalThis.AtriumBars = (() => {
   const pristine = layout.filter(n => n.nodeType === 1);
   for (const n of pristine) delete n.dataset.overflow;
   const parked = D.createDocumentFragment(), made = new WeakSet(), slots = new WeakMap(), groups = new Map(), known = new Map();
-  let more = null, rendering = false, availableIds = null;
+  let more = null, rendering = false, availableIds = null, passes = 0;
   const isDivider = n => n.classList.contains("tool-divider");
   const idOf = n => n.dataset.powerNet ? "power:" + n.dataset.powerNet : n.dataset.command || n.dataset.action || "";
   const entries = () => pristine.map(n => isDivider(n) ? {sep:true} : {id:idOf(n), scope:n.dataset.scope || ""});
@@ -267,6 +267,7 @@ globalThis.AtriumBars = (() => {
   function render(k = kind(), given) {
     if (!bar) return;
     rendering = true;
+    const pass = ++passes;
     const focused = bar.contains(D.activeElement) ? slots.get(/** @type {Element} */ (D.activeElement)) : null;
     const list = Array.isArray(given) ? given.map(item).filter(x => x != null) : listFor(k), chosen = faces()[k] || {}, used = new Set(), dividers = pristine.filter(isDivider), out = [];
     groups.clear();
@@ -327,7 +328,9 @@ globalThis.AtriumBars = (() => {
     rendering = false;
     G.AtriumActiveBar?.titles();
     fit();
-    if (!table && list) needIcons(drawnIds(k))?.then(() => render(k));
+    // The icons arrive later: a newer drawing (another kind, an edit) supersedes this one; otherwise
+    // draw what is current then, not the kind this pass began on.
+    if (!table && list) needIcons(drawnIds(k))?.then(() => { if (pass === passes) render(); });
     if (focused) [...bar.children].find(n => slots.get(n) === focused)?.focus();
   }
   // ------------------------------------------------------------------ overflow

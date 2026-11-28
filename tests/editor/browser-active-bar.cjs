@@ -529,6 +529,28 @@ async function overflowKeyboard(browser) {
   } finally { await page.close(); }
 }
 
+// [P2] An icon load that finishes after a kind switch draws the kind on screen, not the one it began on.
+async function iconsAfterKindSwitch(browser) {
+  const page = await open(browser);
+  try {
+    await page.evaluate(async () => {
+      const real = AtriumLazy;
+      let release; const gate = new Promise(r => { release = r; });
+      globalThis.__release = () => { release(); globalThis.AtriumLazy = real; };
+      globalThis.AtriumLazy = {...real, need:(name, ...rest) => name === "AtriumPalette" ? gate.then(() => real.need(name, ...rest)) : real.need(name, ...rest)};
+      await real.need("AtriumActiveBarMenu");
+      AtriumBars.setList("schematic", ["select", "paste", "pan"]); // Paste has no icon: its face waits for the palette's table
+    });
+    await kind(page, "pcb");
+    await page.evaluate(() => globalThis.__release());
+    await settle(page); await wait(300);
+    assert.deepEqual(await visible(page), ["select", "pan", "|", "library", "route", "via", "label", "|", "measure", "comment-mode"], "the board keeps its own bar");
+    await kind(page, "schematic");
+    assert.deepEqual(await visible(page), ["select", "paste", "pan"]);
+    console.log("PASS icon loads draw the current kind");
+  } finally { await page.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -568,7 +590,7 @@ async function shots(browser) {
 
 async function run(browser) {
   const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
-    overflowGroups, overflowKeyboard, shots};
+    overflowGroups, overflowKeyboard, iconsAfterKindSwitch, shots};
   for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)
