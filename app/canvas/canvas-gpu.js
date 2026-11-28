@@ -864,7 +864,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   function pourFan(st, region, k) {
     const entry = st.pours.get(region);
     const lod = region.patch ? null : G.AtriumPCBPours.lodRingsAt?.(region, k) || null, L = lod ? lod.level : -1;
-    const same = entry && entry.data === region.data && entry.count === region.count && entry.patch === region.patch;
+    const same = entry && entry.data === dataKey(region) && entry.count === region.count && entry.patch === region.patch;
     if (same && entry.level === L) return entry.fan;
     if (entry) {
       if (same && !region.patch && !fault("pourLodReuse")) {
@@ -882,7 +882,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const t = now();
     let rings; try { rings = region.patch ? patchRings(region.patch) : lod ? lod.rings : G.AtriumPCBPours.contours(region); } catch { rings = null; }
     const f = rings?.length ? fanOf(st.gl, rings) : null;
-    st.pours.set(region, {fan: f, level: L, data: region.data, count: region.count, patch: region.patch});
+    st.pours.set(region, {fan: f, level: L, data: dataKey(region), count: region.count, patch: region.patch});
     if (f) {
       st.stats.pourBytes += f.bytes; st.stats.pourMs += now() - t;
       st.stats.pourUploads++; st.stats.pourUploadBytes += f.bytes; st.checkMemory = true;
@@ -896,11 +896,13 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     const keep = new Set(list || []);
     for (const [r, entry] of st.pours) if (!keep.has(r)) dropPour(st, r, entry);
   }
+  // What a cached fan or bound of a region was made from (the pour engine's key for its data, no text).
+  const dataKey = r => G.AtriumPCBPours.dataKey?.(r) ?? r.data;
   const holeEdges = new WeakMap();
   function smallHoleEdges(region, scale) {
-    if (!(region.count > 1 && region.data)) return false;
+    if (!(region.count > 1 && G.AtriumPCBPours.dataLength(region))) return false;
     let e = holeEdges.get(region);
-    if (!e || e.data !== region.data || e.count !== region.count) {
+    if (!e || e.data !== dataKey(region) || e.count !== region.count) {
       const rings = G.AtriumPCBPours.contours(region);
       let shortest = Infinity;
       for (let n = 1; n < Math.min(rings.length, 9); n++) {
@@ -910,7 +912,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
           if (d > 1e-6) shortest = Math.min(shortest, d);
         }
       }
-      holeEdges.set(region, e = {data: region.data, count: region.count, shortest});
+      holeEdges.set(region, e = {data: dataKey(region), count: region.count, shortest});
     }
     return e.shortest * scale < 1;
   }
@@ -1005,7 +1007,11 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
     return [x, y, Math.min(w, Math.ceil(Math.max(p[0],q[0])*dpr + margin))-x,
       Math.min(h, Math.ceil(Math.max(p[1],q[1])*dpr + margin))-y];
   }
-  function coverageDamage(before, after) {
+  // Where a layer's coverage changed: the boxes the pour engine finds around the changed copper
+  // (AtriumPCBPours.viewDamage), else the bounds of every region that changed.
+  function coverageDamage(before, after, view, group, k) {
+    const P = G.AtriumPCBPours, boxes = view && P.viewDamage ? P.viewDamage(view, P.view(group), k) : null;
+    if (boxes) { let box = null; for (const b of boxes) box = mergeBounds(box, b); return box; }
     let box = null;
     for (let n=0; n<Math.max(before.length,after.length); n++) {
       const a = before[n], b = after[n];
@@ -1019,24 +1025,25 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   const coverageRegions = new WeakMap();
   function coverageRegion(r) {
-    const prior = coverageRegions.get(r);
-    const sameGeometry = prior && prior.data === r.data && prior.count === r.count;
+    const prior = coverageRegions.get(r), data = dataKey(r);
+    const sameGeometry = prior && prior.data === data && prior.count === r.count;
     if (sameGeometry && prior.net === r.net) return prior;
     let bounds = sameGeometry ? prior.bounds : null;
     if (!sameGeometry) {
       // Stored bounds describe the outer ring. An imported even-odd path
-      // can have other contours outside it. Bound the actual fill once.
+      // can have other contours outside it. Bound the actual fill once (the pour engine's ring boxes).
       const b = [Infinity, Infinity, -Infinity, -Infinity];
       try {
-        for (const xy of G.AtriumPCBPours.contours(r)) for (let i = 0; i < xy.length; i += 2) {
-          b[0] = Math.min(b[0], xy[i]); b[1] = Math.min(b[1], xy[i+1]);
-          b[2] = Math.max(b[2], xy[i]); b[3] = Math.max(b[3], xy[i+1]);
+        const q = G.AtriumPCBPours.ringBoxes(r);
+        for (let i = 0; i < q.length; i += 4) {
+          b[0] = Math.min(b[0], q[i]); b[1] = Math.min(b[1], q[i+1]);
+          b[2] = Math.max(b[2], q[i+2]); b[3] = Math.max(b[3], q[i+3]);
         }
       } catch { b.fill(NaN); }
       if (b.every(Number.isFinite)) bounds = b;
     }
     // Bands keep these records for comparisons across edits, including in-place changes.
-    const entry = {data: r.data, count: r.count, net: r.net, bounds};
+    const entry = {data, count: r.count, net: r.net, bounds};
     coverageRegions.set(r, entry);
     return entry;
   }
@@ -1137,7 +1144,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (band?.tex && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
       const needsTexture = !band?.tex;
       const next = group.map(coverageRegion);
-      const sameView = !needsTexture && band.key === bandKey, dirty = sameView ? coverageDamage(band.regions,next) : null;
+      const sameView = !needsTexture && band.key === bandKey, dirty = sameView ? coverageDamage(band.regions,next,band.view,group,Math.abs(scale*dpr)) : null;
       if (band?.ink) band.ink = ink;
       if (sameView && dirty === null) { band.offscreen = false; continue; }
       const pixels = coveragePixels(I,next,dpr,w,h,!READBACK);
@@ -1168,7 +1175,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
         }
         cover.layers.set(layer,band); st.checkMemory = true;
       }
-      band.offscreen = false; band.key = bandKey; band.regions = next;
+      band.offscreen = false; band.key = bandKey; band.regions = next; band.view = G.AtriumPCBPours.view?.(group);
       let sx=0, sy=0, sw=w, sh=h, visibleRegions=group;
       if (dirty) {
         [sx,sy,sw,sh] = damagePixels(I,dirty,dpr,2,w,h);

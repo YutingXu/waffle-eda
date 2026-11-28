@@ -14,7 +14,7 @@ globalThis.AtriumLivePourClient = (() => {
     function ask(data, still, drive) {
       return new Promise((resolve, reject) => {
         const span = globalThis.AtriumDiagnostics?.performance?.queue("pours", "request");
-        const request = {id:++sequence, resolve, reject, rows:[], receive:0, span};
+        const request = {id:++sequence, resolve, reject, rows:[], runs:new Map(), bytes:0, receive:0, span};
         active = request;
         request.timer = setTimeout(() => close(Object.assign(Error("The live pour worker stopped responding."), {hung:true})), TIMEOUT_MS);
         drive(request.id).then(() => {
@@ -67,17 +67,26 @@ globalThis.AtriumLivePourClient = (() => {
         const request = active;
         if (worker !== opened || !request || data.id !== request.id) return;
         const t = performance.now();
-        if (data.type === "regions") request.rows.push(...data.rows);
-        else if (data.type === "regionField") {
+        // Bytes received for new copper (its data, links and arcs as cloned, and the run tables).
+        const weigh = value => typeof value === "string" ? value.length : ArrayBuffer.isView(value) ? value.byteLength :
+          Array.isArray(value) ? value.reduce((n, x) => n + (typeof x === "number" ? 8 : weigh(x)), 8) :
+          value && typeof value === "object" ? Object.values(value).reduce((n, x) => n + weigh(x), 8) : 8;
+        if (data.type === "regions") {
+          // Rows: a kept region's index, a region held as runs ({fields, runs: keys}), or a region.
+          request.rows.push(...data.rows);
+          for (const run of data.runs || []) {request.runs.set(run.id, run); request.bytes += weigh(run);}
+          for (const row of data.rows) if (typeof row !== "number") request.bytes += weigh(row);
+        } else if (data.type === "regionField") {
           const row = request.rows.at(-1), field = row[data.field];
           if (field == null) row[data.field] = data.value;
           else if (Array.isArray(field)) field.push(...data.value);
           else row[data.field] += data.value;
+          request.bytes += weigh(data.value);
         } else if (data.error) {
           mirror = null; finish(request, Error(data.error));
         } else {
           request.span?.ready();
-          finish(request, null, {...data.result, rows:request.rows, request:request.id, receive:request.receive});
+          finish(request, null, {...data.result, rows:request.rows, runs:request.runs, request:request.id, receive:request.receive, bytes:request.bytes});
         }
         request.receive = Math.max(request.receive, performance.now() - t);
       };
@@ -86,7 +95,7 @@ globalThis.AtriumLivePourClient = (() => {
     function* batches(type, values, index, stats, ids) {
       let rows = [];
       for (const row of values) {
-        const huge = (row.points?.length || 0) > 4096 || (row.data?.length || 0) > 131072 ||
+        const huge = (row.points?.length || 0) > 4096 || (globalThis.AtriumPCBPours?.dataLength?.(row) ?? row.data?.length ?? 0) > 131072 ||
           (row.links?.length || 0) > 4096 || (row.arcs?.length || 0) > 4096;
         if (!huge) rows.push(row);
         if (rows.length && (huge || rows.length === ROWS)) {

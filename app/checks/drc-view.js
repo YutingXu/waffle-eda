@@ -137,7 +137,17 @@ globalThis.AtriumDRCView = (() => {
     const K = globalThis.AtriumChecks;
     if (!K) return;
     let a = adapters.get(d.id);
-    if (!a) adapters.set(d.id, a = v => K.fromDRC(v, d.id));
+    // An incremental check keeps the violation objects it did not re-check: their shared form is kept too,
+    // so a publication converts what the edit changed.
+    if (!a) {
+      const held = new WeakMap();
+      adapters.set(d.id, a = v => {
+        if (!v || typeof v !== "object") return K.fromDRC(v, d.id);
+        let x = held.get(v);
+        if (x === undefined) held.set(v, x = K.fromDRC(v, d.id));
+        return x;
+      });
+    }
     K.publish(d.id, "drc", shown.get(d.id) || EMPTY, a, {pending, unavailable});
     K.publish(d.id, "drc-waived", waivedShown.get(d.id) || EMPTY, a);
     // Net-wide results change only with a batch run (or a waiver): keep the published list while they hold.
@@ -236,7 +246,7 @@ globalThis.AtriumDRCView = (() => {
       }
       const view = dirty.size && boxes ? physical() : null;
       if (dirty.size && !view) return null;
-      const extents = delta && new Map(delta.bounds.map(box => [box.join(","),box]));
+      const extents = delta && new Map((delta.items ?? delta).bounds.map(box => [box.join(","),box]));
       for (const id of dirty) {
         const old = boxes.get(id), item = items.get(id);
         const current = item && ownerBounds(view,doc,id);
@@ -375,7 +385,10 @@ globalThis.AtriumDRCView = (() => {
       const copperChanged = state.copper !== deps.copper;
       const refreshCopper = violations => {
         const T = types().filter(t => COPPER_TYPES.has(t));
-        const r = T.length ? R().drc(doc, defs, rules, {compiled:state.compiled,project:hint?.project,types:T, limit:5000}) : {violations:[]};
+        // Polygon Connect and Return Path read the copper and the items themselves, not the extracted
+        // board features (only Creepage Distance does): an empty extraction spares a pass over the board.
+        const geo = T.includes("creepage") && state.compiled.byType.creepage?.length || !R().kit?.extract ? null : {geo:R().kit.extract({...doc, items:[]}, defs)};
+        const r = T.length ? R().drc(doc, defs, rules, {compiled:state.compiled,project:hint?.project,types:T, limit:5000, ...geo}) : {violations:[]};
         return violations.filter(v => !COPPER_TYPES.has(v.type)).concat(r.violations);
       };
       const changes = indexedChanges(doc,hint,delta,known,physical);
@@ -459,7 +472,7 @@ globalThis.AtriumDRCView = (() => {
         copper:left ? state.copper : deps.copper, pending:left, certs:store, revision:geometry?.revision, floor:hint?.floor};
       const ms = now() - t0;
       return {violations, mode:left ? "partial" : "incremental", ms, dirty:parts.reduce((n, p) => n + p.length, 0),
-        checked, layers:delta?.layers, overBudget:ms > budget, tracked:known, ...(left ? {pending:parts.length-k} : null)};
+        checked, layers:(delta?.items ?? delta)?.layers, overBudget:ms > budget, tracked:known, ...(left ? {pending:parts.length-k} : null)};
     }
     // Seed from a batch run so online results match it until the next edit.
     function seed(doc, defs, rules, violations, at, outer, library, pours, project, batchOptions, geometry, floor) {
@@ -763,7 +776,16 @@ globalThis.AtriumDRCView = (() => {
         return needsPourCheck(d) && stateFor(d).poursAt !== stamp(d);
       },
       start(d) {
-        const revision = stamp(d), it = AtriumDRCPours.steps(d, host.defs(), rulesOf(d, host.project()), {project:host.project()});
+        // One session per board (drc-pours.js session()): from the undo journal's changed items since
+        // its last completed run, it re-checks what the edit and the refill changed.
+        const revision = stamp(d), project = host.project(), first = stateFor(d), U = globalThis.AtriumUndoStore, v = boardVersion(d);
+        const session = AtriumDRCPours.session ? (first.poursSession ??= AtriumDRCPours.session()) : null;
+        const ch = session && v && U?.changed ? U.changed(d, session.since()) : null;
+        const it = session ? session.steps(d, host.defs(), rulesOf(d, project), {project, changes:ch?.ids ? ch : null, seq:ch?.seq,
+          // The board inputs a check reads outside its items (outerPrint, as online DRC compares them), not
+          // the outer version: view state and other metadata written to the board leave it unchanged.
+          key:v ? v.floor + "/" + v.library + "/" + outerPrint(d, project) : null}) :
+          AtriumDRCPours.steps(d, host.defs(), rulesOf(d, project), {project});
         return (function* () {
           let r = it.next();
           while (!r.done) {yield; r = it.next();}

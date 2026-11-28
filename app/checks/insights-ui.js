@@ -96,13 +96,16 @@ globalThis.AtriumInsightsUI = (() => {
     return out.join(",") + "|" + v0.project + "|" + v0.library;
   }
   const stamps = new Map();
+  const owes = d => !!engine?.state(d.id)?.owed?.size;
   function client(h) {
     G.AtriumChecks?.attach?.(h);
     S()?.client?.({id: "insights", key: d => "insights:" + d.id, phase: () => "idle", unrecorded: "sync", heavy: true, efficiency: true,
       delay: o => { if (nowNext || o?.now) { nowNext = false; return 0; } return efficient() ? 1500 : 400; },
       enabled: () => enabled,
       docs: () => { const d = host.doc(); return d && ["pcb", "schematic"].includes(d.kind) ? [d] : []; },
-      due: (d, o) => !!(o?.force || o?.heavy || !engine.state(d.id) || stamps.get(d.id) == null || stamps.get(d.id) !== stampOf(d)),
+      // The delayed heavy pass (o.heavy) is due only for checks an Efficiency-mode pass skipped.
+      due: (d, o) => !!(o?.force || o?.heavy && owes(d) || !engine.state(d.id) || stamps.get(d.id) == null || stamps.get(d.id) !== stampOf(d)),
+      owes,
       onDocument: () => { closeCard(); hover = null; nowNext = true; },
       start: (d, slice, o) => start(d, o || {})});
   }

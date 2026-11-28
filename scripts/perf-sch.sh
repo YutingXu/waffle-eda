@@ -9,20 +9,30 @@
 # scripts/perf-canvas.sh stage 2. Idle and post-edit CPU come from the browser's own counters
 # (DevTools Performance.getMetrics TaskDuration) between marks the probe sets.
 #
-# Usage: scripts/perf-sch.sh [--sheets 30|100] [--project path/to/Project.PrjPcb] [--json] [--out file.json]
+# Usage: scripts/perf-sch.sh [--sheets 30|100] [--project path/to/Project.PrjPcb] [--board [nets|pours]] [--json] [--out file.json]
 #                            [--skip-if-no-browser] [--no-budget]
+#   --board measures idle energy on the 25,600-object PCB benchmark board (tests/pcb/dense-board.js)
+#   instead: time and CPU until quiet after open and after one small edit, and 10 s windows that must
+#   be quiet (they span the 8 s Efficiency-mode heavy insights delay). EFFICIENCY=always (default),
+#   off or auto sets Preferences > Energy for the run.
+#   --board nets gives the board 64 nets, --board pours also its ten poured polygons (the board of
+#   scripts/perf-canvas.sh stage 2); both then time a series of small edits (move a part, bend, add
+#   and delete a track, paste 4 objects, undo, redo): the longest main-thread task until quiet after
+#   each (editTaskMax) and its CPU (editSeriesCpuMs). PROFILE=dir saves a CPU profile of each edit
+#   window there (ed0.cpuprofile …; DevTools › Performance opens them).
 #   --project opens a real project read-only through File › Open (the folder's top-level Altium or
 #   KiCad files); nothing is written next to it.
 # Env: CHROME=/path/to/chrome  APP=/path/to/app  RUNS=1 (median of RUNS launches)  ONLY=camera,switch,...
+#      GPU=1 leaves the GPU on (GPU raster, and the GPU renderer where the editor picks it).
 #      BUDGET_<METRIC>=ms overrides one p95 budget (metric upper-cased: BUDGET_PANFIT=12).
 # Budgets are generous (CI machines vary); the targets on an M-series Mac are interaction frames
 # <= 8 ms p95 on the 30-sheet project, sheet switch <= 50 ms, idle wake-ups ~0.
 # Exit status: 0 within budget, 1 over budget, 2 no browser or the probe failed.
 root=${0:A:h:h}
-json=0; skip=0; sheets=30; project=""; out=""; nobudget=0
+json=0; skip=0; sheets=30; project=""; out=""; nobudget=0; board=0
 while (( $# )); do
   case $1 in
-    --json) json=1;; --skip-if-no-browser) skip=1;; --no-budget) nobudget=1;;
+    --json) json=1;; --skip-if-no-browser) skip=1;; --no-budget) nobudget=1;; --board) board=1; [[ $2 == (nets|pours) ]] && { board=$2; shift; };;
     --sheets) shift; sheets=$1;; --project) shift; project=${1:A};; --out) shift; out=$1;;
     *) print -u2 "unknown argument $1"; exit 2;;
   esac; shift
@@ -37,9 +47,10 @@ if [[ ! -x $chrome ]]; then
   exit 2
 fi
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/atrium-perf-sch.XXXXXX"); trap 'rm -rf $tmp' EXIT
-python3 - "$chrome" "${APP:-$root/app}" "$root" "$tmp" "$json" "${RUNS:-1}" "$sheets" "$project" "$out" "$nobudget" <<'PY'
+python3 - "$chrome" "${APP:-$root/app}" "$root" "$tmp" "$json" "${RUNS:-1}" "$sheets" "$project" "$out" "$nobudget" "$board" <<'PY'
 import sys, os, json, socket, subprocess, time, urllib.request, urllib.parse, statistics
-chrome, app, root, tmp, asjson, runs, sheets, project, outpath, nobudget = sys.argv[1:11]
+chrome, app, root, tmp, asjson, runs, sheets, project, outpath, nobudget, board = sys.argv[1:12]
+board = {"0": False, "1": True}.get(board, board)
 sys.path.insert(0, os.path.join(root, "scripts", "ci"))
 import chrome_cdp
 asjson, runs, sheets, nobudget = asjson == "1", int(runs), int(sheets), nobudget == "1"
@@ -54,13 +65,14 @@ if project:
 h = open(app + "/index.html").read()
 h = h.replace("<head>", '<head><base href="file://%s/"><script>window.__errs=[];addEventListener("error",e=>__errs.push(e.message+" @"+(e.filename||"").split("/").pop()+":"+e.lineno));'
     'addEventListener("unhandledrejection",e=>__errs.push("rejection: "+(e.reason&&e.reason.message||e.reason)));</script>' % app, 1)
-h = h.replace("</body>", '<script src="file://%s/tests/schematic/sch-bench-project.js"></script><script src="file://%s/tests/integration/perf-sch.js"></script></body>' % (root, root))
+h = h.replace("</body>", '<script src="file://%s/tests/schematic/sch-bench-project.js"></script>%s<script src="file://%s/tests/integration/perf-sch.js"></script></body>' % (root,
+    '<script src="file://%s/tests/pcb/dense-board.js"></script>' % root if board else "", root))
 open(tmp + "/sch.html", "w").write(h)
 
 def run_once():
     s0 = socket.socket(); s0.bind(("127.0.0.1", 0)); port = s0.getsockname()[1]; s0.close()
     prof = tmp + "/prof"; subprocess.run(["rm", "-rf", prof])
-    proc = subprocess.Popen([chrome, "--headless=new", "--no-first-run", "--allow-file-access-from-files", "--disable-gpu", "--enable-precise-memory-info",
+    proc = subprocess.Popen([chrome, "--headless=new", "--no-first-run", "--allow-file-access-from-files", *([] if os.environ.get("GPU") else ["--disable-gpu"]), "--enable-precise-memory-info",
         "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--js-flags=--expose-gc",
         "--user-data-dir=" + prof, "--remote-debugging-port=%d" % port, "--window-size=1440,900", "--force-device-scale-factor=1",
         "file://" + tmp + "/sch.html"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -86,6 +98,11 @@ def run_once():
             ms = {m["name"]: m["value"] for m in call("Performance.getMetrics")["result"]["metrics"]}
             return {"task": ms.get("TaskDuration", 0), "script": ms.get("ScriptDuration", 0), "t": ms.get("Timestamp", time.time())}
         call("Performance.enable"); call("Runtime.enable"); call("Runtime.addBinding", name="__schMark")
+        prof = os.environ.get("PROFILE")
+        if prof:
+            os.makedirs(prof, exist_ok=True); call("Profiler.enable"); call("Profiler.setSamplingInterval", interval=200)
+        def dump(kind, profile):
+            with open(os.path.join(prof, kind + ".cpuprofile"), "w") as f: json.dump(profile, f)
         for _ in range(150):
             r = call("Runtime.evaluate", expression="typeof atriumSchProbe==='function'&&!!globalThis.AtriumNavHost&&document.readyState==='complete'", returnByValue=True)
             if r.get("result", {}).get("result", {}).get("value"): break
@@ -93,6 +110,7 @@ def run_once():
         time.sleep(1.0)
         opts = {"sheets": sheets}
         if files: opts["files"] = files
+        if board: opts["board"] = board; opts["efficiency"] = os.environ.get("EFFICIENCY", "always")
         if os.environ.get("ONLY"): opts["only"] = os.environ["ONLY"].split(",")
         call("Runtime.evaluate", expression="window.__schOut=null;atriumSchProbe(Object.assign(%s,{mark:t=>__schMark(t)})).then(o=>__schOut=JSON.stringify(o)).catch(e=>__schOut='ERR '+e.message+' '+e.stack).finally(()=>__schMark('done'))" % json.dumps(opts))
         # Block on DevTools events (no polling, so the idle window is not disturbed); the probe marks
@@ -106,7 +124,10 @@ def run_once():
                 if r.get("method") == "Runtime.bindingCalled": marks.append(r["params"]["payload"])
             tag = marks.pop(0)
             if tag == "done": done = True; continue
-            c = cpu(); kind, edge = tag.rsplit("-", 1)
+            kind, edge = tag.rsplit("-", 1)
+            if prof and kind.startswith("ed") and edge == "end": dump(kind, call("Profiler.stop")["result"]["profile"])
+            c = cpu()
+            if prof and kind.startswith("ed") and edge == "start": call("Profiler.start")
             if edge == "start": cpuAt[kind] = c
             elif kind in cpuAt:
                 a = cpuAt.pop(kind); wall = max(1e-6, c["t"] - a["t"])
@@ -119,6 +140,10 @@ def run_once():
         if "idle" in windows: out["metrics"]["idleCpuPct"] = windows["idle"][0]["cpuPct"]
         if "settle" in windows: out["metrics"]["openSettleCpuMs"] = windows["settle"][0]["cpuMs"]
         if "edit" in windows: out["metrics"]["editWindowCpuMs"] = max(w["cpuMs"] for w in windows["edit"])
+        series = out["checks"].get("editSeries") or []
+        for k, row in enumerate(series):
+            if "ed%d" % k in windows: row["cpuMs"] = windows["ed%d" % k][0]["cpuMs"]
+        if series and all("cpuMs" in r for r in series): out["metrics"]["editSeriesCpuMs"] = max(r["cpuMs"] for r in series)
         out["cpuWindows"] = windows
         return out
     finally: proc.kill()
@@ -135,6 +160,18 @@ B = {"panFit": 16, "panZoomed": 16, "zoomWheel": 25, "rightDragPan": 16, "hover"
      "idleWakeupsPerSec": 1, "idleWakeupsAfterPerSec": 1, "idleCpuPct": 2, "openQuietAfterMs": 20000, "lastEditQuietAfterMs": 20000,
      "editWindowCpuMs": 200, "autosavePassOneEdit": 30, "heapEndMB": 400}
 if sheets >= 100 or files: B = {k: v * 2 for k, v in B.items()}
+# The board (--board): nothing may run once the editor is quiet. See the measurements and reasons in
+# docs/design/unified-rules-and-checks.md (Idle).
+if board: B = {"idleWakeupsPerSec": 0.2, "idleWakeupsAfterPerSec": 0.2, "idleCpuPct": 2, "openQuietAfterMs": 10000, "lastEditQuietAfterMs": 12000,
+               "openSettleCpuMs": 1500, "editWindowCpuMs": 400, "editFrame": 100}
+# The edit series (--board nets, --board pours): the longest task until quiet after any one edit and the
+# most CPU one edit costs. With pours, the open pours ten polygons and the first edit after open runs the
+# first pour clearance check. A refill repaints, sends, autosaves and keeps for Undo the copper that
+# changed, not the island (docs/design/pour-copper-proportional.md: measured 0 ms tasks over 50, frames
+# 30-40 ms, 360 ms CPU per edit at most; one run in nine had a 64 ms task after Undo on a loaded machine), so
+# the budgets keep margin over that while catching a return to whole-island work (base: 67-83 ms).
+if board == "nets": B.update({"editTaskMax": 50, "editSeriesCpuMs": 400})
+if board == "pours": B.update({"editTaskMax": 70, "editCanvasMax": 50, "editSeriesCpuMs": 550, "editWindowCpuMs": 1200, "openSettleCpuMs": 1800})
 B = {k: float(os.environ.get("BUDGET_" + k.upper(), v)) for k, v in B.items()}
 fail = []
 if not nobudget:
@@ -145,7 +182,7 @@ if not nobudget:
         if val is not None and val > lim: fail.append("%s %.2f > %g" % (k, val, lim))
 errors = results[-1]["checks"].get("errors", []) + results[-1]["pageErrors"]
 if errors: fail.append("%d page error(s)" % len(errors))
-report = {"workload": ("project " + project) if project else "synthetic %d sheets" % sheets, "metrics": metrics, "checks": results[-1]["checks"],
+report = {"workload": ("PCB benchmark board" + ("" if board is True else " (" + board + ")") + ", Efficiency " + os.environ.get("EFFICIENCY", "always")) if board else ("project " + project) if project else "synthetic %d sheets" % sheets, "metrics": metrics, "checks": results[-1]["checks"],
           "cpuWindows": results[-1]["cpuWindows"], "budgets": B, "failed": fail, "errors": errors, "env": results[-1]["env"], "runs": runs}
 if outpath: open(outpath, "w").write(json.dumps(report, indent=1))
 if asjson: print(json.dumps(report, indent=1))
@@ -156,6 +193,11 @@ else:
         if isinstance(m, dict): print("  %-24s n %3d  p50 %8.2f  p95 %8.2f  max %8.2f   %s" % (k, m["n"], m["p50"], m["p95"], m["max"], ("budget p95 %g" % B[k]) if k in B else ""))
         else: print("  %-24s %10s   %s" % (k, m, ("budget %g" % B[k]) if k in B else ""))
     print("  idle wake-ups:", results[-1]["checks"].get("idleWakeups"))
+    for r in results[-1]["checks"].get("editSeries") or []:
+        print("  edit %-14s frame %6.1f  longest task %6.1f  long tasks %2d (%6.1f ms)  CPU %7.1f ms  quiet after %5d ms" % (r["name"], r["frame"], r["taskMax"], r["longTasks"], r["longMs"], r.get("cpuMs", -1), r["quietMs"]))
+        if "canvasMs" in r:
+            kb = lambda v: "-" if v is None else "%.1f" % (v / 1024)
+            print("       canvas %6.1f ms (longest %5.1f)  pour worker %s KB %s  autosave %s KB (%d)  undo %s KB" % (r["canvasMs"], r["canvasMax"], kb(r.get("pourBytes")), r.get("pourRegions") or "", kb(r.get("autosaveBytes")), r.get("autosaves", 0), kb(r.get("undoBytes"))))
     if errors: print("  page errors:", errors[:10])
     print("FAIL: " + "; ".join(fail) if fail else "PASS schematic budgets")
 sys.exit(1 if fail else 0)

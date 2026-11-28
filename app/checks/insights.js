@@ -23,6 +23,8 @@ if (!globalThis.AtriumGeometry && typeof require === "function") require("../cor
 // Engine: engine() → {*update(project, doc, defs, hint, opts), list(docId), reset()}; hint is the
 //   undo store's journal (AtriumUndoStore.changed). Each yield is a checkpoint where the caller
 //   may pause (idle slices) or abandon the run (a newer edit), so it never blocks input.
+//   opts.skipHeavy (Efficiency mode) leaves cached heavy checks alone; the ones an edit concerned
+//   are owed (state(docId).owed, result.owed) and re-run whole by the next pass without it.
 // Headless: analyze(project, doc, defs, opts) → {insights, notes, ms} (full run, synchronous);
 //   headless(args, {project}) is MCP list_insights.
 //
@@ -349,8 +351,18 @@ globalThis.AtriumInsights = (() => {
       }
     }
     // Views of the indexes for one pass, with the pass's pending changes laid over them.
-    function views(st, pending, live) {
+    function views(st, pending, live, doc) {
       const item = id => pending.has(id) ? (pending.get(id) ? live.get(id) : null) : st.live.get(id);
+      // Items in document order, as a full pass visits them: a check that keeps the first of several
+      // hits (silk over pads) then picks the same one from the index as from the whole board.
+      // The positions are kept between passes while the list is the same and every changed item is
+      // still where they say (an insertion, removal or reorder moves one of them).
+      let order = null;
+      const valid = o => o && o.items === doc.items && o.length === doc.items.length && [...pending].every(([id, n]) => !n || doc.items[o.at.get(live.get(id))] === live.get(id));
+      const rank = i => {
+        if (!order) { order = valid(st.order) ? st.order.at : (st.order = {items: doc.items, length: doc.items.length, at: new Map(doc.items.map((x, k) => [x, k]))}).at; }
+        return order.get(i) ?? Infinity;
+      };
       return {
         boxOf: id => pending.has(id) ? pending.get(id)?.box : st.items.get(id)?.box,
         itemsIn(boxes) {
@@ -359,7 +371,7 @@ globalThis.AtriumInsights = (() => {
           for (const [id, n] of pending) if (n) ids.add(id);
           const out = [];
           for (const id of ids) { const i = item(id), b = i && (pending.has(id) ? pending.get(id).box : st.items.get(id)?.box); if (i && b && boxes.some(q => overlaps(b, q))) out.push(i); }
-          return out;
+          return out.length > 1 ? out.sort((a, b) => rank(a) - rank(b)) : out;
         },
         netItems(net) {
           const out = [];
@@ -377,7 +389,8 @@ globalThis.AtriumInsights = (() => {
       if (!KINDS.includes(kind)) return {insights: [], mode: "none", ms: 0};
       const active = enabledChecks(kind, opts);
       const rulesSig = kind === "pcb" ? JSON.stringify([G.AtriumRules?.stored?.(doc, project) ?? null, doc.layerStack ?? doc.stackup ?? null]) : "";
-      const optsSig = JSON.stringify([opts.sensitivity, opts.settings, opts.checks, opts.allSignals, opts.skipHeavy, active.map(c => c.id).join(","),
+      // skipHeavy is not part of it: what a pass skips is owed (below), so the cache stays valid.
+      const optsSig = JSON.stringify([opts.sensitivity, opts.settings, opts.checks, opts.allSignals, active.map(c => c.id).join(","),
         active.map(c => JSON.stringify(settingsFor(c, opts))).join("|")]);
       let st = docs.get(doc.id);
       const known = !!(st && st.project === project && hint?.ids && hint.from != null && st.at === hint.from && st.outer === opts.outer && st.rulesSig === rulesSig && st.optsSig === optsSig && st.items);
@@ -413,7 +426,10 @@ globalThis.AtriumInsights = (() => {
         inputStamps.set(check.id, stamp);
         if (stamp == null || stamp !== st?.inputStamps?.get(check.id)) changedInputs.add(check.id);
       }
-      if (!full && !dirty.size && !others && !changedInputs.size && !opts.force) { commit(st, updates, hint.items); st.at = hint.to; return {insights: list(doc.id), mode: "none", ms: now() - t0}; }
+      // Heavy checks an Efficiency-mode pass skipped after an edit (opts.skipHeavy) are owed: the
+      // next pass that may run them re-runs them whole, even when nothing else changed.
+      const owed = !full && !opts.skipHeavy && st.owed?.size ? st.owed : null;
+      if (!full && !dirty.size && !others && !changedInputs.size && !opts.force && !owed) { commit(st, updates, hint.items); st.at = hint.to; return {insights: list(doc.id), mode: "none", ms: now() - t0, owed: [...(st.owed || [])]}; }
       if (others && !full) { full = true; why = "other sheets"; }
       if (full) {
         st = {at: hint?.to ?? null, outer: opts.outer, rulesSig, optsSig, cache: new Map(), memo: st?.project === project && st.rulesSig === rulesSig ? st.memo : new Map(), project};
@@ -421,20 +437,21 @@ globalThis.AtriumInsights = (() => {
         yield {phase: "snapshot"};
       }
       // A stopped iterator must not publish partial check results.
-      if (!full) st = {...st, cache:new Map(st.cache)};
-      const v = views(st, full ? new Map() : new Map(updates), hint?.items || new Map());
+      if (!full) st = {...st, cache:new Map(st.cache), owed:new Set(st.owed || [])};
+      else st.owed = new Set();
+      const v = views(st, full ? new Map() : new Map(updates), hint?.items || new Map(), doc);
       const ctx = context(project, doc, defs, {...opts, memo: st.memo, sheetMemo, ...v});
       if (boxes && boxes.length > 24) boxes = [boxes.reduce((u, b) => union(u, b), null)];
       const ran = [];
       for (const check of active) {
-        if (check.heavy && opts.skipHeavy && st.cache.has(check.id)) continue;
+        if (check.heavy && opts.skipHeavy && st.cache.has(check.id)) { if (dirty?.size || changedInputs.has(check.id) || opts.force) st.owed.add(check.id); continue; }
         ctx.settings = settingsFor(check, opts);
         const prev = st.cache.get(check.id);
         const areaInput = check.areaInput?.(ctx, dirty, kinds);
         const areaChanged = areaInput && (areaInput.changed || st.inputStamps?.get(check.id) !== areaInput.stamp);
         if (areaInput) inputStamps.set(check.id, areaInput.stamp);
         let scope = null, keep = [];
-        if (!full && prev && !changedInputs.has(check.id) && !areaChanged) {
+        if (!full && prev && !changedInputs.has(check.id) && !areaChanged && !st.owed.has(check.id)) {
           if (check.scope === "net") {
             if (!nets.size && !(check.alsoKinds && [...kinds].some(k => check.alsoKinds.includes(k)))) continue;
             scope = {nets: new Set(nets), dirty};
@@ -456,16 +473,18 @@ globalThis.AtriumInsights = (() => {
         const fresh = got.map(r => finish(check, ctx, r));
         if (scope && check.scope === "area") { const near = scope.boxes; st.cache.set(check.id, keep.concat(fresh.filter(x => near.some(b => inBox(x.at, b)) || x.objects.some(o => dirty.has(o))))); }
         else st.cache.set(check.id, scope ? keep.concat(fresh) : fresh);
+        st.owed.delete(check.id);
         ran.push({id: check.id, ms: r3(now() - t1), count: fresh.length});
         yield {phase: "check", id: check.id};
       }
       // Checks switched off since the last run.
       const on = new Set(active.map(c => c.id));
       for (const k of [...st.cache.keys()]) if (!on.has(k)) st.cache.delete(k);
+      for (const k of [...st.owed]) if (!on.has(k)) st.owed.delete(k);
       if (!full) commit(st, updates, hint.items);
       st.at = hint?.to ?? st.at; st.notes = ctx.notes; st.inputStamps = inputStamps;
       docs.set(doc.id, st);
-      return {insights: list(doc.id), mode: full ? "full" : "incremental", why, ms: now() - t0, ran, dirty: dirty?.size ?? doc.items.length, notes: ctx.notes};
+      return {insights: list(doc.id), mode: full ? "full" : "incremental", why, ms: now() - t0, ran, dirty: dirty?.size ?? doc.items.length, notes: ctx.notes, owed: [...st.owed]};
     }
     function list(docId) {
       const st = docs.get(docId);

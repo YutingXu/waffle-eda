@@ -96,22 +96,31 @@
     const {drawing, ...result} = r.value;
     if (drawing) {
       const previous = new Map((doc.pcbDrawing?.pours || []).map((region, k) => [region, k]));
-      const {pours} = drawing, rows = [];
-      let weight = 0;
+      const {pours} = drawing, rows = [], P = G.AtriumPCBPours;
+      let weight = 0, runs = [];
       pending = {id, drawing, stamp:result.stamp};
       result.drawing = {};
       for (const key of ["importedPourSignature", "sourceHatchSignature", "pourSignatures", "pourSignatureVersion"])
         if (Object.hasOwn(drawing, key)) result.drawing[key] = drawing[key];
       result.hasPours = !!pours;
+      // A new region held as runs (AtriumPCBPours) goes as its fields and run keys: only the runs the
+      // editor does not hold travel (those of the regions it has now, which this mirror shares, do not).
+      const known = P.runIds([...previous.keys()]);
       for (const region of pours || []) {
-        const retained = previous.get(region);
-        const size = retained != null ? 16 : (region.data?.length || 0) + (region.links?.length || 0) * 32 + (region.arcs?.length || 0) * 8;
+        const retained = previous.get(region), copper = retained == null ? P.copperOf(region) : null;
+        let row = retained ?? region, size = 16;
+        if (copper) {
+          row = {fields:P.fieldsOf(region), runs:copper.runs.map(run => run.id)};
+          size = 64 + (region.links?.length || 0) * 32;
+          for (const run of copper.runs) if (!known.has(run.id)) {known.add(run.id); runs.push(P.runRecord(run)); size += run.size;}
+        } else if (retained == null) size = P.dataLength(region) + (region.links?.length || 0) * 32 + (region.arcs?.length || 0) * 8;
         if (rows.length && (rows.length >= 64 || weight + size > 131072)) {
-          G.postMessage({type:"regions", id, rows:rows.splice(0)}); weight = 0;
+          // Runs go with any message: the editor builds the regions once every message has come.
+          G.postMessage({type:"regions", id, rows:rows.splice(0), runs:runs.splice(0)}); weight = 0;
         }
-        if (size <= 131072) {rows.push(retained ?? region);weight += size;continue;}
+        if (copper || size <= 131072) {rows.push(row);weight += size;continue;}
         const {data, links, arcs, ...small} = region;
-        G.postMessage({type:"regions", id, rows:[small]});
+        G.postMessage({type:"regions", id, rows:[small], runs:runs.splice(0)});
         for (const [field, value, step] of [["data",data,131072], ["links",links,4096], ["arcs",arcs,4096]]) {
           if (value == null) continue;
           if (!value.length) G.postMessage({type:"regionField",id,field,value});
@@ -119,7 +128,7 @@
             G.postMessage({type:"regionField",id,field,value:value.slice(k,k+step)});
         }
       }
-      if (rows.length) G.postMessage({type:"regions", id, rows});
+      if (rows.length || runs.length) G.postMessage({type:"regions", id, rows, runs});
     }
     G.postMessage({type:"result", id, result});
   }

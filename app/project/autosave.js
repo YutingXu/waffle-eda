@@ -137,7 +137,7 @@ globalThis.AtriumAutosave = (() => {
       try { return (await tx(["meta"], "readonly", t => req(t.objectStore("meta").getAll()))) || []; } catch { return lsMetas(); }
     }
     async function readData(id) {
-      let meta = null, parts = [];
+      let meta = null, parts = [], runs = new Map();
       if (backend === "indexeddb") {
         try {
           await tx(["meta", "data"], "readonly", t => {
@@ -146,13 +146,16 @@ globalThis.AtriumAutosave = (() => {
               meta = row.result;
               if (!meta) return;
               parts = partKeys(meta).map(key => data.get(key));
+              for (const key of meta.runs || []) runs.set(key, data.get(key));
             };
           });
         } catch (e) { if (backend === "indexeddb") throw e; }
       }
       if (meta) {
-        if (parts.length !== meta.parts || parts.some(part => typeof part.result?.text !== "string")) throw Error("That snapshot is incomplete.");
-        return {meta, json: parts.map(part => part.result.text).join("")};
+        const S = parts.some(p => typeof p.result?.text !== "string") && await serializer();
+        const texts = S?.texts ? await S.texts(parts.map(p => p.result), k => runs.get(k)?.result) : parts.map(p => p.result?.text);
+        if (parts.length !== meta.parts || texts.some(s => typeof s !== "string")) throw Error("That snapshot is incomplete.");
+        return {meta, json: texts.join("")};
       }
       meta = lsMetas().find(m => m.id === id);
       if (meta) {
@@ -182,7 +185,7 @@ globalThis.AtriumAutosave = (() => {
         const rows = t.objectStore("meta").getAll(), data = t.objectStore("data");
         rows.onsuccess = () => {
           const live = new Set();
-          for (const m of rows.result) for (const k of partKeys(m)) live.add(k);
+          for (const m of rows.result) for (const k of [...partKeys(m), ...(m.runs || [])]) live.add(k);
           const keys = data.getAllKeys();
           keys.onsuccess = () => {
             for (const key of keys.result) if (!live.has(key) && !writingKeys.has(key) && !(writing && String(key).startsWith(writing + "#"))) {
@@ -278,16 +281,16 @@ globalThis.AtriumAutosave = (() => {
         t0 = perf();
       }
       t0 = perf();
-      const st = j.result(), list = S.chunks(st, chunked && chunked.slot === s ? chunked.value : null), fresh = [];
-      for (const c of list.list) if (!c.key) { c.key = "c~" + now().toString(36) + Math.random().toString(36).slice(2, 10); fresh.push({id: c.key, text: S.chunkText(st, c)}); }
+      const st = j.result(), list = S.chunks(st, chunked && chunked.slot === s ? chunked.value : null);
+      const {fresh, runs, written} = S.records(st, list, () => "c~" + now().toString(36) + Math.random().toString(36).slice(2, 10));
       cost.serialize += perf() - t0;
-      return {state: st, chunks: list, fresh, keys: list.list.map(c => c.key), size: st.total, text: () => S.text(st)};
+      return {state: st, chunks: list, fresh, keys: list.list.map(c => c.key), runs, written, size: st.total, text: () => S.text(st)};
     }
     async function write(meta, parts, slotRec, urgent, cost) {
       const keyed = !Array.isArray(parts);
       if (backend === "indexeddb") {
         try {
-          if (keyed) { meta.keys = parts.keys; meta.parts = parts.keys.length; meta.data = "chunks"; for (const x of parts.fresh) writingKeys.add(x.id); }
+          if (keyed) { meta.keys = parts.keys; meta.parts = parts.keys.length; meta.data = "chunks"; if (parts.runs?.length) meta.runs = parts.runs; for (const x of parts.fresh) writingKeys.add(x.id); }
           else { meta.data = meta.id + "~" + meta.ts.toString(36) + Math.random().toString(36).slice(2, 6); meta.parts = parts.length; writing = meta.data; }
           const timed = (t, fn) => { const t0 = perf(); fn(); const d = perf() - t0; cost.write += d; cost.slice = Math.max(cost.slice, d); };
           // One transaction: the parts, the metadata that commits them and the removal of the parts
@@ -301,7 +304,7 @@ globalThis.AtriumAutosave = (() => {
             // Chunks are shared between snapshots: the sweep removes the ones nothing refers to.
             if (old && !old.keys && old.data !== meta.data) for (const k of partKeys(old)) t.objectStore("data").delete(k);
           }));
-          cost.written = keyed ? parts.fresh.reduce((n, x) => n + x.text.length, 0) : parts.reduce((n, x) => n + x.length, 0);
+          cost.written = keyed ? parts.written : parts.reduce((n, x) => n + x.length, 0);
           return;
         } catch (e) { if (!dbp && ls) return write(meta, parts, slotRec, urgent, cost); throw e; }
         finally { writing = null; if (keyed) for (const x of parts.fresh) writingKeys.delete(x.id); }

@@ -83,8 +83,11 @@ globalThis.AtriumResolvedGeometry = (() => {
       } else if (doc.outline?.length >= 3) ctx.emit([], "profile", "Outline", region(toLines(doc.outline, true)));
       const copper = geometry.copper;
       if (copper) for (const [index, pour] of copper.regions.entries()) {
+        // A region the previous board row resolved keeps its ink (pourCopy: the same copy).
+        const prior = ctx.priorPour?.(pour);
+        if (prior) { ctx.emit(["pour", String(index)], "pour", pour.layer, null, {net: pour.net || null, source: pour, prior}); continue; }
         const contours = module("AtriumPCBPours").contourEdges(pour);
-        if (contours[0]?.length) ctx.emit(["pour", String(index)], "pour", pour.layer, region(contours[0], contours.slice(1)), {net: pour.net || null});
+        if (contours[0]?.length) ctx.emit(["pour", String(index)], "pour", pour.layer, region(contours[0], contours.slice(1)), {net: pour.net || null, source: pour});
       }
       return;
     }
@@ -165,9 +168,14 @@ globalThis.AtriumResolvedGeometry = (() => {
       boxes[2] = Math.max(boxes[2], bounds[2]); boxes[3] = Math.max(boxes[3], bounds[3]);
       if (layer) affected.add(layer);
     };
+    // Board rows: the inks of the regions the previous board row resolved (advance(): row.prior).
+    const priorInks = !item && !artworkOnly ? row.prior?.result?.pourInks : null, pourInks = !item && !artworkOnly ? new Map() : null;
+    if (pourInks) row.prior = null;
     const ctx = {project, doc, defs, defaults, owner, item, layers, landRules,
-      emit(member, role, layer, artwork, {net = null, polarity = "add", text} = {}) {
-        const ink = mapInk(artwork, transform), bounds = bounded(inkBounds(ink), owner);
+      priorPour: priorInks ? pour => priorInks.get(pour) : null,
+      emit(member, role, layer, artwork, {net = null, polarity = "add", text, source, prior} = {}) {
+        const ink = prior ? prior.ink : mapInk(artwork, transform), bounds = prior ? prior.bounds : bounded(inkBounds(ink), owner);
+        if (source && pourInks) pourInks.set(source, {ink, bounds});
         const key = {owner, member: [...member], role, layer: transform?.layer(layer) ?? layer};
         const feature = {key, ink, net, polarity, bounds};
         if (text) feature.text = transform ? {...text, origin: transform.at(text.origin),
@@ -210,7 +218,9 @@ globalThis.AtriumResolvedGeometry = (() => {
     if (artworkOnly) return immutable(features);
     const value = immutable({owner, features, bores: bores.map(({bore}) => bore), nominalLands});
     return row.result = {value, keys, bores, diagnostics: immutable(diagnostics),
-      bounds: boxes.every(Number.isFinite) ? Object.freeze(boxes) : null, layers: [...affected]};
+      bounds: boxes.every(Number.isFinite) ? Object.freeze(boxes) : null, layers: [...affected],
+      // A board row without copper (stale until the refill) hands the inks before it on to the next row.
+      pourInks: pourInks && !pourInks.size && priorInks ? priorInks : pourInks};
   }
 
   function defaultsOf(values = {}) {
@@ -237,24 +247,86 @@ globalThis.AtriumResolvedGeometry = (() => {
     return error;
   }
 
+  // Poured regions are replaced, never edited in place (the pour engine writes new region objects;
+  // undo-store.js shares them by reference). A live revision copies each region once: a later
+  // revision that keeps the region keeps its copy, so its decoded contours (pcb-pours.js caches them
+  // by region), its resolved ink and its identity carry over, and a refill costs the regions it
+  // changed, not a serialisation of all poured copper. A region whose fields were reassigned is
+  // copied again. The copy is the JSON copy the whole board used to get.
+  const pourCopies = new WeakMap();
+  const jsonValue = value => value !== null && typeof value === "object" ? clone(value) : typeof value === "number" && !Number.isFinite(value) ? null : value;
+  function pourCopy(region) {
+    if (region == null || typeof region === "function" || typeof region === "symbol") return null; // as in a JSON array
+    if (typeof region !== "object" || Array.isArray(region) || typeof region.toJSON === "function") return clone(region);
+    const held = pourCopies.get(region);
+    if (held) {
+      let k = 0, same = true;
+      for (const key of Object.keys(region)) {
+        const value = region[key];
+        if (value === undefined || typeof value === "function" || typeof value === "symbol") continue;
+        if (held.fields[k] !== key || held.fields[k + 1] !== value) { same = false; break; }
+        k += 2;
+      }
+      if (same && k === held.fields.length) return held.copy;
+    }
+    const fields = [], copy = {};
+    for (const key of Object.keys(region)) {
+      const value = region[key];
+      if (value === undefined || typeof value === "function" || typeof value === "symbol") continue;
+      fields.push(key, value);
+      copy[key] = jsonValue(value);
+    }
+    pourCopies.set(region, {fields, copy});
+    return copy;
+  }
+  function sourceCopy(metadata) {
+    const drawing = metadata.pcbDrawing, pours = drawing?.pours;
+    if (!Array.isArray(pours) || !pours.length || typeof drawing.toJSON === "function") return clone(metadata);
+    const {pcbDrawing, ...rest} = metadata, copy = clone(rest), next = {};
+    for (const key of Object.keys(drawing)) {
+      const value = drawing[key];
+      if (value === undefined || typeof value === "function" || typeof value === "symbol") continue;
+      next[key] = key === "pours" ? pours.map(pourCopy) : jsonValue(value);
+    }
+    // The key keeps its place among the document's fields, as in a JSON copy.
+    return Object.fromEntries(Object.keys(metadata).filter(key => key === "pcbDrawing" || Object.hasOwn(copy, key))
+      .map(key => [key, key === "pcbDrawing" ? next : copy[key]]));
+  }
   function sourceBoard(project, doc, binding, transform, instancePath, panelProfile) {
     const {defs, defaults} = binding, {items, ...metadata} = doc;
     // Detached input is already owned by this binding. Live revisions still
     // copy any data whose source may be changed by a later edit.
-    const source = binding.detached ? metadata : clone(metadata);
+    const source = binding.detached ? metadata : sourceCopy(metadata);
     const layers = immutable(material().layers(doc, project));
     const substrateTop = layers.find(layer => layer.kind === "dielectric" && layer.z)?.z[1];
     const boreCopper = new Map(layers.filter(layer => layer.kind === "copper").map(layer => [layer.name, layer.z]));
-    const copper = binding.outputRegions ? {state:"current", regions:binding.outputRegions} : source.pcbDrawing?.pours?.length ?
-      module("AtriumPolygonPour").inspectCopper(doc, defs, {project}) : null;
-    return {doc: source, project, defs, defaults, layers, transform, substrateTop, boreCopper,
+    // The editor's own definition index for the editor's project: the copper report is then the one
+    // online DRC and the live refill read (inspectCopper keeps one per revision and definition index).
+    const host = !binding.detached && G.AtriumNavHost?.project?.() === project ? G.AtriumNavHost : null;
+    const geometry = {doc: source, project, defs, defaults, layers, transform, substrateTop, boreCopper,
       landRules: module("AtriumMaskOpenings").rulesForView(doc, project),
-      documentId: panelProfile ? binding.root.id : doc.id, instancePath: Object.freeze(instancePath), panelProfile,
-      ...currentCopper(copper, binding.detached)};
+      documentId: panelProfile ? binding.root.id : doc.id, instancePath: Object.freeze(instancePath), panelProfile};
+    const inspect = () => module("AtriumPolygonPour").inspectCopper(doc, host?.defs?.() ?? defs, {project});
+    const U = G.AtriumUndoStore, at = !binding.detached && source.pcbDrawing?.pours?.length ? U?.documentVersions?.(doc, project, true) : null;
+    if (!at) return Object.assign(geometry, currentCopper(binding.outputRegions ? {state:"current", regions:binding.outputRegions} :
+      source.pcbDrawing?.pours?.length ? inspect() : null, binding.detached));
+    // A live board's copper report (whether its stored copper is current) is read when the board's
+    // copper is first read: an item edit that leaves the copper stale until the refill costs readers
+    // that need no copper (online DRC reads item extents) no pass over every pour's inputs. Read after
+    // the board changed, the report is unknown ("superseded": no copper), as a stale one is.
+    let held = null;
+    const read = () => held ??= (() => {
+      const v = U.documentVersions(doc, project, true);
+      if (!v || ["floor", "items", "outer", "pours", "project", "parameters", "library"].some(k => v[k] !== at[k]))
+        return {copper: null, copperProblem: "superseded"};
+      return currentCopper(inspect(), false);
+    })();
+    return Object.defineProperties(geometry, {copper: {get: () => read().copper, enumerable: true},
+      copperProblem: {get: () => read().copperProblem, enumerable: true}});
   }
   function currentCopper(report, owned) {
     if (!report || report.state === "none") return {copper: null, copperProblem: null};
-    if (report.state === "current") return {copper: {regions: owned ? report.regions : clone(report.regions)}, copperProblem: null};
+    if (report.state === "current") return {copper: {regions: owned ? report.regions : report.regions.map(pourCopy)}, copperProblem: null};
     return {copper: null, copperProblem: report.reason || report.state};
   }
   function rowFor(geometry, item, owned = false) {
@@ -410,9 +482,11 @@ globalThis.AtriumResolvedGeometry = (() => {
     for (const {group, delta} of deltas) {
       const {doc, rows, input} = group, old = previous.versions.get(doc), v = next.versions.get(doc);
       if (v?.pours !== old?.pours || !input.panelProfile && (v?.items !== old?.items || definitionChanges?.size) &&
-          (group.geometry.copper || group.geometry.copperProblem || input.doc.pcbDrawing?.pours?.length)) {
+          (input.doc.pcbDrawing?.pours?.length || group.geometry.copper || group.geometry.copperProblem)) {
         const {doc: authored, instancePath, transform, panelProfile} = input;
         const nextBoard = rowFor(sourceBoard(binding.project, authored, binding, transform, instancePath, panelProfile), null);
+        // Its kept regions reuse the inks of the last resolved board row (resolved(): row.prior).
+        nextBoard.prior = group.board.result ? group.board : group.board.prior;
         remember(changed, group.board, nextBoard);
         group.board = nextBoard;
         binding.rows.set(ownerKey(nextBoard.owner), nextBoard);
@@ -474,6 +548,23 @@ globalThis.AtriumResolvedGeometry = (() => {
     lineage.set(token, binding);
     return token;
   }
+  // Poured copper is matched by region (pourCopy identity: the same ink), wherever its index moved;
+  // a region on one side only is changed without serialising it.
+  function* changedPours(before, after) {
+    const kept = new Set(), source = new Map();
+    for (const [region, entry] of before.pourInks || []) source.set(entry.ink, region);
+    const left = [], right = [], ink = new Map();
+    for (const feature of before.value.features) if (feature.key.role === "pour") left.push(feature);
+    for (const feature of after.value.features) if (feature.key.role === "pour") right.push(feature);
+    for (const feature of left) ink.set(feature.ink, feature);
+    for (const feature of right) {
+      const was = ink.get(feature.ink);
+      if (was && source.has(feature.ink) && was.key.layer === feature.key.layer && was.net === feature.net && was.polarity === feature.polarity && !kept.has(was)) kept.add(was);
+      else yield feature;
+    }
+    for (const feature of left) if (!kept.has(feature)) yield feature;
+    yield* changedFeatures(before.value.features.filter(f => f.key.role !== "pour"), after.value.features.filter(f => f.key.role !== "pour"));
+  }
   function* changedFeatures(before, after) {
     const left = new Map(before.map(feature => [featureKey(feature.key), feature]));
     const right = new Map(after.map(feature => [featureKey(feature.key), feature]));
@@ -491,16 +582,24 @@ globalThis.AtriumResolvedGeometry = (() => {
       for (const layer of result.layers) layers.add(layer);
       noteBounds(result.bounds);
     }
-    for (const [before, after] of boards) {
-      // Profile, imported copper and solved pours share a board owner. Preserve the
-      // layers and extent of each unchanged feature during a copper publication.
-      owners.set(ownerKey(after.owner), after.owner);
-      for (const feature of changedFeatures(resolved(before).value.features, resolved(after).value.features)) {
+    // items: the authored items' layers and extents alone. A reader that needs no board copper
+    // (online DRC) reads them without resolving a refilled board.
+    const items = immutable({layers: [...layers], bounds: [...bounds.values()]});
+    if (!boards.length) return immutable({kind: "incremental", owners: [...owners.values()], layers: items.layers, bounds: items.bounds, items});
+    for (const [, after] of boards) owners.set(ownerKey(after.owner), after.owner);
+    // Profile, imported copper and solved pours share a board owner. Preserve the
+    // layers and extent of each unchanged feature during a copper publication.
+    // Resolved on first read of layers or bounds: a refill decodes the regions it changed.
+    let whole = null;
+    const all = () => whole ??= (() => {
+      for (const [before, after] of boards) for (const feature of changedPours(resolved(before), resolved(after))) {
         layers.add(feature.key.layer);
         noteBounds(feature.bounds);
       }
-    }
-    return immutable({kind: "incremental", owners: [...owners.values()], layers: [...layers], bounds: [...bounds.values()]});
+      return immutable({layers: [...layers], bounds: [...bounds.values()]});
+    })();
+    return Object.freeze({kind: "incremental", owners: immutable([...owners.values()]), items,
+      get layers() { return all().layers; }, get bounds() { return all().bounds; }});
   }
   function mayBeOnLayer(row, layer) {
     const {item, geometry} = row;

@@ -35,7 +35,9 @@
 // checkpoint where a slice ends (8 ms in idle time, 6 ms when forced) and where a newer edit abandons
 // it (the finished parts stay with the client).
 //   scheduler.attach(host)   scheduler.client({id, key(doc), phase(doc), delay(), enabled(), docs(),
-//     due(doc), start(doc, slice) -> iterator, unrecorded: "idle"|"sync", heavy?, manual?})
+//     due(doc), start(doc, slice) -> iterator, unrecorded: "idle"|"sync", heavy?, owes?(doc), manual?})
+//     heavy: in Efficiency mode a pass with o.heavy follows 8 s after a plan, when due(doc, {heavy})
+//     (owes(doc): heavy work an Efficiency-mode pass skipped); with nothing owed no timer stays armed.
 //     manual: only queue(id, doc) runs it (an edit neither re-plans nor abandons it); a task that
 //     yields scheduler.WAIT ends its slice early (polygon-pour.js: a pour solve without a worker).
 //   scheduler.plan(id?, o)   scheduler.cancel(id?)   scheduler.stats()
@@ -513,13 +515,21 @@ globalThis.AtriumChecks = (() => {
           for (const d of docs) if (c.due(d, o)) queue(c, d, c.phase?.(d) || "idle", o);
         };
         if (wait) { c.timer = {id:setTimeout(fire, wait), docs}; workChanged(c); } else fire();
-        if (c.heavy && efficient()) c.heavyTimer = setTimeout(() => { c.heavyTimer = 0; if (c.gen === gen) for (const d of docs) queue(c, d, "idle", {...o, heavy: true, now: true, restart: true}); }, c.heavyDelay || 8000);
+        // Efficiency mode: the heavy pass after a quiet while, for a document still being checked or
+        // one the client owes heavy work (c.owes); the timer goes once no document owes any (run()).
+        if (c.heavy && efficient()) c.heavyTimer = setTimeout(() => {
+          c.heavyTimer = 0;
+          if (c.gen !== gen) return;
+          const heavy = {...o, heavy: true, now: true, restart: true};
+          for (const d of docs) if (c.tasks.has(c.key(d)) || c.due(d, heavy)) queue(c, d, "idle", heavy);
+        }, c.heavyDelay || 8000);
       }
     }
     // Queue (or continue) one document's task in an edit-pipeline phase, or at idle without a pipeline.
+    // o.restart replaces a task in flight once: its later slices (and a deferred resume) continue it.
     function queue(c, d, phase, o = {}) {
-      const key = c.key(d), prev = c.tasks.get(key);
-      const task = prev && prev.it && !prev.done && !o.restart ? prev : {d, it: null, done: false, o};
+      const key = c.key(d), prev = c.tasks.get(key), more = o.restart ? {...o, restart: false} : o;
+      const task = prev && prev.it && !prev.done && !o.restart ? prev : {d, it: null, done: false, o: more};
       if (prev && prev !== task) cancelTask(c, key);
       prev?.cancel?.();
       const token = task.token = (task.token || 0) + 1;
@@ -536,8 +546,8 @@ globalThis.AtriumChecks = (() => {
         if (!task.it) {
           const store = U();
           if (store?.unrecorded?.()) {
-            if (c.unrecorded === "sync" && phase === "idle") { store.sync?.(); queue(c, d, "idle", o); return; }
-            if (phase !== "idle") { queue(c, d, "idle", o); return; }
+            if (c.unrecorded === "sync" && phase === "idle") { store.sync?.(); queue(c, d, "idle", more); return; }
+            if (phase !== "idle") { queue(c, d, "idle", more); return; }
           }
         }
         const s = task.slice = sliceOf(deadline, phase);
@@ -561,6 +571,7 @@ globalThis.AtriumChecks = (() => {
               if (r.value != null) task.span?.ready();
               c.done?.(d, r.value);
               task.span?.end("completed");
+              if (c.heavyTimer && c.owes && !c.tasks.size && !c.timer && !(c.docs?.() || []).some(x => c.owes(x))) { clearTimeout(c.heavyTimer); c.heavyTimer = 0; }
               return;
             }
             if (r.value === WAIT || s.expired()) break;
@@ -568,7 +579,7 @@ globalThis.AtriumChecks = (() => {
         } catch (e) {
           task.done = true; task.span?.end("failed"); removeTask(c, key, task); G.console?.warn?.("Checks", c.id, e); return;
         }
-        queue(c, d, "idle", o); // the rest in the next idle slice
+        queue(c, d, "idle", more); // the rest in the next idle slice (the same task)
       };
       if (host.stageEdit) {
         const ticket = host.stageEdit(phase, key, (current, dl) => { if (current()) run(dl); });
@@ -641,7 +652,8 @@ globalThis.AtriumChecks = (() => {
     }
     return Object.freeze({WAIT, attach, client, plan, queue: (id, d, phase, o) => { const c = clients.get(id); if (c && host) queue(c, d, phase || "idle", o); }, cancel, resume, pending,
       host: () => host, clients: () => [...clients.keys()], running: id => [...(id ? [clients.get(id)] : clients.values())].some(c => c && [...c.tasks.values()].some(k => k.it && !k.done)),
-      stats: () => ({...stats, last: {...stats.last}}), reset() { cancel(); clients.clear(); host = project = null; attached = false; }});
+      // armed: clients with a debounce or Efficiency-mode heavy timer still to fire (perf probes wait for none).
+      stats: () => ({...stats, last: {...stats.last}, armed: [...clients.values()].filter(c => c.timer || c.heavyTimer).map(c => c.id)}), reset() { cancel(); clients.clear(); host = project = null; attached = false; }});
   })();
 
   // ---------------------------------------------------------------- live ERC (schematic checks while editing)

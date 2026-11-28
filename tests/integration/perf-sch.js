@@ -10,7 +10,9 @@
 // raster, so a sample is input -> handler -> render -> pixels with no vsync wait. Deferred work
 // (timers, idle callbacks) runs between samples in settle(), which also flushes the frame queue.
 //
-// atriumSchProbe({sheets, files, only, mark}) resolves to {metrics, checks, env}:
+// options.board measures idle energy on the PCB benchmark board instead (scripts/perf-sch.sh --board).
+//
+// atriumSchProbe({sheets, files, only, mark, board, efficiency}) resolves to {metrics, checks, env}:
 //   metrics.name = ms, or {n, p50, p95, p99, max} for repeated samples.
 //   mark(tag): optional hook the driver uses to read the browser's CPU counters at phase edges
 //   (Runtime binding; see scripts/perf-sch.sh): "idle-start"/"idle-end", "edit-start"/"edit-end".
@@ -38,7 +40,9 @@ async function schProbe(options) {
   }
   const RQ = [];
   window.requestAnimationFrame = cb => {RQ.push({cb, s: counting ? site() : ""}); return RQ.length;}; window.cancelAnimationFrame = () => {};
-  const flushRAF = () => {for (let k = 0; k < 5 && RQ.length; k++) for (const {cb, s} of RQ.splice(0)) {count("raf", s); cb(performance.now());}};
+  // Frame callbacks (the canvas's renders): their time in all and the longest, since the last reset.
+  const rafTime = {ms: 0, max: 0};
+  const flushRAF = () => {for (let k = 0; k < 5 && RQ.length; k++) for (const {cb, s} of RQ.splice(0)) {count("raf", s); const t = performance.now(); cb(t); const d = performance.now() - t; rafTime.ms += d; rafTime.max = Math.max(rafTime.max, d);}};
   const H = () => AtriumNavHost, cv = () => H().canvas(), g2 = () => cv().getContext("2d");
   // Which edit-pipeline jobs are staged while counting (an idle window should stage none).
   {const st = H().stageEdit; if (st) H().stageEdit = (phase, key, cb, o) => {if (counting) wake.sources.set("stage " + phase + " " + (typeof key === "string" ? key : key?.constructor?.name || typeof key) + " " + site(), (wake.sources.get("stage " + phase + " " + key) || 0) + 1); return st(phase, key, cb, o);};}
@@ -57,7 +61,9 @@ async function schProbe(options) {
   const settle = async ms => {const t = performance.now(); while (performance.now() - t < ms) {await wait(16); flushRAF();}};
   // Waits until two seconds pass with no wake-up at all (timers, frames, idle callbacks), at most
   // 30 s; returns the time the editor kept working and the sources counted meanwhile.
-  const untilQuiet = async () => {
+  // o.armed: also wait while a check client has a timer armed (an Efficiency-mode heavy pass to come).
+  const armed = () => (globalThis.AtriumChecks?.scheduler?.stats?.().armed || []).length > 0;
+  const untilQuiet = async (o = {}) => {
     const q0 = performance.now(); let quietSince = q0, total = 0;
     wake.timeout = wake.interval = wake.raf = wake.idle = 0; wake.sources.clear(); counting = true;
     while (performance.now() - q0 < 30000) {
@@ -65,7 +71,7 @@ async function schProbe(options) {
       await idleFor(250);
       const after = wake.timeout + wake.interval + wake.raf + wake.idle;
       if (after !== before) {quietSince = performance.now(); total += after - before;}
-      else if (performance.now() - quietSince >= 2000) break;
+      else if (performance.now() - quietSince >= 2000 && !(o.armed && armed())) break;
     }
     counting = false;
     return {ms: Math.round(quietSince - q0), total, top: [...wake.sources].sort((a, b) => b[1] - a[1]).slice(0, 8)};
@@ -84,6 +90,104 @@ async function schProbe(options) {
   globalThis.AtriumDRCMarkers?.setVisible?.(false, H());
   await settle(300);
   metrics.heapBootMB = heap();
+
+  // ---------------------------------------------------------------- the PCB benchmark board (options.board)
+  // Idle energy on the 25.6k-object board of tests/pcb/dense-board.js, one editor, no collaboration:
+  // open, how long the editor keeps working (no wake-up for 2 s and no check timer armed, such as the
+  // Efficiency-mode heavy insights pass 8 s after an edit; at most 30 s) and the CPU meanwhile, a 10 s
+  // window that should be quiet, then one small edit (a track vertex) and the same again.
+  // options.efficiency sets Preferences › Energy (auto | always | off) for the run.
+  // options.board "nets" gives every pad, via and part pin one of 64 nets, "pours" also adds the ten
+  // polygons of tests/editor/perf-interact.js and pours them once (25,610 objects). Both then measure a
+  // series of small edits (editSeries below).
+  if (options.board) {
+    if (options.efficiency) globalThis.AtriumPower?.setMode?.(options.efficiency);
+    const {d, defs} = makeAtriumBenchmarkBoard(), p = Atrium.project("Dense signal board");
+    p.documents = [d]; p.library = [...defs.values()];
+    const nets = options.board === "nets" || options.board === "pours", pours = options.board === "pours";
+    if (nets) {
+      let k = 0;
+      for (const i of d.items) {if (i.kind === "part") i.pinNets = {"1": "N" + (k % 64), "2": "N" + ((k + 1) % 64)}; else if (i.kind !== "track") i.net = "N" + (k % 64); k++;}
+    }
+    if (pours) {
+      await AtriumLazy.need("AtriumRules");
+      const rect = (a, b, c, e) => [[a, b], [c, b], [c, e], [a, e]];
+      const polys = [["Top", "GND", rect(1, 1, 180, 270)], ["Top", "VCC", rect(180, 1, 367, 270)], ["Bottom", "GND", rect(1, 1, 367, 140)], ["Bottom", "VCC", rect(1, 140, 367, 270)]];
+      for (let j = 0; j < 6; j++) polys.push([j % 2 ? "Top" : "Bottom", "N" + j, rect(10 + j * 55, 10, 50 + j * 55, 40)]);
+      polys.forEach(([layer, net, o], j) => d.items.push(AtriumPolygonPour.make(o, {layer, net, pourIndex: j, removeDeadCopper: false})));
+    }
+    const t0 = performance.now();
+    await H().replaceProject(p, {force: true}); H().selectDocument(d.id);
+    if (pours) H().edit(() => AtriumPolygonPour.apply(H().doc(), H().defs(), {project: H().project()}));
+    metrics.openMs = +(performance.now() - t0).toFixed(1);
+    checks.project = {sheets: 0, items: d.items.length, parts: d.items.filter(i => i.kind === "part").length, efficient: !!globalThis.AtriumPower?.efficient?.(),
+      board: options.board === true ? "plain" : options.board, regions: d.pcbDrawing?.pours?.length || 0};
+    const quietWindow = async () => {
+      wake.timeout = wake.interval = wake.raf = wake.idle = 0; wake.sources.clear();
+      mark("idle-start"); counting = true; const i0 = performance.now(); await idleFor(10000); const ms = performance.now() - i0; counting = false; mark("idle-end");
+      return {perSec: +((wake.timeout + wake.interval + wake.raf + wake.idle) / (ms / 1000)).toFixed(2), wakes: {timeout: wake.timeout, interval: wake.interval, raf: wake.raf, idle: wake.idle, top: [...wake.sources].sort((a, b) => b[1] - a[1]).slice(0, 8)}};
+    };
+    mark("settle-start"); const open = await untilQuiet({armed: true}); mark("settle-end");
+    metrics.openQuietAfterMs = Math.round(open.ms + metrics.openMs); checks.openSettleWakeups = {total: open.total, top: open.top};
+    let w = await quietWindow(); metrics.idleWakeupsPerSec = w.perSec; checks.idleWakeups = w.wakes;
+    const tr = d.items.find(i => i.kind === "track" && i.points[0][0] > 100);
+    mark("edit-start");
+    metrics.editFrame = frame(() => H().edit(() => { tr.points[1] = [tr.points[1][0], tr.points[1][1] - .2]; }, "probe", [tr]));
+    const after = await untilQuiet({armed: true}); mark("edit-end");
+    metrics.lastEditQuietAfterMs = after.ms; checks.lastEditSettleWakeups = {total: after.total, top: after.top};
+    w = await quietWindow(); metrics.idleWakeupsAfterPerSec = w.perSec; checks.idleWakeupsAfter = w.wakes;
+    // The edit series (options.board "nets" or "pours"): small edits inside the pours, away from their
+    // outlines, each followed by the editor's own work until it is quiet again. Per edit: the edit's
+    // frame, the longest main-thread task until quiet (editTaskMax: online DRC, pour checks, Insights,
+    // the live repour's main-thread steps …) and its CPU (the driver's window "ed<n>": editSeriesCpuMs).
+    if (nets) {
+      const near = (kind, x, y, skip = new Set()) => d.items.filter(i => i.kind === kind && !skip.has(i)).reduce((a, i) => {
+        const q = i.points ? i.points[0] : [i.x, i.y], s = Math.hypot(q[0] - x, q[1] - y); return !a || s < a.s ? {i, s} : a;}, null)?.i;
+      const part = near("part", 90, 200), bend = near("track", 120, 210), gone = near("track", 130, 190), from = near("track", 100, 220);
+      const copy = d.items.filter(i => ["track", "via", "part"].includes(i.kind) && Math.abs((i.x ?? i.points[0][0]) - 60) < 3 && Math.abs((i.y ?? i.points[0][1]) - 230) < 2).slice(0, 4);
+      let n = 0;
+      const series = [
+        ["move part", () => H().edit(() => {part.x += .5; part.y += .3;}, "probe", [part])],
+        ["bend track", () => H().edit(() => {bend.points[1] = [bend.points[1][0], bend.points[1][1] - .2];}, "probe", [bend])],
+        ["add track", () => {const t = {id: "probe-t" + (++n), kind: "track", layer: from.layer, width: .22, net: from.net, points: [from.points[2].slice(), [from.points[2][0] + 1.2, from.points[2][1] + .4]]};
+          H().edit(() => {d.items.push(t);}, "probe", [t]);}],
+        ["delete track", () => H().edit(() => {d.items.splice(d.items.indexOf(gone), 1);}, "probe", [gone])],
+        ["paste 4", () => H().edit(() => {for (const s of copy) {const c = JSON.parse(JSON.stringify(s)); c.id = "probe-p" + (++n); if (c.points) c.points = c.points.map(q => [q[0] + .4, q[1] + 6]); else {c.x += .4; c.y += 6;} if (c.ref) c.ref += "_" + n; d.items.push(c);}})],
+        ["undo", () => act("undo")],
+        ["redo", () => act("redo")]];
+      const rows = [];
+      // Per edit, the bytes it cost: the live pour worker's new copper received (live.last), autosave's
+      // fresh chunks written (AtriumAutosave stats), the Undo store's growth (stats().bytes), and the
+      // canvas: frame callbacks' time and longest (the edit's frame, the repour's and any later).
+      const autosaved = () => {const s = globalThis.AtriumAutosave?.stats?.() || {}; return {saves: s.saves || 0, written: s.written || 0, at: s.at || 0};};
+      const undoBytes = () => globalThis.AtriumUndoStore?.stats?.()?.bytes ?? null;
+      for (const [name, run] of series) {
+        const k = rows.length, t = performance.now(), a0 = autosaved(), u0 = undoBytes(), l0 = AtriumPolygonPour?.live?.last;
+        rafTime.ms = rafTime.max = 0;
+        mark("ed" + k + "-start");
+        const f = frame(run);
+        const q = await untilQuiet({armed: true});
+        // Autosave waits for its debounce: let it write before the next edit (not counted as quiet time).
+        if (globalThis.AtriumAutosave?.stats?.().pending) {const until = performance.now() + 8000; while (globalThis.AtriumAutosave.stats().pending && performance.now() < until) await wait(100); await idleFor(1500);}
+        mark("ed" + k + "-end");
+        const L = longIn(t, performance.now()), a1 = autosaved(), u1 = undoBytes(), l1 = AtriumPolygonPour?.live?.last;
+        rows.push({name, frame: f, quietMs: q.ms, taskMax: L.max, longTasks: L.count, longMs: L.total,
+          canvasMs: +rafTime.ms.toFixed(1), canvasMax: +rafTime.max.toFixed(1),
+          pourBytes: l1 && l1 !== l0 ? l1.received ?? null : 0, pourRegions: l1 && l1 !== l0 ? [l1.regions, l1.kept] : null,
+          autosaves: a1.saves - a0.saves, autosaveBytes: a1.saves > a0.saves ? a1.written : 0, undoBytes: u0 != null && u1 != null ? u1 - u0 : null});
+      }
+      checks.editSeries = rows;
+      checks.undo = globalThis.AtriumUndoStore?.stats?.();
+      metrics.editSeriesFrame = Math.max(...rows.map(r => r.frame));
+      metrics.editTaskMax = Math.max(...rows.map(r => r.taskMax));
+      metrics.editSeriesQuietMs = Math.max(...rows.map(r => r.quietMs));
+      metrics.editCanvasMax = Math.max(...rows.map(r => r.canvasMax));
+    }
+    const pass = globalThis.AtriumInsightsUI?.lastPass?.();
+    checks.insights = pass && {mode: pass.mode, why: pass.why, ms: Math.round(pass.ms)};
+    checks.scheduler = globalThis.AtriumChecks?.scheduler?.stats?.();
+    return {metrics, checks, env: {refreshHz, ua: navigator.userAgent, dpr: devicePixelRatio, canvas: [cv().width, cv().height]}};
+  }
 
   // ---------------------------------------------------------------- open
   let project, stats;

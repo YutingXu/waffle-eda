@@ -837,7 +837,9 @@ globalThis.AtriumPolygonPour=(()=>{
     // the edge tags rotated with it; the holes of an island and the islands themselves sorted by
     // their rings. Rings come out of trace() with repeated and collinear vertices already dropped.
     // So the stored copper depends only on the point set, never on the order edges or tasks came in.
-    function canonical(solved,rotations){
+    // islands (optional): input island -> its canonical island, for islands that are the same objects
+    // as in an earlier solution (the area patch keeps them). Input islands are never changed.
+    function canonical(solved,rotations,islands){
       const rot=r=>{
         const ring=r.ring,n=ring.length>>1,memo=rotations?.get(ring);
         if(memo&&memo.sourceTags===r.tags)return {...r,ring:memo.ring,tags:memo.tags};
@@ -859,7 +861,11 @@ globalThis.AtriumPolygonPour=(()=>{
         for(let i=0;i<k;i++)if(s[i]!==t[i])return s[i]-t[i];
         return s.length-t.length;
       };
-      solved.islands=solved.islands.map(isl=>{const o=rot(isl);o.holes=isl.holes.map(rot).sort(cmp);return o;}).sort(cmp);
+      solved.islands=solved.islands.map(isl=>{
+        const m=islands?.get(isl);if(m)return m;
+        const r=rot(isl),o=r===isl?{...isl}:r;o.holes=isl.holes.map(rot).sort(cmp);
+        islands?.set(isl,o);return o;
+      }).sort(cmp);
       return solved;
     }
     // A task for postMessage: its shapes and anchors packed into two Int32Arrays whose buffers are
@@ -886,7 +892,15 @@ globalThis.AtriumPolygonPour=(()=>{
       for(let k=0;k<nAnchors;k++){const n=head[h++];anchors[k]=data.subarray(o,o+n);o+=n;}
       return {...rest,shapes,anchors};
     }
-    return {orient,edgeList,planarize,merge,classify,classifyRays,trace,simplify,area2,boxOf,pointInRing,islands,overlayRings,overlayInt,segmentsTouch,touches,pourInside,solve,solveSteps,keep,keepSolved,canonical,pack,unpack,convolution,boxSlit,shapeIslands};
+    // Union-find over 0..n-1 (path halving; the smaller index is the root): the tile stitch's seams
+    // (PourTiles) and the area patch's components (areaRegion, areaChanges) share it.
+    function unionFind(n){
+      const parent=new Int32Array(n);for(let i=0;i<n;i++)parent[i]=i;
+      const find=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
+      const join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[a<b?b:a]=a<b?a:b;};
+      return {find,join};
+    }
+    return {orient,edgeList,planarize,merge,classify,classifyRays,trace,simplify,area2,boxOf,pointInRing,islands,overlayRings,overlayInt,segmentsTouch,touches,pourInside,solve,solveSteps,keep,keepSolved,canonical,pack,unpack,convolution,boxSlit,shapeIslands,unionFind};
   }
   // ------------------------------------------------------- tiled repour
   // PourTiles keeps each pour as a grid of square tiles in the pour's integer
@@ -1040,9 +1054,7 @@ globalThis.AtriumPolygonPour=(()=>{
     function stitch(s){
       const all=[];
       for(let t=0;t<s.tiles.length;t++){const T=s.tiles[t];if(T)for(const p of T.pieces){p.uid=all.length;p.tile=t;all.push(p);}}
-      const parent=new Int32Array(all.length);for(let i=0;i<parent.length;i++)parent[i]=i;
-      const find=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
-      const join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[a<b?b:a]=a<b?a:b;};
+      const {find,join}=core.unionFind(all.length);
       for(let t=0;t<s.tiles.length;t++){
         const T=s.tiles[t];if(!T||!T.pieces.length)continue;
         const c=t%s.cols;
@@ -1422,7 +1434,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
 
   // --------------------------------------------------------------- regions
-  const {contours:rings,region:encode}=AtriumPCBPours;
+  const {contours:rings,region:encode,regionLike:encodeLike,regionAgain,dataKey}=AtriumPCBPours;
 
   // ------------------------------------------------------------------ pour
   // ------------------------------------------------- smart connect styles
@@ -2122,7 +2134,8 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!keyed){const m=morphOf(P,S,input);if(m)final.morph=m;}
     // Tiled pours solve in one stage; untiled ones in two: this task leaves the island tests to stage 2.
     const task=keyed?{shapes:input,K,hasBoard,...final}:{shapes:input,K,hasBoard,removeDead:false,minArea:0,minSize:0,anchors:[]};
-    const job={regions,stats,task,P,layer,net,S,ox,oy,arcs:arcSink,links:anchors.map(a=>a.link),tPrepare:now()-t0};
+    const job={regions,stats,task,P,layer,net,S,ox,oy,arcs:arcSink,links:anchors.map(a=>a.link),tPrepare:now()-t0,
+      prior:options.priorCopper?options.priorCopper.filter(r=>r.polygon===P.id):null};
     if(area?.sessions)job.areaExact=true;
     if(sourceRecords){
       for(const r of sourceRecords.values()){
@@ -2277,12 +2290,18 @@ globalThis.AtriumPolygonPour=(()=>{
   // Stage 2 of `job` given stage 1's solution and the earlier regions it may read (in pour order):
   // {job, task} to solve (job: the job finish() encodes with), or {job, solved} at once when no
   // earlier copper reaches the pour. Yields between earlier regions.
-  function* stage2Steps(job,solved1,poured,own=false,offsets){
+  // kept (area sessions): {cache} of areaKeep, read and replaced.
+  function* stage2Steps(job,solved1,poured,own=false,offsets,kept){
     const t0=now(),e=yield* earlierSteps(job,poured,offsets),stats=own?job.stats:{...job.stats},regions=own?job.regions:[];regions.stats=stats;
     if(e.preparedOffsets)stats.preparedOffsets=e.preparedOffsets;
     const job2={...job,regions,stats,arcs:e.arcs,tPrepare:(job.tPrepare||0)+(now()-t0)};
     // Remove Necks / Outlines Only go through solve() (the Rust core where it is loaded; the overlay of the islands alone gives them back).
-    if(!e.shapes.length&&!job.final.morph)return {job:job2,solved:CORE.keepSolved(solved1,job.final,!!job.areaExact),stage1:solved1.stats};
+    if(!e.shapes.length&&!job.final.morph){
+      const r=kept&&job.areaExact?areaKeep({islands:solved1.islands,stats:{edges:0,merged:0,passes:0,faces:0,rays:0,tPlanar:0,tMerge:0,tClassify:0,tTrace:0,tIslands:0}},job.final,kept.cache):null;
+      if(kept)kept.cache=r?.cache||null;
+      return {job:job2,solved:r?r.solved:CORE.keepSolved(solved1,job.final,!!job.areaExact),stage1:solved1.stats};
+    }
+    if(kept)kept.cache=null;
     const shapes=[];
     for(const isl of solved1.islands){shapes.push({cls:0,ring:isl.ring,sign:1,tags:isl.tags});for(const h of isl.holes)shapes.push({cls:0,ring:h.ring,sign:1,tags:h.tags});}
     for(const s of e.shapes)shapes.push(s);
@@ -2294,8 +2313,17 @@ globalThis.AtriumPolygonPour=(()=>{
   // The widest ordinary split moves an input edge by less than one grid unit.
   // Four units between the patch and an omitted edge also separate the split
   // edges in the second planarity check. Global snap rounding needs a full solve.
-  const AREA_GUARD=4,AREA_LIMIT=.25,areaRingMemo=new WeakMap(),areaTagMemo=new WeakMap();
-  const areaCanonical=new WeakMap(),areaArcRotation=new WeakMap(),areaConverted=new WeakMap(),areaRegionContours=new WeakMap();
+  // Why a patch equals a full solve (byte for byte, after canonical()): the region (areaRegion) holds
+  // every changed input, old and new, and every input whose boundary comes within AREA_GUARD of it, so
+  // no input inside meets one outside and the arrangement splits in two. Outside the region the inputs
+  // and their winding are the old ones (a changed ring has no winding outside its own box, which the
+  // region holds), so the old rings made of outside inputs are still right; inside, the overlay of the
+  // inside inputs with the constant winding of the outside ones gives the new rings. Edge order within
+  // the inside inputs is the task's, so every crossing is rounded as the full solve rounds it. Islands,
+  // links and the island tests are then decided by the rules of CORE.islands and keep(), asked only
+  // where their answer can have changed (areaPatch, areaKeep). tests/pcb/pour-area-random.cjs checks it.
+  const AREA_GUARD=4,AREA_LIMIT=.5,areaRingMemo=new WeakMap(),areaTagMemo=new WeakMap();
+  const areaCanonical=new WeakMap(),areaCanonicalIslands=new WeakMap(),areaArcRotation=new WeakMap(),areaConverted=new WeakMap(),areaRegionContours=new WeakMap(),areaFinished=new WeakMap();
   function areaRingInfo(ring){
     let info=areaRingMemo.get(ring);
     if(!info){info={box:boxOf(ring)};areaRingMemo.set(ring,info);}
@@ -2315,6 +2343,15 @@ globalThis.AtriumPolygonPour=(()=>{
   // Compare full input geometry and the authored arc identities. Local ordinals
   // preserve distinct arcs even if they describe coincident circles. The mapping
   // between two runs' arc tables must be one-to-one for the retained inputs.
+  // Whether trueArcSteps reads the same of registered arcs A and B (job.arcs, centre and radius per
+  // arc id) for rings rs: none when both are empty, else the arcs their tags name.
+  function areaSameArcs(rs,A,B){
+    if(A===B)return true;
+    if(!A?.length||!B?.length)return !A?.length&&!B?.length;
+    for(const r of rs)for(const t of areaTagInfo(r.tags).ids)
+      for(let j=3*t;j<3*t+3;j++)if(!Object.is(A[j],B[j]))return false;
+    return true;
+  }
   function areaTagInfo(tags){
     if(!tags)return {ids:[],pattern:""};
     let info=areaTagMemo.get(tags);
@@ -2334,20 +2371,47 @@ globalThis.AtriumPolygonPour=(()=>{
     for(const shape of task.shapes){
       const info=areaRingInfo(shape.ring),{ids:arcIds,pattern}=areaTagInfo(shape.tags);
       if(info.key==null){info.key=shape.ring.join(",");indexedPrimitives+=shape.ring.length/2;}
-      let arcKey=pattern+";";
-      for(const tag of arcIds)arcKey+=arcs[3*tag]+","+arcs[3*tag+1]+","+arcs[3*tag+2]+";";
-      const variant=shape.cls+":"+shape.sign+":"+arcKey;
-      if(info.variant!==variant){info.variant=variant;info.shapeKey=variant+":"+info.key;}
+      // The key is built again only when the class, sign, tags or the values of their arcs differ
+      // from the ones it was built with (the same values give the same text).
+      const v=info.arcValues;
+      let same=!!v&&info.tags===shape.tags&&info.cls===shape.cls&&info.sign===shape.sign&&v.length===3*arcIds.length;
+      for(let i=0;same&&i<arcIds.length;i++){const t=3*arcIds[i];same=v[3*i]===arcs[t]&&v[3*i+1]===arcs[t+1]&&v[3*i+2]===arcs[t+2];}
+      if(!same){
+        let arcKey=pattern+";";const values=new Array(3*arcIds.length);
+        arcIds.forEach((tag,i)=>{arcKey+=arcs[3*tag]+","+arcs[3*tag+1]+","+arcs[3*tag+2]+";";values[3*i]=arcs[3*tag];values[3*i+1]=arcs[3*tag+1];values[3*i+2]=arcs[3*tag+2];});
+        const variant=shape.cls+":"+shape.sign+":"+arcKey;
+        if(info.variant!==variant){info.variant=variant;info.shapeKey=variant+":"+info.key;}
+        Object.assign(info,{arcValues:values,tags:shape.tags,cls:shape.cls,sign:shape.sign});
+      }
       const key=info.shapeKey;
-      const record={shape,arcIds,box:info.box};
+      const record={shape,arcIds,box:info.box,k:records.length};
       let group=groups.get(key);
       if(!group)groups.set(key,group=[]);
       group.push(record);records.push(record);primitives+=shape.ring.length/2;
     }
     return {groups,records,primitives,indexedPrimitives};
   }
+  // The changed records (old ones gone, new ones added) and, when any kept input's arcs moved to other
+  // ids (shifted), the map from old to new ids. Without a shift every kept ring keeps its tags.
   function areaDifference(old,next){
-    const changed=[],arcMap=new Map(),reverse=new Map();
+    const changed=[];let shifted=false;
+    const sameIds=(a,b)=>{if(a===b)return true;if(a.length!==b.length)return false;for(let k=0;k<a.length;k++)if(a[k]!==b[k])return false;return true;};
+    for(const [key,records] of old.groups){
+      const newer=next.groups.get(key),n=newer?Math.min(records.length,newer.length):0;
+      for(let i=0;!shifted&&i<n;i++)if(!sameIds(records[i].arcIds,newer[i].arcIds))shifted=true;
+      for(let i=n;i<records.length;i++)changed.push(records[i]);
+    }
+    for(const [key,records] of next.groups){
+      const n=old.groups.get(key)?.length||0;
+      for(let i=n;i<records.length;i++)changed.push(records[i]);
+    }
+    if(!shifted)return {changed,arcMap:null,reverse:null,shifted};
+    const maps=areaArcMaps(old,next);
+    return maps&&{changed,...maps,shifted};
+  }
+  // The map from old to new arc ids over the inputs both runs have, one to one (null if it is not).
+  function areaArcMaps(old,next){
+    const arcMap=new Map(),reverse=new Map();
     for(const [key,records] of old.groups){
       const newer=next.groups.get(key)||[],n=Math.min(records.length,newer.length);
       for(let i=0;i<n;i++){
@@ -2357,13 +2421,8 @@ globalThis.AtriumPolygonPour=(()=>{
           arcMap.set(a[k],b[k]);reverse.set(b[k],a[k]);
         }
       }
-      for(let i=n;i<records.length;i++)changed.push(records[i]);
     }
-    for(const [key,records] of next.groups){
-      const n=old.groups.get(key)?.length||0;
-      for(let i=n;i<records.length;i++)changed.push(records[i]);
-    }
-    return {changed,arcMap};
+    return {arcMap,reverse};
   }
   // Exact segment tests after a bounding-box check. A ring enclosing the
   // patch contributes its winding at one patch corner. No boundary of that
@@ -2396,86 +2455,702 @@ globalThis.AtriumPolygonPour=(()=>{
     areaTagMemo.set(tags,{ids:ids.map(id=>arcMap.get(id)),pattern});
     return {...ring,tags};
   }
+  // ---- The region a patch solves, and the indexes that keep it proportional to the edit.
+  // A uniform grid over boxes in the integer frame. A box over more than AREA_BIG cells either way
+  // (the polygon, the board, a large island) goes on a list that every query visits.
+  const AREA_BIG=48,AREA_LONG=256;
+  function areaCells(x0,y0,x1,y1,n){
+    const W=Math.max(1,x1-x0),H=Math.max(1,y1-y0);
+    let cs=Math.max(1,Math.sqrt(W*H/Math.max(1,n))*1.5);cs=Math.max(cs,W/1023,H/1023);
+    return {x0,y0,cs,cols:Math.floor(W/cs)+1,rows:Math.floor(H/cs)+1};
+  }
+  // The cells of box b in grid g, clamped: [c0, c1, r0, r1].
+  function areaSpan(g,b){
+    let c0=Math.floor((b[0]-g.x0)/g.cs),c1=Math.floor((b[2]-g.x0)/g.cs),r0=Math.floor((b[1]-g.y0)/g.cs),r1=Math.floor((b[3]-g.y0)/g.cs);
+    const C=g.cols-1,R=g.rows-1;
+    c0=c0<0?0:c0>C?C:c0;c1=c1<0?0:c1>C?C:c1;r0=r0<0?0:r0>R?R:r0;r1=r1<0?0:r1>R?R:r1;
+    return [c0,c1,r0,r1];
+  }
+  const areaWide=s=>s[1]-s[0]>=AREA_BIG||s[3]-s[2]>=AREA_BIG;
+  // A static grid over a list of boxes (or count boxes that boxAt(k, out) writes); areaVisit calls
+  // fn(k) once for each box whose cells meet b. Spans are kept in one typed array (no box arrays).
+  function areaBoxGrid(boxes,count,boxAt){
+    const n=boxes?boxes.length:count,tmp=[0,0,0,0],get=boxes?k=>boxes[k]:k=>{boxAt(k,tmp);return tmp;};
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    for(let k=0;k<n;k++){const b=get(k);if(b[0]<x0)x0=b[0];if(b[1]<y0)y0=b[1];if(b[2]>x1)x1=b[2];if(b[3]>y1)y1=b[3];}
+    if(!n){x0=y0=0;x1=y1=1;}
+    const g=areaCells(x0,y0,x1,y1,n),cells=g.cols*g.rows,start=new Int32Array(cells+1),spans=new Int32Array(4*n),big=[],C=g.cols-1,Rw=g.rows-1;
+    const cl=(v,m)=>v<0?0:v>m?m:v;
+    for(let k=0;k<n;k++){
+      const b=get(k),c0=cl(Math.floor((b[0]-g.x0)/g.cs),C),c1=cl(Math.floor((b[2]-g.x0)/g.cs),C),r0=cl(Math.floor((b[1]-g.y0)/g.cs),Rw),r1=cl(Math.floor((b[3]-g.y0)/g.cs),Rw);
+      if(c1-c0>=AREA_BIG||r1-r0>=AREA_BIG){big.push(k);spans[4*k]=-1;continue;}
+      spans[4*k]=c0;spans[4*k+1]=c1;spans[4*k+2]=r0;spans[4*k+3]=r1;
+      for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++)start[r*g.cols+c+1]++;
+    }
+    for(let c=0;c<cells;c++)start[c+1]+=start[c];
+    const items=new Int32Array(start[cells]),fill=start.slice(0,cells);
+    for(let k=0;k<n;k++){if(spans[4*k]<0)continue;for(let r=spans[4*k+2];r<=spans[4*k+3];r++)for(let c=spans[4*k];c<=spans[4*k+1];c++)items[fill[r*g.cols+c]++]=k;}
+    return {...g,start,items,big,stamp:new Int32Array(n),tick:0};
+  }
+  function areaVisit(g,b,fn){
+    const t=++g.tick,s=areaSpan(g,b),{start,items,stamp}=g;
+    for(let r=s[2];r<=s[3];r++)for(let c=s[0];c<=s[1];c++){
+      const id=r*g.cols+c;
+      for(let q=start[id];q<start[id+1];q++){const k=items[q];if(stamp[k]!==t){stamp[k]=t;fn(k);}}
+    }
+    for(const k of g.big)if(stamp[k]!==t){stamp[k]=t;fn(k);}
+  }
+  const areaRecordGrid=inputs=>inputs.grid||(inputs.grid=areaBoxGrid(null,inputs.records.length,(k,o)=>{const b=inputs.records[k].box;o[0]=b[0];o[1]=b[1];o[2]=b[2];o[3]=b[3];}));
+  // Exact: edge a-b meets the closed box [x, y, X, Y].
+  function areaEdgeTouches(ax,ay,bx,by,x,y,X,Y){
+    if(Math.min(ax,bx)>X||Math.max(ax,bx)<x||Math.min(ay,by)>Y||Math.max(ay,by)<y)return false;
+    if(ax>=x&&ax<=X&&ay>=y&&ay<=Y||bx>=x&&bx<=X&&by>=y&&by<=Y)return true;
+    const T=CORE.segmentsTouch;
+    return T(ax,ay,bx,by,x,y,X,y)||T(ax,ay,bx,by,X,y,X,Y)||T(ax,ay,bx,by,X,Y,x,Y)||T(ax,ay,bx,by,x,Y,x,y);
+  }
+  // Whether a ring's boundary meets box b. A long ring keeps a grid of its edges (by ring array).
+  const areaEdgeGrids=new WeakMap();
+  function areaRingTouches(ring,b,stats){
+    const n=ring.length>>1,[x,y,X,Y]=b;
+    if(n<=AREA_LONG){
+      for(let i=0,j=ring.length-2;i<ring.length;j=i,i+=2){stats.checkedPrimitives++;if(areaEdgeTouches(ring[j],ring[j+1],ring[i],ring[i+1],x,y,X,Y))return true;}
+      return false;
+    }
+    const g=areaEdgeGrid(ring);
+    let hit=false;
+    areaVisit(g,b,k=>{
+      if(hit)return;stats.checkedPrimitives++;
+      const i=2*k,j=k?i-2:ring.length-2;
+      if(areaEdgeTouches(ring[j],ring[j+1],ring[i],ring[i+1],x,y,X,Y))hit=true;
+    });
+    return hit;
+  }
+  // Edge k of a ring runs from vertex k-1 to vertex k.
+  function areaEdgeGrid(ring){
+    let g=areaEdgeGrids.get(ring);
+    if(!g){
+      g=areaBoxGrid(null,ring.length>>1,(k,o)=>{const i=2*k,j=k?i-2:ring.length-2,ax=ring[j],ay=ring[j+1],bx=ring[i],by=ring[i+1];o[0]=ax<bx?ax:bx;o[1]=ay<by?ay:by;o[2]=ax<bx?bx:ax;o[3]=ay<by?by:ay;});
+      areaEdgeGrids.set(ring,g);
+    }
+    return g;
+  }
+  // CORE.pointInRing (1 inside, -1 outside, 0 on the boundary); a long ring reads only the edges whose
+  // boxes meet the ray from the point to the right, the only ones that can cross it or hold the point.
+  function areaPointInRing(x,y,ring){
+    const n=ring.length>>1;
+    if(n<=AREA_LONG)return CORE.pointInRing(x,y,ring);
+    const g=areaEdgeGrid(ring),b=areaRingInfo(ring).box;
+    if(x>b[2]||y<b[1]||y>b[3])return x>=b[0]&&x<=b[2]&&y>=b[1]&&y<=b[3]?CORE.pointInRing(x,y,ring):-1;
+    let inside=false,on=false;
+    areaVisit(g,[x,y,b[2],y],k=>{
+      if(on)return;
+      const i=2*k,j=k?i-2:ring.length-2,x1=ring[j],y1=ring[j+1],x2=ring[i],y2=ring[i+1];
+      const cr=(x2-x1)*(y-y1)-(y2-y1)*(x-x1);
+      if(cr===0&&x>=Math.min(x1,x2)&&x<=Math.max(x1,x2)&&y>=Math.min(y1,y2)&&y<=Math.max(y1,y2)){on=true;return;}
+      if((y1>y)!==(y2>y)&&(cr>0)===(y2>y1))inside=!inside;
+    });
+    return on?0:inside?1:-1;
+  }
+  // The winding number of a ring at a point off its boundary.
+  function areaWinding(ring,x,y){
+    const orient=CORE.orient;let w=0;
+    for(let i=0,j=ring.length-2;i<ring.length;j=i,i+=2){
+      const ax=ring[j],ay=ring[j+1],bx=ring[i],by=ring[i+1];
+      if(ay<=y&&by>y&&orient(ax,ay,bx,by,x,y)>0)w++;
+      else if(ay>y&&by<=y&&orient(ax,ay,bx,by,x,y)<0)w--;
+    }
+    return w;
+  }
+  const areaRingArea=ring=>{const info=areaRingInfo(ring);if(info.area==null)info.area=Math.abs(area2(ring))/2;return info.area;};
+  // The edges of a ring that meet box b, as start vertex indices (edge i runs from vertex i to i+1;
+  // a long ring's edge grid lists edge k as running from vertex k-1 to k).
+  function areaEdgesIn(ring,b,stats,fn){
+    const n=ring.length>>1,[x,y,X,Y]=b;
+    if(n<=AREA_LONG){
+      for(let i=0;i<n;i++){const j=i+1===n?0:i+1;stats.checkedPrimitives++;if(areaEdgeTouches(ring[2*i],ring[2*i+1],ring[2*j],ring[2*j+1],x,y,X,Y))fn(i);}
+      return;
+    }
+    areaVisit(areaEdgeGrid(ring),b,k=>{
+      const i=k?k-1:n-1,j=k;stats.checkedPrimitives++;
+      if(areaEdgeTouches(ring[2*i],ring[2*i+1],ring[2*j],ring[2*j+1],x,y,X,Y))fn(i);
+    });
+  }
+  // Long rings that changed, old and new paired by the edges they share (same class and sign, the
+  // most shared edges): a stage-1 island outline seen by stage 2, an earlier pour's copper, a moved
+  // polygon outline. A pair enters the region by where it differs: the boxes of the connected sets of
+  // edges only one of the two has. Those edges form the cycles that bound where the two rings' winding
+  // differs, and a cycle's box holds what it bounds, so outside these boxes both give the same winding
+  // and have the same edges. Returns {pairs: [[new record, boxes]], rest: the other changed records}.
+  const vertexKey=(x,y)=>(x+33554432)*67108864+(y+33554432);
+  function areaPairs(changed,R,isLong){
+    const olds=[],news=[],rest=[];
+    for(const c of changed)(isLong(c.box)?(R[c.k]===c?news:olds):rest).push(c);
+    const pairs=[],taken=new Set();
+    // Edges by start vertex: start -> [end, edge index, ...].
+    const edgesOf=ring=>{const m=new Map(),n=ring.length>>1;for(let i=0;i<n;i++){const j=i+1===n?0:i+1,a=vertexKey(ring[2*i],ring[2*i+1]),b=vertexKey(ring[2*j],ring[2*j+1]);const l=m.get(a);if(l)l.push(b,i);else m.set(a,[b,i]);}return m;};
+    const find=(m,a,b)=>{const l=m.get(a);if(l)for(let q=0;q<l.length;q+=2)if(l[q]===b)return l[q+1];return -1;};
+    const has=(m,a,b)=>find(m,a,b)>=0;
+    for(const c of news){
+      let best=null,bestShared=0,bestEdges=null;
+      for(const o of olds){
+        if(taken.has(o)||o.shape.cls!==c.shape.cls||o.shape.sign!==c.shape.sign||!areaOverlaps(o.box,c.box))continue;
+        const m=edgesOf(o.shape.ring),r=c.shape.ring,n=r.length>>1;let shared=0;
+        for(let i=0;i<n;i++){const j=i+1===n?0:i+1;if(has(m,vertexKey(r[2*i],r[2*i+1]),vertexKey(r[2*j],r[2*j+1])))shared++;}
+        if(shared>bestShared){best=o;bestShared=shared;bestEdges=m;}
+      }
+      const n=c.shape.ring.length>>1;
+      if(!best||bestShared<n/2){rest.push(c);continue;}
+      taken.add(best);
+      // The edges only one ring has, joined where they share a vertex; one box per connected set.
+      // An edge is shared when the other ring has it too and both or neither carry an arc there (a
+      // merged run can lose its arc while keeping its ends).
+      const mine=edgesOf(c.shape.ring),diff=[];
+      const collect=(ring,tags,other,otherTags)=>{const k=ring.length>>1;for(let i=0;i<k;i++){
+        const j=i+1===k?0:i+1,a=vertexKey(ring[2*i],ring[2*i+1]),b=vertexKey(ring[2*j],ring[2*j+1]),o=find(other,a,b);
+        if(o<0||((tags?tags[i]:-1)<0)!==((otherTags?otherTags[o]:-1)<0))diff.push([a,b,ring[2*i],ring[2*i+1],ring[2*j],ring[2*j+1]]);
+      }};
+      collect(c.shape.ring,c.shape.tags,bestEdges,best.shape.tags);collect(best.shape.ring,best.shape.tags,mine,c.shape.tags);
+      const ids=new Map();for(const [a,b] of diff){if(!ids.has(a))ids.set(a,ids.size);if(!ids.has(b))ids.set(b,ids.size);}
+      const uf=CORE.unionFind(ids.size);for(const [a,b] of diff)uf.join(ids.get(a),ids.get(b));
+      const boxes=new Map();
+      for(const [a,,x1,y1,x2,y2] of diff){const r=uf.find(ids.get(a)),e=[Math.min(x1,x2),Math.min(y1,y2),Math.max(x1,x2),Math.max(y1,y2)];boxes.set(r,areaJoin(boxes.get(r),e));}
+      // The arc ids of the edges both have (old -> new): the kept pieces of rings made of these edges
+      // take the new ids, as with any other kept input (areaArcMaps).
+      const ids2=[],ot=best.shape.tags,nt=c.shape.tags,r=c.shape.ring;
+      if(ot||nt)for(let i=0;i<n;i++){
+        const j=i+1===n?0:i+1,o=find(bestEdges,vertexKey(r[2*i],r[2*i+1]),vertexKey(r[2*j],r[2*j+1]));
+        if(o>=0&&(ot?ot[o]:-1)>=0&&(nt?nt[i]:-1)>=0)ids2.push(ot[o],nt[i]);
+      }
+      pairs.push([c,[...boxes.values()],ids2]);
+    }
+    for(const o of olds)if(!taken.has(o))rest.push(o);
+    return {pairs,rest};
+  }
+  // The region of a patch: a set of boxes, one round each changed input (old and new) and each input
+  // whose boundary comes within AREA_GUARD of a box, grown by 2 AREA_GUARD; closed under that rule.
+  // So every input outside the region keeps its boundary more than AREA_GUARD from every box, and every
+  // input inside lies, with its interior, in its own box. A box that an input's grown box fits in
+  // already is not added again. Connected boxes (within 2 AREA_GUARD) form one component; an input
+  // outside the region has one winding number over a component, taken at its first box's corner.
+  // A long input (its box longer than an eighth of the pour's either way: the polygon and board
+  // outlines, a large island's outline in stage 2, an earlier pour's copper) does not bring its box.
+  // It enters edge by edge: an edge that comes within AREA_GUARD of a box brings its own box, unless it
+  // is parallel to an axis and carries no arc (a "straddler": it may cross the region's boundary, see
+  // areaSplice); and a changed long input that pairs with its old version (areaPairs) brings only the
+  // boxes of where the two differ. A long input that meets a component is solved with it in full (its
+  // winding is not constant over the component), so the component's overlay is exact inside it.
+  // Returns {boxes, grid, components: [{shapes (in task order), winding, boxes, grid}], shapes, longs,
+  // area}, or the reason the region is too wide for a patch: its inputs hold more than `limit`
+  // vertices, where a full solve costs about as much (exactness does not depend on the limit).
+  const areaLongTest=frame=>{const longLen=Math.max(frame[2]-frame[0],frame[3]-frame[1])/8;return b=>Math.max(b[2]-b[0],b[3]-b[1])>longLen;};
+  function areaRegion(inputs,{pairs,rest},K,limit,stats,frame){
+    const g=areaRecordGrid(inputs),R=inputs.records,N=R.length,inL=new Uint8Array(N),inX=new Uint8Array(N),boxes=[],L=[],X=[],of=new Int32Array(N);
+    const isLong=areaLongTest(frame);
+    const meets=new Map(),seen=new Map();
+    let total=0,vertices=0,straddlers=0;
+    const grow=b=>{boxes.push(clipBox(b,2*AREA_GUARD));total+=areaOf(boxes[boxes.length-1]);return boxes.length-1;};
+    const widest=(rec,changed)=>{const a=areaOf(rec.box);if(!stats.widest||a>stats.widest.a)stats.widest={a,cls:rec.shape.cls,w:rec.box[2]-rec.box[0],h:rec.box[3]-rec.box[1],n:rec.shape.ring.length>>1,...(changed?{changed}:{})};};
+    const long=k=>{inX[k]=1;X.push(k);meets.set(k,new Set());seen.set(k,new Set());vertices+=R[k].shape.ring.length>>1;};
+    for(const [c,diff] of pairs){long(c.k);for(const b of diff)grow(b);}
+    for(const c of rest){
+      const own=R[c.k]===c;
+      if(own&&inL[c.k])continue;
+      const q=grow(c.box);widest(c,true);
+      if(own){inL[c.k]=1;L.push(c.k);of[c.k]=q;vertices+=c.shape.ring.length>>1;}
+    }
+    for(let q=0;q<boxes.length;q++){
+      if(vertices>limit)return "wide-neighbourhood";
+      const b=boxes[q],near=clipBox(b,AREA_GUARD);
+      areaVisit(g,near,k=>{
+        if(inL[k])return;
+        const rec=R[k];
+        if(!areaOverlaps(rec.box,near))return;
+        if(!inX[k]){
+          if(!areaRingTouches(rec.shape.ring,near,stats))return;
+          if(isLong(rec.box))long(k);
+          else{
+            inL[k]=1;L.push(k);vertices+=rec.shape.ring.length>>1;widest(rec);
+            const gb=clipBox(rec.box,2*AREA_GUARD);
+            of[k]=gb[0]>=b[0]&&gb[1]>=b[1]&&gb[2]<=b[2]&&gb[3]<=b[3]?q:grow(rec.box);
+            return;
+          }
+        }
+        // A long input: each of its edges near this box straddles or brings its own box.
+        const ring=rec.shape.ring,tags=rec.shape.tags,n=ring.length>>1,met=meets.get(k),done=seen.get(k);
+        met.add(q);
+        areaEdgesIn(ring,near,stats,i=>{
+          if(done.has(i))return;done.add(i);
+          const j=i+1===n?0:i+1,ax=ring[2*i],ay=ring[2*i+1],bx=ring[2*j],by=ring[2*j+1];
+          if((ax===bx||ay===by)&&!(tags&&tags[i]>=0)){straddlers++;return;}
+          const e=[Math.min(ax,bx),Math.min(ay,by),Math.max(ax,bx),Math.max(ay,by)],ge=clipBox(e,2*AREA_GUARD);
+          if(!(ge[0]>=b[0]&&ge[1]>=b[1]&&ge[2]<=b[2]&&ge[3]<=b[3]))met.add(grow(e));
+        });
+      });
+    }
+    if(vertices>limit)return "wide-neighbourhood";
+    // Components: boxes whose AREA_GUARD neighbourhoods meet, by a sweep in x.
+    const B=boxes.length,uf=CORE.unionFind(B),order=[...boxes.keys()].sort((a,b)=>boxes[a][0]-boxes[b][0]);
+    for(let i=0;i<B;i++){
+      const a=boxes[order[i]];
+      for(let j=i+1;j<B;j++){
+        const b=boxes[order[j]];if(b[0]>a[2]+2*AREA_GUARD)break;
+        if(b[1]<=a[3]+2*AREA_GUARD&&b[3]>=a[1]-2*AREA_GUARD&&b[2]>=a[0]-2*AREA_GUARD)uf.join(order[i],order[j]);
+      }
+    }
+    const comp=new Map(),components=[];
+    for(let q=0;q<B;q++){const r=uf.find(q);if(!comp.has(r)){comp.set(r,components.length);components.push({ref:boxes[q],keys:[],boxes:[]});}components[comp.get(r)].boxes.push(boxes[q]);}
+    for(const k of L)components[comp.get(uf.find(of[k]))].keys.push(k);
+    for(const k of X){const cs=new Set();for(const q of meets.get(k))cs.add(comp.get(uf.find(q)));for(const c of cs)components[c].keys.push(k);}
+    for(const c of components){
+      c.keys.sort((a,b)=>a-b);
+      // Every input not in the component's overlay winds constantly over it: a long input that meets
+      // another component only is one of them.
+      const x=c.ref[0],y=c.ref[1],w=new Int32Array(K),mine=new Set(c.keys);
+      areaVisit(g,[x,y,x,y],k=>{
+        if(inL[k]||inX[k]&&mine.has(k))return;const {shape,box:b}=R[k];
+        if(b[0]<=x&&b[2]>=x&&b[1]<=y&&b[3]>=y)w[shape.cls]+=areaWinding(shape.ring,x,y)*shape.sign;
+      });
+      c.winding=w;c.shapes=c.keys.map(k=>R[k].shape);c.grid=areaBoxGrid(c.boxes);
+    }
+    return {boxes,components,shapes:L.length+X.length,longs:X.length,straddlers,pairs:pairs.length,area:total,grid:areaBoxGrid(boxes)};
+  }
+  // ---- Splicing rings across the region's boundary (long inputs that straddle it).
+  // Why a ring rebuilt from old and new pieces equals the full solve's ring, byte for byte:
+  //  - Only straddlers cross the region's boundary: every other input lies in its box inside the region
+  //    or keeps more than AREA_GUARD out of it. A straddler is parallel to an axis, so every point the
+  //    overlay splits it at lies exactly on it (its crossings are rounded to the grid, and on a line
+  //    x = const or y = const that rounding moves nothing across the line), and its pieces are
+  //    collinear. A full solve's ring therefore runs along a straddler straight through the point where
+  //    the straddler crosses the boundary (a "cut point", integer: a box side meets the axis line at
+  //    right angles), and has no vertex there: simplify() keeps exactly the vertices where the direction
+  //    changes, and on either side of a cut point that is decided by the edges at that vertex alone.
+  //  - Outside the region the inputs and their winding are the old ones, so the old ring's vertices
+  //    between two cut points are the new ring's. Inside, the component's overlay (every input meeting
+  //    the component, long ones in full) gives the new ring's vertices between two cut points: edge
+  //    order is the task's, so crossings are rounded as the full solve rounds them, and the overlay's
+  //    winding is exact inside the component. Which side of the straddler is copper at a cut point is
+  //    read just outside the region, so the old and the new solution both run along it there, in the
+  //    same direction (checked).
+  //  - So the new ring is: old vertices up to a cut point, new vertices from it to the next cut point,
+  //    and so on. The edge across a cut point runs along a straddler, whose pieces carry no arc (tag -1,
+  //    checked on both sides), so the tags of the simplified edge are those a full solve gives, and arc
+  //    identities elsewhere are the old ring's (renumbered with the patch's arc map) or the overlay's.
+  //  - canonical() then rotates every ring to its lowest vertex and sorts rings and holes by content,
+  //    so the start a ring was rebuilt from does not matter.
+  // Anything this cannot show exactly (a vertex on a box side, an edge along one, a slanted edge that
+  // leaves the region, an unmatched cut point) returns null and the caller solves in full.
+  function areaPointStatus(region,x,y){
+    let st=0;
+    areaVisit(region.grid,[x,y,x,y],q=>{const b=region.boxes[q];if(x>b[0]&&x<b[2]&&y>b[1]&&y<b[3])st=2;else if(st<1&&x>=b[0]&&x<=b[2]&&y>=b[1]&&y<=b[3])st=1;});
+    return st; // 0 outside, 1 on a box side only, 2 inside
+  }
+  // How a ring meets a region ({boxes, grid}): "outside" (no point of it in a box), "inside" (every
+  // vertex strictly inside a box, no edge leaving), or {events} where it crosses the boundary (in ring
+  // order: {i (edge from vertex i to i+1), d (distance along it), x, y, into}); null if undecidable.
+  function areaCut(ring,region,stats){
+    const n=ring.length>>1,edges=new Set();
+    if(n<=AREA_LONG)for(let i=0;i<n;i++)edges.add(i);
+    else for(const b of region.boxes)areaEdgesIn(ring,b,stats,i=>edges.add(i));
+    if(!edges.size)return "outside";
+    const status=new Map(),at=v=>{let s=status.get(v);if(s===undefined){s=areaPointStatus(region,ring[2*v],ring[2*v+1]);status.set(v,s);}return s;};
+    const events=[];let inner=0,outer=0;
+    for(const i of edges){
+      const j=i+1===n?0:i+1,ax=ring[2*i],ay=ring[2*i+1],bx=ring[2*j],by=ring[2*j+1],sa=at(i),sb=at(j);
+      if(sa===1||sb===1)return null;
+      sa===2?inner++:outer++;
+      const hit=[];
+      areaVisit(region.grid,[Math.min(ax,bx),Math.min(ay,by),Math.max(ax,bx),Math.max(ay,by)],q=>{const b=region.boxes[q];if(areaEdgeTouches(ax,ay,bx,by,b[0],b[1],b[2],b[3]))hit.push(b);});
+      if(!hit.length){if(sa===2||sb===2)return null;continue;}
+      if(ax!==bx&&ay!==by){
+        // A slanted edge lies inside one box (its own, or its input's) or the cut is not exact.
+        if(sa===2&&sb===2&&hit.some(b=>ax>b[0]&&ax<b[2]&&ay>b[1]&&ay<b[3]&&bx>b[0]&&bx<b[2]&&by>b[1]&&by<b[3]))continue;
+        return null;
+      }
+      // Along the edge: the union of the boxes' intervals; its ends between the vertices are cut points.
+      const vertical=ax===bx,c=vertical?ax:ay,s0=vertical?ay:ax,s1=vertical?by:bx,up=s1>s0,lo=Math.min(s0,s1),hi=Math.max(s0,s1),iv=[];
+      for(const b of hit){
+        const c0=vertical?b[0]:b[1],c1=vertical?b[2]:b[3];
+        if(c===c0||c===c1)return null;
+        iv.push([Math.max(lo,vertical?b[1]:b[0]),Math.min(hi,vertical?b[3]:b[2])]);
+      }
+      iv.sort((p,q)=>p[0]-q[0]);
+      const merged=[];for(const p of iv){const m=merged[merged.length-1];if(m&&p[0]<=m[1])m[1]=Math.max(m[1],p[1]);else merged.push(p.slice());}
+      for(const [p,q] of merged)for(const [v,into] of [[p,up],[q,!up]]){
+        if(v===lo||v===hi)continue; // a vertex: its status says which side it is on
+        events.push({i,d:Math.abs(v-s0),x:vertical?c:v,y:vertical?v:c,into,dx:Math.sign(bx-ax),dy:Math.sign(by-ay)});
+      }
+    }
+    if(!events.length){if(inner&&outer)return null;return inner?(edges.size===n?"inside":null):"outside";}
+    events.sort((p,q)=>p.i-q.i||p.d-q.d);
+    for(let k=0;k<events.length;k++)if(events[k].into===events[(k+1)%events.length].into)return null;
+    return {events};
+  }
+  // The pieces of a crossing ring between consecutive cut points, on one side (inside: true, the
+  // pieces in the region; false, those outside): {from, to (cut point keys), ring and tags (its vertices
+  // strictly between, and the tags of the edges between them), din, dout (directions at the two cut
+  // points)}; null if a cut edge carries an arc.
+  const areaPut=(dst,at,src,from,len)=>{if(src.subarray)dst.set(src.subarray(from,from+len),at);else for(let q=0;q<len;q++)dst[at+q]=src[from+q];};
+  function areaChains(ring,tags,events,inside){
+    const n=ring.length>>1,out=[],E=events.length;
+    for(let k=0;k<E;k++){
+      const a=events[k],b=events[(k+1)%E];
+      if(a.into!==inside)continue;
+      if(tags&&(tags[a.i]>=0||tags[b.i]>=0))return null;
+      // Vertices strictly between: none when b follows a on the same edge, all of them when the last
+      // piece wraps round to the edge it started on.
+      const count=k<E-1?b.i-a.i:b.i===a.i?n:(b.i-a.i+n)%n,s=(a.i+1)%n,first=Math.min(count,n-s);
+      const r=new Int32Array(2*count),t=new Int32Array(count);
+      areaPut(r,0,ring,2*s,2*first);areaPut(r,2*first,ring,0,2*(count-first));
+      if(tags){areaPut(t,0,tags,s,first);areaPut(t,first,tags,0,count-first);}else t.fill(-1);
+      if(count)t[count-1]=-1; // the edge out to the next cut point lies on a straddler
+      out.push({from:vertexKey(a.x,a.y),to:vertexKey(b.x,b.y),inside,ring:r,tags:t,din:a.dx+","+a.dy,dout:b.dx+","+b.dy});
+    }
+    return out;
+  }
+  // Joins the old rings' outside pieces with the overlay's inside pieces at their cut points. Returns
+  // [{ring, tags, from (old ring entry -> how many of its pieces the ring reuses)}], or null if a piece
+  // has no partner or a partner runs the other way.
+  function areaSplice(outside,inside){
+    const byStart=new Map(),inByStart=new Map(),used=new Set(),rings=[];
+    for(const c of outside){if(byStart.has(c.from))return null;byStart.set(c.from,c);}
+    for(const c of inside){if(inByStart.has(c.from))return null;inByStart.set(c.from,c);}
+    for(const start of outside){
+      if(used.has(start))continue;
+      const parts=[],from=new Map();let c=start,guard=0;
+      for(;;){
+        used.add(c);from.set(c.owner,(from.get(c.owner)||0)+1);parts.push(c);
+        const piece=inByStart.get(c.to);
+        if(!piece||used.has(piece)||piece.din!==c.dout)return null;
+        used.add(piece);parts.push(piece);
+        c=byStart.get(piece.to);
+        if(!c||c.din!==piece.dout)return null;
+        if(c===start)break;
+        if(used.has(c)||++guard>outside.length)return null;
+      }
+      let len=0;for(const q of parts)len+=q.tags.length;
+      const ring=new Int32Array(2*len),tags=new Int32Array(len);let at=0;
+      for(const q of parts){ring.set(q.ring,2*at);tags.set(q.tags,at);at+=q.tags.length;}
+      if(len<3||!area2(ring))return null;
+      rings.push({ring,tags,from});
+    }
+    for(const c of inside)if(!used.has(c))return null;
+    return rings;
+  }
+  // ---- The previous solution's rings by box: one entry per ring array {ring, tags, box, area, outer};
+  // islands maps an outer entry to its island. A patch copies the cell lists it changes and the island
+  // map, so the previous layout stays valid for the solution it describes.
+  const areaEntries=new WeakMap(),areaDerived=new WeakMap();
+  function areaEntry(r,outer){
+    let e=areaEntries.get(r.ring);
+    if(!e||e.tags!==r.tags){e={ring:r.ring,tags:r.tags,box:areaRingInfo(r.ring).box,area:areaRingArea(r.ring),outer};areaEntries.set(r.ring,e);}
+    return e;
+  }
+  function areaLayout(islands,frame){
+    let n=0;for(const isl of islands)n+=1+isl.holes.length;
+    const L={...areaCells(frame[0],frame[1],frame[2],frame[3],n),big:[],islands:new Map(),own:null};
+    L.cells=Array.from({length:L.cols*L.rows},()=>[]);
+    for(const isl of islands){const o=areaEntry(isl,true);areaPlace(L,o,false);L.islands.set(o,isl);for(const h of isl.holes)areaPlace(L,areaEntry(h,false),false);}
+    return L;
+  }
+  const areaLayoutCopy=L=>({...L,cells:L.cells.slice(),big:L.big.slice(),islands:new Map(L.islands),own:new Set()});
+  function areaPlace(L,e,remove){
+    const s=areaSpan(L,e.box);
+    if(areaWide(s)){if(remove){const i=L.big.indexOf(e);if(i>=0)L.big.splice(i,1);}else L.big.push(e);return;}
+    for(let r=s[2];r<=s[3];r++)for(let c=s[0];c<=s[1];c++){
+      const id=r*L.cols+c;
+      if(L.own&&!L.own.has(id)){L.cells[id]=L.cells[id].slice();L.own.add(id);}
+      const list=L.cells[id];
+      if(remove){const i=list.indexOf(e);if(i>=0)list.splice(i,1);}else list.push(e);
+    }
+  }
+  function areaLayoutVisit(L,b,fn){
+    const s=areaSpan(L,b),seen=new Set();
+    for(let r=s[2];r<=s[3];r++)for(let c=s[0];c<=s[1];c++)for(const e of L.cells[r*L.cols+c])if(!seen.has(e)){seen.add(e);fn(e);}
+    for(const e of L.big)if(!seen.has(e)){seen.add(e);fn(e);}
+  }
+  // The island a hole belongs to, by the rule of CORE.islands: the outer ring of least area, larger
+  // than the hole, whose box holds the hole's box and which holds the hole's first vertex off its
+  // boundary (or all of them on it). Outers that hold the hole's box are listed in the cell of its
+  // lower left corner.
+  function areaParent(L,h){
+    let best=null;const b=h.box,s=areaSpan(L,b),list=L.cells[s[2]*L.cols+s[0]];
+    const test=o=>{
+      if(!o.outer||o.area<=h.area||o.box[0]>b[0]||o.box[1]>b[1]||o.box[2]<b[2]||o.box[3]<b[3]||(best&&o.area>=best.area))return;
+      let side=0;for(let i=0;i<h.ring.length&&!side;i+=2)side=areaPointInRing(h.ring[i],h.ring[i+1],o.ring);
+      if(side>=0)best=o;
+    };
+    for(const o of list)test(o);for(const o of L.big)test(o);
+    return best;
+  }
   function areaPatch(job,task,prior,inputs,dirtyBoxes,stats){
     if(!prior)return "first-solve";
     if(!Array.isArray(dirtyBoxes))return "global-change";
     if(prior.S!==job.S||prior.ox!==job.ox||prior.oy!==job.oy||prior.hasBoard!==task.hasBoard||prior.K!==task.K)return "frame-or-classes";
     if(!ordinaryOverlay(prior.solved.stats))return "previous-overlay";
-    const diff=areaDifference(prior.inputs,inputs);
+    let tq=now();const diff=areaDifference(prior.inputs,inputs);stats.tDiff=now()-tq;
     if(!diff)return "arc-identities";
-    const {changed,arcMap}=diff,work=job.clear.work,workBox=areaFrameBox(work,job),limit=areaOf(workBox)*AREA_LIMIT;
+    const {changed}=diff,frame=areaFrameBox(job.clear.work,job),limit=inputs.primitives*AREA_LIMIT;
     const overlayStats={...prior.solved.stats,edges:0,merged:0,tPlanar:0,tMerge:0,tClassify:0,tTrace:0,tIslands:0,tSolve:0};
-    if(!changed.length&&[...arcMap].every(([a,b])=>a===b)){
+    // Changed long inputs paired with their old versions; the arcs on the edges a pair shares follow
+    // the same one-to-one map as the arcs of unchanged inputs.
+    const paired=changed.length?areaPairs(changed,inputs.records,areaLongTest(frame)):{pairs:[],rest:[]};
+    let {arcMap,reverse,shifted}=diff;
+    const pairIds=paired.pairs.flatMap(p=>p[2]);
+    let pairShift=false;for(let q=0;q<pairIds.length;q+=2)if(pairIds[q]!==pairIds[q+1])pairShift=true;
+    if(pairShift&&!arcMap){const m=areaArcMaps(prior.inputs,inputs);if(!m)return "arc-identities";({arcMap,reverse}=m);shifted=true;}
+    if(arcMap)for(let q=0;q<pairIds.length;q+=2){
+      const a=pairIds[q],b=pairIds[q+1];if(a<0&&b<0)continue;if(a<0||b<0)return "arc-identities";
+      if(arcMap.has(a)&&arcMap.get(a)!==b||reverse.has(b)&&reverse.get(b)!==a)return "arc-identities";
+      arcMap.set(a,b);reverse.set(b,a);
+    }
+    if(!changed.length&&!shifted){
       Object.assign(stats,{mode:"unchanged",bounds:null,mm2:0,shapes:0,primitives:0});
       return {...prior.solved,stats:overlayStats};
     }
-    let patch=null,local=[],added=[];
+    // Arc ids that moved: the kept rings take the new ids (a new ring array where any tag changed).
+    // A ring whose arcs are not all mapped can only be one the patch replaces (its inputs changed).
+    let islands0=prior.solved.islands,L0=prior.solved.layout;const retagged=new Set(),unmapped=new Set();
+    if(shifted){
+      const retag=r=>{const k=areaRetag(r,arcMap);if(k)return k;unmapped.add(r.ring);return r;};
+      islands0=[];
+      for(const isl of prior.solved.islands){
+        const o=retag(isl);
+        const holes=[];let moved=o!==isl;
+        for(const h of isl.holes){const k=retag(h);if(k!==h)moved=true;holes.push(k);}
+        if(!moved){islands0.push(isl);continue;}
+        const next={ring:o.ring,tags:o.tags,links:[],holes};
+        areaDerived.set(next,{from:isl,lost:[],gained:[]});retagged.add(next);
+        islands0.push(next);
+      }
+      L0=null;
+    }
+    if(!L0)L0=areaLayout(islands0,frame);
+    const t0=now();
+    let region=null;
+    const added=[],insidePieces=[];
     if(changed.length){
-      for(const b of dirtyBoxes){
-        if(!Array.isArray(b)||b.length!==4||!b.every(finite)||!areaOverlaps(b,work))continue;
-        const cut=[Math.max(b[0],work[0]),Math.max(b[1],work[1]),Math.min(b[2],work[2]),Math.min(b[3],work[3])];
-        patch=areaJoin(patch,areaFrameBox(cut,job));
-      }
-      for(const entry of changed)patch=areaJoin(patch,entry.box);
-      patch=clipBox(patch,2*AREA_GUARD);
-      // Every boundary entering the guard band joins the local solve in full.
-      // Include unchanged neighbours and old inputs removed by the edit.
-      const all=[...prior.inputs.records,...inputs.records];
-      for(let expansion=0;;expansion++){
-        if(expansion>=8||areaOf(patch)>limit)return "wide-neighbourhood";
-        const near=clipBox(patch,AREA_GUARD);let next=patch;
-        for(const {shape,box} of all){
-          if(!areaOverlaps(box,near)||areaEncloses(patch,box,AREA_GUARD))continue;
-          if(areaBoundary(shape.ring,near,stats).touches)next=areaJoin(next,clipBox(box,2*AREA_GUARD));
+      tq=now();areaRecordGrid(inputs);stats.tGrid=now()-tq;
+      stats.frameArea=areaOf(frame);
+      region=areaRegion(inputs,paired,task.K,limit,stats,frame);
+      stats.tRegion=now()-tq;
+      if(typeof region==="string")return region;
+      const inside=CORE.pourInside(task.K,task.hasBoard),w=new Int32Array(task.K);
+      for(const c of region.components){
+        const rings=CORE.overlayRings(c.shapes,task.K,v=>{for(let i=0;i<v.length;i++)w[i]=v[i]+c.winding[i];return inside(w);},overlayStats);
+        if(!ordinaryOverlay(overlayStats))return "local-overlay";
+        // Only what lies inside the component is the new solution's: a ring inside it is new, a ring
+        // that crosses its boundary gives its pieces between cut points (areaSplice), and the rest (long
+        // inputs far from the component, solved there without the other inputs) is dropped.
+        for(const r of rings){
+          const cut=areaCut(r.ring,c,stats);
+          if(!cut)return "local-splice";
+          if(cut==="inside")added.push(r);
+          else if(cut!=="outside"){const ch=areaChains(r.ring,r.tags,cut.events,true);if(!ch)return "local-splice";for(const q of ch)insidePieces.push(q);}
         }
-        if(next===patch)break;
-        patch=next;
-      }
-      const winding=new Int32Array(task.K),inside=CORE.pourInside(task.K,task.hasBoard);
-      for(const {shape,box} of inputs.records){
-        if(areaEncloses(patch,box,AREA_GUARD)){local.push(shape);continue;}
-        if(areaOverlaps(box,patch))winding[shape.cls]+=areaBoundary(shape.ring,patch,stats).winding*shape.sign;
-      }
-      const workWinding=new Int32Array(task.K),t0=now();
-      added=CORE.overlayRings(local,task.K,w=>{
-        for(let i=0;i<w.length;i++)workWinding[i]=w[i]+winding[i];
-        return inside(workWinding);
-      },overlayStats);
-      overlayStats.tSolve=now()-t0;
-      if(!ordinaryOverlay(overlayStats))return "local-overlay";
-    }
-    // Preserve contour cycles outside the patch, including the enclosing
-    // outline. Reparent holes against the combined contours before the
-    // usual whole-island connectivity, area and size tests.
-    const combined=[];
-    for(const island of prior.solved.islands){
-      for(const r of [island,...island.holes]){
-        if(patch){
-          const b=areaRingInfo(r.ring).box;
-          if(areaEncloses(patch,b,0))continue;
-          if(areaOverlaps(b,patch)&&areaBoundary(r.ring,patch,stats).touches)return "contour-crosses-boundary";
-        }
-        const kept=areaRetag(r,arcMap);
-        if(!kept)return "contour-arc-identity";
-        combined.push(kept);
       }
     }
-    combined.push(...added);
-    const t0=now(),found=CORE.islands(combined),pack=r=>({
-      ring:r.ring instanceof Int32Array?r.ring:Int32Array.from(r.ring),
-      tags:r.tags instanceof Int32Array?r.tags:Int32Array.from(r.tags)
+    overlayStats.tSolve=now()-t0;
+    const t1=now();
+    // The previous rings: made of inputs inside the region (replaced), outside it (kept), or across its
+    // boundary on straddlers (their outside pieces are kept and spliced with the new inside pieces).
+    const removed=new Set(),outsidePieces=[],crossing=new Map();
+    const regionBox=region?region.boxes.reduce((u,q)=>areaJoin(u,q),null):null;
+    if(region){
+      const near=new Set();for(const b of region.boxes)areaLayoutVisit(L0,b,e=>near.add(e));
+      for(const e of near){
+        const cut=areaCut(e.ring,region,stats);
+        if(!cut)return "contour-crosses-boundary";
+        if(cut==="outside")continue;
+        removed.add(e);
+        if(cut==="inside")continue;
+        const ch=areaChains(e.ring,e.tags,cut.events,false);if(!ch)return "contour-crosses-boundary";
+        let count=0;
+        for(const q of ch){
+          // A ring whose arcs were not all renumbered (some came from inputs the patch replaces) keeps
+          // its outside pieces only if every arc on them is renumbered.
+          if(unmapped.has(e.ring))for(let m=0;m<q.tags.length;m++){const t=q.tags[m];if(t<0)continue;if(!arcMap.has(t))return "contour-arc-identity";q.tags[m]=arcMap.get(t);}
+          q.owner=e;outsidePieces.push(q);count++;
+        }
+        crossing.set(e,count);
+      }
+    }
+    if(unmapped.size){for(const e of removed)unmapped.delete(e.ring);if(unmapped.size)return "contour-arc-identity";}
+    const tCut=now()-t1;
+    // An old outer whose pieces all go into one new outer is that outer, changed inside the region: its
+    // holes away from the region keep it (containment of a point outside the region's box cannot change
+    // when a ring changes only inside it), the others find their outer again.
+    const replacedBy=new Map(),replaces=new Map();let spliced=0;
+    if(outsidePieces.length||insidePieces.length){
+      const joined=areaSplice(outsidePieces,insidePieces);
+      if(!joined)return "splice-unmatched";
+      for(const j of joined){
+        added.push(j);spliced++;
+        if(j.from.size!==1)continue;
+        const [[o,count]]=j.from;
+        if(o.outer&&count===crossing.get(o)&&area2(j.ring)>0){const e=areaEntry(j,true);replacedBy.set(o,e);replaces.set(e,o);}
+      }
+    }
+    const tSplice=now()-t1-tCut;
+    // Islands: holes of removed outers, holes the new outers may now hold, and new holes find their
+    // outer again; every other hole keeps it.
+    const E=areaLayoutCopy(L0),lost=new Map(),gained=new Map(),orphans=[],touched=new Set(),carried=new Map();
+    const note=(m,o,e)=>{let l=m.get(o);if(!l)m.set(o,l=[]);l.push(e);touched.add(o);};
+    for(const e of removed){
+      if(e.outer){
+        const to=replacedBy.get(e);
+        for(const h of L0.islands.get(e)?.holes||[]){
+          const he=areaEntry(h,false);if(removed.has(he))continue;
+          if(to&&!areaOverlaps(he.box,regionBox)){let m=carried.get(to);if(!m)carried.set(to,m=new Map());m.set(he,h);}
+          else orphans.push(he);
+        }
+      }
+      else{const p=areaParent(L0,e);if(p&&!removed.has(p))note(lost,replacedBy.get(p)||p,e);}
+    }
+    for(const e of removed){areaPlace(E,e,true);if(e.outer)E.islands.delete(e);}
+    const outers=[],holes=[];
+    for(const r of added){
+      const obj={ring:r.ring instanceof Int32Array?r.ring:Int32Array.from(r.ring),tags:r.tags instanceof Int32Array?r.tags:Int32Array.from(r.tags)};
+      const e=areaEntry(obj,area2(obj.ring)>0);(e.outer?outers:holes).push(e);areaPlace(E,e,false);
+    }
+    for(const o of outers)touched.add(o);
+    const pending=new Set([...holes,...orphans]),checked=new Set();
+    // A rebuilt outer N holds a point outside the region's box exactly when the outer O it replaces did.
+    // A hole there with another outer P (so P is less than O) moves to N only if N is now less than P:
+    // unless some outer lies between N and O in area, only holes near the region need asking. Any other
+    // new outer lies in the region.
+    const near=o=>{
+      const was=replaces.get(o);if(!was)return o.box;
+      for(const p of E.islands.keys())if(p!==o&&p.area>o.area&&p.area<was.area)return o.box;
+      return regionBox;
+    };
+    for(const o of outers)areaLayoutVisit(E,near(o),h=>{
+      if(h.outer||pending.has(h)||checked.has(h)||h.area>=o.area||h.box[0]<o.box[0]||h.box[1]<o.box[1]||h.box[2]>o.box[2]||h.box[3]>o.box[3])return;
+      checked.add(h);
+      const before=areaParent(L0,h),was=replacedBy.get(before)||before,next=areaParent(E,h);
+      if(next===was)return;
+      if(carried.get(was)?.delete(h));else if(was)note(lost,was,h);
+      if(next)note(gained,next,h);else areaPlace(E,h,true);
     });
-    const islands=found.map(r=>({...pack(r),links:[],holes:r.holes.map(pack)}));
-    overlayStats.tIslands=now()-t0;overlayStats.tSolve+=overlayStats.tIslands;
-    Object.assign(stats,{mode:patch?"local":"unchanged",bounds:patch?.map((v,k)=>v/job.S+(k%2?job.oy:job.ox))||null,
-      mm2:patch?areaOf(patch)/(job.S*job.S):0,shapes:local.length,primitives:local.reduce((n,s)=>n+s.ring.length/2,0)});
-    return {islands,stats:overlayStats};
+    for(const h of pending){const p=areaParent(E,h);if(p)note(gained,p,h);else areaPlace(E,h,true);}
+    for(const o of touched){
+      if(removed.has(o))continue;
+      const from=replaces.get(o),old=E.islands.get(o)||(from?L0.islands.get(from):null),drop=new Set(lost.get(o)||[]),add=gained.get(o)||[],list=[];
+      if(from)for(const h of carried.get(o)?.values()||[])list.push(h);
+      else if(old)for(const h of old.holes)if(!drop.has(areaEntry(h,false)))list.push(h);
+      for(const e of add)list.push({ring:e.ring,tags:e.tags});
+      const isl={ring:o.ring,tags:o.tags,links:[],holes:list};
+      if(old){
+        const base=retagged.has(old)?areaDerived.get(old).from:old;
+        if(from){
+          // Holes it did not carry over count as lost (a hole lost and found again is tested again).
+          const carry=carried.get(o),lostHoles=[];
+          for(const h of old.holes){const he=areaEntry(h,false);if(!carry?.has(he))lostHoles.push(he);}
+          areaDerived.set(isl,{from:base,lost:lostHoles,gained:add,outerBox:regionBox});
+        }else areaDerived.set(isl,{from:base,lost:[...drop],gained:add});
+      }
+      E.islands.set(o,isl);
+    }
+    E.own=null;
+    overlayStats.tIslands=now()-t1;overlayStats.tSolve+=overlayStats.tIslands;
+    Object.assign(stats,{mode:region?"local":"unchanged",bounds:region?areaBoundsMm(region.boxes,job):null,mm2:region?region.area/(job.S*job.S):0,
+      shapes:region?region.shapes:0,primitives:region?region.components.reduce((n,c)=>n+c.shapes.reduce((m,s)=>m+s.ring.length/2,0),0):0,
+      boxes:region?region.boxes.length:0,longs:region?region.longs:0,straddlers:region?region.straddlers:0,splicedRings:spliced,
+      removedRings:removed.size,addedRings:added.length,rehomedHoles:orphans.length,tCut,tSplice,layout:prior.solved.layout&&!shifted?"kept":"built",arcsMoved:shifted,tIslands:overlayStats.tIslands,tOverlay:overlayStats.tSolve-overlayStats.tIslands});
+    return {islands:[...E.islands.values()],stats:overlayStats,layout:E};
+  }
+  // keep() of a patched solution: the anchors each island touches (links), dead copper, area and size,
+  // with the answers of the previous keep (cache) where they still hold, the same as keep() gives.
+  // An island the patch left alone is the same object: its links follow its anchors to their new
+  // index (the same anchor arrays: prepare reuses them for an unchanged item) and only new anchors are
+  // tested. An island the patch changed keeps the answers of the island it came from (areaDerived)
+  // except for anchors whose box meets a hole it lost or gained. Any other island, or a change of the
+  // tests, is tested in full. Touch tests read only the island's holes near the anchor (a grid of its
+  // holes), which gives the answer of CORE.touches over all of them. Returns {solved, cache} or null.
+  const areaHoleGrids=new WeakMap();
+  function areaTouches(anchor,isl){
+    const ib=areaRingInfo(isl.ring).box,b=anchor.box;
+    if(b[0]>ib[2]||b[2]<ib[0]||b[1]>ib[3]||b[3]<ib[1])return false;
+    const holes=[];
+    if(isl.holes.length){
+      let g=areaHoleGrids.get(isl);
+      if(!g)areaHoleGrids.set(isl,g=areaBoxGrid(null,isl.holes.length,(k,o)=>{const b=areaRingInfo(isl.holes[k].ring).box;o[0]=b[0];o[1]=b[1];o[2]=b[2];o[3]=b[3];}));
+      areaVisit(g,b,k=>{const h=isl.holes[k],hb=areaRingInfo(h.ring).box;if(areaOverlaps(hb,b))holes.push({ring:h.ring,box:hb});});
+    }
+    // CORE.touches, step for step: an anchor vertex in the island, the island's first vertex in the
+    // anchor, or an island edge (outer or hole) touching an anchor edge. A long outer ring is read
+    // through its edge grid (point in ring, and only the edges whose boxes meet the anchor's).
+    const r=anchor.ring,n=r.length>>1,P=CORE.pointInRing,T=CORE.segmentsTouch,ring=isl.ring,m=ring.length>>1;
+    const inIsland=(x,y)=>{
+      const o=areaPointInRing(x,y,ring);if(o<0)return false;if(o===0)return true;
+      for(const h of holes)if(x>=h.box[0]&&x<=h.box[2]&&y>=h.box[1]&&y<=h.box[3]&&P(x,y,h.ring)>0)return false;
+      return true;
+    };
+    for(let i=0;i<n;i++)if(inIsland(r[2*i],r[2*i+1]))return true;
+    if(P(ring[0],ring[1],r)>=0)return true;
+    const cross=(x1,y1,x2,y2)=>{
+      if(Math.max(x1,x2)<b[0]||Math.min(x1,x2)>b[2]||Math.max(y1,y2)<b[1]||Math.min(y1,y2)>b[3])return false;
+      for(let k=0,l=n-1;k<n;l=k++)if(T(x1,y1,x2,y2,r[2*l],r[2*l+1],r[2*k],r[2*k+1]))return true;
+      return false;
+    };
+    if(m<=AREA_LONG){for(let i=0,j=m-1;i<m;j=i++)if(cross(ring[2*j],ring[2*j+1],ring[2*i],ring[2*i+1]))return true;}
+    else{let hit=false;areaVisit(areaEdgeGrid(ring),b,k=>{if(!hit){const j=k?k-1:m-1;hit=cross(ring[2*j],ring[2*j+1],ring[2*k],ring[2*k+1]);}});if(hit)return true;}
+    for(const h of holes){const g=h.ring,q=g.length>>1;for(let i=0,j=q-1;i<q;j=i++)if(cross(g[2*j],g[2*j+1],g[2*i],g[2*i+1]))return true;}
+    return false;
+  }
+  function areaKeep(solved,task,cache){
+    const t0=now(),A=task.anchors,n=A.length,index=new Map();
+    for(let k=0;k<n;k++){if(index.has(A[k]))return null;index.set(A[k],k);}
+    const same=!!cache&&cache.removeDead===task.removeDead&&cache.minArea===task.minArea&&cache.minSize===task.minSize;
+    const anchor=k=>({ring:A[k],box:areaRingInfo(A[k]).box});
+    let to=null;const fresh=[];
+    if(same){
+      const seen=new Uint8Array(n);to=new Int32Array(cache.anchors.length);
+      for(let k=0;k<to.length;k++){const j=index.get(cache.anchors[k]);to[k]=j??-1;if(j!=null)seen[j]=1;}
+      for(let k=0;k<n;k++)if(!seen[k])fresh.push(k);
+    }
+    const byIsland=new WeakMap(),out=[];let dead=0,local=0;
+    for(const isl of solved.islands){
+      const c=same?cache.byIsland.get(isl):null,d=!c&&same?areaDerived.get(isl):null,c0=d?cache.byIsland.get(d.from):null;
+      let links,area;
+      if(c||c0){
+        const base=c||c0,retest=new Set(fresh);
+        if(c0){
+          // An outer ring rebuilt across the region (d.outerBox) changed only inside the region's box.
+          const changedBoxes=[...d.lost,...d.gained].map(e=>e.box);if(d.outerBox)changedBoxes.push(d.outerBox);
+          let u=null;for(const b of changedBoxes)u=areaJoin(u,b);
+          if(u)for(let k=0;k<n;k++){const b=areaRingInfo(A[k]).box;if(areaOverlaps(b,u)&&changedBoxes.some(h=>areaOverlaps(b,h)))retest.add(k);}
+        }
+        links=[];
+        for(const k of base.links){const j=to[k];if(j>=0&&!retest.has(j))links.push(j);}
+        for(const k of retest)if(areaTouches(anchor(k),isl))links.push(k);
+        links.sort((a,b)=>a-b);
+        area=c?c.area:d.outerBox?areaRingArea(isl.ring)-isl.holes.reduce((s,h)=>s+areaRingArea(h.ring),0):c0.area+d.lost.reduce((s,e)=>s+e.area,0)-d.gained.reduce((s,e)=>s+e.area,0);
+        local++;
+      }else{
+        links=[];for(let k=0;k<n;k++)if(areaTouches(anchor(k),isl))links.push(k);
+        area=areaRingArea(isl.ring)-isl.holes.reduce((s,h)=>s+areaRingArea(h.ring),0);
+      }
+      const prev=c?.out,o=prev&&prev.links.length===links.length&&prev.links.every((k,i)=>k===links[i])?prev:{ring:isl.ring,tags:isl.tags,links,holes:isl.holes};
+      byIsland.set(isl,{links,area,out:o});
+      if(task.removeDead&&!links.length){dead++;continue;}
+      const b=areaRingInfo(isl.ring).box;
+      if(task.minArea>0&&area<task.minArea)continue;
+      if(b[2]-b[0]<task.minSize&&b[3]-b[1]<task.minSize)continue;
+      out.push(o);
+    }
+    const stats={...solved.stats,deadIslands:dead,tDead:now()-t0,keep:same?"local":"full",keptIslands:local};
+    stats.tSolve=(solved.stats?.tSolve||0)+stats.tDead;
+    return {solved:{islands:out,stats},cache:{anchors:A,removeDead:task.removeDead,minArea:task.minArea,minSize:task.minSize,byIsland}};
+  }
+  function areaBoundsMm(boxes,job){
+    let b=null;for(const q of boxes)b=areaJoin(b,q);
+    // No box: a long ring changed only where its vertex list starts (the same edges).
+    return b&&b.map((v,k)=>v/job.S+(k%2?job.oy:job.ox));
   }
   function* areaSolveSteps({job,task,prior,area,hash,stage,j}){
     const t0=now(),inputs=areaInputs(task,job.arcs),stats={fullMm2:areaOf(job.clear.work),fullShapes:inputs.records.length,
-      fullPrimitives:inputs.primitives,indexedPrimitives:inputs.indexedPrimitives,checkedPrimitives:0};
-    let solved=areaPatch(job,task,prior,inputs,area.dirtyBoxes,stats);
-    if(typeof solved==="string"){
+      fullPrimitives:inputs.primitives,indexedPrimitives:inputs.indexedPrimitives,checkedPrimitives:0,tInputs:now()-t0};
+    let solved=areaPatch(job,task,prior,inputs,area.dirtyBoxes,stats);    if(typeof solved==="string"){
       Object.assign(stats,{mode:"full",reason:solved,mm2:stats.fullMm2,shapes:stats.fullShapes,primitives:stats.fullPrimitives});
       solved=yield {task,hash,stage,j,job};
     }
@@ -2586,7 +3261,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
   // The final solution, canonical (every path stores the same bytes). stage1: stage 1's stats.
   function finalize(solved,stage1,area=false){
-    CORE.canonical(solved,area?areaCanonical:null);solved.final=true;
+    CORE.canonical(solved,area?areaCanonical:null,area?areaCanonicalIslands:null);solved.final=true;
     if(stage1&&solved.stats&&!solved.stats.stage1){solved.stats.stage1=stage1;solved.stats.tSolve=(solved.stats.tSolve||0)+(stage1.tSolve||0);}
     return solved;
   }
@@ -2605,7 +3280,7 @@ globalThis.AtriumPolygonPour=(()=>{
     const c=clearance(r.net||"","poly",r),b=r.bounds;
     if(!near([b[0]-c,b[1]-c,b[2]+c,b[3]+c]))return;
     const tag=r.polygon??"imported",reach=c+Math.max(SAFE,2e-4)+tol;
-    const cached=areaRegionContours.get(r),prepared=cached&&cached.data===r.data&&cached.count===r.count?cached.rings:null;
+    const cached=areaRegionContours.get(r),prepared=cached&&cached.data===dataKey(r)&&cached.count===r.count?cached.rings:null;
     (prepared||rings(r)).forEach((ring,k)=>{
       const rb=prepared?areaRingInfo(ring).box:boxOf(ring);
       if(!near([rb[0]-reach,rb[1]-reach,rb[2]+reach,rb[3]+reach]))return;
@@ -2637,16 +3312,32 @@ globalThis.AtriumPolygonPour=(()=>{
       const links=[],seen=new Set();
       for(const k of isl.links){const l=job.links[k];if(!l)continue;const key=JSON.stringify(l);if(!seen.has(key)){seen.add(key);links.push(l);}}
       const rs=[{ring:isl.ring,tags:isl.tags},...isl.holes.map(h=>({ring:h.ring,tags:h.tags}))];
-      const arcs=job.arcs?.length?yield* trueArcSteps(rs,job):null;
+      // An island the area patch left as it was (the same object, areaKeep and areaCanonicalIslands)
+      // in the same frame was finished before (areaFinished): its true arcs are the ones found then
+      // when the registered arcs its rings are tagged with are the same (areaArcInputs), and it is the
+      // region made then while the pour still holds that region with the same links and arcs
+      // (regionAgain), so its rings are neither scanned for arcs, converted nor encoded again. The arc
+      // scan starts a tagged ring at a change of tag (trueArcSteps); the rings it left are kept too.
+      const f0=job.areaExact?areaFinished.get(isl):null,f=f0&&f0.S===S&&f0.ox===ox&&f0.oy===oy&&f0.layer===layer&&f0.net===net?f0:null;
+      const arcsAgain=!!f&&areaSameArcs(rs,f.arcs0,job.arcs);
+      if(arcsAgain)f.rings.forEach((ring,k)=>{rs[k].ring=ring;});
+      const arcs=arcsAgain?f.arcs:job.arcs?.length?yield* trueArcSteps(rs,job):null;
       yield;
       /** @type {{polygon: typeof P.id, links: typeof links, hatchSkipped?: boolean, arcs?: NonNullable<typeof arcs>}} */
       const extra={polygon:P.id,links,...(stats.hatchSkipped?{hatchSkipped:true}:{})};
       if(arcs){extra.arcs=arcs;arcCount+=arcs.length/5;}
+      // An island identical to one of the pour's regions now (same rings, links and arcs) is that region:
+      // not encoded again, and the editor keeps its object and everything cached for it.
       if(job.areaExact){
-        const mm=rs.map(r=>areaToMm(r.ring)),region=encode(mm.map(e=>e.mm),layer,net,extra);
-        areaRegionContours.set(region,{data:region.data,count:region.count,rings:mm.map(e=>e.stored)});
+        let region=f?regionAgain(job.prior,f.region,extra):null;
+        if(region)stats.regionsKept=(stats.regionsKept||0)+1;
+        else{
+          const mm=rs.map(r=>areaToMm(r.ring));region=encodeLike(job.prior,mm.map(e=>e.mm),layer,net,extra);
+          areaRegionContours.set(region,{data:dataKey(region),count:region.count,rings:mm.map(e=>e.stored)});
+        }
+        areaFinished.set(isl,{region,S,ox,oy,layer,net,arcs0:job.arcs,arcs,rings:rs.map(r=>r.ring)});
         regions.push(region);
-      }else regions.push(encode(rs.map(r=>toMm(r.ring)),layer,net,extra));
+      }else regions.push(encodeLike(job.prior,rs.map(r=>toMm(r.ring)),layer,net,extra));
       yield;
     }
     stats.arcs=arcCount;stats.regions=regions.length;stats.tFinish=now()-t0;
@@ -2880,7 +3571,7 @@ globalThis.AtriumPolygonPour=(()=>{
   // Per-item signature cache (object -> its hash words, box and layer), checked against a content
   // print of every geometry field (arrays and objects by content hash), so a hit always equals a
   // fresh hash, also after an in-place change. Undo's new objects simply miss.
-  const itemSigs=new WeakMap();
+  const itemSigs=new WeakMap(),signatureCerts=new WeakMap();
   function fpWords(fps,defs,i,projectPrecision){
     const g=defs?.get?.(i.def)?.footprint;
     if (!fps.has(g)) {
@@ -2914,8 +3605,8 @@ globalThis.AtriumPolygonPour=(()=>{
   // Hash of a region's edges that reach into `area` (both end points).
   function regionWords(r,area){
     let entry=regionHashes.get(r);
-    if(!entry||entry.data!==r.data||entry.count!==r.count||entry.layer!==r.layer||entry.net!==r.net){
-      entry={data:r.data,count:r.count,layer:r.layer,net:r.net,areas:new Map()};regionHashes.set(r,entry);
+    if(!entry||entry.data!==dataKey(r)||entry.count!==r.count||entry.layer!==r.layer||entry.net!==r.net){
+      entry={data:dataKey(r),count:r.count,layer:r.layer,net:r.net,areas:new Map()};regionHashes.set(r,entry);
     }
     const m=entry.areas;
     const key=area.join(",");let w=m.get(key);
@@ -2956,6 +3647,12 @@ globalThis.AtriumPolygonPour=(()=>{
     const fps=new Map(),boxes=reuse?reuse.boxes:new Float64Array(items.length*4),words=reuse?reuse.words:new Uint32Array(items.length*2),layerOf=reuse?reuse.layerOf:new Array(items.length);
     const mirrored=options.mirrorSignatures;
     if(options.keepItemHashes)options.keepItemHashes({source:doc.items,length:(doc.items||[]).length,items,boxes,words,layerOf});
+    // An item the undo journal certifies unchanged since this board's last pass keeps its entry
+    // without a field check (its footprint words are still compared), so Undo and Redo after a small
+    // edit check only what they changed. Whatever the journal cannot vouch for is checked as before.
+    const J=!mirrored&&!reuse&&Array.isArray(doc.items)?journalOf():null,cert=J&&signatureCerts.get(doc);
+    const now=J?.recordedChanges?.(doc)?.seq,since=cert&&cert.items===doc.items&&now!=null?J.recordedChanges(doc,cert.seq,4096):null;
+    const certified=since?.ids?i=>!since.ids.has(i.id):null;
     for(let k=reuse?items.length:0;k<items.length;k++){
       if(k&&k%chunk===0)yield;
       const i=items[k];
@@ -2963,7 +3660,7 @@ globalThis.AtriumPolygonPour=(()=>{
       if(!entry){
         const fpw=i.kind==="part"?fpWords(fps,defs,i,projectPrecision):null,old=mirrored?null:itemSigs.get(i);
         // Ordinary editor rows can be mutated in place; mirror rows are replaced by journal messages.
-        if(old&&sigValid(old,i,fpw))entry=old;
+        if(old&&(certified?.(i)&&(fpw?fpw[0]:0)===old.f0&&(fpw?fpw[1]:0)===old.f1||sigValid(old,i,fpw)))entry=old;
         else{
           const box=itemBox(i,defs);
           // Single-layer copper only reaches pours on its layer.
@@ -2979,6 +3676,7 @@ globalThis.AtriumPolygonPour=(()=>{
       }
       boxes.set(entry.box,4*k);layerOf[k]=entry.layer;words[2*k]=entry.w0;words[2*k+1]=entry.w1;
     }
+    if(J&&now!=null&&now===J.recordedChanges?.(doc)?.seq)signatureCerts.set(doc,{seq:now,items:doc.items});
     const rules=pourRules(doc,options);
     const base=fastHasher(projectPrecision);base.value(doc.outline||null);{const ch=globalThis.AtriumBoardShape?.holes?.(doc);if(ch?.length)base.value(ch);}base.value(rules);
     const reach=ruleReach(rules,options);
@@ -3100,7 +3798,7 @@ globalThis.AtriumPolygonPour=(()=>{
   }
   function intact(e){
     const R=e.regions;
-    for(let k=0;k<R.length;k++){const r=R[k],s=e.saved[k];if(r.data!==s[0]||r.links!==s[1]||r.arcs!==s[2]||r.bounds!==s[3]||r.polygon!==e.id)return false;}
+    for(let k=0;k<R.length;k++){const r=R[k],s=e.saved[k];if(dataKey(r)!==s[0]||r.links!==s[1]||r.arcs!==s[2]||r.bounds!==s[3]||r.polygon!==e.id)return false;}
     return true;
   }
   // 96-bit hash of everything solve() and finish() read.
@@ -3167,7 +3865,7 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!rc.byId||rc.byId.n!==rc.doc.items.length){rc.byId=new Map();rc.byId.n=rc.doc.items.length;for(const i of rc.doc.items)rc.byId.set(i.id,i);}
     const lib=[];for(const cid of x.contrib){const i=rc.byId.get(cid);if(i?.kind==="part"){const def=rc.defs?.get?.(i.def);lib.push(i.def,def,def?.footprint);}}
     const e={id:p.id,doc:rc.doc,key:x.key,seq:x.seq,outer:rc.outer,contrib:x.contrib,hash1:x.hash1,job:x.job,solved1:x.solved1,earlier:x.earlier,
-      regions:x.regions,stats:x.stats,lib,saved:x.regions.map(r=>[r.data,r.links,r.arcs,r.bounds]),
+      regions:x.regions,stats:x.stats,lib,saved:x.regions.map(r=>[dataKey(r),r.links,r.arcs,r.bounds]),
       spec:spec&&x.solved?true:old?.spec&&old.regions===x.regions?old.spec:false};
     if(e.spec===true&&x.solved)SPEC.stats.poursSolved++,SPEC.stats.cpuMs+=x.stats.ms||0;
     let entries=REUSE.byDocument.get(rc.doc);
@@ -3269,15 +3967,21 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     if(how)REUSE.stats.stage1Hits++;
     const offsets=area&&earlier.length?(previousArea?.offsets||new WeakMap()):null;
-    const s2=slices?yield* pauses(stage2Steps(job,solved1,earlier,false,offsets)):drain(stage2Steps(job,solved1,earlier,false,offsets));
+    // The island tests of the last solve (areaKeep), for an island the patch left alone or changed.
+    const kept=area?{cache:previousArea?.kept||null}:null;
+    const s2=slices?yield* pauses(stage2Steps(job,solved1,earlier,false,offsets,kept)):drain(stage2Steps(job,solved1,earlier,false,offsets,kept));
     let solved=s2.solved;
     if(s2.task){
       if(area&&!s2.task.morph){
         const rawTask={...s2.task,anchors:[],removeDead:false,minArea:0,minSize:0};
         area2=yield* areaSolveSteps({job:s2.job,task:rawTask,prior:previousArea?.stage2,area,hash:null,stage:2,j});
-        solved=CORE.keepSolved(area2.solved,s2.task,true);
-        solved.stats={...area2.solved.stats,deadIslands:solved.stats.deadIslands,tDead:solved.stats.tDead,
-          tSolve:(area2.solved.stats.tSolve||0)+solved.stats.tSolve};
+        const r=areaKeep(area2.solved,s2.task,previousArea?.kept||null);
+        if(r){solved=r.solved;kept.cache=r.cache;}
+        else{
+          solved=CORE.keepSolved(area2.solved,s2.task,true);
+          solved.stats={...area2.solved.stats,deadIslands:solved.stats.deadIslands,tDead:solved.stats.tDead,
+            tSolve:(area2.solved.stats.tSolve||0)+solved.stats.tSolve};
+        }
       }else{
         solved=yield {task:s2.task,hash:rc?hash1+"/"+ek:null,stage:2,j};solvedHere=true;
       }
@@ -3300,7 +4004,7 @@ globalThis.AtriumPolygonPour=(()=>{
     const regions=slices?yield* pauses(finishSteps(s2.job,solved)):finish(s2.job,solved);
     if(area){
       s2.job.stats.area={stage1:area1.stats,stage2:area2?.stats||(s2.task?.morph?{mode:"full",reason:"island-shaping"}:null)};
-      area.sessions.set(p.id,{stage1:area1,stage2:area2,stage3,prepared:job.areaPrepared,offsets});
+      area.sessions.set(p.id,{stage1:area1,stage2:area2,stage3,prepared:job.areaPrepared,offsets,kept:kept.cache});
     }
     if(rc){
       if(solvedHere)REUSE.stats.solved++;
@@ -3372,6 +4076,8 @@ globalThis.AtriumPolygonPour=(()=>{
     for(const k of ["active","onProgress","concurrency","onSolving","onDone"])delete options[k];
     const rc=list.length&&!options.area?.sessions?reuseRun(doc,defs,options,connect):null;
     const unavailable=new Uint8Array(list.length),previous=doc.pcbDrawing?.pours||[],unverified=globalThis.AtriumPourMarker.read(doc.pcbDrawing);
+    // A repoured island identical to one the pour has now keeps that region (finishSteps).
+    options.priorCopper=previous;
     if(options.only&&unverified?.length){
       const pending=new Set(unverified),selected=new Set(options.only);
       list.forEach((p,j)=>{if(pending.has(p.id)&&!selected.has(p.id))unavailable[j]=1;});
@@ -4053,31 +4759,65 @@ globalThis.AtriumPolygonPour=(()=>{
   }
   // A stored contour is authored by a verified import or a committed repour. Bind its
   // exact packed rings and arcs to this polygon and the physical inputs of that fill.
-  const packedCopperHashes = new WeakMap();
+  // Kept by the region's copper when the engine holds it as runs: Undo restores an older version's
+  // copper into the live region object, and that version's digest is still known.
+  // A region still held as text (opened from a file, or poured on this thread) is kept by its text: Undo
+  // gives back an older version as a new object holding the same string, whose digest is then known.
+  // Texts are kept while their total stays under TEXT_DIGESTS characters (the most recently used).
+  const packedCopperHashes = new WeakMap(), textDigests = new Map(), TEXT_DIGESTS = 1 << 25;
+  let textDigestChars = 0;
   function packedCopperHash(region) {
-    let cached = packedCopperHashes.get(region);
-    if (!cached || cached.data !== region.data) {
+    const key = dataKey(region);
+    if (typeof key === "string") {
+      let digest = textDigests.get(key);
+      if (digest !== undefined) { textDigests.delete(key); textDigests.set(key, digest); return digest; }
+      const hash = hasher();
+      hash.value(key);
+      digest = hash.hex(); textDigests.set(key, digest); textDigestChars += key.length;
+      for (const [t] of textDigests) { if (textDigestChars <= TEXT_DIGESTS || t === key) break; textDigests.delete(t); textDigestChars -= t.length; }
+      return digest;
+    }
+    const by = typeof key === "object" && key ? key : region;
+    let cached = packedCopperHashes.get(by);
+    if (!cached || cached.data !== key) {
       const hash = hasher();
       hash.value(region.data);
-      cached = {data:region.data, digest:hash.hex()};
-      packedCopperHashes.set(region, cached);
+      cached = {data:key, digest:hash.hex()};
+      packedCopperHashes.set(by, cached);
     }
     return cached.digest;
   }
+  // A polygon's contours digest is a function of its regions' layer, net, count, data and arcs, in
+  // order: when those are the same values as one of the last BASIS_STATES times (the data by dataKey,
+  // the arcs array by identity), the digest is the one computed then. Undo and Redo give back the regions
+  // of a state seen before, so the copper is not hashed again (its arcs alone are about 10 ms on a large
+  // island).
+  const basisMemo = new WeakMap(), BASIS_STATES = 4;
   function copperBases(doc, inputs, ids) {
-    const hashes = new Map();
-    for (const id of ids) {
-      if (!inputs[id]) continue;
-      const hash = hasher();
-      hash.value([doc.id, id]);
-      hashes.set(id, hash);
+    const parts = new Map();
+    for (const id of ids) if (inputs[id]) parts.set(id, []);
+    if (!parts.size) return new Map();
+    for (const r of doc.pcbDrawing?.pours || []) parts.get(r.polygon)?.push(r.layer, r.net, r.count, dataKey(r), r.arcs || null, r);
+    let memo = basisMemo.get(doc);
+    if (!memo) basisMemo.set(doc, memo = new Map());
+    const out = new Map();
+    for (const [id, list] of parts) {
+      let seen = memo.get(id);
+      if (!seen) memo.set(id, seen = []);
+      const at = seen.findIndex(e => e.docId === doc.id && e.list.length === list.length && e.list.every((x, k) => k % 6 === 5 || x === list[k]));
+      let contours = at >= 0 ? seen[at].contours : null;
+      if (at >= 0) seen.unshift(...seen.splice(at, 1));
+      else {
+        const hash = hasher();
+        hash.value([doc.id, id]);
+        for (let k = 0; k < list.length; k += 6) { const r = list[k + 5]; hash.value([r.layer, r.net, r.count, packedCopperHash(r), list[k + 4]]); }
+        contours = hash.hex();
+        seen.unshift({docId: doc.id, list: list.map((x, k) => k % 6 === 5 ? null : x), contours});
+        if (seen.length > BASIS_STATES) seen.pop();
+      }
+      out.set(id, {inputs:inputs[id], contours});
     }
-    if (!hashes.size) return hashes;
-    for (const r of doc.pcbDrawing?.pours || []) {
-      const hash = hashes.get(r.polygon);
-      if (hash) hash.value([r.layer, r.net, r.count, packedCopperHash(r), r.arcs || null]);
-    }
-    return new Map(Array.from(hashes, ([id, hash]) => [id, {inputs:inputs[id], contours:hash.hex()}]));
+    return out;
   }
   function storedInputs(doc, now) {
     const drawing = doc.pcbDrawing;
@@ -4932,8 +5672,11 @@ globalThis.AtriumPolygonPour=(()=>{
         // Keep the original objects for unchanged regions; the canvas and its GPU
         // buffers can continue to use them. All new regions arrive encoded.
         const previous=doc.pcbDrawing?.pours||[];
-        const regions=r.rows.map(row=>typeof row==="number"?previous[row]:row);
-        if(regions.some(region=>!region||typeof region.data!=="string"))throw Error("The live pour worker returned incomplete copper.");
+        // A region held as runs comes as its fields and run keys; its runs are the ones sent with it or
+        // the ones the regions here already hold (AtriumPCBPours.fromRuns, runLookup).
+        const C=AtriumPCBPours,lookup=r.rows.some(row=>row?.fields)?C.runLookup(previous):null;
+        const regions=r.rows.map(row=>typeof row==="number"?previous[row]:row?.fields?C.fromRuns(row.fields,row.runs,r.runs,lookup):row);
+        if(regions.some(region=>!region||!C.hasData(region)))throw Error("The live pour worker returned incomplete copper.");
         await new Promise(resolve=>slot(resolve));
         if(!still())return;
         const start=now();
@@ -4961,7 +5704,8 @@ globalThis.AtriumPolygonPour=(()=>{
         if(!r.all.length&&H.doc?.()===doc)warmMirrorTiles(H);
       }
       if(r.ids.length)live.last={ids:r.ids,ms:now()-t0,main:r.transport.ms+commit,
-        longest:Math.max(r.transport.longest,r.transport.receive,commit),commit,polygons:r.stats.polygons,at:Date.now(),transport:r.transport};
+        longest:Math.max(r.transport.longest,r.transport.receive,commit),commit,polygons:r.stats.polygons,at:Date.now(),transport:r.transport,
+        received:r.bytes,regions:r.rows.length,kept:r.rows.filter(row=>typeof row==="number").length};
     }catch(e){
       if(!still()||e?.cancelled)return;
       if(e?.hung){
@@ -5664,15 +6408,17 @@ globalThis.AtriumPolygonPour=(()=>{
     // Patches already on screen that show copper newer than the stored copper (an earlier edit's, not
     // yet committed): holding them back would show older copper.
     let shown=false;for(const pt of tiles.patches.values())if(pt.doc===doc&&pt.shown.size&&!pt.exact)shown=true;
+    const before=[],after=[];
     for(const [id,o] of Object.entries(out||{})){
       let pt=tiles.patches.get(id);
+      if(pt)before.push({rects:pt.rects,grid:pt.grid});
       if(!pt||pt.grid.TS!==o.grid.TS||pt.grid.S!==o.grid.S||pt.grid.cols!==o.grid.cols){pt={id,grid:o.grid,tiles:new Map(),shown:new Set(),alpha:1};tiles.patches.set(id,pt);}
       pt.doc=doc;pt.grid=o.grid;pt.exact=false;
       for(const x of o.tiles)pt.tiles.set(x.t,x.rings);
       for(const t of o.changed)pt.shown.add(t);
-      patchRegion(pt);
+      patchRegion(pt);after.push(pt);
     }
-    tiles.version++;tiles.list=null;tiles.settle=null;
+    bumpTiles([...before,...after]);tiles.settle=null;
     if(reveal&&Object.keys(out||{}).length)fadePatches(out,doc,shown&&!tiles.hold,afterEditFrame);
   }
   function retainTileOut(st,out){
@@ -5710,7 +6456,8 @@ globalThis.AtriumPolygonPour=(()=>{
       return;
     }
     const ps=[];for(const id in out){const pt=tiles.patches.get(id);if(pt){pt.alpha=0;ps.push(pt);}}
-    tiles.fade=M.animate({duration:"fast",ease:"decelerate",step:a=>{for(const pt of ps)pt.alpha=a;tiles.version++;live.host?.redraw?.();},done:()=>{for(const pt of tiles.patches.values())pt.alpha=1;}});
+    tiles.fade=M.animate({duration:"fast",ease:"decelerate",step:a=>{for(const pt of ps)pt.alpha=a;bumpTiles(ps);live.host?.redraw?.();},
+      done:()=>{const faded=[...tiles.patches.values()].filter(pt=>pt.alpha!==1);for(const pt of faded)pt.alpha=1;if(faded.length)bumpTiles(faded);}});
   }
   // Patches are held back until the next animation frame. Frame callbacks run in the order asked: a
   // board frame already requested (the edit's or the undo's own) draws first without them and this one
@@ -5718,17 +6465,51 @@ globalThis.AtriumPolygonPour=(()=>{
   // draws the patches and no frame is spent. A page that draws no frames releases them after 150 ms.
   function holdPatches(){
     if(tiles.hold)return;
-    tiles.hold=true;tiles.version++;tiles.list=null;
-    const go=()=>{if(!tiles.hold)return;tiles.hold=false;tiles.version++;tiles.list=null;live.host?.redraw?.();};
+    tiles.hold=true;bumpTiles(tiles.patches.values());
+    const go=()=>{if(!tiles.hold)return;tiles.hold=false;bumpTiles(tiles.patches.values());live.host?.redraw?.();};
     const raf=globalThis.requestAnimationFrame;
     if(typeof raf==="function")raf(go);
     setTimeout(go,150);
   }
   function clearPatches(ids){
-    let any=false;
-    for(const id of ids||[...tiles.patches.keys()])if(tiles.patches.delete(id))any=true;
-    if(any){tiles.version++;tiles.list=null;}
-    return any;
+    const gone=[];
+    for(const id of ids||[...tiles.patches.keys()]){const pt=tiles.patches.get(id);if(pt&&tiles.patches.delete(id))gone.push(pt);}
+    if(gone.length)bumpTiles(gone);
+    return gone.length>0;
+  }
+  // What the tile patches change on screen, for the canvas's retained board (AtriumPCBPours.view and
+  // viewDamage): every display version records the clip rectangles of the patches it shows, hides,
+  // fades or replaces (null: unknown). A patch draws only inside its rectangles (paintPatch), and so
+  // does the clipping out of the stored copper under it.
+  const TILE_MARKS=64;
+  tiles.marks=[];
+  function bumpTiles(patches){
+    let boxes=null;
+    if(patches){boxes=[];boxes.layers=new Set();for(const pt of patches){if(!pt?.rects)continue;boxes.push(...pt.rects);if(pt.grid)boxes.layers.add(pt.grid.layer);}}
+    tiles.version++;tiles.list=null;
+    tiles.marks.push({v:tiles.version,boxes});
+    if(tiles.marks.length>TILE_MARKS)tiles.marks.shift();
+  }
+  // The canvas's token for what the patches show: the display version, and whether the preview shows
+  // at all (a mirror preview hides itself once the board's revision moves past it, with no new version).
+  const tileView=()=>{const doc=live.host?.doc?.();return 2*tiles.version+(!tiles.hold&&!!doc&&currentTilePreview(doc)?1:0);};
+  function tileViewDamage(a,b){
+    if(a===b)return [];
+    if(!Number.isInteger(a)||!Number.isInteger(b))return null;
+    const out=tileDamage(a>>1,b>>1);
+    if(out&&(a&1)!==(b&1))for(const pt of tiles.patches.values())if(pt.rects){out.push(...pt.rects);if(pt.grid)out.layers.add(pt.grid.layer);}
+    return out;
+  }
+  function tileDamage(from,to){
+    if(from===to)return [];
+    if(!(to>from)||!tiles.marks.length||tiles.marks[0].v>from+1)return null;
+    const out=[];out.layers=new Set();
+    for(const m of tiles.marks){
+      if(m.v<=from||m.v>to)continue;
+      if(!m.boxes)return null;
+      out.push(...m.boxes);for(const l of m.boxes.layers)out.layers.add(l);
+    }
+    return out;
   }
   // The pours the canvas paints: the stored regions plus a patch region per pour with tiles
   // shown. Stored regions of a patched pour are clipped out of its patch (pcb-pours.js paint).
@@ -5776,8 +6557,11 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     return true;
   }
-  if(globalThis.AtriumPCBPours&&Object.isExtensible?.(globalThis.AtriumPCBPours)!==false)try{globalThis.AtriumPCBPours.paintHook=paintPatch;}catch{/* frozen */}
-  function tileReset(){tiles.state=null;tiles.patches.clear();tiles.version++;tiles.list=null;tiles.busy=false;tiles.again=false;tiles.full=false;tiles.quick=false;tiles.only=null;tiles.recorded=null;tiles.building=null;tiles.warm=null;tiles.fullTimer=0;tiles.hold=false;tiles.settle=null;releaseAfterTiles();}
+  if(globalThis.AtriumPCBPours&&Object.isExtensible?.(globalThis.AtriumPCBPours)!==false)try{
+    globalThis.AtriumPCBPours.paintHook=paintPatch;
+    globalThis.AtriumPCBPours.displayHook={version:tileView,damage:tileViewDamage};
+  }catch{/* frozen */}
+  function tileReset(){tiles.state=null;tiles.patches.clear();bumpTiles(null);tiles.busy=false;tiles.again=false;tiles.full=false;tiles.quick=false;tiles.only=null;tiles.recorded=null;tiles.building=null;tiles.warm=null;tiles.fullTimer=0;tiles.hold=false;tiles.settle=null;releaseAfterTiles();}
   // ---- the fast path: diff, tile worker, patch
   function tilePref(){
     if(tiles.pref)return tiles.pref;
@@ -5794,7 +6578,7 @@ globalThis.AtriumPolygonPour=(()=>{
   function pourVertices(doc){
     const pours=doc?.pcbDrawing?.pours;if(!Array.isArray(pours))return 0;
     let n=vertexCount.get(pours);
-    if(n===undefined){n=0;for(const r of pours)n+=Math.max(0,((r.data?.length||0)*3/4-4*(r.count||1))/16);vertexCount.set(pours,n);}
+    if(n===undefined){n=0;for(const r of pours)n+=Math.max(0,(AtriumPCBPours.dataLength(r)*3/4-4*(r.count||1))/16);vertexCount.set(pours,n);}
     return n;
   }
   // Start (or restart) the sessions for the host's board.
@@ -5852,6 +6636,18 @@ globalThis.AtriumPolygonPour=(()=>{
     const unchanged=row=>Object.keys(row).filter(k=>!fields.has(k)).sort().map(k=>[k,row[k]]);
     return JSON.stringify(unchanged(before))===JSON.stringify(unchanged(after));
   }
+  // Items added or removed (an add, a delete, a paste, the undo or redo of one) update a warm session
+  // too: tileDiff prepares the added items and removes the removed ones in every pour's tiles
+  // (PourTiles.update). Each added item is new to the session and keyed (no pour outline), each
+  // removed one is in it; a mix with in-place changes is left to the rebuild.
+  function structuralTileEdit(st,changes){
+    for(const id of changes.ids){
+      const item=changes.items.get(id),print=st.prints.get(id);
+      if(item){if(print||!keyedItem(item)||item.kind==="polygon")return false;}
+      else if(!print)return false;
+    }
+    return true;
+  }
   function forgetTilePreview(){
     tiles.state=null;tiles.building=null;tiles.recorded=null;tiles.warm=null;
     if(clearPatches())live.host?.redraw?.();
@@ -5882,7 +6678,7 @@ globalThis.AtriumPolygonPour=(()=>{
     if(!mirrorTileBoard(H.doc?.(),H.project?.())){forgetTilePreview();return;}
     const previous=tiles.state;
     if(previous?.mirror&&previous.previewRevision!=null){
-      previous.previewRevision=null;tiles.version++;tiles.list=null;
+      previous.previewRevision=null;bumpTiles(tiles.patches.values());
     }
     const preview=current=>{
       if(!current()||H!==live.host||!liveEnabled())return;
@@ -5895,12 +6691,13 @@ globalThis.AtriumPolygonPour=(()=>{
       }
       if(!st.eligible)return;
       const changes=J?.recordedChanges?.(doc,st.at,12);
-      if(!changes?.ids||changes.ids.size>12||
-          changes.ids.size&&!J?.onlyRecordedItemUpdates?.(doc,st.at,onlyMirrorMove)){
+      const moves=!!changes?.ids?.size&&!!J?.onlyRecordedItemUpdates?.(doc,st.at,onlyMirrorMove);
+      const structural=!!changes?.ids?.size&&!moves&&structuralTileEdit(st,changes);
+      if(!changes?.ids||changes.ids.size>12||changes.ids.size&&!moves&&!structural){
         forgetTilePreview();
         return;
       }
-      tiles.recorded={st,changes,outer:st.outer,current,mirror:true};
+      tiles.recorded={st,changes,outer:st.outer,current,mirror:true,structural};
       if(tiles.busy)tiles.again=true;else tileRun();
     };
     if(H.stageEdit)H.stageEdit("pours","live-pour-tiles",preview,{short:true});
@@ -5960,7 +6757,8 @@ globalThis.AtriumPolygonPour=(()=>{
     try{
       // The quick pass starts after the edit frame. Unknown changes are verified in idle slices.
       const t0=now();let d,tScan=0;
-      if(only)d=tileDiff(doc,defs,st,record?.mirror?{...options,tileEdit:st}:options,only,record?.changes.items);
+      // Added parts and vias are not in the session's connect context: a structural edit reads this revision's.
+      if(only)d=tileDiff(doc,defs,st,record?.mirror?{...options,tileEdit:record.structural?{byPolygon:st.byPolygon}:st}:options,only,record?.changes.items);
       else if(quick){const g=tileDiffSteps(doc,defs,st,options,null,true);let r=g.next();while(!r.done)r=g.next();d=r.value;tScan=now()-t0;}
       else{
         const g=tileDiffSteps(doc,defs,st,options,null,false);let r;
@@ -5980,7 +6778,7 @@ globalThis.AtriumPolygonPour=(()=>{
         if(record){st.at=record.changes.seq;st.outer=record.outer;}
         if(H.revision()!==tiles.syncRev||record&&!record.current())return;
         if(st.mirror&&tiles.patches.size&&st.previewRevision!==tiles.syncRev){
-          st.previewRevision=tiles.syncRev;tiles.version++;tiles.list=null;H.redraw?.();
+          st.previewRevision=tiles.syncRev;bumpTiles(tiles.patches.values());H.redraw?.();
         }
         if(st.unshown?.size){
           if(st.mirror)st.previewRevision=tiles.syncRev;

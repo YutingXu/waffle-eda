@@ -7,7 +7,8 @@ const idle = new Map();
 globalThis.performance = {now: () => time};
 globalThis.AtriumPower = {idle: () => efficient || !visible, onChange: fn => { listener = fn; }};
 globalThis.AtriumIdle = {idle(fn) { idle.set(++next,fn); return next; }, cancel(id) { idle.delete(id); }};
-globalThis.AtriumPCBPours = {contours() { builds++; return []; }};
+// The pour engine's API that canvas-fast's ring index reads (contours, ring boxes, the cache key).
+globalThis.AtriumPCBPours = {contours() { builds++; return []; }, ringBoxes() { return []; }, dataKey: r => r.data};
 require("../../app/canvas/canvas-fast.js");
 const F = AtriumCanvasFast, region = {count:256,bounds:[0,0,64,64]}, view = [1,1,3,3];
 

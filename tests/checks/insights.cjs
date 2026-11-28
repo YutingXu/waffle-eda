@@ -619,5 +619,32 @@ test("cost on the 25.6k-object board: full run and an incremental edit", () => {
   assert.ok(inc < 400, "an edit re-checks quickly: " + inc.toFixed(1) + " ms");
 });
 
+test("engine: heavy checks an Efficiency-mode pass skips are owed and re-run by the next pass without skipHeavy", () => {
+  // A heavy check of its own (registered last, so the other tests never see it).
+  I.register({id: "testHeavyThin", kind: "pcb", severity: "tip", title: "Thin", why: "test", scope: "net", heavy: true,
+    run: (ctx, scope) => ctx.doc.items.filter(i => i.kind === "track" && i.width < .15 && (!scope || scope.nets.has(i.net)))
+      .map(i => ({objects: [i.id], at: i.points[0], net: i.net, message: "thin " + i.id, sig: "thin"}))});
+  const a = track("A", "Top", [[5, 5], [15, 5]]), b = track("B", "Top", [[5, 15], [15, 15]], .1), doc = board([a, b]);
+  const p = project(doc), e = I.engine(), checks = ["testHeavyThin", "acuteAngle"];
+  const drain = it => { let r = it.next(); while (!r.done) r = it.next(); return r.value; };
+  const keys = r => r.insights.map(x => x.key).sort(), full = () => I.analyze(p, doc, defs, {checks}).insights.map(x => x.key).sort();
+  let r = drain(e.update(p, doc, defs, {from: null, to: 1, ids: null, items: null}, {prefs: false, checks, skipHeavy: true}));
+  assert.deepEqual(keys(r), full(), "a first pass runs heavy checks too");
+  assert.deepEqual(r.owed, []);
+  a.width = .1;
+  r = drain(e.update(p, doc, defs, {from: 1, to: 2, ids: new Set([a.id]), items: new Map([[a.id, a]])}, {prefs: false, checks, skipHeavy: true}));
+  assert.equal(r.mode, "incremental"); assert.deepEqual(r.owed, ["testHeavyThin"], "the skipped heavy check is owed");
+  assert.equal(r.insights.filter(x => x.check === "testHeavyThin").length, 1, "until then its result is the cached one");
+  // Nothing changed since: an Efficiency-mode pass still owes it; the heavy pass runs it whole.
+  r = drain(e.update(p, doc, defs, {from: 2, to: 2, ids: new Set(), items: new Map()}, {prefs: false, checks, skipHeavy: true}));
+  assert.equal(r.mode, "none"); assert.deepEqual(r.owed, ["testHeavyThin"]);
+  r = drain(e.update(p, doc, defs, {from: 2, to: 2, ids: new Set(), items: new Map()}, {prefs: false, checks}));
+  assert.equal(r.mode, "incremental"); assert.deepEqual(r.ran.map(x => x.id), ["testHeavyThin"], "only the owed check runs");
+  assert.deepEqual(keys(r), full(), "the heavy pass catches up with a full run");
+  assert.deepEqual(r.owed, []); assert.equal(e.state(doc.id).owed.size, 0);
+  r = drain(e.update(p, doc, defs, {from: 2, to: 2, ids: new Set(), items: new Map()}, {prefs: false, checks}));
+  assert.equal(r.mode, "none", "and then nothing runs");
+});
+
 console.log(passed + " insight tests passed");
 console.log("SHIM-OK");

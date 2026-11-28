@@ -376,4 +376,48 @@ test("one scheduler: layout rules first, hints and live ERC at idle, abandon, sl
   }
 });
 
+test("Efficiency mode: the delayed heavy pass continues across slices, runs only when owed, and leaves no timer", () => {
+  const board = {kind: "pcb", id: "b", name: "Board", items: []};
+  const project = {value: {format: "atrium", name: "Heavy", library: [], documents: [board]}}, panes = {value: [board]};
+  const realPerformance = globalThis.performance;
+  let elapsed = 0, starts = 0, steps = 0, owed = false, changed = true;
+  try {
+    U.reset(); K.scheduler.reset(); K.clear(); timers.clear(); jobs.clear();
+    const host = harness(project, panes);
+    globalThis.AtriumPower.efficient = () => true;
+    K.scheduler.attach(host);
+    globalThis.performance = {now: () => elapsed};
+    // A pass of four 3 ms steps: one step per slice when the idle period has no time left (five slices).
+    K.scheduler.client({id: "heavy-x", key: d => "heavy-x:" + d.id, phase: () => "idle", heavy: true, docs: () => [board],
+      due: (d, o) => o?.heavy ? owed : changed, owes: () => owed,
+      start: () => { starts++; changed = false; return (function* () { for (let i = 0; i < 4; i++) { elapsed += 3; steps++; yield; } })(); }});
+    const slices = () => { let n = 0; while (jobs.size && n++ < 50) { const [key, job] = [...jobs][0]; jobs.delete(key); job.fn(() => true, {timeRemaining: () => 0}); } return n; };
+    const fire = delay => { for (const [id, t] of [...timers]) if (t.delay === delay) { timers.delete(id); t.fn(); } };
+    // The ordinary pass owes heavy work: the heavy pass follows and finishes in four slices, one start.
+    owed = true;
+    K.scheduler.plan("heavy-x");
+    assert.equal(slices(), 5); assert.equal(starts, 1);
+    assert.ok([...timers.values()].some(t => t.delay === 8000), "heavy work is owed: the heavy timer stays armed");
+    fire(8000);
+    owed = false;
+    assert.equal(slices(), 5, "a restarted heavy pass continues in its later slices (it is not restarted by each one)");
+    assert.equal(starts, 2); assert.equal(steps, 8);
+    assert.ok(!K.scheduler.running("heavy-x"));
+    // Nothing owed: the ordinary pass ends with no timer left and nothing more to run.
+    changed = true;
+    K.scheduler.plan("heavy-x");
+    slices();
+    assert.equal(starts, 3);
+    assert.equal(timers.size, 0, "nothing owed: no heavy timer stays armed");
+    // A heavy timer that fires with nothing owed queues nothing.
+    changed = true; K.scheduler.plan("heavy-x");
+    fire(8000);
+    slices();
+    assert.equal(starts, 4, "a heavy timer while a pass is queued replaces it: one start");
+  } finally {
+    globalThis.performance = realPerformance;
+    K.scheduler.reset(); U.reset(); globalThis.setTimeout = setTimer; globalThis.clearTimeout = clearTimer; delete globalThis.AtriumPower;
+  }
+});
+
 console.log(passed + " checks tests passed");
