@@ -180,12 +180,27 @@ assert.throws(()=>AtriumSourceCopy.applyBinding(legacy(fresh).documents[0],dupli
     delete i.sourcePourOver;
     if(!i.fillMode){delete i.hatchWidth;delete i.hatchPitch;}
   }
+  // Earlier imports did not read the source lock: every object of theirs is unlocked.
+  assert.equal(saved.items.filter(i=>i.locked).length,107);
+  for(const i of saved.items)delete i.locked;
   const pads=proof.library.flatMap(d=>d.footprint?.pads||[]).filter(p=>p.stackMode==="tmb");
   assert.ok(pads.length);
   for(const pad of pads){delete pad.stackMode;delete pad.padStack;}
   assert.deepEqual(prepare(persisted(proof),bytes).bytes,current.bytes);
   const streams=AtriumIO.streams(current.bytes);
   for(const [key,value] of AtriumIO.streams(bytes))if(key!=="tracks6/data")assert.deepEqual(streams.get(key),value,key);
+
+  // The copy keeps the source's own locks. A source-locked part still cannot be moved in it, with or
+  // without its lock in Waffle, and a lock added in Waffle is an edit this format cannot take.
+  for(const unlock of [false,true]){
+    const moved=clone(p),part=moved.documents[0].items.find(i=>i.kind==="part"&&i.locked);
+    if(unlock)delete part.locked;
+    part.x+=.254;
+    assert.throws(()=>prepare(persisted(moved),bytes),/Locked or grouped footprints require editing in Altium/);
+  }
+  const added=clone(p);
+  added.documents[0].items.find(i=>i.kind==="via"&&!i.locked).locked=true;
+  assert.throws(()=>prepare(persisted(added),bytes),/Unsupported source edit \(locked\)/);
 
   const altered=clone(p);
   altered.documents[0].pcbDrawing.pours[0].subPolygonIndex++;

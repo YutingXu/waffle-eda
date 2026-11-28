@@ -11,6 +11,9 @@ globalThis.AtriumPCB = (() => {
   const decoder = new TextDecoder("windows-1252");
   const noOwner = 0xffff;
   const yes=s=>/^(true|1|t)$/i.test(s||"");
+  // Arcs, pads, vias, tracks, texts, fills and regions share one binary header. Bit 2 of its flags
+  // byte (offset 1) is set while the primitive is unlocked. base is the header's first byte.
+  const primitiveLocked=(bytes,base=0)=>(bytes[base+1]&4)===0;
   const numbers = {1:"Top",32:"Bottom",33:"Silk",34:"Bottom silk",35:"Top paste",36:"Bottom paste",
     37:"Top mask",38:"Bottom mask",55:"Drill guide",56:"Keepout",73:"Drill drawing",74:"Multi"};
   function layer(n) {
@@ -415,7 +418,7 @@ globalThis.AtriumPCB = (() => {
     const v=view(bytes),start=base+22+v.getUint32(base+18,true);
     if(start+4>end)throw Error("Truncated region properties.");
     const p=props(decoder.decode(bytes.subarray(base+22,start)));
-    return {p,start,layer:layer(p.V7_LAYER||bytes[base]),keep:!!(bytes[base+2]&2)||truth(p.KEEPOUT),
+    return {p,start,layer:layer(p.V7_LAYER||bytes[base]),keep:!!(bytes[base+2]&2)||truth(p.KEEPOUT),locked:primitiveLocked(bytes,base),
       net:v.getUint16(base+3,true),poly:v.getUint16(base+5,true),owner:v.getUint16(base+7,true),holes:v.getUint16(base+14,true)};
   }
   function regionRecords(bytes,extended,report,onInvalid){
@@ -696,6 +699,7 @@ globalThis.AtriumPCB = (() => {
       fields.removeDeadCopper=false;fields.minPrimLength=0;fields.arcApproximation=.001;
     }
     if(yes(p.SHELVED))fields.shelved=true;
+    if(yes(p.LOCKED))fields.locked=true;
     if(yes(p.KEEPOUT))fields.cutout=true;
     const min=length(p.MINPRIMLENGTH),arc=length(p.ARCRESOLUTION);
     if(min>=0)fields.minPrimLength=min;
@@ -900,7 +904,7 @@ globalThis.AtriumPCB = (() => {
         try{g=regionGeometry(b,r.start,b.length,r.holes,false);}
         catch{g=regionGeometry(b,r.start,b.length,r.holes,true);}
         if(truth(r.p.ISSHAPEBASED)&&!g.contour)report("Shape-based footprint regions retained as stored outlines");
-        return {obj:regionItem(kind,r.layer,g,r.p),owner:r.owner,net:r.net};
+        return {obj:regionItem(kind,r.layer,g,r.p),owner:r.owner,net:r.net,locked:r.locked};
       }catch(error){report("Unreadable footprint region: "+error.message);return null;}
     }
     if(![1,2,3,4,5,6].includes(type)){
@@ -993,7 +997,7 @@ globalThis.AtriumPCB = (() => {
     }
     if(geom[2]===2&&Object.hasOwn(keepoutMaskOffset,type))
       obj=keepoutObject(obj,keepoutExtension?binaryKeepoutMask(geom,type,l,report):undefined);
-    return {owner,net,obj,mirrored:type===5&&!!geom[35],polygon:type===1||type===4?polygon:noOwner};
+    return {owner,net,obj,locked:primitiveLocked(geom),mirrored:type===5&&!!geom[35],polygon:type===1||type===4?polygon:noOwner};
   }
   // LettersGeometry is the board's saved tessellation of the characters actually
   // used. A set ends with its Texts6 record indices. Its contours are already
@@ -1192,7 +1196,7 @@ globalThis.AtriumPCB = (() => {
       const mask=/^\d+$/.test(p.KEEPOUTRESTRICTIONS?.trim())?Number(p.KEEPOUTRESTRICTIONS):undefined;
       obj=keepoutObject(obj,mask);
     }
-    return {owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,obj,mirrored:type==="text"&&!!obj.mirrored};
+    return {owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,obj,locked:yes(p.LOCKED),mirrored:type==="text"&&!!obj.mirrored};
   }
 
   function newPart(params,index) {
@@ -1475,6 +1479,7 @@ globalThis.AtriumPCB = (() => {
         else part.item.link=ids.link("part:"+(p.UNIQUEID||part.item.id));
       }
       if(sourceRecord)part.item.sourceRecord=sourceRecord;
+      if(yes(p.LOCKED))part.item.locked=true;
       if(drawing && sourceRecord || preserveText && ascii!=null && !isLib){
         part.showDesignator=!/^(false|0)$/i.test(p.NAMEON||"");
         part.showComment=/^(true|1)$/i.test(p.COMMENTON||"");
@@ -1514,6 +1519,8 @@ globalThis.AtriumPCB = (() => {
       if(sourcePour&&obj.kind==="track")obj.sourcePour=sourcePour;
       const part=partOverride||parts.get(owner);
       if(part){
+        // A footprint's primitives and a part's designator and comment strings have no lock of their own.
+        if(row.locked&&!isLib)report("Locks on primitives inside components not kept");
         if(obj.sourceTextBox && /^\.(?:designator|comment)$/i.test(obj.text))
           obj.sourceTextBox.text=/^\.designator$/i.test(obj.text)?part.item.ref:part.item.value;
         if(obj.role && obj.size>0 && (drawing && part.item.sourceRecord || preserveText && ascii!=null && !isLib)){
@@ -1528,7 +1535,7 @@ globalThis.AtriumPCB = (() => {
         return addToFootprint(part,obj);
       }
       if(!isLib){
-        const item={id:ids?stableId(obj,sourceRecord,row.uid):A.id(),...obj,...(sourceRecord?{sourceRecord}:{})};
+        const item={id:ids?stableId(obj,sourceRecord,row.uid):A.id(),...obj,...(sourceRecord?{sourceRecord}:{}),...(row.locked?{locked:true}:{})};
         doc.items.push(item);produced(item,ref);return item;
       }
     }
@@ -1622,7 +1629,7 @@ globalThis.AtriumPCB = (() => {
             }else{
               let target;
               if(kind==="board cutout")addBoardCutout(doc,g);
-              else target=put({obj:regionItem(kind,l,g,p),owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,uid:p.UNIQUEID},null,null,at(p));
+              else target=put({obj:regionItem(kind,l,g,p),owner:p.COMPONENT!=null?Number(p.COMPONENT):noOwner,net:p.NET!=null?Number(p.NET):noOwner,uid:p.UNIQUEID,locked:yes(p.LOCKED)},null,null,at(p));
               evidence?.("Region",at(p),"kept",target);
             }
           }catch(error){
@@ -1835,7 +1842,7 @@ globalThis.AtriumPCB = (() => {
             }
             if(kind==="board cutout"){addBoardCutout(doc,g);boards++;evidence?.("Region",ref,warning?"approximated":"kept",null,warning);continue;}
             const obj=regionItem(kind,r.layer,g,p);
-            const target=put({obj,owner,net},null,ref);evidence?.(overlay?"Silkscreen polygon region":"Region",ref,warning?"approximated":"kept",target,warning);
+            const target=put({obj,owner,net,locked:r.locked},null,ref);evidence?.(overlay?"Silkscreen polygon region":"Region",ref,warning?"approximated":"kept",target,warning);
             if(kind==="polygon cutout")cutouts++;
             else if(kind==="keepout")keepouts++;
             else if(overlay)artwork.regions++;
@@ -1975,5 +1982,5 @@ globalThis.AtriumPCB = (() => {
   function netNames(streams){
     return records(streams.get("nets6/data")||streams.get("nets/data")).map((p,i)=>p.NAME||"Net "+i);
   }
-  return {read,asciiRuleRecords,netNames,polygon,outline,regionGeometry,drillPlots,gerberPlots,addProfileJobs};
+  return {read,asciiRuleRecords,netNames,primitiveLocked,polygon,outline,regionGeometry,drillPlots,gerberPlots,addProfileJobs};
 })();

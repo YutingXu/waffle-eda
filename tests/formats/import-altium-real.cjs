@@ -13,7 +13,7 @@
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path");
 globalThis.CFB = require("../../app/vendor/cfb.min.js");
 for (const f of ["model", "parts", "sch-objects", "hierarchy", "board-shape", "stackup", "polygon-pour", "import-link", "source-file", "sch-import",
-  "altium-rules", "pcb-pours", "pcb-import", "io", "connectivity", "rules", "drc"]) require(require("../support/app-source-paths.cjs").appFile(f + ".js"));
+  "altium-rules", "pcb-pours", "pcb-import", "io", "connectivity", "rules", "drc", "pcb-edit"]) require(require("../support/app-source-paths.cjs").appFile(f + ".js"));
 const A = Atrium, DIR = path.join(__dirname, "../fixtures/altium/pidp11-io-expander");
 const FILES = ["PCB-PiDP11IOExpander.PrjPcb", "PiDP11IOExpander.SchDoc", "PiDP11IOExpander.PcbDoc"];
 const bytes = name => new Uint8Array(fs.readFileSync(path.join(DIR, name)));
@@ -127,7 +127,7 @@ const SNAPSHOT = {
     "nets": ["GP0.3:1", "VCC_3V3:1"],
     "links": [2, 3, 32, 1, 46]
   },
-  "warnings": 21,
+  "warnings": 22,
   "notes": [
     "19 free region(s) imported as filled shapes (Bottom 1, Silk 18).",
     "2 polygon pours imported as editable Waffle pours (outline, net, pour order, island removal). Clearance and connect style come from the design rules.",
@@ -136,6 +136,7 @@ const SNAPSHOT = {
     "5 stored polygon fill region(s) kept as the pours' current copper. They count for connectivity until a repour regenerates them.",
     "Imported 3D bodies (0 extruded, 23 STEP references).",
     "Kept 1 net class (signals and tags).",
+    "Locks on primitives inside components not kept (13).",
     "Omitted 2 × template images, 1 × template text frames, 2 × embedded images.",
     "Omitted advanced placer options6 (1).",
     "Omitted boardregions (1).",
@@ -163,6 +164,48 @@ assert.equal(stacked.length, 32, "all Top/Middle/Bottom pad stacks remain editab
 for (const pad of stacked) {
   assert.deepEqual(pad.padStack.Top, pad.padStack.Mid);
   assert.deepEqual(pad.padStack.Top, pad.padStack.Bottom);
+}
+// Lock state, against the file's own bytes. The independent reader (tests/e2e/altium-oracle.cjs) shares
+// no code with the importer: a component and a polygon carry LOCKED in their text record; every binary
+// primitive has a flags byte after its layer byte, whose bit 2 is set while the primitive is unlocked.
+{
+  const oracle = require("../e2e/altium-oracle.cjs"), streams = oracle.compoundFile(bytes("PiDP11IOExpander.PcbDoc"));
+  const NONE = 0xffff, expected = new Map(), tally = {}, inComponents = {locked: 0, unlocked: 0};
+  const count = (stream, locked) => { const t = tally[stream] ||= {locked: 0, unlocked: 0}; t[locked ? "locked" : "unlocked"]++; };
+  for (const stream of ["components6", "polygons6"]) oracle.textRecords(streams.get(stream + "/data")).forEach((r, i) => {
+    assert.match(r.LOCKED, /^(TRUE|FALSE)$/, stream + "#" + i + " states its lock");
+    expected.set(stream + "/data#" + i, r.LOCKED === "TRUE"); count(stream, r.LOCKED === "TRUE");
+  });
+  // Blocks per record, and which block is the fixed header (a pad's name and three more come first).
+  for (const [stream, type, blocks, header] of [["arcs6", 1, 1, 0], ["pads6", 2, 6, 4], ["vias6", 3, 1, 0], ["tracks6", 4, 1, 0], ["texts6", 5, 2, 0], ["regions6", 11, 1, 0]]) {
+    oracle.binaryRecords(streams.get(stream + "/data"), t => t === type ? blocks : 0).forEach((r, i) => {
+      const b = r.blocks[header], word = k => b[k] | b[k + 1] << 8, locked = (b[1] & 4) === 0;
+      if (word(7) !== NONE) inComponents[locked ? "locked" : "unlocked"]++;       // in a footprint: not a board object
+      else if (word(5) === NONE) { expected.set(stream + "/data#" + i, locked); count(stream, locked); }   // not a pour's stored fill
+    });
+  }
+  // The fixture has both states for vias, tracks and regions, so neither "all locked" nor "none" passes.
+  assert.deepEqual(tally, {components6: {locked: 23, unlocked: 0}, polygons6: {locked: 2, unlocked: 0}, pads6: {locked: 4, unlocked: 0},
+    vias6: {locked: 36, unlocked: 23}, tracks6: {locked: 5, unlocked: 194}, texts6: {locked: 19, unlocked: 0}, regions6: {locked: 18, unlocked: 1}});
+  assert.deepEqual(inComponents, {locked: 13, unlocked: 354});
+  const imported = {}, seen = new Set();
+  for (const i of pcb.items) {
+    assert.ok(expected.has(i.sourceRecord), i.kind + " " + i.sourceRecord + " is a free source object");
+    assert.equal(i.locked === true, expected.get(i.sourceRecord), i.sourceRecord + " keeps its lock");
+    assert.ok(i.locked === true || !Object.hasOwn(i, "locked"), "an unlocked object has no lock field");
+    seen.add(i.sourceRecord);
+    const t = imported[i.sourceRecord.split("/")[0]] ||= {locked: 0, unlocked: 0}; t[i.locked ? "locked" : "unlocked"]++;
+  }
+  assert.equal(seen.size, expected.size, "every free source object was imported once");
+  assert.deepEqual(imported, tally, "locked and unlocked objects of each source kind");
+  // The editor's own test for a lock (move, delete and the Properties switch all ask it).
+  const ids = pcb.items.map(i => i.id), locked = AtriumPCBEdit.lockedIn(pcb, ids);
+  assert.equal(locked.length, 107);
+  assert.deepEqual(new Set(locked.map(i => i.sourceRecord)), new Set([...expected].filter(([, value]) => value).map(([key]) => key)));
+  assert.equal(AtriumPCBEdit.lockPlan(pcb, ids, true).ids.length, 218, "Lock would change only the unlocked objects");
+  // A footprint and a part's designator and comment strings have no lock of their own: counted in the notes.
+  assert.ok(p.library.every(d => !(d.footprint?.pads || []).concat(d.footprint?.shapes || []).some(o => Object.hasOwn(o, "locked"))));
+  assert.ok(notes.includes("Locks on primitives inside components not kept (" + inComponents.locked + ")."));
 }
 // The schematic Note record keeps its authored paragraphs as an editable frame.
 const importedNote = sch.items.find(i => i.kind === "textframe" && i.note === true);

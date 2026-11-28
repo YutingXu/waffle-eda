@@ -79,7 +79,7 @@ globalThis.AtriumPCBPatch = (() => {
       const byte=k=>d.getUint8(pos+k),short=k=>d.getUint16(pos+k,true),int=k=>d.getInt32(pos+k,true),u32=k=>d.getUint32(pos+k,true);
       const setInt=(offset,n)=>d.setInt32(pos+offset,n,true);
       const requireSame=(ok)=>{if(!ok)fail(record,"Record fields differ from the source import.");};
-      if(short(7)!==NONE||short(5)!==NONE||(byte(1)&4)===0)fail(record,"Owned, polygon-generated or locked copper requires editing in Altium.");
+      if(short(7)!==NONE||short(5)!==NONE||AtriumPCB.primitiveLocked(g.bytes,pos))fail(record,"Owned, polygon-generated or locked copper requires editing in Altium.");
       if(track&&((byte(1)&2)!==0||(byte(2)&2)!==0||(length>=40&&u32(36)!==0)))fail(record,"Polygon, keepout and union tracks require editing in Altium.");
       const oldNet=short(3);requireSame(before.net===(oldNet===NONE?"":names[oldNet]||"Net "+oldNet));
       if(arc){

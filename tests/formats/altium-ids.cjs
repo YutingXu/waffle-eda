@@ -122,6 +122,30 @@ const project = (sch, board, workspace) => open([text("Demo.SchDoc", sch), text(
   assert.deepEqual(pcb.items.filter(i => i.kind === "part").map(i => [i.id, i.x, i.y, i.def]), layout);
 }
 {
+  // A revision that only locks objects in Altium: the ASCII LOCKED field of a component, a free primitive,
+  // a region and a polygon. Each object keeps its id (a lock is not what the object is) and gains its lock.
+  const free = ["RECORD=Via|LAYER=MULTILAYER|NET=1|X=300mil|Y=300mil|DIAMETER=40mil|HOLESIZE=20mil|STARTLAYER=TOP|ENDLAYER=BOTTOM",
+    "RECORD=Pad|NAME=H1|X=1500mil|Y=300mil|XSIZE=60mil|YSIZE=60mil|HOLESIZE=30mil|SHAPE=ROUND|LAYER=MULTILAYER",
+    "RECORD=Arc|LAYER=TOPOVERLAY|LOCATION.X=1500mil|LOCATION.Y=1500mil|RADIUS=50mil|STARTANGLE=0|ENDANGLE=90|WIDTH=6mil",
+    "RECORD=Text|LAYER=TOPOVERLAY|X=100mil|Y=1500mil|HEIGHT=60mil|WIDTH=6mil|TEXT=REV A",
+    "RECORD=Fill|LAYER=TOP|X1=1200mil|Y1=1200mil|X2=1300mil|Y2=1300mil",
+    "RECORD=Region|LAYER=TOPOVERLAY|KIND=0|MAINCONTOURVERTEXCOUNT=3|MVX0=10000000|MVY0=17000000|MVX1=11000000|MVY1=17000000|MVX2=11000000|MVY2=18000000|HOLECOUNT=0",
+    "RECORD=Polygon|ID=0|LAYER=TOP|NET=1|POLYGONTYPE=Polygon|HATCHSTYLE=Solid|VX0=50mil|VY0=50mil|VX1=1950mil|VY1=50mil|VX2=1950mil|VY2=1950mil|VX3=50mil|VY3=1950mil"];
+  const board = lock => boardA.replace(/\|RECORD=(Component|Track)\|/g, m => m + (lock == null ? "" : "LOCKED=" + lock + "|")) +
+    free.map(line => "|" + line + (lock == null ? "" : "|LOCKED=" + lock)).join("\r\n") + "\r\n";
+  const [none, unlocked, locked] = [null, "FALSE", "TRUE"].map(lock => imported(open([text("Demo.PcbDoc", board(lock))]))[0]);
+  const kinds = d => d.items.map(i => i.kind).sort().join(" ");
+  assert.equal(kinds(locked), "graphic graphic graphic label pad part part polygon track track track via");
+  assert.ok(none.items.concat(unlocked.items).every(i => !Object.hasOwn(i, "locked")), "LOCKED=FALSE and a record without the field are unlocked");
+  assert.ok(locked.items.every(i => i.locked === true), "LOCKED=TRUE locks every kind of board object");
+  assert.deepEqual(locked.items.map(i => i.id), unlocked.items.map(i => i.id), "a lock changes no id");
+  assert.deepEqual(locked.items.map(i => ({...i, locked: undefined})), unlocked.items.map(i => ({...i, locked: undefined})), "and nothing else");
+  // A lock on a primitive inside a component has no place in the footprint: the import notes count it.
+  const inside = board("TRUE").replace(/\|RECORD=Pad\|COMPONENT=/g, "|RECORD=Pad|LOCKED=TRUE|COMPONENT="), read = AtriumIO.read("Demo.PcbDoc", enc.encode(inside));
+  assert.ok(read.notes.includes("Locks on primitives inside components not kept (4)."));
+  assert.ok(read.library.every(d => d.footprint.pads.every(q => !Object.hasOwn(q, "locked"))));
+}
+{
   const a = project(revA, boardA), b = project(revB, boardB);
   const byUid = (p, ref) => items(p, "part").filter(i => i.ref === ref);
   const [sa, pa] = byUid(a, "R1"), [sb, pb] = byUid(b, "R2");

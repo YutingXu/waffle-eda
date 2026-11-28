@@ -187,6 +187,8 @@ globalThis.AtriumSourceCopy = (() => {
     return land;
   }
   function sourceItemProjection(original,saved) {
+    // Earlier imports did not read the source lock, so their objects are all unlocked.
+    if(original.locked===true&&!Object.hasOwn(saved,"locked"))original=without(original,new Set(["locked"]));
     if(original.kind==="pad")return sourcePadProjection(original,saved);
     if(original.kind!=="polygon")return original;
     const optional=["sourcePourOver"];
