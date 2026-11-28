@@ -2,7 +2,8 @@
 // Opening a link: every opener (the palette's Open link row, Open Waffle Link… and a stored link in
 // Properties) gives the same result. A datasheet page link keeps its page, brings a Datasheet tab that
 // sits behind Properties to the front, and a reader without a size goes to the page once it has one.
-// A saved query opens in Query from the palette row as it does from Open Waffle Link….
+// A saved query opens in Query from the palette row as it does from Open Waffle Link…. Properties rows do not
+// focus the canvas; the palette row does.
 // node tests/project/browser-links-open.cjs
 const assert = require("node:assert/strict");
 const H = require("../automation/butter-intel-ui-shared.cjs");
@@ -96,8 +97,42 @@ async function walk(browser, profile) {
     await dialog.getByRole("button", {name:"Open"}).click();
     await page.waitForFunction(query => document.querySelector(".panel-design-query [role=combobox]")?.value === query, query);
     assert.equal(await queryShown(), query, "Open Waffle Link… shows the saved query");
+
+    // A Properties row leaves keyboard focus off the canvas, as on ca5e5dc: the inspector rebuilds for the
+    // new selection, so focus is not inside it afterwards. The palette row focuses the canvas.
+    const [from, to] = await page.evaluate(() => AtriumNavHost.doc().items.filter(i => i.kind === "track" && AtriumLinkRecord.id(i.id)).slice(1, 3).map(i => i.id));
+    const toLink = await page.evaluate(async ({from, to}) => {
+      const url = AtriumLinks.format({projectId:AtriumNavHost.project().id, objectId:to});
+      await AtriumButterEditor.apply("butter.links.create", {sourceId:from, url, label:"Return track"});
+      AtriumDock.reveal("properties");
+      AtriumNavHost.select([from], from);
+      return url;
+    }, {from, to});
+    const frames = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const focusIn = () => page.evaluate(() => document.activeElement === AtriumNavHost.canvas() ? "canvas" :
+      document.activeElement?.closest("#inspector") ? "inspector" : document.activeElement?.localName);
+    await links.locator(".ui-row", {hasText:"Return track"}).click();
+    await page.waitForFunction(to => AtriumNavHost.selection()[0] === to, to);
+    await frames();
+    assert.notEqual(await focusIn(), "canvas", "a stored link row does not focus the canvas");
+    await links.locator(".ui-section", {hasText:"Referenced by"}).locator(".ui-row").first().click();
+    await page.waitForFunction(from => AtriumNavHost.selection()[0] === from, from);
+    await frames();
+    assert.notEqual(await focusIn(), "canvas", "a Referenced by row does not focus the canvas");
+    await palette(toLink);
+    assert.equal(await focusIn(), "canvas", "the palette row focuses the canvas");
+
+    // Without Query, a saved query link says, by kind and name, that it has no place on the canvas.
+    const said = await page.evaluate(async url => {
+      AtriumPrefs.set("butter.query", false);
+      const h = AtriumNavHost, info = h.info, seen = [];
+      h.info = text => { seen.push(text); return info.call(h, text); };
+      try { await AtriumIntelUI.probe({url}); } finally { h.info = info; }
+      return seen;
+    }, queryLink);
+    assert.deepEqual(said, ["Saved query Low resistors has no place on the canvas."]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 }
 
-H.runWalk(walk, "SKIP Links open walk: Playwright Core unavailable.", "PASS Links open: palette, Open Waffle Link… and Properties keep the page, reveal a Datasheet tab behind Properties, wait for the reader's size and show a saved query.");
+H.runWalk(walk, "SKIP Links open walk: Playwright Core unavailable.", "PASS Links open: palette, Open Waffle Link… and Properties keep the page, reveal a Datasheet tab behind Properties, wait for the reader's size, show a saved query, leave focus off the canvas from Properties and name a target with no place on the canvas.");

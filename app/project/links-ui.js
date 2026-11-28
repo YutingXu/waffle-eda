@@ -22,9 +22,7 @@ globalThis.AtriumLinksUI = (() => {
     partial:"Part of the project is still loading, so this link could not be checked.",
     "invalid-link":"The stored address is not a valid Waffle link."
   };
-  const kindName = kind => ({part:"Component", schematic:"Sheet", pcb:"Board", savedQuery:"Saved query", savedView:"Saved view",
-    datasheet:"Datasheet", calculation:"Calculation", note:"Note", comment:"Comment", commit:"Git commit", rule:"Rule", net:"Net", pin:"Pin"}[kind] ??
-    (kind ? kind[0].toUpperCase() + kind.slice(1) : "Object"));
+  const kindName = kind => G.AtriumLinks.kindName(kind);
   const id = value => G.AtriumLinkRecord?.id(value);
   let section = null, version = 0, includeGit = false, shown = PAGE;
 
@@ -36,8 +34,9 @@ globalThis.AtriumLinksUI = (() => {
     return project.documents.find(d => d.id === target.objectId)?.name ?? kindName(target.kind);
   }
   // A stored link or a referring object opens through the one link opener with its whole address.
+  // Focus stays in Properties, as a cross-probe leaves it.
   const openAddress = ({projectId = host().project().id, objectId, fragment}) =>
-    U.probe({url:G.AtriumLinks.format({projectId, objectId, ...(fragment && {fragment})})});
+    U.probe({url:G.AtriumLinks.format({projectId, objectId, ...(fragment && {fragment})})}, {focus:false});
 
   // ------------------------------------------------------------------ Properties section
   // The section matches the inspector's own disclosures and stays open unless the user closes it.

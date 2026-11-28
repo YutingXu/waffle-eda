@@ -131,7 +131,7 @@ globalThis.AtriumAskUI = (() => {
       return out;
     }
     const r = turn.result, citations = r.citations ?? [];
-    const cite = (c, n) => K.cite(n, {label:"Source " + n + ": " + (c.label ?? c.evidence?.tool), run:() => U.probe(target(c))});
+    const cite = (c, n) => K.cite(n, {label:"Source " + n + ": " + (c.label ?? c.evidence?.tool), run:() => probeCitation(target(c))});
     const body = K.el("p", "intel-answer");
     // Inline [t1.2] tickets become numbered markers; otherwise the markers follow the answer.
     const tickets = new Map(citations.map((c, i) => [c.ticket, i]));
@@ -154,7 +154,7 @@ globalThis.AtriumAskUI = (() => {
         const item = doc?.items.find(row => row.id === (t.ownerId ?? t.id)), kind = item?.kind ?? c.evidence?.row?.kind;
         const row = K.row({title:item?.ref ?? item?.name ?? item?.text ?? c.evidence?.row?.ref ?? c.label ?? c.ticket,
           detail:[kind && kind[0].toUpperCase() + kind.slice(1), doc?.name ?? toolName(c.evidence?.tool)].filter(Boolean).join(" · "),
-          meta:K.count(i + 1), run:t ? () => U.probe(t) : undefined});
+          meta:K.count(i + 1), run:t ? () => probeCitation(t) : undefined});
         if (!t) { row.dataset.state = "broken"; row.title = "This source has no location in the design."; }
         return row;
       });
@@ -164,6 +164,8 @@ globalThis.AtriumAskUI = (() => {
     if (r.proposal) answer.append(proposalBlock(turn));
     return out;
   }
+  // A citation that is a Waffle link focuses the canvas once followed, as it did before links had one opener.
+  const probeCitation = t => t && U.probe(t, {focus:!!t.url});
   const target = c => {
     const row = c.evidence?.row ?? {}, documentId = c.documentId ?? row.documentId ?? row.document_id;
     const id = row.id ?? row.object_id;

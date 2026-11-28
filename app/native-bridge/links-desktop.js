@@ -141,7 +141,7 @@ globalThis.AtriumLinksDesktop = (() => {
     await close(native, folder);
     return {status:"project-mismatch", projectId};
   }
-  async function reveal(target, editor) {
+  async function reveal(target, editor, {focus = true} = {}) {
     if (target.kind === "comment") {
       const comments = await G.AtriumLazy.need("AtriumReviewComments");
       if (editor.project()?.id === target.projectId) {
@@ -171,7 +171,7 @@ globalThis.AtriumLinksDesktop = (() => {
       return;
     }
     if (!target.documentId) {
-      if (!["comment", "slide", "savedView"].includes(target.kind)) editor.info((target.label || "This object") + " has no place on the canvas.");
+      if (!["comment", "slide", "savedView"].includes(target.kind)) editor.info(L.kindName(target.kind) + " " + (target.label || L.kindName(target.kind)) + " has no place on the canvas.");
       return;
     }
     await editor.selectDocument(target.documentId);
@@ -184,10 +184,11 @@ globalThis.AtriumLinksDesktop = (() => {
       if (target.net) editor.setHighlight(target.net);
       const points = target.point && target.kind === "pin" ? [target.point] : G.Atrium.itemPoints(item, editor.defs().get(item.def), doc.kind);
       if (points?.length) editor.zoomTo(G.Atrium.bounds(points));
-      editor.canvas().focus();
+      if (focus) editor.canvas().focus();
     }
   }
-  async function follow(target) {
+  // focus:false leaves keyboard focus where the user is working (Properties) instead of the canvas.
+  async function follow(target, {focus = true} = {}) {
     if (!enabled()) return {status:"disabled"};
     if (!L.address(target)) return {status:"invalid-link"};
     if (following) return {status:"busy"};
@@ -220,7 +221,7 @@ globalThis.AtriumLinksDesktop = (() => {
       if (!enabled()) return {status:"disabled"};
       if (editor.project()?.id !== target.projectId) return {status:"project-mismatch", projectId:target.projectId};
       if (result.status === "found") {
-        const problem = await reveal(result.target, editor);
+        const problem = await reveal(result.target, editor, {focus});
         if (problem) return {...problem, target:result.target};
       }
       return result;
@@ -274,10 +275,10 @@ globalThis.AtriumLinksDesktop = (() => {
   }
   // The one way to open a link. Every opener (the palette, Open Waffle Link…, Properties, notes and
   // the operating system) passes the link's whole address, as AtriumLinks.format writes it with its fragment.
-  async function open(url) {
+  async function open(url, {focus = true} = {}) {
     const target = L.parse(url);
     let result;
-    try {result = target ? await follow(target) : {status:"invalid-link"};}
+    try {result = target ? await follow(target, {focus}) : {status:"invalid-link"};}
     catch (error) {G.AtriumNavHost?.info(error.message); return {status:"failed", message:error.message};}
     if (result.status !== "found") G.AtriumNavHost?.info(message(result.status));
     return result;

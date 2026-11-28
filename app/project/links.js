@@ -430,6 +430,10 @@ globalThis.AtriumLinks = (() => {
         targets.map(target => ({target, field:"message"})));
     }
   }
-  return Object.freeze({parse, format, extract, address, validSource, validRecord, validAnchor, authoredRecord, createIndex,
+  // The name a link target's kind goes by in Properties and in messages.
+  const kindName = kind => ({part:"Component", schematic:"Sheet", pcb:"Board", savedQuery:"Saved query", savedView:"Saved view",
+    datasheet:"Datasheet", calculation:"Calculation", note:"Note", comment:"Comment", commit:"Git commit", rule:"Rule", net:"Net", pin:"Pin"}[kind] ??
+    (kind ? kind[0].toUpperCase() + kind.slice(1) : "Object"));
+  return Object.freeze({parse, format, extract, address, validSource, validRecord, validAnchor, authoredRecord, createIndex, kindName,
     fromProject, addDocument, addItem, addMetadata, update, resolve, resolveTargets, resolveFromOwner, gitReferences, anchorPlan});
 })();

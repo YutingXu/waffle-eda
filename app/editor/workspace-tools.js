@@ -67,7 +67,7 @@ globalThis.AtriumIntelUI = (() => {
   async function probe(target, {focus = false, activateOccurrence = true, current, status, order} = {}) {
     const h = host();
     if (!h || !target) return {status:"unavailable"};
-    if (target.url) return (G.AtriumLinksDesktop ?? await L.need("AtriumLinksDesktop")).open(target.url);
+    if (target.url) return (G.AtriumLinksDesktop ?? await L.need("AtriumLinksDesktop")).open(target.url, {focus});
     const project = h.project(), doc = project.documents.find(d => d.id === (target.documentId ?? target.docId));
     if (!doc) {
       if (!status) h.info("The document for this result is no longer in the project.");
