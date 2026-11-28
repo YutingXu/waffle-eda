@@ -5,9 +5,9 @@
 // in that pane shows the canvas again; the view keeps its tab until it is closed (its ×, a middle click, or Delete
 // on the focused tab). One view per id; opening an open view shows it. A view's canClose() is asked first when
 // the user closes its tab: false keeps the tab (an editor with unsaved changes asks, then closes itself).
-// close(id) always closes. Before a project switch the editor asks mayDiscard(): each view's own mayDiscard()
-// (an editor with unsaved changes shows its tab and asks) may refuse, and the project stays. The editor asks
-// again just before it commits; a view answers again only for work changed since. keep() tells each view the
+// close(id) always closes. A project switch (project/leave-project.js) asks mayDiscard() first: each view's own
+// mayDiscard() (an editor with unsaved changes shows its tab and asks) may refuse, and the project stays. The switch
+// asks again just before it commits; a view answers again only for work changed since. keep() tells each view the
 // switch stopped, so the next one asks afresh. The switch (the nav host's "replace") then closes every view here: a view or an editor draft built for the old project must not act
 // on the next one (a Save would write the part into it). The host marks a replace that keeps the same project
 // ({sameProject:true}: an undo-tree branch switch, a workspace window's mirror refresh), and the views stay.
@@ -180,5 +180,7 @@ globalThis.AtriumDocViews = (() => {
       h.on?.("replace", detail => { if (!detail?.sameProject) for (const id of [...views.keys()]) close(id); });
     });
   }
+  // The first participant of every project switch (project/leave-project.js); a same-project replace keeps the views.
+  G.AtriumLeaveProject?.register("editor-tabs", {order: G.AtriumLeaveProject.order.tabs, ask: t => t.sameProject || mayDiscard(), keep});
   return Object.freeze({open, show, hide, close, decorate, showCanvas, mayDiscard, keep, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
 })();

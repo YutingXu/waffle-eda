@@ -28,7 +28,7 @@ function shelf() {
   };
 }
 async function restoreLayoutBlocks() {
-  for (const m of ["i18n","model","source-file","format-2-codec","format-2-units","format-2-values","format-2-model","folder-project-ui"])
+  for (const m of ["i18n","model","source-file","format-2-codec","format-2-units","format-2-values","format-2-model","leave-project","folder-project-ui"])
     require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
   const A=Atrium, saved=A.project("Draft layout"), previous=globalThis.AtriumFolderProject;
   const block=(name)=>({id:A.id(),format:"atrium-block",version:1,name,size:[3,2],library:[],items:[
@@ -40,7 +40,7 @@ async function restoreLayoutBlocks() {
   globalThis.AtriumFolderProject={async open(_folder,opts){restore=opts.restoreDraft;throw Error("Captured draft callback");}};
   const host={edit:fn=>fn(),replaceProject:async copy=>{replaced=copy;return true;},markUnsaved(){}};
   try {
-    await assert.rejects(AtriumFolderProjectUI.open({host:{}},{session:()=>session,host:()=>host},{confirmed:true}),/Captured draft callback/);
+    await assert.rejects(AtriumFolderProjectUI.open({host:{}},{session:()=>session,host:()=>host}),/Captured draft callback/);
   } finally {globalThis.AtriumFolderProject=previous;}
   const {documents,library,blobs,...settings}=saved;
   const bundle={header:{settings:{value:{...settings,notes:"From draft",layoutBlocks:[{...a,name:"Edited block"},b]}}},

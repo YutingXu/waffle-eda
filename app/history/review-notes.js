@@ -324,5 +324,8 @@ globalThis.AtriumReviewNotes=(()=>{
     });
   }
   if(typeof document!=="undefined"&&G.AtriumNavHost)attach(G.AtriumNavHost);
+  // A sketch stroke still under the pen when the project is left asks once (leave-project.js) and is dropped at the commit.
+  const LP=G.AtriumLeaveProject;
+  LP?.draft("review-sketch",LP.order.notes,{state:()=>draft||null,message:"Discard the sketch stroke you are drawing?",discard:()=>release()});
   return Object.freeze({attach,place,open,close,inspect,links,hasPending:()=>!!draft});
 })();

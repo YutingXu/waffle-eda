@@ -607,36 +607,31 @@ globalThis.AtriumContextMenu = (() => {
   }
 
   // ------------------------------------------------------------------ project actions
-  // Close Project: unsaved edits are saved, discarded or kept (Cancel) first, then the window returns
-  // to the empty starter and Home. The closed project is no longer reopened at the next launch. Editor tabs
-  // ask before the project does: the project's Discard deletes its recovery copy, which a later Cancel can't restore.
+  // Close Project: one leave-project transaction (project/leave-project.js, reason "close"). Editor tabs, notes and
+  // notebook editors ask first, then a foreign import's review, then this dialog (Save, Don’t Save, Cancel); the
+  // window then returns to the empty starter and Home. Answers only record: a Discard deletes the import's recovery
+  // copy at the commit, so a later Cancel keeps it. The closed project is no longer reopened at the next launch.
   async function closeProject(host) {
     if (host.isStarter?.()) return true;
-    const project = host.project(), current = () => host.project() === project;
-    const name = project.name || "Untitled";
-    const pending=host.importSession?.(), V = globalThis.AtriumDocViews;
-    if (V?.mayDiscard?.() === false) return false;
-    const closed = await closing();
-    if (!closed) V?.keep?.();
-    return closed;
-    async function closing() {
-      if (globalThis.AtriumForeignDrafts?.needsReview(host)) { if (!await globalThis.AtriumForeignDrafts.review(host)) return false; }
-      else if (host.isDirty?.()) {
-        const S = globalThis.AtriumShell, p = document.createElement("p");
-        p.textContent = "Your changes to “" + name + "” are lost if you close it without saving.";
-        const choice = S?.dialog ? await S.dialog({title:"Save changes to “" + name + "” before closing?", body:[p], className:"close-project-dialog",
-          actions:[{label:"Cancel"}, {label:"Don’t Save"}, {label:"Save", primary:true}]}).done : (globalThis.confirm?.("Close " + name + " without saving?") ? "Don’t Save" : null);
-        if (!current()) return false;
-        if (choice === "Save") { if (await host.saveProject?.() === false || !current() || host.isDirty()) return false; }
-        else if (choice !== "Don’t Save") return false;
-      }
+    const name = host.project().name || "Untitled";
+    const t = globalThis.AtriumLeaveProject.begin(host, {reason:"close", prompt});
+    try {
+      if (!await t.ask()) return false;
       const empty = globalThis.Atrium.project("Untitled", globalThis.AtriumParts?.catalogue || []);
-      if (!current() || !await host.replaceProject(empty, {copy:true, force:true, starter:true, current})) return false;
-      if (pending) await globalThis.AtriumForeignDrafts.release(pending);
+      if (!t.current() || !await host.replaceProject(empty, {copy:true, starter:true, leave:t, current:t.current})) return false;
       globalThis.AtriumAutosave?.closed?.();
       host.info?.("Closed " + name);
       host.act("start-page");
       return true;
+    } finally { t.cancel(); }
+    async function prompt() {
+      const S = globalThis.AtriumShell, p = document.createElement("p");
+      p.textContent = "Your changes to “" + name + "” are lost if you close it without saving.";
+      const choice = S?.dialog ? await S.dialog({title:"Save changes to “" + name + "” before closing?", body:[p], className:"close-project-dialog",
+        actions:[{label:"Cancel"}, {label:"Don’t Save"}, {label:"Save", primary:true}]}).done : (globalThis.confirm?.("Close " + name + " without saving?") ? "Don’t Save" : null);
+      if (!t.current()) return false;
+      if (choice === "Save") return await host.saveProject?.() !== false && t.current() && !host.isDirty();
+      return choice === "Don’t Save";
     }
   }
   // Add Existing to Project…: a schematic, board or library document joins the open project.

@@ -442,9 +442,18 @@ globalThis.AtriumTableEditor=(()=>{
     const offPower=G.AtriumPower?.onChange(s=>{if(s.visible)queueQuery();});
     const offQueries=G.AtriumPrefs.on("butter.query",()=>{latestQuery=undefined;queueQuery();});
     dialog.addEventListener("close",()=>{disposed=true;queryEpoch++;gesture.abort();queryJob?.cancel();cancelAnimationFrame(frame);offChange?.();offDoc?.();offProj?.();offFlag();offPower?.();offQueries();if(active===dialog)active=null;dialog.remove();},{once:true});
+    // A typed entry not yet applied to its cell (the project switch asks about it: leave-project.js).
+    dialog.unapplied=()=>{
+      if(disposed||!dialog.open||!editing||!visibleRows.length)return null;
+      try{const prior=T.get(state,editing.rowId,editing.columnId)?.content;
+        return kind.value!==cellType(prior)||formula.value!==entryText(prior)?editing.rowId+"\u0000"+editing.columnId+"\u0000"+kind.value+"\u0000"+formula.value:null;}
+      catch{return null;}
+    };
     G.AtriumUI.adoptDialog(dialog,{title:header.querySelector("h2"),defaultAction:false});
     active=dialog;dialog.showModal();refresh();viewport.focus();return true;
   }
+  const LP=G.AtriumLeaveProject;
+  LP?.draft("table-editor",LP.order.notebook,{state:()=>active?.unapplied?.()??null,message:"Discard the table entry you have not applied?",discard:()=>active?.close()});
   return Object.freeze({open});
 })();
 if(typeof module!=="undefined")module.exports=globalThis.AtriumTableEditor;
