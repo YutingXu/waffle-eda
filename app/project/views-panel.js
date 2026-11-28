@@ -63,7 +63,18 @@ globalThis.AtriumViewsPanel = (() => {
   }
   const docOf = id => host.docById?.(id) || host.documentRefs?.().find(d => d.id === id) || null;
   const toast = (text, kind) => G.AtriumToast?.show(text, {kind});
+  // The list's keymap command for this keydown (lazy.js LIST_COMMANDS, focus "views" or "slides"):
+  // its action, "" for a key repeat it ignores, or null when the key is not one of the list's.
+  const viewFocus = {focus: "views", kind: "schematic"}, slideFocus = {focus: "slides", kind: "schematic"};
+  function listAction(e, state) {
+    state.kind = host.doc?.()?.kind || "schematic";
+    const rec = G.AtriumKeymap?.focusBinding?.(e, state);
+    if (!rec) return null;
+    e.preventDefault();
+    return !e.repeat || rec.repeatable ? rec.command.action : "";
+  }
   // AtriumContextMenu entries: enabled unless said otherwise; a submenu is {sub, items}.
+  // `action` names a list command, so the entry shows its key from the keymap; `run` does the work.
   const menu = list => list.map(e => e === "-" ? e : e.items ? {sub: e.label, items: menu(e.items)} : {...e, enabled: e.enabled ?? true});
   function showNotice(model, spec) { model.notice = spec; (model === views ? ui.views : ui.slides).notice(); }
 
@@ -165,28 +176,29 @@ globalThis.AtriumViewsPanel = (() => {
     const M = await G.AtriumLazy.need("AtriumContextMenu"), many = views.selected.size > 1;
     M.popup({host}, menu([
       {label: "Go to view", run: () => applyView(v.id), enabled: v.status !== "missing-document"},
-      {label: "Rename", run: () => { views.renaming = v.id; schedule(); }, shortcut: "F2"},
-      {label: "Copy link", run: () => copyLink(v.id)},
+      {label: "Rename", action: "views-rename", run: () => { views.renaming = v.id; schedule(); }},
+      {label: "Copy link", action: "views-copy-link", run: () => copyLink(v.id)},
       "-",
       {label: "Present from here", run: () => presentViews(v.id)},
       {label: many ? "Export " + views.selected.size + " views as PDF…" : "Export PDF…", run: () => exportViews()},
       "-",
-      {label: many ? "Remove " + views.selected.size + " views" : "Remove", run: () => removeSelectedViews()}
+      {label: many ? "Remove " + views.selected.size + " views" : "Remove", action: "views-remove", run: () => removeSelectedViews()}
     ]), v.name, x, y, anchor);
   }
   function viewKeys(e) {
     if (e.target.matches("input")) return;
     const ids = views.rows.map(v => v.id); if (!ids.length) return;
     let at = ids.indexOf(views.focus);
+    const action = listAction(e, viewFocus);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       at = Math.max(0, Math.min(ids.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)));
       if (e.shiftKey && views.focus) { rangeSelect(ids[at]); views.focus = ids[at]; } else { views.focus = ids[at]; views.selected = new Set([ids[at]]); }
     } else if (e.key === "Home" || e.key === "End") { views.focus = ids[e.key === "Home" ? 0 : ids.length - 1]; views.selected = new Set([views.focus]); }
     else if (e.key === "Enter" && views.focus) void applyView(views.focus);
-    else if (e.key === "F2" && views.focus) views.renaming = views.focus;
-    else if ((e.key === "Delete" || e.key === "Backspace") && views.selected.size) void removeSelectedViews();
-    else if (e.key.toLowerCase() === "c" && (e.metaKey || e.ctrlKey) && views.focus) { void copyLink(views.focus); }
-    else return;
+    else if (action === "views-rename" && views.focus) views.renaming = views.focus;
+    else if (action === "views-remove" && views.selected.size) void removeSelectedViews();
+    else if (action === "views-copy-link" && views.focus) void copyLink(views.focus);
+    else if (action == null) return;
     e.preventDefault(); schedule();
   }
   async function captureView() {
@@ -425,21 +437,23 @@ globalThis.AtriumViewsPanel = (() => {
   }
   function slideKeys(e) {
     if (!slides.current) return false;
-    if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); move(slides.current, e.key === "ArrowLeft" ? -1 : 1); return true; }
-    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); void removeSlide(slides.current); return true; }
-    if (e.key === "F5" || (e.key === "Enter" && (e.metaKey || e.ctrlKey))) { e.preventDefault(); void presentSlides(slides.current); return true; }
-    return false;
+    const action = listAction(e, slideFocus);
+    if (action == null) return false;
+    if (action === "slides-move-earlier" || action === "slides-move-later") move(slides.current, action === "slides-move-earlier" ? -1 : 1);
+    else if (action === "slides-remove") void removeSlide(slides.current);
+    else if (action === "slides-present") void presentSlides(slides.current);
+    return true;
   }
   async function slideMenu(s, x, y, anchor) {
     const M = await G.AtriumLazy.need("AtriumContextMenu"), at = slides.rows.indexOf(s);
     M.popup({host}, menu([
       {label: "Show slide", run: () => showSlide(s.id), enabled: s.status === "ready"},
-      {label: "Present from here", run: () => presentSlides(s.id)},
+      {label: "Present from here", action: "slides-present", run: () => presentSlides(s.id)},
       "-",
-      {label: "Move earlier", run: () => move(s.id, -1), enabled: at > 0, shortcut: "Alt+ArrowLeft"},
-      {label: "Move later", run: () => move(s.id, 1), enabled: at < slides.rows.length - 1, shortcut: "Alt+ArrowRight"},
+      {label: "Move earlier", action: "slides-move-earlier", run: () => move(s.id, -1), enabled: at > 0},
+      {label: "Move later", action: "slides-move-later", run: () => move(s.id, 1), enabled: at < slides.rows.length - 1},
       "-",
-      {label: "Remove", run: () => removeSlide(s.id)}
+      {label: "Remove", action: "slides-remove", run: () => removeSlide(s.id)}
     ]), s.name, x, y, anchor);
   }
   function pickSlide(id) { slides.current = id; ui.slides.strip.select(id, {reveal: true}); ui.slides.detail.dataset.id = ""; paintDetail(); }

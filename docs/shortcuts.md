@@ -110,7 +110,7 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 
 ## Altium-style (default)
 
-312 of 473 commands have a default key.
+319 of 480 commands have a default key.
 
 ### File
 
@@ -460,6 +460,16 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 | Go to saved view 9 | `J` `9` | Always |
 | Quick open (documents and recent files)… | `Mod+P` | Always |
 | Color theme… | `Mod+K` `Mod+T` | Always |
+| Saved views: rename view | `F2` | In the Saved views list |
+| Saved views: copy link | `Mod+C` | In the Saved views list |
+| Saved views: remove views | `Backspace` | In the Saved views list |
+|  | `Delete` | In the Saved views list |
+| Slides: move slide earlier | `Alt+Left` | In the Slides strip |
+| Slides: move slide later | `Alt+Right` | In the Slides strip |
+| Slides: remove slide | `Backspace` | In the Slides strip |
+|  | `Delete` | In the Slides strip |
+| Slides: present from this slide | `F5` | In the Slides strip |
+|  | `Mod+Enter` | In the Slides strip |
 
 ### Window
 

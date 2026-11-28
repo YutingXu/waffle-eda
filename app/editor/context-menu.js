@@ -447,8 +447,8 @@ globalThis.AtriumContextMenu = (() => {
       if (e.checked != null) b.setAttribute("aria-checked", String(e.checked));
       b.disabled = !e.enabled;
       b.append(NC().el("span", e.label));
-      // A keymap action's binding; a command without one may name its own key (`shortcut`).
-      NC().shortcutBadge(b, (e.action && K?.hintKey(e.action, kind)) || e.shortcut);
+      // The key comes only from the keymap: a command shows its `action`'s binding (tests/maintenance/shortcut_lint.py).
+      NC().shortcutBadge(b, e.action && K?.hintKey(e.action, kind));
       b.onclick = () => {
         close();
         const run = () => {
@@ -912,5 +912,6 @@ globalThis.AtriumContextMenu = (() => {
   }
   NC()?.ready?.(attach);
 
-  return Object.freeze({open, explorer, projectActions, editing, dropdown, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
+  // popup(ctx, commands, heading, x, y, returnFocus): a menu of command objects at a point (the Views panel's row menus).
+  return Object.freeze({open, explorer, projectActions, editing, dropdown, popup, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
 })();

@@ -12,7 +12,7 @@ globalThis.AtriumKeymapEditor = (() => {
     suggestion:"route ghost shown",suggestTab:"route ghost shown, Tab accepts",busRouting:"while routing a bus",cursorAt:"keyboard cursor shown","!cursorAt":"no keyboard cursor",dragging:"while dragging","!dragging":"not dragging",true:"always",false:"never"};
   const TOOL_WORDS={select:"Select",route:"Route",via:"Via",place:"Place",pan:"Pan",label:"Label",measure:"Measure","move-object":"Move"};
   // Lists that run their own keymap commands (registerCommand `focus`).
-  const FOCUS_WORDS={library:"in the Library list"};
+  const FOCUS_WORDS={library:"in the Library list",views:"in the Saved views list",slides:"in the Slides strip"};
   function describeTerm(t){
     t=t.trim();if(WHEN_WORDS[t])return WHEN_WORDS[t];
     let m=/^tool\s*(==|!=)\s*['"]?([\w-]+)['"]?$/.exec(t);
