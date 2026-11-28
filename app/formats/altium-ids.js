@@ -11,7 +11,7 @@
 //     a PcbDoc component's UNIQUEID, a primitive's 16-byte GUID (PrimitiveGuids) or a pad's UNIQUEID
 //     (UniqueIDPrimitiveInformation). The object keeps it when it moves or changes.
 //   content: "ac-…" from what the object is (kind, layer, geometry rounded to 0.1 µm, text, owner;
-//     never its net or appearance): records Altium gives no id (junctions, primitives of files older
+//     never its net, lock or appearance): records Altium gives no id (junctions, primitives of files older
 //     than PrimitiveGuids). An unchanged object keeps it across revisions.
 //   primitiveGuids(bytes) -> Map("tracks#12" -> hex GUID)   (PrimitiveGuids/Data)
 //   padIds(bytes)         -> Map(pad index -> UNIQUEID)      (UniqueIDPrimitiveInformation/Data)
@@ -27,9 +27,9 @@ globalThis.AtriumAltiumIds = (() => {
     h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36).padStart(11, "0");
   }
-  // What an object is, for a content id: its own fields minus identity, net, source bookkeeping
+  // What an object is, for a content id: its own fields minus identity, net, lock, source bookkeeping
   // and appearance, numbers rounded to 0.1 µm (import float noise).
-  const SKIP = new Set(["id", "net", "pinNets", "link", "sourceRecord", "sourceDrillTool", "schSource", "schPaint", "sourceTextBox", "regionShape", "entries"]);
+  const SKIP = new Set(["id", "net", "pinNets", "link", "locked", "sourceRecord", "sourceDrillTool", "schSource", "schPaint", "sourceTextBox", "regionShape", "entries"]);
   const canon = v => JSON.stringify(v, (k, x) => SKIP.has(k) || k === "arc" && x?.kind === "arc" ? undefined : typeof x === "number" ? Math.round(x * 1e4) / 1e4 : x);
   const fileKey = name => String(name || "").replace(/\\/g, "/").split("/").pop().normalize("NFC").toLowerCase();
   function scope(fileName) {

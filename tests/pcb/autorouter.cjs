@@ -2,7 +2,7 @@
 // Autorouter tests and benchmarks. Run with Node 18+:
 //   node tests/pcb/autorouter.cjs [--bench] [--svg DIR]
 // The helpers (dense routing board generator, an independent clearance checker
-// and an SVG renderer) are exported for tests/fanout.cjs.
+// and an SVG renderer) are exported for tests/pcb/fanout.cjs.
 const assert = require("node:assert/strict");
 const {pointSeg, segSeg} = require("../support/segment-distance.cjs");
 require("../../app/core/model.js");

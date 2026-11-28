@@ -368,12 +368,12 @@ and 100 Ω Ethernet on the inner layers?" without touching the design.
 ## 12. Tests
 
 - **Grammar.** Parse and print round trip for every form in §2.2. Errors keep the raw text.
-- **ECO** (`tests/eco.cjs`): add, change, remove and rename a directive. Change ids stay stable. A second run plans
+- **ECO** (`tests/schematic/eco.cjs`): add, change, remove and rename a directive. Change ids stay stable. A second run plans
   **zero** changes. Detached rules are left alone. A shadowing user rule produces the insight. A conflicting double
   directive produces an ERC error and no change.
 - **Degraded path.** No Signal model gives exactly the classes, pairs and rules in §4.2, with the priority
   placement checked against component- and room-scoped rules.
-- **Solver policy** (`tests/stackup.cjs`): the gap policy, fab limits, `window` versus `tolerance`, unreachable detection
+- **Solver policy** (`tests/pcb/stackup.cjs`): the gap policy, fab limits, `window` versus `tolerance`, unreachable detection
   and each suggestion's numbers. Golden values come from a common 4-layer 7628 stack (USB 90 Ω, Ethernet 100 Ω, 50 Ω SE)
   and are cross-checked by `impedance-agreement.cjs` against the field solver.
 - **Rigid-flex.** Per-substack rows, a flex CPW override, and a boundary transition on a routed pair.

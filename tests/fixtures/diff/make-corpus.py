@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the design-diff corpus (tests/diff.cjs) from the sample design, and refresh its goldens.
+"""Build the design-diff corpus (tests/history/diff.cjs) from the sample design, and refresh its goldens.
 
     python3 tests/fixtures/diff/make-corpus.py            # write native frozen revisions and corpus.json
     python3 tests/fixtures/diff/make-corpus.py --golden   # also run the engine under JSC and store each expected change set
@@ -20,7 +20,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 NATIVE = HERE / "encode-native.cjs"
-JSC = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
 
 
 def load():
@@ -200,7 +199,8 @@ def main():
             c["expected"] = old[c["name"]]["expected"]
     if "--golden" in sys.argv[1:]:
         path.write_text(json.dumps({"cases": corpus}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        out = subprocess.run([JSC, str(ROOT / "tests/jsc-shim.js"), "--", str(ROOT / "tests/diff.cjs"), "--print-golden"], capture_output=True, text=True, cwd=ROOT)
+        # The JavaScriptCore runner supplies the app inventory the suite resolves its modules with.
+        out = subprocess.run([str(ROOT / "scripts/test-jsc.sh"), "diff", "--", "--print-golden"], capture_output=True, text=True, cwd=ROOT)
         line = next((l for l in out.stdout.splitlines() if l.startswith("GOLDEN ")), None)
         if not line:
             sys.exit("could not compute goldens:\n" + out.stdout[-2000:] + out.stderr[-2000:])

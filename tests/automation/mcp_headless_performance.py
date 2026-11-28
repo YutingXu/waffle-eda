@@ -1,4 +1,4 @@
-"""Measure the headless MCP engine on the 25,600-object dense board from tests/dense-board.js.
+"""Measure the headless MCP engine on the 25,600-object dense board from tests/pcb/dense-board.js.
 
 Each scenario runs a fresh server process over stdio and reports:
   cold_start_ms        process start to the initialize reply

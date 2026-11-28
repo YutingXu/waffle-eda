@@ -1,5 +1,5 @@
 {
- "_about": "Per-case budgets of tests/gpu-pixels.js by host, from a calibration run of the real GPU output (CALIBRATE=1 scripts/gpu-pixels.sh, CALIBRATE=1 native/tests/macos-harness/gpu-pixels.sh): interiorPx, solidPx and the per-object-class interior counts (c_hole, c_sel, c_top, c_bottom, c_inner, c_silk, c_conn, c_other) 1.2 x measured + 6, edgeMean 1.1 x measured + 0.15. Every fault of FAULTS=all must exceed them.",
+ "_about": "Per-case budgets of tests/canvas/gpu-pixels.js by host, from a calibration run of the real GPU output (CALIBRATE=1 scripts/gpu-pixels.sh, CALIBRATE=1 native/tests/macos-harness/gpu-pixels.sh): interiorPx, solidPx and the per-object-class interior counts (c_hole, c_sel, c_top, c_bottom, c_inner, c_silk, c_conn, c_other) 1.2 x measured + 6, edgeMean 1.1 x measured + 0.15. Every fault of FAULTS=all must exceed them.",
  "_raster": {
   "chrome": {
    "dense.fit.single": {

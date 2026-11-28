@@ -103,7 +103,7 @@ twelve one-way flight times.
 
 ## Accuracy
 
-These analytic checks are in `tests/si-sim.cjs`:
+These analytic checks are in `tests/analysis/si-sim.cjs`:
 
 | Case | Reference | Error |
 |---|---|---|
@@ -119,7 +119,7 @@ These analytic checks are in `tests/si-sim.cjs`:
 | IBIS buffer into its own V-t fixtures, at all corners and both fixtures | The file's waveforms | ≤ 2.3 mV |
 | Ku/Kd recovered from two waveforms | The ramp the test file was made with | ≤ 1.1 % |
 
-**Optional ngspice check.** `python3 tests/si-ngspice.py` compares a mismatched, capacitively loaded
+**Optional ngspice check.** `python3 tests/analysis/si-ngspice.py` compares a mismatched, capacitively loaded
 line with ngspice when `ngspice` is on PATH. It skips otherwise.
 
 **Field solver.** The [field solver](high-speed.md#field-solver) is accurate to about 0.3% on Z0 and

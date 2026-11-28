@@ -80,7 +80,7 @@ await api.selection.set(hits.map(p => p.id));
 return hits.map(p => p.ref);
 ```
 
-`tests/extension-examples.cjs` runs all five, both headlessly and through the console's sandboxed worker.
+`tests/extensions/extension-examples.cjs` runs all five, both headlessly and through the console's sandboxed worker.
 
 ## Headless: MCP and the command line
 

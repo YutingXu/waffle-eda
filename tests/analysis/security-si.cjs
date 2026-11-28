@@ -6,6 +6,10 @@ for (const m of ["model", "parts", "spatial", "altium-rules", "connectivity", "r
   "autoplace", "route-planner", "plane-planner", "eco", "annotate", "polygon-pour", "bom", "length-tuning", "proposal", "atrium-api", "field-solver"]) require(require("../support/app-source-paths.cjs").appFile(m + ".js"));
 const A = Atrium, API = AtriumAPI, FS = AtriumFieldSolver;
 
+// AtriumWorkerPool.blobWorker revokes each Blob URL 30 s later through the global URL, after these
+// tests have restored it. JavaScriptCore has no URL, so a revoke-only stand-in answers that late call.
+const restoreURL = saved => { globalThis.URL = saved || {revokeObjectURL() {}}; };
+
 // P3 (Medium): api.simulation.fieldSolve(geom) runs AtriumFieldSolver.async in a worker. When the
 // worker took longer than 10 s, async() terminated it, marked the worker broken and solved the same
 // cross-section again synchronously on the UI thread. A 1.5 KB generic cross-section (40 thin
@@ -27,7 +31,7 @@ async function fieldSolveTimeoutStaysOffTheUIThread() {
     await FS.async(geom);
     assert.equal(made, 2, "a timeout does not mark the worker broken; the next solve uses a worker too");
   } finally {
-    globalThis.Worker = saved.Worker; globalThis.Blob = saved.Blob; globalThis.URL = saved.URL; globalThis.setTimeout = saved.setTimeout;
+    globalThis.Worker = saved.Worker; globalThis.Blob = saved.Blob; restoreURL(saved.URL); globalThis.setTimeout = saved.setTimeout;
   }
 }
 
@@ -55,7 +59,7 @@ async function fieldSolvesShareOneWorker() {
     assert.equal((await FS.async(geom(0.7))).w, 0.7);
     assert.equal(made, 1);
   } finally {
-    globalThis.Worker = saved.Worker; globalThis.Blob = saved.Blob; globalThis.URL = saved.URL;
+    globalThis.Worker = saved.Worker; globalThis.Blob = saved.Blob; restoreURL(saved.URL);
   }
 }
 

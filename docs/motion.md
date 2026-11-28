@@ -169,7 +169,7 @@ This keeps your view continuous; it isn't decoration.
 
 ## Checking
 
-`tests/motion.cjs` enforces the tokens and these rules across `app/**/*.css`:
+`tests/editor/motion.cjs` enforces the tokens and these rules across `app/**/*.css`:
 
 - no `transition: all`;
 - no `scale(0)`;
