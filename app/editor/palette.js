@@ -505,8 +505,11 @@ globalThis.AtriumPalette = (() => {
   }
   // The insert rows of these groups, for a flyout the notebook provides to the Active Bar
   // (AtriumWidgetCatalogue.toolGroups): the "/" palette's own rows and runs, with the palette's
-  // request at the point Insert at pointer uses from the keyboard (the canvas centre).
-  function toolGroup(groups) {
+  // request at the point Insert at pointer uses from the keyboard (the canvas centre). A promise: the
+  // providers that list those rows (palette-actions.js) load first.
+  async function toolGroup(groups) {
+    if (!host?.doc?.() || !enhanced()) return [];
+    await globalThis.AtriumLazy.need("AtriumPaletteActions");
     if (!host?.doc?.() || !enhanced()) return [];
     const context = snapshot({enhanced:true, pointerType:"keyboard", source:"active-bar"}), out = [];
     for (const p of providers.values()) {
@@ -1305,5 +1308,9 @@ globalThis.AtriumPalette = (() => {
       if (!session && legacyDirty) {IX.setGroup("commands",commandEntries()); IX.setGroup("files",fileEntries()); IX.setGroup("settings",settingEntries()); legacyDirty = false;}
       return ranked(mode,q,session);
     },
+    // For Preferences › Toolbars and the Active Bar (bars.js): the command index with its vocabulary,
+    // and the palette's icon per action (palette-view.js), each loaded on first use.
+    loadIndex:() => globalThis.AtriumLazy.need(["AtriumSearchIndex","AtriumPaletteWords"]).then(() => {startIndex(); return IX;}),
+    actionIcons:() => globalThis.AtriumLazy.need("AtriumPaletteView").then(V => V.actionIcons || {}),
     index:() => IX,startIndex,readyIndex,indexStats:() => indexStats && {...indexStats,...IX?.stats()},lastSearch:() => lastSearch,usageBonus};
 })();

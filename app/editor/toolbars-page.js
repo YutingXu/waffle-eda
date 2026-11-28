@@ -185,7 +185,7 @@ globalThis.AtriumToolbarsPage = (() => {
     // The palette's search (aliases, keywords, acronyms) for this kind, then every command and Place ›
     // Power Port net it does not list, so commands for another kind can be added too.
     let palette = null;
-    G.AtriumLazy.need(["AtriumPalette", "AtriumSearchIndex", "AtriumPaletteWords"]).then(([P]) => { palette = P; P.startIndex?.(); found(); }, () => {});
+    G.AtriumLazy.need("AtriumPalette").then(P => P.loadIndex().then(() => { palette = P; found(); })).catch(() => {});
     function candidates(q) {
       const out = new Map(), want = q.trim().toLowerCase();
       const keep = (id, label, detail) => { if (id && !out.has(id) && B().drawable(id, kind)) out.set(id, {id, label, detail}); };

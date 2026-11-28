@@ -221,7 +221,7 @@ globalThis.AtriumBars = (() => {
   // Load the palette's table only when a button to draw has no icon yet (or the Toolbars page asks).
   function loadIcons() {
     const L = G.AtriumLazy;
-    return tableLoad ??= L.need("AtriumPalette").then(() => L.need("AtriumPaletteView")).then(V => { table = V.actionIcons || {}; }, () => { table = {}; })
+    return tableLoad ??= L.need("AtriumPalette").then(P => P.actionIcons()).then(icons => { table = icons; }, () => { table = {}; })
       .then(() => pairIcons());
   }
   function needIcons(ids) {
@@ -413,8 +413,8 @@ globalThis.AtriumBars = (() => {
   async function provided(key, k) {
     if (k !== "schematic" || G.AtriumLabs?.notebookEnabled?.() !== true) return [];
     const L = G.AtriumLazy;
-    await L.need("AtriumPalette"); await L.need(["AtriumPaletteActions", "AtriumWidgetCatalogue"]);
-    const rows = G.AtriumWidgetCatalogue.toolGroups?.[key]?.() || [];
+    await L.need(["AtriumPalette", "AtriumWidgetCatalogue"]);
+    const rows = await G.AtriumWidgetCatalogue.toolGroups?.[key]?.() || [];
     for (const r of rows) known.set(r.id, {label:r.label, icon:r.icon || "", group:key});
     return rows;
   }
@@ -462,7 +462,8 @@ globalThis.AtriumBars = (() => {
       }
       // A macro with parameters asks for them in its own Run… dialog; one without runs at once.
       const macro = G.AtriumMacros?.forCommand?.(id);
-      if (macro?.parameters?.length) return await (await G.AtriumLazy.need("AtriumMacrosUI")).run(macro);
+      // (AtriumIntelUI is loaded whenever macros are on: it owns the Macros view.)
+      if (macro?.parameters?.length && G.AtriumIntelUI) return await (await G.AtriumIntelUI.view("macros")).run(macro);
       const c = command(id);
       if (c?.run) return await c.run(c.param);
       if (host) host.executeKey(c ? c.action : id, c?.param);
