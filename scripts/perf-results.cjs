@@ -17,20 +17,22 @@ const suites = {...require("../tests/editor/support/result-search.cjs"),
 
 function arm({ready, event, name, observationMs}) {
   const state = window.waffleResult = {name, input:null, outcome:null};
-  let start, lastKey;
+  let start, lastKey, stopFrame;
   function key(e) { if (e.isTrusted) lastKey = e.timeStamp; }
   function sample() {
-    if (window.waffleResult !== state) return;
+    if (window.waffleResult !== state) { stopFrame?.(); return; }
     let detail;
-    try { detail = ready(); } catch (e) { state.error = e.message; return; }
+    try { detail = ready(); } catch (e) { stopFrame?.(); state.error = e.message; return; }
     if (!detail) {
       const elapsed = performance.now() - start;
       if (observationMs && elapsed >= observationMs) {
+        stopFrame?.();
         performance.mark("waffle.result-missing." + name);
         state.outcome = {event:event.type,status:"no-result",observedMs:elapsed};
-      } else requestAnimationFrame(sample);
+      } else if (!event.canvasFrame) requestAnimationFrame(sample);
       return;
     }
+    stopFrame?.();
     const observed = performance.now();
     // A task posted from rAF runs after the frame's rendering steps.
     setTimeout(() => {
@@ -49,7 +51,10 @@ function arm({ready, event, name, observationMs}) {
     start = event.keyOrigin ? lastKey : e.timeStamp;
     state.input = {type:e.type, time:start, composing:e.isComposing};
     performance.mark("waffle.result-input." + name, {startTime:start});
-    requestAnimationFrame(sample);
+    // A callback registered during input capture can run ahead of the editor's draw
+    // in the same frame. Canvas probes verify the scene as that draw finishes.
+    if (event.canvasFrame) stopFrame = AtriumNavHost.on("frame", sample);
+    else requestAnimationFrame(sample);
   }
   if (event.keyOrigin) window.addEventListener("keydown", key, true);
   window.addEventListener(event.type, input, true);

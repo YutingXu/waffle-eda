@@ -43,7 +43,7 @@ async function navigator(env) {
     },null,()=>twist.click());
     const number=i%2?1:2, doc=i%2?"local":"remote";
     const target=page.getByText("TP"+number+"-1",{exact:true});
-    await measure("navigator-jump-cross-sheet-highlight",{type:"click",selector:".navp-row"},({doc,id})=>()=>{
+    await measure("navigator-jump-cross-sheet-highlight",{type:"click",selector:".navp-row",canvasFrame:true},({doc,id})=>()=>{
       const f=window.wafflePinFrame;
       return f?.doc===doc && f.net==="FANOUT_A" && f.selection.includes(id) &&
         document.querySelector('.navp-row[data-type=pin].is-lit') && {doc,id,net:f.net};
@@ -92,10 +92,10 @@ async function schematicPaste({page,repeat,measure,workload}) {
     await page.evaluate(id=>{const h=AtriumNavHost;h.selectDocument(id);h.canvas().focus();},set.target);
     const r=await canvas.boundingBox(),x=r.x+r.width*.45,y=r.y+r.height*.45;
     await page.mouse.move(x,y);
-    await measure("schematic-cross-sheet-paste-preview",{type:"keydown",key:"v"},id=>()=>window.wafflePasteFrame?.doc===id &&
+    await measure("schematic-cross-sheet-paste-preview",{type:"keydown",key:"v",canvasFrame:true},id=>()=>window.wafflePasteFrame?.doc===id &&
       window.wafflePasteFrame.tool==="paste" && id,set.target,()=>page.keyboard.press("ControlOrMeta+v"));
     const before=await page.evaluate(()=>AtriumNavHost.doc().items.length);
-    await measure("schematic-cross-sheet-paste-commit",{type:"pointerdown",selector:"#canvas"},({before,set})=>()=>{
+    await measure("schematic-cross-sheet-paste-commit",{type:"pointerdown",selector:"#canvas",canvasFrame:true},({before,set})=>()=>{
       const f=window.wafflePasteFrame,h=AtriumNavHost;
       if(f?.doc!==set.target || f.tool!=="select" || f.selection.length!==set.ids.length ||
         h.doc().items.length!==before+set.ids.length || f.selection.some(id=>set.ids.includes(id)))return;

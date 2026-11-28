@@ -49,7 +49,7 @@ async function shell({page,repeat,measure,workload}) {
     await selectByTyping(page,measure,box,()=>palette.getByRole("option",{name:/module/i}).first().waitFor({state:"hidden"}),
       "quick-open-document-selectable","module "+n,selectable,"Module "+n);
     await palette.locator('[role=option][aria-selected=true] .nav-palette-label').filter({hasText:new RegExp("^Module "+n+"$")}).waitFor();
-    await measure("quick-open-enter-sheet-drawn",{type:"keydown",key:"Enter"},id=>()=>window.waffleFrame?.doc===id &&
+    await measure("quick-open-enter-sheet-drawn",{type:"keydown",key:"Enter",canvasFrame:true},id=>()=>window.waffleFrame?.doc===id &&
       !document.querySelector(".nav-palette[open]") && id,id,()=>box.press("Enter"));
   }
 }
@@ -69,7 +69,7 @@ async function library({page,repeat,measure,workload}) {
     },null);
     const row=panel.locator('.lib-row[data-def="std-r"]');
     await row.focus();
-    await measure("library-enter-placement-ready",{type:"keydown",key:"Enter"},()=>()=>AtriumNavHost.placing() &&
+    await measure("library-enter-placement-ready",{type:"keydown",key:"Enter",canvasFrame:true},()=>()=>AtriumNavHost.placing() &&
       window.waffleFrame?.tool==="place" && "place",null,()=>page.keyboard.press("Enter"));
     // Exercise the placement to independently verify which definition Enter picked.
     const before=await page.evaluate(()=>AtriumNavHost.doc().items.filter(i=>i.def==="std-r").length);

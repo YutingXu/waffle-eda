@@ -77,7 +77,7 @@ async function notebook({page,cdp,repeat,measure,clipboard,workload}) {
     const revision=await page.evaluate(()=>AtriumNavHost.revision());
     await dialog.getByRole("button",{name:"Done",exact:true}).click();
     await page.locator("#canvas").focus();
-    await measure("notebook-canvas-undo-"+kind,{type:"keydown",key:"z"},before=>{
+    await measure("notebook-canvas-undo-"+kind,{type:"keydown",key:"z",canvasFrame:true},before=>{
       window.waffleUndoWatch=true; window.waffleUndoRevision=before;
       return ()=>{
         const h=AtriumNavHost,table=h.doc().items.find(x=>x.id===window.waffleTableId);

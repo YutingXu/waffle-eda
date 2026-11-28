@@ -55,11 +55,11 @@ async function drawing({page,repeat,measure,workload}) {
       },{capture:true,once:true});
       document.addEventListener("pointermove",()=>{window.waffleDrag.inputHandling=performance.now();},{capture:true,once:true});
     });
-    await measure("drawing-handle-preview-during-autosave",{type:"pointermove",selector:"#canvas"},()=>()=>{
+    await measure("drawing-handle-preview-during-autosave",{type:"pointermove",selector:"#canvas",canvasFrame:true},()=>()=>{
       const d=window.waffleDrag;
       return d.frame && d.frame.scale===d.origScale && {right:d.frame.right,inputAt:window.waffleResult.input.time};
     },null,()=>page.mouse.move(p.toX,p.toY));
-    await measure("drawing-handle-release-committed",{type:"pointerup",selector:"#canvas"},({id,scale})=>()=>{
+    await measure("drawing-handle-release-committed",{type:"pointerup",selector:"#canvas",canvasFrame:true},({id,scale})=>()=>{
       const f=window.waffleDrag.frame,v=AtriumNavHost.doc().drawing.views.find(o=>o.id===id);
       return f && f.scale===v.scale && v.scale!==scale && v.scale;
     },{id,scale:p.origScale},()=>page.mouse.up());
