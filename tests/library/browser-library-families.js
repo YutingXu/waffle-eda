@@ -244,7 +244,7 @@ module.exports = async function libraryFamilies(browser) {
     await search.fill("Loose symbol test");
     await row("family-loose").click();
     // A symbol-only part offers no board placement: its one Place button places the symbol on a sheet.
-    assert.equal(await details.getByRole("button", {name: "Place", exact: true}).getAttribute("title"), "Place symbol on sheet");
+    assert.equal(await details.getByRole("button", {name: "Place", exact: true}).getAttribute("data-tooltip"), "Place symbol on sheet");
     await command("Attach footprint…");
     const attach = page.getByRole("dialog", {name: "Attach footprint to Loose symbol test", exact: true});
     await attach.getByLabel("Footprint to use", {exact: true}).selectOption("family-bad");
