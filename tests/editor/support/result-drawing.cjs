@@ -26,6 +26,7 @@ async function drawing({page,repeat,measure,workload}) {
     return id;
   });
   workload.drawingView="notes";
+  workload.autosaveTrigger="Window capture of the trusted resize move, before the canvas handles the move";
   workload.autosaves=[];
   for(let i=0;i<repeat;i++){
     const p=await page.evaluate(({id,i})=>{
@@ -41,30 +42,31 @@ async function drawing({page,repeat,measure,workload}) {
       return {x,y,toX:x+dx*scale,toY:y+dx*(b[3]-b[1])/(b[2]-b[0])*scale,origScale:view.scale};
     },{id,i});
     await page.mouse.move(p.x,p.y);
-    // Time a real asynchronous recovery write. Trigger it on the press so the following
-    // movement takes place while the serializer or the IndexedDB write is outstanding.
+    await page.mouse.down();
+    // Start the recovery write in the same dispatch as the resize. A fast disk can finish
+    // between separate driver commands for the press and move, leaving no overlap to time.
     await page.evaluate(()=>{
-      window.addEventListener("pointerdown",()=>{
+      window.addEventListener("pointermove",()=>{
         const d=window.waffleDrag;d.saveStart=performance.now();
         d.save=AtriumAutosave.save("auto",false).then(meta=>{
           if(!meta)throw Error("Autosave produced no checkpoint");
           return {revision:meta.revision,bytes:meta.size,backend:AtriumAutosave.backend(),fresh:AtriumAutosave.stats().fresh};
         });
       },{capture:true,once:true});
+      document.addEventListener("pointermove",()=>{window.waffleDrag.inputHandling=performance.now();},{capture:true,once:true});
     });
     await measure("drawing-handle-preview-during-autosave",{type:"pointermove",selector:"#canvas"},()=>()=>{
       const d=window.waffleDrag;
       return d.frame && d.frame.scale===d.origScale && {right:d.frame.right,inputAt:window.waffleResult.input.time};
-    },null,async()=>{await page.mouse.down();await page.mouse.move(p.toX,p.toY);});
-    const inputAt=await page.evaluate(()=>window.waffleResult.input.time);
+    },null,()=>page.mouse.move(p.toX,p.toY));
     await measure("drawing-handle-release-committed",{type:"pointerup",selector:"#canvas"},({id,scale})=>()=>{
       const f=window.waffleDrag.frame,v=AtriumNavHost.doc().drawing.views.find(o=>o.id===id);
       return f && f.scale===v.scale && v.scale!==scale && v.scale;
     },{id,scale:p.origScale},()=>page.mouse.up());
-    const proof=await page.evaluate(async input=>{
+    const proof=await page.evaluate(async()=>{
       const d=window.waffleDrag,result=await d.save;
-      return {...result,inputAfterSaveStartMs:input-d.saveStart,writeCompletedAfterInputMs:d.stored-input};
-    },inputAt);
+      return {...result,inputAfterSaveStartMs:d.inputHandling-d.saveStart,writeCompletedAfterInputMs:d.stored-d.inputHandling};
+    });
     assert.ok(proof.backend==="indexeddb" && proof.bytes>0 && proof.inputAfterSaveStartMs>=0 && proof.writeCompletedAfterInputMs>=0,
       "Resize must overlap the verified recovery write: "+JSON.stringify(proof));
     workload.autosaves.push(proof);
