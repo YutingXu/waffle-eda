@@ -141,13 +141,18 @@ function collect(root, {selector, source}) {
     }
     return null;
   }
+  // The nearest laid-out box that holds both the caption's text and its control.
+  function shared(control, named) {
+    let common = named.text.node;
+    while (common && !common.contains(control)) common = common.parentElement;
+    while (common && getComputedStyle(common).display === "contents") common = common.parentElement;
+    return common;
+  }
   function flow(control, named) {
     if (named.kind === "table heading") return "stacked";
     if (named.kind === "table row heading") return "inline";
     // Inspect the authored flow, never the measured vertical difference under test.
-    let common = named.text.node;
-    while (common && !common.contains(control)) common = common.parentElement;
-    while (common && getComputedStyle(common).display === "contents") common = common.parentElement;
+    const common = shared(control, named);
     if (!common || common.matches("td,th,tr,tbody,table")) return "inline";
     const layout = getComputedStyle(common);
     if (layout.display.includes("flex")) return layout.flexDirection.startsWith("column") ? "stacked" : "inline";
@@ -171,6 +176,43 @@ function collect(root, {selector, source}) {
     if ([prefix, field].some(node => node !== common && getComputedStyle(node).display === "block")) return "stacked";
     return "inline";
   }
+  // A caption stacked above its field keeps its own line (docs/design-system.md › Field text alignment): the box
+  // that holds its text is exactly its lines tall, with the font's own half-leading above the first line and
+  // below the last (no cap-height trim, no field-height slot), and it starts at its row's start edge. Same-row
+  // centring must never reach a stacked caption.
+  function stackedLine(control, named) {
+    if (named.kind === "table heading") return null;
+    const holder = named.text.node, style = getComputedStyle(holder), px = value => parseFloat(value) || 0;
+    const result = {};
+    if (!/^(inline|contents|table|ruby)/.test(style.display) || style.display.startsWith("inline-")) {
+      const box = holder.getBoundingClientRect(), text = named.text;
+      // The untrimmed line: the same text, font and line height in a plain block of the probe.
+      const line = doc.createElement("div");
+      line.style.cssText = "display:block;white-space:pre;padding:0;border:0;margin:0";
+      for (const name of ["font-family","font-size","font-style","font-weight","font-stretch","font-kerning","font-optical-sizing",
+        "font-variant","font-feature-settings","font-variation-settings","font-size-adjust","letter-spacing","line-height",
+        "text-rendering","text-transform"]) line.style.setProperty(name, style.getPropertyValue(name));
+      line.textContent = text.text;
+      mirror.shadowRoot.append(line);
+      const range = doc.createRange(); range.selectNodeContents(line.firstChild);
+      const outer = line.getBoundingClientRect(), run = range.getClientRects()[0];
+      const lead = {above:run.top - outer.top, below:outer.bottom - run.bottom};
+      line.remove();
+      result.above = text.top - (box.top + px(style.borderTopWidth) + px(style.paddingTop)) - lead.above;
+      // The box ends with the caption's last line only when it holds nothing else.
+      if (!holder.childElementCount) result.below = box.bottom - px(style.borderBottomWidth) - px(style.paddingBottom) - text.lastBottom - lead.below;
+    }
+    const common = shared(control, named);
+    let cell = null;
+    for (let node = holder; node && node !== common; node = node.parentElement) {
+      if (getComputedStyle(node).display !== "contents") cell = node;
+    }
+    if (common && cell && getComputedStyle(common).direction === "ltr") {
+      const row = getComputedStyle(common), own = getComputedStyle(cell), outer = common.getBoundingClientRect();
+      result.start = cell.getBoundingClientRect().left - px(own.marginLeft) - (outer.left + px(row.borderLeftWidth) + px(row.paddingLeft));
+    }
+    return result;
+  }
   const serializable = entry => {
     if (!entry) return null;
     const {node, textNode, ...metrics} = entry;
@@ -189,6 +231,7 @@ function collect(root, {selector, source}) {
       if (value) { probed = true; node.dataset.fieldTextProbeValue = ""; }
     }
     const named = caption(node), structure = named ? flow(node, named) : null;
+    const stacked = structure === "stacked" ? stackedLine(node, named) : null;
     let centreOffset = null;
     if (structure === "centred") {
       let row = named.text.node;
@@ -219,7 +262,7 @@ function collect(root, {selector, source}) {
       multilineField:node.matches("textarea") || optionList,
       label:named?.text.text || node.getAttribute("aria-label") || node.name || node.id || node.placeholder || node.tagName,
       control:node.getAttribute("aria-label") || node.name || node.id || (node.type && node.tagName + "[" + node.type + "]") || node.tagName,
-      centreOffset, mode:!named ? "standalone" : structure === "stacked" || structure === "centred" ? structure : unit || matrix ? "compound" :
+      centreOffset, stacked, mode:!named ? "standalone" : structure === "stacked" || structure === "centred" ? structure : unit || matrix ? "compound" :
         named.text.lines > 1 || node.matches("textarea,select[multiple]") ? "multiline" : "inline",
       family, captionSource:named?.kind || "no visible caption", caption:serializable(named?.text), unit:serializable(unit),
       optionRaster, valueText:optionList ? options.find(option => option.top >= box.top - .5 && option.bottom <= box.bottom + .5) || null :
@@ -429,8 +472,12 @@ function fieldTextResults(items) {
       const {top,bottom} = item.valueText, box = item.outer;
       return [metric("standalone field text contained", Math.max(0, box.top - top, bottom - box.bottom), 0)];
     }
+    const stacked = item.stacked || {};
     const results = mode === "centred" ? [metric("field centred on its row", item.centreOffset, 0)] : mode === "stacked" ? [
       metric("stacked field caption precedes value", Number(item.caption.lastBottom <= item.valueText.top + .5), 1),
+      ...["above","below"].filter(side => Number.isFinite(stacked[side]))
+        .map(side => metric(`stacked caption keeps its line (${side})`, stacked[side], 0)),
+      ...Number.isFinite(stacked.start) ? [metric("stacked caption starts its row", stacked.start, 0)] : [],
     ] : [metric(item.family === "output" ? "caption shares the value's baseline" :
       item.multilineField ? "caption centred on first field line" : "caption centred on field", captionOffset, 0)];
     if (item.unit) results.push(metric("field unit text baseline", valueBaseline - item.unit.baseline, 0));

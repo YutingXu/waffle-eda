@@ -246,12 +246,12 @@
 .lib-dialog.group-dialog {width:min(760px,var(--dialog-avail-w));height:auto;max-height:min(860px,var(--dialog-avail-h))}
 .group-dialog .ld-entry + .ld-entry,.group-naming-summary {padding-block-start:var(--s-16)}
 .group-dialog [hidden] {display:none}
-/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment). */
+/* A same-row caption is centred on its field by its cap height (ui/controls.css, docs/design-system.md › Field text alignment).
+   The narrow layout (max-width:430px above) stacks the caption above its fields, so there it keeps its line. */
 @supports (text-box: trim-both cap alphabetic) {
-  .fw-row > .fw-label {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}
+  @media (min-width:431px) {.fw-row > .fw-label {text-box:trim-both cap alphabetic;padding-block:calc((1lh - 1cap) / 2)}}
 }
-/* On touch a number's 44 px measure keeps its field at the top, so the caption is centred on the field (ui/controls.css).
-   The narrow layout stacks the caption above the field instead. */
+/* On touch a number's 44 px measure keeps its field at the top, so the caption is centred on the field (ui/controls.css). */
 @media (any-pointer:coarse) and (min-width:431px) {
   .fw-row > .fw-label:has(+ .ui-field-measure) {align-self:start;box-sizing:border-box;min-block-size:var(--field-height);padding-block:0;align-content:center}
 }

@@ -227,6 +227,18 @@ async function surfaces(page, sample, profile) {
   await sample("Schematic · placed component",inspector,["Designator","Comment",/^Rotation/]);
   await changeDocument(page,"schematic",["netlabel"]);
   await sample("Schematic · net label",inspector,["Text",/^X/]);
+  // A generic resistor's Properties section stacks its Value caption above the field and its hints
+  // (library/generic-parts.css), beside same-row Package and rating rows.
+  await page.evaluate(async () => {
+    await AtriumLazy.need("AtriumGenericPartsUI");
+    const host = AtriumNavHost;
+    let part;
+    host.edit(() => { part = AtriumGenericParts.place(host.project(),host.doc(),[40,40],{family:"resistor",value:"4k7"}).part; },
+      "Place generic resistor");
+    host.select([part.id]);
+  });
+  await inspector.locator(".gp-inspector input[aria-label=Value]").waitFor();
+  await sample("Schematic · generic resistor",inspector,[{control:"Value",mode:"stacked"},"Package"]);
   // A property row whose value is a four-row textarea: the caption keeps to the textarea's first line.
   await page.evaluate(() => {
     const host = AtriumNavHost, frame = {id:Atrium.id(), kind:"textframe", x:10, y:10, w:40, h:20,
@@ -312,6 +324,28 @@ async function run(browser) {
         if (name === "light" && title === "Schematic · text frame") {
           const caption = scope.locator(".ui-prop-row > textarea[aria-label=Text]").locator("xpath=../span[1]");
           probes.push(...await geometry.assertFieldTextPerturbations(caption,() => row("Text"),{move:"caption"}));
+        }
+        if (name === "light" && title === "Schematic · generic resistor") {
+          // A stacked caption keeps its own line and its row's start: the check rejects one trimmed to its cap
+          // height, one given the field's 28 px slot, and one moved off its row's start.
+          const caption = scope.locator(".gp-inspector > .gp-field-value > span:first-child");
+          const original = await caption.getAttribute("style");
+          const stackedFailures = async () => geometry.failures(geometry.fieldTextResults([await row("Value")]))
+            .filter(metric => metric.kind.startsWith("stacked caption")).map(metric => metric.kind);
+          assert.deepEqual(await stackedFailures(),[],"The Properties Value caption keeps its stacked line");
+          try {
+            for (const [style, kind] of [
+              ["text-box:trim-both cap alphabetic", "stacked caption keeps its line (above)"],
+              ["box-sizing:border-box;min-block-size:28px;padding-top:0;align-content:center", "stacked caption keeps its line (above)"],
+              ["justify-self:center", "stacked caption starts its row"],
+            ]) {
+              await caption.evaluate((node, value) => node.setAttribute("style", value), style);
+              assert.ok((await stackedFailures()).includes(kind), `${style} must fail: ${kind}`);
+              probes.push({label:"Value stacked caption " + style});
+            }
+          } finally {
+            await caption.evaluate((node, value) => value === null ? node.removeAttribute("style") : node.setAttribute("style", value), original);
+          }
         }
         if (name === "light" && title === "PCB · View Configuration") {
           const control = scope.locator('output[aria-labelledby="vc-opacity-track"]');

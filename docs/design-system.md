@@ -137,7 +137,12 @@ The [UI library](ui-library.md) is the full component reference. The notes below
   line. Beside a value that is not a field (read-only text, code, badges, an
   `output`), which has no field box, the caption shares the value's first
   baseline. A stacked caption precedes its
-  control on a separate row. Associate the caption through a native label,
+  control on a separate row and is not centred: it keeps its own line box (no
+  cap-height trim, no field-height slot) and its place at the start of its
+  row. The dialog label rule lists the label layouts that stack
+  (`ui/controls.css`), and a layout that stacks only when narrow, such as
+  narrow Preferences or the narrow footprint wizard, centres its captions only
+  while they are side by side. Associate the caption through a native label,
   `aria-labelledby` or the shared field row. The shared rows (dialog labels,
   `.ui-prop-row`, `.work-row`, `.work-form`, Preferences rows) centre their
   cells and trim a same-row caption to its cap height with `text-box`, padded
