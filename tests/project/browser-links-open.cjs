@@ -1,6 +1,7 @@
 "use strict";
 // Opening a link: every opener (the palette's Open link row, Open Waffle Link… and a stored link in
-// Properties) gives the same result. A datasheet page link keeps its page.
+// Properties) gives the same result. A datasheet page link keeps its page, brings a Datasheet tab that
+// sits behind Properties to the front, and a reader without a size goes to the page once it has one.
 // A saved query opens in Query from the palette row as it does from Open Waffle Link….
 // node tests/project/browser-links-open.cjs
 const assert = require("node:assert/strict");
@@ -13,6 +14,10 @@ async function walk(browser, profile) {
   const links = page.locator("#inspector .intel-links");
   const reader = page.locator(".panel-datasheet");
   const position = reader.locator(".docs-foot .ui-pager-position");
+  const shown = () => page.evaluate(() => {
+    const panel = document.querySelector(".panel-datasheet"), pages = panel?.querySelector(".docs-pages");
+    return !!panel && !panel.hidden && panel.getClientRects().length > 0 && pages.clientHeight > 0;
+  });
   // The reader has drawn the page it reports and nothing moves it afterwards.
   const settled = async () => {
     await page.waitForFunction(() => AtriumDatasheetReader.current()?.pages > 0 &&
@@ -47,6 +52,29 @@ async function walk(browser, profile) {
     assert.equal(await settled(), 3, "the stored link keeps its page");
     await position.filter({hasText:"3 of 6"}).waitFor();
 
+    // Datasheet open behind Properties: following a link brings it to the front at the linked page.
+    await page.evaluate(() => AtriumDock.reveal("properties"));
+    await page.waitForFunction(() => document.querySelector(".panel-datasheet").getClientRects().length === 0);
+    assert.equal(await shown(), false, "the reader sits behind Properties");
+    await palette(pageLink(5));
+    assert.equal(await shown(), true, "the Datasheet tab comes to the front");
+    assert.equal(await settled(), 5, "the reader opens the linked page, not the last one");
+    await position.filter({hasText:"5 of 6"}).waitFor();
+
+    // A reader with no size goes to the page once it has a layout.
+    await page.evaluate(() => { document.querySelector(".panel-datasheet .docs-pages").style.display = "none"; });
+    await palette(pageLink(2));
+    await page.waitForFunction(() => AtriumDatasheetReader.current()?.pages > 0);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await page.evaluate(() => AtriumDatasheetReader.current().page), 2, "no page is chosen from a zero-size view");
+    await page.evaluate(() => { document.querySelector(".panel-datasheet .docs-pages").style.display = ""; });
+    assert.equal(await settled(), 2, "the reader goes to the page once it has a size");
+    await position.filter({hasText:"2 of 6"}).waitFor();
+    assert.ok(await page.evaluate(() => {
+      const pages = document.querySelector(".panel-datasheet .docs-pages").getBoundingClientRect();
+      const two = document.querySelector('.panel-datasheet .docs-page[data-page="2"]').getBoundingClientRect();
+      return Math.abs(two.top - pages.top) < 40;
+    }), "page 2 is at the top of the view");
 
     // A saved query opens in Query from the palette row, as from Open Waffle Link….
     const query = "resistor where value < 100 kΩ";
@@ -72,4 +100,4 @@ async function walk(browser, profile) {
   } finally { await page.close(); }
 }
 
-H.runWalk(walk, "SKIP Links open walk: Playwright Core unavailable.", "PASS Links open: palette, Open Waffle Link… and Properties keep the page and show a saved query.");
+H.runWalk(walk, "SKIP Links open walk: Playwright Core unavailable.", "PASS Links open: palette, Open Waffle Link… and Properties keep the page, reveal a Datasheet tab behind Properties, wait for the reader's size and show a saved query.");
