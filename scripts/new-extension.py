@@ -23,12 +23,12 @@ ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE = ROOT / "extensions" / "template"
 BUNDLE = ROOT / "app" / "extension-template.js"
 FILES = ["waffle-extension.json", "main.js", "test.cjs", "README.md"]
-# Same rule as validateManifest in app/extensions.js.
+# Same rule as validateManifest in app/extension-host/extensions.js.
 ID = re.compile(r"^[a-z0-9][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)+$", re.I)
 
 
 def names(ext_id):
-    """id -> placeholder values. Mirrored by fill() in app/extension-dev.js."""
+    """id -> placeholder values. Mirrored by fill() in app/extension-host/extension-dev.js."""
     if not ID.match(ext_id) or len(ext_id) > 80:
         raise SystemExit(f"{ext_id!r} is not a valid id: use publisher.name (letters, digits, - and _, dots between parts)")
     publisher, last = ext_id.split(".")[0], ext_id.split(".")[-1]

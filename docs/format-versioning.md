@@ -143,7 +143,7 @@ expected closure digest. Native opaque records, unknown required features and fu
 majors follow the native policy above.
 
 Run `scripts/compat-corpus.py --check`, `scripts/compat-guard.py --check` and
-`python3 tests/format-2-independent-reader.py`. The independent reader uses
+`python3 tests/formats/format-2-independent-reader.py`. The independent reader uses
 Python's standard library to verify the disk fixtures, header policy, byte
 retention and the published project digest. [Independent reader](../tests/formats/format-2-independent-reader.py)
 For an additive native contract change, append a physical example and its digest,
@@ -171,7 +171,7 @@ Stored values from a newer build retain their original data when this build cann
 | ECO files | `atrium-eco` 2 (reads 1) | |
 
 When you change one: bump its version, keep reading the old one (an upgrader in its reader), add a fixture to `tests/fixtures/compat/stores/` and a check to
-`tests/compat-stores.cjs`. For local storage, either keep the old layout readable or move to a
+`tests/formats/compat-stores.cjs`. For local storage, either keep the old layout readable or move to a
 new key, so a rollback still finds its data.
 
 ## Updates

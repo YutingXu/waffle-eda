@@ -282,7 +282,7 @@ import), `AtriumSignals.edit(project, fn)` does three things in that one undo st
 3. rewrites the mirror.
 
 Reading never adopts. Opening and saving an untouched 1.3 file therefore gives the same bytes
-(`tests/compat-corpus.cjs` keeps passing).
+(`tests/formats/compat-corpus.cjs` keeps passing).
 
 ### 5.3 The mirror
 
@@ -592,7 +592,7 @@ scope environment and keyword bindings, and they own the editor UI and check eng
 - Files: new `app/signals.js` (`AtriumSignals`: validate, model, series, span, stages, paths,
   views, `scopeEnv`, `fromLegacy`/`toLegacy`, `edit`, `renameNet`, `directives`) and `app/lazy.js`
   (register, deps `AtriumNetIntent`).
-- Tests: new `tests/signals.cjs` covering:
+- Tests: new `tests/core/signals.cjs` covering:
   - spans: an AC-coupled diff, a series R, a CMC via `SeriesPins`, a resistor network,
     rail/ground refusal, seed stop, a span conflict, the depth and size caps, exclude/through;
   - polarity and flip;
@@ -609,9 +609,9 @@ scope environment and keyword bindings, and they own the editor UI and check eng
   `snapshots.json`).
 - Tests:
   - `tests/compat*.cjs` (untouched 1.3 files save byte-identical; the newer store is preserved);
-  - new `tests/signals-compat.cjs` (adoption, mirror equality, reconcile after a simulated 1.3
+  - new `tests/checks/signals-compat.cjs` (adoption, mirror equality, reconcile after a simulated 1.3
     edit, a 1.3 reader seeing correct classes);
-  - `tests/compat-mcp.py`.
+  - `tests/formats/compat-mcp.py`.
 
 **C3. Rules and query bound to `scopeEnv`.**
 - Files: `app/rules.js` (`compile` env; `netClasses`, `diffPairs`, `matchedGroups` and `boardNets`
@@ -648,7 +648,7 @@ scope environment and keyword bindings, and they own the editor UI and check eng
   - `app/sch-object-inspector.js` / `app/sch-object-forms.js`: the fields.
 - The directive *item* itself (`kind: "directive"`, drawing, placement) is owned by the
   impedance-directives / unified-rules phase 7 owner. C5a reads it only through the collector.
-- Tests: new `tests/signals-directives.cjs`:
+- Tests: new `tests/checks/signals-directives.cjs`:
   - USB_DP/DM accepted; arbitrary names warn and do not fail;
   - one directive covers an AC-coupled pair;
   - deleting the directive removes the intent;
@@ -671,14 +671,14 @@ scope environment and keyword bindings, and they own the editor UI and check eng
   pointer, coordinated with the unified-rules agent); `app/constraints.js` (Tags and Signals tabs);
   `app/nets-panel.js` and `app/nets-table.js` (column); `app/context-menu.js`; `app/router.js` and
   `app/diffpair.js` (the route-bar declare offer); `app/locales/en.json`.
-- Tests: new `tests/signals-panel.cjs` (headless view model, actions as single undo steps), a
+- Tests: new `tests/editor/signals-panel.cjs` (headless view model, actions as single undo steps), a
   LinkeDOM smoke test in the integration inventory, and `editor-demand.cjs` (eager budget
   unchanged).
 
 **C8. MCP.**
 - Files: `mcp/headless.js`, `mcp/automation.py`, `mcp/board_runner.py` (module lists),
   `mcp/README.md`, `docs/mcp-and-cli.md`, `docs/headless-parity.json`.
-- Tests: `tests/mcp.py` (declare, flip, merge, tag, legacy view; `rules` and `xsignals` back
+- Tests: `tests/automation/mcp.py` (declare, flip, merge, tag, legacy view; `rules` and `xsignals` back
   compatibility) and `headless-parity.py`.
 
 **C9. Altium and KiCad.**

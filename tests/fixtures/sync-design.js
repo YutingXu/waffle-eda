@@ -1,5 +1,5 @@
 "use strict";
-// Test design for schematic <-> PCB sync and support placement (tests/sync-placement.cjs and the
+// Test design for schematic <-> PCB sync and support placement (tests/library/sync-placement.cjs and the
 // browser probes). Two sheets:
 //   MCU  U1 (LQFP-48 MCU with 6 power pins: VBAT, VDD x4, VDDA), six 100 nF capacitors each drawn
 //        next to one power pin, one 10 µF bulk capacitor, crystal Y1 with load capacitors C8/C9,
