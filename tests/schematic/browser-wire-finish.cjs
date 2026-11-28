@@ -27,12 +27,16 @@ async function finish(browser) {
     await page.mouse.move(...start);
     await page.keyboard.press("Control+w");
     await page.waitForFunction(() => AtriumNavHost.tool() === "route");
-    // Count requests for the full sheet's net names before the wire edit reaches the model.
+    // Count requests for the full sheet's net names that the finishing click makes before the wire
+    // edit reaches the model. Only calls made while the click's pointer events are dispatched count:
+    // background work (an idle Insights pass, the inspector refreshing after a lazy module loads)
+    // reads the sheet's nets on its own schedule, which is not the completion path.
     await page.evaluate(() => {
       const sheet = AtriumNavHost.doc(), original = Atrium.sheetNets;
       let beforeCommit = 0;
       Atrium.sheetNets = (...args) => {
-        if (args[1] === sheet && sheet.items.length === 1) beforeCommit++;
+        const input = /^(pointer|mouse|click)/.test(globalThis.event?.type || "");
+        if (input && args[1] === sheet && sheet.items.length === 1) beforeCommit++;
         return original(...args);
       };
       globalThis.finishNetProbe = () => { Atrium.sheetNets = original; return beforeCommit; };

@@ -138,7 +138,12 @@ globalThis.AtriumInsightsUI = (() => {
     host.invalidate?.({overlay:true});
     publishTo(d);
     refreshMessages(d);
-    if (cardFor && !current(d).some(x => x.key === cardFor.key)) closeCard();
+    // A pass makes new insight objects. The hovered and the open insight follow their key, so the
+    // overlay keeps their highlight and a pending hover still opens; an open card whose insight is gone closes.
+    const fresh = new Map(current(d).map(x => [x.key, x]));
+    if (hover?.doc === d.id) hover = fresh.get(hover.key) || null;
+    if (cardFor && !fresh.has(cardFor.key)) closeCard();
+    else if (cardFor?.doc === d.id) cardFor = fresh.get(cardFor.key);
   }
   // The insights to show for a document: the engine's, without dismissed ones (re-read when the store changes).
   function current(d) {
@@ -305,8 +310,10 @@ globalThis.AtriumInsightsUI = (() => {
     if (ins && !pinned && expandOnHover() && (!cardFor || cardFor.key !== ins.key || cardCanvas !== p.canvas)) {
       const {clientX: x, clientY: y} = e;
       canvasHover.queue("insight", p.canvas, HOVER_MS, ins, () => {
-        if (hover !== ins || hoverAt(p.canvas, x, y) !== ins || !canvasHover.preferred("insight", p.canvas, x, y)) return;
-        canvasHover.show("insight", p.canvas, () => openCard(ins, p));
+        // By key: a pass that finishes during the pause replaces the objects; the card shows the current one.
+        const now = hoverAt(p.canvas, x, y);
+        if (!now || hover?.key !== ins.key || now.key !== ins.key || !canvasHover.preferred("insight", p.canvas, x, y)) return;
+        canvasHover.show("insight", p.canvas, () => openCard(now, p));
       });
     } else if (!ins) leaveHover(true);
   }
