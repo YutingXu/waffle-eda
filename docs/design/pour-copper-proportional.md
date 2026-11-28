@@ -344,8 +344,13 @@ Medians [range].
 | Undo held | 11.4, 7.5, 7.5, 3.9, 11.4 MB | 81, 85, 25, 22, 125 KB |
 
 Main alone spends 300–450 ms in a main-thread task on every edit of this board, and in Efficiency
-mode Always its edit pipeline wakes about 100 times a second while idle; neither was investigated
-here (main's own probe and scripts were not used). The merged branch passes the pours budgets in
+mode Always its edit pipeline wakes 90–107 times a second while idle (103–129 after the edits; the
+sources are `nextTask` timeouts in `edit-pipeline.js` and the idle callbacks of its `deliver`, about
+520 each per window), with 66–68 % idle CPU. Main has no `--board` option, so both sides were measured
+with this branch's probe (`scripts/perf-sch.sh` and `tests/integration/perf-sch.js`). `9a014f8`, the
+main these branches were cut from, measures the same (99 wake-ups a second, 502 ms tasks), and `cb612f8`
+(`perf/pcb-edit-proportional`, the base of stages 1 and 2) measured 0: it is fixed by that branch's
+insights changes, which main does not have yet, not by these stages. The merged branch passes the pours budgets in
 5 of 6 runs; one Efficiency-off run missed `openSettleCpuMs` by 8 ms (1,808 against 1,800).
 `EFFICIENCY=always|off` still forces the mode after main's #81 (the probe calls
 `AtriumPower.setMode`, which Always and Off override whatever the system reports).
@@ -356,17 +361,43 @@ side: `editTaskMax` 61 ms [50–105] (Always) and 56 [0–56] (Off) against main
 and 3,001; bytes per edit as in the table above. Two of six pours runs passed every budget. The
 others missed by little (`openSettleCpuMs` 1,801–1,845 against 1,800, `editSeriesCpuMs` 621 against
 550, `editCanvasMax` 51 against 50), except one Always run whose opening took 4.9 s of CPU and whose
-Redo had a 105 ms task. Undo and Redo have a 50–61 ms task in most Always runs. The budgets set in
-stage 2 were measured before main's spoke stage, which adds work to every solve. `--board` and
-`--board nets` pass in both modes.
+Redo had a 105 ms task. Undo and Redo had a 50–61 ms task in most Always runs.
 
-The pixel test fails after this merge on one edit, the pour outline edit: a one-pixel column along
-the border between the two top-layer pours (x = 180 mm) differs by up to 6 levels over 152 pixels,
-in both Efficiency modes, in every run. Main's dependent-pour copper now changes along that whole
-border, and the repainted strip holds the edges of both pours in the same pixel column; each edge's
-partial-fill rounding is within the accepted 3 levels, and together they reach 6 (not proven). In one
-of four Always runs the same edit also left one frame with 50,391 pixels off by up to 52, not
-reproduced in three further runs and not explained.
+That Undo and Redo task was the copper basis check (`inspectCopper`) hashing the large islands
+again on the main thread. It hashed the copper text of regions held as text, and always the islands'
+true arcs: about 96,000 numbers and 10 ms for the top ground island. Three engine changes remove it:
+- Regions with the same runs share one copper object (`copperFor` in pcb-pours.js), so the refill
+  after an Undo has the copper the undo store holds.
+- The copper digest is also kept by text, so a text-held island restored by Undo is hashed once.
+- A polygon's contours digest is kept for the last four states of its regions (same layer, net,
+  count, data key and arcs array).
+
+Nothing is hashed on a commit that was not hashed before, and the digests are the same values.
+
+After those changes and the damage fix below, on AC power, 3 runs per mode, every pours run passed
+every budget. `editTaskMax` was 0 in all six runs, including Undo and Redo. Medians, Always / Off:
+`editCanvasMax` 40 / 44 ms, `editSeriesCpuMs` 366 / 324 ms, `openSettleCpuMs` 1,387 / 1,520 ms.
+Idle wake-ups were 0, and bytes per edit are as in the table above. `--board` passed in both modes.
+`--board nets` passed in Always and failed once in Off at 54 ms on a part move; that board has no pours.
+The pours budgets are unchanged; `editTaskMax` could go from 70 to 50 on these numbers.
+
+Missed damage found by the pixel test after this merge, and fixed. The pour outline edit left a
+one-pixel column along the border between the two top-layer pours (x = 180 mm) stale: 152 pixels up
+to 6 levels off, on every later frame until a full repaint, in both modes and every run. The pixels
+lay outside every repainted box. Cause: the frame draws pours at a display LOD level, and `simplify()`
+chooses the kept vertices over a whole ring, so when one edge of a ring changes, its simplified outline
+can move anywhere along it. Damage was the boxes of the changed edges only. Main's #85 refills the
+dependent pour's whole border ring after this edit, which made it visible. Now `copperChange` also
+gives the box of each changed ring, and `viewDamage(a, b, k)` returns those when `k` (device pixels
+per mm) draws at a LOD level; canvas-fast and canvas-gpu pass `k`. A ring that is a pour's whole
+outline then damages the pour's box, so that edit repaints in full; a hole changed by a part move
+still damages only its own box. `pour-copper-proportional.cjs` (e) fails without this and passes with
+it, and browser-pour-damage passed 60 runs of 60 afterwards (30 Always, 30 Off).
+
+Before the fix, one Always run in four also left one frame with 50,391 pixels off by up to 52 over
+the whole Top/GND pour. Its pictures were not saved. The same edit moves the GND pour's outer ring,
+whose simplified outline then moves along the whole pour while its changed edges' boxes cover only
+the moved top edge, which fits that frame. It did not recur in the 60 runs after the fix.
 
 ## Accepted by the owner (2026-11-27)
 
@@ -389,7 +420,9 @@ reproduced in three further runs and not explained.
   engine cache, run table, LOD level, signature and `copperChange` equals a cold answer, a region
   rebuilt from runs (as the worker sends it, from copper or from text) equals the original, and Undo
   grows by a fraction of the island. `--digest` writes the stored copper per step, to compare with the
-  base branch (identical over 250 steps).
+  base branch (identical over 250 steps, against `cb612f8` and, after the merge, against main
+  `38436d6`). Also: regions with the same runs share one copper (f), and damage at a display LOD
+  level covers a changed ring's whole simplified outline (e).
 - `tests/canvas/browser-pour-damage.cjs`: after every editor frame on the pours benchmark board the
   canvas equals a full paint, with a control that drops the copper damage and must be caught.
   Antialiasing noise of at most 3 levels is allowed: a part fill of a big region can round an edge
