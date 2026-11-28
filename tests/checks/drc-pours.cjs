@@ -150,6 +150,140 @@ test("outputs verify poured copper before they are made", () => {
   assert.ok([...model.notes.keys()].some(m => /Poured copper is closer to other copper than the Clearance rules allow/.test(m)), "the outputs warn");
 });
 
+function observePourWork(d, rules, options = {}) {
+  const source = AtriumPCBPours;
+  const counts = {extract:0,contours:0,edgeBands:0};
+  globalThis.AtriumRules = {...R,kit:{...R.kit,extract(...args){
+    counts.extract++;return R.kit.extract(...args);
+  }}};
+  globalThis.AtriumPCBPours = {...source,contours(...args){
+    counts.contours++;return source.contours(...args);
+  },edgeBands(...args){
+    counts.edgeBands++;return source.edgeBands(...args);
+  }};
+  try {
+    const it = P.steps(d, new Map(), rules, options), checked = [];
+    let result;
+    while (!(result = it.next()).done) {
+      if (result.value.region && !result.value.part) checked.push(result.value.region);
+    }
+    return {counts,checked,result:result.value};
+  } finally {globalThis.AtriumPCBPours=source;globalThis.AtriumRules=R;}
+}
+
+test("zero clearance skips spatial work while counting only readable scoped copper regions", () => {
+  const d = pour(board(.1), 0), r = d.pcbDrawing.pours[0];
+  const other = {...r,polygon:"other"}, invalid = {...r,data:"!"}, nonCopper = {...r,layer:"Silk"};
+  const options = {regions:[r,other,invalid,nonCopper,{...r,net:""}],polygons:new Set([r.polygon])};
+  const q = observePourWork(d, rules(0), options);
+  assert.deepEqual(q.checked,[r]);
+  assert.equal(q.result.checked,1);
+  assert.deepEqual(q.result.violations,[]);
+  assert.deepEqual(q.counts,{extract:0,contours:2,edgeBands:0},"proved zero must skip copper extraction and both spatial indexes");
+  const prior = PP.queryPending;
+  globalThis.AtriumPolygonPour={...PP,queryPending:()=>true};
+  try {
+    const pending=observePourWork(d,rules(0),options);
+    assert.deepEqual(pending.result,{violations:[],checked:0,ms:0,pending:true});
+    assert.deepEqual(pending.counts,{extract:0,contours:0,edgeBands:0});
+  } finally {globalThis.AtriumPolygonPour=PP;}
+  assert.equal(AtriumPolygonPour.queryPending,prior);
+});
+
+test("zero pour clearance keeps actual copper contact and batch Short Circuit diagnostics", () => {
+  require(require("../support/app-source-paths.cjs").appFile("connectivity.js"));
+  const d = pour(board(), 0), defs = new Map();
+  d.items.push({id:"crossing",kind:"track",net:"OTHER",layer:"Top",width:.2,points:[[15,8],[15,12]]});
+  const conn = AtriumConnectivity.inspect(d,defs);
+  assert.ok(conn.shorts.length>0,"the physical copper contact remains a short");
+  let onPours;
+  const book=R.create();
+  book.list.find(r=>r.type==="clearance").gap=0;
+  d.rules=book;
+  const batch=AtriumDRC.batch(d,defs,book,{types:["clearance","short"],connections:()=>conn,onPours:v=>{onPours=v;}});
+  assert.ok(batch.violations.some(v=>v.type==="short"));
+  assert.deepEqual(onPours,[]);
+  assert.ok(!batch.notes.some(note=>note.startsWith("Poured copper checked")));
+});
+
+test("positive object cells and scoped polygon rules still use the normal clearance path", () => {
+  const template=R.create(), clear=template.list.find(r=>r.type==="clearance");
+  const defaultRule={...clear,gap:0,priority:9};
+  const symbolic=AtriumDesignQueryRecord.selector;
+  const cases=[
+    [{...defaultRule,objects:{"track-poly":.2}}],
+    [{...defaultRule,id:"pour-selective",name:"Ground pour",priority:1,
+      scope:symbolic("net","GND"),scope2:symbolic("all"),gap:.2},defaultRule]
+  ];
+  for(const list of cases){
+    const set={...template,list};
+    const d=pour(board(.1),0);
+    const q=observePourWork(d,set);
+    assert.equal(q.counts.extract,1);
+    assert.ok(q.counts.edgeBands>0);
+    assert.ok(q.result.violations.some(v=>v.what==="Polygon clearance" && v.required===.2));
+    assert.ok(q.result.violations.some(v=>v.what==="Pour clearance" && v.otherId==="sig" && v.required===.2));
+  }
+});
+
+test("an internal plane checks its barrel clearance beyond a zero or smaller global gap", () => {
+  const d = board(.6), plane = d.items[0];
+  plane.layer = "Inner 1";
+  plane.powerPlane = {sourceLayer:"PLANE1"};
+  const via = (id, x) => ({id, x, y:7, kind:"via", net:"SIG", layer:"Multi", diameter:.6, drill:.4});
+  d.items = [plane, via("contact",20), via("near-edge",28.55), via("clear-edge",28.95)];
+  const region = AtriumPCBPours.region([plane.points], plane.layer, plane.net, {polygon:plane.id});
+  for (const global of [0,.1]) {
+    const book = rules(global);
+    const result = P.verify(d, new Map(), book, {regions:[region]});
+    const hits = new Map(result.violations.map(row=>[row.otherId,row]));
+    assert.equal(result.checked,1);
+    assert.deepEqual([...hits.keys()].sort(),["contact","near-edge"],
+      "local plane clearance must include a barrel beyond the global reach");
+    assert.equal(hits.get("contact").actual,0);
+    assert.ok(Math.abs(hits.get("near-edge").actual-.35)<1e-8);
+    for (const row of hits.values()) {
+      assert.equal(row.what,"Plane clearance");
+      assert.equal(row.required,.6);
+    }
+  }
+  delete plane.powerPlane;
+  const book = R.create(), clearance = book.list.find(rule=>rule.type==="clearance");
+  clearance.gap = 0;
+  clearance.objects = {"poly-hole":.6};
+  const result = P.verify(d, new Map(), book, {regions:[region]});
+  assert.deepEqual(result.violations.map(row=>[row.otherId,row.what]).sort(),
+    [["contact","Hole clearance"],["near-edge","Hole clearance"]]);
+});
+
+test("invalid matrix entries and measured zero scopes stay on the existing pair path", () => {
+  const d=pour(board(),0), book=rules(0), defs=new Map();
+  delete d.items[0].clearance;
+  const original=R.compiled(d,{rules:book,defs});
+  const zero=original.byType.clearance[0];
+  const withRule=(rule,match)=>({...original,byType:{...original.byType,clearance:[rule]},clearanceRule(a,b){return match(a,b);}});
+  for(const bad of [NaN,undefined]){
+    const invalid={...zero,objects:{"track-poly":bad}};
+    const broken=observePourWork(d,book,{compiled:withRule(invalid,()=>invalid)});
+    assert.equal(broken.counts.extract,1,"invalid matrix does not qualify for the shortcut");
+    assert.ok(broken.result.violations.some(v=>v.otherId==="sig" && Object.is(v.required,bad)));
+  }
+  const {appFile}=require("../support/app-source-paths.cjs");
+  for (const name of ["query-fields","design-query-parser","design-query-geometry","design-query-context",
+    "design-query-index","design-query"]) require(appFile(name+".js"));
+  const set=R.create(), measured=set.list.find(r=>r.type==="clearance");
+  measured.gap=0;
+  measured.scope=AtriumDesignQueryRecord.create("track where width < rule(MinWidth)");
+  set.list=[measured];
+  const compiled=R.compiled(d,{rules:set,defs});
+  assert.ok(compiled.byType.clearance[0]?.measured,"the query really uses a geometric rule measurement");
+  assert.equal(compiled.measurementIssues.size,0,"no pair has been evaluated yet");
+  const deferred=observePourWork(d,set,{compiled});
+  assert.equal(deferred.counts.extract,1,"measured zero still checks geometric rule scopes");
+  assert.ok([...compiled.measurementIssues.values()].some(issue=>issue.code==="measurement"));
+  assert.deepEqual(deferred.result.violations,[]);
+});
+
 test("the banded inside test gives the full scan's answer, on vertices and edges too", () => {
   // A ring with holes (a real fill round a track and a via) plus a hand-made ring with horizontal and
   // vertical edges; points at random, on vertices, at edge midpoints and on the band boundaries.

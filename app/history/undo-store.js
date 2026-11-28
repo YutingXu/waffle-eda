@@ -887,13 +887,16 @@ globalThis.AtriumUndoStore = (() => {
     for (const op of ins) jot(d, op[1], undefined, true, op[2]);
   }
   function duringEdit(fn) { editing++; try { return fn(); } finally { editing--; } }
+  function versionsOf(doc) {
+    const v = docVersions.get(doc);
+    return {seq: jend(), floor, items: v?.items ?? 0, outer: v?.outer ?? 0, pours: v?.pours ?? 0,
+      project: projectVersion, parameters: parameterVersion, library: libraryVersion, assembly: assemblyVersion};
+  }
   // Scope non-item dependencies without scanning a project. A prior sequence below
   // floor must rebuild; null means this live project has no complete committed read yet.
   function documentVersions(doc, project = root?.ref, committedItems = false) {
     if (editing || dirty || scope || (later && !committedItems) || quiet || !root || root.ref !== project || !project.documents?.includes(doc)) return null;
-    const v = docVersions.get(doc);
-    return {seq: jend(), floor, items: v?.items ?? 0, outer: v?.outer ?? 0, pours: v?.pours ?? 0,
-      project: projectVersion, parameters: parameterVersion, library: libraryVersion, assembly: assemblyVersion};
+    return versionsOf(doc);
   }
   // Verified native owners may be readable before the first Undo baseline. The
   // cold cursor changes on disk adoption without serializing untouched documents.
@@ -901,6 +904,10 @@ globalThis.AtriumUndoStore = (() => {
     if (!root && !editing && !dirty && !scope && !later && !quiet && cleanFolder &&
         (!pending || pending === cleanFolder) && cleanFolder.documents?.includes(doc)) return floor;
     return null;
+  }
+  // The first clean shadow starts at this same sequence and dependency versions.
+  function verifiedDocumentVersions(doc, project) {
+    return project === cleanFolder && verifiedDocumentVersion(doc) != null ? versionsOf(doc) : null;
   }
   // One demand-driven entry per live sheet. Consumers keep their different projections here:
   // net names, physical ERC contacts and hierarchy entries/buses have distinct electrical rules.
@@ -1651,7 +1658,7 @@ globalThis.AtriumUndoStore = (() => {
   const encode = (p, meta = {}) => meta.live ? live() : mark(p, meta);
   const decode = (s, here) => here ? root?.ref ?? pending : rollback(s);
   return Object.freeze({mark, checkpoint, jump, adopt, rollback, reject, touch, record, sync: p => sync(p), discard, encode, decode, tableCellEdit,tableItemSnapshot,
-    root: () => root?.ref ?? pending, changes,changeSummary, changed, recordedChanges, itemEdits, onlyRecordedItemUpdates, orderedItemChanges, documentItems, trackOverview, documentVersions, verifiedDocumentVersion, sheetEntry, duringEdit, hierarchyVersion, definitionVersion, familyVersion: () => familyVersion, unchanged, live, timeline, project, viewState, libraryAt, reviewMark, sinceReview, peerPatch, preserveLine, motion, find, fork: f => discard(f),
+    root: () => root?.ref ?? pending, changes,changeSummary, changed, recordedChanges, itemEdits, onlyRecordedItemUpdates, orderedItemChanges, documentItems, trackOverview, documentVersions, verifiedDocumentVersion, verifiedDocumentVersions, sheetEntry, duringEdit, hierarchyVersion, definitionVersion, familyVersion: () => familyVersion, unchanged, live, timeline, project, viewState, libraryAt, reviewMark, sinceReview, peerPatch, preserveLine, motion, find, fork: f => discard(f),
     action(id) { action = id ? {id: String(id), at: now()} : null; },
     current: () => liveAct, branches: () => branches.slice(),
     stats: () => ({bytes: bytes(), budget: budget(), records: log.length, branches: branches.length, shadow: shadowBytes, ...vs, warm}),

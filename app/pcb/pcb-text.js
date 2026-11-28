@@ -780,6 +780,19 @@ globalThis.AtriumPCBText = (() => {
     paths.set(l, c);
     return c;
   }
+  function fillBounds(layout) {
+    let box = layout.box;
+    // The layout box includes strokes and outer rings. A nonzero fill also
+    // paints a separately wound contour if an imported hole lies outside it.
+    for (const poly of layout.polygons) for (const ring of poly.holes) {
+      if (box === layout.box) box = box.slice();
+      for (const [x, y] of ring) {
+        box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
+        box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+      }
+    }
+    return box;
+  }
   // draw(ctx, item, scale, ink, {layer, lod}) -> false if nothing was drawn.
   function draw(ctx, item, scale, ink, o = {}, bandBounds) {
     if (!item.text) return false;
@@ -799,11 +812,9 @@ globalThis.AtriumPCBText = (() => {
     }
     const l = layoutItem(item,o.layer), c = pathFor(l);
     if (bandBounds && (c.fill || c.strokes)) {
-      if (l.polygons.some(p => p.holes.length)) bandBounds(null);
-      else {
-        const [x0, y0, x1, y1] = l.box, pad = c.strokes ? .4 / scale : 0;
-        bandBounds(ctx, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
-      }
+      const [x0, y0, x1, y1] = c.fill ? (c.bounds ||= fillBounds(l)) : l.box;
+      const pad = c.strokes ? .4 / scale : 0;
+      bandBounds(ctx, x0 - pad, y0 - pad, x1 + pad, y1 + pad);
     }
     if (c.fill) { ctx.fillStyle = ink; ctx.fill(c.fill, "nonzero"); }
     if (c.strokes) {

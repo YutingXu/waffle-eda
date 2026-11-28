@@ -243,6 +243,15 @@ module.exports = async function homeProjects(browser) {
     }
 
     // ---- 2. Add Existing to Project, then Close Project.
+    assert.deepEqual(await page.evaluate(async () => {
+      const H = AtriumNavHost, original = H.project();
+      const next = Atrium.project("Undo Open control", []);
+      await H.replaceProject(next, {force:true, dirty:false});
+      const opened = H.project() === next;
+      H.historyGo(-1);
+      return [opened, H.project() === original];
+    }), [true, true], "ordinary project replacement stays undoable");
+
     const before = await page.evaluate(() => AtriumNavHost.project().documents.map(d => d.id));
     const addExisting = async () => {
       await rightClick(".project-tree > summary");
@@ -263,6 +272,11 @@ module.exports = async function homeProjects(browser) {
     await page.evaluate(() => { for (const d of document.querySelectorAll("dialog[open]")) d.close(); });
     assert.equal(await page.evaluate(() => AtriumNavHost.project().documents.length), before.length + 1, "the same document is not added twice");
 
+    await page.evaluate(() => {
+      const H = AtriumNavHost;
+      return H.selectDocument(H.project().documents.find(d => d.kind === "pcb").id);
+    });
+    await page.locator("#layer-tabs .layer-tab").first().waitFor({state:"attached"});
     const closeProject = async answer => {
       await rightClick(".project-tree > summary");
       await menu().locator(".nav-menu-item", {hasText: "Close Project"}).click();
@@ -271,12 +285,42 @@ module.exports = async function homeProjects(browser) {
       assert.deepEqual(await ask.locator("button").allInnerTexts(), ["Cancel", "Don’t Save", "Save"]);
       await ask.getByRole("button", {name: answer, exact: true}).click();
     };
+    const historySize = () => page.evaluate(() => {
+      const {history, future} = AtriumNavHost.undoSteps();
+      return [history.length, future.length, AtriumUndoStore.stats().branches];
+    });
+    const mirrorHistory = () => page.evaluate(() => {
+      const old = globalThis.AtriumProjectWindowClient, commands = [];
+      globalThis.AtriumProjectWindowClient = {isMirror:() => true, forward:kind => {
+        commands.push(kind);
+        return Promise.resolve(true);
+      }};
+      try {
+        AtriumNavHost.historyGo(-1);
+        AtriumNavHost.historyGo(1);
+        return commands;
+      } finally {
+        globalThis.AtriumProjectWindowClient = old;
+      }
+    });
+    const retained = await historySize();
+    assert.ok(retained[0] > 0, "the loaded design has undo history");
+    assert.deepEqual(await mirrorHistory(), ["undo", "redo"], "an open mirror still routes history commands to its primary editor");
     await closeProject("Cancel");
     assert.deepEqual(await page.evaluate(() => [AtriumNavHost.isStarter(), AtriumNavHost.isDirty(), AtriumNavHost.project().name]), [false, true, "Sensor interface"], "Cancel keeps the project");
+    assert.deepEqual(await historySize(), retained, "Cancel keeps the workspace history");
     await closeProject("Don’t Save");
     await page.waitForFunction(() => AtriumNavHost.isStarter() && AtriumStartPage.isOpen());
     assert.ok(await page.evaluate(() => !AtriumNavHost.isDirty() && AtriumNavHost.project().documents.every(d => !d.items.length) && document.title === "Waffle"),
       "Don't Save returns to Home with an empty workspace");
+    assert.deepEqual(await historySize(), [0, 0, 0], "Close Project retires undo, redo and alternate branches");
+    assert.equal(await page.locator("#layer-tabs .layer-tab").count(), 0, "Close removes the old PCB tab handlers");
+    assert.deepEqual(await page.evaluate(() => {
+      const H = AtriumNavHost;
+      H.historyGo(-1);
+      return [H.isStarter(), H.project().documents.every(d => !d.items.length), AtriumUndoStore.stats().records];
+    }), [true, true, 0], "Undo cannot resurrect the discarded project");
+    assert.deepEqual(await mirrorHistory(), [], "a mirror at Home cannot forward Undo or Redo to its primary editor");
     await page.clock.runFor(2600);
     assert.equal(await page.evaluate(() => AtriumAutosave.stats().pending), false, "the empty window leaves no autosave behind");
 

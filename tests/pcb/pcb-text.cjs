@@ -182,6 +182,7 @@ for(const [text,at,angle,size,align,mirror] of [["R12",[10,20],0,1,"left",false]
   T.setGlyphSource({available:()=>true,metrics:()=>({cap:.7,descent:.2,cell:1.1}),advance:(key,s)=>Array.from(s).length*.6,
     glyph(key,ch){rendered++;
       if(ch==="O")return [{outer:ring(.3,-.35,.3,48,false),holes:[ring(.3,-.35,.18,48,true)]}];
+      if(ch==="!")return [{outer:ring(.3,-.35,.3,12,false),holes:[ring(2,-1,.18,12,true)]}];
       return [{outer:[[0,-.7],[.5,-.7],[.5,0],[0,0]],holes:[]}];}});
   const item={id:"tt",kind:"label",text:"OHO",x:0,y:0,size:1.4,font:"truetype",family:"Test",bold:true,italic:true,layer:"Silk"};
   const l=T.layoutItem(item);
@@ -220,6 +221,40 @@ for(const [text,at,angle,size,align,mirror] of [["R12",[10,20],0,1,"left",false]
   const edited=T.layoutItem(cold),full=T.layout(cold.text,T.props(cold));
   assert.notEqual(edited,original);assert.deepEqual(edited.box,full.box);assert.deepEqual(edited.polygons,full.polygons);
   assert.equal(T.kicad(item).mode,"poly");
+  // The GPU uploader needs the extent of the actual fill, including an independently
+  // wound contour outside its declared outer ring. Pan and zoom reuse the same path.
+  const nativePath=globalThis.Path2D;
+  globalThis.Path2D=class {
+    points=[];
+    moveTo(x,y){this.points.push([x,y]);}
+    lineTo(x,y){this.points.push([x,y]);}
+    closePath(){}
+  };
+  try {
+    let ink;
+    const ctx={save(){},restore(){},translate(){},rotate(){},fill(path){ink=path;}};
+    for(const text of ["O","!"]) {
+      const label={...item,text,size:1.7,angle:27,mirrored:true};
+      let prior;
+      for(const scale of [12,29]){
+        let box;
+        T.draw(ctx,label,scale,"white",{},(source,...extent)=>{
+          assert.equal(source,ctx,"an outlined letter supplies its local paint bounds");
+          box=extent;
+        });
+        const x=ink.points.map(p=>p[0]),y=ink.points.map(p=>p[1]);
+        const expected=[Math.min(...x),Math.min(...y),Math.max(...x),Math.max(...y)];
+        assert.ok(expected.every((edge,i)=>box[i]===edge),
+          "transfer bounds enclose every contour sent to the fill");
+        if(prior)assert.equal(ink,prior,"zoom reuses the original outline");
+        prior=ink;
+      }
+      if(text==="!")assert.ok(Math.min(...ink.points.map(p=>p[0]))<T.layoutItem(label).box[0],
+        "the outlying contour extends past the nominal glyph box");
+    }
+  } finally {
+    if(nativePath===undefined)delete globalThis.Path2D;else globalThis.Path2D=nativePath;
+  }
   T.setGlyphSource({available:()=>false});
   assert.match(T.layoutItem({...item,text:"Q"}).fallback,/unavailable/);
   assert.match(T.layoutItem(item).fallback,/unavailable/,"the same placed object invalidates when the font provider changes");

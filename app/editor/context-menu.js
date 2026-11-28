@@ -624,7 +624,7 @@ globalThis.AtriumContextMenu = (() => {
       else if (choice !== "Don’t Save") return false;
     }
     const empty = globalThis.Atrium.project("Untitled", globalThis.AtriumParts?.catalogue || []);
-    if (!current() || !await host.replaceProject(empty, {copy:true, force:true, starter:true, current})) return false;
+    if (!current() || !await host.replaceProject(empty, {copy:true, force:true, starter:true, current, closeProject:true})) return false;
     if (pending) await globalThis.AtriumForeignDrafts.release(pending);
     globalThis.AtriumAutosave?.closed?.();
     host.info?.("Closed " + name);

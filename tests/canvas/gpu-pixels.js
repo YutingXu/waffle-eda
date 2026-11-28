@@ -79,6 +79,33 @@ function changedRasterTiles(current, expected) {
   return "";
 }
 
+// The board layer may retain a padded backing during a resize. Its visible
+// bottom-left device rectangle must still line up with the overlay on that draw.
+function resizeFrameMismatch(frame, dpr) {
+  if (!frame?.readback || !frame.gpu || !frame.gpuCss || !frame.gpuPosition) return "no GPU composite in the first frame";
+  const inset = /^inset\(([^()]+)\)$/.exec(frame.clip);
+  const sides = frame.clip === "none" || frame.clip === "" ? [0,0,0,0] :
+    inset?.[1].trim().split(/\s+/).map(n => n === "0" ? 0 : /^-?(?:\d+(?:\.\d*)?|\.\d+)px$/.test(n) ? parseFloat(n) : NaN);
+  if (!sides?.length || sides.length > 4 || sides.some(n => !Number.isFinite(n))) return "unsupported board clip";
+  const [top, right = top, bottom = top, left = right] = sides;
+  const [w,h] = frame.overlay, [gw,gh] = frame.gpu, [cw,ch] = frame.css;
+  const [gx,gy] = frame.gpuPosition, [x,y] = frame.position;
+  if (frame.dpr !== dpr || w !== Math.round(cw*dpr) || h !== Math.round(ch*dpr) ||
+      gw < w || gh < h || gw !== frame.buffer[0] || gh !== frame.buffer[1] ||
+      w !== frame.readback[0] || h !== frame.readback[1] ||
+      frame.viewport[0] !== 0 || frame.viewport[1] !== 0 || frame.viewport[2] !== w || frame.viewport[3] !== h)
+    return "backing, viewport, readback or DPR mismatch";
+  // Allow for two independently quantized CSS layout coordinates.
+  const near = (a,b) => Math.abs(a-b) <= 1/32, [gWidth,gHeight] = frame.gpuCss;
+  const xUnit = cw/w, yUnit = ch/h;
+  if (left || bottom || !near(right,(gw-w)*xUnit) || !near(top,(gh-h)*yUnit) ||
+      !near(gWidth,gw*xUnit) || !near(gHeight,gh*yUnit) ||
+      !near(gx+left,x) || !near(gy+top,y) ||
+      !near(gWidth-left-right,cw) || !near(gHeight-top-bottom,ch))
+    return "clipped board layer and overlay disagree";
+  return "";
+}
+
 function probeHiddenChunk(GPU) {
   const host = document.createElement("div"), canvas = document.createElement("canvas");
   host.style.cssText = "position:fixed;left:-1000px;top:0";
@@ -834,8 +861,12 @@ globalThis.atriumGpuPixels = async function (o = {}) {
         const edited = witness(), retry = witness();
         board.items = [track]; const shrunk = witness();
         const growth = {original,edited,retry,shrunk};
-        if (original.renderer !== "gpu" || edited.renderer !== "2d" || !/GPU memory/.test(edited.reason) ||
-            !stayed(edited,[retry]) || shrunk.renderer !== "gpu")
+        const withinCap = state => state.renderer === "gpu" && state.backing?.join("x") === "96x96" &&
+          state.bytes > 0 && state.bytes + state.backingBytes <= .08*1048576;
+        if (!withinCap(original) || edited.renderer !== "2d" || !/GPU memory/.test(edited.reason) ||
+            edited.bytes !== 0 || edited.backing?.join("x") !== "1x1" ||
+            !stayed(edited,[retry]) || retry.frames !== edited.frames ||
+            !withinCap(shrunk) || shrunk.builds !== edited.builds+1 || shrunk.frames <= retry.frames || shrunk.uploads <= retry.uploads)
           failLifecycle("geometryCap", JSON.stringify(growth));
         else okLifecycle("geometryCap", JSON.stringify(growth));
 
@@ -1082,6 +1113,28 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           visibility.differences[0] || visibility.differences[1] || !visibility.differences[2])
         failLifecycle("pourCoverageVisibility",JSON.stringify(visibility));
       else okLifecycle("pourCoverageVisibility","a visibility toggle keeps untouched copper pixels ready");
+
+      // Sample both sides of a winding void inside a stored pour, far enough
+      // from its edges that antialiasing cannot account for a missing sample.
+      const wave=Array.from({length:97},(_,i)=>{const x=-12+i/4; return [x,2*Math.sin(.7*x)];});
+      const slot=[...wave.map(([x,y])=>[x,y-1]),...wave.slice().reverse().map(([x,y])=>[x,y+1])];
+      board.pcbDrawing.pours=[AtriumPCBPours.region([rect(-14,-9,28,16),slot],"Top","GND")];
+      view.invalidate();
+      const winding=paint(0,-1,10);
+      GPU().enable(false);
+      view.render(board,defs,opts);
+      const canvasWinding=ctx.getImageData(0,0,width,height).data;
+      GPU().enable(true);
+      const clearSample=at(16,0), metalSample=at(0,5);
+      const windingCoverage=pixels=> {
+        const matches=(x,y,sample)=>rgbDifference(pixels,pixels,at(x,y),sample)===0;
+        return rgbDifference(pixels,pixels,clearSample,metalSample)>16 &&
+          wave.slice(4,-4).every(([x,y])=>matches(x,y,clearSample) &&
+            matches(x,y-2.5,metalSample) && matches(x,y+2.5,metalSample));
+      };
+      if (!winding.fanUploads || winding.uploaded || !windingCoverage(canvasWinding) || !windingCoverage(winding.image.data))
+        failLifecycle("pourStencilInterior","stored copper or its winding clearance disagreed with interior samples");
+      else okLifecycle("pourStencilInterior","solid copper and a winding void survive native stencil drawing");
 
       // Center a 0.55-device-pixel clearance on a sample column. Its contrast
       // must survive Canvas coverage and the actual GPU composite.
@@ -1375,6 +1428,10 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     };
     try {
       const empty = paint(35), occupied = paint(1), edgeText = paint(9.02), edgeStroke = paint(35,true), cleared = paint(35);
+      const withText = GPU().stats(I).gpuBytes;
+      board.items = [track]; view.invalidate(); view.render(board,defs(35),opts);
+      const released = withText - GPU().stats(I).gpuBytes;
+      const restored = paint(35);
       const cases = {empty,occupied,edgeText,edgeStroke,cleared}, ref = document.createElement("canvas"), dpr = I.cam()[6];
       ref.width=canvas.width; ref.height=canvas.height;
       const ctx = ref.getContext("2d",{willReadFrequently:true}), k = view.scale()*dpr;
@@ -1388,10 +1445,10 @@ globalThis.atriumGpuPixels = async function (o = {}) {
           readsImageData && (!croppedText || !croppedEdge) ||
           String(empty.bands)!==emptyBands || String(cleared.bands)!==emptyBands ||
           [occupied,edgeText,edgeStroke].some(row => String(row.bands)!=="true,true" || row.pixels===empty.pixels) ||
-          empty.pixels!==cleared.pixels)
-        failLifecycle("emptyTextBands", JSON.stringify({ink,croppedText,croppedEdge,cases:Object.fromEntries(Object.entries(cases).map(([k,row]) =>
+          empty.pixels!==cleared.pixels || released < canvas.width*canvas.height*4 || restored.pixels!==cleared.pixels)
+        failLifecycle("emptyTextBands", JSON.stringify({ink,croppedText,croppedEdge,released,restored:restored.pixels===cleared.pixels,cases:Object.fromEntries(Object.entries(cases).map(([k,row]) =>
           [k,{uploads:row.uploads,pixelsChanged:!!row.pixels&&row.pixels!==empty.pixels}]))}));
-      else okLifecycle("emptyTextBands", "empty band skipped, edit and edge ink refilled it, removal cleared it");
+      else okLifecycle("emptyTextBands", "edge ink restored, deleting the final artwork released its textures, restoring it matched");
     } finally {
       gl.texSubImage2D = upload;
       view.dispose(); stage.remove();
@@ -1594,10 +1651,10 @@ globalThis.atriumGpuPixels = async function (o = {}) {
     const readsImageData = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\//.test(navigator.userAgent);
     if (!readsImageData) { okLifecycle("emptyBandPan", "skipped: empty textures are deferred on the WebKit upload path"); return; }
     const result = gpuEmptyBandPan(GPU());
-    if (result.frames !== 8 || result.allocations || result.readbacks || result.clears !== 8 || !result.refilled || !result.restored)
+    if (result.frames !== 8 || result.allocations || result.readbacks || result.clears || !result.refilled || !result.restored || !result.clearedInk)
       failLifecycle("emptyBandPan", JSON.stringify({frames:result.frames,allocations:result.allocations,
-        readbacks:result.readbacks,clears:result.clears,refilled:result.refilled,restored:result.restored}));
-    else okLifecycle("emptyBandPan", "pans retain the empty band without uploading it, and the exposed ink refills the texture");
+        readbacks:result.readbacks,clears:result.clears,refilled:result.refilled,restored:result.restored,clearedInk:result.clearedInk}));
+    else okLifecycle("emptyBandPan", "blank strips need no writes, entering ink refills the band, and a pan clears old ink before it wraps");
   }
 
   async function drcMarkerPan() {
@@ -1798,19 +1855,24 @@ globalThis.atriumGpuPixels = async function (o = {}) {
   async function layoutResize() {
     const canvas = cv(), view = H().view(), I = view.internals(), draw = view.render;
     const shell = document.body, previousHeight = shell.style.height;
-    const sample = () => {
+    const dpr = Math.max(1, Math.min(4, devicePixelRatio || 1));
+    const sample = input => {
       const box = canvas.getBoundingClientRect(), gpu = canvas.previousElementSibling;
       const gl = gpu?.matches(".atrium-gpu-board") && gpu.style.display !== "none" ? gpu.getContext("webgl2") : null;
       const gpuBox = gl && gpu.getBoundingClientRect(), comp = gl && GPU().composite(I);
       const image = comp?.getContext("2d").getImageData(0, 0, comp.width, comp.height);
-      return {css: [box.width, box.height], gpuCss: gpuBox && [gpuBox.width, gpuBox.height], dpr: I.cam()[6],
-        overlay: [canvas.width, canvas.height], gpu: gl && [gpu.width, gpu.height],
-        buffer: gl && [gl.drawingBufferWidth, gl.drawingBufferHeight],
-        readback: image && [image.width, image.height]};
+      return {input, camera:view.camera(), image, size:{
+        css:[box.width,box.height], position:[box.left,box.top], dpr:I.cam()[6],
+        gpuCss:gpuBox && [gpuBox.width,gpuBox.height], gpuPosition:gpuBox && [gpuBox.left,gpuBox.top],
+        clip:gl && getComputedStyle(gpu).clipPath,
+        overlay:[canvas.width,canvas.height], gpu:gl && [gpu.width,gpu.height],
+        buffer:gl && [gl.drawingBufferWidth,gl.drawingBufferHeight], viewport:gl && [...gl.getParameter(gl.VIEWPORT)],
+        readback:image && [image.width,image.height], frames:GPU().resourceCounters(I)?.frames
+      }};
     };
-    // Read the first painted frame at each size while the WebGL buffer is still live.
+    // Use the first render callback while its WebGL buffer is still live.
     let frame = null, before, smaller;
-    view.render = (...args) => { const result = draw(...args); frame ??= sample(); return result; };
+    view.render = (...args) => { const result = draw(...args); frame ??= sample(args); return result; };
     try {
       H().redraw(); await settle(0);
       before = frame; frame = null;
@@ -1822,14 +1884,38 @@ globalThis.atriumGpuPixels = async function (o = {}) {
       shell.style.height = previousHeight;
       try { await settle(0); } finally { view.render = draw; }
     }
-    const restored = frame;
-    const aligned = size => size?.readback && size.css.every((n, i) =>
-      n === size.gpuCss[i] && Math.round(n * size.dpr) === size.overlay[i] &&
-      [size.gpu, size.buffer, size.readback].every(b => b[i] === size.overlay[i]));
-    out.layoutResize = {before, smaller, restored};
-    if (![before, smaller, restored].every(aligned) || before.css[0] !== smaller.css[0] || before.css[1] - smaller.css[1] !== 56 ||
-        before.css.some((n, i) => n !== restored.css[i])) failLifecycle("layoutResize", JSON.stringify(out.layoutResize));
-    else okLifecycle("layoutResize", `height ${before.overlay[1]} → ${smaller.overlay[1]} → ${restored.overlay[1]} px`);
+    const sizes = out.layoutResize = {before:before?.size, smaller:smaller?.size, restored:frame?.size};
+    const errors = Object.entries(sizes).map(([name, size]) => [name,resizeFrameMismatch(size,dpr)]).filter(([, error]) => error);
+    if (!errors.length && (sizes.before.css[0] !== sizes.smaller.css[0] || sizes.before.css[1] - sizes.smaller.css[1] !== 56 ||
+        sizes.before.css.some((n, i) => n !== sizes.restored.css[i]) ||
+        !(sizes.before.frames < sizes.smaller.frames && sizes.smaller.frames < sizes.restored.frames)))
+      errors.push(["sequence","the first draws must reflect the resize and restoration"]);
+    if (!errors.length) {
+      // Independent exact Canvas2D rendering of the captured first smaller
+      // frame. Do not repaint or change GPU preference on the measured pane.
+      const c = document.createElement("canvas"), [w,h] = sizes.smaller.css;
+      c.style.cssText = "position:fixed;left:-10000px;top:0;display:block;width:" + w + "px;height:" + h + "px";
+      document.body.append(c);
+      const exact = AtriumCanvas.create(c), [doc,defs,opts] = smaller.input;
+      try {
+        exact.restoreCamera(smaller.camera);
+        const cpu = {...opts, noReuse:true, editorPane:false};
+        delete cpu.reuseBase;
+        exact.render(doc,defs,cpu);
+        const [W,Hh] = sizes.smaller.overlay;
+        if (c.width !== W || c.height !== Hh) errors.push(["2d","reference backing mismatch"]);
+        else {
+          const A = c.getContext("2d").getImageData(0,0,W,Hh).data;
+          const pct = differentPixels(A,smaller.image.data,48) / (W*Hh) * 100;
+          sizes.smaller.over48 = +pct.toFixed(3);
+          if (pct > budget.over48) errors.push(["2d","first resized composite differs from the exact 2D frame"]);
+        }
+      } finally {
+        exact.dispose(); c.remove();
+      }
+    }
+    if (errors.length) failLifecycle("layoutResize", JSON.stringify({sizes,errors}));
+    else okLifecycle("layoutResize", `height ${sizes.before.overlay[1]} → ${sizes.smaller.overlay[1]} → ${sizes.restored.overlay[1]} px`);
   }
 
   if (wholeSuite && !o.fault) {
@@ -2079,7 +2165,14 @@ function gpuEmptyBandPan(GPU) {
       const afterRefill = GPU.composite(I)?.toDataURL();
       view.restoreCamera(before); view.moving(); view.render(board,defs,opts);
       const restored = !!beforeRefill && beforeRefill === GPU.composite(I)?.toDataURL();
-      return {...result,refilled,restored,beforeRefill,afterRefill};
+      // The Top glyph is now near x=138 CSS px. Its physical texels move
+      // into the entering strip on the next pan and must be erased.
+      const priorClears = clears;
+      pan(-165);
+      const wrapped = GPU.composite(I)?.toDataURL(), wroteClear = clears > priorClears;
+      view.render(board,defs,{...opts,noReuse:true});
+      const clearedInk = wroteClear && !!wrapped && wrapped === GPU.composite(I)?.toDataURL();
+      return {...result,refilled,restored,clearedInk,beforeRefill,afterRefill};
     } finally { gl.texStorage2D = texStorage; gl.texSubImage2D = texUpload; }
   } finally { view.dispose(); canvas.remove(); }
 }

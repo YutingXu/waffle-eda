@@ -87,6 +87,24 @@ assert.ok(of("BACK").length && !of("VBUS").length, "the current layer's tracks")
 // Off: the option and hidden layers.
 assert.equal(render({netNames: false}).length, 0);
 assert.equal(render({hidden: new Set(["Top"])}).length, 0);
+{
+  const I=view.internals();
+  let poursRead=0, tracksRead=0;
+  const frame={get pours(){ poursRead++; return []; }};
+  const overlay=opts=>{
+    I.paintTop(board,I.cache.defs,opts,null,true,true,undefined,null,frame);
+    return I.netLabels();
+  };
+  globalThis.AtriumPCBNetLabels={...N,trackCandidates(...args){ tracksRead++; return N.trackCandidates(...args); }};
+  try {
+    for(const opts of [{netNames:false},{layer:"Mechanical 1"},{layer:"Top",hidden:new Set(["Top"])},{layer:"Top",visibleLayers:["Bottom"]}]){
+      assert.deepEqual(overlay(opts),[]);
+      assert.deepEqual([poursRead,tracksRead],[0,0],"a layer that cannot show net labels never prepares their geometry");
+    }
+    assert.ok(overlay({layer:"Top"}).some(l=>l.text==="VBUS"),"showing the layer restores its labels");
+    assert.deepEqual([poursRead,tracksRead],[1,1]);
+  } finally { globalThis.AtriumPCBNetLabels=N; }
+}
 // Selected track: text contrasts with the selection colour.
 labels = render({selected: "long"});
 assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on the white selection");
@@ -187,14 +205,14 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
     view.invalidate(board,[long]);
     assert.ok(overlay().some(label=>label.text==="VBUS"),"a geometry edit updates cached track extents");
     assert.equal(walks,0,"a small intersecting width group bypasses the viewport query");
-    assert.equal(scans,warmed+1,"a track move rebuilds the width summary");
+    assert.equal(scans,warmed,"moving an indexed sparse track only updates its own width group");
     short.kind="part";short.x=0;short.y=5;short.def="fixture";
     const shortPoints=short.points;
     delete short.points;
     try {
       view.invalidate(board,[short]);
       assert.ok(overlay().some(label=>label.text==="VBUS"),"a track converted to a part cannot hide another track label");
-      assert.equal(scans,warmed+1,"the old track bounds are still conservative");
+      assert.equal(scans,warmed,"the old track bounds are still conservative");
     } finally {
       short.kind="track";short.points=shortPoints;
       delete short.x;delete short.y;delete short.def;
@@ -204,7 +222,7 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
     view.invalidate(board,[long]);
     assert.deepEqual(overlay(),[]);
     assert.equal(walks,0,"moving the track back retires the changed extents without querying");
-    assert.equal(scans,warmed+2,"the unseen revision is incorporated on the new walk");
+    assert.equal(scans,warmed+1,"the unseen revision is incorporated on the new walk");
   } finally {
     long.points=points;
     via.x=3;
@@ -243,6 +261,30 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
     } finally { globalThis.AtriumPCBNetLabels=N; }
   }
   cam({cx:0,cy:0,flipped:false,rotation:0,scale:30});
+  // Compare captures after each edit with a newly built width index and the ordinary viewport query.
+  const freshQuery={...N,trackCandidates(scene,...args){
+    return {...N.trackCandidates({...scene},...args),tracks:null};
+  }};
+  function compareEdit(change,items,opts={}) {
+    change(); view.invalidate(doc,items);
+    const incremental=paint(opts);
+    try {
+      globalThis.AtriumPCBNetLabels=freshQuery;
+      assert.deepEqual(incremental,paint(opts));
+    } finally { globalThis.AtriumPCBNetLabels=N; }
+    return incremental.labels.map(l=>l.text);
+  }
+  const original=a.points;
+  const outside=[[95,0],[110,0]];
+  assert.ok(compareEdit(()=>{a.points=outside;},[a]).includes("OTHER"));
+  assert.ok(compareEdit(()=>{a.points=original;},[a]).includes("FIRST"));
+  assert.deepEqual(compareEdit(()=>{a.points=outside;b.points=outside;},[a,b]),[]);
+  assert.ok(compareEdit(()=>{a.points=original;b.points=original;},[a,b]).includes("FIRST"));
+  assert.ok(compareEdit(()=>{a.layer="Bottom";},[a],{layer:"Bottom"}).includes("FIRST"));
+  assert.ok(compareEdit(()=>{a.layer="Top";a.width=.01;},[a]).includes("OTHER"));
+  assert.ok(compareEdit(()=>{a.width=b.width;},[a]).includes("FIRST"));
+  assert.ok(compareEdit(()=>{a.net="";},[a]).includes("OTHER"));
+  assert.ok(compareEdit(()=>{a.net="FIRST";},[a]).includes("FIRST"));
   doc.items=[b,a,arc];
   assert.deepEqual([...new Set(paint().labels.map(l=>l.text))],["OTHER"],"reordering tied widths preserves document paint order");
   doc.items=[a,b,arc];
@@ -263,13 +305,96 @@ assert.equal(texts.find(t => t.text === "VBUS").ink, "#000000", "dark text on th
 
   const makeTracks=(n,width,offset)=>Array.from({length:n},(_,k)=>({...b,id:"dense"+(offset+k),width,
     points:[[-38,(offset+k)/2-8],[38,(offset+k)/2-8]]}));
-  for(const dense of [makeTracks(33,.5,0),[...makeTracks(17,.5,0),...makeTracks(16,.6,17)]]){
+  for(const dense of [makeTracks(2049,.5,0),[...makeTracks(1024,.5,0),...makeTracks(1025,.6,1024)]]){
     doc.items=dense;
     const scene=I.sync(doc,defs);
     assert.equal(N.trackCandidates(scene,"Top",30,[-15,-12,15,12]).tracks,null,
-      "more than 32 candidates in one or several widths use the ordinary query");
+      "over-budget candidates in one or several widths use the ordinary query");
     assert.ok(paint().labels.length>0);
   }
+
+  // A retained frame with enough legible tracks to exceed the old small group
+  // goes straight to the bounded width lists, but the label commands stay exact.
+  const direct=makeTracks(33,.5,0);
+  const vias=Array.from({length:1000},(_,i)=>({kind:"via",id:"via-"+i,layer:"Multi",
+    x:(i%20)/10,y:Math.floor(i/20)/10,diameter:.3,drill:.15}));
+  doc.items=[...vias,...direct];
+  const tint={selected:direct[15].id,hide:new Set([direct[16]])};
+  view.query(doc,defs,[-15,-10,15,10]);
+  const grid=I.cache.index, query=grid.query;
+  const collected=[];
+  try {
+    grid.query=(...args)=>{const rows=query(...args);collected.push(rows);return rows;};
+    const directPaint=paint(tint);
+    assert.ok(directPaint.labels.length && directPaint.ink.length);
+    assert.equal(collected.length,0,"usable width groups bypass the mixed viewport query");
+    globalThis.AtriumPCBNetLabels=forcedQuery;
+    assert.deepEqual(paint(tint),directPaint,"the filtered viewport route draws the same labels");
+    assert.deepEqual(collected,[direct],"the fallback collects just the named tracks, in document order");
+    grid.query=(box,ordered)=>query(box,ordered);
+    assert.deepEqual(paint(tint),directPaint,"the full viewport agrees on collisions, selection and ink");
+  } finally {grid.query=query;globalThis.AtriumPCBNetLabels=N;}
+
+  const scope=I.cache, small=[2,2,3,3];
+  assert.equal(N.trackCandidates(scope,"Top",30,small).tracks,null,"a tiny indexed query uses the grid");
+  const unindexed={...scope,index:null};
+  const create=AtriumSpatial.create;
+  try {
+    AtriumSpatial.create=()=>{throw Error("label eligibility cannot build a spatial grid");};
+    assert.ok(Array.isArray(N.trackCandidates(unindexed,"Top",30,small).tracks));
+    assert.equal(unindexed.index,null);
+  } finally {AtriumSpatial.create=create;}
+
+  const invalid={...scope,boxes:new Map(scope.boxes)};
+  invalid.boxes.delete(direct[0]);
+  assert.equal(N.trackCandidates(invalid,"Top",30,[-15,-10,15,10]).tracks,null,"unknown track bounds fall back");
+  const textWidth={...direct[0],width:".5"};
+  const malformed={...scope,all:[textWidth],boxes:new Map([[textWidth,scope.boxes.get(direct[0])]])};
+  assert.equal(N.trackCandidates(malformed,"Top",30,[-15,-10,15,10]).tracks,null,"non-numeric width does not seed a group");
+  const wide = [-15,-10,15,10];
+  assert.deepEqual(N.trackCandidates(scope,"Top",30,wide).tracks,direct);
+  I.sync({...doc,items:[]},defs);
+  I.cache=scope;
+  assert.equal(N.trackCandidates(scope,"Top",30,wide).tracks,null,"restoring a parked scene does not retain or regather extra track references");
+
+  const dense = makeTracks(33,.5,0), edited = dense[16];
+  edited.net="EDITED";
+  doc.items=dense;
+  paint();
+  const scene=I.cache, all=scene.all, iterate=all[Symbol.iterator];
+  let scans=0;
+  all[Symbol.iterator]=function(){scans++;return iterate.call(this);};
+  function denseEdit(change,expected,label) {
+    change(); view.invalidate(doc,[edited]);
+    const before=scans;
+    const result=N.trackCandidates(scene,"Top",30,I.artworkViewport(),true);
+    assert.equal(scans-before,expected,label);
+    return result;
+  }
+  const moveTo=y=>()=>{edited.points=[[-38,y],[38,y]];};
+  try {
+    denseEdit(moveTo(.2),1,"first dense edit seeds from a full scan");
+    const first=paint().labels.find(l=>l.id===edited.id);
+    assert.ok(first);
+    denseEdit(moveTo(.3),0,"repeating an interior dense edit skips the scan");
+    assert.notDeepEqual(paint().labels.find(l=>l.id===edited.id),first);
+    denseEdit(moveTo(.2),0,"reversing an interior dense edit skips the scan");
+    assert.deepEqual(paint().labels.find(l=>l.id===edited.id),first);
+    cam({cx:0,cy:50,flipped:false,rotation:0,scale:30});
+    assert.equal(denseEdit(moveTo(50),0,"moving a dense extremum outward extends its bounds").maxWidth,.5);
+    assert.ok(paint().labels.some(l=>l.id===edited.id),"extended bounds reveal the label");
+    assert.equal(denseEdit(moveTo(.2),1,"moving a dense extremum inward rescans its peers").maxWidth,0);
+    assert.deepEqual(paint().labels,[]);
+    cam({cx:0,cy:0,flipped:false,rotation:0,scale:30});
+    denseEdit(()=>{edited.width=.7;},1,"changing width abandons the dense witness");
+    assert.ok(paint().labels.some(l=>l.id===edited.id && l.size>first.size));
+    denseEdit(()=>{edited.width=.5;},1,"returning to the dense width seeds again");
+    denseEdit(()=>{edited.layer="Bottom";},1,"changing layer abandons the dense witness");
+    assert.ok(!paint().labels.some(l=>l.id===edited.id));
+  } finally {
+    delete all[Symbol.iterator];
+  }
+
 }
 {
   // Several grid columns cross the same two sloped cutouts. A new row or scale needs its own intersections.

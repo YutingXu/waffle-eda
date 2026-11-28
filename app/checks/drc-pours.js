@@ -114,13 +114,22 @@ globalThis.AtriumDRCPours = (() => {
         title: "Polygon " + (p.name || p.net) + " (" + p.layer + ") clearance " + p.clearance + " mm is below the rule", actual: p.clearance, required: need, limit: "min", at: p.points?.[0] || null});
     }
     if (!regions.length) return {violations: out, checked: 0, ms: Date.now() - t0};
-    const planeIds = new Set([...polygons.values()].filter(p => p.powerPlane).map(p => p.id));
-    const F = K.extract(doc, defs, {planeHoles: true, nettedCopperOnly: true}).copper;
-    const reach = Math.max(...CR.map(K.clearanceMax));
+    const planeIds = new Set();
+    let planeReach = 0;
+    for (const p of polygons.values()) if (p.powerPlane) {
+      planeIds.add(p.id);
+      if (Number.isFinite(p.clearance)) planeReach = Math.max(planeReach, p.clearance);
+    }
+    // Internal planes can require a positive barrel clearance even when the rule is zero.
+    // Measured scopes, invalid gaps and nonstandard bounds also need the ordinary path.
+    const zero = !planeReach && !K.needsClearancePairs(CR) &&
+      regions.every(r => Array.isArray(r.bounds) && r.bounds.length === 4 && r.bounds.every(Number.isFinite));
+    const reach = zero ? 0 : Math.max(planeReach, ...CR.map(K.clearanceMax));
+    const F = zero ? [] : K.extract(doc, defs, {planeHoles: true, nettedCopperOnly: true}).copper;
     // Features by box in a coarse grid, so each region visits its neighbourhood only.
     const cell = Math.max(1, reach * 4), fgrid = new Map(), fk = (x, y) => x * 73856093 ^ y * 19349663;
     F.forEach((f, n) => { for (let x = Math.floor(f.box[0] / cell); x <= Math.floor(f.box[2] / cell); x++) for (let y = Math.floor(f.box[1] / cell); y <= Math.floor(f.box[3] / cell); y++) { const k = fk(x, y); let l = fgrid.get(k); if (!l) fgrid.set(k, l = []); l.push(n); } });
-    const ties = G.AtriumNetTies?.drcTies?.(doc, defs) || null, best = new Map();
+    const ties = zero ? null : G.AtriumNetTies?.drcTies?.(doc, defs) || null, best = new Map();
     let checked = 0, work = 0;
     yield {part: true};
     for (const region of regions) {
@@ -129,6 +138,8 @@ globalThis.AtriumDRCPours = (() => {
       let rings;
       try { rings = P().contours(region); } catch { continue; }
       if (!rings?.length) continue;
+      // Still count the same readable copper regions and yield between them.
+      if (zero) { checked++; yield {region}; continue; }
       const pour = pourOf(region), grid = edgeGrid(rings, Math.max(.5, reach * 2)), b = region.bounds, seen = new Set();
       yield {region, part: true};
       grid.prepare();

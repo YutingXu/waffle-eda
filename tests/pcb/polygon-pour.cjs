@@ -260,6 +260,37 @@ const track=(pts,net,width=.25,layer="Top")=>({id:id(),kind:"track",points:pts,w
   const x=PP.intersection([rect(0,0,2,2)],[rect(1,1,3,3)]);ok(x.length===1&&Math.abs(Math.abs(ringArea(x[0].outline.flat()))-1)<1e-9,"intersection");
   const s=PP.union([rect(0,0,2,2),rect(0,0,2,2),rect(2,0,4,2)]);ok(s.length===1&&s[0].outline.length===4,"coincident edges merge: "+s[0]?.outline.length);
 }
+// Merge uses fixed-width winding storage on large integer inputs. Coincidence
+// can cancel one class and leave another while vertex IDs and arc tags stay ordered.
+{
+  const core=PP._internal.core,K=6;
+  const rows=[
+    [0,0,0,0,0,0,0],
+    [3,0,1,0,1,3,15], [1,0,3,0,1,3,15], [1,0,3,0,5,2,16],
+    [4,0,5,0,0,7,20], [6,0,6,0,2,-1,25], [7,0,7,0,2,0,26],
+    [8,0,9,0,0,1,30], [9,0,8,0,0,1,30],
+  ];
+  const columns=["X1","Y1","X2","Y2","C","S","T"];
+  function snapped(size,sign) {
+    const E=Object.fromEntries(columns.map(c=>[c,c==="S"?new Float64Array(size):new Int32Array(size)]));
+    for(let i=0;i<rows.length;i++)for(let j=0;j<columns.length;j++)E[columns[j]][i]=rows[i][j];
+    E.S[4]=sign;
+    return E;
+  }
+  const small=core.merge(snapped(rows.length,7),K);
+  const large=core.merge(snapped(175000,7),K);
+  assert.deepEqual(large,small,"storage size must not change winding sums or output IDs");
+  assert.deepEqual(Array.from(large.A),[1,3,5]);
+  assert.deepEqual(Array.from(large.B),[2,4,5]);
+  assert.deepEqual(Array.from(large.T),[-1,20,25]);
+  assert.deepEqual(Array.from(large.D),[0,0,0,0,0,2, 7,0,0,0,0,0, 0,0,-1,0,0,0]);
+  assert.equal(large.D.buffer.byteLength,large.X1.length*K*Int32Array.BYTES_PER_ELEMENT);
+  // A winding above the signed range is live before the final Int32 conversion.
+  const wide=core.merge(snapped(175000,2**32),K);
+  assert.deepEqual(wide,core.merge(snapped(rows.length,2**32),K));
+  assert.equal(wide.D[K],0);
+  assert.equal(wide.X1.length,3);
+}
 // 8. footprint pads, part rotation, SMD on other side ignored
 {
   const fp={pads:[{number:"1",x:-1,y:0,w:.8,h:1.2,shape:"rect",layer:"Top"},{number:"2",x:1,y:0,w:.8,h:1.2,shape:"rect",layer:"Top"},{number:"3",x:0,y:3,w:1,h:1,shape:"rect",layer:"Bottom"}],shapes:[]};

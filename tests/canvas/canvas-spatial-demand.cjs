@@ -13,6 +13,7 @@ let timers = 0;
 try {
   globalThis.setTimeout = () => { timers++; };
   assert.deepEqual(view.query(doc, defs, [-10,-10,10,10]), doc.items);
+  assert.deepEqual(view.query(doc, defs, [-10,-10,10,10], item => item === doc.items[0]), [doc.items[0]]);
   assert.equal(timers, 0, "a whole-board bounding-box query schedules no hidden work");
 } finally { globalThis.setTimeout = oldTimer; }
 assert.equal(view.internals().cache.index, null);
@@ -30,11 +31,11 @@ assert.equal(view.internals().cache.index, index);
     const cell = id * 619 % 1600, x = (cell % 40 - 20) * 2, y = ((cell / 40 | 0) - 20) * 2;
     return {id:"dense-" + id,kind:"track",points:[[x,y],[x+.5,y]],width:.2};
   });
-  const moved = items[17], long = {id:"long",kind:"track",points:[[-262,3],[290,3]],width:.2};
+  const moved = items[1], long = {id:"long",kind:"track",points:[[-262,3],[290,3]],width:.2};
   const missing = {id:"missing",kind:"imageMarkup"};
   const board = {id:"dense",kind:"pcb",items:[...items,missing,long]};
   const pane = AtriumCanvas.create({getContext:() => ({})});
-  const viewport = [-33,-36,31,34], point = [0,0,0,0], strip = [-32,0,30,.9];
+  const viewport = [-33,-36,31,34], point = [0,0,0,0], strip = [-32,0,30,.9], empty = [200,200,250,250];
   const oracle = box => board.items.filter(item => {
     const bounds = pane.internals().cache.boxes.get(item);
     return bounds && AtriumSpatial.overlaps(bounds, box);
@@ -48,10 +49,12 @@ assert.equal(view.internals().cache.index, index);
     if (key === Symbol.iterator) scans++;
     return target[key];
   }});
-  for (const area of [point,strip]) assert.deepEqual(pane.query(board, defs, area), oracle(area));
-  assert.equal(scans, 0, "point and strip queries keep using the grid");
-  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
-  assert.equal(scans, 1, "a dense partial query stops walking the grid and scans the ordered bounds");
+  for (const area of [point,strip,empty]) assert.deepEqual(pane.query(board, defs, area), oracle(area));
+  assert.equal(scans, 0, "point, strip and disjoint queries keep using the grid");
+  for (const area of [viewport,[-34,-37,34,36],[-32,-35,30,32]]) {
+    assert.deepEqual(pane.query(board, defs, area), oracle(area));
+  }
+  assert.equal(scans, 0, "dense camera changes reuse the validated entry order");
   const original = c.all.slice(), staleOrder = original.slice();
   const other = {id:"unindexed"};
   staleOrder[staleOrder.length - 1] = other;
@@ -59,14 +62,20 @@ assert.equal(view.internals().cache.index, index);
   repeated[repeated.length - 1] = repeated[repeated.length - 2];
   const reversed = original.slice().reverse();
   for (const stale of [staleOrder,repeated,reversed]) {
-    assert.deepEqual(index.query(viewport,stale), oracle(viewport), "a stale ordered list falls back to the index");
+    assert.deepEqual(index.query(viewport,stale), oracle(viewport), "a stale hint cannot override the index order");
   }
+  const mutableOrder = original.slice();
+  assert.deepEqual(index.query(viewport,mutableOrder), oracle(viewport));
+  mutableOrder.reverse();
+  assert.deepEqual(index.query(viewport,mutableOrder), oracle(viewport), "mutating the borrowed hint does not mutate the cached order");
   const reordered = AtriumSpatial.create(board.items, item => c.boxes.get(item));
+  assert.deepEqual(reordered.query(viewport,original), oracle(viewport));
   reordered.reorder(reversed);
   const reverseHits = oracle(viewport).reverse();
   assert.deepEqual(reordered.query(viewport,original), reverseHits, "the old list cannot override new ranks");
   assert.deepEqual(reordered.query(viewport,reversed), reverseHits, "the new list follows the new ranks");
   const duplicateIndex = AtriumSpatial.create(board.items, item => c.boxes.get(item));
+  assert.deepEqual(duplicateIndex.query(viewport,original), oracle(viewport));
   const example = oracle(viewport)[0];
   duplicateIndex.insert(example,-1);
   assert.deepEqual(duplicateIndex.query(viewport,c.all), [example,...oracle(viewport)], "a duplicate insertion keeps both results");
@@ -74,17 +83,36 @@ assert.equal(view.internals().cache.index, index);
   assert.deepEqual(duplicateIndex.query(viewport,c.all), oracle(viewport), "removing the last insertion leaves the earlier result");
   const withoutOrphan = original.filter(item => item !== example);
   assert.deepEqual(duplicateIndex.query(viewport,withoutOrphan), oracle(viewport), "the ordered list cannot lose the orphaned entry");
-  assert.equal(scans, 1, "duplicate grid entries exclude an otherwise eligible ordered scan");
+  assert.equal(scans, 0, "duplicate grid entries exclude an otherwise eligible ordered scan");
+  const nonStrict = AtriumSpatial.create(board.items, item => c.boxes.get(item));
+  assert.deepEqual(nonStrict.query(viewport,original), oracle(viewport));
+  for (const rank of [board.items.indexOf(oracle(viewport)[1]),undefined]) {
+    nonStrict.remove(example); nonStrict.insert(example,rank);
+    assert.deepEqual(nonStrict.query(viewport,original), nonStrict.query(viewport), "repeated or absent ranks use canonical grid order");
+  }
+  index.reorder(board.items);
+  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
+  assert.equal(scans,0,"matching ranks keep the validated order");
+  const beforeMove = moved.points;
   moved.points = [[800,7],[810,7]];
   pane.invalidate(board, [moved]);
   assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
   assert.equal(pane.internals().cache.index, index, "an in-place edit keeps the index");
   assert.equal(pane.query(board, defs, viewport).includes(moved), false);
   assert.deepEqual(pane.query(board, defs, [805,7,805,7]), [moved]);
+  moved.points = beforeMove;
+  pane.invalidate(board, [moved]);
+  assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
+  assert.ok(pane.query(board, defs, viewport).includes(moved), "restoring geometry invalidates the cached bounds and order");
+  assert.equal(scans,0,"valid geometry moves and restores reuse the same ranked entries");
   board.items = [long,...board.items.slice(0,-1).reverse().filter(item => item !== items[22])];
   assert.deepEqual(pane.query(board, defs, viewport), oracle(viewport));
   assert.equal(pane.query(board, defs, viewport)[0], long, "the new order starts with the multilevel object");
   assert.equal(pane.query(board, defs, viewport).includes(items[22]), false);
+  const keep = item => item !== long && !item.id.endsWith("5");
+  for (const box of [viewport, point, strip]) {
+    assert.deepEqual(pane.query(board, defs, box, keep), oracle(box).filter(keep));
+  }
 }
 
 // Generic indexes preserve repeated inserts and encounter order for equal ranks.
@@ -94,6 +122,7 @@ assert.equal(view.internals().cache.index, index);
   index.insert(a, 4); index.insert(b, 4); index.insert(a, 2); index.insert(c, 4);
   const bounds = [-.5,-.5,.5,.5];
   assert.deepEqual(index.query(bounds), [a,a,b,c]);
+  assert.deepEqual(index.query(bounds, undefined, item => item !== c), [a,a,b]);
   assert.equal(index.remove(a), 2);
   assert.deepEqual(index.query(bounds), [a,b,c]);
   index.reorder([c,b]);
@@ -128,12 +157,15 @@ try {
   a.items[0].points = [[-10,0],[-9.5,0]];
   viewport.invalidate(a,[a.items[0]]);
   const before = viewport.query(a,defs,area);
+  const keep = item => item !== a.items[1];
+  assert.deepEqual(viewport.query(a,defs,area,keep),before.filter(keep));
   artwork.length=0;
   viewport.render(a,defs,{grid:false,origin:false});
   const firstArtwork=artwork.splice(0);
   while(work.size)runSlice(99);
   assert.ok(first.index);
   assert.deepEqual(viewport.query(a,defs,area),before);
+  assert.deepEqual(viewport.query(a,defs,area,keep),before.filter(keep));
   assert.equal(viewport.hit(a,defs,[-9.8,0]),a.items[0]);
   viewport.render(a,defs,{grid:false,origin:false});
   assert.deepEqual(artwork,firstArtwork,"preparing the grid preserves the complete board artwork");

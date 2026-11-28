@@ -10,7 +10,7 @@ globalThis.AtriumPerformanceDiagnostics = (() => {
     "retained-copy-draw retained-copy-overlay full-scope full-text full-band-paint " +
     "full-text-caption-occlusion full-text-upload full-text-readback full-coverage " +
     "full-coverage-paint full-coverage-upload full-coverage-readback full-overlay full-airwires full-draw " +
-    "stationary-text-rows wide-text-rows stationary-text-dispatch";
+    "stationary-text-rows wide-text-rows stationary-text-dispatch stationary-band-paint stationary-text-upload stationary-text-readback";
   const PERFORMANCE_VERSION = 1, SAMPLE_LIMIT = 128, MAX_DURATION = 2 ** 40;
   const catalog = text => new Map(text.split(" ").map((name, index) => [name, index]));
   const range = () => ({samples: [], next: 0, percentile: null});

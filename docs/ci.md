@@ -146,6 +146,8 @@ Within `full-text`, `full-text-caption-occlusion` measures the search for copper
 
 After a gesture, `stationary-text-rows` measures each step that sharpens the current camera. `wide-text-rows` measures each step that prepares text outside the current view. Both reuse the scheduler’s elapsed time for painting and transferring a strip of rows, including restoring the visible overlay when needed. Waiting between steps, finding visible items, and the final copper coverage pass fall outside these samples.
 
+For each foreground strip, `stationary-band-paint` measures grouping and drawing board artwork and captions. `stationary-text-upload` measures texture transfer, including time in `stationary-text-readback` when WebKit reads pixels back from the canvas. Direct canvas uploads report zero readback time. The three rows use the same painter and transfer counters as full redraws.
+
 On browsers with MessageChannel, `stationary-text-dispatch` measures the time from posting foreground work until the browser enters its message handler. Each completed setup, paint or coverage step contributes one sample. Read this alongside `stationary-text-rows` to distinguish waiting for a task from drawing a strip.
 
 Compare wheel notches and continuous zoom separately. The 2D editor can glide between notches, while pinch and precise Ctrl+wheel packets follow their input directly. Match the board, starting camera, zoom range and pointer anchor, and record the first pass and a warm repeat. A stationary secondary click opens the canvas menu in Select. A secondary drag pans, including with Control held.

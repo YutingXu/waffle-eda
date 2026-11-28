@@ -340,6 +340,23 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
     view.restoreCamera({...view.camera(), scale: view.zoomScale(Infinity)});
     turn(notch);
     assert.equal(queue.size, 0, "wheel at the zoom limit schedules no frame");
+    const pixel = {type:"wheel",deltaX:0,deltaY:-6,deltaMode:0,ctrlKey:true,clientX:anchor[0],clientY:anchor[1]};
+    assert.equal(C.wheelPinch(pixel),true,"the clamp test uses immediate pixel input");
+    for (const [scale,inward] of [[view.zoomScale(Infinity),true],[view.zoomScale(0),false]]) {
+      view.restoreCamera({...view.camera(),scale});
+      const held=view.camera(), point=view.screenToWorld(anchor), beforeDraw=draws;
+      C.flyTo({...held,cx:held.cx+14},{view,canvas,redraw});
+      assert.equal(queue.size,1,"there is a camera flight to interrupt");
+      const deltaY=inward?-6:6;
+      assert.equal(input.handle({...pixel,deltaY},pane),true,"clamped wheel input is consumed");
+      assert.deepEqual(view.camera(),held);
+      assert.equal(queue.size,0,"clamped input cancels camera inertia");
+      assert.equal(draws,beforeDraw,"clamped pixel wheel does not queue a redundant camera paint");
+      assert.equal(input.handle({...pixel,deltaY:-deltaY},pane),true);
+      assert.equal(draws,beforeDraw+1,"the first pixel step back from the limit paints immediately");
+      assert.ok(inward?view.scale()<scale:view.scale()>scale,"reversal takes the expected direction");
+      assert.ok(point.every((n,i)=>close(n,view.screenToWorld(anchor)[i])),"reversal preserves the pointer anchor");
+    }
 
     view.restoreCamera({...view.camera(),cx:0,cy:0,scale:8});
     const from=view.camera(), nearby={...from,cx:12}, distant={...from,cx:300};
@@ -355,6 +372,109 @@ const nativeEvent = (timeStamp, deltaY, options={}) => ({isTrusted:true, timeSta
     assert.equal(queue.size,0,"a landed flight releases the shared frame");
     C.flyTo(nearby,{view,canvas,ms:0,redraw:()=>draws++});
     assert.deepEqual(view.camera(),nearby,"explicitly keyboard-originated camera commands land at once");
+
+    let finishes = 0, paneId = "pcb";
+    const commands = [], ends = [];
+    const touch = AtriumCanvasInput.create({frame: (_pane,inFrame,end) => {redraw(inFrame);ends.push(end===true);}, finish: () => finishes++,
+      docId: () => paneId, host: () => ({hit: () => null, tool: () => "pan", act: name => commands.push(name)}),
+      active: () => false, activate() {}}, {now: () => now, later() {}, clear() {}});
+    const web = (type, scale=1, x=130, y=160, rotation=0) =>
+      touch.handle({type, scale, clientX:x, clientY:y, rotation},pane);
+    const pointer = (type, pointerId, clientX, clientY) =>
+      touch.handle({type,pointerId,clientX,clientY,pointerType:"touch",button:0,buttons:type==="pointerup"?0:1},pane);
+    const rotate = C.cfg["camera.rotate"], momentum = C.cfg["camera.momentum"];
+    C.setPref("camera.rotate",true); C.setPref("camera.momentum",false);
+    view.restoreCamera(beforePan);
+    web("gesturestart"); web("gesturechange",1.5);
+    const target = view.camera(), during = draws;
+    assert.ok(close(target.scale,beforePan.scale*1.5));
+    web("gestureend",1.5); web("gestureend",1.5);
+    assert.equal(finishes,1,"a moved WebKit pinch finishes exactly once");
+    assert.equal(draws,during,"completion preserves the last camera frame without making another input draw");
+    assert.deepEqual(view.camera(),target);
+    for (const [limit, factor] of [[view.zoomScale(Infinity),2],[view.zoomScale(0),.5]]) {
+      view.restoreCamera({...beforePan,scale:limit});
+      const before = draws, completed = finishes;
+      web("gesturestart"); web("gesturechange",1); web("gesturechange",factor); web("gestureend",factor);
+      assert.equal(draws,before,"an immobile or clamped pinch has no camera paint");
+      assert.equal(finishes,completed,"no actual motion leaves no final preparation");
+      assert.equal(view.scale(),limit);
+      web("gesturestart"); web("gesturechange",factor,137,160,8); web("gestureend",factor,137,160,8);
+      assert.equal(draws,before+1,"translation and rotation still apply at the zoom clamp");
+      assert.equal(view.scale(),limit);
+      assert.notEqual(view.camera().rotation,beforePan.rotation);
+      assert.equal(finishes,completed+1);
+    }
+    assert.equal(finishes,3);
+    web("gesturestart"); web("gesturechange",1.5,150); paneId="other"; web("gestureend",1.5,150);
+    assert.equal(finishes,3,"a late end from a different document cannot settle it");
+    paneId="pcb";
+    view.restoreCamera(beforePan);
+    pointer("pointerdown",1,130,160); pointer("pointerdown",2,170,160);
+    web("gesturestart"); web("gesturechange",1.2);
+    now+=30;
+    pointer("pointermove",2,195,175);
+    const directTarget=view.camera(), directDraws=draws;
+    web("gestureend",1.2);
+    pointer("pointerup",2,195,175);
+    assert.equal(finishes,3,"duplicate web delivery and the first lifted finger do not finish direct pinch");
+    pointer("pointerup",1,130,160);
+    assert.equal(finishes,4,"the last contact of a moved direct pinch finishes once");
+    assert.deepEqual(view.camera(),directTarget);
+    assert.equal(draws,directDraws);
+    pointer("pointerdown",1,130,160); pointer("pointerdown",2,170,160);
+    pointer("pointerup",2,170,160); pointer("pointerup",1,130,160);
+    assert.equal(finishes,4,"a two-finger tap doesn't finish a camera gesture");
+    assert.deepEqual(commands,["undo"]);
+    pointer("pointerdown",1,130,160); pointer("pointerdown",2,170,160);
+    pointer("pointermove",2,195,160); pointer("pointercancel",2,195,160); pointer("pointerup",1,130,160);
+    assert.equal(finishes,4,"cancelling the pinch leaves the ordinary recovery");
+    for (const kind of ["moved","moved on release","cancelled"]) {
+      const before=finishes;
+      view.restoreCamera(beforePan);
+      pointer("pointerdown",1,130,160);
+      if(kind!=="moved on release")pointer("pointermove",1,161,168);
+      pointer(kind==="cancelled"?"pointercancel":"pointerup",1,161,168);
+      assert.equal(finishes,before+(kind==="cancelled"?0:1),kind+": a single-finger pan finishes once on its real release");
+      assert.ok(close(view.camera().cx,beforePan.cx-31/beforePan.scale));
+      assert.ok(close(view.camera().cy,beforePan.cy-8/beforePan.scale));
+      pointer("pointerup",1,161,168);
+      assert.equal(finishes,before+(kind==="cancelled"?0:1),"a late release has no live contact");
+    }
+    C.setPref("camera.momentum",true);
+    const startCoast=slow=>{
+      view.restoreCamera(beforePan);
+      pointer("pointerdown",1,130,160); pointer("pointerdown",2,170,160);
+      now+=slow?40:15;
+      const x=slow?190:240;
+      pointer("pointermove",2,x,160); pointer("pointerup",2,x,160); pointer("pointerup",1,130,160);
+      assert.equal(queue.size,1);
+    };
+    for (const kind of ["duration","velocity","other document","new wheel"]) {
+      const before=finishes, offset=ends.length, natural=kind==="duration"||kind==="velocity";
+      startCoast(kind==="velocity");
+      const started=now;
+      assert.equal(finishes,before,"last release cannot finish a camera still moving under inertia");
+      const beforeCoast=view.camera();
+      tick(20);
+      assert.notDeepEqual(view.camera(),beforeCoast,"measured translation starts the existing coast");
+      const atInterrupt=view.camera();
+      if(kind==="other document")paneId="other";
+      if(kind==="new wheel")touch.handle({type:"wheel",deltaX:5,deltaY:2,deltaMode:0,clientX:150,clientY:160},pane);
+      for(let frames=0;queue.size&&frames<100;frames++)tick(16);
+      assert.equal(queue.size,0,"the completed or overtaken coast stops");
+      assert.equal(ends.slice(offset).filter(Boolean).length,natural?1:0,kind+": only natural inertia can mark a terminal paint");
+      if(natural){
+        assert.equal(now-started>=AtriumMotion.duration("slow"),kind==="duration","both coast completion conditions are exercised");
+        assert.equal(ends.at(-1),true,"the last real pan sample carries the completion marker");
+        assert.ok(view.camera().cx<atInterrupt.cx,"natural coast keeps covering its existing travel");
+      } else if(kind==="other document")assert.deepEqual(view.camera(),atInterrupt);
+      else assert.ok(close(view.camera().cx,atInterrupt.cx + 5/atInterrupt.scale),"the new wheel takes ownership of the camera");
+      assert.equal(finishes,before,"coast marks its own existing paint instead of requesting a second repaint");
+      paneId="pcb";
+      touch.clear();
+    }
+    C.setPref("camera.rotate",rotate); C.setPref("camera.momentum",momentum);
   } finally {
     C.stopWheel();
     C.stopFly();

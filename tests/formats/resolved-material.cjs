@@ -324,4 +324,83 @@ for (const center of copies) for (const side of ["Top", "Bottom"])
   assert.equal(cap([7.2,4.45]),false,"the fillet cannot spill outside the authored stroke");
   assert.deepEqual(capFaces(S.step(scene),"Top copper"),[[1,1],[1,1]],"both true STEP shells have separate open bores");
 }
+{
+  require("../../app/history/undo-store.js");
+  const R = AtriumResolvedGeometry, U = AtriumUndoStore;
+  const {project, doc} = design();
+  const track = {id:"moved",kind:"track",layer:"Top",width:.2,points:[[2,3],[6,3]]};
+  const stable = {id:"steady",kind:"track",layer:"Bottom",width:.3,points:[[4,6],[9,6]]};
+  const land = {number:"1",x:0,y:0,w:1,h:1,shape:"rect",layer:"Top"};
+  const def = {id:"pkg",footprint:{pads:[land],shapes:[]}};
+  const part = {id:"placed",kind:"part",def:def.id,ref:"U1",x:12,y:7};
+  project.library = [def];
+  project.parameters = {job:"initial"};
+  doc.items.push(track, stable, part);
+  const history = [], future = [], read = () => R.readEditor(project, doc);
+  const owner = item => ({kind:"item",documentId:doc.id,instancePath:[],id:item.id});
+  function checkFresh(view) {
+    const fresh = R.read({kind:"snapshot",project,root:doc,revision:view.revision});
+    assert.deepEqual([...view.features()], [...fresh.features()], "current ink equals a fresh snapshot in board order");
+    assert.deepEqual([...view.bores()], [...fresh.bores()]);
+  }
+
+  U.reset(project);
+  const initial = read(), steady = initial.owner(owner(stable)), initialRevision = initial.revision;
+  assert.equal(U.root(), null, "reading verified geometry leaves the Undo shadow deferred");
+  assert.equal(U.stats().shadow, 0);
+  assert.equal(U.stats().records, 0);
+  const before = U.mark(project);
+  track.points[0] = [2.25,3];
+  U.checkpoint(history,future,before,"Move endpoint");
+  U.record(project,{doc,items:[track]});
+  let revision = initialRevision;
+  function checkEndpoint(x) {
+    const view = read(), changes = view.changes(revision);
+    assert.equal(changes.kind,"incremental");
+    assert.deepEqual(changes.owners,[owner(track)],"only the touched owner is dirty");
+    assert.equal(view.owner(owner(stable)),steady,"retains the untouched physical row");
+    assert.equal(view.owner(owner(track)).features[0].ink.centerline[0].a[0],x);
+    checkFresh(view);
+    revision = view.revision;
+  }
+  checkEndpoint(2.25);
+  U.jump(history,future,U.mark(project),-1);
+  checkEndpoint(2);
+  U.jump(history,future,U.mark(project),1);
+  checkEndpoint(2.25);
+
+  U.reset(project);
+  const libraryView = read(), libraryBefore = libraryView.revision;
+  const oldLands = libraryView.owner(owner(part)).nominalLands;
+  U.mark(project);
+  assert.equal(read(),libraryView,"an unchanged verified floor retains its binding when the Undo shadow is first marked");
+  land.w = 1.75;
+  U.record(project,{library:true});
+  const libraryAfter = read();
+  assert.deepEqual(libraryAfter.changes(libraryBefore).owners,[owner(part)],"a first definition edit reaches its placed owner");
+  assert.notDeepEqual(libraryAfter.owner(owner(part)).nominalLands,oldLands);
+  checkFresh(libraryAfter);
+  U.reset(project);
+  const paramsBefore = read().revision;
+  U.mark(project);
+  project.parameters.job = "edited";
+  U.record(project);
+  const paramsAfter = read();
+  assert.ok(paramsAfter.changes(paramsBefore).owners.some(row => row.id===stable.id),
+    "a first project parameter edit still takes the broad dependency path");
+  checkFresh(paramsAfter);
+
+  U.reset(project);
+  const prior = read().revision, other = {...project,documents:[...project.documents]};
+  assert.equal(R.readEditor(other,doc),null,"a foreign project cannot borrow a verified document object");
+  U.touch(project,{doc,items:[track]});
+  assert.equal(read(),null,"unrecorded changes cannot reuse the verified snapshot");
+  U.reset();
+  assert.equal(read(),null,"an unverified folder has no edit certificate");
+  U.reset(project);
+  const afterReset = read();
+  assert.equal(afterReset.changes(prior).kind,"cold","a different journal floor cannot use prior owner changes");
+  checkFresh(afterReset);
+  U.reset();
+}
 console.log("Resolved material: authored fabrication, native bytes, independent STEP cap and viewer triangles, slots and physical depth, unknown span, panel repeats");

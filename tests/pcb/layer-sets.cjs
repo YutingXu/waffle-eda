@@ -31,6 +31,19 @@ assert.equal(shapeReads, 1);
 artwork.push({layer:"Top paste"}); revision++;
 assert.ok(AtriumPCBLayerBar.otherLayers(layersHost).includes("Top paste"));
 assert.equal(shapeReads, 2, "a new revision reads the shared artwork once");
+const nextDoc = {id:"layers", items:[{kind:"line",layer:"Mechanical 7"}]};
+const nextHost = {...layersHost, doc:() => nextDoc};
+assert.ok(AtriumPCBLayerBar.otherLayers(nextHost).includes("Mechanical 7"));
+const firstDoc = {id:nextDoc.id, items};
+const firstHost = {...layersHost, doc:() => firstDoc};
+const retainedNames = AtriumPCBLayerBar.otherLayers(firstHost);
+assert.ok(retainedNames.includes("Mechanical 3") && !retainedNames.includes("Mechanical 7"),
+  "distinct boards with the same ID discover their own layer names");
+const tabs = {dataset:{layers:"board tabs"}, children:["old PCB tab"], replaceChildren(){this.children.length=0;}};
+AtriumPCBLayerBar.release(tabs);
+assert.deepEqual(tabs.children, [], "replacement releases the previous tab handlers");
+assert.equal(tabs.dataset.layers, undefined);
+assert.notEqual(AtriumPCBLayerBar.otherLayers(firstHost), retainedNames, "replacement releases the layer discovery cache");
 // Host flow: apply a set, save the current visibility, rename and delete it (undoable edits).
 const hidden = new Set(); let edits = 0, info = "";
 const host = {doc:() => board, defs:() => defs, project:() => p, hiddenLayers:() => hidden, copperLayers:() => lay.copper.map(c => c.key), activeLayer:() => "Top",

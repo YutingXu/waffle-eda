@@ -123,6 +123,11 @@ globalThis.AtriumRules = (() => {
   }
   // Largest gap a rule can ask for (broad-phase reach).
   const clearanceMax=r=>{let g=r.gap;if(r.objects)for(const k in r.objects)if(r.objects[k]>g)g=r.objects[k];return g;};
+  // Physical gaps are nonnegative. Measured scopes can still report missing data on pairs.
+  function needsClearancePairs(rules){
+    return rules.some(r=>!r||r.measured||r.gap!==0||r.objects!=null&&
+      (!plain(r.objects)||Object.getOwnPropertyNames(r.objects).some(k=>!CLEAR_PAIR_SET.has(k)||r.objects[k]!==0)));
+  }
   // Gap for copper that routing tools place (tracks, arcs and vias) against any copper
   // except polygons (repoured around new copper) and holes: the largest such cell.
   const ROUTED=new Set(["track","arc","via"]);
@@ -1727,30 +1732,32 @@ globalThis.AtriumRules = (() => {
     const best=(map,key,v)=>{const p=map.get(key);if(!p||v.actual<p.actual)map.set(key,v);};
     const pairKey=(a,b)=>Math.min(a,b)*67108864+Math.max(a,b);
     if(active("clearance")){
-      const F=geo.copper.filter(f=>f.net),found=new Map(),CR=R.byType.clearance;
-      const reach=Math.max(...CR.map(clearanceMax));
-      stats.candidates+=pairs(F,reach,(a,b)=>{
-        if(a.net===b.net||a.span[1]<b.span[0]||b.span[1]<a.span[0]||ties&&ties.skip(a,b))return;
-        const r=R.clearanceRule(a,b);if(!r)return;
-        const need=clearanceGap(r,a.ck,b.ck);
-        if(a.box[0]-b.box[2]>=need||b.box[0]-a.box[2]>=need||a.box[1]-b.box[3]>=need||b.box[1]-a.box[3]>=need)return;
-        const g=pieceGap(a,b,need);if(g.d+EPS>=need)return;
-        best(found,pairKey(a.obj,b.obj),{r,id:a.id,otherId:b.id,title:a.label+" ↔ "+b.label,actual:g.d,required:need,limit:"min",at:g.at,otherAt:g.at,...(r.objects?{kinds:[a.ck,b.ck]}:null)});
-      });
-      // Hole cells of the matrix: drilled holes against copper of other nets (the hole's
-      // own pad or via is skipped). Only rules that set a hole cell check holes.
-      if(geo.holes.length&&CR.some(r=>r.objects&&Object.keys(r.objects).some(k=>k.endsWith("-hole")))){
-        const H=F.concat(geo.holes),hreach=Math.max(0,...CR.map(r=>Math.max(0,...Object.keys(r.objects||{}).filter(k=>k.endsWith("-hole")).map(k=>r.objects[k]))));
-        stats.candidates+=pairs(H,hreach,(a,b)=>{
-          if((a.ck==="hole")===(b.ck==="hole"))return;
-          const h=a.ck==="hole"?a:b,c=h===a?b:a;
-          if(h.obj===c.obj||h.net&&h.net===c.net||h.span[1]<c.span[0]||c.span[1]<h.span[0]||ties&&h.net&&ties.skip(h,c))return;
-          const r=R.clearanceRule(h,c),need=clearanceLimit(r,h.ck,c.ck);if(need==null)return;
-          const g=pieceGap(h,c,need);if(g.d+EPS>=need)return;
-          best(found,pairKey(h.obj,c.obj)+.5,{r,id:h.id,otherId:c.id,title:"Hole of "+h.label+" ↔ "+c.label,what:"Hole clearance",actual:g.d,required:need,limit:"min",at:g.at,otherAt:c.at||g.at,kinds:["hole",c.ck]});
+      const CR=R.byType.clearance;
+      if(needsClearancePairs(CR)){
+        const F=geo.copper.filter(f=>f.net),found=new Map(),reach=Math.max(...CR.map(clearanceMax));
+        stats.candidates+=pairs(F,reach,(a,b)=>{
+          if(a.net===b.net||a.span[1]<b.span[0]||b.span[1]<a.span[0]||ties&&ties.skip(a,b))return;
+          const r=R.clearanceRule(a,b);if(!r)return;
+          const need=clearanceGap(r,a.ck,b.ck);
+          if(a.box[0]-b.box[2]>=need||b.box[0]-a.box[2]>=need||a.box[1]-b.box[3]>=need||b.box[1]-a.box[3]>=need)return;
+          const g=pieceGap(a,b,need);if(g.d+EPS>=need)return;
+          best(found,pairKey(a.obj,b.obj),{r,id:a.id,otherId:b.id,title:a.label+" ↔ "+b.label,actual:g.d,required:need,limit:"min",at:g.at,otherAt:g.at,...(r.objects?{kinds:[a.ck,b.ck]}:null)});
         });
+        // Hole cells of the matrix: drilled holes against copper of other nets (the hole's
+        // own pad or via is skipped). Only rules that set a hole cell check holes.
+        if(geo.holes.length&&CR.some(r=>r.objects&&Object.keys(r.objects).some(k=>k.endsWith("-hole")))){
+          const H=F.concat(geo.holes),hreach=Math.max(0,...CR.map(r=>Math.max(0,...Object.keys(r.objects||{}).filter(k=>k.endsWith("-hole")).map(k=>r.objects[k]))));
+          stats.candidates+=pairs(H,hreach,(a,b)=>{
+            if((a.ck==="hole")===(b.ck==="hole"))return;
+            const h=a.ck==="hole"?a:b,c=h===a?b:a;
+            if(h.obj===c.obj||h.net&&h.net===c.net||h.span[1]<c.span[0]||c.span[1]<h.span[0]||ties&&h.net&&ties.skip(h,c))return;
+            const r=R.clearanceRule(h,c),need=clearanceLimit(r,h.ck,c.ck);if(need==null)return;
+            const g=pieceGap(h,c,need);if(g.d+EPS>=need)return;
+            best(found,pairKey(h.obj,c.obj)+.5,{r,id:h.id,otherId:c.id,title:"Hole of "+h.label+" ↔ "+c.label,what:"Hole clearance",actual:g.d,required:need,limit:"min",at:g.at,otherAt:c.at||g.at,kinds:["hole",c.ck]});
+          });
+        }
+        for(const {r,...v} of found.values())flag(r,v);
       }
-      for(const {r,...v} of found.values())flag(r,v);
       if(CR.some(r=>r.objects&&Object.keys(r.objects).some(k=>/(^|-)(poly|text)(-|$)/.test(k))))notes.push("Clearance matrix cells for polygons and text are kept for Altium round trips; polygon pours use their own clearance and copper text is not checked.");
       // Keep-outs (pcb-draw.js): copper touching a keep-out on a shared layer.
       if(globalThis.AtriumPCBDraw?.keepoutViolations)for(const v of AtriumPCBDraw.keepoutViolations(doc,defs,{limit:cap}))flag(R.byType.clearance[0],{...v,limit:"min"});
@@ -2067,7 +2074,10 @@ globalThis.AtriumRules = (() => {
     for(const {rule,...v} of worst.values())flag(rule,v);
   }
   function diffPairCheck(geo,R,flag,board,zText){
-    const byNet=new Map();
+    const byNet=new Map(),strictCrossing=globalThis.AtriumGeometry.strictCrossing;
+    // At this magnitude in mm, endpoint projection rounds by far less than EPS.
+    const boundsLimitMm=1e6;
+    const boundedSegment=({a,b,w})=>Math.max(w,Math.abs(a[0]),Math.abs(a[1]),Math.abs(b[0]),Math.abs(b[1]))<=boundsLimitMm;
     for(const t of geo.tracks){if(!R.pairOfNet.has(t.net)||!(t.width>0)||t.points.length<2)continue;
       const list=byNet.get(t.net)||byNet.set(t.net,[]).get(t.net),cut=globalThis.AtriumRigidFlex?.piecesAlong;
       for(let n=1;n<t.points.length;n++){const a=t.points[n-1],b=t.points[n],pieces=cut?cut(board,[a,b]):null;
@@ -2075,7 +2085,16 @@ globalThis.AtriumRules = (() => {
         else list.push({t,a,b,w:t.width,layer:t.item.layer||"Top",stack:null});}}
     for(const p of R.pairs.values()){
       const P=byNet.get(p.positive)||[],N=byNet.get(p.negative)||[];if(!P.length&&!N.length)continue;
-      const ruleAt=(layer,stack)=>{const r=R.first("diffPairsRouting",{net:p.positive,pair:p.name,layer,span:sideSpan(layer)});return r?{r,c:constraint(r,layer,null,board,R.profiles,stack),pf:profileAt(r,layer,board,R.profiles,stack)}:null;};
+      const rulesByLayer=new Map();
+      const ruleAt=(layer,stack)=>{
+        let byStack=rulesByLayer.get(layer);
+        if(!byStack)rulesByLayer.set(layer,byStack=new Map());
+        if(byStack.has(stack))return byStack.get(stack);
+        const r=R.first("diffPairsRouting",{net:p.positive,pair:p.name,layer,span:sideSpan(layer)});
+        const found=r?{r,c:constraint(r,layer,null,board,R.profiles,stack),pf:profileAt(r,layer,board,R.profiles,stack)}:null;
+        byStack.set(stack,found);
+        return found;
+      };
       const widthSeen=new Set();
       for(const s of [...P,...N]){
         const m=ruleAt(s.layer,s.stack);if(!m||widthSeen.has(s.t.obj))continue;
@@ -2083,30 +2102,57 @@ globalThis.AtriumRules = (() => {
         else if(m.c.widthMax!=null&&s.w-EPS>m.c.widthMax){widthSeen.add(s.t.obj);flag(m.r,{id:s.t.id,title:"Pair "+p.name+" · "+s.t.label,what:"Pair width",actual:s.w,required:m.c.widthMax,limit:"max",at:s.t.at});}
       }
       const gaps=new Map();
-      for(const a of P)for(const b of N){
-        if(a.layer!==b.layer)continue;const m=ruleAt(a.layer,a.stack);if(!m)continue;
-        const c=closestSegments(a.a,a.b,b.a,b.b),g=Math.max(0,c.d-a.w/2-b.w/2);
-        if(g+EPS<m.c.gapMin){const key=a.t.obj+"/"+b.t.obj,prev=gaps.get(key);
-          if(!prev||g<prev.actual)gaps.set(key,{r:m.r,id:a.t.id,otherId:b.t.id,title:"Pair "+p.name+" · "+a.t.label+" ↔ "+b.t.label+(m.pf?zText(m.pf,{w:a.w,s:g}):""),what:"Pair gap",actual:g,required:m.c.gapMin,limit:"min",at:mid(c.pa,c.pb)});}
-        // Impedance profile: coupled (parallel, near) segments wider apart than the profile allows.
-        else if(m.pf&&m.c.gapMax!=null&&g-EPS>m.c.gapMax&&g<2*m.c.gapMax){
-          const ux=a.b[0]-a.a[0],uy=a.b[1]-a.a[1],vx=b.b[0]-b.a[0],vy=b.b[1]-b.a[1],lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
-          if(lu>EPS&&lv>EPS&&Math.abs(ux*vy-uy*vx)/(lu*lv)<.05){const key=a.t.obj+"/"+b.t.obj;
-            if(!gaps.has(key))gaps.set(key,{r:m.r,id:a.t.id,otherId:b.t.id,title:"Pair "+p.name+" · "+a.t.label+" ↔ "+b.t.label+zText(m.pf,{w:a.w,s:g}),what:"Impedance gap",actual:g,required:m.c.gapMax,limit:"max",at:mid(c.pa,c.pb)});}
+      for(const a of P){
+        let m, loX=-Infinity, loY=-Infinity, hiX=Infinity, hiY=Infinity;
+        for(const b of N){
+          if(a.layer!==b.layer)continue;
+          if(m===undefined){
+            m=ruleAt(a.layer,a.stack);
+            if(m&&boundedSegment(a)){
+              const reach=Math.max(0,m.c.gapMin,m.pf&&m.c.gapMax!=null?2*m.c.gapMax:0);
+              const pad=a.w/2+reach+EPS;
+              loX=Math.min(a.a[0],a.b[0])-pad;loY=Math.min(a.a[1],a.b[1])-pad;
+              hiX=Math.max(a.a[0],a.b[0])+pad;hiY=Math.max(a.a[1],a.b[1])+pad;
+            }
+          }
+          if(!m)continue;
+          const r=b.w/2;
+          const outside=(b.a[0]<loX-r&&b.b[0]<loX-r)||(b.a[0]>hiX+r&&b.b[0]>hiX+r)||
+            (b.a[1]<loY-r&&b.b[1]<loY-r)||(b.a[1]>hiY+r&&b.b[1]>hiY+r);
+          // The legacy zero branch can report a crossing for disjoint nearly collinear segments.
+          if(outside&&boundedSegment(b)&&!strictCrossing(a.a,a.b,b.a,b.b))continue;
+          const c=closestSegments(a.a,a.b,b.a,b.b),g=Math.max(0,c.d-a.w/2-b.w/2);
+          if(g+EPS<m.c.gapMin){const key=a.t.obj+"/"+b.t.obj,prev=gaps.get(key);
+            if(!prev||g<prev.actual)gaps.set(key,{r:m.r,id:a.t.id,otherId:b.t.id,title:"Pair "+p.name+" · "+a.t.label+" ↔ "+b.t.label+(m.pf?zText(m.pf,{w:a.w,s:g}):""),what:"Pair gap",actual:g,required:m.c.gapMin,limit:"min",at:mid(c.pa,c.pb)});}
+          // Impedance profile: coupled (parallel, near) segments wider apart than the profile allows.
+          else if(m.pf&&m.c.gapMax!=null&&g-EPS>m.c.gapMax&&g<2*m.c.gapMax){
+            const ux=a.b[0]-a.a[0],uy=a.b[1]-a.a[1],vx=b.b[0]-b.a[0],vy=b.b[1]-b.a[1],lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
+            if(lu>EPS&&lv>EPS&&Math.abs(ux*vy-uy*vx)/(lu*lv)<.05){const key=a.t.obj+"/"+b.t.obj;
+              if(!gaps.has(key))gaps.set(key,{r:m.r,id:a.t.id,otherId:b.t.id,title:"Pair "+p.name+" · "+a.t.label+" ↔ "+b.t.label+zText(m.pf,{w:a.w,s:g}),what:"Impedance gap",actual:g,required:m.c.gapMax,limit:"max",at:mid(c.pa,c.pb)});}
+          }
         }
       }
       for(const {r,...v} of gaps.values())flag(r,v);
       // Uncoupled length: sampled track length farther than the max gap from the other net.
       let worst=null;
       for(const [own,other] of [[P,N],[N,P]]){
-        let uncoupled=0,at=null,id=null,rule=null;
+        let uncoupled=0,at=null,id=null,rule=null, matesByLayer;
         for(const s of own){
           const m=ruleAt(s.layer,s.stack);if(!m||m.c.maxUncoupled==null)continue;rule=m;
+          if(!matesByLayer){
+            // Build ordered mate buckets once, when this side first needs them.
+            matesByLayer=new Map();
+            for(const mate of other){
+              let list=matesByLayer.get(mate.layer);
+              if(!list)matesByLayer.set(mate.layer,list=[]);
+              list.push(mate);
+            }
+          }
           const len=dist(s.a,s.b),steps=Math.max(1,Math.min(200,Math.ceil(len/.1)));
-          const mates=other.filter(o=>o.layer===s.layer);
+          const mates=matesByLayer.get(s.layer);
           for(let k=0;k<steps;k++){
             const q=[s.a[0]+(s.b[0]-s.a[0])*(k+.5)/steps,s.a[1]+(s.b[1]-s.a[1])*(k+.5)/steps];
-            const coupled=mates.some(o=>dist(q,project(q,o.a,o.b))-o.w/2-s.w/2<=m.c.gapMax+EPS);
+            const coupled=mates?.some(o=>dist(q,project(q,o.a,o.b))-o.w/2-s.w/2<=m.c.gapMax+EPS);
             if(!coupled){uncoupled+=len/steps;if(!at){at=q;id=s.t.id;}}
           }
         }
@@ -3455,7 +3501,7 @@ globalThis.AtriumRules = (() => {
 
   // The DRC feature kit (as AtriumConnectivity.kit): feature extraction, the broad phase, exact gaps and
   // rule resolution, for checks outside drc() (drc-pours.js, the certificate store) without source patches.
-  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceLimit,clearanceMax,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
+  const kit=Object.freeze({allScope,scopePlans,scopeDiagnostic,extract,copperSubject,padCore,scopeObjects,pairs,gap,pieceGap,feature,slotRing,compile,migrate,clearanceGap,clearanceLimit,clearanceMax,needsClearancePairs,clearKey,copperIndex,layerSpan,closestSegments,containsConvex,EPS});
   return {kit,defaults,validate,setAside,check,open,rulesFor,scopeCopy,presetRuleKey,materializePresetRules,
     create,migrate,normalize,effective,drc,netLengths,staleTeardrops,fillPieces,
     query,resolver,sizeVia:A.preferredViaSize,netClasses,diffPairs,matchedGroups,detectDiffPairs,stored,store,neckLength,NECK_DEFAULT,

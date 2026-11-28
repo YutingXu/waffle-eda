@@ -515,15 +515,25 @@ globalThis.AtriumPCBDraw = (() => {
       const fp = defs?.get?.(part.def)?.footprint;
       if (!fp) continue;
       if (!byFootprint.has(fp)) byFootprint.set(fp, (fp.shapes || []).filter(s => isKeepout(s) && s.points?.length));
+      const shapes = byFootprint.get(fp);
+      if (!shapes.length) continue;
       const frame = AtriumGeometryCurves.artworkFrame(part);
-      for (const s of byFootprint.get(fp)) {
+      for (const s of shapes) {
         const k = {...s, kind:"graphic", id:part.id};
         const [f] = graphicFeatures(s, keepoutLayers(k), frame);
         if (f) keeps.push({k,f});
       }
     }
     if (!keeps.length) return [];
-    for (const x of keeps) x.box = featureBox(x.f);
+    for (let order = 0; order < keeps.length; order++) {
+      const x = keeps[order];
+      x.box = featureBox(x.f); x.layers = keepoutLayers(x.k); x.order = order;
+    }
+    // Keep the linear scan for sparse boards and bounds the grid cannot safely step through.
+    const indexable = b => b[0] <= b[2] && b[1] <= b[3] && b.every(n => Math.abs(n) <= Number.MAX_SAFE_INTEGER);
+    const index = keeps.length > 8 && keeps.every(x => indexable(x.box)) &&
+      globalThis.AtriumSpatial?.create(keeps, x => x.box);
+    const bounds = f => f.box ??= featureBox(f);
     const out = [], cap = o.limit ?? 500;
     for (const i of doc.items) {
       if (isKeepout(i) || i.dimension || !["track", "via", "pad", "part", "graphic", "polygon"].includes(i.kind)) continue;
@@ -531,12 +541,22 @@ globalThis.AtriumPCBDraw = (() => {
       if (i.kind === "polygon" && (i.cutout || !(doc.pcbDrawing?.pours || []).some(r => r.polygon === i.id))) continue;
       const fs = (i.kind === "polygon" ? pourFeatures(doc, i) : itemFeatures(i, defs, doc)).filter(f =>
         !f.drillOnly && (f.layers === "all" || f.layers.some(l => isCopper(l) || l === "Multi")));
-      for (const x of keeps) {
+      if (!fs.length) continue;
+      let candidates = keeps;
+      if (index && fs.every(f => indexable(bounds(f)))) {
+        if (fs.length === 1) candidates = index.query(fs[0].box, keeps);
+        else {
+          const nearby = new Set();
+          for (const f of fs) for (const x of index.query(f.box, keeps)) nearby.add(x);
+          candidates = [...nearby].sort((a, b) => a.order - b.order);
+        }
+      }
+      const restriction = i.kind==="pad" ? i.drill>0?"throughPad":"smdPad" : i.kind==="via"||i.kind==="track" ? i.kind : "copper";
+      for (const x of candidates) {
         let hit = null;
         for (const f of fs) {
-          const target=f.restriction || (i.kind==="pad" ? i.drill>0?"throughPad":"smdPad" : i.kind==="via"||i.kind==="track" ? i.kind : "copper");
-          if (!A().keepoutBlocks(x.k,target) || !layersMeet(f.layers, keepoutLayers(x.k))) continue;
-          const b = featureBox(f);
+          if (!A().keepoutBlocks(x.k,f.restriction || restriction) || !layersMeet(f.layers, x.layers)) continue;
+          const b = bounds(f);
           if (b[0] > x.box[2] || b[2] < x.box[0] || b[1] > x.box[3] || b[3] < x.box[1]) continue;
           const g = featureGap(f, x.f); if (g.d <= 1e-6) { hit = g; break; }
         }
@@ -621,7 +641,7 @@ globalThis.AtriumPCBDraw = (() => {
       ctx.lineWidth = hairline; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, true); ctx.stroke();  // a boundary, not copper
     } else {
       ctx.globalAlpha = base * .35; ctx.lineWidth = width; line(pts, item.closed); ctx.stroke();
-      ctx.globalAlpha = base; ctx.lineWidth = hairline; ctx.setLineDash?.([6 / scale, 4 / scale]); line(pts, item.closed); ctx.stroke();
+      ctx.globalAlpha = base; ctx.lineWidth = hairline; ctx.setLineDash?.([6 / scale, 4 / scale]); ctx.stroke();
     }
     ctx.restore();
     return bounded;

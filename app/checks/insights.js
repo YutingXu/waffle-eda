@@ -335,7 +335,17 @@ globalThis.AtriumInsights = (() => {
       if (!b || !b.every(Number.isFinite)) return;
       const x0 = Math.floor(b[0] / CELL), x1 = Math.floor(b[2] / CELL), y0 = Math.floor(b[1] / CELL), y1 = Math.floor(b[3] / CELL);
       if ((x1 - x0 + 1) * (y1 - y0 + 1) > BIG) { if (add) st.big.add(id); else st.big.delete(id); return; }
-      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) { const k = ck(x, y); let c = st.grid.get(k); if (add) { if (!c) st.grid.set(k, c = new Set()); c.add(id); } else if (c) c.delete(id); }
+      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+        const key = ck(x, y);
+        let occupants = st.grid.get(key);
+        if (add) {
+          if (!occupants) st.grid.set(key, occupants = new Set());
+          occupants.add(id);
+        } else if (occupants) {
+          occupants.delete(id);
+          if (!occupants.size) st.grid.delete(key);
+        }
+      }
     }
     function snapshot(st, doc, defs) {
       st.items = new Map(); st.live = new Map(); st.byNet = new Map(); st.grid = new Map(); st.big = new Set();
@@ -426,38 +436,42 @@ globalThis.AtriumInsights = (() => {
       const ctx = context(project, doc, defs, {...opts, memo: st.memo, sheetMemo, ...v});
       if (boxes && boxes.length > 24) boxes = [boxes.reduce((u, b) => union(u, b), null)];
       const ran = [];
-      for (const check of active) {
-        if (check.heavy && opts.skipHeavy && st.cache.has(check.id)) continue;
-        ctx.settings = settingsFor(check, opts);
-        const prev = st.cache.get(check.id);
-        const areaInput = check.areaInput?.(ctx, dirty, kinds);
-        const areaChanged = areaInput && (areaInput.changed || st.inputStamps?.get(check.id) !== areaInput.stamp);
-        if (areaInput) inputStamps.set(check.id, areaInput.stamp);
-        let scope = null, keep = [];
-        if (!full && prev && !changedInputs.has(check.id) && !areaChanged) {
-          if (check.scope === "net") {
-            if (!nets.size && !(check.alsoKinds && [...kinds].some(k => check.alsoKinds.includes(k)))) continue;
-            scope = {nets: new Set(nets), dirty};
-            if (check.alsoKinds && [...kinds].some(k => check.alsoKinds.includes(k))) scope = null; // e.g. a moved capacitor changes every net it serves
-            if (scope) keep = prev.filter(x => !(x.net != null && scope.nets.has(x.net)) && !x.objects.some(o => dirty.has(o)));
-          } else if (check.scope === "area") {
-            if (!boxes.length) continue;
-            const reach = Number.isFinite(check.reach) ? check.reach : 1, near = boxes.map(b => grow(b, reach));
-            scope = {boxes: near, dirty};
-            keep = prev.filter(x => !near.some(b => inBox(x.at, b)) && !x.objects.some(o => dirty.has(o)));
-          } else if (check.scope === "doc") {
-            if (check.dirtyKinds && ![...kinds].some(k => check.dirtyKinds.includes(k))) continue;
+      try {
+        for (const check of active) {
+          if (check.heavy && opts.skipHeavy && st.cache.has(check.id)) continue;
+          ctx.settings = settingsFor(check, opts);
+          const prev = st.cache.get(check.id);
+          const areaInput = check.areaInput?.(ctx, dirty, kinds);
+          const areaChanged = areaInput && (areaInput.changed || st.inputStamps?.get(check.id) !== areaInput.stamp);
+          if (areaInput) inputStamps.set(check.id, areaInput.stamp);
+          let scope = null, keep = [];
+          if (!full && prev && !changedInputs.has(check.id) && !areaChanged) {
+            if (check.scope === "net") {
+              if (!nets.size && !(check.alsoKinds && [...kinds].some(k => check.alsoKinds.includes(k)))) continue;
+              scope = {nets: new Set(nets), dirty};
+              if (check.alsoKinds && [...kinds].some(k => check.alsoKinds.includes(k))) scope = null; // e.g. a moved capacitor changes every net it serves
+              if (scope) keep = prev.filter(x => !(x.net != null && scope.nets.has(x.net)) && !x.objects.some(o => dirty.has(o)));
+            } else if (check.scope === "area") {
+              if (!boxes.length) continue;
+              const reach = Number.isFinite(check.reach) ? check.reach : 1, near = boxes.map(b => grow(b, reach));
+              scope = {boxes: near, dirty};
+              keep = prev.filter(x => !near.some(b => inBox(x.at, b)) && !x.objects.some(o => dirty.has(o)));
+            } else if (check.scope === "doc") {
+              if (check.dirtyKinds && ![...kinds].some(k => check.dirtyKinds.includes(k))) continue;
+            }
           }
+          const t1 = now();
+          let got;
+          try { got = yield* runCheck(check, ctx, scope); }
+          catch (e) { ctx.notes.push(check.title + ": " + e.message); got = []; }
+          const fresh = got.map(r => finish(check, ctx, r));
+          if (scope && check.scope === "area") { const near = scope.boxes; st.cache.set(check.id, keep.concat(fresh.filter(x => near.some(b => inBox(x.at, b)) || x.objects.some(o => dirty.has(o))))); }
+          else st.cache.set(check.id, scope ? keep.concat(fresh) : fresh);
+          ran.push({id: check.id, ms: r3(now() - t1), count: fresh.length});
+          yield {phase: "check", id: check.id};
         }
-        const t1 = now();
-        let got;
-        try { got = yield* runCheck(check, ctx, scope); }
-        catch (e) { ctx.notes.push(check.title + ": " + e.message); got = []; }
-        const fresh = got.map(r => finish(check, ctx, r));
-        if (scope && check.scope === "area") { const near = scope.boxes; st.cache.set(check.id, keep.concat(fresh.filter(x => near.some(b => inBox(x.at, b)) || x.objects.some(o => dirty.has(o))))); }
-        else st.cache.set(check.id, scope ? keep.concat(fresh) : fresh);
-        ran.push({id: check.id, ms: r3(now() - t1), count: fresh.length});
-        yield {phase: "check", id: check.id};
+      } finally {
+        if (kind === "pcb") G.AtriumInsightsPCB?.releaseSI(ctx);
       }
       // Checks switched off since the last run.
       const on = new Set(active.map(c => c.id));

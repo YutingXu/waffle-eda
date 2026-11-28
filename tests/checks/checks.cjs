@@ -370,6 +370,36 @@ test("one scheduler: layout rules first, hints and live ERC at idle, abandon, sl
     assert.ok(replacementChecks.includes("idle:online-drc:b"),"a clean project replacement schedules its own check");
     assert.ok(replacementChecks.includes("idle:insights:b"),"Insights runs after its replacement hook clears the old work");
     assert.deepEqual(K.violations({doc:"b",source:"drc"}),[]);
+
+    // The real editor client must close its engine iterator when idle work is cancelled.
+    const insightEngine = AtriumInsightsUI.engine(), update = insightEngine.update;
+    const publishedPass = AtriumInsightsUI.lastPass();
+    let clock = 0, advanced = 0, released = 0;
+    try {
+      globalThis.performance = {now: () => clock};
+      insightEngine.update = (...args) => {
+        const pass = update(...args), next = pass.next.bind(pass), close = pass.return.bind(pass);
+        pass.next = () => { advanced++; clock += 3; return next(); };
+        pass.return = () => { released++; return close(); };
+        return pass;
+      };
+      K.scheduler.plan("insights", {force: true, now: true});
+      timersOut();
+      jobs.get("insights:b").fn(() => true, {timeRemaining: () => 0});
+      assert.equal(advanced, 1, "the engine paused after its first idle step");
+      assert.ok(K.scheduler.running("insights"));
+      const continuation = jobs.get("insights:b");
+      assert.ok(continuation);
+      K.scheduler.cancel("insights");
+      assert.equal(released, 1, "Insights cancellation forwards return to the engine");
+      assert.strictEqual(AtriumInsightsUI.lastPass(), publishedPass, "the cancelled pass did not publish");
+      continuation.fn(() => true, {timeRemaining: () => 100});
+      assert.equal(advanced, 1, "a stale idle callback cannot resume the closed pass");
+    } finally {
+      K.scheduler.cancel("insights");
+      insightEngine.update = update;
+      globalThis.performance = realPerformance;
+    }
   } finally {
     globalThis.performance = realPerformance;
     K.scheduler.reset(); U.reset(); globalThis.setTimeout = setTimer; globalThis.clearTimeout = clearTimer; delete globalThis.AtriumPower;

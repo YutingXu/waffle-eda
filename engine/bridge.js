@@ -2,7 +2,7 @@
 // travel with the selected module, so workers need no fetch or filesystem access.
 function createAtriumEngine(kind, base64, mode = "auto", asyncCompile = false) {
   const stats = {calls: 0, fallbacks: 0};
-  let api = null, memory = null, failure = null, ready = null;
+  let api = null, memory = null, compiled = null, failure = null, ready = null;
 
   function decode(text) {
     if (typeof atob === "function") {
@@ -20,17 +20,20 @@ function createAtriumEngine(kind, base64, mode = "auto", asyncCompile = false) {
     }
     return out;
   }
-  function accept(instance) {
+  function accept(instance, module) {
     const e = instance.exports;
     if (!(e.memory instanceof WebAssembly.Memory) || e.engine_version() !== 3) throw Error("Unsupported Waffle engine module");
-    api = e; memory = e.memory;
+    api = e; memory = e.memory; compiled = module;
   }
   if (base64 && mode !== "js") {
     try {
       const bytes = decode(base64);
       if (asyncCompile && typeof WebAssembly.instantiate === "function")
-        ready = WebAssembly.instantiate(bytes, {}).then(r => accept(r.instance)).catch(e => { failure = e; });
-      else accept(new WebAssembly.Instance(new WebAssembly.Module(bytes), {}));
+        ready = WebAssembly.instantiate(bytes, {}).then(r => accept(r.instance, r.module)).catch(e => { failure = e; });
+      else {
+        const module = new WebAssembly.Module(bytes);
+        accept(new WebAssembly.Instance(module, {}), module);
+      }
     } catch (error) { failure = error; }
   }
 
@@ -42,12 +45,28 @@ function createAtriumEngine(kind, base64, mode = "auto", asyncCompile = false) {
   // A trap (out of memory, a bug) may leave the module's heap inconsistent: stop using it.
   function refuse(error) {
     stats.fallbacks++;
-    if (error instanceof WebAssembly.RuntimeError || error instanceof RangeError) { api = null; failure = error; }
+    if (error instanceof WebAssembly.RuntimeError || error instanceof RangeError) {
+      api = memory = compiled = null;
+      failure = String(error.message || error);
+    }
     return null;
   }
 
   // Size caps (the module checks them again): beyond these the JS fallback runs.
   const EMPTY = new Int32Array(0);
+  const REFUSED_POUR_MAX_RETAINED = 256 * 1024 * 1024;
+
+  // Releasing an oversized backing leaves room for the JS fallback on a refused solve.
+  // An instance cannot shrink its linear memory, but its compiled module can start a fresh one.
+  function retireLargePour() {
+    if (memory.buffer.byteLength < REFUSED_POUR_MAX_RETAINED) return;
+    api = memory = null;
+    try { accept(new WebAssembly.Instance(compiled, {}), compiled); }
+    catch (error) {
+      compiled = null;
+      failure = String(error.message || error);
+    }
+  }
   const MAX_POUR_VALUES = 64 * 1024 * 1024, MAX_ANCHORS = 4_000_000, MAX_KEY_UNITS = 16 * 1024 * 1024;
 
   // Airwires of every net (connectivity.js airwireEdges) in one call. `nets` holds each net's
@@ -174,7 +193,9 @@ function createAtriumEngine(kind, base64, mode = "auto", asyncCompile = false) {
         mv[o++] = mo.mode; mv[o++] = mo.t.length; mv.set(mo.t, o); o += mo.t.length; mv[o++] = u.length; mv.set(u, o); o += u.length; mv[o++] = mo.keep.length;
         for (const r of mo.keep) { mv[o++] = r.length; mv.set(r, o); o += r.length; }
       }
-      if (api.pour_solve() !== 0) return refuse();
+      const status = api.pour_solve();
+      if (status === -2) retireLargePour();
+      if (status !== 0) return refuse();
       const out = i32(api.out_i32(0), api.out_i32_len(0)), st = u32(api.out_u32(0), 9);
       let at = 0;
       const ints = () => { const n = out[at++], r = out.slice(at, at + n); at += n; return r; };
