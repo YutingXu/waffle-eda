@@ -57,7 +57,7 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     assert.equal(control.position,rtl ? "12px, 16px" : "calc(100% - 16px), calc(100% - 12px)");
     assert.ok(near(filter.x,comparison.x) && near(filter.width,comparison.width),"Class and Designator share a control column");
     assert.ok(near(filter.height,28) && near(comparison.height,28));
-    assert.ok(near(control.row.height,touch ? 44 : 28));
+    assert.ok(near(control.row.height,touch ? 44 : 32)); // a property row: the field plus 2px above and below
     const readClass = async () => (await textBaselines(page,session,inspector))
       .find(item => item.control === "Component class filter");
     const text = await readClass();
@@ -66,7 +66,10 @@ async function check(browser, {theme, touch = false, rtl = false}) {
     const leading = rtl ? control.field.right - filter.text.x - filter.text.width : filter.text.x - control.field.left;
     assert.ok(near(leading - control.margin,8),"the rendered native text has the shared leading inset");
 
-    if (theme === "light" && !touch && !rtl) await assertBaselinePerturbations(select, readClass);
+    // A property row puts the caption and the field on one baseline, so text moved inside the field takes
+    // the caption with it. Move the caption alone: the measurement must still see the 1px.
+    if (theme === "light" && !touch && !rtl)
+      await assertBaselinePerturbations(select.locator("xpath=preceding-sibling::*[1]"), readClass, {captionOnly:true});
     await session.detach();
 
     if (touch) await page.touchscreen.tap(control.field.left + 10,control.row.top + 3);

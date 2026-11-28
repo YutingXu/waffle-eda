@@ -60,7 +60,9 @@ async function probe(){
   // #17: Update parts on a def whose update throws reports once, no second TypeError.
   src.value="project";src.dispatchEvent(new Event("change"));P.selected="std-r";P.render();
   const errs=window.__errs.length,orig=ctx.edit;ctx.edit=()=>{throw Error("boom")};
-  [...document.querySelectorAll(".lib-detail-actions button")].find(b=>b.textContent==="Update parts").click();
+  // Update placed parts is in the component's "More component actions" menu.
+  document.querySelector('.lib-detail-actions [aria-label="More component actions"]').click();await wait(50);
+  [...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent.startsWith("Update placed parts")).click();
   ctx.edit=orig;await wait(20);out.updateErrorsUncaught=window.__errs.slice(errs);
   return out;
 }

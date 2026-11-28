@@ -515,7 +515,7 @@
     if(routeSession){if(!redo&&!tree)executeKey("route-back");return;}
     if(globalThis.AtriumCollabLock?.guard(current))return;
     if(!tree&&globalThis.AtriumCollabLive?.undo(redo))return;
-    if(tree)navEmit("replace");/* a private branch */
+    if(tree)navEmit("replace",{sameProject:true});/* a private branch of this project */
     const source=n>0?future:history,target=n>0?history:future;
     if(!tree&&!source.length)return;
     if(notebookOff()){
@@ -1456,10 +1456,11 @@
       }else {showProject(after,newDoc,true);if(!imported)importSessionChanged();}
     }
   }
-  function showProject(p,id,deferFit=false,clean=false){
+  // same: the same project again (a workspace window's mirror refresh); open document views stay (doc-views.js).
+  function showProject(p,id,deferFit=false,clean=false,same=false){
     const replacement=p!==project;
     if(replacement)for(const pane of panes){pane.view?.invalidate?.();if(pane.view)globalThis.AtriumCanvasGPU?.release?.(pane.view.internals());}
-    project=p;current=id;navEmit("replace");documentViews.clear();globalThis.AtriumMessages?.clear?.(null,{replacement});single(null);
+    project=p;current=id;navEmit("replace",replacement&&!same?undefined:{sameProject:true});documentViews.clear();globalThis.AtriumMessages?.clear?.(null,{replacement});single(null);
     hidden=new Set();highlight="";schematicNetHighlight=null;resetTools();
     if(clean){
       revision++;starter=false;dirtyState(false);refreshDefs(true);refresh();
@@ -2529,7 +2530,7 @@
       if(o.copy||fileSession.imported||o.importFileSession)H?.clearProjectPath?.();
       if(o.copy)globalThis.AtriumAutosave?.detach?.(p);
       if(o.copy||folder()||fileSession.imported||o.importFileSession)setFileSession(o.importFileSession||{});
-      starter=false;showProject(p,(o.workspaceMirror&&o.document)||(!o.starter&&A.preferredDocument(p,"pcb")?.id)||p.documents[0].id);
+      starter=false;showProject(p,(o.workspaceMirror&&o.document)||(!o.starter&&A.preferredDocument(p,"pcb")?.id)||p.documents[0].id,false,false,!!(o.workspaceMirror&&old?.id&&old.id===p.id));
       if(o.starter)starter=true;if(o.dirty===false||o.starter)dirtyState(false);
       importSessionChanged();
       return true;

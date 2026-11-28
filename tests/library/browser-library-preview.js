@@ -10,7 +10,8 @@ module.exports = async function libraryPreview(browser) {
       '<style>#library-list,.lib-list{max-height:400px;overflow:auto}.cat-pv-pics canvas{width:90px;height:58px}</style>');
     for (const file of [
       "core/uuid-v7.js", "core/model.js", "library/parts.js", "library/component-families.js", "library/library-pairing.js", "pcb/pcb-appearance.js",
-      "canvas/canvas.js", "library/catalogue.js", "editor/keymap.js", "ui/dialog.js", "editor/nav-common.js", "history/undo-store.js", "library/library-panel.js",
+      "canvas/canvas.js", "library/catalogue.js", "editor/keymap.js", "ui/dialog.js", "ui/kit.js", "editor/nav-common.js", "history/undo-store.js",
+      "library/library-ui.js", "library/library-panel.js",
     ]) {
       await page.addScriptTag({path: path.join(__dirname, "../../app", file)});
     }
@@ -80,12 +81,12 @@ module.exports = async function libraryPreview(browser) {
     const dock = page.locator(".panel-library"), picker = page.locator("dialog");
     await page.evaluate(() => previewTest.filter("Family"));
     assert.equal(await dock.locator(".cat-family-packages .lib-row").count(), 72);
-    assert.equal(await dock.locator(".lib-row .cat-row-icons use").count(), 144);
+    assert.equal(await dock.locator(".lib-row .ui-row-icons use").count(), 144);
     assert.deepEqual(await take(), []);
     await page.evaluate(() => { previewTest.pickDock("0-0-0"); previewTest.pickDock("0-0-1"); });
     assert.deepEqual(await take(), pair("0-0-1"));
     assert.ok(await page.evaluate(() => previewTest.checkFresh("0-0-1", "dock")));
-    await dock.locator(".cat-family > summary").nth(1).click();
+    await dock.locator(".lib-family-head").nth(1).click();
     assert.deepEqual(await take(), []);
     await page.evaluate(() => { previewTest.hold(); previewTest.pickDock("2-2-0"); previewTest.hideDock(); });
     assert.deepEqual(await page.evaluate(() => previewTest.pending()), {frames: 0, cancelled: 1});

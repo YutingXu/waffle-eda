@@ -1200,7 +1200,7 @@ globalThis.AtriumLibrary = (() => {
     },
     shortcut(control, text, key, suffix) { AtriumNavCommon.shortcutTitle(control, text, key, suffix); return control; },
     editorTool(text, key, fn) {
-      const b = ui.button(text, fn, "fe-tool");
+      const b = ui.button(text, fn, "fe-tool", "quiet");
       b.setAttribute("aria-label", text);
       b.append(AtriumShortcut.render(key, {variant:"inline"}));
       return ui.shortcut(b, text, key);
@@ -1226,10 +1226,10 @@ globalThis.AtriumLibrary = (() => {
     propertyFields(grid) {
       return (parent, label, value, write, o = {}) => {
         let input;
-        if (o.values) { input = ui.el("select"); for (const v of o.values) { const [val, text] = Array.isArray(v) ? v : [v, v]; input.add(new Option(text, val)); } input.value = value ?? ""; input.onchange = () => write(input.value); }
-        else if (o.check) { input = ui.el("input"); input.type = "checkbox"; input.checked = !!value; input.onchange = () => write(input.checked); }
+        if (o.values) { input = ui.el("select", null, "ui-field"); for (const v of o.values) { const [val, text] = Array.isArray(v) ? v : [v, v]; input.add(new Option(text, val)); } input.value = value ?? ""; input.onchange = () => write(input.value); }
+        else if (o.check) { input = ui.el("input", null, "ui-checkbox"); input.type = "checkbox"; input.checked = !!value; input.onchange = () => write(input.checked); }
         else {
-          input = ui.el("input"); input.value = value ?? ""; input.spellcheck = false;
+          input = ui.el("input", null, "ui-field"); input.value = value ?? ""; input.spellcheck = false;
           if (o.placeholder) input.placeholder = o.placeholder;
           if (o.number && grid) {input.inputMode="decimal";globalThis.AtriumLazy?.numericField?.(input,
             {unit:o.unit ?? "mm",integer:!!o.integer,nanometres:o.unit==null,min:o.min,optional:o.optional});}
@@ -1243,7 +1243,7 @@ globalThis.AtriumLibrary = (() => {
           };
           if (grid) input.onkeydown = e => { if (o.number && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); const v = Number(input.value) || 0, st = grid() * (e.shiftKey ? 10 : 1); input.value = r6(v + (e.key === "ArrowUp" ? st : -st)); input.onchange(); } };
         }
-        const row = ui.label(label, input, "fe-field");
+        const row = ui.label(label, input, "ui-prop-row fe-field");
         if (o.title) row.title = o.title;
         if (grid && o.unit) {
           input.classList.add("ui-field-number");
@@ -1255,7 +1255,60 @@ globalThis.AtriumLibrary = (() => {
         return input;
       };
     },
-    editorSection(parent, title) { const section = ui.el("section", null, "fe-section"); section.append(ui.el("h3", title)); parent.append(section); return section; },
+    editorSection(parent, title) {
+      const section = ui.el("section", null, "ui-section fe-section");
+      const head = ui.el("div", null, "ui-section-head");
+      head.dataset.quiet = "";
+      head.append(ui.el("h3", title, "ui-section-title"));
+      section.append(head);
+      parent.append(section);
+      return section;
+    },
+    // Host an editor in a shared AtriumDocViews editor tab (Design B) or fall back to ui.dialog.
+    // The tab holds a non-modal <dialog open>, as the Rules editor's tab does (rules.js), so code that looks
+    // for the open library dialog (the canvas input, the palette, the camera) finds it.
+    editorSurface(title, cls = "", {tabId, icon = "book", hostTab = false} = {}) {
+      if (!hostTab || !globalThis.AtriumDocViews) return ui.dialog(title, cls);
+      const wrap = ui.el("dialog", null, "ui-panel lib-editor-surface " + cls);
+      wrap.setAttribute("aria-label", title);
+      const head = ui.el("header", null, "lib-dialog-head");
+      const h2 = ui.el("h2", title);
+      head.append(h2);
+      wrap.append(head);
+      wrap.heading = head;
+      wrap._tabId = tabId || ("lib-editor-" + A.id());
+      wrap._tabIcon = icon;
+      wrap._isTab = true;
+      return wrap;
+    },
+    // An editor tab asked for (asTab) that is already open: shown, and its editor returned, so open() builds no
+    // second editor. A modal open (the dock, the wizard's "Open in Footprint Editor" with a new draft) still builds.
+    showOpenTab(tabId, asTab) {
+      const V = globalThis.AtriumDocViews;
+      if (!asTab || !V?.isOpen(tabId)) return null;
+      V.show(tabId);
+      return document.getElementById("doc-view-" + tabId)?.querySelector(":scope > dialog")?.editor || {};
+    },
+    showSurface(surface) {
+      if (!surface._isTab) { ui.show(surface); return; }
+      const V = globalThis.AtriumDocViews, id = surface._tabId;
+      // The editors ask showOpenTab first; an editor built anyway releases its canvas input (on "close").
+      if (V.isOpen(id)) { surface.dispatchEvent(new Event("close")); V.show(id); return; }
+      const title = surface.heading?.querySelector("h2")?.textContent || surface.getAttribute("aria-label") || "Editor";
+      // A project switch closes the tab without asking (AtriumDocViews closes every view on "replace"; the modal
+      // editor never asked on a switch either), so a later Save cannot write into the next project. The view's
+      // onClose closes the dialog; its close event then finds the view gone.
+      surface.addEventListener("close", () => { surface.remove(); V.close(id); }, {once: true});
+      V.open(id, {
+        title,
+        icon: surface._tabIcon,
+        mount: box => { box.replaceChildren(surface); },
+        // The tab's ×, middle click and Delete ask the editor, which closes itself unless unsaved changes are kept.
+        canClose: () => { if (!Object.hasOwn(surface, "requestClose")) return true; surface.requestClose(); return false; },
+        onClose: () => { if (surface.open) surface.close(); }
+      });
+      if (!surface.open) surface.show();
+    },
     // Large modal work surface; Escape closes unless a child handled it.
     // d.requestClose (set by editors with unsaved state) decides whether × and Esc may close.
     dialog(title, cls = "") {
@@ -1404,660 +1457,21 @@ globalThis.AtriumLibrary = (() => {
 
   // ------------------------------------------------------------------ panel
   let panel = null;
+  function panelApi() {
+    return {
+      SOURCES, STATE_MARK, STATE_TONE, ui, sourceStore,
+      sameLibrary, sourceEntry, linksEntry, addFromLibrary, libraryStatus, stateText, stateLabel, diffDefs,
+      cachedValidate, facts, usage, duplicate, remove, updateParts, similar, search,
+      togglePanel, openLibraryFile, manageLibraries, checkLibrary, saveToLibraryDialog,
+      openSymbolEditor, openFootprintEditor, openWizard, chooseCopies, groupUI, folderUI, restoreGroups
+    };
+  }
   function mountPanel(ctx) {
     if (panel?.node?.isConnected) { if (ctx) panel.ctx = ctx; return panel; }
     panel?.dispose();
-    const el = ui.el, P = {ctx, node: null, selected: null, filter: "all", lastRevision: -1, lastLibrary: null};
-    const host = document.getElementById("properties") || document.body;
-    const node = el("section", null, "panel panel-library"); node.setAttribute("aria-label", "Library");
-    const head = el("header", null, "pane-heading"); head.append(el("h2", "Library"));
-    const tools = el("div", null, "lib-panel-tools");
-    const tool = (text, title, fn) => { const b = ui.button(text, fn, "lib-mini"); b.title = title; b.setAttribute("aria-label", title); return b; };
-    const close = ui.button("×", () => togglePanel(P.ctx, false), "ui-close lib-panel-close", "quiet");
-    close.title = "Close the Library panel"; close.setAttribute("aria-label", close.title);
-    head.append(close);
-    const manage = ui.button("Manage families…", () => manageFamilies(P.source === "project" ? P.selected : null), "lib-mini");
-    const wizard = tool("IPC wizard", "IPC-7351B footprint wizard", () => openWizard(P.ctx));
-    tools.append(tool("New symbol", "New symbol", () => openSymbolEditor(P.ctx, null)), tool("New footprint", "New footprint", () => openFootprintEditor(P.ctx, null)), wizard, manage,
-      tool("Check…", "Check library: missing 3D models, pins without pads, duplicates", () => checkLibrary(P.ctx, P.lib)),
-      tool("Catalogue…", "Component catalogue: place a part, or start the symbol editor or the IPC wizard", () => P.ctx.showCatalogue ? P.ctx.showCatalogue() : P.ctx.info?.("The catalogue is unavailable here.")));
-    const notice = el("p", null, "lib-notice"); notice.hidden = true; notice.setAttribute("role", "status");
-    const search = el("input", null, "ui-field"); search.type = "search"; search.placeholder = "Search families, components, packages…";
-    search.setAttribute("aria-label", "Search the library"); search.spellcheck = false;
-    const chips = el("div", null, "lib-chips");
-    for (const [k, t] of [["all", "All"], ["symbol", "Symbols"], ["footprint", "Footprints"], ["used", "Placed"], ["unused", "Unused"], ["issues", "Issues"]]) {
-      const b = ui.button(t, () => { P.filter = k; P.selected = null; render(); }, "lib-chip"); b.dataset.filter = k; chips.append(b);
-    }
-    const list = el("div", null, "lib-list"); list.setAttribute("role", "group"); list.setAttribute("aria-label", "Library components"); list.tabIndex = 0;
-    const detail = el("div", null, "lib-detail");
-    const gateBar = el("div", null, "lib-gate"); gateBar.hidden = true;
-    const sourceSel = el("select", null, "lib-source ui-field"); sourceSel.setAttribute("aria-label", "Library source"); sourceSel.title = "Show this project's components or a library file";
-    P.source = "project";
-    sourceSel.onchange = () => {
-      const v = sourceSel.value;
-      if (v === "@open") { sourceSel.value = P.source; openLibraryFile(P.ctx).then(lib => { if (lib) { P.source = lib.id; P.selected = null; render(); } }); return; }
-      if (v === "@group") {
-        sourceSel.value = P.source;
-        groupUI(u => u.dialog(P.ctx, P.lib?.kind === "group" ? P.lib.id : null, {
-          onChoose: id => { if (id) { P.source = id; P.selected = null; } render(); }
-        }));
-        return;
-      }
-      if (v === "@manage") { sourceSel.value = P.source; manageLibraries(P.ctx, () => render()); return; }
-      if (v === "@folder" || v === "@import" || v === "@kicad") {
-        sourceSel.value = P.source;
-        const selectSource = id => { if (id && P.source !== id) { P.source = id; P.selected = null; } render(); };
-        folderUI(ui => ui[{"@folder": "addFolder", "@import": "importFiles", "@kicad": "getKiCad"}[v]](P.ctx,
-          {started: selectSource, done: v === "@import" ? selectSource : () => render()}));
-        return;
-      }
-      cancelIntent(); P.source = v; P.selected = null; render();
-      if (P.lib?.unopened) folderUI(u => u.restore([P.lib.folder]));
-    };
-    const body = el("div", null, "lib-panel-body"); body.append(tools, sourceSel, notice, AtriumUI.searchField(search), chips, gateBar, list, detail);
-    node.append(head, body);
-    const components = host.querySelector(".panel-components");
-    if (components) components.after(node); else host.append(node);
-    P.node = node;
-    const project = () => P.ctx.currentProject ? P.ctx.currentProject() : P.ctx.project;
-    const visible = () => node.isConnected && !node.hidden && document.visibilityState !== "hidden" &&
-      globalThis.AtriumPower?.visible?.() !== false &&
-      (node.checkVisibility?.() ?? (!node.closest("[hidden], .dock-inactive") && (node.getClientRects?.().length ?? 1) > 0));
-    let checkTimer = 0, tick = 0, showing = false, needsRender = true, focusOnShow = false, intent = 0;
-    function cancelIntent() { intent++; P.detailRead = null; P.detailBody = null; }
-    function guard(lib, placement = false) {
-      const token = intent, owner = project(), rev = P.ctx.revision?.(), nav = globalThis.AtriumNavHost;
-      const doc = nav?.doc?.() || P.ctx.doc, selected = P.selected, source = P.source;
-      const camera = () => JSON.stringify(nav?.view?.()?.camera?.());
-      const before = placement && camera();
-      return () => token === intent && visible() && project() === owner && P.source === source && P.selected === selected &&
-        (!lib || P.lib === lib || source === "project") &&
-        (lib?.kind !== "folder" || globalThis.AtriumLibrarySources?.library(lib.folder) === lib) &&
-        (!placement || rev === P.ctx.revision?.() && doc === (nav?.doc?.() || P.ctx.doc) && before === camera());
-    }
-    function select(id, row = null) {
-      if (P.selected === id) return;
-      const previous = list.querySelector(".lib-row[aria-pressed=true]");
-      cancelIntent(); P.selected = id;
-      if (previous) markSelected(previous);
-      if (row) markSelected(row);
-      render(false);
-    }
-    function row(def, used, issues, variant) {
-      const r = ui.button(null, () => select(def.id, r), "lib-row");
-      // The experimental file-drop receiver keeps the system drag; otherwise the part itself follows the pointer.
-      r.dataset.def = def.id; r.draggable = dropReceiver();
-      markSelected(r);
-      const pics = globalThis.AtriumCatalogue?.rowIcons(def) || el("span");
-      const f = facts(def), text = el("span", null, "lib-text");
-      const name = el("strong", variant?.label || def.name); name.title = name.textContent;
-      const meta = [f.prefix && f.prefix + "?", f.pkg, f.pins ? f.pins + " pins" : "", !f.pins && f.pads ? f.pads + " pads" : ""].filter(Boolean).join(" · ");
-      const description = variant ? variant.description || [f.pins ? f.pins + " pins" : "", f.pads ? f.pads + " pads" : ""].filter(Boolean).join(" · ") : meta || def.category || "";
-      const subtitle = el("small", description); subtitle.title = description;
-      text.append(name, subtitle);
-      if (variant) text.append(el("span", variant.context, "visually-hidden"));
-      const badges = el("span", null, "lib-badges");
-      // Library counts and badges (docs/ui-library.md › Badges): placements, issues and the library state.
-      const mark = (cls, text, title, tone) => { const n = el("span", text, cls); n.title = title; if (tone) n.dataset.tone = tone; badges.append(n); };
-      if (used) mark("ui-count lib-badge", "×" + used, "Placed " + used + " time(s)");
-      if (issues) mark("ui-count lib-badge", "!", issues + " issue(s)", "warning");
-      const st = P.lib ? null : statusOf(def);
-      if (st) mark("ui-badge lib-badge lib-state-" + st.state, STATE_MARK[st.state], stateText(st), STATE_TONE[st.state]);
-      r.append(pics, text, badges);
-      r.ondblclick = () => placeEntry(P.lib, def);
-      r.addEventListener("pointerdown", e => dragPlace(e, def, r));
-      r.ondragstart = e => {
-        const lib=P.lib, drop=globalThis.AtriumDropEditor;
-        drop?.offer(e,{kind:"library-part",id:def.id},lib ? async signal=>{
-          const full=def.stub ? await globalThis.AtriumLibrarySources.load(lib,def.id) : def;
-          return signal.aborted ? null : {lib,def:full};
-        } : null);
-        e.dataTransfer.effectAllowed = "copy";
-        select(def.id, r);
-        globalThis.AtriumSpatialMotion?.lift(r);
-      };
-      r.ondragend = () => globalThis.AtriumSpatialMotion?.settle(r);
-      return r;
-    }
-    function markSelected(row) {
-      const selected = row.dataset.def === P.selected;
-      row.setAttribute("aria-pressed", String(selected)); row.tabIndex = selected ? 0 : -1;
-    }
-    const folderLibs = () => globalThis.AtriumLibrarySources?.libraries() || [];
-    const libs = () => [...sourceStore.sources(), ...folderLibs(), ...(globalThis.AtriumGroupLocal?.libraries() || [])];
-    function renderSources(list) {
-      if (P.source !== "project" && !list.some(l => l.id === P.source)) {
-        P.source = list.find(l => l.folder && l.folder === P.lib?.folder)?.id || "project";
-      }
-      const count = project().library.filter(d => !d.mirrorOf).length;
-      const signature = JSON.stringify([count, ...list.map(l => [l.id, l.name, l.kind, l.defs.length, !!l.modified])]);
-      if (P.sourceMenu === signature) { sourceSel.value = P.source; return; }
-      P.sourceMenu = signature;
-      sourceSel.replaceChildren(new Option("This project (" + count + ")", "project"));
-      for (const l of list) sourceSel.add(new Option(l.name + " (" + l.defs.length + ")" + (l.kind === "folder" ? " · folder" : l.kind === "group" ? " · group" : "") + (l.modified ? " •" : ""), l.id));
-      sourceSel.add(new Option("Group library…", "@group"));
-      sourceSel.add(new Option("Open library file…", "@open")); sourceSel.add(new Option("Add library folder…", "@folder"));
-      sourceSel.add(new Option("Import library files…", "@import")); sourceSel.add(new Option("Get KiCad libraries…", "@kicad")); sourceSel.add(new Option("Library sources…", "@manage"));
-      sourceSel.value = P.source;
-    }
-    const undo = () => globalThis.AtriumUndoStore;
-    const versions = p => undo()?.documentVersions?.(p.documents[0], p);
-    // Keep exact part-to-definition assignments per document, including removals and retargets.
-    function placements(p, v) {
-      const old = P.placements, U = undo();
-      const reuse = old && old.project === p && v && old.v && v.floor === old.v.floor;
-      if (reuse && v.assembly === old.v.assembly && v.library === old.v.library && v.project === old.v.project) {
-        old.v = v; return old;
-      }
-      const byDoc = reuse ? old.byDoc : new Map(), direct = reuse ? old.direct : new Map();
-      const bump = (id, n) => { if (id) direct.set(id, (direct.get(id) || 0) + n); };
-      for (const doc of p.documents) {
-        let parts = byDoc.get(doc);
-        const diff = reuse && parts && U.recordedChanges(doc, old.v.seq);
-        if (diff?.ids) {
-          for (const id of diff.ids) {
-            const before = parts.get(id), item = diff.items.get(id), after = item?.kind === "part" ? item.def : null;
-            if (before === after) continue;
-            if (before) { bump(before, -1); parts.delete(id); }
-            if (after) { bump(after, 1); parts.set(id, after); }
-          }
-        } else {
-          if (parts) for (const id of parts.values()) bump(id, -1);
-          byDoc.set(doc, parts = new Map());
-          for (const item of doc.items) if (item.kind === "part") { bump(item.def, 1); parts.set(item.id, item.def); }
-        }
-      }
-      const counts = new Map(direct);
-      for (const def of p.library) if (def.mirrorOf && direct.get(def.id)) counts.set(def.mirrorOf, (counts.get(def.mirrorOf) || 0) + direct.get(def.id));
-      const used = new Set([...counts].filter(([, n]) => n).map(([id]) => id));
-      for (const variant of Array.isArray(p.variants) ? p.variants : []) for (const value of Object.values(variant.parts || {})) if (value?.alternate?.def) used.add(value.alternate.def);
-      return P.placements = {project: p, v, byDoc, direct, counts, used};
-    }
-    function filtered(owner, members) {
-      const lib = owner.defs || owner.library, C = globalThis.AtriumCatalogue, k = P.filter, p = project();
-      const usedSourceIds = P.lib && (k === "used" || k === "unused")
-        ? new Set(p.library.filter(d => sameLibrary(P.lib, d.libraryRef) && P.placements.used.has(d.id)).map(d => sourceEntry(P.lib, d.libraryRef)?.id || d.libraryRef.id))
-        : null;
-      const accept = ({symbol: d => !!d.symbol, footprint: d => !!d.footprint,
-        used: d => usedSourceIds ? usedSourceIds.has(d.id) : P.placements.used.has(d.id),
-        unused: d => usedSourceIds ? !usedSourceIds.has(d.id) : !P.placements.used.has(d.id),
-        issues: d => { if (d.stub) return false; const v = cachedValidate(d); return !v.ok || v.warnings.length; }})[k];
-      let res, indexed = false;
-      if (C && owner.search) {
-        indexed = true;
-        const state = C.state("panel");
-        res = C.queryPrepared(lib, owner.search, search.value, {accept, state: state.facets,
-          limit: 400, counts: !state.folded.has("@all")});
-      } else {
-        let defs = C ? lib : search.value.trim() ? AtriumLibrary.search(lib, search.value) : lib.filter(d => !d.mirrorOf);
-        if (accept) defs = defs.filter(accept);
-        if (!C) {
-          globalThis.AtriumLazy?.need("AtriumCatalogue").then(() => { if (!node.hidden && node.isConnected) render(); }, () => {});
-          return {items: members?.size ? [] : defs, matching: members?.size ? 0 : defs.length};
-        }
-        const placed = P.placements.used;
-        res = C.query(defs, search.value, {ids: new Set(lib.map(d => d.id)), keep: d => !P.lib && placed.has(d.id), state: C.state("panel").facets, members});
-      }
-      const matching = res.matching ?? res.items.length;
-      if (!P.facetBox?.isConnected) { P.facetBox = el("div", null, "cat-facet-box"); list.before(P.facetBox); }
-      C.facetsUI(P.facetBox, "panel", res.counts, () => { P.selected = null; render(); }, {compact: true, deferCounts: indexed, total: matching});
-      return {items: res.items, matching};
-    }
-    function render(full = true) {
-      if (!visible()) { needsRender = true; return; }
-      const p = project();
-      if (full || needsRender) {
-        if (P.lastProject !== p) { cancelIntent(); P.lastProject = p; P.selected = null; }
-        needsRender = false; P.lastRevision = P.ctx.revision?.() ?? 0; P.lastLibrary = p.library;
-        P.versions = versions(p); P.familyVersion = undo()?.familyVersion?.(); placements(p, P.versions);
-        const sources = libs();
-        if (!P.libraries || sources.length !== P.libraries.length || sources.some((s, i) => s !== P.libraries[i])) P.libraries = sources;
-        renderSources(P.libraries);
-        P.lib = P.source === "project" ? null : P.libraries.find(l => l.id === P.source) || null;
-        manage.hidden = !!P.lib;
-        const owner = P.lib || p;
-        P.members = owner.search?.members || globalThis.AtriumComponentFamilies?.memberships(owner);
-        for (const b of chips.children) b.setAttribute("aria-pressed", String(b.dataset.filter === P.filter));
-        const {items: defs, matching} = filtered(owner, P.members);
-        const shown = defs.slice(0, 400);
-        if (P.selected && !shown.some(d => d.id === P.selected)) P.selected = null;
-        const C = globalThis.AtriumCatalogue;
-        const treeKey = JSON.stringify([P.source, !!C, !!search.value.trim(), matching, shown.map(d => {
-          const m = P.members?.get(d.id), rec = C?.record(d);
-          return [d.id, rec?.group, rec?.cat, m?.id, m?.name, m?.part, m ? d.footprint?.name : null];
-        })]);
-        P.shown = new Map(shown.map(d => [d.id, d]));
-        const one = (original, variant) => {
-          const def = P.shown.get(original.id) || original, used = P.lib ? 0 : P.placements.counts.get(def.id) || 0;
-          const version = undo()?.definitionVersion?.(def);
-          const state = P.lib ? null : statusOf(def);
-          const status = state ? stateText(state) : "", errors = !def.stub && (def.footprint || def.symbol) ? cachedValidate(def).errors.length : 0;
-          const prior = P.rows.get(def.id);
-          if (prior && prior.def === def && prior.version === version && prior.used === used && prior.status === status && prior.errors === errors) return prior.node;
-          const node = row(def, used, errors, variant);
-          P.rows.set(def.id, {node, def, version, status, used, errors, variant});
-          return node;
-        };
-        if (P.treeKey === treeKey && P.treeProject === p) {
-          // Preserve disclosure state, focus and the scroll anchor for stable rows.
-          for (const [id, prior] of P.rows) {
-            const next = one(P.shown.get(id), prior.variant);
-            if (next !== prior.node) {
-              const focused = document.activeElement === prior.node;
-              prior.node.replaceWith(next); if (focused) next.focus({preventScroll: true});
-            }
-          }
-        } else {
-          const choice = [P.source, P.filter, search.value].join("\0");
-          const motion = P.treeProject === p && P.treeChoice === choice && !P.lib?.scan && !search.value.trim()
-            ? globalThis.AtriumSpatialMotion : null;
-          const rebuild = () => {
-            P.treeKey = treeKey; P.treeProject = p; P.rows = new Map(); list.replaceChildren();
-            if (C) C.componentTree(list, shown, one,
-              {key: "panel", scope: p, source: P.source, owner, members: P.members, reveal: P.selected, open: !!search.value.trim(), onGroup: () => select(null)});
-            else for (const def of shown) list.append(one(def));
-            if (matching > 400) list.append(el("p", (matching - 400) + " more — refine the search.", "side-note"));
-            if (!defs.length) list.append(el("p", P.lib?.scan ? "More components will appear as indexing continues." :
-              !C && P.members?.size ? "Loading component library…" :
-              (P.lib?.defs || p.library).length ? "No matching components." : "The library is empty.", "side-note"));
-          };
-          if (motion) motion.layout(list, ".lib-row[data-def]", row => row.dataset.def, rebuild); else rebuild();
-          P.treeChoice = choice;
-        }
-        renderNotice();
-      }
-      P.lastSel = (P.ctx.selection?.() || []).join(",");
-      renderDetail(); renderGate();
-    }
-    function detailActions() {
-      const acts = el("div", null, "lib-detail-actions");
-      return {acts, act(text, title, fn, disabled, key) {
-        const b = ui.button(text, fn, "lib-mini");
-        if (key) ui.shortcut(b, title, key, " from a component row");
-        else b.title = title;
-        b.disabled = !!disabled;
-        acts.append(b);
-        return b;
-      }};
-    }
-    function renderDetail() {
-      globalThis.AtriumCatalogue?.cancelPreview(detail);
-      detail.replaceChildren();
-      if (P.lib) { libraryDetail(P.lib); return; }
-      const def = project().library.find(d => d.id === P.selected);
-      if (!def) { detail.append(el("p", "Select a component. Drag it onto the sheet or board to place it.", "side-note")); return; }
-      const used = usage(project(), def.id), v = cachedValidate(def), family = P.members?.get(def.id);
-      const title = el("div", null, "lib-detail-title"); title.append(el("strong", def.name), el("small", (def.prefix || "") + (def.value ? " · " + def.value : "")));
-      if (family) title.append(el("small", family.name + " › " + family.part));
-      detail.append(title);
-      globalThis.AtriumCatalogue?.preview(detail, def, {title: false, params: false, pins: true});
-      const {acts, act} = detailActions(), kind = currentKind();
-      act("Place on sheet", "Place the symbol", () => place(def, "schematic"), !def.symbol, kind === "schematic" && def.symbol ? "Enter" : "");
-      act("Place on board", "Place the footprint", () => place(def, "pcb"), !def.footprint, kind === "pcb" && def.footprint ? "Enter" : "");
-      act(def.symbol ? "Edit symbol" : "Create symbol", "Graphical symbol editor", () => editSelected(def.id, "schematic"), false, "E");
-      act(def.footprint ? "Edit footprint" : "Create footprint", "Graphical footprint editor", () => editSelected(def.id, "pcb"), false, "Shift+E");
-      if (globalThis.AtriumLibraryFamiliesUI) {
-        const openAttach = variant => {
-          const live = project().library.find(d => d.id === def.id);
-          if (live) AtriumLibraryFamiliesUI.attach(P.ctx, live, {variant, done: id => { P.selected = id; render(); }});
-        };
-        if (def.symbol && def.footprint) act("Add package…", "Create another package for this chip using an existing footprint", () => openAttach(true));
-        else if (def.symbol || def.footprint) {
-          const other = def.symbol ? "footprint" : "symbol";
-          act("Attach " + other + "…", "Use an existing " + other + " from this project's library", () => openAttach(false));
-        }
-        act(family ? "Edit family…" : "Group component…", "Manage this component's family and chip", () => manageFamilies(def.id));
-      }
-      if (def.footprint?.wizard) act("Wizard", "Re-open in the IPC footprint wizard", () => openWizard(P.ctx, def));
-      act("Duplicate", "Duplicate", () => run(() => { const c = duplicate(project(), def); P.selected = c.id; }, "Duplicated " + def.name), false, "Mod+D");
-      const older = similar(project(), def);
-      act("Update parts", "Re-sync placed parts with this definition" + (older.length ? "; choose which of " + older.length + " linked older copies to retarget" : ""), () => {
-        const go = ids => run(() => {
-          const r = updateParts(project(), def, {sources: ids});
-          P.ctx.info?.("Updated " + r.parts + " part(s): " + r.retargeted + " retargeted, " + r.rewired + " wire end(s) followed moved pins, " + (r.stubs ? r.stubs + " stub(s) kept connections, " : "") +
-            r.dropped + " stale pin net(s) cleared" + (r.disconnected.length ? " · ⚠ now unconnected: " + r.disconnected.slice(0, 8).join(", ") : "") + ".");
-        }, null);
-        if (!older.length) { go([]); return; }
-        chooseCopies(def, older, go);
-      });
-      const status = libraryStatus(def, P.libraries, project());
-      if (status?.src && !status.same) act(status.pending ? "Compare with library…" : status.libraryChanged ? "Update from library •" : "Update from library",
-        status.pending ? "Read this revision and compare the project copy" : stateText(status) + ". Review the symbol and pad overlays first",
-        () => reviewUpdates([{def, lib: status.lib, src: status.src}]));
-      act("Save to library…", "Store this definition in a library file (shows the differences first)", () => saveToLibraryDialog(P.ctx, def, () => render()));
-      if (globalThis.AtriumHost?.chooseLibraryFolder || globalThis.showDirectoryPicker) {
-        act("Save to folder…", "Save this component to a library folder", () => folderUI(u => u.saveToFolder(P.ctx, def, () => render())));
-      }
-      act("Delete", used.length ? "Placed " + used.length + " time(s): delete or replace those parts first" : "Delete", () => {
-        try { run(() => remove(project(), def.id), def.name + " deleted"); P.selected = null; } catch (e) { P.ctx.info?.(e.message); }
-      }, used.length > 0, used.length ? "" : "Backspace").dataset.variant = "danger";
-      detail.append(acts);
-      const dl = el("dl", null, "lib-facts");
-      const f = facts(def);
-      const add = (k, val) => { if (val === "" || val == null) return; dl.append(el("dt", k), el("dd", String(val))); };
-      add("Footprint", f.pkg); add("Pins / pads", (f.pins || "–") + " / " + (f.pads || "–")); add("Height", f.height ? f.height + " mm" : "");
-      add("Placed", used.length ? [...new Set(used.map(u => u.item.ref))].slice(0, 10).join(", ") : "not placed");
-      if (def.symbol?.parts > 1) add("Gates", def.symbol.parts + (def.symbol.alternate ? " + De Morgan" : ""));
-      for (const [k, val] of Object.entries(f.params).slice(0, 12)) add(k, val);
-      detail.append(dl);
-      for (const e of v.errors) detail.append(el("p", e, "lib-error"));
-      for (const w of v.warnings.slice(0, 5)) detail.append(el("p", w, "lib-warning"));
-    }
-    function libraryDetail(lib) {
-      const row = P.selected && sourceEntry(lib, {id: P.selected});
-      const def = P.detailBody?.row === row && P.detailBody.lib === lib ? P.detailBody.def : row;
-      const head = el("div", null, "lib-detail-title"); head.append(el("strong", lib.name), el("small", (lib.kind === "group" ? "Local group copy" : lib.path || "library file") + " · " + lib.defs.length + " components"));
-      if (lib.kind === "group") detail.append(ui.button("Group library…", () => groupUI(u => u.dialog(P.ctx, lib.id)), "lib-mini"));
-      if (!def) {
-        detail.append(head);
-        if (lib.kind === "folder") folderUI(u => u.folderDetail(P.ctx, detail, lib, {done: () => render()}));
-        detail.append(el("p", "Select a library component to add it to the project or place it.", "side-note")); return;
-      }
-      if (def.stub) {
-        detail.append(el("div", null, "lib-detail-title"), el("p", "Reading " + def.name + "…", "side-note"));
-        detail.firstChild.append(el("strong", def.name), el("small", lib.name));
-        if (P.detailRead?.row !== row || P.detailRead.lib !== lib) {
-          const current = guard(lib), request = P.detailRead = {row, lib};
-          globalThis.AtriumLibrarySources.load(lib, def.id).then(full => {
-            if (P.detailRead !== request || !current()) return;
-            P.detailRead = null; P.detailBody = {row, lib, def: full}; renderDetail();
-          }, e => {
-            if (P.detailRead !== request || !current()) return;
-            P.detailRead = null; detail.lastChild.textContent = e.message; detail.lastChild.className = "lib-error";
-          });
-        }
-        return;
-      }
-      const title = el("div", null, "lib-detail-title"), family = P.members?.get(def.id);
-      title.append(el("strong", def.name), el("small", lib.name + (def.value ? " · " + def.value : "")));
-      if (family) title.append(el("small", family.name + " › " + family.part));
-      detail.append(title);
-      globalThis.AtriumCatalogue?.preview(detail, def, {title: false, params: false, pins: true});
-      const {acts, act} = detailActions(), kind = currentKind();
-      const linked = project().library.filter(d => linksEntry(lib, d.libraryRef, def.id));
-      act("Add to project", linked.length ? "Already in the project" : "Copy into this project's library", () => ensureFromSource(lib, def), linked.length > 0);
-      act("Place on sheet", "Add to the project if needed and place the symbol", () => placeFromSource(lib, def, "schematic"), !def.symbol, kind === "schematic" && def.symbol ? "Enter" : "");
-      act("Place on board", "Add to the project if needed and place the footprint", () => placeFromSource(lib, def, "pcb"), !def.footprint, kind === "pcb" && def.footprint ? "Enter" : "");
-      if (linked[0]) {
-        const changes = diffDefs(linked[0], def);
-        if (!changes.length && !libraryStatus(linked[0], [lib], project())?.same) changes.push("Component metadata changed");
-        act(changes.length ? "Update project (" + changes.length + ")" : "Up to date", "Show the differences and update the project's copy",
-          () => reviewUpdates([{def: linked[0], lib, src: def}]), !changes.length);
-      }
-      detail.append(acts);
-      const dl = el("dl", null, "lib-facts"), f = facts(def);
-      const add = (k, val) => { if (val === "" || val == null) return; dl.append(el("dt", k), el("dd", String(val))); };
-      add("Footprint", f.pkg); add("Pins / pads", (f.pins || "–") + " / " + (f.pads || "–")); add("In project", linked.length ? "yes" : "no");
-      for (const [k, val] of Object.entries(f.params).slice(0, 12)) add(k, val);
-      detail.append(dl);
-    }
-    // Gate and De Morgan switch for a selected multi-gate part.
-    function renderGate() {
-      gateBar.replaceChildren(); gateBar.hidden = true;
-      const ids = P.ctx.selection?.() || [];
-      if (ids.length !== 1) return;
-      const p = project();
-      let item = null;
-      for (const d of p.documents) { item = d.items.find(i => i.id === ids[0]); if (item) break; }
-      const def = item?.kind === "part" && p.library.find(d => d.id === item.def);
-      const sym = def?.symbol;
-      if (!sym || !((sym.parts || 1) > 1 || sym.alternate)) return;
-      gateBar.hidden = false;
-      gateBar.append(el("span", item.ref + " gate"));
-      for (let g = 1; g <= (sym.parts || 1); g++) {
-        const b = ui.button(String.fromCharCode(64 + g), () => run(() => { item.unit = g; delete item.part; }, item.ref + " now shows gate " + String.fromCharCode(64 + g)), "lib-chip");
-        b.setAttribute("aria-pressed", String((item.unit || item.part || 1) === g)); gateBar.append(b);
-      }
-      if (sym.alternate) { const b = ui.button("De Morgan", () => run(() => { item.alt = !item.alt; if (!item.alt) delete item.alt; }, null), "lib-chip"); b.setAttribute("aria-pressed", String(!!item.alt)); gateBar.append(b); }
-    }
-    // Library status of project copies, once per full render (hashes only, no geometry walk).
-    function statusOf(def) {
-      if (!def.libraryRef || !P.libraries) return null;
-      const version = undo()?.definitionVersion?.(def), lib = P.libraries.find(l => l.id === def.libraryRef.library && (!def.libraryRef.groupRevision || l.kind === "group"));
-      const source = lib ? sourceEntry(lib, def.libraryRef) : null;
-      const key = lib?.kind === "group" ? lib.revisionKeys.get(def.libraryRef.id) : source;
-      const cache = P.statusCache ||= new WeakMap(), old = cache.get(def);
-      if (old && old.version === version && old.key === key && old.lib === lib &&
-          (lib || old.registry === P.libraries)) return old.result;
-      const s = libraryStatus(def, P.libraries, project());
-      const result = !s || s.pending || s.state === "current" ? null : s.missing ? {state: "missing", ref: def.libraryRef} : s;
-      cache.set(def, {version, lib, key, registry: P.libraries, result});
-      return result;
-    }
-    function renderNotice() {
-      const focusStop = notice.contains(document.activeElement) && document.activeElement?.tagName === "BUTTON";
-      notice.replaceChildren(); notice.hidden = true;
-      if (P.lib) {
-        if (P.lib.kind === "folder") globalThis.AtriumLibrarySourcesUI?.sourceNotice(notice, P.lib, focusStop);
-        return;
-      }
-      const due = project().library.filter(d => !d.mirrorOf && ["update", "diverged"].includes(statusOf(d)?.state));
-      if (!due.length) return;
-      notice.hidden = false;
-      notice.append(el("span", due.length + " component" + (due.length === 1 ? " has a library update" : "s have library updates") + " · "),
-        ui.button("Review…", () => reviewUpdates(due.map(d => { const s = statusOf(d); return {def: d, lib: s.lib, src: s.src}; })), "lib-mini"));
-    }
-    async function reviewUpdates(entries) {
-      if (!globalThis.AtriumLibraryDiff) { P.ctx.info?.("The library review is unavailable in this build."); return; }
-      const current = guard(null), p = project(), rev = P.ctx.revision?.(), ready = [];
-      const isCurrent = () => current() && rev === P.ctx.revision?.() && entries.every(e => {
-        const live = libs().find(l => l.id === e.lib.id && l.kind === e.lib.kind);
-        if (e.lib.kind === "group") return live?.revisionKeys?.get(e.src.id) === e.lib.revisionKeys?.get(e.src.id);
-        return e.lib === live;
-      });
-      try {
-        for (const e of entries) {
-          if (!isCurrent()) return;
-          const full = e.src.stub ? await globalThis.AtriumLibrarySources.load(e.lib, e.src.id) : e.src;
-          if (!isCurrent()) return;
-          if (!libraryStatus(e.def, [e.lib], p)?.same) ready.push({...e, src: full});
-        }
-        AtriumLibraryDiff.review(P.ctx, ready, {current: isCurrent, done: () => render()});
-      } catch (e) { if (current()) P.ctx.info?.(e.message); }
-    }
-    function run(fn, message) { try { P.ctx.edit(fn); if (message) P.ctx.info?.(message); render(); } catch (e) { P.ctx.info?.(e.message); } }
-    const dropReceiver = () => globalThis.AtriumPrefs?.get("butter.drop") === true;
-    // Double-click, Enter and drag place; E edits. A library-file entry joins the project first.
-    const kindFor = def => currentKind() === "pcb" && def.footprint ? "pcb" : def.symbol ? "schematic" : "pcb";
-    function placeEntry(lib, def, kind = kindFor(def)) { if (lib) placeFromSource(lib, def, kind); else place(def, kind); }
-    // Drag a row onto the canvas: placement starts when the pointer reaches it, so the real part follows the
-    // pointer (Space rotates, X/Y mirror) and the release places it. Releasing elsewhere cancels, including the
-    // project entry a library-file component got for the placement.
-    function dragPlace(e, def, r) {
-      if (e.button !== 0 || e.pointerType === "touch" || r.draggable) return;
-      const host = globalThis.AtriumNavHost, lib = P.lib, id = e.pointerId, start = [e.clientX, e.clientY];
-      let lifted = false, placing = false, full = null, at = null, added = null;
-      const onCanvas = ev => !!host?.canvas?.() && document.elementFromPoint(ev.clientX, ev.clientY) === host.canvas();
-      const listen = on => { for (const [type, fn] of [["pointermove", move], ["pointerup", up], ["pointercancel", cancel], ["keydown", key]]) (on ? addEventListener : removeEventListener)(type, fn, true); };
-      const end = () => { listen(false); lifted && globalThis.AtriumSpatialMotion?.settle(r); lifted = false; };
-      function begin(activate = false) {
-        if (placing || !full || !at || !host.canvasAt?.(at[0], at[1], activate)) return false;
-        placing = true;
-        const before = host.revision();
-        placeEntry(lib, full, currentKind());
-        if (host.revision() !== before) added = host.revision();
-        return true;
-      }
-      function abandon() {
-        if (placing && host.placing?.()) host.act("select");
-        if (added != null && host.revision() === added) host.act("undo");
-      }
-      function move(ev) {
-        if (ev.pointerId !== id) return;
-        if (!lifted) {
-          if (Math.hypot(ev.clientX - start[0], ev.clientY - start[1]) < 4) return;
-          lifted = true; select(def.id, r); globalThis.AtriumSpatialMotion?.lift(r);
-          // A library-file entry may still be a stub: load it now so placement can start on arrival.
-          const ready = lib && def.stub ? globalThis.AtriumLibrarySources.load(lib, def.id) : Promise.resolve(def);
-          ready.then(d => { if (lifted) { full = d; begin(); } }, error => { end(); P.ctx.info?.(error.message); });
-        }
-        at = [ev.clientX, ev.clientY];
-        if (!placing) begin();
-      }
-      function up(ev) {
-        if (ev.pointerId !== id) return;
-        end();
-        if (placing && !host.placing?.()) return abandon(); // Escape during the drag cancelled it
-        if (placing && onCanvas(ev)) return void host.placeAt(ev.clientX, ev.clientY);
-        // Released over another split pane (or nowhere): that pane becomes active and the part lands there.
-        abandon(); placing = false; added = null; at = [ev.clientX, ev.clientY];
-        if (begin(true) && host.placing?.()) host.placeAt(ev.clientX, ev.clientY);
-      }
-      function cancel(ev) { if (ev.pointerId === id) { end(); abandon(); } }
-      function key(ev) { if (ev.key === "Escape" && !placing) end(); }
-      listen(true);
-    }
-    function place(def, kind) { if (P.ctx.placeDef) P.ctx.placeDef(def, kind); else P.ctx.info?.("Placement is unavailable in this build."); }
-    function editSelected(id, kind) {
-      const def = project().library.find(d => d.id === id);
-      if (def && !P.lib) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? openFootprintEditor : openSymbolEditor)(P.ctx, def);
-    }
-    function manageFamilies(initial) {
-      globalThis.AtriumLibraryFamiliesUI?.manage(P.ctx, {initial, done: id => { P.selected = id; render(); }});
-    }
-    function ensureFromSource(lib, def) {
-      if (def.stub) {
-        const current = guard(lib, true);
-        globalThis.AtriumLibrarySources.load(lib, def.id).then(full => { if (current()) ensureFromSource(lib, full); }, e => { if (current()) P.ctx.info?.(e.message); });
-        return null;
-      }
-      const p = project(), linked = p.library.find(d => linksEntry(lib, d.libraryRef, def.id));
-      if (linked) return linked;
-      let exact;
-      run(() => { exact = addFromLibrary(lib, def, p); }, def.name + " added to the project from " + lib.name);
-      return exact;
-    }
-    function placeFromSource(lib, def, kind) {
-      if (def.stub) {
-        const current = guard(lib, true);
-        globalThis.AtriumLibrarySources.load(lib, def.id).then(full => { if (current()) placeFromSource(lib, full, kind); }, e => { if (current()) P.ctx.info?.(e.message); });
-        return;
-      }
-      if (!A.geometries(def, kind)) return;
-      const exact = ensureFromSource(lib, def);
-      if (exact) place(exact, kind);
-    }
-    const documentKind = () => P.ctx.documentKind?.() || P.ctx.doc?.kind || "schematic";
-    const currentKind = () => documentKind() === "pcb" ? "pcb" : "schematic";
-    let hintsKind;
-    function updateToolHints() {
-      hintsKind = documentKind();
-      const hint = (button, action, text) => ui.shortcut(button, text, AtriumKeymap.hintKey(action, hintsKind), " from the design canvas");
-      hint(close, "library-panel", "Close the Library panel");
-      hint(wizard, "footprint-wizard", "IPC-7351B footprint wizard");
-    }
-    const offKeys = AtriumKeymap.onChange(() => { if (visible()) updateToolHints(); });
-    const visibleRows = () => globalThis.AtriumCatalogue?.visibleRows(list) || [...list.querySelectorAll(".lib-row")];
-    function focusRow(row) {
-      if (row?.matches(".lib-row")) select(row.dataset.def, row);
-      row?.focus(); row?.scrollIntoView?.({block: "nearest"});
-    }
-    search.oninput = () => { cancelIntent(); P.selected = null; render(); };
-    node.addEventListener("keydown", e => {
-      if (e.key === "Escape") { cancelIntent(); select(null); return; }
-      if (e.key !== "Tab" || e.metaKey || e.ctrlKey || e.altKey) return;
-      const first = detail.querySelector(".cat-pv-pins > summary, .lib-detail-actions button:not(:disabled)");
-      const selected = visibleRows().find(r => r.dataset.def === P.selected && r.closest(".cat-family-packages"));
-      if (!first || !selected) return;
-      const [from, to] = e.shiftKey ? [first, selected] : [selected, first];
-      if (e.target === from) { e.preventDefault(); to.focus(); }
-    });
-    list.addEventListener("keydown", e => {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        const rows = visibleRows(), index = e.target === list ? rows.findIndex(r => r.dataset.def === P.selected) : rows.indexOf(e.target);
-        if (e.key === "ArrowUp" && index <= 0) search.focus();
-        else focusRow(rows[Math.min(rows.length - 1, index + (e.key === "ArrowDown" ? 1 : -1))]);
-        return;
-      }
-      if (e.target !== list && !e.target.matches(".lib-row")) return;
-      const id = e.target.dataset.def || P.selected;
-      if (e.target === list && !visibleRows().some(r => r.dataset.def === id)) return;
-      // A library-file view acts on the file's entries, never on a project def that shares an id.
-      const lib = P.lib;
-      if (lib) {
-        if (e.key === "Enter") { e.preventDefault(); const d = lib.defs.find(def => def.id === id); if (d) placeFromSource(lib, d, currentKind()); }
-        else if (e.key === "Delete" || e.key === "Backspace" || e.key === "e" || e.key === "E") { e.preventDefault(); P.ctx.info?.("Library file entries are read-only here. Add the component to the project to edit it."); }
-        return;
-      }
-      const def = project().library.find(d => d.id === id);
-      if (!def) return;
-      else if (e.key === "Enter") { e.preventDefault(); place(def, currentKind()); }
-      else if (e.key === "e" || e.key === "E") { e.preventDefault(); editSelected(id, e.shiftKey ? "pcb" : "schematic"); }
-      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") { e.preventDefault(); run(() => { P.selected = duplicate(project(), def).id; }, "Duplicated " + def.name); }
-      else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); try { run(() => remove(project(), def.id), def.name + " deleted"); } catch (err) { P.ctx.info?.(err.message); } }
-    });
-    search.addEventListener("keydown", e => { if (e.key === "ArrowDown") { e.preventDefault(); focusRow(visibleRows()[0] || list); } });
-    // Follow project edits made elsewhere (undo, imports, other panels) cheaply.
-    function check(forceHints = false) {
-      checkTimer = 0;
-      if (!visible()) return;
-      const rev = P.ctx.revision?.() ?? 0, p = project(), lib = p.library;
-      const sel = (P.ctx.selection?.() || []).join(",");
-      const contextChanged = hintsKind !== documentKind();
-      if (forceHints || contextChanged) updateToolHints();
-      const prev = P.versions, v = versions(p);
-      const sameScope = prev && v && prev.floor === v.floor && prev.library === v.library && prev.assembly === v.assembly &&
-        prev.project === v.project && P.familyVersion === undo()?.familyVersion?.();
-      if (needsRender || p !== P.lastProject || lib !== P.lastLibrary || rev !== P.lastRevision && !sameScope) render();
-      else {
-        P.lastRevision = rev;
-        if (v) P.versions = v;
-        if (contextChanged) renderDetail();
-        if (sel !== P.lastSel) { P.lastSel = sel; renderGate(); }
-      }
-    }
-    function scheduleCheck() { if (showing && !node.hidden && !checkTimer) checkTimer = setTimeout(check, 0); }
-    const N = globalThis.AtriumNavHost;
-    const offs = typeof N?.on === "function" ? ["change", "document", "selection"].map(t => N.on(t, scheduleCheck)) : null;
-    function stop() {
-      cancelIntent();
-      if (globalThis.AtriumCatalogue?.cancelPreview(detail)) needsRender = true;
-      clearTimeout(checkTimer); checkTimer = 0;
-      clearInterval(tick); tick = 0;
-    }
-    function visibilityChanged() {
-      if (!node.isConnected) { dispose(); return; }
-      const on = visible();
-      if (on && !P.groupRestored) {
-        P.groupRestored = true;
-        try { if (globalThis.localStorage?.getItem("atrium.group-library.v1")) groupUI(u => u.restore()); } catch { /* opened explicitly when storage is unavailable */ }
-      }
-      if (on !== showing) {
-        showing = on;
-        if (!on) { stop(); return; }
-        folderUI(u => { if (!visible()) return; render(); u.restore(P.lib?.folder ? [P.lib.folder] :
-          project().library.map(d => d.libraryRef?.library).filter(Boolean)); }, true);
-        check(true);
-        if (!offs) tick = setInterval(check, 500); // Hosts without editor events, while the panel is shown.
-      }
-      // The dock reveals a reopened tab after its hidden attribute changes.
-      if (on && focusOnShow) { focusOnShow = false; search.focus(); }
-    }
-    const resize = globalThis.ResizeObserver && new ResizeObserver(visibilityChanged);
-    resize?.observe(node);
-    const offPower = globalThis.AtriumPower?.onChange?.(visibilityChanged);
-    document.addEventListener("visibilitychange", visibilityChanged);
-    const sourceStorage = e => { if (e.key === SOURCES || e.key == null) render(); };
-    globalThis.addEventListener?.("storage", sourceStorage);
-    function dispose() {
-      stop();
-      resize?.disconnect(); offPower?.(); offKeys(); offs?.forEach(off => off?.()); P.folderSub?.(); P.groupSub?.();
-      document.removeEventListener("visibilitychange", visibilityChanged);
-      globalThis.removeEventListener?.("storage", sourceStorage);
-    }
-    P.reveal = (def, source) => {
-      P.source = source?.id || "project"; P.filter = "all"; search.value = def.name || def.id;
-      render(); select(def.id);
-      list.querySelector('[aria-pressed="true"]')?.scrollIntoView?.({block:"nearest"});
-    };
-    P.render = render; P.search = search; P.dispose = dispose;
-    P.folderProgress = id => { if (P.lib?.folder === id && visible()) renderNotice(); };
-    P.toggled = open => { focusOnShow = open; visibilityChanged(); };
-    P.focusSearch = () => { focusOnShow = true; visibilityChanged(); if (document.activeElement === search) search.select?.(); };
-    panel = P;
-    visibilityChanged();
-    return P;
+    if (!globalThis.AtriumLibraryDockUI) throw Error("Library panel UI module is not loaded.");
+    // mounted() runs before the first show, which can subscribe to folder and group changes through `panel`.
+    return AtriumLibraryDockUI.mount(ctx, {...panelApi(), mounted: P => { panel = P; }});
   }
   function groupUI(fn) {
     const ready = globalThis.AtriumGroupLibraryUI ? Promise.resolve(globalThis.AtriumGroupLibraryUI) : globalThis.AtriumLazy?.need("AtriumGroupLibraryUI");
@@ -2065,6 +1479,10 @@ globalThis.AtriumLibrary = (() => {
       if (panel && !panel.groupSub) panel.groupSub = globalThis.AtriumGroupLocal.onChange((_id, _added, _from, installed) => { if (installed !== false) panel?.render?.(); });
       return fn(u);
     }).catch(e => panel?.ctx?.info?.(e.message));
+  }
+  // Group libraries kept on this computer, restored when the dock or the Library tab first shows (fn: before restore).
+  function restoreGroups(fn) {
+    try { if (globalThis.localStorage?.getItem("atrium.group-library.v1")) groupUI(u => { fn?.(); return u.restore(); }); } catch { /* opened explicitly when storage is unavailable */ }
   }
   // Folder libraries and KiCad import (library-sources.js, library-sources-ui.js): loaded on first use, or at
   // panel start when folders are registered (onlyIfUsed).
@@ -2100,14 +1518,19 @@ globalThis.AtriumLibrary = (() => {
   const STATE_TONE = {update: "accent", diverged: "warning"};
   function stateText(s) {
     const revs = "rev " + s.fromRev + (s.toRev !== s.fromRev ? " → rev " + s.toRev : "");
-    if (s.state === "missing") return "Library " + (s.ref?.name || "source") + " is not registered on this computer. The project copy still works.";
+    if (s.state === "missing" || s.missing) return "Library " + (s.ref?.name || "source") + " is not registered on this computer. The project copy still works.";
+    if (s.pending) return (s.lib?.name || "The library") + " is not read yet, so this copy is not compared with it.";
     if (s.state === "update") return "Update available from " + s.lib.name + " (" + revs + ")";
     if (s.state === "edited") return "Edited in this project since it came from " + s.lib.name + " (" + revs + ")";
     if (s.state === "diverged") return "Changed here and in " + s.lib.name + " (" + revs + ")";
     return "Same as " + s.lib.name;
   }
+  // The short badge for a libraryStatus() state; stateText() is its sentence (the badge's tooltip).
+  const STATE_LABEL = {current: "Current", update: "Update", edited: "Edited", diverged: "Diverged", missing: "Missing", pending: "Not read"};
+  const stateLabel = s => STATE_LABEL[s?.missing ? "missing" : s?.state] || "";
   // Library › Check: health checks of the project library or a library source (AtriumLibraryStore.health).
-  function checkLibrary(ctx, lib, checked) {
+  // o.current: whether the host that asked still shows `lib` (default: the dock); o.reveal(id): show a project def.
+  function checkLibrary(ctx, lib, checked, o = {}) {
     const S = globalThis.AtriumLibraryStore;
     if (!S) { ctx.info?.("Library checks are unavailable in this build."); return null; }
     const project = ctx.currentProject ? ctx.currentProject() : ctx.project;
@@ -2116,8 +1539,8 @@ globalThis.AtriumLibrary = (() => {
       const actions = ui.el("div", null, "lib-actions"); actions.append(ui.button("Cancel", () => d.close()));
       line.setAttribute("role", "status"); d.append(line, actions); ui.show(d);
       const source = globalThis.AtriumLibrarySources;
-      const current = () => d.open && (!ctx.currentProject || ctx.currentProject() === project) &&
-        (!panel || panel.lib === lib && !panel.node.hidden) && source.library(lib.folder) === lib;
+      const shown = o.current || (() => !panel || panel.lib === lib && !panel.node.hidden);
+      const current = () => d.open && (!ctx.currentProject || ctx.currentProject() === project) && shown() && source.library(lib.folder) === lib;
       const rows = lib.defs, checked = new Map();
       // A duplicate-name check needs a content hash only for a repeated name/package.
       const seen = new Set(), repeated = new Set(), key = row => JSON.stringify([row.name?.trim().toLowerCase(), row.footprint?.name || row.package || ""]);
@@ -2139,7 +1562,7 @@ globalThis.AtriumLibrary = (() => {
           }
         }
         const show = current(); if (d.open) d.close();
-        if (show) checkLibrary(ctx, lib, checked);
+        if (show) checkLibrary(ctx, lib, checked, o);
       })().catch(e => { if (d.open) d.close(); ctx.info?.(e.message); });
       return d;
     }
@@ -2150,7 +1573,7 @@ globalThis.AtriumLibrary = (() => {
     for (const x of r.issues.slice(0, 500)) {
       const tr = ui.el("tr", null, "lib-health-" + x.level);
       const name = ui.el("td");
-      if (x.def && !lib) name.append(ui.button(x.name, () => { d.close(); if (panel) { panel.source = "project"; panel.selected = x.def; panel.render?.(); } }, "lib-mini")); else name.append(ui.el("span", x.name));
+      if (x.def && !lib) name.append(ui.button(x.name, () => { d.close(); if (o.reveal) o.reveal(x.def); else if (panel) { panel.source = "project"; panel.selected = x.def; panel.render?.(); } }, "lib-mini")); else name.append(ui.el("span", x.name));
       tr.append(ui.el("td", x.level), name, ui.el("td", x.message)); t.append(tr);
     }
     if (r.issues.length) box.append(t); else box.append(ui.el("p", "No issues found.", "fe-note"));
@@ -2402,14 +1825,14 @@ globalThis.AtriumLibrary = (() => {
       return true;
     }});
   }
-  function openFootprintEditor(ctx, def) {
+  function openFootprintEditor(ctx, def, opts = {}) {
     const project = ctx.currentProject ? ctx.currentProject() : ctx.project, S = globalThis.AtriumLibraryStore;
     if (def && S?.hoisted(def)) def = S.inflate(project, def); // the editor sees and saves STEP text inline
-    return AtriumFootprintEditor.open({def, info: ctx.info, library: (ctx.currentProject ? ctx.currentProject() : ctx.project).library, reopenWizard: d => openWizard(ctx, d),
+    return AtriumFootprintEditor.open({def, asTab: !!opts?.asTab, info: ctx.info, library: (ctx.currentProject ? ctx.currentProject() : ctx.project).library, reopenWizard: d => openWizard(ctx, d),
       commit: (made, place) => { if (!commitDef(ctx, made)) return false; if (panel) panel.selected = made.id; if (place) ctx.placeDef?.(made, "pcb"); return true; }});
   }
-  function openSymbolEditor(ctx, def) {
-    return AtriumSymbolEditor.open({def, info: ctx.info, library: (ctx.currentProject ? ctx.currentProject() : ctx.project).library,
+  function openSymbolEditor(ctx, def, opts = {}) {
+    return AtriumSymbolEditor.open({def, asTab: !!opts?.asTab, info: ctx.info, library: (ctx.currentProject ? ctx.currentProject() : ctx.project).library,
       commit: (made, place) => { if (!commitDef(ctx, made)) return false; if (panel) panel.selected = made.id; if (place) ctx.placeDef?.(made, "schematic"); return true; }});
   }
   // editor.js workflow() modules: the editor passes its context to open(ctx).
@@ -2435,11 +1858,24 @@ globalThis.AtriumLibrary = (() => {
     const K = globalThis.AtriumKeymap;
     if (!K?.registerCommand || registerCommands.done) return;
     registerCommands.done = true;
-    const cmds = [["library-panel", "Library panel", "Window", "T L"], ["footprint-wizard", "IPC footprint wizard…", "Tools", "T F"],
+    const cmds = [["library-panel", "Library panel", "Window", "T L"], ["library-workspace", "Library workspace tab", "Window", null], ["footprint-wizard", "IPC footprint wizard…", "Tools", "T F"],
       ["footprint-editor", "New footprint / edit selected footprint…", "Tools", null], ["symbol-editor", "New symbol / edit selected symbol…", "Tools", "T Y"],
       ["library-sources", "Library sources (.atrlib files)…", "Tools", null]];
     for (const [id, title, category, key] of cmds) try { K.registerCommand({id: "library:" + id, title, category, action: id, defaultKeys: key ? [key] : []}); } catch {}
   }
+  if (globalThis.AtriumLazy?.register) {
+    AtriumLazy.register("AtriumLibraryView", {
+      scripts: ["library/library-workspace.js"],
+      css: ["library/library-workspace.css"],
+      deps: ["AtriumDocViews", "AtriumWindowedTable", "AtriumCatalogue"]
+    });
+  }
+  globalThis.AtriumNavCommon?.ready?.(host => {
+    host.registerAction("library-workspace", () => {
+      if (globalThis.AtriumLibraryView) { AtriumLibraryView.open(); return; }
+      globalThis.AtriumLazy?.need?.("AtriumLibraryView").then(v => v.open(), e => host.info?.(e.message));
+    });
+  });
   if (globalThis.document) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", registerCommands, {once: true});
     else setTimeout(registerCommands, 0);
@@ -2448,5 +1884,5 @@ globalThis.AtriumLibrary = (() => {
   return Object.freeze({ELECTRICAL, electricalCode, inferElectrical, parseTable, pinsFromTable, tableFromPins, symbolFromPins, symbolFromGates, buildSymbol, symbolModel, symbolForFootprint,
     createFootprint, createSymbol, gateLetter, scrub, defHash, kiCadCredit, portableSource, portableDefinition, libraryFile, readLibraryFile, compareLands, landChanges, sourceChanges, modelChange, diffDefs, libraryRefFor, fromLibrary, sameLibrary, addFromLibrary, libraryStatus, checkUpdate, updateFromLibrary, saveToLibrary, sourceStore,
     pinGeometry, checkFootprint, validateDef, usage, duplicate, remove, rewire, updateParts, replaceDef, similar, search, facts, uniqueName,
-    ui, workflows, mountPanel, togglePanel, focusPanel, reveal: (def, source) => panel?.reveal(def, source), commitDef, showDiff, checkLibrary, stateText, openLibraryFile, openPortableFiles, readPortable, exportLibrary, manageLibraries, openWizard, openFootprintEditor, openSymbolEditor, registerCommands});
+    ui, workflows, panelApi, mountPanel, togglePanel, focusPanel, reveal: (def, source) => panel?.reveal(def, source), commitDef, showDiff, checkLibrary, stateText, openLibraryFile, openPortableFiles, readPortable, exportLibrary, manageLibraries, openWizard, openFootprintEditor, openSymbolEditor, registerCommands});
 })();

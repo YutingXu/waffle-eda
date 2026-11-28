@@ -108,8 +108,10 @@ async function fields(page, session, scope) {
       node.dataset.geometryField = index;
       const box = node.getBoundingClientRect(), style = getComputedStyle(node);
       const stepper = node.closest(".prf-stepper");
-      const visualField = stepper ? stepper.getBoundingClientRect() : box;
-      const visualBorder = stepper ? parseFloat(getComputedStyle(stepper).borderLeftWidth) : parseFloat(style.borderLeftWidth);
+      // In a property row the unit sits inside the field, so the measure draws the box and the input has none.
+      const boxed = stepper || node.closest(".ui-prop-row > .ui-field-measure");
+      const visualField = boxed ? boxed.getBoundingClientRect() : box;
+      const visualBorder = boxed ? parseFloat(getComputedStyle(boxed).borderLeftWidth) : parseFloat(style.borderLeftWidth);
       const valueEnd = stepper ? (style.direction === "rtl" ? box.left : box.right) : null;
       const native = node.matches("input,select"), number = node.matches("input[type=number]"), date = node.matches("input[type=date]");
       let value = node.matches("select") ? node.selectedOptions[0]?.label : node.value || node.placeholder;
@@ -143,7 +145,7 @@ async function fields(page, session, scope) {
       }
       return {index, name:node.getAttribute("aria-label") || node.labels?.[0]?.textContent?.trim() || node.name || node.id || node.tagName,
         native, value, probe, date, column:column(node), text:native ? null : textRect(node), height:visualField.height, width:visualField.width, x:visualField.x,
-        leftBorder:visualBorder, valueEnd, direction:style.direction, unitNumber:number && !stepper && !!node.parentElement.querySelector(".ui-field-unit,[data-field-unit]"),
+        leftBorder:visualBorder, valueEnd, direction:style.direction, unitNumber:number && !boxed && !!node.parentElement.querySelector(".ui-field-unit,[data-field-unit]"),
         search, palette};
     });
   }, FIELD);

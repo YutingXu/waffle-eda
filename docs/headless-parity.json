@@ -4931,6 +4931,27 @@
    "target": "list_library"
   },
   {
+   "action": "library-workspace",
+   "commands": [
+    "library:library-workspace"
+   ],
+   "labels": [
+    "Library Tab",
+    "Library workspace tab"
+   ],
+   "menus": [
+    "window"
+   ],
+   "sources": [
+    "index.html",
+    "library/library-panel.js registerAction",
+    "library/library-workspace.js registerAction",
+    "library/library-panel.js"
+   ],
+   "status": "tool",
+   "target": "list_library"
+  },
+  {
    "action": "licenses",
    "commands": [
     "licenses"
@@ -6347,6 +6368,25 @@
     "editor/keymap.js"
    ],
    "status": "interactive"
+  },
+  {
+   "action": "quick-place",
+   "commands": [
+    "quick-place"
+   ],
+   "labels": [
+    "Quick Place Component\u2026",
+    "Quick place component\u2026"
+   ],
+   "menus": [
+    "place"
+   ],
+   "sources": [
+    "index.html",
+    "editor/keymap.js"
+   ],
+   "status": "tool",
+   "target": "place_part"
   },
   {
    "action": "recover",
@@ -10249,10 +10289,10 @@
  ],
  "summary": {
   "command": 121,
-  "headless": 277,
+  "headless": 279,
   "interactive": 302,
   "missing": 0,
-  "tool": 156,
-  "total": 579
+  "tool": 158,
+  "total": 581
  }
 }

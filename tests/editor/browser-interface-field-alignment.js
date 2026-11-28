@@ -122,16 +122,20 @@ async function surfaces(page, sample, profile) {
     {control:"Search the library",mode:"standalone"},{control:"Library source",mode:"standalone"},
   ],"library");
   for (const [editor, trigger, fields] of [
-    ["Symbol Editor","New symbol",["Name","Prefix"]],
-    ["Footprint Editor","New footprint",["Name",{control:"Drawing layer",mode:"stacked"},{control:"Body height",mode:"compound"}]],
+    ["Symbol Editor","New symbol…",["Name","Prefix"]],
+    ["Footprint Editor","New footprint…",["Name",{control:"Drawing layer",mode:"stacked"},{control:"Body height",mode:"compound"}]],
   ]) {
-    await click(library.getByRole("button",{name:trigger,exact:true}));
+    // New symbol… and New footprint… are in the Library's "Library commands" menu.
+    await click(library.getByRole("button",{name:"Library commands",exact:true}));
+    // New symbol… also names its shortcut, so match the start of the item's name.
+    await click(page.getByRole("menuitem",{name:new RegExp("^" + trigger)}));
     const window = page.getByRole("dialog",{name:editor,exact:false});
     await sample(editor + " · Properties and toolbar",window,fields);
     await page.keyboard.press("Escape");
     await window.waitFor({state:"hidden"});
   }
-  await click(library.getByRole("button",{name:"Close the Library panel"}));
+  // The docked Library has no heading of its own: its dock tab closes it.
+  await click(page.locator('button:is([aria-label="Close Library"],[aria-label="Close the Library panel"]):visible').first());
 
   await windowPanel(page,"nets",{touch:profile.touch});
   const nets = page.locator(".panel-nets:visible");
@@ -276,8 +280,10 @@ async function run(browser) {
         report.push({title,results,panel,census});
         const row = async expected => (await read(scope)).find(item => item.control === expected || item.label === expected);
         if (title === "PCB · document Properties") {
-          const control = scope.getByRole("combobox",{name:"Component class filter"});
-          probes.push(...await geometry.assertBaselinePerturbations(control,() => row("Component class filter")));
+          // A property row puts its caption and its field on one baseline, so text moved inside the field
+          // takes the caption with it. Move the caption alone: the measurement must still see the 1px.
+          const caption = scope.getByRole("combobox",{name:"Component class filter"}).locator("xpath=preceding-sibling::*[1]");
+          probes.push(...await geometry.assertBaselinePerturbations(caption,() => row("Component class filter"),{captionOnly:true}));
         }
         if (name === "light" && title === "PCB · View Configuration") {
           const control = scope.locator('output[aria-labelledby="vc-opacity-track"]');
