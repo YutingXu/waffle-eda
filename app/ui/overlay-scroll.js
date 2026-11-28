@@ -11,7 +11,21 @@ globalThis.AtriumOverlayScroll = (() => {
   const HIDE_MS = 900, EDGE = 14, MIN = 24, INSET = 2;
   // Strips that scroll sideways without a bar: tab strips, the toolbars and the Messages header.
   const SKIP = ".ui-tabs,#document-tabs,.pane-tabs,.active-bar,.layer-tabs,.msg-head,.dock-tabs,.ui-select-list";
-  const bars = new Map(); // scroller -> {v, h, timer, hot}
+  // scroller -> {v, h, timer, hot, ref}. A scroller is held only weakly: a closed dialog or panel must not
+  // stay in memory, with its whole subtree, because the pointer once crossed it. tracked lists the
+  // scrollers for the sweeps below, which also drop one that has left the document, with its thumbs.
+  const bars = new WeakMap(), tracked = new Set();
+  const weak = el => typeof WeakRef === "function" ? new WeakRef(el) : {deref:() => el};
+  function scrollers() {
+    const live = [];
+    for (const ref of tracked) {
+      const el = ref.deref();
+      if (!el) tracked.delete(ref);
+      else if (!el.isConnected) drop(el);
+      else live.push([el, bars.get(el)]);
+    }
+    return live;
+  }
   let frame = 0, drag = null;
   const pending = new Set();
 
@@ -56,7 +70,7 @@ globalThis.AtriumOverlayScroll = (() => {
   }
   function entry(el) {
     let b = bars.get(el);
-    if (!b) {b = {v:null, h:null, timer:0, hot:false}; bars.set(el, b);}
+    if (!b) {b = {v:null, h:null, timer:0, hot:false, ref:weak(el)}; bars.set(el, b); tracked.add(b.ref);}
     return b;
   }
   // A full placement measures the scroller once (rects, sizes) and parks each thumb at the start of its
@@ -105,12 +119,14 @@ globalThis.AtriumOverlayScroll = (() => {
     if (!b.hot && !drag) b.timer = setTimeout(() => fade(el), HIDE_MS);
   }
   function fade(el) {
-    const b = bars.get(el); if (!b || b.hot || drag) return;
+    const b = bars.get(el); if (!b) return;
+    if (!el.isConnected) {drop(el); return;}
+    if (b.hot || drag) return;
     for (const axis of ["v", "h"]) b[axis]?.removeAttribute("data-shown");
   }
   function drop(el) {
     const b = bars.get(el); if (!b) return;
-    clearTimeout(b.timer); b.v?.remove(); b.h?.remove(); bars.delete(el);
+    clearTimeout(b.timer); b.v?.remove(); b.h?.remove(); bars.delete(el); tracked.delete(b.ref);
   }
   // full: measure again (shown, resized, hot or dragged); otherwise only the scroll position moved.
   const measure = new Set(), quiet = new Set();
@@ -133,7 +149,7 @@ globalThis.AtriumOverlayScroll = (() => {
     schedule(el, false);
     // Scrollers inside it moved: a shown thumb follows with a full placement (without showing it again);
     // a hidden one forgets its geometry, so it is measured afresh when it next shows.
-    for (const [inner, b] of bars) {
+    for (const [inner, b] of scrollers()) {
       if (inner === el || !el.contains(inner)) continue;
       if ([b.v, b.h].some(t => t?.hasAttribute("data-shown"))) schedule(inner, true, true); else b.geo = null;
     }
@@ -147,11 +163,11 @@ globalThis.AtriumOverlayScroll = (() => {
     if (e.pointerType === "touch" || drag) return;
     if (e.target.classList?.contains("ui-scroll-thumb")) return;
     const el = scrollerAt(e.target);
-    for (const [s, b] of bars) if (b.hot && s !== el) {b.hot = false; place(s, b);}
+    for (const [s, b] of scrollers()) if (b.hot && s !== el) {b.hot = false; place(s, b);}
     if (!el) return;
     const r = el.getBoundingClientRect(), near = r.right - e.clientX <= EDGE && e.clientX <= r.right;
-    const b = entry(el);
-    if (near !== b.hot) {b.hot = near; schedule(el);}
+    // Only a scroller whose edge the pointer reaches gets an entry; passing over one leaves no trace.
+    if (near !== !!bars.get(el)?.hot) {entry(el).hot = near; schedule(el);}
   }
   function startDrag(e, el, axis, t) {
     if (e.button !== 0) return;
@@ -175,6 +191,6 @@ globalThis.AtriumOverlayScroll = (() => {
   doc.addEventListener("scroll", scrolled, {capture:true, passive:true});
   doc.addEventListener("pointermove", moved, {capture:true, passive:true});
   // A scroller that leaves (a closed panel or dialog) takes its thumbs with it.
-  globalThis.addEventListener("resize", () => {for (const el of bars.keys()) schedule(el);});
-  return Object.freeze({show:el => schedule(el), thumbs:() => [...bars.values()].flatMap(b => [b.v, b.h].filter(Boolean))});
+  globalThis.addEventListener("resize", () => {for (const [el] of scrollers()) schedule(el);});
+  return Object.freeze({show:el => schedule(el), thumbs:() => scrollers().flatMap(([, b]) => [b.v, b.h].filter(Boolean))});
 })();

@@ -570,6 +570,7 @@ async function main(){
     if(process.argv.includes("--inline-stack-only")){await require("./editor/browser-inline-stack.js")(browser);return;}
     if(process.argv.includes("--panel-chrome-only")){await require("./editor/browser-panel-chrome.js")(browser);return;}
     if(process.argv.includes("--review-composer-only")){await require("./history/browser-review-composer.js")(browser);return;}
+    if(process.argv.includes("--compare-release-only")){await require("./history/browser-compare-release.js")(browser);return;}
     if(process.argv.includes("--calculators-only")){await require("./analysis/browser-calculators.js")(browser);return;}
     if(process.argv.includes("--import-only")){await importSurfaces(browser);return;}
     if(process.argv.includes("--demo-workflow-only")){await demoProjectWorkflow();return;}
@@ -920,6 +921,7 @@ async function main(){
     await require("./history/browser-visual-history.js")(browser);
     await require("./history/browser-history-refs.js")(browser);
     await require("./history/browser-butter-history.cjs")(browser);
+    await require("./history/browser-compare-release.js")(browser);
     await require("./editor/browser-inspector-layout.js")(browser);
     await require("./checks/browser-class-filter.js")(browser);
     await require("./formats/browser-bom-ui.js")(browser);

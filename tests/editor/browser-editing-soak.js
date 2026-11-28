@@ -165,19 +165,32 @@ async function compare(s) {
   const dialog = page.getByRole("dialog", {name: "Change table"});
   // Give the native file picker its real baseline file. A short-lived DevTools session releases
   // the browser-side reference to the removed input after every selection.
+  // Press the dialog's buttons with the mouse at their centres. A locator click keeps Playwright's own
+  // mark on its target until the next locator action, and that mark would hold the closed dialog.
+  const press = async name => {
+    const button = dialog.getByRole("button", {name, exact: true});
+    await button.waitFor();
+    const at = await page.evaluate(({name}) => {
+      const b = [...document.querySelectorAll(".revision-dialog button")].find(b => !b.hidden && b.textContent === name);
+      const r = b.getBoundingClientRect();
+      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    }, {name});
+    await page.mouse.click(at.x, at.y);
+  };
   const picker = await page.context().newCDPSession(page);
   try {
     await picker.send("Page.enable");
     await picker.send("Page.setInterceptFileChooserDialog", {enabled: true});
     const [opened] = await Promise.all([
       once(picker, "Page.fileChooserOpened", {signal: AbortSignal.timeout(15000)}),
-      dialog.getByRole("button", {name: "Choose project ZIP…"}).click()
+      press("Choose project ZIP…")
     ]);
     await picker.send("DOM.setFileInputFiles", {backendNodeId: opened[0].backendNodeId, files: [s.baseline]});
   } finally { await picker.detach(); }
   const status = dialog.getByRole("status");
   await status.filter({hasText: /Working design · \d+–\d+ of \d+ changes?/}).waitFor({timeout: 120000});
-  await dialog.getByRole("button", {name: "Done", exact: true}).click();
+  await press("Done");
+  await page.waitForFunction(() => !document.querySelector(".revision-dialog"));
   s.counts.comparisons++;
 }
 

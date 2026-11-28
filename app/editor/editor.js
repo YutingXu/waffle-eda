@@ -884,8 +884,23 @@
   }
   // git-blame: under Properties, who last changed the selected object (blame.js, lazy; desktop with a Git project only).
   function revealInspector(launch=false){if(inspectorDirty&&$("inspector").getClientRects().length){inspectorVisible=true;inspect(false,launch);}}
+  // A module that arrives in the background (moduleLoaded) does not rebuild Properties under a field being
+  // typed in: that would drop the draft and its selection. The rebuild waits until focus leaves the panel,
+  // unless an edit or a selection change rebuilds it first. A length field commits on blur through the
+  // calculations worker, so the held rebuild waits for that commit: rebuilding under it would drop the value.
+  // Held means dirty too, so a panel hidden before focus leaves still rebuilds when it is shown again.
+  let lazyRefresh=false,inspectorHeld=false,heldPanel=null;
+  function typingInInspector(panel){const a=document.activeElement;return !!a&&panel.contains(a)&&a.matches("textarea,[contenteditable=true],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=color])");}
+  function holdInspector(panel){
+    inspectorHeld=true;inspectorDirty=true;if(heldPanel===panel)return;heldPanel=panel;
+    const rebuild=()=>{if(inspectorHeld&&!typingInInspector(panel))inspect();};
+    panel.addEventListener("focusout",e=>{if(!inspectorHeld||panel.contains(e.relatedTarget))return;
+      setTimeout(()=>Promise.resolve(globalThis.AtriumNumericFields?.finishEdits?.(navHost)).catch(()=>{}).then(rebuild),0);});
+  }
   function inspect(reuseOverview=false,launch=false){
     inspectorDirty=!inspectorVisible||!viewportVisible&&!launch;if(inspectorDirty)return;
+    if(lazyRefresh&&typingInInspector($("inspector"))){holdInspector($("inspector"));return;}
+    inspectorHeld=false;
     const panel=$("inspector"),d=doc(),overview=pcb()&&tool==="select"&&!selectedIds.size&&!globalThis.AtriumPCBDraw?.session;
     inspectorStamp=overview&&globalThis.AtriumUndoStore?.trackOverview?.(d,project,inspectorStamp,
       [defs,unit(),globalThis.AtriumBoardShape,globalThis.AtriumComponentClasses,globalThis.AtriumRooms,
@@ -2517,7 +2532,7 @@
     restoreImportSession:input=>fileUI().then(ui=>ui.restoreImported(input,navHost)),
     showImportReport(result,ids,names,options){const s=fileSession;return AtriumLazy.need("AtriumImportReports").then(r=>s===fileSession&&r.show(r.remember(s,result,ids,names,options)));},
     isDirty:()=>dirty,markUnsaved(){dirtyState(true);},openFiles:importFiles,openFilePicker,saveProject:save,
-    moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);refresh(lazy,!lazy||name==="AtriumMultichannel");},
+    moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);lazyRefresh=lazy;try{refresh(lazy,!lazy||name==="AtriumMultichannel");}finally{lazyRefresh=false;}},
     async replaceProject(p,o={}){
       if(!o.force&&!await mayReplace()||o.current&&!o.current())return false;
       const old=project, stamp=authoredRevision, L=globalThis.AtriumLazy;

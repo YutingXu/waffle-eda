@@ -267,7 +267,8 @@ globalThis.AtriumProjectArchiveUI = (() => {
     if(!file)return null;
     const verified=await readProjectZIP(file,{reference:true});
     if(!verified)return null;
-    const [B,F]=await G.AtriumLazy.need(["AtriumBrowserProject","AtriumFolderProject"]);
+    // AtriumFolderProject is defined by the AtriumFolderProjectUI module (project/folder-project.js).
+    const [B]=await G.AtriumLazy.need(["AtriumBrowserProject","AtriumFolderProjectUI"]),F=G.AtriumFolderProject;
     const folder=B.create(verified.manifest,verified.files);
     let session;
     try {
