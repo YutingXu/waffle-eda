@@ -4761,9 +4761,23 @@ globalThis.AtriumPolygonPour=(()=>{
   // exact packed rings and arcs to this polygon and the physical inputs of that fill.
   // Kept by the region's copper when the engine holds it as runs: Undo restores an older version's
   // copper into the live region object, and that version's digest is still known.
-  const packedCopperHashes = new WeakMap();
+  // A region still held as text (opened from a file, or poured on this thread) is kept by its text: Undo
+  // gives back an older version as a new object holding the same string, whose digest is then known.
+  // Texts are kept while their total stays under TEXT_DIGESTS characters (the most recently used).
+  const packedCopperHashes = new WeakMap(), textDigests = new Map(), TEXT_DIGESTS = 1 << 25;
+  let textDigestChars = 0;
   function packedCopperHash(region) {
-    const key = dataKey(region), by = typeof key === "object" ? key : region;
+    const key = dataKey(region);
+    if (typeof key === "string") {
+      let digest = textDigests.get(key);
+      if (digest !== undefined) { textDigests.delete(key); textDigests.set(key, digest); return digest; }
+      const hash = hasher();
+      hash.value(key);
+      digest = hash.hex(); textDigests.set(key, digest); textDigestChars += key.length;
+      for (const [t] of textDigests) { if (textDigestChars <= TEXT_DIGESTS || t === key) break; textDigests.delete(t); textDigestChars -= t.length; }
+      return digest;
+    }
+    const by = typeof key === "object" && key ? key : region;
     let cached = packedCopperHashes.get(by);
     if (!cached || cached.data !== key) {
       const hash = hasher();
@@ -4773,20 +4787,37 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     return cached.digest;
   }
+  // A polygon's contours digest is a function of its regions' layer, net, count, data and arcs, in
+  // order: when those are the same values as one of the last BASIS_STATES times (the data by dataKey,
+  // the arcs array by identity), the digest is the one computed then. Undo and Redo give back the regions
+  // of a state seen before, so the copper is not hashed again (its arcs alone are about 10 ms on a large
+  // island).
+  const basisMemo = new WeakMap(), BASIS_STATES = 4;
   function copperBases(doc, inputs, ids) {
-    const hashes = new Map();
-    for (const id of ids) {
-      if (!inputs[id]) continue;
-      const hash = hasher();
-      hash.value([doc.id, id]);
-      hashes.set(id, hash);
+    const parts = new Map();
+    for (const id of ids) if (inputs[id]) parts.set(id, []);
+    if (!parts.size) return new Map();
+    for (const r of doc.pcbDrawing?.pours || []) parts.get(r.polygon)?.push(r.layer, r.net, r.count, dataKey(r), r.arcs || null, r);
+    let memo = basisMemo.get(doc);
+    if (!memo) basisMemo.set(doc, memo = new Map());
+    const out = new Map();
+    for (const [id, list] of parts) {
+      let seen = memo.get(id);
+      if (!seen) memo.set(id, seen = []);
+      const at = seen.findIndex(e => e.docId === doc.id && e.list.length === list.length && e.list.every((x, k) => k % 6 === 5 || x === list[k]));
+      let contours = at >= 0 ? seen[at].contours : null;
+      if (at >= 0) seen.unshift(...seen.splice(at, 1));
+      else {
+        const hash = hasher();
+        hash.value([doc.id, id]);
+        for (let k = 0; k < list.length; k += 6) { const r = list[k + 5]; hash.value([r.layer, r.net, r.count, packedCopperHash(r), list[k + 4]]); }
+        contours = hash.hex();
+        seen.unshift({docId: doc.id, list: list.map((x, k) => k % 6 === 5 ? null : x), contours});
+        if (seen.length > BASIS_STATES) seen.pop();
+      }
+      out.set(id, {inputs:inputs[id], contours});
     }
-    if (!hashes.size) return hashes;
-    for (const r of doc.pcbDrawing?.pours || []) {
-      const hash = hashes.get(r.polygon);
-      if (hash) hash.value([r.layer, r.net, r.count, packedCopperHash(r), r.arcs || null]);
-    }
-    return new Map(Array.from(hashes, ([id, hash]) => [id, {inputs:inputs[id], contours:hash.hex()}]));
+    return out;
   }
   function storedInputs(doc, now) {
     const drawing = doc.pcbDrawing;
