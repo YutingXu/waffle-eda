@@ -83,17 +83,19 @@ function compoundFile(bytes) {
     return out;
   }
   // Walk the red-black tree of each storage. Paths are lower-case, "/"-separated.
-  const streams = new Map();
-  function walk(id, prefix, depth) {
+  // streams.names keeps each stream's path as stored (case kept), for reports that name streams.
+  const streams = new Map(), names = new Map();
+  function walk(id, prefix, depth, stored = "") {
     if (id >= entries.length || id === FREE || depth > 64) return;
     const e = entries[id];
-    walk(e.left, prefix, depth + 1);
+    walk(e.left, prefix, depth + 1, stored);
     const path = prefix + e.name.toLowerCase();
-    if (e.type === 2) streams.set(path, e.size < cutoff ? readMini(e.start, e.size) : readChain(e.start, e.size));
-    if (e.type === 1) walk(e.child, path + "/", depth + 1);
-    walk(e.right, prefix, depth + 1);
+    if (e.type === 2) { streams.set(path, e.size < cutoff ? readMini(e.start, e.size) : readChain(e.start, e.size)); names.set(path, stored + e.name); }
+    if (e.type === 1) walk(e.child, path + "/", depth + 1, stored + e.name + "/");
+    walk(e.right, prefix, depth + 1, stored);
   }
   walk(root.child, "", 0);
+  streams.names = names;
   return streams;
 }
 
@@ -156,7 +158,9 @@ function readStreams(s) {
   const nets = textRecords(get("Nets6")).map(p => p.NAME || "");
   const components = textRecords(get("Components6")).map(p => ({
     designator:p.SOURCEDESIGNATOR || "", layer:/BOTTOM/i.test(p.LAYER || "") ? "bottom" : "top",
-    x:mil(p.X), y:mil(p.Y), rotation:Number(p.ROTATION || 0), footprint:p.PATTERN || ""}));
+    x:mil(p.X), y:mil(p.Y), rotation:Number(p.ROTATION || 0), footprint:p.PATTERN || "",
+    // Locked, or tied to others in a union or group: Altium does not let it move on its own.
+    fixed:/^(true|t|1)$/i.test(p.LOCKED || "") || Number(p.UNIONINDEX || 0) !== 0 || Number(p.GROUPNUM || 0) !== 0}));
   const boardProps = textRecords(get("Board6"))[0] || {};
   const outline = [];
   for (let i = 0; boardProps["VX" + i] != null; i++) {
@@ -194,8 +198,9 @@ function readStreams(s) {
   });
   const vias = binaryRecords(get("Vias6"), t => t === 3 ? 1 : 0).map(({blocks:[g]}) => {
     const c = common(g);
+    // Flag bit 2 of the primitive header is "unlocked"; an owned or pour-generated via moves with its owner.
     return {net:c.net, x:c.i32(13), y:c.i32(17), diameter:c.i32(21), drill:c.i32(25),
-      from:layerOf(g[29]), to:layerOf(g[30])};
+      from:layerOf(g[29]), to:layerOf(g[30]), fixed:c.component != null || c.polygon !== 0xffff || (g[1] & 4) === 0};
   });
   const fills = binaryRecords(get("Fills6"), t => t === 6 ? 1 : 0).map(({blocks:[g]}) => {
     const c = common(g);
