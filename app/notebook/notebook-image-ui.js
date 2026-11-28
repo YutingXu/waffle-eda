@@ -294,5 +294,8 @@ globalThis.AtriumNotebookImageUI = (() => {
     const point=x>=box.left&&x<=box.right&&y>=box.top&&y<=box.bottom?host.view().screenToWorld([x-box.left,y-box.top]):null;
     return insert({host,dropToken,point,signal});
   }
+  // An image still being added or edited when the project is left asks once (leave-project.js); the switch cancels it.
+  const LP=G.AtriumLeaveProject;
+  LP?.draft("notebook-image",LP.order.notebook,{state:()=>pending>0?"image":null,message:"Discard the image you are adding?"});
   return {insert,edit,pickCellImage,dropCaptured,pickerPDF,regionBetween,fromName,canCamera,hasPending:()=>pending>0};
 })();

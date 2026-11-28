@@ -194,6 +194,7 @@ case $step in
     run "Accessible first Save in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/formats/browser-import-save-view.js
     run "Palette appearance and platform shortcuts in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/editor/browser-palette-view.js
     run "Foreign import recovery in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/project/browser-foreign-drafts.js
+    run "Leave-project prompts, cancels and recovery copy in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/project/browser-leave-project.js
     run "Remembered foreign export targets in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/formats/browser-import-export-target.cjs
     run "Browser source picker and remembered export in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/formats/browser-import-source-picker.js
     run "Apricot Preview Labs on file and HTTP in Chromium" timeout "${NODE_TEST_TIMEOUT:-300}" node tests/editor/browser-preview-labs.js

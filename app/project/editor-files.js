@@ -413,7 +413,7 @@ globalThis.AtriumEditorFiles = (() => {
       }
       const reader = await AtriumLazy.need("AtriumDesignReader");
       return await reader.open(selection,options,host,{
-        context:ctx.context,mayReplace:ctx.mayReplace,adopt:ctx.adopt,report,fitOpened:ctx.fitOpened,progress,
+        context:ctx.context,leave:ctx.leave,adopt:ctx.adopt,report,fitOpened:ctx.fitOpened,progress,
         prepareImported:input => prepareImported(input,host),activateImported
       });
     } catch (error) {

@@ -409,7 +409,7 @@
     if(!next.imported)globalThis.AtriumImportSaveView?.clearHint();
   }
   function folderContext(documentId){
-    return {project:()=>project,current:()=>documentId??current,host:()=>navHost,session:folder,derived:()=>folderDerived,mayReplace,info,dirty:dirtyState,
+    return {project:()=>project,current:()=>documentId??current,host:()=>navHost,session:folder,derived:()=>folderDerived,leave,info,dirty:dirtyState,
       flush:()=>UNDO?.sync(project),
       pending:setFolderPending,
       saving:setFolderSaving,
@@ -418,8 +418,9 @@
           AtriumHierarchy.invalidatePublished(project);navEmit("folder-owner",detail);
         }
       },explorer:renderExplorer,
-      adopt(session,close){closeSplit(true,false);leaveFolder();setFileSession({folder:session,close});(UNDO||=globalThis.AtriumUndoStore).reset(session.dirty?null:session.project);history=[];future=[];
-        showProject(session.project,session.activeId,false,true);importSessionChanged();
+      // fromSave: the project just saved, reopened from its folder; its editor tabs stay (doc-views.js).
+      adopt(session,close,{fromSave=false}={}){closeSplit(true,false);leaveFolder();setFileSession({folder:session,close});(UNDO||=globalThis.AtriumUndoStore).reset(session.dirty?null:session.project);history=[];future=[];
+        showProject(session.project,session.activeId,false,true,fromSave);importSessionChanged();
         FUI().restoreView?.(session,documentViews);if(restoreDocumentView(false))draw();}
     };
   }
@@ -515,7 +516,7 @@
     if(routeSession){if(!redo&&!tree)executeKey("route-back");return;}
     if(globalThis.AtriumCollabLock?.guard(current))return;
     if(!tree&&globalThis.AtriumCollabLive?.undo(redo))return;
-    if(tree)navEmit("replace",{sameProject:true});/* a private branch of this project */
+    if(tree)navEmit("replace",{sameProject:true,reason:"branch"});/* a private branch of this project */
     const source=n>0?future:history,target=n>0?history:future;
     if(!tree&&!source.length)return;
     if(notebookOff()){
@@ -1129,20 +1130,34 @@
     return globalThis.AtriumEditorFiles?open(AtriumEditorFiles):fileUI().then(open);
   }
   function newProject(){return fileDialog("newProject",[{async before(){
-    if(!await mayReplace())return false;
-    const previous=project, stamp=authoredRevision;
-    await Promise.all([prepareWorkbench(previous,{starterView:false}),AtriumLazy.need("AtriumConnectivity")]);
-    if(previous!==project || stamp!==authoredRevision)return false;
-    if(drag)endDrag(true);checkpoint();leaveFolder();setFileSession({});globalThis.AtriumHost?.clearProjectPath?.();importSessionChanged();return true;
+    const t=leave();
+    try{
+      if(!await t.ask())return false;
+      await Promise.all([prepareWorkbench(project,{starterView:false}),AtriumLazy.need("AtriumConnectivity")]);
+      if(!await t.ready()||!t.current())return false;
+      if(drag)endDrag(true);checkpoint();leaveFolder();setFileSession({});globalThis.AtriumHost?.clearProjectPath?.();importSessionChanged();t.commit();return true;
+    }finally{t.cancel();}
   },units:()=>globalThis.AtriumPref?.get("general.units",project.units)||project.units,fab:newFab,show:showProject,info}]);}
   function outlineDialog(d){
     const show=ui=>{if(d===doc())ui.perimeter(d,{project,apply(points){if(d!==doc())return;edit(()=>{d.outline=points;delete d.boardShape;});fit();}});};
     if(globalThis.AtriumBoardShapeUI)show(AtriumBoardShapeUI);
     else globalThis.AtriumLazy?.need("AtriumBoardShapeUI").then(show,e=>info(e.message));
   }
-  function mayReplace(force=false){
-    if(globalThis.AtriumForeignDrafts?.needsReview(navHost))return globalThis.AtriumForeignDrafts.review(navHost);
-    return dirty||force?fileUI().then(ui=>ui.confirmReplace({name:project.name||"Untitled",dirty,isDirty:()=>dirty,save:()=>save({all:true})})):Promise.resolve(true);
+  // Every switch to another project is one leave-project transaction (project/leave-project.js): editor tabs,
+  // notes, notebook editors, foreign drafts, then this prompt, asked in order and again just before the commit.
+  const projectPrompt=({dirty:d})=>fileUI().then(ui=>ui.confirmReplace({name:project.name||"Untitled",dirty:d,isDirty:()=>dirty,save:()=>save({all:true})}));
+  const leave=(o={})=>globalThis.AtriumLeaveProject.begin(navHost,{prompt:projectPrompt,...o});
+  // The commit of replaceProject, in one task after the transaction's last check. mirror: the same project again.
+  function switchProject(p,o,mirror){
+    if(drag)endDrag(true);if(!starter&&!o.workspaceMirror)checkpoint();
+    const H=globalThis.AtriumHost;
+    leaveFolder();
+    if(o.copy||fileSession.imported||o.importFileSession)H?.clearProjectPath?.();
+    if(o.copy)globalThis.AtriumAutosave?.detach?.(p);
+    if(o.copy||folder()||fileSession.imported||o.importFileSession)setFileSession(o.importFileSession||{});
+    starter=false;showProject(p,(o.workspaceMirror&&o.document)||(!o.starter&&A.preferredDocument(p,"pcb")?.id)||p.documents[0].id,false,false,mirror);
+    if(o.starter)starter=true;if(o.dirty===false||o.starter)dirtyState(false);
+    importSessionChanged();
   }
   const boxOf=(a,b)=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])];
   const pastePoint=p=>touchFree()?p:p.map(v=>A.snap(v,doc().grid));
@@ -1452,7 +1467,7 @@
     openBusy=true;
     // Something is opening: the start page waiting on a chooser closes now (start-page.js).
     try{globalThis.dispatchEvent?.(new CustomEvent("atrium-opening",{detail:{into:!!o.into}}));}catch{}
-    try{return await (await fileUI()).open(selection,o,{host:navHost,info,folderUI,folderContext,context:workflowContext,mayReplace,adopt,fitOpened});}
+    try{return await (await fileUI()).open(selection,o,{host:navHost,info,folderUI,folderContext,context:workflowContext,leave,adopt,fitOpened});}
     finally{openBusy=false;}
     function adopt({after,newDoc,openLib,libraryTarget:target},imported){
       if(drag)endDrag(true);
@@ -1471,7 +1486,8 @@
       }else {showProject(after,newDoc,true);if(!imported)importSessionChanged();}
     }
   }
-  // same: the same project again (a workspace window's mirror refresh); open document views stay (doc-views.js).
+  // same: the same project again (a workspace window's mirror refresh, a save reopening its folder); open
+  // document views stay (doc-views.js).
   function showProject(p,id,deferFit=false,clean=false,same=false){
     const replacement=p!==project;
     if(replacement)for(const pane of panes){pane.view?.invalidate?.();if(pane.view)globalThis.AtriumCanvasGPU?.release?.(pane.view.internals());}
@@ -2531,24 +2547,20 @@
     showImportReport(result,ids,names,options){const s=fileSession;return AtriumLazy.need("AtriumImportReports").then(r=>s===fileSession&&r.show(r.remember(s,result,ids,names,options)));},
     isDirty:()=>dirty,markUnsaved(){dirtyState(true);},openFiles:importFiles,openFilePicker,saveProject:save,
     moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);lazyRefresh=lazy;try{refresh(lazy,!lazy||name==="AtriumMultichannel");}finally{lazyRefresh=false;}},
+    // o.leave: a transaction the caller began and asked (Close Project); otherwise this replace asks its own.
+    // o.force: the caller settled the project's own changes; tabs, notes and notebook editors still ask.
     async replaceProject(p,o={}){
-      if(!o.force&&!await mayReplace()||o.current&&!o.current())return false;
-      const old=project, stamp=authoredRevision, L=globalThis.AtriumLazy;
-      const readers=L?.boardRenderers(p) || [];
-      // The first schematic refresh can resolve the project's net scope synchronously.
-      if(p.rules!=null&&!globalThis.AtriumDesignQueryRecord)readers.push("AtriumDesignQueryRecord");
-      await Promise.all([readers.length && L?.need(readers),prepareWorkbench(p,{starterView:!!o.starter})]);
-      if(project!==old || authoredRevision!==stamp || o.current&&!o.current())return false;
-      if(drag)endDrag(true);if(!starter&&!o.workspaceMirror)checkpoint();
-      const H=globalThis.AtriumHost;
-      leaveFolder();
-      if(o.copy||fileSession.imported||o.importFileSession)H?.clearProjectPath?.();
-      if(o.copy)globalThis.AtriumAutosave?.detach?.(p);
-      if(o.copy||folder()||fileSession.imported||o.importFileSession)setFileSession(o.importFileSession||{});
-      starter=false;showProject(p,(o.workspaceMirror&&o.document)||(!o.starter&&A.preferredDocument(p,"pcb")?.id)||p.documents[0].id,false,false,!!(o.workspaceMirror&&old?.id&&old.id===p.id));
-      if(o.starter)starter=true;if(o.dirty===false||o.starter)dirtyState(false);
-      importSessionChanged();
-      return true;
+      const mirror=!!(o.workspaceMirror&&p.id&&project?.id===p.id);
+      const t=o.leave||leave({reason:mirror?"mirror":"switch",settled:!!o.force});
+      try{
+        if(!o.leave&&!await t.ask()||o.current&&!o.current())return false;
+        const L=globalThis.AtriumLazy, readers=L?.boardRenderers(p) || [];
+        // The first schematic refresh can resolve the project's net scope synchronously.
+        if(p.rules!=null&&!globalThis.AtriumDesignQueryRecord)readers.push("AtriumDesignQueryRecord");
+        await Promise.all([readers.length && L?.need(readers),prepareWorkbench(p,{starterView:!!o.starter})]);
+        if(!t.current() || o.current&&!o.current() || !await t.ready() || o.current&&!o.current())return false;
+        switchProject(p,o,mirror);t.commit();return true;
+      }finally{t.cancel();}
     },
     // Draw tools (pcb-draw.js): tool state, snapping, active layer, cursor and amend for repours.
     setTool,snapAt,netAt,
@@ -2582,7 +2594,7 @@
   globalThis.AtriumLabs?.beforeChange?.(enabled=>{
     if(enabled)return;
     if(globalThis.AtriumReviewNotes?.hasPending?.() || globalThis.AtriumNotebookImageUI?.hasPending?.())return false;
-    if(document.querySelector("dialog.math-editor[open],dialog.notebook-image-dialog[open],dialog.sw-editor[open],dialog.calculation-dialog[open]"))return false;
+    if(globalThis.AtriumLeaveProject.notebookDialogs().length)return false;
     const rich=globalThis.AtriumRichTextEditor;
     if(rich?.current?.() && rich.close(true)===false)return false;
     if(drag?.before)endDrag(false);

@@ -298,5 +298,15 @@ globalThis.AtriumRichTextEditor = (() => {
     globalThis.addEventListener("resize",()=>position(s),{signal});const release=["change","document","replace","panes"].map(t=>host.on?.(t,()=>position(s,false)));s.unsub=()=>release.forEach(fn=>fn?.());
     position(s);s.root.focus({preventScroll:true});endAt(s.root.lastElementChild);return true;
   }
+  // Leaving the project (project/leave-project.js): an unfinished note asks once, as a review note (a sticky note or
+  // a callout) or as a notebook note, and closes unsaved at the commit.
+  function unfinished(review) {
+    const s=session;
+    if(!s || !!(s.item.sticky || s.item.callout)!==review)return null;
+    try{const body=JSON.stringify(readBody(s));return body!==s.initial?body:null;}catch{return null;}
+  }
+  const LP=globalThis.AtriumLeaveProject;
+  LP?.draft("review-note",LP.order.notes,{state:()=>unfinished(true),message:"Discard the unfinished review note?",discard:()=>close(false)});
+  LP?.draft("note-editor",LP.order.notebook,{state:()=>unfinished(false),message:"Discard the changes to this note?",discard:()=>close(false)});
   return Object.freeze({open,close,current:()=>session?.item || null});
 })();

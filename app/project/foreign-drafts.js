@@ -202,8 +202,11 @@ globalThis.AtriumForeignDrafts = (() => {
     // Keep becomes recoverable in another live window only once this project actually leaves.
     return serialized(record,async()=>{
       const h=record.head;
-      if (h?.kept && h.session===G.AtriumAutosave?.session)
-        await scopes().write(scope,h.writer,h.stamp,{...h,stamp:crypto.randomUUID(),session:null});
+      if (h?.kept && h.session===G.AtriumAutosave?.session) {
+        const next={...h,stamp:crypto.randomUUID(),session:null};
+        await scopes().write(scope,h.writer,h.stamp,next);
+        if (record.head===h) record.head=next;
+      }
     }).catch(()=>{});
   }
   async function available(host=G.AtriumNavHost,rows) {
@@ -315,6 +318,40 @@ globalThis.AtriumForeignDrafts = (() => {
       .catch(e=>{host.info?.(e.message);return false;}).finally(()=>reviews.delete(pending.id));
     reviews.set(pending.id,work); return work;
   }
+  // Leaving the project (project/leave-project.js): the review only records its answer. Save saves now and Keep keeps
+  // the recovery copy for later; Discard deletes the copy at the commit, so a later Cancel (or an open that fails)
+  // keeps it. An answer holds for the revision it was given about: an edit made since asks again.
+  const LP=G.AtriumLeaveProject, ANSWER="foreign-drafts";
+  LP?.register(ANSWER,{order:LP.order.foreign,
+    ask(t) {
+      const host=t.host,pending=pendingOf(host);
+      if (t.sameProject || t.settled || !pending || !needsReview(host)) return true;
+      const held=t.answers.get(ANSWER);
+      if (held?.id===pending.id && held.revision===host.revision()) return true;
+      if (held?.discard) delete held.record.discardRevision;
+      return review(host,true).then(ok=>{
+        if (!ok) return false;
+        const record=sessionRecord(pending);
+        t.answers.set(ANSWER,{id:pending.id,pending,record,revision:host.revision(),discard:record.discardRevision!==undefined});
+        return true;
+      });
+    },
+    keep(t) { const held=t.answers.get(ANSWER); if (held?.discard) delete held.record.discardRevision; },
+    commit(t) {
+      const held=t.answers.get(ANSWER);
+      if (!held) return;
+      const {record,id}=held;
+      if (held.discard) {
+        delete record.discardRevision;
+        serialized(record,async()=>{
+          clearTimeout(record.timer); record.timer=null;
+          if (!record.head) return;
+          await scopes().write(scope,id,record.head.stamp,null);
+          record.head=null; record.revision=undefined; discover(id,false);
+        }).catch(e=>t.host.info?.(e.message));
+      }
+      release(held.pending);
+    }});
   function beforeUnload(event) { if (needsReview(G.AtriumNavHost)) {event.preventDefault();event.returnValue="";} }
   let lastSession;
   G.AtriumNavCommon?.ready(host=>host.on?.("import-session",()=>{

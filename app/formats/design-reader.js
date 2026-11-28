@@ -216,19 +216,21 @@ globalThis.AtriumDesignReader = (() => {
     return {read:input, reports, designOpen, unchanged, ...plan};
   }
 
-  async function open(files, options, host, {context, mayReplace, adopt, report, fitOpened, prepareImported, activateImported, progress: bar}) {
+  // Replacing the project is one leave-project transaction (project/leave-project.js): asked before the design
+  // is prepared, asked again just before it is adopted, committed with the adoption, cancelled on any other exit.
+  async function open(files, options, host, {context, leave, adopt, report, fitOpened, prepareImported, activateImported, progress: bar}) {
     const work = progress(options, bar);
-    let opened = false;
+    let opened = false, t = null;
     try {
       const plan = await planOpen(files, options, work, host, context);
       if (!plan) return false;
       if ("handled" in plan) return opened = plan.handled;
       const {read, ids, openLib, reports} = plan, H = globalThis.AtriumHost;
       const replacing = !openLib && !options.into;
-      if (replacing && !await mayReplace(!host.isStarter() && !!H && plan.designOpen)) return false;
+      t = replacing ? leave({confirmClean: !host.isStarter() && !!H && plan.designOpen}) : null;
+      if (t && !await t.ask()) return false;
       work.check();
-      const destination = host.project(), revision = host.revision();
-      const current = replacing ? () => destination === host.project() && revision === host.revision() : plan.unchanged;
+      const current = replacing ? () => t.current() : plan.unchanged;
       bar?.stage?.(.92, .97, 0, "Preparing the project…");
       const names = read.files.map(f => f.name), format = registry().get(read.report.translator);
       await host.prepareWorkbench?.(plan.after,{starterView:false});
@@ -237,10 +239,14 @@ globalThis.AtriumDesignReader = (() => {
       const imported = replacing && format?.group === "design"
         ? await prepareImported({read,reports,plan,format,names,signal:work.signal}) : null;
       work.check();
+      // Work changed while the files loaded (an editor tab, a note, the project) asks again now.
+      if (t && (!await t.ready() || !t.current())) return false;
+      work.check();
       options.beforeCommit?.();
       bar?.stage?.(.97, 1, 0, "Opening the project…");
       if (replacing) H?.clearProjectPath?.();
       adopt(plan,imported);
+      t?.commit();
       let entry;
       try {
         if (replacing) H?.acceptHistorySource?.(read.files);
@@ -260,7 +266,7 @@ globalThis.AtriumDesignReader = (() => {
       if (work.cancelled || error.name === "AbortError" || ["cancelled","stale_target"].includes(error.code)) host.info("Import cancelled.");
       else {host.info(error.message); report([error.message], "Couldn’t open this file");}
       return false;
-    } finally {work.close(); globalThis.AtriumHost?.finishedOpening?.(opened);}
+    } finally {t?.cancel(); work.close(); globalThis.AtriumHost?.finishedOpening?.(opened);}
   }
 
   async function prepare(project, files, work, info) {

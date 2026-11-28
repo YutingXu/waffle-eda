@@ -5,13 +5,16 @@
 // in that pane shows the canvas again; the view keeps its tab until it is closed (its ×, a middle click, or Delete
 // on the focused tab). One view per id; opening an open view shows it. A view's canClose() is asked first when
 // the user closes its tab: false keeps the tab (an editor with unsaved changes asks, then closes itself).
-// close(id) always closes. A project switch (the nav host's "replace") closes every view here, without asking:
-// a view or an editor draft built for the old project must not act on the next one (a Save would write the part
-// into it). The host marks a replace that keeps the same project ({sameProject:true}: an undo-tree branch switch,
-// a workspace window's mirror refresh), and the views stay. showCanvas() hides the views over the active pane's canvas.
+// close(id) always closes. A project switch (project/leave-project.js) asks mayDiscard() first: each view's own
+// mayDiscard() (an editor with unsaved changes shows its tab and asks) may refuse, and the project stays. The switch
+// asks again just before it commits; a view answers again only for work changed since. keep() tells each view the
+// switch stopped, so the next one asks afresh. The switch (the nav host's "replace") then closes every view here: a view or an editor draft built for the old project must not act
+// on the next one (a Save would write the part into it). The host marks a replace that keeps the same project
+// ({sameProject:true}: an undo-tree branch switch, a workspace window's mirror refresh), and the views stay.
+// showCanvas() hides the views over the active pane's canvas.
 //
-//   AtriumDocViews.open(id, {title, icon?, mount(el), onClose?, canClose?}) -> the view's element (mount runs once)
-//   AtriumDocViews.show(id) / hide(id) / close(id) / isOpen(id) / decorate() / showCanvas()
+//   AtriumDocViews.open(id, {title, icon?, mount(el), onClose?, canClose?, mayDiscard?, keep?}) -> the view's element (mount runs once)
+//   AtriumDocViews.show(id) / hide(id) / close(id) / isOpen(id) / decorate() / showCanvas() / mayDiscard() -> false keeps the project / keep()
 globalThis.AtriumDocViews = (() => {
   const G = globalThis, views = new Map(), MIME = "application/x-atrium-document-view";
   const D = () => G.document;
@@ -28,7 +31,7 @@ globalThis.AtriumDocViews = (() => {
       const box = el("div", null, "doc-view");
       box.id = "doc-view-" + id; box.setAttribute("role", "tabpanel");
       box.setAttribute("aria-labelledby", "doc-view-tab-" + id); box.dataset.view = id; box.hidden = true;
-      v = {id, title: o.title || id, tip: o.tip || o.title || id, icon: o.icon || "book", pane: activeIndex(), el: box, onClose: o.onClose || null, canClose: o.canClose || null, tab: null};
+      v = {id, title: o.title || id, tip: o.tip || o.title || id, icon: o.icon || "book", pane: activeIndex(), el: box, onClose: o.onClose || null, canClose: o.canClose || null, mayDiscard: o.mayDiscard || null, keep: o.keep || null, tab: null};
       views.set(id, v);
       place(v);
       o.mount?.(box);
@@ -68,6 +71,10 @@ globalThis.AtriumDocViews = (() => {
   }
   // The tab's ×, a middle click or Delete: the view may keep itself open.
   function ask(v) { if (v.canClose?.() !== false) close(v.id); }
+  // A project switch: every view may let its work go (false: one kept it, and the project stays).
+  function mayDiscard() { for (const v of [...views.values()]) if (v.mayDiscard?.() === false) { keep(); return false; } return true; }
+  // The switch stopped (a later prompt was cancelled, or the open failed): forget the views' answers.
+  function keep() { for (const v of views.values()) try { v.keep?.(); } catch { /* the view's own state */ } }
   function showCanvas() { const k = activeIndex(); for (const v of views.values()) if (v.pane === k && !v.el.hidden) hide(v.id); }
   function focusPane(canvas) {
     const v = [...views.values()].find(view => !view.el.hidden && view.el.parentElement === canvas.parentElement);
@@ -173,5 +180,7 @@ globalThis.AtriumDocViews = (() => {
       h.on?.("replace", detail => { if (!detail?.sameProject) for (const id of [...views.keys()]) close(id); });
     });
   }
-  return Object.freeze({open, show, hide, close, decorate, showCanvas, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
+  // The first participant of every project switch (project/leave-project.js); a same-project replace keeps the views.
+  G.AtriumLeaveProject?.register("editor-tabs", {order: G.AtriumLeaveProject.order.tabs, ask: t => t.sameProject || mayDiscard(), keep});
+  return Object.freeze({open, show, hide, close, decorate, showCanvas, mayDiscard, keep, focusPane, rememberOrder, move, isOpen: id => views.has(id), isShown: id => !!views.get(id) && !views.get(id).el.hidden});
 })();
