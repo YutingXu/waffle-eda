@@ -1,8 +1,9 @@
 # Poured copper that costs what an edit touched
 
 Status: all three stages approved by the owner on 2026-11-27, built and measured (results below).
-Stages 1 and 2 are on `perf/pour-copper-proportional`, stage 3 on `perf/pour-solve-local`; the three
-are merged on `integrate/pour`, where the stage 3 numbers below were measured. The
+Stages 1 and 2 are on `perf/pour-copper-proportional`, stage 3 on `perf/pour-solve-local` and its
+outline splice on `perf/pour-outline-local`; all are merged with main (`38436d6`) on `integrate/pour`,
+where the stage 3, outline and merge numbers below were measured. The
 owner asked for stage 2 to be built whatever stage 1 measures. It follows the measurements on the
 local branch `perf/pcb-edit-proportional` and a read-only map of the pour code made the same day.
 
@@ -253,8 +254,8 @@ Still a full solve:
 
 - A track that crosses or touches a pour outline: 1.6–1.8 s on the benchmark board when it
   crosses two large pours, the same as before. Making this local needs an edge-level splice of
-  long rings. Approved by the owner on 2026-11-27, being built on `perf/pour-outline-local`, no
-  results yet.
+  long rings. Approved by the owner on 2026-11-27 and built on `perf/pour-outline-local`; see the
+  result below.
 - Remove Necks and Outlines Only pours, second stage.
 - Pours whose last solve needed snap rounding.
 - Pour outline, clearance and rule edits, by nature.
@@ -271,6 +272,109 @@ stale.
 Constraint found on the way: reuse inside area sessions relies on the worker's mirror replacing a
 changed row with a new object. Calling `repourAll` with `area` on editor objects edited in place
 is not safe. Nothing in the editor does that today.
+
+#### Result of the outline splice (branch `perf/pour-outline-local`, 2026-11-27; merged on `integrate/pour`)
+
+A ring much longer than the edit (a pour outline, a large island's outer ring) no longer joins the
+patch whole. Only the stretch of it inside the region is solved again and the rest of its vertices
+are kept. Cuts are allowed only on axis-parallel edges without arcs, where rounding cannot move a
+point off the line; anything else falls back to a full solve with a named reason.
+
+Worker time per edit on the benchmark board after all three merges (`integrate/pour`, with main),
+stage 3's bench with `VERIFY=1` (one run each; every refill of all 24 edits identical to a full
+repour), total / exact solve in ms, on AC power. "Before" is stage 3 alone in the same session. The
+author's and the reviewer's measurements on `perf/pour-outline-local` alone, 29 edit kinds: a track
+across two pours 1,922 / 1,666 before, 325 / 65 after; a bend of it 2,016 / 1,722 before, 393 / 70.
+
+| Edit | Stage 3 alone | Merged |
+| --- | --- | --- |
+| Add a track across two pours | 1,908 / 1,633 | 184 / 52 |
+| Bend that track | 1,628 / 1,372 | 193 / 56 |
+| Track crossing an outline | 1,644 / 1,392 | 166 / 44 |
+| Move a part on two pours | 324 / 55 | 151 / 42 |
+| Bend a track inside a pour, for scale | 134 / 12 | 115 / 17 |
+
+These edits run three exact solves (both pours, and the later pour's second stage) where a bend
+runs one, so their solve time is several times a bend's while their total is under twice. A pour
+outline edit is still a full solve (915 / 754).
+
+Still a full solve after this: Remove Necks and Outlines Only second stages, snap-rounded
+overlays, an outline vertex that moves whole long edges, clearance and rule edits, and a cut that
+cannot be decided exactly.
+
+## Merged with main (`38436d6`, 2026-11-27)
+
+`integrate/pour` took main after stage 3 and before the outline splice, as its own merge commit.
+Main's pour changes (#85: Altium's clearances and thermal reliefs, spokes added after the island
+tests, the oracle against stored fill) decide what copper is: the merged branch's stored copper
+equals main's own full repour, step for step, over 250 seeded steps (`--digest` against `38436d6`).
+
+Conflicts, each resolved on main's behaviour:
+
+- `drc-pours.js`: main's plane clearance, hole clearance and the internal-plane exception were
+  written into the full check only; they now live in the shared `pair()` that the online session
+  (from `perf/pcb-edit-proportional`) also uses, with hole violations kept apart.
+- `canvas-fast.js`: main's resize path and LOD detail key on stage 1's key (no pours array, no tile
+  version, so the camera starts at index 11), and a resize also requires that no copper changed.
+- `canvas-gpu.js`: main's `coverageRegion` records keyed by the engine's `dataKey`, with stage 1's
+  view damage.
+- `pcb-pours.js`: stage 1's LOD trim with main's `redrawPourLOD`.
+- `polygon-pour.js`: area sessions keep main's spoke stage (`stage3`) and stage 3's island tests
+  (`kept`).
+
+Nothing of the three branches was made unnecessary by main: #83's Undo fix is in online DRC's rule
+scope, #69 and #68 in zoom and pane resizing, #82 in markers; none does what these stages do. The
+eager budget is now 2 MB (1,037.8 KB used), so autosave's section dividers are back to full width.
+
+The pours board, `scripts/perf-sch.sh --board pours`, 3 runs per side alternating main alone
+(`38436d6`) and the merge (before the outline splice), headless Chrome with CPU raster, on AC power.
+Medians [range].
+
+| | Always: main | merged | Off: main | merged |
+| --- | --- | --- | --- | --- |
+| Longest task after an edit (`editTaskMax`) | 441 ms [420–458] | 0 [0–56] | 455 [403–907] | 0 [0–50] |
+| Longest canvas frame (`editCanvasMax`) | 75 ms | 40 ms | 73 ms | 41 ms |
+| CPU over the edit series (`editSeriesCpuMs`) | 1,192 ms | 309 ms | 1,592 ms | 350 ms |
+| Idle wake-ups per second | 102 | 0 | 0 | 0 |
+
+| Bytes per edit (move, bend, add, delete, paste) | main | merged |
+| --- | --- | --- |
+| Worker to editor | not counted | 88, 93, 32, 25, 138 KB |
+| Autosave written | 5.7, 5.7, 5.7, 2.9, 8.5 MB | 135, 134, 72, 73, 175 KB |
+| Undo held | 11.4, 7.5, 7.5, 3.9, 11.4 MB | 81, 85, 25, 22, 125 KB |
+
+Main alone spends 300–450 ms in a main-thread task on every edit of this board, and in Efficiency
+mode Always its edit pipeline wakes about 100 times a second while idle; neither was investigated
+here (main's own probe and scripts were not used). The merged branch passes the pours budgets in
+5 of 6 runs; one Efficiency-off run missed `openSettleCpuMs` by 8 ms (1,808 against 1,800).
+`EFFICIENCY=always|off` still forces the mode after main's #81 (the probe calls
+`AtriumPower.setMode`, which Always and Off override whatever the system reports).
+
+After the outline splice was merged too (the branch's final state), the same comparison, 3 runs per
+side: `editTaskMax` 61 ms [50–105] (Always) and 56 [0–56] (Off) against main's 529 and 490;
+`editCanvasMax` 42 and 48 ms against 158 and 101; `editSeriesCpuMs` 355 and 481 ms against 1,415
+and 3,001; bytes per edit as in the table above. Two of six pours runs passed every budget. The
+others missed by little (`openSettleCpuMs` 1,801–1,845 against 1,800, `editSeriesCpuMs` 621 against
+550, `editCanvasMax` 51 against 50), except one Always run whose opening took 4.9 s of CPU and whose
+Redo had a 105 ms task. Undo and Redo have a 50–61 ms task in most Always runs. The budgets set in
+stage 2 were measured before main's spoke stage, which adds work to every solve. `--board` and
+`--board nets` pass in both modes.
+
+The pixel test fails after this merge on one edit, the pour outline edit: a one-pixel column along
+the border between the two top-layer pours (x = 180 mm) differs by up to 6 levels over 152 pixels,
+in both Efficiency modes, in every run. Main's dependent-pour copper now changes along that whole
+border, and the repainted strip holds the edges of both pours in the same pixel column; each edge's
+partial-fill rounding is within the accepted 3 levels, and together they reach 6 (not proven). In one
+of four Always runs the same edit also left one frame with 50,391 pixels off by up to 52, not
+reproduced in three further runs and not explained.
+
+## Accepted by the owner (2026-11-27)
+
+- A build from before stage 2 cannot read a recovery draft written by a build with it, and reports
+  the snapshot as incomplete. Nothing is backported, so downgrades are not a supported path. Drafts
+  written by older builds still read.
+- A partial repaint of a large pour may differ from a full repaint by up to 3 of 255 antialiasing
+  levels at edge pixels. The pixel test allows exactly that.
 
 ## Not in this design
 
