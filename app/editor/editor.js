@@ -617,7 +617,7 @@
   globalThis.AtriumPower?.onChange?.(({visible})=>{
     if(visible===viewportVisible)return;
     viewportVisible=visible;
-    if(visible){syncLayerControl();redraw(true);editPipeline?.resume();renderComponents();if(inspectorDirty)inspect();}
+    if(visible){syncLayerControl();redraw(true);editPipeline?.resume();renderComponents();if(inspectorDirty)inspectInBackground();}
     else {cancel3DIntent();editPipeline?.suspend();if(frame){cancelAnimationFrame(frame);frame=0;}}
   });
   function updateTuning(p){
@@ -763,7 +763,7 @@
     for(const {target,contentRect:r} of entries){
       const visible=r.width>0&&r.height>0;
       if(target===partsList.parentElement){if(visible!==componentsVisible){componentsVisible=visible;renderComponents();}}
-      else {inspectorVisible=visible;if(visible&&inspectorDirty)inspect();}
+      else {inspectorVisible=visible;if(visible&&inspectorDirty)inspectInBackground();}
     }
   });
   dockObserver.observe(partsList.parentElement);dockObserver.observe($("inspector"));
@@ -883,23 +883,28 @@
     },undefined,()=>[{doc:d,items:moved,library}]);
   }
   // git-blame: under Properties, who last changed the selected object (blame.js, lazy; desktop with a Git project only).
-  function revealInspector(launch=false){if(inspectorDirty&&$("inspector").getClientRects().length){inspectorVisible=true;inspect(false,launch);}}
-  // A module that arrives in the background (moduleLoaded) does not rebuild Properties under a field being
-  // typed in: that would drop the draft and its selection. The rebuild waits until focus leaves the panel,
-  // unless an edit or a selection change rebuilds it first. A length field commits on blur through the
-  // calculations worker, so the held rebuild waits for that commit: rebuilding under it would drop the value.
-  // Held means dirty too, so a panel hidden before focus leaves still rebuilds when it is shown again.
-  let lazyRefresh=false,inspectorHeld=false,heldPanel=null;
+  function revealInspector(launch=false){if(inspectorDirty&&$("inspector").getClientRects().length){inspectorVisible=true;inspectInBackground(false,launch);}}
+  // A rebuild that Properties did not ask for does not replace a draft there: that would drop the draft and
+  // its selection. Background rebuilds are a module arriving (moduleLoaded), a resize, reveal or wake that
+  // catches up a dirty panel, and an appearance or Labs change. The rebuild waits until focus leaves the
+  // panel, unless an edit or a selection change rebuilds it first. A length field commits on blur through the
+  // calculations worker, once numeric-fields.js has loaded, so the held rebuild waits for that commit and
+  // learns whether it was accepted. A rejected value keeps its field and its message until it is corrected. Held means dirty too, so a panel hidden before focus leaves still rebuilds when shown again.
+  let backgroundInspect=false,inspectorHeld=false,heldPanel=null;
   function typingInInspector(panel){const a=document.activeElement;return !!a&&panel.contains(a)&&a.matches("textarea,[contenteditable=true],input:not([type=checkbox],[type=radio],[type=range],[type=button],[type=color])");}
+  function draftInInspector(panel){const N=globalThis.AtriumNumericFields;return typingInInspector(panel)||!!N?.draft&&[...panel.querySelectorAll("input")].some(i=>N.draft(i));}
   function holdInspector(panel){
     inspectorHeld=true;inspectorDirty=true;if(heldPanel===panel)return;heldPanel=panel;
-    const rebuild=()=>{if(inspectorHeld&&!typingInInspector(panel))inspect();};
     panel.addEventListener("focusout",e=>{if(!inspectorHeld||panel.contains(e.relatedTarget))return;
-      setTimeout(()=>Promise.resolve(globalThis.AtriumNumericFields?.finishEdits?.(navHost)).catch(()=>{}).then(rebuild),0);});
+      setTimeout(()=>Promise.resolve(globalThis.AtriumLazy?.finishNumericEdits?.(navHost)).catch(()=>true)
+        .then(ok=>{if(ok!==false&&inspectorHeld&&!draftInInspector(panel))inspect();}),0);});
+  }
+  function inspectInBackground(reuseOverview=false,launch=false){
+    const was=backgroundInspect;backgroundInspect=true;try{inspect(reuseOverview,launch);}finally{backgroundInspect=was;}
   }
   function inspect(reuseOverview=false,launch=false){
     inspectorDirty=!inspectorVisible||!viewportVisible&&!launch;if(inspectorDirty)return;
-    if(lazyRefresh&&typingInInspector($("inspector"))){holdInspector($("inspector"));return;}
+    if(backgroundInspect&&draftInInspector($("inspector"))){holdInspector($("inspector"));return;}
     inspectorHeld=false;
     const panel=$("inspector"),d=doc(),overview=pcb()&&tool==="select"&&!selectedIds.size&&!globalThis.AtriumPCBDraw?.session;
     inspectorStamp=overview&&globalThis.AtriumUndoStore?.trackOverview?.(d,project,inspectorStamp,
@@ -1213,7 +1218,7 @@
     setLayerMode:m=>{layerMode=m;pruneSelection();inspect();syncTools();draw();},
     redraw:()=>{pruneSelection();syncTools();inspect();draw();}
   };
-  globalThis.addEventListener?.("atrium-pcb-appearance",()=>{const bar=$("layer-tabs");if(bar)bar.dataset.layers="";syncTools();inspect();for(const p of panes)p.version++;draw();});
+  globalThis.addEventListener?.("atrium-pcb-appearance",()=>{const bar=$("layer-tabs");if(bar)bar.dataset.layers="";syncTools();inspectInBackground();for(const p of panes)p.version++;draw();});
   // Theme and appearance changes repaint every pane, not just the active one.
   globalThis.addEventListener?.("atrium-theme",()=>{for(const p of panes)p.version++;draw();});
   let shortcutTitlesPending=false;
@@ -1502,7 +1507,7 @@
       const copper=globalThis.AtriumPolygonPour?.live?.pendingSave?.(whole||o.only?undefined:target,o.only);
       return copper?copper.then(()=>fileSession===session&&project===owner&&saveCommitted(o,pending,target.id),fail):saveCommitted(o,pending);
     });
-    const settle=()=>{const edits=globalThis.AtriumNumericFields?.finishEdits?.(navHost);return edits?edits.then(ok=>ok&&write(),fail):write();};
+    const settle=()=>{const edits=globalThis.AtriumLazy?.finishNumericEdits?.(navHost);return edits?edits.then(ok=>ok&&write(),fail):write();};
     return commit?commit.then(ok=>ok&&settle(),fail):settle();
   }
   function saveCommitted(o,pending,documentId){
@@ -2360,7 +2365,7 @@
   function installPCBEdit(){
     if(pcbEdit || !globalThis.AtriumPCBEdit)return;
     pcbEdit=AtriumPCBEdit.install(pcbEditContext);
-    inspect();
+    inspectInBackground();
   }
   // Navigation host for palette.js, crossprobe.js, drc-view.js, nets-panel.js and pcb-list.js.
   function paneInfo(p){
@@ -2530,7 +2535,7 @@
     restoreImportSession:input=>fileUI().then(ui=>ui.restoreImported(input,navHost)),
     showImportReport(result,ids,names,options){const s=fileSession;return AtriumLazy.need("AtriumImportReports").then(r=>s===fileSession&&r.show(r.remember(s,result,ids,names,options)));},
     isDirty:()=>dirty,markUnsaved(){dirtyState(true);},openFiles:importFiles,openFilePicker,saveProject:save,
-    moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);lazyRefresh=lazy;try{refresh(lazy,!lazy||name==="AtriumMultichannel");}finally{lazyRefresh=false;}},
+    moduleLoaded(name){const lazy=!!name;refreshDefs(!lazy);backgroundInspect=lazy;try{refresh(lazy,!lazy||name==="AtriumMultichannel");}finally{backgroundInspect=false;}},
     async replaceProject(p,o={}){
       if(!o.force&&!await mayReplace()||o.current&&!o.current())return false;
       const old=project, stamp=authoredRevision, L=globalThis.AtriumLazy;
@@ -2595,10 +2600,10 @@
       const sheet=pane===activePane?doc():docById(pane.docId);
       if(sheet)pane.view?.invalidate?.(sheet);
     }
-    navVersion++;inspect();draw();
+    navVersion++;inspectInBackground();draw();
   });
   refreshDefs();refresh();if(!homeFit)fit();bindCanvas(canvas);paneObserver.observe(canvas);restoreSplit();
-  if(!homeFit&&!globalThis.__atriumOpeningProject)prepareWorkbench().then(()=>{inspect();syncTools();},e=>info(e.message));
+  if(!homeFit&&!globalThis.__atriumOpeningProject)prepareWorkbench().then(()=>{inspectInBackground();syncTools();},e=>info(e.message));
   extensionHost=({
     project:()=>project,documentId:()=>current,defs:()=>defs,revision:()=>revision,selection:()=>[...selectedIds],
     select:ids=>{const have=new Set(doc().items.map(i=>i.id));assignSelection(ids.filter(id=>have.has(id)));inspect();syncTools();draw();},

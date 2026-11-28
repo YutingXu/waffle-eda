@@ -1,17 +1,96 @@
 "use strict";
 const assert=require("node:assert/strict"),path=require("node:path");
 const {pathToFileURL}=require("node:url"),{chromium}=require("../support/playwright.cjs");
+const appURL=pathToFileURL(path.resolve(__dirname,"../../app/index.html")).href;
+// A board with two pads whose Properties numeric-fields.js has not reached yet: the script is held back
+// until window.releaseNumericFields() runs.
+async function heldPadPage(browser) {
+  const page=await browser.newPage({viewport:{width:1280,height:850},reducedMotion:"reduce"});
+  page.setDefaultTimeout(8000);
+  const pageErrors=[];page.on("pageerror",e=>pageErrors.push(e.message));
+  await page.addInitScript(()=>{
+    const append=Element.prototype.append;
+    Element.prototype.append=function(...nodes){
+      if(!window.releaseNumericFields && nodes.some(n=>n instanceof HTMLScriptElement && /\/numeric-fields\.js(\?|$)/.test(n.src))){
+        window.releaseNumericFields=()=>append.apply(this,nodes);return;}
+      return append.apply(this,nodes);
+    };
+  });
+  await page.goto(appURL);
+  await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
+  await page.waitForFunction(()=>!!globalThis.AtriumNavHost?.doc());
+  await page.evaluate(async()=>{
+    const h=AtriumNavHost;await h.replaceProject(Atrium.project("Held numeric field",[]),{force:true,dirty:false});
+    h.selectDocument(h.project().documents.find(d=>d.kind==="pcb").id);
+    h.edit(()=>h.doc().items.push({kind:"pad",id:"held-pad",x:5,y:5,w:2,h:2,shape:"round",layer:"Top"},
+      {kind:"pad",id:"other-pad",x:15,y:5,w:2,h:2,shape:"round",layer:"Top"}),"Place pads");
+    h.select(["held-pad"]);
+    // The board's own background loads land first, so only the notification below holds the rebuild.
+    await AtriumLazy.need(["AtriumStackup","AtriumViaStack","AtriumPolygonPour","AtriumRooms","AtriumRules","AtriumPCBDraw","AtriumPCBTextRich","AtriumPCBNetLabels"]);
+    await new Promise(resolve=>setTimeout(resolve,50));
+  });
+  const padWidth=page.locator('#inspector input[aria-label^="X size"]');
+  const pads=()=>page.evaluate(()=>{const all=AtriumNavHost.project().documents.flatMap(d=>d.items);
+    return {held:all.find(i=>i.id==="held-pad").w,other:all.find(i=>i.id==="other-pad").w};});
+  const clickOtherPad=async()=>{
+    const [x,y]=await page.evaluate(()=>{const h=AtriumNavHost,b=h.canvas().getBoundingClientRect(),[sx,sy]=h.view().worldToScreen([15,5]);return [sx+b.left,sy+b.top];});
+    await page.mouse.click(x,y);
+    await page.waitForFunction(()=>AtriumNavHost.selection().join()==="other-pad");
+  };
+  return {page,pageErrors,padWidth,pads,clickOtherPad};
+}
+async function heldBeforeNumericFields(browser) {
+  // A length typed before numeric-fields.js arrives commits on blur under a held rebuild: the rebuild waits
+  // for the module and its commit instead of removing the field first.
+  let {page,pageErrors,padWidth,pads,clickOtherPad}=await heldPadPage(browser);
+  await padWidth.focus();await padWidth.fill("3 mm");
+  assert.equal(await page.evaluate(()=>!!globalThis.AtriumNumericFields),false,"numeric-fields.js is held back");
+  await padWidth.evaluate(input=>{window.draftField=input;AtriumNavHost.moduleLoaded("AtriumPCBTextRich");});
+  await page.locator("#canvas").focus();
+  await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,50)));
+  await page.evaluate(()=>window.releaseNumericFields());
+  await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="held-pad").w===3,null,{timeout:5000})
+    .catch(()=>assert.fail("a length typed before numeric-fields.js loaded was dropped by a held rebuild"));
+  await page.waitForFunction(()=>!window.draftField.isConnected);
+  // Leaving a length by choosing another object (on the canvas, in the Projects tree) rebuilds Properties for
+  // that object at once, and the length still lands on the object it was typed for.
+  await padWidth.focus();await padWidth.fill("4 mm");await clickOtherPad();
+  await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="held-pad").w===4,null,{timeout:5000})
+    .catch(()=>assert.fail("a length left by clicking another object on the canvas was dropped"));
+  await page.evaluate(()=>AtriumNavHost.select(["held-pad"]));
+  await padWidth.focus();await padWidth.fill("5 mm");
+  const sheet=await page.evaluate(()=>AtriumNavHost.project().documents.find(d=>d.kind==="schematic").name);
+  await page.locator("#documents [role=treeitem]").filter({hasText:sheet}).first().click();
+  await page.waitForFunction(()=>AtriumNavHost.doc().kind==="schematic");
+  await page.waitForFunction(()=>AtriumNavHost.project().documents.flatMap(d=>d.items).find(i=>i.id==="held-pad").w===5,null,{timeout:5000})
+    .catch(()=>assert.fail("a length left by choosing another document in the Projects tree was dropped"));
+  assert.deepEqual(await pads(),{held:5,other:2});
+  assert.deepEqual(pageErrors,[]);
+  await page.close();
+  // The same while numeric-fields.js is still loading: the commit waits for it, then lands on the first pad.
+  ({page,pageErrors,padWidth,pads,clickOtherPad}=await heldPadPage(browser));
+  await padWidth.focus();await padWidth.fill("3 mm");await clickOtherPad();
+  await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,50)));
+  await page.evaluate(()=>window.releaseNumericFields());
+  await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="held-pad").w===3,null,{timeout:5000})
+    .catch(()=>assert.fail("a length left by clicking another object before numeric-fields.js loaded was dropped"));
+  assert.deepEqual(await pads(),{held:3,other:2});
+  assert.deepEqual(pageErrors,[]);
+  await page.close();
+  console.log("PASS a held Properties rebuild waits for numeric-fields.js; a length left by choosing another object commits to its own object");
+}
 async function run() {
   const browser=await chromium.launch({channel:"chrome",headless:true});
   const themes=process.env.WAFFLE_NUMERIC_THEME?[process.env.WAFFLE_NUMERIC_THEME]:["light","dark"];
   try {
+    await heldBeforeNumericFields(browser);
     for(const theme of themes) {
       const page=await browser.newPage({viewport:{width:1280,height:850},reducedMotion:"reduce",colorScheme:theme});
       page.setDefaultTimeout(8000);
       const pageErrors=[];page.on("pageerror",e=>pageErrors.push(e.message));
       await page.clock.install();
       await page.addInitScript(()=>{globalThis.ATRIUM_UNDO_VERIFY="throw";});
-      await page.goto(pathToFileURL(path.resolve(__dirname,"../../app/index.html")).href);
+      await page.goto(appURL);
       assert.equal(await page.evaluate(()=>!!globalThis.AtriumNumericFields || !!globalThis.AtriumCalculationCore),false);
       await page.locator("dialog.sp-dialog[open] [data-start-action=demo]").click();
       await page.waitForFunction(()=>!!globalThis.AtriumNavHost?.doc());
@@ -187,6 +266,11 @@ async function run() {
       const rules=page.getByRole("dialog",{name:"Rules and Constraints Editor"});
       await rules.locator('[data-key^="rule:"]').filter({hasText:/^Clearance$/}).first().click();
       const gap=rules.getByLabel(/^Minimum clearance \(/);
+      // Choosing another rule while a length evaluates keeps the length in the rule it was typed for.
+      await gap.fill("0.777 mm");await rules.locator('[data-key^="rule:"]').filter({hasNotText:/^Clearance$/}).first().click();
+      await page.evaluate(()=>AtriumLazy.finishNumericEdits());
+      await rules.locator('[data-key^="rule:"]').filter({hasText:/^Clearance$/}).first().click();
+      assert.equal(await gap.inputValue(),"0.777","a length left by choosing another rule was dropped");
       await gap.fill("=10mil + 0.1mm");await rules.getByRole("button",{name:"OK",exact:true}).click();
       await page.waitForFunction(()=>AtriumNavHost.project().numericExpressions?.some(e=>e.target.scope==="rule"));
       assert.ok(await page.evaluate(()=>AtriumNavHost.project().rules.list.some(r=>r.type==="clearance" && r.gap===.354)));
@@ -222,6 +306,36 @@ async function run() {
       await page.locator("#canvas").focus();
       await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===3,null,{timeout:5000})
         .catch(()=>assert.fail("a length committed on blur under a held rebuild was dropped"));
+      await padWidth.focus();await padWidth.fill("2 mm");await padWidth.press("Enter");
+      await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===2);
+      // A held rebuild leaves Properties dirty. A resize that catches up a dirty panel waits for the draft too.
+      await padWidth.focus();await padWidth.fill("3 mm");
+      await padWidth.evaluate(input=>{window.draftField=input;AtriumNavHost.moduleLoaded("AtriumPCBTextRich");});
+      const inspectorHeight=await page.evaluate(()=>document.getElementById("inspector").getBoundingClientRect().height);
+      await page.setViewportSize({width:1200,height:800});
+      await page.waitForFunction(h=>document.getElementById("inspector").getBoundingClientRect().height!==h,inspectorHeight);
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(resolve,0)))));
+      assert.deepEqual(await page.evaluate(()=>({same:document.activeElement===window.draftField && window.draftField.isConnected,
+        value:window.draftField.value,w:AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w})),{same:true,value:"3 mm",w:2},
+        "a resize keeps a held draft focused and uncommitted");
+      await page.setViewportSize({width:1280,height:850});
+      // A board appearance change (colours, layer sets) is a background rebuild too.
+      assert.equal(await page.evaluate(()=>{dispatchEvent(new Event("atrium-pcb-appearance"));
+        return document.activeElement===window.draftField && window.draftField.isConnected;}),true,"an appearance change keeps a held draft");
+      await padWidth.press("Escape");await page.locator("#canvas").focus();
+      await page.waitForFunction(()=>!window.draftField.isConnected);
+      // A rejected length under a held rebuild keeps its text and its error, so it can be corrected.
+      await padWidth.focus();await padWidth.fill("3 V");
+      await padWidth.evaluate(input=>{window.draftField=input;AtriumNavHost.moduleLoaded("AtriumPCBTextRich");});
+      await page.locator("#canvas").focus();
+      await page.waitForFunction(()=>window.draftField.getAttribute("aria-invalid")==="true");
+      await page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,50)));
+      assert.deepEqual(await page.evaluate(()=>({connected:window.draftField.isConnected,value:window.draftField.value,
+        error:!!document.querySelector("#inspector .numeric-field-preview.is-error:not([hidden])"),
+        w:AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w})),{connected:true,value:"3 V",error:true,w:2},
+        "a rejected length under a held rebuild keeps its text and its error");
+      await padWidth.focus();await padWidth.fill("3 mm");await page.locator("#canvas").focus();
+      await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===3 && !window.draftField.isConnected);
       await padWidth.focus();await padWidth.fill("2 mm");await padWidth.press("Enter");
       await page.waitForFunction(()=>AtriumNavHost.doc().items.find(i=>i.id==="field-pad").w===2);
       await page.evaluate(()=>{

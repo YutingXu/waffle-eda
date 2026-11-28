@@ -775,7 +775,11 @@ globalThis.AtriumNumericFields = (() => {
         if(spec.authority && cache?.watches?.length)stop();
         const r=cache && source===text && evaluatedRevision===rev ? cache : await run();
         const ready=r?.ok && prepareTarget(spec.target);if(ready)await ready;
-        if (input.value!==text || owner!==project() || host && rev!==host.revision?.() || input.isConnected===false) return false;
+        // A commit starts when focus leaves the field or the field is removed while focused (the browser sends
+        // change then), as a plain field's change handler runs. A surface that replaces the field while the value
+        // evaluates (Properties or a rule list choosing another object) does not cancel it: it lands on the field's
+        // own target. An edit, Undo or another project in the meantime does.
+        if (input.value!==text || owner!==project() || host && rev!==host.revision?.()) return false;
         if (!r?.ok) {
           if (r?.diagnostic) message(r.diagnostic.message,true,true);
           return false;
