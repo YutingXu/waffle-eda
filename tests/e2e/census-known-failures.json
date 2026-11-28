@@ -1,0 +1,1445 @@
+{
+ "comment": "Source content the census cannot account for after import today (tests/e2e/census.cjs): neither held in the model, nor named in the Import Report, nor declared outside a design's meaning. One row per fixture and check. 'lost' is proven: the census looked and the model does not hold it. 'unmapped' means the census has no check for the field yet, so nothing has looked. A listed check that passes fails the run until it is removed; node tests/e2e/census.cjs --update-known rewrites the list.",
+ "failures": [
+  {
+   "fixture": "kicad-demo",
+   "check": "footprint.name",
+   "bug": "3 lost of 3. First: R1 = \"Atrium_Test:R_0603\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "footprint.path",
+   "bug": "2 lost of 2. First: R1 = \"/a0000000-0000-4000-8000-000000000000/a0000000-0000-4000... (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "footprint/pad.options.clearance",
+   "bug": "1 unmapped of 1. First: pad 3 = \"outline\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "footprint/zone.keepout.pads",
+   "bug": "1 lost of 1. First: 60000000-0000-4000-8000-000000000008 = \"allowed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "footprint/zone.keepout.footprints",
+   "bug": "1 lost of 1. First: 60000000-0000-4000-8000-000000000008 = \"allowed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "gr_text.effects.font.thickness",
+   "bug": "1 lost of 1. First: 30000000-0000-4000-8000-000000000007 = \"0.15\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "zone.name",
+   "bug": "1 lost of 2. First: 50000000-0000-4000-8000-000000000002 = \"keep\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "zone.layers",
+   "bug": "1 lost of 1. First: 50000000-0000-4000-8000-000000000002 = \"F&B.Cu\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-demo",
+   "check": "kicad_pro/net_settings/classes.track_width",
+   "bug": "2 lost of 2. First: net_settings/classes/0 = 0.25 (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone/polygon",
+   "bug": "1 lost of 5. First: polygon #14: not found in the imported model and not in the Import Report"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "layers/layer.type",
+   "bug": "1 lost of 23. First: In2.Cu = \"mixed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "setup/stackup/layer.color",
+   "bug": "5 lost of 5. First: F.SilkS = \"White\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.name",
+   "bug": "4 lost of 4. First: U1 = \"Census_Lib:QFN-8_Custom\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.descr",
+   "bug": "1 lost of 1. First: U1 = \"Eight-pad test package with every pad option\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.tags",
+   "bug": "1 lost of 1. First: U1 = \"QFN census test\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.path",
+   "bug": "1 lost of 3. First: U1 = \"/e1000000-0000-4000-8000-000000000000/e0000000-0000-4000... (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.smd",
+   "bug": "1 lost of 2. First: U1 = true (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.exclude_from_pos_files",
+   "bug": "2 lost of 2. First: U1 = true (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.exclude_from_bom",
+   "bug": "1 lost of 1. First: U1 = true (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.dnp",
+   "bug": "1 lost of 1. First: U1 = true (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.at",
+   "bug": "2 lost of 14. First: MPN = [\"0\",\"4.5\",\"30\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.layer",
+   "bug": "2 lost of 14. First: MPN = \"F.Fab\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.effects.font.size",
+   "bug": "2 lost of 14. First: MPN = [\"1\",\"1\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.effects.font.thickness",
+   "bug": "3 lost of 11. First: MPN = \"0.15\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.unlocked",
+   "bug": "1 lost of 1. First: MPN = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.effects.font.italic",
+   "bug": "1 lost of 1. First: Manufacturer = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/property.effects.justify",
+   "bug": "2 lost of 4. First: Manufacturer = \"left\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_line.stroke.type",
+   "bug": "1 lost of 3. First: c1000000-0000-4000-8000-000000000010 = \"dash\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_line.locked",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000011 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_circle.stroke.type",
+   "bug": "1 lost of 2. First: c3000000-0000-4000-8000-000000000004 = \"dot\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_text.effects.font.size",
+   "bug": "1 lost of 2. First: c1000000-0000-4000-8000-000000000018 = [\"0.6\",\"0.5\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_text.effects.font.thickness",
+   "bug": "2 lost of 2. First: c1000000-0000-4000-8000-000000000017 = \"0.08\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_text.unlocked",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000018 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_text.effects.font.bold",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000018 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_text.effects.font.italic",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000018 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/fp_text.effects.justify",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000018 = [\"right\",\"bottom\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/pad.options.clearance",
+   "bug": "1 unmapped of 1. First: pad 5 = \"convexhull\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/zone.name",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000030 = \"U1 no-via\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/zone.keepout.tracks",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000030 = \"allowed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/zone.keepout.pads",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000030 = \"allowed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/zone.keepout.copperpour",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000030 = \"allowed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint/zone.keepout.footprints",
+   "bug": "1 lost of 1. First: c1000000-0000-4000-8000-000000000030 = \"allowed\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.placed",
+   "bug": "1 lost of 1. First: J1 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.board_only",
+   "bug": "1 unmapped of 1. First: NT1 = true (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.allow_missing_courtyard",
+   "bug": "1 unmapped of 1. First: NT1 = true (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "footprint.attr.allow_soldermask_bridges",
+   "bug": "1 unmapped of 1. First: NT1 = true (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_line.stroke.type",
+   "bug": "1 lost of 1. First: c5000000-0000-4000-8000-000000000003 = \"dash_dot\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_text.layer.knockout",
+   "bug": "1 lost of 1. First: c5000000-0000-4000-8000-000000000009 = true (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_text.effects.font.size",
+   "bug": "1 lost of 2. First: c5000000-0000-4000-8000-000000000009 = [\"1.5\",\"1.2\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_text.effects.font.thickness",
+   "bug": "2 lost of 2. First: c5000000-0000-4000-8000-000000000009 = \"0.25\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_text.effects.font.bold",
+   "bug": "1 lost of 1. First: c5000000-0000-4000-8000-000000000009 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_text.effects.font.italic",
+   "bug": "1 lost of 1. First: c5000000-0000-4000-8000-000000000009 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "gr_text.effects.justify",
+   "bug": "2 lost of 2. First: c5000000-0000-4000-8000-000000000009 = [\"left\",\"bottom\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.locked",
+   "bug": "1 lost of 2. First: c6000000-0000-4000-8000-000000000022 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.free",
+   "bug": "1 lost of 1. First: c6000000-0000-4000-8000-000000000023 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.remove_unused_layers",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"yes\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.keep_end_layers",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"yes\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.zone_layer_connections",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"In1.Cu\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.best_length_ratio",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"0.5\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.max_length",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"1\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.best_width_ratio",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"1\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.max_width",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"2\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.curve_points",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"5\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.filter_ratio",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"0.9\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.enabled",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"yes\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.allow_two_segments",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"yes\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "via.teardrops.prefer_zone_connections",
+   "bug": "1 unmapped of 1. First: c6000000-0000-4000-8000-000000000023 = \"no\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.layers",
+   "bug": "1 lost of 2. First: c7000000-0000-4000-8000-000000000003 = [\"F.Cu\",\"B.Cu\"] (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.name",
+   "bug": "1 lost of 3. First: c7000000-0000-4000-8000-000000000003 = \"Antenna keepout\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.locked",
+   "bug": "1 lost of 1. First: c7000000-0000-4000-8000-000000000001 = \"yes\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.connect_pads",
+   "bug": "1 lost of 3. First: c7000000-0000-4000-8000-000000000001 = \"thru_hole_only\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.smoothing",
+   "bug": "2 unmapped of 2. First: c7000000-0000-4000-8000-000000000001 = \"fillet\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.radius",
+   "bug": "2 unmapped of 2. First: c7000000-0000-4000-8000-000000000001 = \"0.5\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.island_removal_mode",
+   "bug": "1 lost of 3. First: c7000000-0000-4000-8000-000000000001 = \"2\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.island_area_min",
+   "bug": "1 unmapped of 1. First: c7000000-0000-4000-8000-000000000001 = \"10\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.hatch_smoothing_level",
+   "bug": "1 unmapped of 1. First: c7000000-0000-4000-8000-000000000001 = \"1\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.hatch_smoothing_value",
+   "bug": "1 unmapped of 1. First: c7000000-0000-4000-8000-000000000001 = \"0.1\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.hatch_border_algorithm",
+   "bug": "1 unmapped of 1. First: c7000000-0000-4000-8000-000000000001 = \"hatch_thickness\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.fill.hatch_min_hole_area",
+   "bug": "1 unmapped of 1. First: c7000000-0000-4000-8000-000000000001 = \"0.3\" (unmapped: the census has no check for this field)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "zone.attr.teardrop.type",
+   "bug": "1 lost of 1. First: c7000000-0000-4000-8000-000000000004 = \"padvia\" (the model differs)"
+  },
+  {
+   "fixture": "kicad-census",
+   "check": "kicad_pro/net_settings/classes.track_width",
+   "bug": "3 lost of 3. First: net_settings/classes/0 = 0.25 (the model differs)"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Nets6.LOOPREMOVAL",
+   "bug": "30 unmapped of 30. First: Nets6/Data#0 LOOPREMOVAL=\"TRUE\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Pads6.LOCKED",
+   "bug": "4 lost of 100. First: Pads6/Data#32 LOCKED=true: locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Vias6.LOCKED",
+   "bug": "36 lost of 59. First: Vias6/Data#5 LOCKED=true: locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_MASTERSTACK_NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_MASTERSTACK_NAME=\"Master layer stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_SUBSTACK<n>_NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_SUBSTACK0_NAME=\"Board Layer Stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_SUBSTACK<n>_SERVICE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_SUBSTACK0_SERVICE=\"FALSE\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_SUBSTACK<n>_TYPE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_SUBSTACK0_TYPE=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_STACK_LAYER<n>_{substack}CONTEXT",
+   "bug": "9 unmapped of 9. First: Board6/Data#0 V9_STACK_LAYER0_{6329DCD5-1BA8-46CB-B30F-E12E366546E2}CONTEXT=\"0\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_STACK_LAYER<n>_COPPERORIENTATION",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_STACK_LAYER5_COPPERORIENTATION=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.V9_STACKCUSTOMDATA",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_STACKCUSTOMDATA=\"eNrtWW1v2zYQ/j5g/0HQsG+lzTeJZOF4aJO6K9auRZx1wL7x5ZgIlSVDkrd: unmapped: the census has no rule for this field, so nothing has c"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYERMASTERSTACK_V8NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERMASTERSTACK_V8NAME=\"Master layer stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYERSUBSTACK_V8_<n>NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERSUBSTACK_V8_0NAME=\"Board Layer Stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYERSUBSTACK_V8_<n>SERVICE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERSUBSTACK_V8_0SERVICE=\"FALSE\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYERSUBSTACK_V8_<n>TYPE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERSUBSTACK_V8_0TYPE=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYER_V8_<n>_{substack}CONTEXT",
+   "bug": "9 unmapped of 9. First: Board6/Data#0 LAYER_V8_0_{6329DCD5-1BA8-46CB-B30F-E12E366546E2}CONTEXT=\"0\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYER_V8_<n>NAME",
+   "bug": "4 lost of 56. First: Board6/Data#0 LAYER_V8_13NAME=\"Bottom Assembly\": mechanical layer name \"Bottom Assembly\" not kept"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYER_V8_<n>MECHKIND",
+   "bug": "7 unmapped of 7. First: Board6/Data#0 LAYER_V8_11MECHKIND=\"BoardShape\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYER<n>NAME",
+   "bug": "4 lost of 82. First: Board6/Data#0 LAYER59NAME=\"Bottom Assembly\": mechanical layer name \"Bottom Assembly\" not kept"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYER<n>MECHENABLED",
+   "bug": "3 lost of 82. First: Board6/Data#0 LAYER59MECHENABLED=\"TRUE\": enabled mechanical layer 3 not kept"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.LAYER<n>MECHKIND",
+   "bug": "7 lost of 7. First: Board6/Data#0 LAYER57MECHKIND=\"BoardShape\": Waffle keeps no mechanical layer kind"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.MECHPAIR<n>L<n>",
+   "bug": "6 unmapped of 6. First: Board6/Data#0 MECHPAIR0L1=\"MECHANICAL4\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.SURFACEMICROSTRIP_I",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SURFACEMICROSTRIP_I=\"(60/SQRT(Er*(1-EXP(-1.55*(0.00002+TraceToPlaneDistance)/Tra: unmapped: the census has no rule for this field, so nothing has "
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.SURFACEMICROSTRIP_W",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SURFACEMICROSTRIP_W=\"((5.98*TraceToPlaneDistance)/EXP(CharacteristicImpedance/(6: unmapped: the census has no rule for this field, so nothing has "
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.SYMMETRICSTRIPLINE_I",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SYMMETRICSTRIPLINE_I=\"(80/SQRT(Er))*LN((1.9*(2*TraceToPlaneDistance+TraceHeight)/: unmapped: the census has no rule for this field, so nothing has"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.SYMMETRICSTRIPLINE_W",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SYMMETRICSTRIPLINE_W=\"((1.9*(2*TraceToPlaneDistance+TraceHeight))/(EXP((Character: unmapped: the census has no rule for this field, so nothing has"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.DRILLSYMBOLASENUM",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 DRILLSYMBOLASENUM=\"0\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.DRILLSYMBOLSIZE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 DRILLSYMBOLSIZE=\"200000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.VALUECOUNT",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 VALUECOUNT=\"13\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.FN#<n>",
+   "bug": "13 unmapped of 13. First: Board6/Data#0 FN#0=\"MEANDERCONTROLPERCENT\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.FV#<n>",
+   "bug": "13 unmapped of 13. First: Board6/Data#0 FV#0=\"100\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORVIAS_LENGTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORVIAS_LENGTH=\"30.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORVIAS_WIDTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORVIAS_WIDTH=\"70.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORPADS_LENGTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORPADS_LENGTH=\"100.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORPADS_WIDTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORPADS_WIDTH=\"200.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORTRACKS_LENGTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORTRACKS_LENGTH=\"100.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORTRACKS_WIDTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORTRACKS_WIDTH=\"-1.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORTJUNCTIONS_LENGTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORTJUNCTIONS_LENGTH=\"100.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_PERCENTFORTJUNCTIONS_WIDTH",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_PERCENTFORTJUNCTIONS_WIDTH=\"300.000000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Board6.TEARDROPPARAM_FLAGSEX",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 TEARDROPPARAM_FLAGSEX=\"571\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Texts6.LOCKED",
+   "bug": "32 lost of 65. First: Texts6/Data#0 LOCKED=true: locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Tracks6.LOCKED",
+   "bug": "5 lost of 421. First: Tracks6/Data#128 LOCKED=true: locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Regions6.LOCKED",
+   "bug": "18 lost of 24. First: Regions6/Data#4 LOCKED=true: locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Regions6.UNIONINDEX",
+   "bug": "18 lost of 24. First: Regions6/Data#4 UNIONINDEX=\"8\": the union is not kept (no groupId)"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Polygons6.LOCKED",
+   "bug": "2 lost of 2. First: Polygons6/Data#0 LOCKED=\"TRUE\": locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Polygons6.POUROVERSTYLE",
+   "bug": "2 lost of 2. First: Polygons6/Data#0 POUROVERSTYLE=\"2\": pour-over style 2 not kept (sourcePourOver undefined)"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Polygons6.OPTIMALVOIDROTATION",
+   "bug": "2 lost of 2. First: Polygons6/Data#0 OPTIMALVOIDROTATION=\"TRUE\": Waffle has no void-rotation setting"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.LOCKED",
+   "bug": "23 lost of 23. First: Components6/Data#0 LOCKED=\"TRUE\": locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.NAMEAUTOPOSITION",
+   "bug": "1 unmapped of 1. First: Components6/Data#0 NAMEAUTOPOSITION=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.COMMENTAUTOPOSITION",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 COMMENTAUTOPOSITION=\"3\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCEHIERARCHICALPATH",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCEHIERARCHICALPATH=\"PiDP11IOExpander\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCEFOOTPRINTLIBRARY",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCEFOOTPRINTLIBRARY=\"Unified Components.IntLib\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCECOMPONENTLIBRARY",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCECOMPONENTLIBRARY=\"Unified Components.IntLib\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCELIBREFERENCE",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCELIBREFERENCE=\"10129381-916001BLF\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCEDESCRIPTION",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCEDESCRIPTION=\"CONN HEADER VERT 16POS 2.54MM\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.FOOTPRINTDESCRIPTION",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 FOOTPRINTDESCRIPTION=\"Header, Vertical Non-Shrouded, 2.54 mm pitch; 0.67 mm lead : unmapped: the census has no rule for this field, so nothin"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCECOMPLIBIDENTIFIERKIND",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCECOMPLIBIDENTIFIERKIND=\"2\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "Components6.SOURCECOMPLIBRARYIDENTIFIER",
+   "bug": "23 unmapped of 23. First: Components6/Data#0 SOURCECOMPLIBRARYIDENTIFIER=\"Unified Components.IntLib\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibrary",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0: unmapped: the census has no rule for this kind of record"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibrary.PADVIALIBRARY.LIBRARYID",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0 PADVIALIBRARY.LIBRARYID=\"{8484A5A0-8D68-4341-B29F-57BE6F7D0968}\": unmapped: the census has no rule for this field, so nothing has checked i"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibrary.PADVIALIBRARY.LIBRARYNAME",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0 PADVIALIBRARY.LIBRARYNAME=\"<Local>\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibrary.PADVIALIBRARY.DISPLAYUNITS",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0 PADVIALIBRARY.DISPLAYUNITS=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibraryCache",
+   "bug": "1 unmapped of 1. First: PadViaLibraryCache/Data#0: unmapped: the census has no rule for this kind of record"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibraryCache.PADVIALIBRARY.LIBRARYID",
+   "bug": "1 unmapped of 1. First: PadViaLibraryCache/Data#0 PADVIALIBRARY.LIBRARYID=\"{2F46C000-1115-42F8-A58E-BEE77BF66383}\": unmapped: the census has no rule for this field, so nothing has chec"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibraryCache.PADVIALIBRARY.LIBRARYNAME",
+   "bug": "1 unmapped of 1. First: PadViaLibraryCache/Data#0 PADVIALIBRARY.LIBRARYNAME=\"<Local>\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "PadViaLibraryCache.PADVIALIBRARY.DISPLAYUNITS",
+   "bug": "1 unmapped of 1. First: PadViaLibraryCache/Data#0 PADVIALIBRARY.DISPLAYUNITS=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "ShapeBasedRegions6.LOCKED",
+   "bug": "18 lost of 24. First: ShapeBasedRegions6/Data#4 LOCKED=true: locked in the source, unlocked in Waffle"
+  },
+  {
+   "fixture": "altium-pidp11",
+   "check": "ShapeBasedRegions6.UNIONINDEX",
+   "bug": "18 lost of 24. First: ShapeBasedRegions6/Data#4 UNIONINDEX=\"8\": the union is not kept (no groupId)"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Nets6.LOOPREMOVAL",
+   "bug": "9 unmapped of 9. First: Nets6/Data#0 LOOPREMOVAL=\"TRUE\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.V9_MASTERSTACK_NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_MASTERSTACK_NAME=\"Master layer stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.V9_SUBSTACK<n>_NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_SUBSTACK0_NAME=\"Board Layer Stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.V9_SUBSTACK<n>_SERVICE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_SUBSTACK0_SERVICE=\"FALSE\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.V9_SUBSTACK<n>_TYPE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 V9_SUBSTACK0_TYPE=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.V9_STACK_LAYER<n>_{substack}CONTEXT",
+   "bug": "9 unmapped of 9. First: Board6/Data#0 V9_STACK_LAYER0_{0127DF74-0B8E-4948-AC7B-7A67EEAD8E1E}CONTEXT=\"0\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.LAYERMASTERSTACK_V8NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERMASTERSTACK_V8NAME=\"Master layer stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.LAYERSUBSTACK_V8_<n>NAME",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERSUBSTACK_V8_0NAME=\"Board Layer Stack\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.LAYERSUBSTACK_V8_<n>SERVICE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERSUBSTACK_V8_0SERVICE=\"FALSE\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.LAYERSUBSTACK_V8_<n>TYPE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 LAYERSUBSTACK_V8_0TYPE=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.LAYER_V8_<n>_{substack}CONTEXT",
+   "bug": "9 unmapped of 9. First: Board6/Data#0 LAYER_V8_0_{0127DF74-0B8E-4948-AC7B-7A67EEAD8E1E}CONTEXT=\"0\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.LAYER<n>MECHENABLED",
+   "bug": "1 lost of 82. First: Board6/Data#0 LAYER57MECHENABLED=\"TRUE\": enabled mechanical layer 1 not kept"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.SURFACEMICROSTRIP_I",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SURFACEMICROSTRIP_I=\"(60/SQRT(Er*(1-EXP(-1.55*(0.00002+TraceToPlaneDistance)/Tra: unmapped: the census has no rule for this field, so nothing has "
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.SURFACEMICROSTRIP_W",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SURFACEMICROSTRIP_W=\"((5.98*TraceToPlaneDistance)/EXP(CharacteristicImpedance/(6: unmapped: the census has no rule for this field, so nothing has "
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.SYMMETRICSTRIPLINE_I",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SYMMETRICSTRIPLINE_I=\"(80/SQRT(Er))*LN((1.9*(2*TraceToPlaneDistance+TraceHeight)/: unmapped: the census has no rule for this field, so nothing has"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.SYMMETRICSTRIPLINE_W",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 SYMMETRICSTRIPLINE_W=\"((1.9*(2*TraceToPlaneDistance+TraceHeight))/(EXP((Character: unmapped: the census has no rule for this field, so nothing has"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.DRILLSYMBOLASENUM",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 DRILLSYMBOLASENUM=\"0\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Board6.DRILLSYMBOLSIZE",
+   "bug": "1 unmapped of 1. First: Board6/Data#0 DRILLSYMBOLSIZE=\"200000\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Rules6/RULEKIND=MatchedLengths.CHECKDIFFPAIRVSDIFFPAIR",
+   "bug": "1 unmapped of 1. First: Rules6/Data#1 CHECKDIFFPAIRVSDIFFPAIR=\"TRUE\": unmapped: no property of the Waffle rule is known to hold CHECKDIFFPAIRVSDIFFPAIR, and none has an equal value"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Rules6/RULEKIND=MatchedLengths.CHECKXSIGNALS",
+   "bug": "1 unmapped of 1. First: Rules6/Data#1 CHECKXSIGNALS=\"TRUE\": unmapped: no property of the Waffle rule is known to hold CHECKXSIGNALS, and none has an equal value"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Rules6/RULEKIND=MatchedLengths.CHECKOTHERS",
+   "bug": "1 unmapped of 1. First: Rules6/Data#1 CHECKOTHERS=\"TRUE\": unmapped: no property of the Waffle rule is known to hold CHECKOTHERS, and none has an equal value"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Components6.NAMEAUTOPOSITION",
+   "bug": "5 unmapped of 5. First: Components6/Data#0 NAMEAUTOPOSITION=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "Components6.COMMENTAUTOPOSITION",
+   "bug": "5 unmapped of 5. First: Components6/Data#0 COMMENTAUTOPOSITION=\"3\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "PadViaLibrary",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0: unmapped: the census has no rule for this kind of record"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "PadViaLibrary.PADVIALIBRARY.LIBRARYID",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0 PADVIALIBRARY.LIBRARYID=\"{52FE0B9F-69F1-4D72-973E-49B845D4CCF8}\": unmapped: the census has no rule for this field, so nothing has checked i"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "PadViaLibrary.PADVIALIBRARY.LIBRARYNAME",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0 PADVIALIBRARY.LIBRARYNAME=\"<Local>\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "altium-pairs-xsignals",
+   "check": "PadViaLibrary.PADVIALIBRARY.DISPLAYUNITS",
+   "bug": "1 unmapped of 1. First: PadViaLibrary/Data#0 PADVIALIBRARY.DISPLAYUNITS=\"1\": unmapped: the census has no rule for this field, so nothing has checked it"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/libraries/library.name",
+   "bug": "1 lost of 1. First: demo-eagle.brd:1378 <library atrium-test> name=\"atrium-test\": library name \"atrium-test\" is not recorded on any definition"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/libraries/library/packages/package/text.size",
+   "bug": "1 lost of 1. First: demo-eagle.brd:1728 <text> size=\"1\": the ref label's size is not kept (no board label) [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/classes/class.name",
+   "bug": "1 lost of 2. First: demo-eagle.brd:2137 <class power> name=\"power\": net class name \"power\" is not in the model (rules are scoped to net names) [report: approximated]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/classes/class/clearance.value",
+   "bug": "1 lost of 2. First: demo-eagle.brd:2193 <clearance> value=\"0.3\": clearance 0.3 between class 1 and class 1; the model applies it to object where net.name = \"GND\" / object [report: "
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/designrules.name",
+   "bug": "1 lost of 1. First: demo-eagle.brd:2248 <designrules default> name=\"default\": rule set name \"default\" is not recorded"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/elements/element.library",
+   "bug": "2 lost of 2. First: demo-eagle.brd:2743 <element R1> library=\"atrium-test\": library name \"atrium-test\" is not recorded on any definition [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/signals/signal/via.diameter",
+   "bug": "1 lost of 1. First: demo-eagle.brd:3277 <via> diameter=\"0.6\": diameter 0.6; Eagle's restring makes 0.7064 [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "board/signals/signal/polygon.width",
+   "bug": "1 lost of 1. First: demo-eagle.brd:3447 <polygon> width=\"0.254\": copper reaches 0.127 mm past the vertices (the pen width 0.254); the model pour has no width [report: approximated]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic.xreflabel",
+   "bug": "1 lost of 1. First: demo-eagle.sch:563 <schematic> xreflabel=\"%F%N/%S.%C%R\": cross-reference label format \"%F%N/%S.%C%R\" is not kept"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic.xrefpart",
+   "bug": "1 lost of 1. First: demo-eagle.sch:563 <schematic> xrefpart=\"/%S.%C%R\": part cross-reference format \"/%S.%C%R\" is not kept"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library.name",
+   "bug": "1 lost of 1. First: demo-eagle.sch:632 <library atrium-test> name=\"atrium-test\": library name \"atrium-test\" is not recorded on any definition"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/symbols/symbol.name",
+   "bug": "3 lost of 3. First: demo-eagle.sch:845 <symbol R> name=\"R\": symbol name \"R\" is not kept (the definition is named after the device) [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/symbols/symbol/text.size",
+   "bug": "3 lost of 4. First: demo-eagle.sch:1171 <text> size=\"1.778\": the ref text size 1.778 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/symbols/symbol/pin.visible",
+   "bug": "2 lost of 6. First: demo-eagle.sch:1306 <pin 1> visible=\"off\": visible=off: pad number hidden in Eagle; the model pin has no way to hide it [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/symbols/symbol/pin.swaplevel",
+   "bug": "2 lost of 2. First: demo-eagle.sch:1306 <pin 1> swaplevel=\"1\": swap level 1 (pins that may be swapped) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/devicesets/deviceset.uservalue",
+   "bug": "1 lost of 1. First: demo-eagle.sch:2358 <deviceset R> uservalue=\"yes\": uservalue=yes (whether a part must be given its own value) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/devicesets/deviceset/gates/gate.x",
+   "bug": "1 lost of 4. First: demo-eagle.sch:2997 <gate B> x=\"0\": gate offset (0, 15.24) for adding the device is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/libraries/library/devicesets/deviceset/gates/gate.y",
+   "bug": "1 lost of 4. First: demo-eagle.sch:2997 <gate B> y=\"15.24\": gate offset is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/parts/part.library",
+   "bug": "4 lost of 5. First: demo-eagle.sch:3478 <part R1> library=\"atrium-test\": library name \"atrium-test\" is not recorded on any definition [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/sheets/sheet/nets/net/segment/wire.width",
+   "bug": "9 lost of 9. First: demo-eagle.sch:4541 <wire> width=\"0.1524\": drawn 0.1524 mm wide in Eagle; the model wire has no width [report: kept]"
+  },
+  {
+   "fixture": "eagle-demo",
+   "check": "schematic/sheets/sheet/nets/net/segment/label.size",
+   "bug": "2 lost of 2. First: demo-eagle.sch:4802 <label> size=\"1.778\": label size 1.778; the model label has \"the default\" [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/circle.width",
+   "bug": "1 lost of 3. First: census.brd:3814 <circle> width=\"0\": width 0 is a filled disc; the model draws an outline [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/text.font",
+   "bug": "1 lost of 2. First: census.brd:3392 <text> font=\"proportional\": proportional font; the model draws \"stroke\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/text.ratio",
+   "bug": "1 lost of 2. First: census.brd:3288 <text> ratio=\"15\": stroke 0.225 mm (15% of the size); the model stroke is \"the default\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/text.align",
+   "bug": "2 lost of 2. First: census.brd:3288 <text> align=\"center\": anchor center; the model anchors \"bottom-left\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/text.distance",
+   "bug": "1 lost of 1. First: census.brd:3392 <text> distance=\"80\": line pitch 1.8 x size; the model has 1.6667 [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/wire.style",
+   "bug": "1 lost of 1. First: census.brd:3587 <wire> style=\"longdash\": line style longdash has no counterpart (the model line is solid) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/wire.cap",
+   "bug": "1 lost of 1. First: census.brd:3666 <wire> cap=\"flat\": flat line ends are drawn round [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/rectangle.layer",
+   "bug": "3 lost of 4. First: census.brd:3994 <rectangle> layer=\"41\": restrict layer 41 keeps copper off Top only; the model has \"Keepout\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/polygon.width",
+   "bug": "2 lost of 3. First: census.brd:4157 <polygon> width=\"0.3\": copper reaches 0.15 mm past the vertices (the pen width); the model pour has no width [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/polygon.pour",
+   "bug": "1 lost of 1. First: census.brd:4157 <polygon> pour=\"cutout\": a cutout polygon (a hole in pours) is a copper pour [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/polygon.isolate",
+   "bug": "1 lost of 1. First: census.brd:4311 <polygon> isolate=\"0.5\": isolate 0.5; the pour clearance is undefined [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/polygon.thermals",
+   "bug": "1 lost of 1. First: census.brd:4311 <polygon> thermals=\"no\": pad connection is undefined, source \"direct\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/plain/polygon.orphans",
+   "bug": "1 lost of 1. First: census.brd:4311 <polygon> orphans=\"yes\": removeDeadCopper undefined [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library.name",
+   "bug": "1 lost of 1. First: census.brd:4956 <library census-lib> name=\"census-lib\": library name \"census-lib\" is not recorded on any definition"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library.urn",
+   "bug": "1 lost of 1. First: census.brd:4956 <library census-lib> urn=\"urn:adsk.eagle:library:900001\": library URN \"urn:adsk.eagle:library:900001\" is not recorded on any definition"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package.urn",
+   "bug": "2 lost of 2. First: census.brd:5104 <package QFN-CENSUS> urn=\"urn:adsk.eagle:footprint:900002/1\": package URN \"urn:adsk.eagle:footprint:900002/1\" is not recorded on any definition "
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package.library_version",
+   "bug": "1 lost of 1. First: census.brd:5104 <package QFN-CENSUS> library_version=\"3\": library version \"3\" is not recorded on any definition [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package.locally_modified",
+   "bug": "1 lost of 1. First: census.brd:5104 <package QFN-CENSUS> locally_modified=\"yes\": locally modified flag is not recorded [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/smd.stop",
+   "bug": "1 lost of 1. First: census.brd:5291 <smd 1> stop=\"no\": stop=no (no solder-mask opening); the model pad has an opening [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/smd.thermals",
+   "bug": "1 lost of 1. First: census.brd:5291 <smd 1> thermals=\"no\": thermals=no (solid connection to pours) for U1.1; pours connect it with reliefs [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/smd.cream",
+   "bug": "2 lost of 2. First: census.brd:5291 <smd 1> cream=\"no\": cream=no (no paste); the model pad gets paste [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/rectangle.layer",
+   "bug": "1 lost of 4. First: census.brd:6058 <rectangle> layer=\"41\": restrict layer 41 keeps copper off Top only; the model has \"Keepout\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/text.size",
+   "bug": "3 lost of 4. First: census.brd:6236 <text> size=\"0.8\": the ref label's size is not kept (no board label) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/text.ratio",
+   "bug": "1 lost of 1. First: census.brd:6236 <text> ratio=\"12\": the ref label's ratio is not kept (no board label) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/text.align",
+   "bug": "1 lost of 1. First: census.brd:6379 <text> align=\"center\": anchor center; the model anchors \"bottom-left\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/pad.diameter",
+   "bug": "3 lost of 3. First: census.brd:6573 <pad 1> diameter=\"1.2\": pad 1.2 x 1.2 at 180 deg; Eagle makes 1.5096 x 1.5096 at 0 deg [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/pad.shape",
+   "bug": "1 lost of 4. First: census.brd:6683 <pad 2> shape=\"long\": long pad length 3.0192; Eagle's elongation 80% makes 2.7173 [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/pad.thermals",
+   "bug": "1 lost of 1. First: census.brd:6573 <pad 1> thermals=\"no\": thermals=no (solid connection to pours) for J1.1; pours connect it with reliefs [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/libraries/library/packages/package/pad.stop",
+   "bug": "1 lost of 1. First: census.brd:6573 <pad 1> stop=\"no\": stop=no (no solder-mask opening); the model pad has an opening [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/classes/class.name",
+   "bug": "2 lost of 2. First: census.brd:7578 <class default> name=\"default\": net class name \"default\" is not in the model (rules are scoped to net names) [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/classes/class/clearance.value",
+   "bug": "1 lost of 3. First: census.brd:7772 <clearance> value=\"0.3\": clearance 0.3 between class 1 and class 1; the model applies it to object where net.name = \"VCC\" / object [report: kept"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/designrules.name",
+   "bug": "1 lost of 1. First: census.brd:7827 <designrules census-rules> name=\"census-rules\": rule set name \"census-rules\" is not recorded"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element.library",
+   "bug": "3 lost of 3. First: census.brd:10482 <element U1> library=\"census-lib\": library name \"census-lib\" is not recorded on any definition [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element.library_urn",
+   "bug": "1 lost of 1. First: census.brd:10482 <element U1> library_urn=\"urn:adsk.eagle:library:900001\": library URN \"urn:adsk.eagle:library:900001\" is not recorded on any definition [report"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element.package3d_urn",
+   "bug": "1 lost of 1. First: census.brd:10482 <element U1> package3d_urn=\"urn:adsk.eagle:package:900003/1\": 3D package urn:adsk.eagle:package:900003/1 is not linked [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element.rot",
+   "bug": "1 lost of 3. First: census.brd:11136 <element U2> rot=\"SR270\": spin (texts not kept upright) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element.locked",
+   "bug": "1 lost of 1. First: census.brd:10482 <element U1> locked=\"yes\": locked yes; the model part is not locked [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element/attribute.size",
+   "bug": "1 lost of 3. First: census.brd:10702 <attribute NAME> size=\"1.2\": the NAME text size 1.2 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element/attribute.layer",
+   "bug": "1 lost of 3. First: census.brd:10702 <attribute NAME> layer=\"25\": the NAME text layer 25 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element/attribute.ratio",
+   "bug": "1 lost of 1. First: census.brd:10702 <attribute NAME> ratio=\"12\": the NAME text ratio 12 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element/attribute.rot",
+   "bug": "1 lost of 2. First: census.brd:10702 <attribute NAME> rot=\"R30\": the NAME text rot R30 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element/attribute.align",
+   "bug": "1 lost of 1. First: census.brd:10702 <attribute NAME> align=\"bottom-left\": the NAME text align bottom-left is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/elements/element.populate",
+   "bug": "1 lost of 1. First: census.brd:11240 <element J1> populate=\"no\": populate no; the model part is populated [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/contactref.route",
+   "bug": "1 lost of 1. First: census.brd:11475 <contactref J1> route=\"any\": route=any (only one of the pads joined by this contact must be routed) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/contactref.routetag",
+   "bug": "1 lost of 1. First: census.brd:11475 <contactref J1> routetag=\"T1\": route tag \"T1\" is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/wire.style",
+   "bug": "1 lost of 1. First: census.brd:11672 <wire> style=\"shortdash\": line style shortdash has no counterpart (the model line is solid) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/via.shape",
+   "bug": "1 lost of 1. First: census.brd:11813 <via> shape=\"square\": square via land; the model via is round [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/via.alwaysstop",
+   "bug": "1 lost of 1. First: census.brd:11813 <via> alwaysstop=\"yes\": alwaysstop (a solder-mask opening whatever the drill) is not kept; the model via follows the tenting default [report: k"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/via.diameter",
+   "bug": "1 lost of 1. First: census.brd:11892 <via> diameter=\"0.5\": diameter 0.5; Eagle's restring makes 0.6556 [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/polygon.width",
+   "bug": "1 lost of 2. First: census.brd:12594 <polygon> width=\"0.254\": copper reaches 0.127 mm past the vertices (the pen width 0.254); the model pour has no width [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "board/signals/signal/wire.cap",
+   "bug": "1 lost of 1. First: census.brd:12302 <wire> cap=\"flat\": flat line ends are drawn round [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic.xreflabel",
+   "bug": "1 lost of 1. First: census.sch:1296 <schematic> xreflabel=\"%F%N/%S.%C%R\": cross-reference label format \"%F%N/%S.%C%R\" is not kept"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic.xrefpart",
+   "bug": "1 lost of 1. First: census.sch:1296 <schematic> xrefpart=\"/%S.%C%R\": part cross-reference format \"/%S.%C%R\" is not kept"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library.name",
+   "bug": "1 lost of 1. First: census.sch:1439 <library census-lib> name=\"census-lib\": library name \"census-lib\" is not recorded on any definition"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library.urn",
+   "bug": "1 lost of 1. First: census.sch:1439 <library census-lib> urn=\"urn:adsk.eagle:library:900001\": library URN \"urn:adsk.eagle:library:900001\" is not recorded on any definition"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol.name",
+   "bug": "4 lost of 4. First: census.sch:2339 <symbol SENSOR> name=\"SENSOR\": symbol name \"SENSOR\" is not kept (the definition is named after the device) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol.urn",
+   "bug": "1 lost of 1. First: census.sch:2339 <symbol SENSOR> urn=\"urn:adsk.eagle:symbol:900010/1\": symbol URN \"urn:adsk.eagle:symbol:900010/1\" is not recorded on any definition [report: kep"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/wire.style",
+   "bug": "1 lost of 1. First: census.sch:2754 <wire> style=\"shortdash\": line style shortdash has no counterpart (the model line is solid) [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/text.size",
+   "bug": "3 lost of 5. First: census.sch:3104 <text> size=\"1.778\": the ref text size 1.778 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/text.align",
+   "bug": "1 lost of 1. First: census.sch:3169 <text> align=\"top-left\": the value text align top-left is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/text.ratio",
+   "bug": "1 lost of 1. First: census.sch:3253 <text> ratio=\"10\": stroke 0.127 mm (10% of the size); the model stroke is \"the default\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/text.rot",
+   "bug": "1 lost of 1. First: census.sch:3253 <text> rot=\"R180\": angle 0 for R180 [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/pin.direction",
+   "bug": "1 lost of 12. First: census.sch:3887 <pin NC> direction=\"nc\": pin direction nc has no Waffle pin type; the model pin is type 4 [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/pin.function",
+   "bug": "3 lost of 3. First: census.sch:3411 <pin EN> function=\"clk\": pin function clk (clock wedge) is not drawn or kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/pin.visible",
+   "bug": "2 lost of 4. First: census.sch:3593 <pin OUT> visible=\"pin\": visible=pin: pad number hidden in Eagle; the model pin has no way to hide it [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/symbols/symbol/pin.swaplevel",
+   "bug": "2 lost of 2. First: census.sch:3701 <pin HIZ> swaplevel=\"1\": swap level 1 (pins that may be swapped) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset.uservalue",
+   "bug": "1 lost of 1. First: census.sch:5005 <deviceset SENSOR*> uservalue=\"yes\": uservalue=yes (whether a part must be given its own value) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset.urn",
+   "bug": "1 lost of 1. First: census.sch:5005 <deviceset SENSOR*> urn=\"urn:adsk.eagle:component:900020/1\": device set URN \"urn:adsk.eagle:component:900020/1\" is not recorded on any definitio"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset.library_version",
+   "bug": "1 lost of 1. First: census.sch:5005 <deviceset SENSOR*> library_version=\"3\": library version \"3\" is not recorded on any definition [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset/gates/gate.x",
+   "bug": "1 lost of 4. First: census.sch:5250 <gate B> x=\"25.4\": gate offset (25.4, 0) for adding the device is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset/gates/gate.y",
+   "bug": "1 lost of 4. First: census.sch:5250 <gate B> y=\"0\": gate offset is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset/gates/gate.addlevel",
+   "bug": "3 lost of 4. First: census.sch:5189 <gate A> addlevel=\"must\": addlevel must (how the gate is added: must, can, request, always) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset/gates/gate.swaplevel",
+   "bug": "1 lost of 1. First: census.sch:5250 <gate B> swaplevel=\"1\": gate swap level 1 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/libraries/library/devicesets/deviceset/devices/device/connects/connect.route",
+   "bug": "1 lost of 1. First: census.sch:5657 <connect> route=\"any\": route=any (any one of the pads may carry the connection) is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/parts/part.library",
+   "bug": "2 lost of 3. First: census.sch:7090 <part U1> library=\"census-lib\": library name \"census-lib\" is not recorded on any definition [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/parts/part.library_urn",
+   "bug": "1 lost of 1. First: census.sch:7090 <part U1> library_urn=\"urn:adsk.eagle:library:900001\": library URN \"urn:adsk.eagle:library:900001\" is not recorded on any definition [report: ke"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/parts/part.package3d_urn",
+   "bug": "1 lost of 1. First: census.sch:7090 <part U1> package3d_urn=\"urn:adsk.eagle:package:900013/1\": 3D package urn:adsk.eagle:package:900013/1 is not linked [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/plain/text.layer",
+   "bug": "1 lost of 2. First: census.sch:7826 <text> layer=\"98\": layer 98 (Guide: not printed) has no counterpart [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/plain/text.ratio",
+   "bug": "1 lost of 1. First: census.sch:7701 <text> ratio=\"10\": stroke 0.254 mm (10% of the size); the model stroke is \"the default\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/plain/text.align",
+   "bug": "1 lost of 1. First: census.sch:7701 <text> align=\"center\": anchor center; the model anchors \"bottom-left\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/plain/wire.style",
+   "bug": "1 lost of 1. First: census.sch:7894 <wire> style=\"dashdot\": line style dashdot has no counterpart (the model line is solid) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/instances/instance/attribute.size",
+   "bug": "2 lost of 3. First: census.sch:8522 <attribute NAME> size=\"2\": the NAME text size 2 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/instances/instance/attribute.layer",
+   "bug": "2 lost of 3. First: census.sch:8522 <attribute NAME> layer=\"95\": the NAME text layer 95 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/instances/instance/attribute.ratio",
+   "bug": "1 lost of 1. First: census.sch:8522 <attribute NAME> ratio=\"12\": the NAME text ratio 12 is not kept [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/busses/bus/segment/wire.width",
+   "bug": "1 lost of 1. First: census.sch:8948 <wire> width=\"0.762\": drawn 0.762 mm wide in Eagle; the model bus has no width [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net.class",
+   "bug": "1 lost of 3. First: census.sch:9060 <net VCC> class=\"1\": net class 1 is not kept on the schematic net [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net/segment/wire.width",
+   "bug": "5 lost of 5. First: census.sch:9182 <wire> width=\"0.1524\": drawn 0.1524 mm wide in Eagle; the model wire has no width [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net/segment/wire.style",
+   "bug": "1 lost of 1. First: census.sch:9257 <wire> style=\"longdash\": line style longdash has no counterpart (the model line is solid) [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net/segment/label.size",
+   "bug": "3 lost of 3. First: census.sch:9376 <label> size=\"1.778\": label size 1.778; the model label has \"the default\" [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net/segment/label.xref",
+   "bug": "2 lost of 2. First: census.sch:9376 <label> xref=\"yes\": a cross-reference label (sheet and frame reference) becomes a plain net label [report: kept]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net/segment/label.ratio",
+   "bug": "1 lost of 1. First: census.sch:9705 <label> ratio=\"10\": stroke ratio 10% is not kept [report: approximated]"
+  },
+  {
+   "fixture": "eagle-census",
+   "check": "schematic/sheets/sheet/nets/net/segment/label.align",
+   "bug": "1 lost of 1. First: census.sch:9705 <label> align=\"center\": anchor center is not kept [report: approximated]"
+  }
+ ]
+}

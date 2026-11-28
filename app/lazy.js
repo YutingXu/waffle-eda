@@ -250,7 +250,7 @@ globalThis.AtriumLazy = (() => {
     AtriumComponentFamilies: {scripts: ["library/component-families.js"]},
     // Library panel, footprint wizard (+ package families) and editors (the panel opens them).
     AtriumLibraryPairing: {scripts: ["library/library-pairing.js"]},
-    AtriumLibrary: {scripts: ["library/library-store.js", "library/library-panel.js", "library/library-diff.js", "library/library-families-ui.js", "library/footprint-wizard.js", "library/footprint-packages.js", "library/footprint-editor.js", "library/symbol-editor.js"], css: ["ui/spreadsheet.css", "library/library-panel.css"], deps: ["AtriumComponentFamilies", "AtriumLibraryPairing", "AtriumCamera", "AtriumSpatialMotion", "AtriumPCBText", "AtriumSHA256", "AtriumPCBEdit", "AtriumUIKit"]},
+    AtriumLibrary: {scripts: ["library/library-store.js", "library/library-ui.js", "library/library-panel.js", "library/library-diff.js", "library/library-families-ui.js", "library/footprint-wizard.js", "library/footprint-packages.js", "library/footprint-editor.js", "library/symbol-editor.js"], css: ["ui/spreadsheet.css", "library/library-panel.css"], deps: ["AtriumComponentFamilies", "AtriumLibraryPairing", "AtriumCamera", "AtriumSpatialMotion", "AtriumPCBText", "AtriumSHA256", "AtriumPCBEdit", "AtriumUIKit"]},
     AtriumGroupLibraryUI: {scripts: ["library/group-library.js", "library/group-library-local.js", "library/group-library-sync.js", "library/group-library-ui.js"], deps: ["AtriumLibrary", "AtriumNetIntent"]},
     // "New component…" in the component library dialog (editor.js showLibrary).
     AtriumLibraryEditor: {scripts: ["library/library-editor.js"], css: ["library/library-editor.css"], deps: ["AtriumPCBText"]},
@@ -595,7 +595,7 @@ globalThis.AtriumLazy = (() => {
   on(["AtriumECO"], "save", "sync-settings");
   on(["AtriumRules"], "repour", "repour-selected");
   on({pcb: ["AtriumViaStack","AtriumRules"]}, "via");
-  on(["AtriumLibrary"], "library-panel", "library-sources", "footprint-wizard", "footprint-editor", "symbol-editor", "edit-footprint", "edit-symbol");
+  on(["AtriumLibrary"], "library-panel", "library-workspace", "library-sources", "footprint-wizard", "footprint-editor", "symbol-editor", "edit-footprint", "edit-symbol");
   // Symbol Wizard (symbol-wizard.js): a symbol from a datasheet pin table.
   register("AtriumSymbolWizard", {scripts: ["library/symbol-wizard.js"], css: ["library/symbol-wizard.css"], deps: ["AtriumLibrary"]}, ["symbol-wizard"]);
   on(["AtriumSwap"], "swap-components", "swap-components-origin", "swap-library", "swap-variant", "swap-variant-back", "swap-variant-pick");

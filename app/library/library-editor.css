@@ -1,4 +1,4 @@
-#new-library-component {margin-left:auto;padding:4px 8px;color:var(--accent-text);font-size:var(--fs-12)}
+#new-library-component {margin-left:auto}
 .library-editor {width:min(680px,calc(100vw - 28px))}
 .library-editor label {display:grid;gap:4px;color:var(--muted);font-size:var(--fs-11)}
 .library-editor label input,.library-editor select {min-width:0;width:100%;font-size:var(--fs-13);color:var(--ink)}

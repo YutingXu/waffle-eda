@@ -1,0 +1,27 @@
+/* Full-window Library workspace tab (library-workspace.js, lazy).
+   Layout and placement only; all control faces come from app/ui/. */
+.lib-ws {inline-size:100%;block-size:100%;--ui-split-list:204px;background:var(--surface)}
+.lib-ws-side {overflow:auto;min-block-size:0;padding:var(--s-6) var(--s-4)}
+.lib-ws-inner {min-inline-size:0;min-block-size:0;grid-template-columns:minmax(0,1fr) 1px minmax(240px,var(--ui-split-insp,304px))}
+.lib-ws-main {display:flex;flex-direction:column;min-inline-size:0;min-block-size:0}
+.lib-ws-toolbar {flex:none;border-block-end:1px solid var(--line)}
+.lib-ws-toolbar > .ui-search {flex:1 1 240px;max-inline-size:340px}
+.lib-ws-filters {display:flex;align-items:center;flex-wrap:wrap;gap:var(--s-4);flex:none;padding:var(--s-6) var(--s-8);border-block-end:1px solid var(--line)}
+.lib-ws-group-select {flex:none;max-inline-size:160px}
+.lib-ws-notice {padding:var(--s-6) var(--s-8) 0}
+.lib-ws-table-wrap {flex:1 1 auto;min-block-size:0;overflow:auto;outline:none}
+.lib-ws-table .lib-ws-col-icons {inline-size:44px}
+.lib-ws-sortable {cursor:default}
+.lib-ws-sortable[aria-sort=ascending]::after {content:" ▲";font-size:var(--fs-10);color:var(--muted)}
+.lib-ws-sortable[aria-sort=descending]::after {content:" ▼";font-size:var(--fs-10);color:var(--muted)}
+.lib-ws-group > td {font-weight:var(--fw-semibold);color:var(--head-ink);background:var(--panel)}
+.lib-ws-group-count {margin-inline-start:var(--s-6);font-weight:var(--fw-regular)}
+.lib-ws-empty {padding:var(--s-24) var(--s-16)}
+.lib-ws-foot {display:flex;align-items:center;justify-content:space-between;gap:var(--s-12);flex:none;min-block-size:var(--chrome-row-height);padding:0 var(--s-8);border-block-start:1px solid var(--line);font-size:var(--fs-11);color:var(--muted)}
+.lib-ws-hint {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib-ws-insp {display:flex;flex-direction:column;min-inline-size:0;min-block-size:0;overflow:auto}
+.lib-ws-insp > .lib-inspector-body {padding:var(--s-8)}
+@media (max-width:960px) {
+  .lib-ws {grid-template-columns:minmax(0,1fr)}
+  .lib-ws-side,.lib-ws > .ui-splitter {display:none}
+}

@@ -871,8 +871,11 @@ globalThis.AtriumContextMenu = (() => {
   function dropdown(trigger, entries, {host = globalThis.AtriumNavHost, above = false} = {}) {
     if (root && back === trigger) {close(); return;}
     const box = trigger.getBoundingClientRect(), label = trigger.getAttribute("aria-label") || trigger.textContent.trim();
-    const commands = entries.map(entry => entry instanceof HTMLElement
-      ? {label:entry.textContent, enabled:!entry.disabled, run:() => entry.click()} : entry);
+    // A command object is enabled unless it says enabled:false (as callers that normalised it themselves did).
+    const command = entry => entry instanceof HTMLElement ? {label:entry.textContent, enabled:!entry.disabled, run:() => entry.click()}
+      : !entry || typeof entry !== "object" ? entry // the "-" separator: a string, whose legacy String.prototype.sub is truthy
+      : entry.sub ? {...entry, items:entry.items.map(command)} : {...entry, enabled:entry.enabled ?? true};
+    const commands = entries.map(command);
     popup({host, doc:host?.doc?.()}, commands, label, box.left, above ? box.top : box.bottom, trigger, true, above);
     hang(trigger);
   }
