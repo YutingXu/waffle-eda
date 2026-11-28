@@ -392,6 +392,8 @@ button.ui-choice[data-size=touch]:focus-visible {outline:2px solid var(--focus);
 .ui-document-tab:hover:not([aria-selected=true]) {background:var(--tab-hover);color:var(--tab-hover-ink)}
 /* ---- Toolbar ----------------------------------------------------------------------------------- */
 :is(.ui-toolbar) {display:flex;align-items:center;gap:var(--s-4);flex-wrap:nowrap;min-block-size:var(--chrome-tab-height);min-inline-size:0;padding-inline:var(--s-8)}
+/* A toolbar that wraps (K.toolbar(items, {wrap:true})): one line wherever it fits, more lines on a narrow window or dialog. */
+:is(.ui-toolbar)[data-wrap] {flex-wrap:wrap;row-gap:var(--s-4)}
 :is(.ui-toolbar-sep) {flex:none;inline-size:1px;block-size:var(--s-16);margin-inline:var(--ui-toolbar-sep-margin,var(--s-2));background:var(--line-strong)}
 :is(.ui-toolbar-spacer) {flex:1 1 var(--ui-spacer-basis,auto)}
 :is(.ui-toolbar):where(:not([data-table])) > :is(.ui-search) {flex:0 1 var(--search-w)}

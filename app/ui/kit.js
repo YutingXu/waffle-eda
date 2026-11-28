@@ -324,9 +324,10 @@ globalThis.AtriumUIKit = (() => {
     return host;
   }
   /** A toolbar. Pass "|" for a separator and "->" for a flexible spacer. */
-  function toolbar(items, {label, floating} = {}) {
+  function toolbar(items, {label, floating, wrap} = {}) {
     const t = el("div", "ui-toolbar"); t.setAttribute("role", "toolbar"); if (label) t.setAttribute("aria-label", label);
     if (floating) t.dataset.floating = floating === true ? "" : floating;
+    if (wrap) t.dataset.wrap = ""; // items flow onto a second line where the row is too narrow
     for (const item of items) t.append(item === "|" ? el("span", "ui-toolbar-sep") : item === "->" ? el("span", "ui-toolbar-spacer") : item);
     return t;
   }

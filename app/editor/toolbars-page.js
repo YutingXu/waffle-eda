@@ -51,7 +51,7 @@ globalThis.AtriumToolbarsPage = (() => {
     const count = K.el("span", "prf-help");
     const list = K.list([], {label:t("toolbars.buttons"), role:"tree"});
     const help = K.el("p", "prf-help", t("toolbars.help", {up:G.AtriumKeymap?.display("Alt+Up") || "Alt+↑", down:G.AtriumKeymap?.display("Alt+Down") || "Alt+↓"}));
-    card.append(K.toolbar([seg, "->", count, addSep, reset], {label:t("toolbars.bar")}), list, help, status);
+    card.append(K.toolbar([seg, "->", count, addSep, reset], {label:t("toolbars.bar"), wrap:true}), list, help, status);
     card.dataset.search = (t("toolbars.bar") + " toolbar active bar buttons").toLowerCase();
     const add = api.group(into, t("toolbars.add"));
     const results = K.list([], {label:t("toolbars.add")});

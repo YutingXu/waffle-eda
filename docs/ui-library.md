@@ -315,6 +315,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 ![Toolbar](ui-library/toolbar.png)
 
 - **Markup** `.ui-toolbar[role=toolbar]` with icon buttons, quiet buttons, `.ui-toolbar-sep`, `.ui-toolbar-spacer` and a search field. `K.toolbar(items)`, where `"|"` is a separator and `"->"` is a spacer.
+- **Wrapping** `K.toolbar(items, {wrap:true})` (`data-wrap`) lets the items flow onto further lines, 4 px apart, where the row is too narrow, and stays one line wherever it fits. Use it for a controls row in a dialog or a Preferences page that must fit a 390 px window (Preferences › Toolbars, the table editor's cell toolbar); a canvas or panel toolbar stays one line.
 - **Note formatting** `K.toolbar(items, {floating:"editing"})` uses the editing palette face. The text editor positions its palette next to the note. Formatting selects use `K.select(options, {native:true})`.
 - **Compact actions** `.ui-toolbar-actions` shares the 20 px action face: the small soft-fill button (`--button-face`, `--chrome-control-radius`, medium weight) for buttons and native menu summaries. Use `data-feature-actions` when the first of several actions needs the outlined emphasis.
 - **Table header** use `.ui-toolbar[data-table]` for the compact panel title and controls. `.ui-compact-field` is the 20 px field for the Nets and PCB List headers: the control radius, a 6 px text inset and, on a select, the library chevron. The shorter search uses `.ui-search[data-size=compact]`.
