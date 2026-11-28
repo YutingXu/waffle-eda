@@ -349,6 +349,34 @@ function cases(page) {
     await target.getByRole("textbox", {name:"Pin table", exact:true}).fill("1 VDD power\n2 OUT output\n3 GND power");
     await target.locator(".sw-grid tbody tr").first().waitFor();
   });
+  // The parameter filters popover, from the docked panel's Filters chip and from a facet chip in the Library tab.
+  add("Filter the Library panel by parameter", async () => {
+    await library();
+    await button(panel, "Filters").click();
+    await dialog("Parameter filters").locator("input,button").first().waitFor();
+  });
+  const workspace = page.locator("#doc-view-library");
+  async function libraryTab() {
+    await schematic();
+    await action("library-workspace");
+    await workspace.getByRole("toolbar", {name:"Library tools", exact:true}).waitFor();
+    return workspace;
+  }
+  const closeLibraryTab = () => page.evaluate(() => AtriumLibraryView.close());
+  outcomes.push({name:"Filter the Library tab by package", async open() {
+    await button(await libraryTab(), "Package").click();
+    await dialog("Package").locator("input,button").first().waitFor();
+  }, finish:closeLibraryTab});
+  // The New menu of the Library tab opens each drawing editor in its own editor tab, not as a modal dialog.
+  // "New symbol…" also names its shortcut.
+  for (const [command, title] of [[/^New symbol…/, "Symbol Editor"], [/^New footprint…/, "Footprint Editor"]]) {
+    outcomes.push({name:`${title} in a Library editor tab`, async open() {
+      await menu(button(await libraryTab(), "New"), command);
+      const target = page.locator(`.lib-editor-surface[open][aria-label="${title}"]`);
+      await target.waitFor();
+      assert.equal(await target.evaluate(node => node.matches(":modal")), false, `The ${title} tab is not modal.`);
+    }, finish:closeLibraryTab});
+  }
   return outcomes;
 }
 
