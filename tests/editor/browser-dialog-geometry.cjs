@@ -19,7 +19,7 @@ const profiles = [
 ];
 const surfaces = '[data-geometry-surface]';
 const modal = 'dialog[open]:visible';
-const fixtureGroups = ["core", "native", "library", "canvas", "extensions", "review", "pcb-tools", "notebook"];
+const fixtureGroups = ["core", "native", "library", "canvas", "extensions", "review", "pcb-tools", "notebook", "automation", "workflows", "narrow"];
 const platformPanels = [
   {platform:"macOS", source:"native/macos/main.swift", flow:"Native save confirmation, imported first Save, stale member decision and system file/directory pickers"},
   {platform:"Linux", source:"native/linux/waffle.py", flow:"GTK confirmation and system file/directory pickers"},
@@ -185,7 +185,8 @@ async function preferences(page, session, profile, report, save) {
       const items = await G.fields(page, session, scope), geometry = await G.preferenceGeometry(page);
       const textBaselines = await G.textBaselines(page, session, scope);
       const {census, metrics:coverage} = await fieldCoverage(scope,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result, ...await G.keyListGeometry(scope)];
+      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result,
+        ...await G.keyListGeometry(scope), ...await G.viewportGeometry(dialog)];
       const visit = repeat ? (report.preferenceStates ||= []) : report.preferences;
       visit.push({id:entry.id, name:entry.title, state, fields:items.length, rows:geometry.rows, groups:geometry.groups,
         renderProblems, textBaselines, census, measurements, failures:G.failures(measurements)});
@@ -338,7 +339,8 @@ async function narrowPreferences(page, session, dialog, scope, report) {
       const items = await G.fields(page, session, scope), geometry = await G.preferenceGeometry(page, {narrow:true});
       const textBaselines = await G.textBaselines(page, session, scope);
       const {census, metrics:coverage} = await fieldCoverage(scope,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result];
+      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result,
+        ...await G.viewportGeometry(dialog)];
       const accessibleHelp = await scope.locator(".prf-row:has(.prf-help)").evaluateAll(rows => rows.flatMap(row => {
         const help = row.querySelector(".prf-help");
         const input = row.querySelector("input[aria-describedby],select[aria-describedby]");
@@ -504,7 +506,9 @@ async function shortcuts(page, session, profile, report) {
   await saveDescription.scrollIntoViewIfNeeded();
   samples.push(await renderedShortcut(saveDescription.locator("xpath=following-sibling::dd[1]").locator(shortcut).first(), "Shortcut reference"));
   await auditDialogs(page, session, report, "Shortcut reference", "shortcuts", new Set());
-  await reference.getByRole("button", {name:"Done", exact:true}).click();
+  // The cheat sheet has no action footer, so it closes with its heading's Close button (docs/ui-library.md#close).
+  await reference.getByRole("button", {name:"Close keyboard shortcuts", exact:true}).click();
+  await reference.waitFor({state:"hidden"});
 
   await page.evaluate(() => AtriumNavHost.act("keyboard-shortcuts"));
   const editor = page.getByRole("dialog", {name:"Keyboard shortcuts editor"});
@@ -602,7 +606,8 @@ async function auditDialogs(page, session, report, action, context, original) {
       const items = await G.fields(page, session, locator), sections = await G.dialogSections(locator);
       const textBaselines = await G.textBaselines(page, session, locator);
       const {census, metrics:coverage} = await fieldCoverage(locator,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...sections, ...await G.keyListGeometry(locator)];
+      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...sections,
+        ...await G.keyListGeometry(locator), ...await G.viewportGeometry(locator)];
       const strays = await strayShortcuts(locator);
       report.dialogs.push({...surface, action, context, fields:items.length, sections:sections.length,
         textBaselines, census, measurements, failures:G.failures(measurements)});

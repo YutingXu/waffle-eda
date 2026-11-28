@@ -185,7 +185,7 @@
 .lib-diff li {margin:2px 0}
 .lib-sources td button {margin-right:4px}
 .lib-small .lib-diff,.lib-small .lib-sources {flex:0 1 auto}
-.lib-dialog input:not([type=checkbox],[type=radio]),.lib-dialog select,.panel-library select {font-variant-numeric:tabular-nums}
+:is(.lib-dialog,.lib-editor-surface) input:not([type=checkbox],[type=radio]),:is(.lib-dialog,.lib-editor-surface) select,.panel-library select {font-variant-numeric:tabular-nums}
 .lib-dialog.lib-small .lib-close {display:none}
 /* UX review 2: wizard summary values use the UI font with tabular figures (mono stays for the IPC
    name, which is an identifier); tool key hints stay readable (>= 4.5:1) on the raised tool button. */

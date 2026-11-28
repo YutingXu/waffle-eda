@@ -142,7 +142,7 @@
   .sp-recent-time:empty {display:none}
 }
 @media(max-width:430px) {
-  .sp-dialog {width:calc(100vw - var(--s-16));height:calc(100dvh - var(--s-16));max-height:none}
+  .sp-dialog {width:calc(100vw - var(--s-16));height:min(calc(100dvh - var(--s-16)),var(--dialog-avail-h));max-height:min(calc(100dvh - var(--s-16)),var(--dialog-avail-h))}
   .sp-origins,.sp-first-run .sp-templates {grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media(any-pointer:coarse) {

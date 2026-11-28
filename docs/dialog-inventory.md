@@ -153,7 +153,6 @@ Design Rule Check results appear in the Messages dock. The Dock surface inventor
 | app/editor/update-check.js | shell | 1 | Check for Updates |
 | app/editor/welcome.js | shell | 1 | Customise Waffle |
 | app/editor/whats-new.js | shell | 1 | What’s New |
-| app/editor/welcome.js | shell | 1 | Customise Waffle setup walkthrough |
 
 ## Library dialog workflows
 

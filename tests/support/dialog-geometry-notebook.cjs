@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
+const {fixture:datasheetPdf} = require("./datasheet-pdf.cjs");
+
 const directory = path.join(__dirname, "../fixtures/format-2/notebook");
 const manifest = "Notebook.waffle";
 const sheet = "notebook-sheet";
@@ -42,6 +44,25 @@ function cases(page) {
     if (scripts) await AtriumLazy.need(scripts);
     void host.act(action);
   }, action);
+
+  const button = (root, name) => root.getByRole("button", {name, exact:true});
+  // The datasheet reader (Labs) with a PDF the user chose, referenced by the saved notebook.
+  const reader = page.locator(".panel-datasheet");
+  const openDatasheet = async () => {
+    await page.evaluate(async () => {
+      AtriumPrefs.set("butter.datasheets", true);
+      await AtriumLazy.need("AtriumButterEditor");
+      const deadline = performance.now() + 4000;
+      while (!AtriumKeymap.command("butter.datasheets.reader") && performance.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+      // The command toggles the reader.
+      if (!document.querySelector(".panel-datasheet")?.getClientRects().length) AtriumKeymap.command("butter.datasheets.reader").run();
+    });
+    await reader.waitFor();
+    if (await reader.locator(".docs-page img").first().isVisible()) return;
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), button(reader, "Open PDF…").first().click()]);
+    await chooser.setFiles({name:"LMV321 datasheet.pdf", mimeType:"application/pdf", buffer:datasheetPdf(4)});
+    await reader.locator(".docs-page img").first().waitFor();
+  };
 
   return [
     {name:"Edit a saved calculation with a bound assertion", async open() {
@@ -116,6 +137,57 @@ function cases(page) {
       const dialog = page.getByRole("dialog", {name:"Dynamic Connector Pins", exact:true});
       await dialog.getByRole("textbox", {name:"Name of pin 1", exact:true}).waitFor();
       await dialog.getByRole("checkbox", {name:"Two-row header footprint", exact:true}).waitFor();
+    }},
+    {name:"Preview a snip of an open datasheet page", async open() {
+      await openDatasheet();
+      await button(reader, "Snip").click();
+      const box = await reader.evaluate(panel => {
+        const view = panel.querySelector(".docs-pages").getBoundingClientRect();
+        const shown = [...panel.querySelectorAll(".docs-page")].find(node => {
+          const rect = node.getBoundingClientRect();
+          return rect.top >= view.top - 2 && rect.top < view.bottom - 80 && node.querySelector("img");
+        }).getBoundingClientRect();
+        return {x:shown.x, y:shown.y, width:shown.width, height:shown.height};
+      });
+      await page.mouse.move(box.x + 12, box.y + 10);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * .7, box.y + box.height * .3, {steps:5});
+      await page.mouse.up();
+      await page.getByRole("dialog", {name:"Snip", exact:true}).locator("img").waitFor();
+    }, async finish() {
+      await button(reader, "Snip").click();
+    }},
+    {name:"Confirm embedding an open datasheet in the saved project", async open() {
+      await openDatasheet();
+      // Only the desktop asset transport is substituted; the confirmation comes before any of it is used.
+      await page.evaluate(() => {
+        if (!AtriumNavHost.folderProject()?.grant) throw Error("The notebook fixture is not an editable folder project.");
+        const refuse = async () => { throw Error("The geometry fixture does not embed files."); };
+        window.AtriumHost = {...window.AtriumHost, folderPickAsset:async () => null, folderStageAsset:refuse, folderDropAsset:refuse};
+      });
+      await button(reader, "More…").click();
+      await page.getByRole("menuitem", {name:"Embed in project…", exact:true}).click();
+      await button(page.getByRole("dialog", {name:"Embed datasheet", exact:true}), "Choose PDF…").waitFor();
+    }, async finish() {
+      await page.evaluate(() => {
+        for (const name of ["folderPickAsset", "folderStageAsset", "folderDropAsset"]) delete window.AtriumHost?.[name];
+      });
+    }},
+    {name:"Confirm downloading a datasheet that is not on this computer", async open() {
+      await openDatasheet();
+      await page.evaluate(() => {
+        const host = AtriumNavHost;
+        host.edit(() => {
+          (host.project().datasheets ||= []).push({id:"018cc251-f400-7000-8000-0000000000ee", sha256:"0".repeat(63) + "1",
+            byteLength:4096, title:"TPS7A20 regulator", version:"C", sourceURL:"https://www.ti.com/lit/ds/symlink/tps7a20.pdf"});
+        }, "Reference a missing datasheet");
+      });
+      await button(reader, "More…").click();
+      await page.getByRole("menuitem", {name:"Show all datasheets", exact:true}).click();
+      await reader.locator(".ui-row", {hasText:"TPS7A20"}).click();
+      await reader.locator(".ui-notice", {hasText:"Not on this computer"}).waitFor();
+      await button(reader, "Download").click();
+      await button(page.getByRole("dialog", {name:"Download datasheet", exact:true}), "Download").waitFor();
     }},
   ];
 }

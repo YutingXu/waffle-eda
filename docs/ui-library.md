@@ -348,7 +348,7 @@ The `.ui-choice` label paints checked borders or halos around its native radio. 
 
 ![Dialog](ui-library/dialog.png)
 
-- **Use** `AtriumShell.dialog({title, body, actions, sheet})` for a new prompt. Use `adoptDialog` or `openDialog` for existing markup ([Dialog inventory](dialog-inventory.md)). Dialogs are compact rows in the Output Job style. A dialog's title does not repeat the command name, and it has no subtitle.
+- **Use** `AtriumShell.dialog({title, body, actions, sheet})` for a new prompt. Use `adoptDialog` or `openDialog` for existing markup ([Dialog inventory](dialog-inventory.md)). A dialog surface hosted in an editor tab instead (the Library's Symbol and Footprint Editors) adopts its action row with `AtriumUI.adoptActions`. Dialogs are compact rows in the Output Job style. A dialog's title does not repeat the command name, and it has no subtitle.
 - **States** the default action (`data-ui-default`), a safe initial focus for destructive choices, a status line leading the action row (`.ui-dialog-status`) and sticky actions (`.ui-sticky-actions`). Dialogs centre in the safe area (`--dialog-safe-top`, `--dialog-avail-*`). Primary comes last on macOS and Linux and first on Windows.
 
 ### Window safe area

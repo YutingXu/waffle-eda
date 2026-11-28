@@ -15,7 +15,7 @@
 }
 /* Adopted buttons share a face with ordinary controls in older dialogs. */
 :where(.ui-button,
-  :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):is(button,a) {
+  :is(.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):is(button,a) {
   box-sizing:border-box;
   /* A button a feature lays out as flex keeps its icon and label on the button's centre line. */
   align-items:center;
@@ -30,7 +30,7 @@
   transition:background-color var(--motion-instant) linear,color var(--motion-instant) linear,border-color var(--motion-instant) linear;
 }
 :where(.ui-button,
-  :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):hover:not(:disabled) {
+  :is(.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog) button:not(.ui-tab,.ui-segment,.icon-button)):hover:not(:disabled) {
   background:var(--ui-button-hover,var(--button-secondary-hover,var(--button-hover)));
 }
 :where(.ui-button:not([data-variant]),.ui-button:is([data-variant=secondary],[data-variant=primary],[data-variant=danger])):active:not(:disabled) {
@@ -43,7 +43,7 @@
   --ui-button-hover:var(--button-selected-hover,color-mix(in srgb, var(--selection), var(--focus-edge-dark) 12%));
   --ui-button-active:var(--button-selected-active,color-mix(in srgb, var(--selection), var(--focus-edge-dark) 24%));
 }
-:where(.ui-button, :is(.work-dialog,.lib-dialog,.message-dialog,#library-dialog) button):is(button,a):disabled {opacity:.45;cursor:default}
+:where(.ui-button, :is(.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog) button):is(button,a):disabled {opacity:.45;cursor:default}
 :where(.ui-button[data-variant=primary], .message-dialog button[type=submit]:not([data-variant]),
   :is(.work-actions,.lib-actions,.dialog-actions) button.is-primary:not([data-variant]),
   .work-actions:not(:has(button:is(.is-primary,[data-variant]))) button:last-child) {
@@ -72,7 +72,7 @@
 :root {--field-height:28px;--field-number-width:80px;--ui-switch-w:34px}
 
 /* One text Field also covers the ordinary form controls of adopted dialogs. */
-:where(.ui-field:not([data-field-face=paper]),#inspector :is(input,select),:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select) {
+:where(.ui-field:not([data-field-face=paper]),#inspector :is(input,select),:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select) {
   box-sizing:border-box;
   min-block-size:var(--field-height);
   max-inline-size:100%;
@@ -85,13 +85,13 @@
   color:var(--ink);
   font:var(--fs-12)/var(--lh) var(--font-ui);
 }
-:where(.ui-field:not([data-field-face=paper]),:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),
+:where(.ui-field:not([data-field-face=paper]),:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),
   select:not([multiple],[size]:not([size="1"]))) {
   block-size:var(--field-height);
   padding-block:0;
   vertical-align:middle;
 }
-:where(.ui-field,.ui-compact-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
+:where(.ui-field,.ui-compact-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
   appearance:none;
   border-radius:var(--chrome-control-radius);
   padding-inline-end:calc(var(--s-12) + 2 * var(--s-8));
@@ -103,13 +103,13 @@
   background-position:right var(--s-16) center,right var(--s-12) center;
 }
 :where(.statusbar select.status-action) {appearance:none}
-:where(.ui-field,.ui-compact-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))):where(:dir(rtl)) {
+:where(.ui-field,.ui-compact-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))):where(:dir(rtl)) {
   background-position:left var(--s-12) center,left var(--s-16) center;
 }
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=search]) {
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=search]) {
   appearance:none;
 }
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=number],input.ui-field-number) {
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover) input):is(input[type=number],input.ui-field-number) {
   inline-size:var(--field-number-width);
   font-variant-numeric:tabular-nums;
 }
@@ -121,9 +121,9 @@
 :where(.ui-field-unit) {flex:none;color:var(--muted);font:var(--fs-11)/var(--lh) var(--font-ui);white-space:nowrap}
 /* An invalid field. :is(input,textarea,select) gives it the specificity of the shared face above (0,1,1),
    which it follows, so the error border is not overwritten by that face's border shorthand. */
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input,textarea,select):is([aria-invalid=true],:user-invalid) {border-color:var(--error)}
-:is(input,select):is(.ui-field,.lib-dialog *)[data-edit-rejected] {border-color:var(--ui-field-error,var(--err-mark))}
-input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(--error-ink);color:var(--ui-field-error)}
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover) :is(input,textarea,select)):is(input,textarea,select):is([aria-invalid=true],:user-invalid) {border-color:var(--error)}
+:is(input,select):is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected] {border-color:var(--ui-field-error,var(--err-mark))}
+input:is(.ui-field,.lib-dialog *,.lib-editor-surface *)[data-edit-rejected=ink] {--ui-field-error:var(--error-ink);color:var(--ui-field-error)}
 :is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=none] {--ui-severity-color:var(--erc-none,var(--tint-success))}
 :is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=warning] {--ui-severity-color:var(--erc-warning,var(--tint-warning))}
 :is(.ui-severity-cell,.ui-severity-field,.ui-severity-swatch)[data-severity=error] {--ui-severity-color:var(--erc-error,var(--tint-danger))}
@@ -141,15 +141,15 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 /* Disabled fields read as unavailable: a hairline instead of the field line, a muted well and muted text.
    Read-only fields hold a value to read or copy: no box line, ink text on a quiet well. Both outrank the
    shared face above (same :is() specificity plus the state). */
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select):disabled {
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea,select)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea,select):disabled {
   border-color:var(--line);background-color:color-mix(in srgb,var(--field) 55%,var(--soft));color:var(--muted);-webkit-text-fill-color:var(--muted);opacity:1;
 }
-:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea)[readonly]:not(:disabled) {
+:where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover,#inspector) :is(input,textarea)):is(input:not([type=checkbox],[type=radio],[type=button],[type=submit],[type=reset],[type=hidden],[type=file],[type=range],[type=color],[type=image]),textarea)[readonly]:not(:disabled) {
   border-color:transparent;background-color:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink);
 }
 
 @media (forced-colors:active) {
-  :where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
+  :where(.ui-field,:is(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,#library-dialog,.ui-popover,#inspector) select):is(select:not([multiple],[size]:not([size="1"]))) {
     appearance:auto;
     padding-inline-end:var(--s-8);
     background-image:none;
@@ -158,7 +158,7 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
 :where(.ui-field-row) {display:grid;gap:var(--s-4)}
 /* Inline label rows align to the first painted text line, including a wrapped caption.
    Two-column grids and flex rows share this rule without changing their spacing. */
-:where(.ui-dialog,.work-dialog,.lib-dialog,.message-dialog,.ui-popover) label:has(
+:where(.ui-dialog,.work-dialog,.lib-dialog,.lib-editor-surface,.message-dialog,.ui-popover) label:has(
   > span:first-child:not([aria-hidden=true],.icon) +
     :is(input:not([type=checkbox],[type=radio],[type=color],[type=range],[type=file]),select,textarea,.ui-field-measure)
 ) {align-items:baseline}
@@ -166,28 +166,28 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
    share the field's line, the primary fill and the icon stroke. Inputs paint no pseudo-element in WebKit, so
    the tick is a background glyph (--glyph-check) and the radio dot a gradient; both appear with the
    fill's fade over --motion-fast, at once with Reduced motion. Full-cell grid checkboxes keep their own face. */
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {
   --ui-check-time:calc(var(--motion-fast) * var(--motion-move));
   appearance:none;-webkit-appearance:none;flex:none;box-sizing:border-box;display:inline-block;vertical-align:middle;
   inline-size:14px;block-size:14px;margin:0;border:1px solid var(--input-line);
   background:center/0 0 no-repeat var(--field);cursor:default;
   transition:background-color var(--ui-check-time) var(--ease-decelerate),border-color var(--ui-check-time) var(--ease-decelerate);
 }
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)) {border-radius:var(--r-md);background-image:var(--glyph-check)}
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)):checked {background-size:10px 10px}
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input)):indeterminate {
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input)) {border-radius:var(--r-md);background-image:var(--glyph-check)}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input)):checked {background-size:10px 10px}
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input)):indeterminate {
   background-image:linear-gradient(var(--on-primary),var(--on-primary));background-size:8px 2px}
 :where(.ui-radio) {border-radius:var(--r-pill);background-image:radial-gradient(circle,var(--on-primary) 0 2.5px,transparent 3px)}
 :where(.ui-radio):checked {background-size:12px 12px}
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):is(:checked,:indeterminate) {
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):is(:checked,:indeterminate) {
   border-color:var(--primary);background-color:var(--primary)}
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):disabled {
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):disabled {
   border-color:var(--line);background-color:color-mix(in srgb,var(--field) 55%,var(--soft))}
-:where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):disabled:is(:checked,:indeterminate) {
+:where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio):disabled:is(:checked,:indeterminate) {
   border-color:transparent;background-color:color-mix(in srgb,var(--primary) 45%,var(--field))}
 :where(.ui-checkbox-row,.ui-radio-row):has(> :disabled) {color:var(--muted)}
 @media (forced-colors:active) {
-  :where(.ui-checkbox,:is(.work-dialog,.lib-dialog) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {appearance:auto;-webkit-appearance:auto;background:none}
+  :where(.ui-checkbox,:is(.work-dialog,.lib-dialog,.lib-editor-surface) input[type=checkbox]:not([data-checkbox-cells] input),.ui-radio) {appearance:auto;-webkit-appearance:auto;background:none}
 }
 :where(.ui-checkbox-row) {display:flex;align-items:center;gap:var(--s-6);min-height:var(--ctl-h)}
 :where(.ui-checkbox-row) > :where(.ui-checkbox) {margin:0}
@@ -339,9 +339,10 @@ input:is(.ui-field,.lib-dialog *)[data-edit-rejected=ink] {--ui-field-error:var(
   max-block-size:min(var(--ui-dialog-max-height,min(78vh,720px)),var(--dialog-avail-h));
 }
 :where(dialog:is(.ui-dialog,.work-dialog,.message-dialog),#library-dialog)::backdrop {background:var(--backdrop)}
-/* Snap centered sheets in CSS without changing the native focus or top-layer behavior. */
+/* Snap centered sheets in CSS without changing the native focus or top-layer behavior. The palette, the quick
+   theme picker and the clipboard picker place themselves, so the centring translate would move them off their spot. */
 @supports (translate:round(down,-50%,1px)) {
-  :where(dialog.ui-dialog:modal:not(#palette,.thq-dialog)) {
+  :where(dialog.ui-dialog:modal:not(#palette,.thq-dialog,.clip-picker)) {
     inset:round(nearest,calc(var(--dialog-safe-top) + var(--dialog-avail-h) / 2),1px) auto auto round(nearest,50vw,1px);margin:0;
     translate:round(down,-50%,1px) round(down,-50%,1px);
     block-size:calc-size(auto,round(up,size,1px));

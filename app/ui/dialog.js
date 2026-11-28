@@ -57,6 +57,15 @@ globalThis.AtriumUI = (() => {
     }
     focused?.focus({preventScroll:true});
   }
+  // An action row takes the dialog's button variants and platform order. A surface hosted outside a dialog
+  // (a Library editor tab) adopts its row the same way, so its actions match the modal dialog's.
+  function adoptActions(actions, {order = "platform"} = {}) {
+    actions.classList.add("ui-dialog-actions");
+    const buttons = buttonsOf(actions);
+    for (const b of buttons) button(b, b.dataset.variant || (preferred(b) ? "primary" : "secondary"));
+    if (order === "platform") orderActions(actions, buttons);
+    return actions;
+  }
   function adoptDialog(d, {title = d.querySelector("h2"), body, actions = footerOf(d), sheet, modeless, initialFocus,
     order = "platform", defaultAction = true} = {}) {
     d.classList.add("ui-dialog");
@@ -70,12 +79,7 @@ globalThis.AtriumUI = (() => {
       }
     }
     for (const section of [].concat(body || [])) section?.classList?.add("ui-dialog-body");
-    if (actions) {
-      actions.classList.add("ui-dialog-actions");
-      const buttons = buttonsOf(actions);
-      for (const b of buttons) button(b, b.dataset.variant || (preferred(b) ? "primary" : "secondary"));
-      if (order === "platform") orderActions(actions, buttons);
-    }
+    if (actions) adoptActions(actions, {order});
     if (!dialogOptions.has(d)) d.addEventListener("keydown", event => {
       if (event.key !== "Enter" || event.defaultPrevented || event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
       const input = event.target, options = dialogOptions.get(d);
@@ -295,5 +299,5 @@ globalThis.AtriumUI = (() => {
     return globalThis.AtriumUIKit?.adoptSearch(input) || box;
   }
 
-  return {adoptDialog, button, nativeButton, dialog, openDialog, setupDialogs, searchField, FIELD, visible, available, focusableFromMarkup};
+  return {adoptDialog, adoptActions, button, nativeButton, dialog, openDialog, setupDialogs, searchField, FIELD, visible, available, focusableFromMarkup};
 })();

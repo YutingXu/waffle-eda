@@ -469,5 +469,5 @@ globalThis.AtriumWorkbench = (() => {
     if(readout.textContent!==label)readout.textContent=label;
   }
   // dismiss(): close the open menu (dock.js closes Window › Layouts after a saved layout is chosen).
-  return {sync,syncExplorer,wholePixels,reviewScope:(...args)=>globalThis.AtriumProjectTree?.reviewScope(...args),dismiss:()=>dismiss(),onOpen:f=>{opened.add(f);return ()=>opened.delete(f);}};
+  return {sync,syncExplorer,wholePixels,fitMenu:fit,reviewScope:(...args)=>globalThis.AtriumProjectTree?.reviewScope(...args),dismiss:()=>dismiss(),onOpen:f=>{opened.add(f);return ()=>opened.delete(f);}};
 })();
