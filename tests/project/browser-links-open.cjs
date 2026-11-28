@@ -3,11 +3,13 @@
 // Properties) gives the same result. A datasheet page link keeps its page, brings a Datasheet tab that
 // sits behind Properties to the front, and a reader without a size goes to the page once it has one.
 // A saved query opens in Query from the palette row as it does from Open Waffle Link…. Properties rows do not
-// focus the canvas; the palette row does.
+// focus the canvas; the palette row does. At launch, the links module cannot load before the Butter editor
+// module has registered the reader and Query.
 // node tests/project/browser-links-open.cjs
 const assert = require("node:assert/strict");
 const H = require("../automation/butter-intel-ui-shared.cjs");
 const {fixture} = require("../support/datasheet-pdf.cjs");
+const serveApp = require("../support/browser-app-server.cjs");
 
 async function walk(browser, profile) {
   const {page, errors} = await H.openDemo(browser, profile, ["query"]);
@@ -135,4 +137,37 @@ async function walk(browser, profile) {
   } finally { await page.close(); }
 }
 
-H.runWalk(walk, "SKIP Links open walk: Playwright Core unavailable.", "PASS Links open: palette, Open Waffle Link… and Properties keep the page, reveal a Datasheet tab behind Properties, wait for the reader's size, show a saved query, leave focus off the canvas from Properties and name a target with no place on the canvas.");
+// Cold start: links-desktop.js needs AtriumDatasheetReader and AtriumIntelUI, which editor-command-host.js
+// (AtriumButterEditor) registers when it runs. prefs.js inserts that script at launch, before anything can
+// ask for AtriumLinksDesktop, and lazy scripts run in insertion order. Holding editor-command-host.js back,
+// as a slow load would, AtriumLinksDesktop stays unloaded, so a link arriving at launch (an operating-system
+// link, a note link) cannot reach either need() before both names are registered.
+async function coldStart(browser) {
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  const server = await serveApp({beforeRead:file => file === "/automation/editor-command-host.js" ? held : null});
+  const page = await browser.newPage({viewport:{width:1280, height:820}, reducedMotion:"reduce"});
+  page.setDefaultTimeout(10000);
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  try {
+    await page.goto(server.url, {waitUntil:"domcontentloaded"}); // the held script keeps the load event back
+    await page.waitForFunction(() => globalThis.AtriumPrefs);
+    const before = await page.evaluate(async () => {
+      AtriumPrefs.set("butter.datasheets", true);
+      AtriumPrefs.set("butter.query", true);
+      globalThis.coldLinks = AtriumLazy.need("AtriumLinksDesktop").then(() => ({
+        butterEditor:!!globalThis.AtriumButterEditor,
+        registered:["AtriumDatasheetReader", "AtriumIntelUI"].filter(name => AtriumLazy.modules().includes(name))}));
+      const early = await Promise.race([coldLinks, new Promise(resolve => setTimeout(() => resolve("pending"), 800))]);
+      return {early, registered:["AtriumDatasheetReader", "AtriumIntelUI"].filter(name => AtriumLazy.modules().includes(name))};
+    });
+    assert.deepEqual(before, {early:"pending", registered:[]}, "AtriumLinksDesktop waits behind editor-command-host.js");
+    release();
+    assert.deepEqual(await page.evaluate(() => coldLinks), {butterEditor:true, registered:["AtriumDatasheetReader", "AtriumIntelUI"]},
+      "both names are registered by the time AtriumLinksDesktop has loaded");
+    assert.deepEqual(errors, []);
+  } finally { release(); await page.close(); await server.close(); }
+}
+
+H.runWalk(async (browser, profile) => { await walk(browser, profile); await coldStart(browser); }, "SKIP Links open walk: Playwright Core unavailable.", "PASS Links open: palette, Open Waffle Link… and Properties keep the page, reveal a Datasheet tab behind Properties, wait for the reader's size, show a saved query, leave focus off the canvas from Properties, name a target with no place on the canvas, and load links at launch only after the reader and Query are registered.");
