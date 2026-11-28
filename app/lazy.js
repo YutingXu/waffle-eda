@@ -877,6 +877,21 @@ globalThis.AtriumLazy = (() => {
     AtriumRooms: [["room-move", "Move room", "D M M"], ["rooms-fit", "Fit rooms to components", "D M F"], ["rooms-lock", "Lock or unlock rooms", null],
       ["rooms-show", "Show rooms", null]].map(([id, t, k]) => ["rooms:" + id, id, t, "Design", k, "pcb"])
   };
+  // Keys of focused lists in lazy modules (registerCommand `focus`): [id, title, category, keys, focus, extra].
+  // The list runs them through AtriumKeymap.focusBinding, so they need no module code and are
+  // registered whether or not the module has loaded. Library: library-ui.js and library-workspace.js;
+  // views and slides: project/views-panel.js.
+  const LIST_COMMANDS = [["library-edit-symbol", "Library: edit symbol", "Edit", ["E"], "library"],
+    ["library-edit-footprint", "Library: edit footprint", "Edit", ["Shift+E"], "library"],
+    ["library-duplicate", "Library: duplicate component", "Edit", ["Mod+D"], "library"],
+    ["library-delete", "Library: delete component", "Edit", ["Backspace", "Delete"], "library"],
+    ["views-rename", "Saved views: rename view", "View", ["F2"], "views"],
+    ["views-copy-link", "Saved views: copy link", "View", ["Mod+C"], "views"],
+    ["views-remove", "Saved views: remove views", "View", ["Backspace", "Delete"], "views"],
+    ["slides-move-earlier", "Slides: move slide earlier", "View", ["Alt+Left"], "slides", {repeatable: true}],
+    ["slides-move-later", "Slides: move slide later", "View", ["Alt+Right"], "slides", {repeatable: true}],
+    ["slides-remove", "Slides: remove slide", "View", ["Backspace", "Delete"], "slides"],
+    ["slides-present", "Slides: present from this slide", "View", ["F5", "Mod+Enter"], "slides"]];
   // Menu items a lazy module adds when it loads (rooms.js install): [menu, action, label, options].
   const MENUS = {
     AtriumCollabPresence: [["project", "collab-status", "Collaboration…", {after: "review-changes", separator: true}],
@@ -906,6 +921,9 @@ globalThis.AtriumLazy = (() => {
       for (const [id, action, title, category, key, when] of list) {
         try { if (!K.command?.(id)) K.registerCommand({id, title, category, action, ...(when ? {when} : {}), defaultKeys: key ? [key] : []}); } catch { /* built in */ }
       }
+    }
+    for (const [id, title, category, keys, focus, extra] of LIST_COMMANDS) {
+      try { if (!K.command?.(id)) K.registerCommand({id, title, category, action: id, focus, ...extra, defaultKeys: keys}); } catch { /* built in */ }
     }
     const N = globalThis.AtriumNavCommon;
     for (const [name, list] of Object.entries(MENUS)) if (globalThis[name] == null) for (const [menu, action, label, o] of list) N?.menuItem?.(menu, action, label, o);

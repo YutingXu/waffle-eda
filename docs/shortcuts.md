@@ -110,7 +110,7 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 
 ## Altium-style (default)
 
-308 of 469 commands have a default key.
+319 of 480 commands have a default key.
 
 ### File
 
@@ -246,6 +246,11 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 | Add selection to memory 9 | `Mod+Shift+9` | Always |
 | Recall selection memory 9 (twice: fly to it) | `Alt+9` | Always |
 | Rename designator or net | `F2` | Not placing |
+| Library: edit symbol | `E` | In the Library list |
+| Library: edit footprint | `Shift+E` | In the Library list |
+| Library: duplicate component | `Mod+D` | In the Library list |
+| Library: delete component | `Backspace` | In the Library list |
+|  | `Delete` | In the Library list |
 
 ### Place
 
@@ -455,6 +460,16 @@ A ⌘-centred profile: macOS conventions first, one letter per tool as in Figma,
 | Go to saved view 9 | `J` `9` | Always |
 | Quick open (documents and recent files)… | `Mod+P` | Always |
 | Color theme… | `Mod+K` `Mod+T` | Always |
+| Saved views: rename view | `F2` | In the Saved views list |
+| Saved views: copy link | `Mod+C` | In the Saved views list |
+| Saved views: remove views | `Backspace` | In the Saved views list |
+|  | `Delete` | In the Saved views list |
+| Slides: move slide earlier | `Alt+Left` | In the Slides strip |
+| Slides: move slide later | `Alt+Right` | In the Slides strip |
+| Slides: remove slide | `Backspace` | In the Slides strip |
+|  | `Delete` | In the Slides strip |
+| Slides: present from this slide | `F5` | In the Slides strip |
+|  | `Mod+Enter` | In the Slides strip |
 
 ### Window
 

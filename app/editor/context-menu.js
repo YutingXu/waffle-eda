@@ -447,7 +447,8 @@ globalThis.AtriumContextMenu = (() => {
       if (e.checked != null) b.setAttribute("aria-checked", String(e.checked));
       b.disabled = !e.enabled;
       b.append(NC().el("span", e.label));
-      if (e.action) NC().shortcutBadge(b, K?.hintKey(e.action, kind));
+      // The key comes only from the keymap: a command shows its `action`'s binding (tests/maintenance/shortcut_lint.py).
+      NC().shortcutBadge(b, e.action && K?.hintKey(e.action, kind));
       b.onclick = () => {
         close();
         const run = () => {
@@ -607,29 +608,36 @@ globalThis.AtriumContextMenu = (() => {
 
   // ------------------------------------------------------------------ project actions
   // Close Project: unsaved edits are saved, discarded or kept (Cancel) first, then the window returns
-  // to the empty starter and Home. The closed project is no longer reopened at the next launch.
+  // to the empty starter and Home. The closed project is no longer reopened at the next launch. Editor tabs
+  // ask before the project does: the project's Discard deletes its recovery copy, which a later Cancel can't restore.
   async function closeProject(host) {
     if (host.isStarter?.()) return true;
     const project = host.project(), current = () => host.project() === project;
     const name = project.name || "Untitled";
-    const pending=host.importSession?.();
-    if (globalThis.AtriumForeignDrafts?.needsReview(host)) { if (!await globalThis.AtriumForeignDrafts.review(host)) return false; }
-    else if (host.isDirty?.()) {
-      const S = globalThis.AtriumShell, p = document.createElement("p");
-      p.textContent = "Your changes to “" + name + "” are lost if you close it without saving.";
-      const choice = S?.dialog ? await S.dialog({title:"Save changes to “" + name + "” before closing?", body:[p], className:"close-project-dialog",
-        actions:[{label:"Cancel"}, {label:"Don’t Save"}, {label:"Save", primary:true}]}).done : (globalThis.confirm?.("Close " + name + " without saving?") ? "Don’t Save" : null);
-      if (!current()) return false;
-      if (choice === "Save") { if (await host.saveProject?.() === false || !current() || host.isDirty()) return false; }
-      else if (choice !== "Don’t Save") return false;
+    const pending=host.importSession?.(), V = globalThis.AtriumDocViews;
+    if (V?.mayDiscard?.() === false) return false;
+    const closed = await closing();
+    if (!closed) V?.keep?.();
+    return closed;
+    async function closing() {
+      if (globalThis.AtriumForeignDrafts?.needsReview(host)) { if (!await globalThis.AtriumForeignDrafts.review(host)) return false; }
+      else if (host.isDirty?.()) {
+        const S = globalThis.AtriumShell, p = document.createElement("p");
+        p.textContent = "Your changes to “" + name + "” are lost if you close it without saving.";
+        const choice = S?.dialog ? await S.dialog({title:"Save changes to “" + name + "” before closing?", body:[p], className:"close-project-dialog",
+          actions:[{label:"Cancel"}, {label:"Don’t Save"}, {label:"Save", primary:true}]}).done : (globalThis.confirm?.("Close " + name + " without saving?") ? "Don’t Save" : null);
+        if (!current()) return false;
+        if (choice === "Save") { if (await host.saveProject?.() === false || !current() || host.isDirty()) return false; }
+        else if (choice !== "Don’t Save") return false;
+      }
+      const empty = globalThis.Atrium.project("Untitled", globalThis.AtriumParts?.catalogue || []);
+      if (!current() || !await host.replaceProject(empty, {copy:true, force:true, starter:true, current})) return false;
+      if (pending) await globalThis.AtriumForeignDrafts.release(pending);
+      globalThis.AtriumAutosave?.closed?.();
+      host.info?.("Closed " + name);
+      host.act("start-page");
+      return true;
     }
-    const empty = globalThis.Atrium.project("Untitled", globalThis.AtriumParts?.catalogue || []);
-    if (!current() || !await host.replaceProject(empty, {copy:true, force:true, starter:true, current})) return false;
-    if (pending) await globalThis.AtriumForeignDrafts.release(pending);
-    globalThis.AtriumAutosave?.closed?.();
-    host.info?.("Closed " + name);
-    host.act("start-page");
-    return true;
   }
   // Add Existing to Project…: a schematic, board or library document joins the open project.
   async function addExisting(host) {
@@ -909,5 +917,6 @@ globalThis.AtriumContextMenu = (() => {
   }
   NC()?.ready?.(attach);
 
-  return Object.freeze({open, explorer, projectActions, editing, dropdown, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
+  // popup(ctx, commands, heading, x, y, returnFocus): a menu of command objects at a point (the Views panel's row menus).
+  return Object.freeze({open, explorer, projectActions, editing, dropdown, popup, statusItems, close, isOpen:() => !!root, table, labels, context, TYPES, attach, fitMenu});
 })();

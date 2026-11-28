@@ -35,6 +35,16 @@ module.exports = async function slidesUI(browser) {
     await page.waitForFunction(() => AtriumNavHost.project().slides[2].name === "Sensor input, close");
     await page.evaluate(() => AtriumNavHost.act("undo"));
     await page.waitForFunction(() => AtriumNavHost.project().slides[1].name === "Sensor input, close");
+    // The tile menu shows the strip's keys from the keymap.
+    await tiles.nth(1).click({button:"right"});
+    const menu = page.locator(".nav-menu[role=menu]").last();
+    await menu.waitFor();
+    const keys = await menu.locator("[role=menuitem]").evaluateAll(items => Object.fromEntries(items.map(item =>
+      [item.querySelector(":scope > span")?.textContent, item.querySelector(":scope > .ui-shortcut")?.dataset.binding || null])));
+    assert.deepEqual([keys["Move earlier"], keys["Move later"], keys["Present from here"], keys["Remove"], keys["Show slide"]],
+      ["Alt+Left", "Alt+Right", "F5", "Backspace", null]);
+    await page.keyboard.press("Escape");
+    await menu.waitFor({state:"detached"});
 
     // Presentation: chrome hides, the bar steps, notes show as text, End returns the camera.
     const before = await page.evaluate(() => ({doc:AtriumNavHost.currentId(), cx:AtriumNavHost.view().camera().cx}));

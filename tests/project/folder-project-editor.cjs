@@ -584,8 +584,14 @@ print(json.dumps(str(installed)))
     assert.equal(retired,0);
     assert.equal(locations.at(-1),"PCB-PiDP11IOExpander","the host suggests the first-save project name");
     cancelLocation=false;
+    // The first Save reopens the project from its new folder: an open editor tab stays, and is not asked.
+    if(!globalThis.AtriumDocViews)await AtriumLazy.need("AtriumDocViews");
+    let draftAsked=0,draftClosed=0;
+    AtriumDocViews.open("first-save-draft",{title:"Draft",mayDiscard:()=>{draftAsked++;return false;},onClose:()=>{draftClosed++;}});
     const first = H.saveProject(), second = H.saveAll();
     assert.deepEqual(await Promise.all([first,second]),[true,true]);
+    assert.deepEqual([AtriumDocViews.isOpen("first-save-draft"),draftAsked,draftClosed],[true,0,0],"Save keeps the editor tab through the reopen");
+    AtriumDocViews.close("first-save-draft");
     assert.equal(prompts,4,"simultaneous saves share a single first-save decision");
     assert.equal(installs,1);
     assert.equal(retired,1);

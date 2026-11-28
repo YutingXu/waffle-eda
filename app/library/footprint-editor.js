@@ -159,6 +159,7 @@ globalThis.AtriumFootprintEditor = (() => {
     let stepTranslation = null, stepRequest = 0;
     const stepRef = v => { let k = stepTexts.indexOf(v); if (k < 0) { stepTexts.push(v); k = stepTexts.length - 1; } return "\u0000step:" + k; };
     function snapshot() { return JSON.stringify(draft, (k, v) => k === "stepText" && typeof v === "string" ? stepRef(v) : v); }
+    saved = snapshot(); // as every later snapshot spells STEP text, so an untouched model is clean
     const thaw = text => JSON.parse(text, (k, v) => k === "stepText" && typeof v === "string" && v.startsWith("\u0000step:") ? stepTexts[+v.slice(6)] : v);
     function change(fn, keepSelection = true) {
       const before = snapshot();
@@ -880,11 +881,17 @@ globalThis.AtriumFootprintEditor = (() => {
         globalThis.AtriumNavHost?.showImportReport?.(stepTranslation.result, [], [def.footprint.model3d.file]);
     }
     function tryClose(force) {
-      if (!force && snapshot() !== saved && !confirmDiscard()) return;
+      if (!force && !mayDiscard()) return;
       dlg.close();
     }
     function confirmDiscard() { return typeof confirm === "function" ? confirm("Discard the changes to this footprint?") : true; }
+    // Closing the editor, or a project switch closing its tab (dlg.mayDiscard), asks about unsaved changes.
+    // A switch may ask again before it commits; "Discard" holds for the same draft until keepDraft().
+    let discarded = null;
+    const unsaved = () => { const s = snapshot(); return s !== saved && s !== discarded; };
+    function mayDiscard() { if (!unsaved()) return true; if (!confirmDiscard()) return false; discarded = snapshot(); return true; }
     dlg.requestClose = () => tryClose();
+    Object.assign(dlg, {unsaved, mayDiscard, keepDraft: () => { discarded = null; }});
     ui.paletteSurface(dlg, "footprint", canvas, stage, {
       pins: () => fp().pads,
       select: i => { clearSelection(); selection.pads.add(i); refresh(); },

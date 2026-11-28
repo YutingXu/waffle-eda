@@ -255,6 +255,12 @@ globalThis.AtriumFolderProjectUI = (() => {
         outcome = "cancelled";
         throw Error(t("import_save.folder.changed_before_open"));
       }
+      // Edits made in an editor tab while the folder loaded ask now; a save reopening its own project keeps them.
+      if (!fromSave && globalThis.AtriumDocViews?.mayDiscard?.() === false) {
+        outcome = "cancelled";
+        await session.close();
+        return false;
+      }
       if (await H.folderAdopt({grant:folder.grant,fromSave}) === false) throw Error("The folder could not be opened.");
       if (current && !current()) {
         outcome = "cancelled";
@@ -306,7 +312,7 @@ globalThis.AtriumFolderProjectUI = (() => {
         if (!restoredSplit) { restoredSplit = true; restoreSplit(session,ctx.host()); }
         checkRecovery();
       };
-      ctx.adopt(session, () => { off(); subscribed(); session.close().catch(() => {}); });
+      ctx.adopt(session, () => { off(); subscribed(); session.close().catch(() => {}); }, {fromSave});
       timing?.ready();
       // A folder opened by Finder can be occluded from its first frame. WebKit suppresses rAF
       // there. Its explicit Open still needs a single recovery check before the user edits it.
@@ -330,6 +336,7 @@ globalThis.AtriumFolderProjectUI = (() => {
       return true;
     } catch (error) {
       if (signal?.aborted || error?.name === "AbortError" || error?.code === "cancelled" || error?.code === "stale_target") outcome = "cancelled";
+      globalThis.AtriumDocViews?.keep?.();
       off?.(); subscribed?.();
       await session?.close();
       throw error;

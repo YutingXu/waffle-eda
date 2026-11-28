@@ -1,4 +1,7 @@
-"""Guard authored shortcut presentation at DOM, HTML, and CSS render sites."""
+"""Guard authored shortcut presentation at DOM, HTML, and CSS render sites.
+
+Menu commands name a keymap `action` and never their own key: a `{label, shortcut}` entry would show a
+key that the keymap does not run, cannot rebind and docs/shortcuts.md does not list."""
 
 from html.parser import HTMLParser
 from pathlib import Path
@@ -26,6 +29,10 @@ CSS_BADGE = re.compile(r"\.(?:[\w-]+-)?(?:shortcut|hotkey|keycap|key)(?![\w-])",
 SPLIT_KBD = re.compile(r"(?<![\w.#-])kbd(?=$|[\s.#:\[>+~),])", re.I)
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 SKIP_TEXT = {"script", "style", "code", "pre", "textarea", "select"}
+MENU_SHORTCUT = re.compile(r"(?<![\w$.])shortcut\s*:")
+MENU_LABEL = re.compile(r"(?<![\w$.])label\s*:")
+MENU_ADVICE = ("a menu command names its own key. Give it the keymap `action` instead "
+               "(register a list's keys with AtriumKeymap.registerCommand `focus`, as app/lazy.js LIST_COMMANDS does)")
 
 
 def handwritten(text, badge=False):
@@ -102,6 +109,50 @@ def javascript(source, first_line):
             yield line, "handwritten shortcut label " + repr(value)
 
 
+def code_only(source):
+    """Blank comments and string contents, keeping offsets and quotes."""
+    def keep(match):
+        if match["string"] is None:
+            return blank(match)
+        text = match[0]
+        return text[0] + re.sub(r"[^\n]", " ", text[1:-1]) + text[-1]
+    return JS_PART.sub(keep, source)
+
+
+def enclosing_object(code, at):
+    """The object literal around offset `at`, or None when the nearest open bracket is not a brace."""
+    depth, start = 0, None
+    for i in range(at - 1, -1, -1):
+        if code[i] in ")]}":
+            depth += 1
+        elif code[i] in "([{":
+            if depth:
+                depth -= 1
+                continue
+            start = i if code[i] == "{" else None
+            break
+    if start is None:
+        return None
+    depth = 0
+    for j in range(start, len(code)):
+        if code[j] in "([{":
+            depth += 1
+        elif code[j] in ")]}":
+            depth -= 1
+            if not depth:
+                return code[start:j + 1]
+    return code[start:]
+
+
+def menu_shortcuts(source):
+    """Lines of menu command objects (they have a `label`) that also name a `shortcut`."""
+    code = code_only(source)
+    for match in MENU_SHORTCUT.finditer(code):
+        obj = enclosing_object(code, match.start())
+        if obj is not None and MENU_LABEL.search(obj):
+            yield 1 + code.count("\n", 0, match.start())
+
+
 def problems(path, source):
     if not path.startswith("app/") or path == RENDERER:
         return
@@ -125,11 +176,12 @@ def problems(path, source):
 
 
 def check(root, app):
-    return [
-        f"{path}:{line}: {message}. Use AtriumShortcut.render."
-        for path, text in sources(root, app)
-        for line, message in problems(path, text)
-    ]
+    out = []
+    for path, text in sources(root, app):
+        out += [f"{path}:{line}: {message}. Use AtriumShortcut.render." for line, message in problems(path, text)]
+        if path.startswith("app/") and path.endswith(".js"):
+            out += [f"{path}:{line}: {MENU_ADVICE}." for line in menu_shortcuts(text)]
+    return out
 
 
 def self_test():
@@ -157,3 +209,15 @@ def self_test():
     assert not list(problems(RENDERER, bad))
     assert len(list(problems("app/index.html", "<kbd>F1</kbd><span>⇧⌘S</span>"))) == 2
     assert len(list(problems("app/example.css", 'kbd.key{padding:0}.x::after{content:"Ctrl+S"}'))) == 2
+    menus_bad = r"""
+      M.popup(ctx, [{label: "Rename", run: () => { rename(); }, shortcut: "F2"},
+        {shortcut: "Mod+D", enabled: ok, label: "Duplicate"}]);
+    """
+    menus_good = r"""
+      M.popup(ctx, [{label: "Rename", action: "views-rename", run: () => { rename(); }}]);
+      const [before, after] = t(id, {shortcut: marker}).split(marker);
+      // {label: "Rename", shortcut: "F2"}
+      const doc = "{label: 'Rename', shortcut: 'F2'}";
+    """
+    assert list(menu_shortcuts(menus_bad)) == [2, 3]
+    assert not list(menu_shortcuts(menus_good))

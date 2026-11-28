@@ -637,16 +637,13 @@ globalThis.AtriumLibraryView = (() => {
             if (live) AtriumLibraryFamiliesUI.attach(ctx, live, {variant, done: id => { S.selected = id; render(); }});
           } : null,
           manageFamily: G.AtriumLibraryFamiliesUI ? () => AtriumLibraryFamiliesUI.manage(ctx, {initial: def.id, done: id => { S.selected = id; render(); }}) : null,
-          duplicate: () => runEdit(() => { const c = api.duplicate(project(), def); S.selected = c.id; }, "Duplicated " + def.name),
+          duplicate: () => duplicate(def),
           updateParts: () => G.AtriumLibraryDockUI.updatePlaced(ctx, api, def, project, runEdit),
           reviewUpdate: () => status?.src && reviewUpdates([{def, lib: status.lib, src: status.src}]),
           saveToLibrary: () => api.saveToLibraryDialog(ctx, def, () => render()),
           saveToFolder: (G.AtriumHost?.chooseLibraryFolder || G.showDirectoryPicker)
             ? () => api.folderUI(u => u.saveToFolder(ctx, def, () => render())) : null,
-          remove: () => {
-            try { runEdit(() => api.remove(project(), def.id), def.name + " deleted"); S.selected = null; }
-            catch (e) { ctx.info?.(e.message); }
-          }
+          remove: () => remove(def)
         }
       });
     }
@@ -659,6 +656,12 @@ globalThis.AtriumLibraryView = (() => {
       const def = project().library.find(d => d.id === id);
       if (def && !S.lib) (kind === "pcb" || (!kind && !def.symbol && def.footprint) ? api.openFootprintEditor : api.openSymbolEditor)(ctx, def, {asTab: true});
     }
+    function duplicate(def) { runEdit(() => { S.selected = api.duplicate(project(), def).id; }, "Duplicated " + def.name); }
+    function remove(def) {
+      try { runEdit(() => api.remove(project(), def.id), def.name + " deleted"); S.selected = null; }
+      catch (e) { ctx.info?.(e.message); }
+    }
+    const listCommands = {edit: editSelected, duplicate, remove};
     // A source read finishes only while the tab still shows what started it (as the dock's guard).
     function guard(lib, placement = false) {
       const token = intent, owner = project(), source = S.source, rev = ctx.revision(), doc = host.doc?.();
@@ -690,7 +693,8 @@ globalThis.AtriumLibraryView = (() => {
     }
     function reviewUpdates(entries) { return G.AtriumLibraryDockUI.review(ctx, api, entries, {current: guard(null), libs: allLibs, done: () => render()}); }
 
-    // Keyboard navigation on the virtualized table
+    // Keyboard navigation on the virtualized table. The component keys are keymap commands with focus "library".
+    const listKeys = {focus: "library", kind: "schematic"};
     tableWrap.addEventListener("keydown", e => {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
@@ -710,16 +714,13 @@ globalThis.AtriumLibraryView = (() => {
         e.preventDefault();
         if (S.lib) { const d = S.lib.defs.find(x => x.id === S.selected); if (d) placeFromSource(S.lib, d, currentKind()); }
         else { const d = project().library.find(x => x.id === S.selected); if (d) place(d, currentKind()); }
-      } else if (!S.lib && (e.key === "e" || e.key === "E")) {
-        e.preventDefault(); editSelected(S.selected, e.shiftKey ? "pcb" : "schematic");
-      } else if (!S.lib && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
+      } else if (!S.lib) {
+        listKeys.kind = documentKind() || "schematic";
+        const rec = G.AtriumKeymap.focusBinding(e, listKeys);
+        if (!rec) return;
         e.preventDefault();
         const d = project().library.find(x => x.id === S.selected);
-        if (d) runEdit(() => { S.selected = api.duplicate(project(), d).id; }, "Duplicated " + d.name);
-      } else if (!S.lib && (e.key === "Delete" || e.key === "Backspace")) {
-        e.preventDefault();
-        const d = project().library.find(x => x.id === S.selected);
-        if (d) { try { runEdit(() => api.remove(project(), d.id), d.name + " deleted"); S.selected = null; } catch (err) { ctx.info?.(err.message); } }
+        if (d && !e.repeat) G.AtriumLibraryDockUI.listCommand(rec.command.action, d, listCommands);
       }
     });
 

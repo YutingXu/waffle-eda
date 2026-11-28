@@ -11,10 +11,14 @@ globalThis.AtriumKeymapEditor = (() => {
     rotatable:"selection can rotate","!rotatable":"nothing to rotate",tuning:"while length tuning","!tuning":"not tuning",canProperties:"tool has properties",
     suggestion:"route ghost shown",suggestTab:"route ghost shown, Tab accepts",busRouting:"while routing a bus",cursorAt:"keyboard cursor shown","!cursorAt":"no keyboard cursor",dragging:"while dragging","!dragging":"not dragging",true:"always",false:"never"};
   const TOOL_WORDS={select:"Select",route:"Route",via:"Via",place:"Place",pan:"Pan",label:"Label",measure:"Measure","move-object":"Move"};
+  // Lists that run their own keymap commands (registerCommand `focus`).
+  const FOCUS_WORDS={library:"in the Library list",views:"in the Saved views list",slides:"in the Slides strip"};
   function describeTerm(t){
     t=t.trim();if(WHEN_WORDS[t])return WHEN_WORDS[t];
     let m=/^tool\s*(==|!=)\s*['"]?([\w-]+)['"]?$/.exec(t);
     if(m)return (m[1]==="=="?"with the ":"not with the ")+(TOOL_WORDS[m[2]]||m[2])+" tool";
+    m=/^focus\s*==\s*['"]?([\w-]+)['"]?$/.exec(t);
+    if(m)return FOCUS_WORDS[m[1]]||"in the "+m[1]+" list";
     m=/^selection\.count\s*(>=|<=|==|>|<)\s*(\d+)$/.exec(t);
     if(m)return ({">":"more than ","<":"fewer than ",">=":"at least ","<=":"at most ","==":"exactly "})[m[1]]+m[2]+" selected";
     return t;

@@ -57,6 +57,26 @@ module.exports = async function savedViewsUI(browser) {
     await page.evaluate(() => AtriumNavHost.act("undo"));
     await page.waitForFunction(n => document.querySelectorAll(".panel-views [data-pane=views] .ui-row").length === n, count);
 
+    // The row menu shows the list's keys from the keymap, and a rebinding moves the key and the hint.
+    const hints = async () => {
+      await pane.locator(".ui-row").first().click({button:"right"});
+      const menu = page.locator(".nav-menu[role=menu]").last();
+      await menu.waitFor();
+      const out = await menu.locator("[role=menuitem]").evaluateAll(items => Object.fromEntries(items.map(item =>
+        [item.querySelector(":scope > span")?.textContent, item.querySelector(":scope > .ui-shortcut")?.dataset.binding || null])));
+      await page.keyboard.press("Escape");
+      await menu.waitFor({state:"detached"});
+      return out;
+    };
+    const keys = await hints();
+    assert.deepEqual([keys["Rename"], keys["Copy link"], keys["Remove"], keys["Go to view"]], ["F2", "Mod+C", "Backspace", null]);
+    await page.evaluate(() => AtriumKeymap.setBindings("views-rename", ["Shift+F2"]));
+    assert.equal((await hints())["Rename"], "Shift+F2", "the menu hint follows the rebinding");
+    await pane.locator(".ui-list").focus();
+    await page.keyboard.press("Shift+F2");
+    await pane.getByRole("textbox", {name:"View name"}).press("Escape");
+    await page.evaluate(() => AtriumKeymap.resetCommand("views-rename"));
+
     // Export: progress while the PDF is prepared, then a receipt.
     const [download] = await Promise.all([page.waitForEvent("download"), pane.getByRole("button", {name:"Export PDF…"}).click()]);
     assert.match(download.suggestedFilename(), /Saved views\.pdf$/);
