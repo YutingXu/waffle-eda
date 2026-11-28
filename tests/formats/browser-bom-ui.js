@@ -210,14 +210,14 @@ async function gridLayout(browser, url = appUrl, evidence) {
           await page.evaluate(feature => AtriumNavHost.act(feature), feature);
           const prefix = feature === "bom" ? "bom" : "cm";
           const dialog = page.locator("dialog." + prefix + "-dialog[open]");
-          await dialog.locator("." + prefix + "-sort").first().waitFor();
+          await dialog.locator(".ui-sheet-sort").first().waitFor();
           if (feature === "bom") await page.locator("dialog.bom-dialog[open][data-hint-ms]").waitFor();
           grids[feature] = await dialog.evaluate((d, prefix) => {
             const watch = {
-              dialog: ".", body: "." + prefix + "-body", wrap: "." + prefix + "-grid-wrap",
-              sort: "." + prefix + "-sort", resize: "." + prefix + "-resize",
-              filterCell: "." + prefix + "-filter-row th", filter: "." + prefix + "-filter",
-              rowCell: "." + prefix + "-grid tbody tr:not([class$=-spacer]) td",
+              dialog: ".", body: ".ui-sheet-body", wrap: ".ui-sheet-wrap:not([hidden])",
+              sort: ".ui-sheet-sort", resize: ".ui-sheet-resize",
+              filterCell: ".ui-sheet-filter-row th", filter: ".ui-sheet-filter",
+              rowCell: ".ui-sheet-grid tbody tr:not(.ui-sheet-spacer) td",
               search: prefix === "bom" ? 'input[aria-label="Search BOM lines"]' : ".cm-search"
             };
             if (prefix === "bom") Object.assign(watch, {
@@ -238,7 +238,7 @@ async function gridLayout(browser, url = appUrl, evidence) {
           }, prefix);
           const box = grids[feature];
           if (evidence) await dialog.screenshot({path: path.join(evidence, key + "-" + feature + ".png"), animations: "disabled"});
-          const wrap = dialog.locator("." + prefix + "-grid-wrap");
+          const wrap = dialog.locator(".ui-sheet-wrap:not([hidden])");
           const shadows = await wrap.evaluate(n => {
             n.focus({preventScroll: true});
             return {shadow: getComputedStyle(n).boxShadow, outline: getComputedStyle(n).outlineStyle};
