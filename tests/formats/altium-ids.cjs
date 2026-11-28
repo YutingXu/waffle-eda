@@ -69,6 +69,13 @@ for (const [name, files] of Object.entries(sets)) {
   const pairs = open(sets.pairs), board = imported(pairs)[0];
   assert.ok(board.items.filter(i => i.kind === "track").length && board.items.filter(i => i.kind === "track").every(i => DURABLE.test(i.id)), "PrimitiveGuids: tracks keep Altium's GUID");
 }
+{
+  // Read as an earlier import was (no locks, no stamp), the PiDP-11 board has the same ids as with its 107 locks.
+  const {name, bytes} = pidp[2], streams = AtriumIO.streams(bytes), read = locks => AtriumPCB.read(name, streams, null, {locks}).documents[0];
+  const now = read(true), earlier = read(false);
+  assert.deepEqual([now.sourceLockVersion, now.items.filter(i => i.locked).length, earlier.sourceLockVersion, earlier.items.filter(i => i.locked).length], [1, 107, undefined, 0]);
+  assert.deepEqual([earlier.id, ...earlier.items.map(i => i.id)], [now.id, ...now.items.map(i => i.id)], "locks and their stamp change no id");
+}
 // The offline import worker carries the id module.
 assert.ok(AtriumImportWorkerSource.includes("globalThis.AtriumAltiumIds"), "worker-source.js bundles altium-ids.js (python3 scripts/bundle-worker.py)");
 
@@ -139,7 +146,9 @@ const project = (sch, board, workspace) => open([text("Demo.SchDoc", sch), text(
   assert.ok(none.items.concat(unlocked.items).every(i => !Object.hasOwn(i, "locked")), "LOCKED=FALSE and a record without the field are unlocked");
   assert.ok(locked.items.every(i => i.locked === true), "LOCKED=TRUE locks every kind of board object");
   assert.deepEqual(locked.items.map(i => i.id), unlocked.items.map(i => i.id), "a lock changes no id");
+  assert.deepEqual([none, unlocked, locked].map(d => [d.id === locked.id, d.sourceLockVersion]), [[true, undefined], [true, undefined], [true, 1]], "only a board with source locks is stamped");
   assert.deepEqual(locked.items.map(i => ({...i, locked: undefined})), unlocked.items.map(i => ({...i, locked: undefined})), "and nothing else");
+  assert.deepEqual({...locked, items: [], sourceLockVersion: undefined}, {...unlocked, items: [], sourceLockVersion: undefined});
   // A lock on a primitive inside a component has no place in the footprint: the import notes count it.
   const inside = board("TRUE").replace(/\|RECORD=Pad\|COMPONENT=/g, "|RECORD=Pad|LOCKED=TRUE|COMPONENT="), read = AtriumIO.read("Demo.PcbDoc", enc.encode(inside));
   assert.ok(read.notes.includes("Locks on primitives inside components not kept (4)."));

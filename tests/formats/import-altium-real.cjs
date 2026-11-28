@@ -203,6 +203,11 @@ for (const pad of stacked) {
   assert.equal(locked.length, 107);
   assert.deepEqual(new Set(locked.map(i => i.sourceRecord)), new Set([...expected].filter(([, value]) => value).map(([key]) => key)));
   assert.equal(AtriumPCBEdit.lockPlan(pcb, ids, true).ids.length, 218, "Lock would change only the unlocked objects");
+  // The board is stamped as imported with its locks, so the Altium copy can tell an unlock from an earlier
+  // import (source-copy.js). Read as an earlier import was, it has neither the locks nor the stamp.
+  assert.equal(pcb.sourceLockVersion, 1);
+  const earlier = AtriumPCB.read("PiDP11IOExpander.PcbDoc", AtriumIO.streams(bytes("PiDP11IOExpander.PcbDoc")), null, {locks: false}).documents[0];
+  assert.ok(!Object.hasOwn(earlier, "sourceLockVersion") && earlier.items.length === pcb.items.length && earlier.items.every(i => !Object.hasOwn(i, "locked")));
   // A footprint and a part's designator and comment strings have no lock of their own: counted in the notes.
   assert.ok(p.library.every(d => !(d.footprint?.pads || []).concat(d.footprint?.shapes || []).some(o => Object.hasOwn(o, "locked"))));
   assert.ok(notes.includes("Locks on primitives inside components not kept (" + inComponents.locked + ")."));

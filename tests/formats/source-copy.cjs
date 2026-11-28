@@ -180,9 +180,11 @@ assert.throws(()=>AtriumSourceCopy.applyBinding(legacy(fresh).documents[0],dupli
     delete i.sourcePourOver;
     if(!i.fillMode){delete i.hatchWidth;delete i.hatchPitch;}
   }
-  // Earlier imports did not read the source lock: every object of theirs is unlocked.
+  // Earlier imports did not read the source lock: every object of theirs is unlocked and the board is unstamped.
   assert.equal(saved.items.filter(i=>i.locked).length,107);
+  assert.equal(saved.sourceLockVersion,1);
   for(const i of saved.items)delete i.locked;
+  delete saved.sourceLockVersion;
   const pads=proof.library.flatMap(d=>d.footprint?.pads||[]).filter(p=>p.stackMode==="tmb");
   assert.ok(pads.length);
   for(const pad of pads){delete pad.stackMode;delete pad.padStack;}
@@ -190,17 +192,35 @@ assert.throws(()=>AtriumSourceCopy.applyBinding(legacy(fresh).documents[0],dupli
   const streams=AtriumIO.streams(current.bytes);
   for(const [key,value] of AtriumIO.streams(bytes))if(key!=="tracks6/data")assert.deepEqual(streams.get(key),value,key);
 
-  // The copy keeps the source's own locks. A source-locked part still cannot be moved in it, with or
-  // without its lock in Waffle, and a lock added in Waffle is an edit this format cannot take.
-  for(const unlock of [false,true]){
-    const moved=clone(p),part=moved.documents[0].items.find(i=>i.kind==="part"&&i.locked);
-    if(unlock)delete part.locked;
+  // The copy keeps the source's own locks, which this writer cannot change. On a board imported with
+  // its locks, an unlock (the editor deletes the field) and an added lock are both refused by name,
+  // for every kind; nothing is written.
+  assert.equal(persisted(p).documents[0].sourceLockVersion,1,"the stamp survives a native save and reopen");
+  for(const kind of ["part","polygon","via","pad","label","graphic"]){
+    const unlocked=clone(p),item=unlocked.documents[0].items.find(i=>i.kind===kind&&i.locked);
+    delete item.locked;
+    assert.throws(()=>prepare(persisted(unlocked),bytes),error=>error.message===item.sourceRecord+" \u2014 Unlocking a source object requires editing in Altium.",kind);
+  }
+  for(const kind of ["via","track","graphic"]){
+    const added=clone(p),item=added.documents[0].items.find(i=>i.kind===kind&&!i.locked);
+    item.locked=true;
+    assert.throws(()=>prepare(persisted(added),bytes),error=>error.message===item.sourceRecord+" \u2014 Locking a source object requires editing in Altium.",kind);
+  }
+  // Moving a source-locked part is refused as before, on a stamped board and on an earlier import.
+  for(const older of [false,true]){
+    const moved=clone(p),doc=moved.documents[0],part=doc.items.find(i=>i.kind==="part"&&i.locked);
+    if(older){for(const i of doc.items)delete i.locked;delete doc.sourceLockVersion;}
     part.x+=.254;
     assert.throws(()=>prepare(persisted(moved),bytes),/Locked or grouped footprints require editing in Altium/);
   }
-  const added=clone(p);
-  added.documents[0].items.find(i=>i.kind==="via"&&!i.locked).locked=true;
-  assert.throws(()=>prepare(persisted(added),bytes),/Unsupported source edit \(locked\)/);
+  // An earlier import in which the user locked an object: still an edit, still named.
+  {
+    const older=clone(p),doc=older.documents[0];
+    for(const i of doc.items)delete i.locked;
+    delete doc.sourceLockVersion;
+    const via=doc.items.find(i=>i.kind==="via");via.locked=true;
+    assert.throws(()=>prepare(persisted(older),bytes),error=>error.message===via.sourceRecord+" \u2014 Locking a source object requires editing in Altium.");
+  }
 
   const altered=clone(p);
   altered.documents[0].pcbDrawing.pours[0].subPolygonIndex++;

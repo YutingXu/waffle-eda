@@ -226,6 +226,18 @@ function compareBoard(src, srcDefs, back, backDefs, label, offset = [0, 0]) {
   const pcbOut = X.exportBoard(p, pcb);
   assert.ok(pcbOut.offset.every(v => v === 0), "boards from Altium keep their coordinates");
   const b = compareBoard(pcb, d1, p2.documents.find(d => d.kind === "pcb"), d2, "PiDP-11 board", pcbOut.offset);
+  // Locks come back on every kind, not only on components: the source board locks 107 of its 325 objects.
+  {
+    const locks = d => Object.fromEntries(Object.entries(d.items.reduce((m, i) => ((m[i.kind] ||= {locked: 0, unlocked: 0})[i.locked === true ? "locked" : "unlocked"]++, m), {})).sort());
+    const back = p2.documents.find(d => d.kind === "pcb");
+    assert.deepEqual(locks(pcb), {graphic: {locked: 23, unlocked: 1}, label: {locked: 19, unlocked: 0}, pad: {locked: 4, unlocked: 0}, part: {locked: 23, unlocked: 0},
+      polygon: {locked: 2, unlocked: 0}, track: {locked: 0, unlocked: 194}, via: {locked: 36, unlocked: 23}});
+    assert.deepEqual(locks(back), locks(pcb), "locked and unlocked objects of each kind after export and reimport");
+    assert.equal(back.sourceLockVersion, 1);
+    const lockedRecords = kind => pcbOut.content.split("\r\n").filter(l => l.startsWith("|RECORD=" + kind + "|") && /\|LOCKED=TRUE(\||$)/.test(l)).length;
+    assert.deepEqual(["Polygon", "Via", "Pad", "Text", "Track", "Region"].map(lockedRecords), [2, 36, 4, 19, 5, 18], "only the locked objects' own records say so");
+    assert.ok(!/\|RECORD=(?!Component)\w+\|[^\r\n]*\|COMPONENT=\d+\|[^\r\n]*\|LOCKED=/.test(pcbOut.content), "a component's primitives carry no lock");
+  }
   // Older Waffle previews declared zero records even when the source contained a complete sheet.
   const schFile = out.files.find(f => /\.SchDoc$/i.test(f.name));
   const firstLine = schFile.bytes.indexOf(13);

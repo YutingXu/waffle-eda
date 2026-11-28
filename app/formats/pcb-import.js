@@ -1412,7 +1412,7 @@ globalThis.AtriumPCB = (() => {
     if (counts.missing) notes.push(counts.missing + " STEP body reference(s) need a matching project model.");
     if (counts.unsupported) notes.push(counts.unsupported + " body record(s) use an unsupported 3D model type.");
   }
-  function read(name,streams,ascii,{appearance=true,drillDrawing=true,textPlacement=2,bodyGeometry=true,legacyArcPaths=false,nativeText=true,fidelity=null}={}) {
+  function read(name,streams,ascii,{appearance=true,drillDrawing=true,textPlacement=2,bodyGeometry=true,legacyArcPaths=false,nativeText=true,locks=true,fidelity=null}={}) {
     if(textPlacement && textPlacement!==1)textPlacement=2;
     const isLib=/\.pcblib$/i.test(name),doc=A.sheet("pcb",name.replace(/\.[^.]+$/,""));
     // Stable ids (altium-ids.js): UNIQUEIDs and primitive GUIDs, else content; libraries keep fresh ids.
@@ -1520,7 +1520,7 @@ globalThis.AtriumPCB = (() => {
       const part=partOverride||parts.get(owner);
       if(part){
         // A footprint's primitives and a part's designator and comment strings have no lock of their own.
-        if(row.locked&&!isLib)report("Locks on primitives inside components not kept");
+        if(row.locked&&!isLib&&locks)report("Locks on primitives inside components not kept");
         if(obj.sourceTextBox && /^\.(?:designator|comment)$/i.test(obj.text))
           obj.sourceTextBox.text=/^\.designator$/i.test(obj.text)?part.item.ref:part.item.value;
         if(obj.role && obj.size>0 && (drawing && part.item.sourceRecord || preserveText && ascii!=null && !isLib)){
@@ -1974,6 +1974,11 @@ globalThis.AtriumPCB = (() => {
         if(used.size)fp.bodyModels=[...used];
       }
     }
+    // A board with source locks is stamped, so that unlocking one later is a change from the source.
+    // An import made before locks were read has no stamp and no locks; its Altium copy re-reads the
+    // source the same way (source-copy.js passes locks: false).
+    if(!locks)for(const i of doc.items)delete i.locked;
+    else if(!isLib&&doc.items.some(i=>i.locked===true))doc.sourceLockVersion=1;
     for(const [label,n] of counts)notes.push(label+" ("+n+").");
     notes.push((doc.bodyModelVersion ? "PCB import includes 3D bodies. " : "PCB import projects 2D geometry. ") + "Layer-specific pad stacks, pours and manufacturing settings require review in the source design.");
     doc.notes=notes.slice();

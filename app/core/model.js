@@ -1321,6 +1321,7 @@ globalThis.Atrium = (() => {
         }
       }
       if(d.sourceArcVersion!=null){if(d.kind!=="pcb")invalid();sourceVersion(d.sourceArcVersion);}
+      if(d.sourceLockVersion!=null){if(d.kind!=="pcb")invalid();sourceVersion(d.sourceLockVersion);}
       if(d.kind==="pcb")yield* bodyGeometry(d);
       else if(d.bodyModelVersion!=null||d.bodyModels!=null||d.bodies3d!=null)invalid();
       }

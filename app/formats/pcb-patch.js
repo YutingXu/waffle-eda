@@ -302,6 +302,8 @@ globalThis.AtriumPCBPatch = (() => {
       const key=edit.before?.sourceRecord;
       if(!key || seen.has(key))fail(key||"PCB","Missing or repeated source identity.");
       seen.add(key);
+      // The lock is the source's own: neither adapter rewrites it.
+      if((edit.before.locked===true)!==(edit.after?.locked===true))fail(key,(edit.after?.locked===true?"Locking":"Unlocking")+" a source object requires editing in Altium.");
       if(edit.before.kind==="part")partEdits.push(edit);else copperEdits.push(edit);
     }
     const copper=standalone(streams,copperEdits);
