@@ -203,11 +203,17 @@ module.exports = async function groupLibrary(browser, {theme = "light", capture}
       if (!await panel.isVisible()) await windowPanel(page, "library");
       await source.waitFor();
     };
-    const waitForSourceFocus = () => page.waitForFunction(() => document.activeElement?.matches(".panel-library .lib-source"));
+    // Group library… is in the source bar's "Add library" menu; a closed dialog returns focus to that button.
+    const addLibrary = panel.getByRole("button", {name: "Add library", exact: true});
+    const openGroup = async () => {
+      await addLibrary.click();
+      await page.getByRole("menuitem", {name: "Group library…", exact: true}).click();
+    };
+    const waitForSourceFocus = () => page.waitForFunction(() => document.activeElement?.matches('.panel-library .lib-source-bar [aria-label="Add library"]'));
     await openPanel();
     assert.equal(await page.evaluate(() => !!globalThis.AtriumGroupLibrary), false, "the library is cold until opened");
     await source.focus();
-    await source.selectOption("@group");
+    await openGroup();
     const dialog = page.getByRole("dialog", {name: "Group library", exact: true});
     await dialog.getByLabel("New group name").fill("Portable fixtures");
     await dialog.getByRole("button", {name: "Create group"}).click();
@@ -260,7 +266,7 @@ module.exports = async function groupLibrary(browser, {theme = "light", capture}
     await dialog.waitFor({state: "hidden"});
     assert.equal(await source.inputValue(), "project", "Escape leaves the selected source unchanged");
     await waitForSourceFocus();
-    await source.selectOption("@group");
+    await openGroup();
     await dialog.getByText(/Approved by Test contributor/).waitFor();
     const done = dialog.getByRole("button", {name: "Done", exact: true});
     // Capture the source during the trusted Done click. Both sources contain
@@ -273,12 +279,18 @@ module.exports = async function groupLibrary(browser, {theme = "light", capture}
     await dialog.waitFor({state: "hidden"});
     await waitForSourceFocus();
     const row = panel.locator('.lib-row[data-def="group-probe"]');
+    // ArrowDown from the search reaches the first tree row (a category heading), then the component.
     await panel.getByRole("searchbox", {name: "Search the library"}).press("ArrowDown");
-    assert.equal(await row.getAttribute("aria-pressed"), "true");
-    assert.equal(await row.evaluate(button => document.activeElement === button), true);
-    for (const name of ["Place on sheet", "Place on board"]) {
-      assert.equal(await panel.getByRole("button", {name, exact: true}).isEnabled(), true);
-    }
+    for (let i = 0; i < 4 && !await row.evaluate(node => document.activeElement === node); i++) await page.keyboard.press("ArrowDown");
+    assert.equal(await row.getAttribute("aria-selected"), "true");
+    assert.equal(await row.evaluate(node => document.activeElement === node), true);
+    // Both placements are offered: Place (this document's kind) and the other in the component's menu.
+    const detail = panel.locator(".lib-detail");
+    assert.equal(await detail.getByRole("button", {name: "Place", exact: true}).isEnabled(), true);
+    const more = detail.getByRole("button", {name: "More component actions", exact: true});
+    await more.click();
+    assert.equal(await page.getByRole("menuitem", {name: /^Place (footprint on board|symbol on sheet)$/}).isEnabled(), true);
+    await more.click();
     const state = () => page.evaluate(id => {
       const h = AtriumNavHost, library = AtriumGroupLocal.libraries().find(l => l.id === id);
       const original = h.project().library.find(d => d.id === "group-probe");
@@ -362,7 +374,7 @@ module.exports = async function groupLibrary(browser, {theme = "light", capture}
     });
     await openPanel();
     await page.waitForFunction(id => !!document.querySelector('.lib-source option[value="' + id + '"]'), sourceInfo.ref.library);
-    await source.selectOption("@group");
+    await openGroup();
     await dialog.getByRole("button", {name: "Review…", exact: true}).first().waitFor();
     assert.equal(await page.evaluate(id => AtriumGroupLocal.current(id).pending().length, sourceInfo.ref.library), 2);
     await dialog.getByRole("button", {name: "Review…", exact: true}).first().click();

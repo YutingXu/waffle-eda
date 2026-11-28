@@ -225,7 +225,7 @@ ADAPTERS = {
         """app/checks/constraints.js app/checks/rules.js app/editor/keymap-editor.js app/editor/prefs.js
            app/editor/signals-panel.js app/editor/start-page.js app/editor/theme-editor.js
            app/editor/vscode-keys.js app/formats/bom.js app/history/diff-view.js app/history/git-picker.js
-           app/history/review-comments.js app/library/component-swap.js app/library/library-panel.js
+           app/history/review-comments.js app/library/component-swap.js
            app/notebook/calculation-sheet.js app/project/variants.js app/schematic/eco.js"""),
     "UI03": adapter_sites("AtriumUI.nativeButton(", r'\bfunction\s+button\s*\(',
         """app/analysis/pdn-view.js app/analysis/si.js app/analysis/stress.js app/analysis/thermal-view.js

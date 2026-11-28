@@ -48,18 +48,24 @@ function cases(page) {
   const assertMeasures = async target => {
     const layouts = await target.locator(".ui-field-measure:visible:has(input.ui-field-number)").evaluateAll(nodes => nodes.map(node => {
       const input = node.querySelector("input"), unit = node.querySelector(".ui-field-unit");
-      const field = input.getBoundingClientRect(), marker = unit.getBoundingClientRect();
+      // In a property row the measure is the field's box and holds the unit; elsewhere the unit follows the field.
+      const inside = node.matches(".ui-prop-row > .ui-field-measure");
+      const field = (inside ? node : input).getBoundingClientRect(), marker = unit.getBoundingClientRect();
       return {
-        name:input.getAttribute("aria-label"), width:field.width, height:field.height,
-        gap:marker.left - field.right, targetHeight:input.closest("label").getBoundingClientRect().height,
+        name:input.getAttribute("aria-label") || input.labels?.[0]?.textContent?.trim(), inside, width:field.width, height:field.height,
+        gap:inside ? field.right - marker.right : marker.left - field.right,
+        targetHeight:(input.closest("label") || node.parentElement).getBoundingClientRect().height,
         touch:matchMedia("(any-pointer:coarse)").matches,
       };
     }));
-    assert.ok(layouts.length, "The form has a numeric Field with an external unit.");
+    assert.ok(layouts.length, "The form has a numeric Field with a unit.");
     for (const layout of layouts) {
-      assert.equal(layout.width, 80, `${layout.name} numeric width`);
       assert.equal(layout.height, 28, `${layout.name} Field height`);
-      assert.equal(layout.gap, 4, `${layout.name} external unit gap`);
+      if (layout.inside) assert.ok(layout.gap >= 0 && layout.gap <= 12, `${layout.name} unit stays inside the field (${layout.gap})`);
+      else {
+        assert.equal(layout.width, 80, `${layout.name} numeric width`);
+        assert.equal(layout.gap, 4, `${layout.name} external unit gap`);
+      }
       if (layout.touch) assert.ok(layout.targetHeight >= 44, `${layout.name} touch label height`);
     }
   };
@@ -158,7 +164,8 @@ function cases(page) {
       name:"Symbol Editor pin table for a placed component",
       async open() {
         const target = await openFor("schematic", "part", "edit-symbol", /^Symbol Editor/);
-        await button(target, "Pin table").click();
+        // The Symbol Editor's inspector views are a tab strip (role tab).
+        await target.getByRole("tab", {name:"Pin table", exact:true}).click();
         await target.locator(".se-table input").first().waitFor();
       },
     },
