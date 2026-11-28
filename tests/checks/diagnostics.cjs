@@ -252,7 +252,8 @@ function performanceRecorder(D) {
     const ordinary = D.startPerformance(null), renderer = D.performance;
     assert.equal(renderer.rendererStages, false);
     const textStages = [["full-text", 11], ["full-text-caption-occlusion", 4], ["full-text-upload", 9],
-      ["full-text-readback", 0], ["stationary-text-rows", 21], ["wide-text-rows", 5], ["stationary-text-dispatch", 13]];
+      ["full-text-readback", 0], ["stationary-text-rows", 21], ["wide-text-rows", 5], ["stationary-text-dispatch", 13],
+      ["stationary-band-paint", 10], ["stationary-text-upload", 7], ["stationary-text-readback", 3]];
     for (const [name, elapsed] of textStages) assert.equal(renderer.renderStage(name, elapsed), false);
     renderer.begin("pcb", "draw").end("visible");
     const publicBefore = D.performanceSnapshot({shareable:true});

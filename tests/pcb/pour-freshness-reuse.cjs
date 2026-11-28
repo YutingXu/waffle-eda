@@ -1,7 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-for (const name of ["model", "spatial", "pcb-appearance", "pcb-pours", "rules", "board-shape", "polygon-pour", "fab-outputs", "panel"]) {
+const {createHash} = require("node:crypto");
+for (const name of ["model", "spatial", "pcb-appearance", "pcb-pours", "rules", "board-shape", "polygon-pour", "fab-outputs", "panel", "undo-store"]) {
   require(require("../support/app-source-paths.cjs").appFile(name + ".js"));
 }
 
@@ -82,5 +83,65 @@ try {
   assert.ok(!flatten().pcbDrawing?.pours?.length,"another request sees the edited template");
   assert.equal(statusChecks,2,"freshness is shared within each request");
 } finally { globalThis.AtriumFabOutputs = F; }
+
+{
+  const p = AtriumSignals.attach(A.project("Ordered pour signatures"));
+  const d = p.documents.find(row => row.kind === "pcb");
+  d.outline = rectangle(-10,-10,270,40);
+  // Many authored rows far from each of nine pours, with a movable row at a page boundary.
+  const trace = (i,x,y) => ({kind:"track",id:"trace-"+i,layer:"Top",net:"VCC",width:.2125,points:[[x,y],[x+2,y]]});
+  const fixed = trace("first",2,3), sliding = trace("boundary",253,4);
+  const footprint = {id:"definition",kind:"component",footprint:{pads:[
+    {number:"1",x:0,y:0,w:1.1234567890123,h:1,shape:"rect",layer:"Top"}
+  ],shapes:[]}};
+  p.library.push(footprint);
+  const lookup = new Map([[footprint.id,footprint]]);
+  const zones = Array.from({length:9},(_,i) => P.make(rectangle(30*i,0,30*i+12,12),{
+    id:"zone-"+i, net:"GND", layer:"Top", pourIndex:i===8?0:1
+  }));
+  d.items = [fixed,...Array.from({length:15},(_,i) => trace(i,258,26)),sliding,
+    {id:"placed",kind:"part",def:footprint.id,layer:"Top",x:6,y:4,angle:0,ref:"R1",pinNets:{1:"VCC"}},
+    ...Array.from({length:113},(_,i) => trace(i+15,256,20)),...zones];
+  const signature = () => P.polygonSignatures(d,lookup,{project:p});
+  const before = signature(), digest = value => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  assert.deepEqual(Object.keys(before),["zone-8",...zones.slice(0,-1).map(z => z.id)],"equal priorities retain authored order");
+  assert.equal(digest(before),"acafde8c295871e54a2d048b15b39b18a0c109a9c049ac39416c45196830cb6b",
+    "version 4 signatures retain their saved wire format and order");
+  assert.deepEqual(signature(),before);
+  const drain = iterator => {
+    let step = iterator.next();
+    while (!step.done) step = iterator.next();
+    return step.value;
+  };
+  let itemHashes;
+  const keepItemHashes = hashes => { itemHashes = hashes; };
+  assert.deepEqual(drain(P.polygonSignatureSteps(d,lookup,{project:p,keepItemHashes},21)),before);
+  assert.deepEqual(drain(P.polygonSignatureSteps(d,lookup,{project:p,itemHashes},21)),before,
+    "the sliced live commit visits the same rows when it reuses item hashes");
+  const U = AtriumUndoStore, history = [], future = [];
+  U.reset(p);
+  try {
+    const originalX = sliding.points[0][0];
+    for (const scoped of [true,false]) {
+      const mark = U.mark(p);
+      U.duringEdit(() => { sliding.points[0][0] = 8; sliding.points[1][0] = 10; });
+      U.checkpoint(history,future,mark,"Cross a pour boundary");
+      U.record(p,scoped?{doc:d,items:[sliding]}:undefined);
+      const moved = signature();
+      assert.deepEqual(Object.keys(moved).filter(id => moved[id]!==before[id]),["zone-8","zone-0"],"in-place movement reaches both placement neighborhoods");
+      U.jump(history,future,U.mark(p),-1);
+      assert.equal(sliding.points[0][0],originalX);
+      assert.deepEqual(signature(),before);
+      U.jump(history,future,U.mark(p),1);
+      assert.deepEqual(signature(),moved);
+      U.jump(history,future,U.mark(p),-1);
+    }
+    d.items[0] = {...fixed,width:.6};
+    assert.notEqual(signature()["zone-0"],before["zone-0"],"same-id replacement changes the signature");
+    d.items[0] = fixed;
+    footprint.footprint.pads[0].w += .25;
+    assert.notEqual(signature()["zone-0"],before["zone-0"],"in-place definition geometry changes the signature");
+  } finally { U.reset(); }
+}
 
 console.log("pour freshness reuse: detached output, status, compatible rule checks and repeated panel cells");

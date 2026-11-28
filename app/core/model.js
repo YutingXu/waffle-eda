@@ -63,7 +63,14 @@ globalThis.Atrium = (() => {
   }
   const partParameters = {clean, upper, paramKey, parameters, fieldOf, FIELD_KEYS, fallbackParameters};
   // Project files keep twelve significant digits for noninteger coordinates below 1e9.
-  const projectNumber = n => Number.isInteger(n) || !(Math.abs(n) < 1e9) ? n : Number(n.toPrecision(12));
+  function projectNumber(n) {
+    if (Number.isInteger(n)) return n;
+    const magnitude = Math.abs(n);
+    // A whole millionth below 1e6 has at most twelve significant decimal digits.
+    // Dividing the rounded integer back tests the exact binary64 value, including its neighbors.
+    if (!(magnitude < 1e9) || (magnitude < 1e6 && Math.round(n * 1e6) / 1e6 === n)) return n;
+    return Number(n.toPrecision(12));
+  }
   const pointKey = p => p.map(n => Math.round(n * 10000)).join(",");
   const same = (a, b) => pointKey(a) === pointKey(b);
   // Snap in integer nanometres when the step is a whole number of them (every mil and

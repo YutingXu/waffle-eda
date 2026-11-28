@@ -43,8 +43,48 @@ const sandbox = vm.createContext(world);
 // cases still use render(), including its normal GPU preparation path.
 const gpuCode = fs.readFileSync(file, "utf8"), sceneExport = "{render, damage, stats,";
 assert.ok(gpuCode.includes(sceneExport));
-vm.runInContext(gpuCode.replace(sceneExport, "{render, damage, stats, views, update, padDetails, coveredPadDetails, paintPadDetails,"), sandbox);
+vm.runInContext(gpuCode.replace(sceneExport, "{render, damage, stats, views, update, states, buffer, push, upload, padDetails, coveredPadDetails, paintPadDetails, bandRectangle,"), sandbox);
 const gpu = sandbox.AtriumCanvasGPU;
+{
+  const allocations = [], patches = [];
+  const gl = {
+    createBuffer:()=>({}), createVertexArray:()=>({}), bindVertexArray(){}, bindBuffer(){},
+    enableVertexAttribArray(){}, vertexAttribPointer(){}, vertexAttribDivisor(){},
+    bufferData(target, data){ allocations.push(data.length); },
+    bufferSubData(target, offset, data, first, count){ patches.push([offset, first, count]); }
+  };
+  const st = {gl}, b = gpu.buffer("seg"), stroke = [0,0,1,0,.2,1,1,0];
+  const append = () => gpu.push(b, stroke, board, 0);
+  for (let i = 0; i < 1025; i++) append();
+  const coldBytes = gpu.upload(st, b), initial = b.glCap;
+  assert.ok(initial > b.n && initial <= b.n + 64, "a new mesh uploads live slots plus bounded edit room");
+  assert.deepEqual(allocations, [initial * 8, initial * 2]);
+  assert.equal(coldBytes, initial * 40);
+  assert.equal(gpu.upload(st, b), 0, "a second draw reuses the same geometry and state buffers");
+  append();
+  assert.equal(gpu.upload(st, b), 40);
+  assert.deepEqual(patches, [[1025*32, 1025*8, 8], [1025*8, 1025*2, 2]]);
+  while (b.n <= initial) append();
+  const grownBytes = gpu.upload(st, b);
+  assert.equal(b.glCap, b.cap, "continued insertion gets the usual geometric growth");
+  assert.equal(grownBytes, b.glCap * 40);
+  assert.deepEqual(allocations.slice(2), [b.glCap * 8, b.glCap * 2]);
+}
+{
+  const width = 100, height = 80;
+  const context = (a=1,b=0,c=0,d=1,e=0,f=0) => ({getTransform:() => ({a,b,c,d,e,f})});
+  const band = gpu.bandRectangle(width,height);
+  // The first and last glyphs fall on opposite sides of the backing. Their union crosses the screen.
+  band.include(context(),-20,2,-3,10);
+  band.include(context(0,1,-1,0,114,63),0,0,7,10);
+  assert.equal(band.rect(),null,"disjoint offscreen ink leaves a fresh texture empty");
+  band.include(context(-1,0,0,1,53,27),3,0,8,9);
+  assert.deepEqual(Array.from(band.rect()),[43,25,52,38],"only the visible transformed ink needs upload");
+  band.include(context(),-6,50,-1.2,54);
+  assert.deepEqual(Array.from(band.rect()),[0,25,52,56],"a subpixel edge inside the antialiasing fringe stays visible");
+  band.include(context(),Infinity,50,Infinity,54);
+  assert.equal(band.rect(),undefined,"unknown ink still requests the full band");
+}
 {
   let copiedPixels = 0, outlines = 0, partBoxes = 0;
   const local = vm.createContext({Atrium, AtriumPCBAppearance, copyCanvas(c) {
@@ -181,24 +221,73 @@ console.log("GPU scene consumes committed strokes and uses directional geometry 
 
 {
   const track = {...F2.track,id:"curved",layer:"Top"};
-  const c = {doc:board,rev:1,all:[track],byId:new Map([[track.id,track]])};
   const curves = world.AtriumGeometryCurves, clock = Object.freeze({});
-  const centerline = curves.pathEdges(track);
   const layer = "Top mask", width = 1.2;
-  function capture() {
+  function capture(item, film = layer) {
+    const c = {doc:board,rev:1,all:[item],byId:new Map([[item.id,item]])};
     const scene = gpu.update({stats:{},parked:new Map(),gl:{}},c,"Top");
-    const {f,stride,n} = scene.layers.get(layer).seg;
-    return Array.from({length:n},(_,i)=>Array.from(f.subarray(i*stride,i*stride+5)));
+    const {f,stride,n,arcCount} = scene.layers.get(film).seg;
+    return {arcCount:arcCount || 0, slots:Array.from({length:n},(_,i)=>Array.from(f.subarray(i*stride,(i+1)*stride)))};
   }
   delete world.AtriumNavHost.boardGeometry;
-  const cold = capture();
+  const cold = capture(track);
+  assert.equal(cold.arcCount,1,"a supported circular film is one analytic GPU instance");
+  assert.equal(cold.slots.length,1);
+  const centerline = curves.pathEdges(track);
   world.AtriumNavHost.boardGeometry = () => ({revision:clock,owner:() =>
     ({features:[{key:{role:"mask",layer},ink:{kind:"stroke",centerline,width}}]})});
-  assert.deepEqual(cold,capture(),"cold and committed GPU strokes have identical arc geometry");
-  const onFilm = p => cold.some(([ax,ay,bx,by,w]) => Atrium.nearSegment(p,[ax,ay],[bx,by]) < w/2);
+  assert.deepEqual(cold,capture(track),"cold and committed GPU strokes have identical arc geometry");
+  delete world.AtriumNavHost.boardGeometry;
+
+  // Independent projection in board coordinates. The proxy's position is its
+  // radial midpoint, while the nearest endpoints own the two round caps.
+  const [x,y,angle,half,r,w,kind,marker] = cold.slots[0];
+  const cx=x-r*Math.cos(angle),cy=y-r*Math.sin(angle);
+  const near=(p,q,epsilon=1e-5)=>p.every((v,i)=>Math.abs(v-q[i])<epsilon);
+  assert.ok(near([cx,cy,r,w,kind,marker],[0,0,6,width,0,-1]));
+  assert.ok(near([x,y,half],[0,-6,Math.PI/2]));
+  function onFilm([px,py]) {
+    const theta=Math.atan2(py-cy,px-cx)-angle;
+    const delta=Math.atan2(Math.sin(theta),Math.cos(theta));
+    const closest=angle+Math.max(-half,Math.min(half,delta));
+    return Math.hypot(px-cx-r*Math.cos(closest),py-cy-r*Math.sin(closest)) < w/2;
+  }
   assert.equal(onFilm(F2.inside),true,"the mask occupies the true arc");
-  assert.equal(onFilm(F2.outside),false,"the old sampled chord is empty");
-  assert.deepEqual([cold[0][0],cold[0][1],...cold.at(-1).slice(2,4).map(n=>Math.round(n)||0)],[6,0,-6,0]);
+  assert.equal(onFilm(F2.outside),false,"the old sampled chord remains empty");
+  for(const side of [-1,1]){
+    assert.ok(onFilm([side*6,.45]),"both end caps round past their tangent seam");
+    assert.ok(!onFilm([side*6,.8]),"the cap does not bridge farther than its radius");
+  }
+  const reversed={...track,points:track.points.slice().reverse(),arc:{...track.arc,start:180,end:0,ccw:false}};
+  assert.deepEqual(capture(reversed),cold,"reversing the source sweep preserves the same GPU coverage");
+  const stale={...track,arc:{...track.arc,end:90}};
+  const staleRender=capture(stale);
+  assert.equal(staleRender.arcCount,0,"old authored points take precedence over stale circular metadata");
+  assert.deepEqual(staleRender.slots.map(slot=>slot.slice(0,4)),[[6,0,0,-6],[0,-6,-6,0]]);
+  const paste=capture(track,"Top paste");
+  assert.equal(paste.arcCount,0,"a thin semicircle retains subdivision to bound shaded area");
+  assert.ok(paste.slots.length>1);
+  for (const [start,end,radius,w,analytic] of [[350,20,.7,.2,1],[0,270,1,.6,0],[0,360,1,.8,0],[0,50,50,.1,0]]) {
+    const arc={kind:"arc",c:[2,5],r:radius,start,end,ccw:true};
+    const t={kind:"track",id:"case",layer:"Top",width:w,arc,points:Atrium.arcProjection(arc)};
+    const sample=capture(t,"Top");
+    assert.equal(sample.arcCount,analytic,"safe curvature uses the sector, other strokes retain chords");
+    if(analytic) assert.equal(sample.slots[0][6],1,"copper tracks preserve track opacity and tint kind");
+    else assert.ok(sample.slots.length>1);
+  }
+  const narrowCases=[
+    {r:500,start:91,end:93,c:[5000,5000]},
+    {r:1e-7,start:0,end:150,c:[0,0]},
+    {r:700,start:0,end:1e-7,c:[0,0]}
+  ];
+  for(const source of narrowCases){
+    const arc={...source,kind:"arc",ccw:true};
+    const item={kind:"track",id:"bounded-fallback",layer:"Top",width:.17,arc,points:Atrium.arcProjection(arc)};
+    assert.ok(Atrium.pathArc(item),"the source really owns a circle");
+    const result=capture(item,"Top");
+    assert.equal(result.arcCount,0,"unsafe far-origin and visually co-located endpoints use stock subdivision");
+    assert.ok(result.slots.length>=1,"the fallback keeps the authored stroke");
+  }
 }
 // The HTML renderers use the same authored arc for all three film widths.
 {
@@ -250,6 +339,59 @@ console.log("F2 ordinary and batched Canvas and cold and committed GPU keep the 
   assert.equal(covered(ptri, [20,-2]), false, "the GPU leaves the footprint region cutout open");
 }
 console.log("GPU region fills keep their cutouts open");
+
+{
+  require("../../app/history/undo-store.js");
+  const U=AtriumUndoStore, project=Atrium.project("Mutable analytic tracks");
+  const doc=project.documents.find(d=>d.kind==="pcb");
+  const straight=(id,x)=>({id,kind:"track",layer:"Top",net:"guard",width:.8,points:[[x,-5],[x,5]]});
+  const arc={...F2.track,id:"arc",layer:"Top",net:"signal",points:F2.track.points.map(p=>p.slice())};
+  doc.items=[straight("before",-7),arc,straight("after",7)];
+  const view=AtriumCanvas.create({getContext:()=>({})}), I=view.internals(), defs=new Map();
+  const st={stats:{},parked:new Map(),gl:{}}, history=[], future=[];
+  function render(transient) {
+    const cache=I.sync(doc,defs), scene=gpu.update(st,cache,"Top",transient);
+    const b=scene.layers.get("Top").seg;
+    const active=b.own.filter(Boolean).map(i=>i.id);
+    return {scene,b,active};
+  }
+  U.reset(project);
+  try {
+    U.record(project);
+    const first=render(false);
+    assert.equal(first.b.arcCount,1);
+    assert.deepEqual(Array.from(first.active),["before","arc","after"],"analytic and plain tracks keep authored slot order");
+    gpu.states(first.scene,{selected:arc.id},{key:"tints",byNet:new Map([["signal",2]])});
+    assert.deepEqual(Array.from(first.b.st.subarray(2,4)),[1,2],"analytic slot shares selected state and net tint");
+    gpu.states(first.scene,{routePreview:{hidden:[arc.id]}},{key:"tints",byNet:null});
+    assert.equal(first.b.st[2],-1,"the routing preview hides the ordinary physical owner");
+    U.checkpoint(history,future,U.mark(project),"Use one authored chord");
+    arc.points=[[6,0],[-5,0]];
+    U.record(project,{doc,items:[arc]});AtriumCanvas.edited(false);
+    const single=render(true);
+    assert.equal(single.b,first.b,"the in-place chord keeps the same allocated lane");
+    assert.equal(single.b.arcCount,0,"retiring the last arc switches back to the straight shader without compaction");
+    U.jump(history,future,U.mark(project),-1);AtriumCanvas.edited(false);render(false);
+    const mark=U.mark(project);
+    U.checkpoint(history,future,mark,"Change a projected vertex");
+    arc.points[1]=[0,-5];
+    U.record(project,{doc,items:[arc]});AtriumCanvas.edited(false);
+    const edit=render(true);
+    assert.equal(edit.scene,first.scene,"the live edit retains the same scene");
+    assert.equal(edit.b.arcCount,0,"stale circular metadata falls back and releases mixed shader admission");
+    assert.deepEqual(Array.from(edit.active),["before","arc","arc","after"],
+      "growing a chord run inserts it at the original physical layer position");
+    U.jump(history,future,U.mark(project),-1);AtriumCanvas.edited(false);
+    const undo=render(false);
+    assert.equal(undo.b.arcCount,1,"Undo restores the analytic instance");
+    assert.deepEqual(Array.from(undo.active),["before","arc","after"]);
+    assert.ok(undo.b.own.includes(arc),"the retained analytic stroke still names the authored object");
+    U.jump(history,future,U.mark(project),1);AtriumCanvas.edited(false);
+    const redo=render(false);
+    assert.equal(redo.b.arcCount,0,"Redo returns to the stale-metadata path");
+    assert.deepEqual(Array.from(redo.active),["before","arc","arc","after"]);
+  } finally { U.reset(); }
+}
 
 {
   const {appFile} = require("../support/app-source-paths.cjs");
@@ -472,7 +614,7 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
 
 // A ready board grid shares its broad query only across dense placed captions.
 {
-  const U=AtriumUndoStore, spatial=AtriumSpatial, builds=[], queries=[];
+  const U=AtriumUndoStore, spatial=AtriumSpatial, builds=[], queries=[], admissions=[];
   const pad=(x,n)=>({...F4.pad,x,y:0,w:.5,h:.5,angle:0,drill:0,number:String(n),layer:"Bottom"});
   const part=(id,def,x)=>({...F4.part,kind:"part",id,def,x,y:0,angle:0,mirror:true,layer:"Bottom",showRef:false});
   const host=part("many","many",0), first=part("first","custom",.34), last=part("last","custom",20);
@@ -490,7 +632,12 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
   const I=AtriumCanvas.create(AtriumPDF.recorder(800,600).canvas).internals();
   const wrap=ready=>({
     get cache(){return ready?I.cache:null;},
-    query(doc,defs,rect){queries.push(Array.from(rect));return I.query(doc,defs,rect);}
+    query(doc,defs,rect,keep){
+      queries.push(Array.from(rect));
+      const items=I.query(doc,defs,rect,keep);
+      if(keep)admissions.push(items.map(item=>item.kind));
+      return items;
+    }
   });
   const byId=id=>board.items.find(item=>item.id===id);
   const viewport=[-70,-3,.1,3];
@@ -504,7 +651,7 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
     assert.equal(groups.get("Bottom").length,spread?71:70);
     if(sparse)groups.get("Bottom").length=63;
     const linear=Array.from(gpu.coveredPadDetails(wrap(false),board,defs,groups));
-    builds.length=0; queries.length=0;
+    builds.length=0; queries.length=0; admissions.length=0;
     sandbox.AtriumSpatial={...spatial,create(items,getBox,pitch) {
       if(pitch===4)builds.push(items.map(item=>item.id));
       return spatial.create(items,getBox,pitch);
@@ -518,6 +665,8 @@ console.log("Repeated and mirrored panel occurrences update Canvas hits and GPU 
         assert.equal(queries.length,sparse?63:71);
       } else {
         assert.equal(builds.length,1,name+" uses one local index");
+        assert.equal(admissions.length,1,name+" filters the broad ordered query before allocating its rows");
+        assert.ok(admissions[0].length && admissions[0].every(kind=>kind==="part"));
         assert.ok(builds[0].includes("many") && !builds[0].includes("track"));
         if(standalone)assert.equal(queries.length,65,"a loose pad still uses the authoritative document query");
         else assert.equal(queries.length,64,"dense placed captions share one document query");
@@ -629,11 +778,76 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   assert.deepEqual(received,[["Top",2],["Multi",1],["Bottom",1]],"without ordered copper the separate painter receives every caption");
 }
 
+// WebGL2 reserves the largest unsigned index for primitive restart. The four
+// cover vertices are drawn separately and never enter the index buffer.
+{
+  const context=vm.createContext({AtriumPCBAppearance});
+  vm.runInContext(gpuCode.replace(sceneExport,"{fanOf,render, damage, stats,"),context);
+  let vertices, indices;
+  const gl={ARRAY_BUFFER:1,ELEMENT_ARRAY_BUFFER:2,UNSIGNED_SHORT:5123,UNSIGNED_INT:5125,
+    createVertexArray(){},createBuffer(){},bindVertexArray(){},bindBuffer(){},
+    enableVertexAttribArray(){},vertexAttribPointer(){},
+    bufferData(target,data){if(target===this.ARRAY_BUFFER) vertices=data; else indices=data;}};
+  for(const [count,bytes] of [[6,2],[65535,2],[65536,4],[65537,4]]) {
+    const outer=new Float32Array((count-3)*2), hole=[0,0,1,0,0,1];
+    const mesh=context.AtriumCanvasGPU.fanOf(gl,[outer,hole]);
+    assert.equal(indices.BYTES_PER_ELEMENT,bytes,"choose the index width from the combined rings");
+    assert.equal(mesh.indexType,bytes===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT);
+    assert.deepEqual(Array.from(indices.slice(-3)),[count-3,count-2,count-1],"last ring keeps its distinct indices");
+    assert.equal(mesh.count,indices.length);
+    assert.equal(mesh.bytes,vertices.byteLength+indices.byteLength);
+  }
+
+  // In the invert stencil, paired interior edges disappear. The remaining
+  // directed edges must trace each authored ring, including holes and islands.
+  function checkBoundary(rings) {
+    const mesh=context.AtriumCanvasGPU.fanOf(gl,rings), edges=new Map();
+    function edge(a,b,dir) {
+      const key=Math.min(a,b)+"/"+Math.max(a,b);
+      const count=(edges.get(key)||0)+Math.sign(b-a)*dir;
+      if (count) edges.set(key,count); else edges.delete(key);
+    }
+    for (let i=0;i<mesh.count;i+=3) {
+      const [a,b,c]=indices.subarray(i,i+3);
+      edge(a,b,1); edge(b,c,1); edge(c,a,1);
+    }
+    let base=0, triangles=0;
+    for (const ring of rings) {
+      const n=ring.length/2;
+      if (n>=3) for (let i=0;i<n;i++) edge(base+i,base+(i+1)%n,-1);
+      triangles+=Math.max(0,n-2); base+=n;
+    }
+    assert.equal(mesh.count,triangles*3);
+    assert.equal(edges.size,0,"triangle boundaries reproduce the authored copper rings");
+  }
+  const side=Array.from({length:129},(_,i)=>[i,16*Math.sin(i*.33)]);
+  const ribbon=[...side,...side.slice().reverse().map(([x,y])=>[x,y+1.5])].flat();
+  checkBoundary([ribbon]);
+  const area=(a,b,c)=>Math.abs((vertices[2*b]-vertices[2*a])*(vertices[2*c+1]-vertices[2*a+1])
+    -(vertices[2*b+1]-vertices[2*a+1])*(vertices[2*c]-vertices[2*a]));
+  let submitted=0, firstVertexFan=0;
+  for (let k=0;k<indices.length;k+=3) submitted+=area(indices[k],indices[k+1],indices[k+2]);
+  for (let i=1;i+1<ribbon.length/2;i++) firstVertexFan+=area(0,i,i+1);
+  assert.ok(submitted<firstVertexFan/2,"a winding copper ribbon shades less than half the original triangle area");
+  for (const n of [3,31,32,33,64,65,127]) {
+    const corners=side.slice(0,n);
+    checkBoundary([ribbon,corners.slice().reverse().flat(),corners.flat(),[4,4]]);
+  }
+  // Non-finite coordinates in the actual float upload retain the old
+  // clipping behaviour even when the source number is a finite double.
+  for (const bad of [NaN,1e50]) {
+    const broken=ribbon.slice(); broken[0]=bad;
+    context.AtriumCanvasGPU.fanOf(gl,[broken]);
+    assert.ok(!Number.isFinite(vertices[0]));
+    for (let i=0;i<indices.length;i+=3) assert.equal(indices[i],0);
+  }
+}
+
 // Reuse unchanged coverage regions and keep the old snapshot for in-place edits.
 {
   const W=47,H=31, reads=[], region={data:"body",count:2,layer:"Top",net:"GND",bounds:[8,9,15,13]};
   const rings=[[8,9,15,9,15,13,8,13],[9,10,9.1,10,9.1,10.1]];
-  let inkChecks=0, paints=0;
+  let inkChecks=0, paints=0, failing=false;
   const context=vm.createContext({
     navigator:{userAgent:"AppleWebKit"},
     AtriumPCBAppearance:{...AtriumPCBAppearance,ink(...args){inkChecks++;return AtriumPCBAppearance.ink(...args);}},
@@ -642,9 +856,9 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   vm.runInContext(gpuCode.replace(sceneExport,"{pourCoverage, render, damage, stats,"),context);
   const ctx={setTransform(){},clearRect(){},getImageData(...rect){reads.push(rect);return {};}};
   const canvas={width:W,height:H,getContext:()=>ctx};
-  const gl={RGBA:2,createTexture:()=>({}),bindTexture(){},texStorage2D(){},texParameteri(){},pixelStorei(){},texSubImage2D(){}};
+  const gl={RGBA:2,createTexture:()=>({}),bindTexture(){},deleteTexture(){},texStorage2D(){},texParameteri(){},pixelStorei(){},texSubImage2D(){}};
   const st={gl,canvas,alphaTextures:false,parked:new Map(),stats:{pourBytes:0,coverageUpload:0}};
-  const I={canvas,ctx,worldToScreen:point=>point,boardTransform(){},drawBoard(){paints++;}};
+  const I={canvas,ctx,worldToScreen:point=>point,boardTransform(){},drawBoard(){paints++;if(failing)throw Error("coverage painter failed");}};
   const list=[region], doc={pcbDrawing:{pours:list}}, defs=new Map(), c={pourSig:[]};
   const opts={layer:"Top"}, view={o2:opts,viewport:[0,0,W,H]};
   const cover=x=>context.AtriumCanvasGPU.pourCoverage(I,st,doc,defs,opts,[x,0,1,false,W,H,1],view,list,null,c).get("Top");
@@ -659,6 +873,85 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   assert.equal(edited.net,"CHANGED");
   assert.equal(edited.bounds,prior.bounds,"a net change does not traverse the contour again");
   assert.equal(paints,3,"an in-place net change still paints the dirty texture");
+  region.data="changed contours at the same camera";c.pourSig=[];
+  failing=true;
+  assert.throws(()=>cover(1),/coverage painter failed/);
+  const beforeRetry=paints;
+  failing=false;
+  cover(1);
+  assert.equal(paints,beforeRetry+1,"retry must paint the same camera after the provisional region failed to upload");
+}
+
+// Retrying coverage after a failed camera move must remove ink at the old pose.
+{
+  const W=47,H=31, deleted=new Set(), backing=new Uint8Array(W*H);
+  const region={data:"coverage",count:2,layer:"Top",bounds:[8,9,15,13]};
+  const rings=[[8,9,15,9,15,13,8,13],[9,10,9.1,10,9.1,10.1]];
+  const list=[region], doc={pcbDrawing:{pours:list}}, defs=new Map(), c={pourSig:[]};
+  const opts={layer:"Top"}, view={o2:opts,viewport:[0,0,W,H]};
+  const context=vm.createContext({navigator:{userAgent:"AppleWebKit"},AtriumPCBAppearance,
+    AtriumPCBPours:{contours:()=>rings}});
+  vm.runInContext(gpuCode.replace(sceneExport,"{pourCoverage, render, damage, stats,"),context);
+  let selectedTexture, shift=0, uploadFails=false, onPaint, paints=0;
+  const ctx={setTransform(){},clearRect(x,y,w,h){
+    for(let row=y;row<y+h;row++)backing.fill(0,row*W+x,row*W+x+w);
+  },getImageData(x,y,w,h){
+    const data=new Uint8Array(w*h);
+    for(let row=0;row<h;row++)data.set(backing.subarray((row+y)*W+x,(row+y)*W+x+w),row*w);
+    return data;
+  }};
+  const canvas={width:W,height:H,getContext:()=>ctx};
+  const gl={RGBA:2,createTexture:()=>({pixels:new Uint8Array(W*H)}),
+    bindTexture(target,tex){selectedTexture=tex;},texStorage2D(){},texParameteri(){},pixelStorei(){},
+    deleteTexture(tex){deleted.add(tex);},
+    texSubImage2D(target,level,x,bottom,w,h,format,type,data){
+      const y=H-bottom-h;
+      for(let row=0;row<h;row++){
+        selectedTexture.pixels.set(data.subarray(row*w,(row+1)*w),(row+y)*W+x);
+        if(uploadFails)throw Error("coverage upload failed after a partial write");
+      }
+    }};
+  const st={gl,canvas,alphaTextures:false,parked:new Map(),stats:{pourBytes:0,coverageUpload:0}};
+  const I={canvas,ctx,worldToScreen:([x,y])=>[x-shift,y],boardTransform(){},
+    drawBoard(){
+      paints++;
+      for(let y=9;y<13;y++)backing.fill(255,y*W+8-shift,y*W+15-shift);
+      onPaint?.();
+    }};
+  const cover=x=>{
+    shift=x;
+    return context.AtriumCanvasGPU.pourCoverage(I,st,doc,defs,opts,[x,0,1,false,W,H,1],view,list,null,c).get("Top");
+  };
+  const expected=x=>{
+    const pixels=new Uint8Array(W*H);
+    for(let y=9;y<13;y++)pixels.fill(255,y*W+8-x,y*W+15-x);
+    return pixels;
+  };
+  const old=cover(0).tex;
+  assert.deepEqual(old.pixels,expected(0));
+  uploadFails=true;
+  assert.throws(()=>cover(-20),/coverage upload failed/);
+  uploadFails=false;
+  const moved=cover(-20).tex;
+  assert.deepEqual(moved.pixels,expected(-20),"a failed camera move cannot leave old ink outside the new upload");
+  assert.ok(deleted.has(old));
+  assert.notEqual(moved,old);
+
+  // A reentrant successful paint takes ownership of the same layer before the
+  // older paint throws. Its already-valid texture must survive that old catch.
+  let successor;
+  onPaint=()=>{
+    onPaint=null;
+    successor=cover(-10);
+    throw Error("stale paint lost to a newer successful render");
+  };
+  assert.throws(()=>cover(-5),/stale paint lost/);
+  const winner=successor.tex;
+  assert.ok(!deleted.has(winner),"the older failure must not discard a newer successful mask");
+  assert.deepEqual(winner.pixels,expected(-10));
+  const before=paints;
+  assert.equal(cover(-10),successor);
+  assert.equal(paints,before,"the successful reentrant coverage remains a cache hit");
 }
 
 // Cold text bands visit each part once and preserve the same glyphs and late fallback artwork.
@@ -713,6 +1006,29 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   text.strip.paintBand(ctx,4,[newStrip],null,null,list=>list,viewport);
   assert.deepEqual(ink,["entering strip"],"pan repair uses its current objects");
 
+  // Texture storage may stay warm for a temporary empty camera. It belongs to
+  // the current document and must be given back when that document loses its ink.
+  const held = {}, vacant = {...V, items:[]}, farCam = [100, ...cam.slice(1)], freed = [];
+  gl.deleteTexture = texture => { if (texture) freed.push(texture); };
+  const renderHeld = (at, scope) => context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,at,scope,null,held);
+  renderHeld(cam,V);
+  const allocated = Array.from(held.bands, b=>b.tex);
+  assert.ok(allocated.length>1 && allocated.every(Boolean));
+  assert.equal(renderHeld(farCam,vacant),null);
+  assert.equal(held.strip,null,"an empty camera releases its old pan painter");
+  assert.deepEqual(freed,[],"crossing the board edge can reuse its texture storage");
+  assert.equal(renderHeld(cam,V),held);
+  assert.deepEqual(Array.from(held.bands,b=>b.tex),allocated);
+  scene.rev = 1; scene.textRev++;
+  assert.equal(renderHeld(cam,vacant),null);
+  assert.deepEqual(freed,allocated,"removing the final text returns every allocated band");
+  assert.equal(renderHeld(cam,vacant),null);
+  assert.deepEqual(freed,allocated,"a second empty frame cannot free the same textures twice");
+  scene.rev++; scene.textRev++;
+  uploaded.length=0; renderHeld(cam,V);
+  assert.deepEqual(uploaded,[["front"],["back"],["cutout"]],"restoring the edit rebuilds the same band contents");
+  assert.ok(Array.from(held.bands,b=>b.tex).every(t=>!allocated.includes(t)));
+
   // The camera retains both candidate lists, but ordinary slices use the text candidates only.
   const track=y=>({kind:"track",layer:"Top",width:.2,points:[[1,y],[2,y]]});
   const near=track(0), far=track(9), area=[0,28,W,8];
@@ -747,10 +1063,16 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   for(const item of V.all)scene.cache.boxes.set(item, [0,-.25,1,.25]);
   const allRows=owner=>{
     const target={key:null};
+    const counter=owner==="wideText"?"wideSliceUploadBytes":"textSliceUploadBytes";
+    const previous=st.stats.textUpload, before=st.stats[counter] || 0;
     uploaded.length=0;
     if(owner)st[owner]={T:target};
     for(let y=0;y<H;y+=8)context.AtriumCanvasGPU.textLayer(I,st,doc,defs,opts,cam,V,null,target,[0,y,W,8]);
     if(owner)st[owner]=null;
+    if(owner) {
+      assert.equal(st.stats.textUpload,previous,"offscreen preparation cannot change the displayed frame's byte count");
+      assert.equal(st.stats[counter]-before,uploaded.length*W*8*4,"count the texture bytes in the owning slice job");
+    }
     const images=Array.from(target.bands,b=>Array.from({length:H/8},(_,y)=>b.tex?.get(y*8)??[]));
     return {images,calls:uploaded.length,target};
   };
@@ -930,22 +1252,93 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     assert.deepEqual(area,direct?[[2,4,7,9],[0,0,W,H]]:[[0,0,W,H],[2,4,7,9],[0,0,W,H]]);
     assert.equal(stores.get(gl.UNPACK_ALIGNMENT),4);
     assert.equal(stores.get(gl.UNPACK_FLIP_Y_WEBGL),false);
+    data.data=new Uint8ClampedArray(4*8);
+    if (direct) {
+      let count=transfers.length;
+      assert.equal(upload(3,5,4,2,gl.RGBA,undefined,true),false,"zero RGBA can stay untouched on a brand-new stripe");
+      assert.equal(transfers.length,count);
+      assert.equal(stores.get(gl.UNPACK_FLIP_Y_WEBGL),false,"empty transfer restores the unpack setting");
+      upload(3,5,4,2,gl.RGBA);
+      assert.equal(transfers.length,++count,"a reused stripe still needs an explicit transparent clear");
+      data.data[7]=1;
+      upload(3,5,4,2,gl.RGBA,undefined,true);
+      assert.equal(transfers.length,++count,"even the faintest nonempty pixel is written");
+      data.data[7]=0;
+      data.data[12]=1;
+      upload(3,5,4,2,gl.RGBA,undefined,true);
+      assert.equal(transfers.length,++count,"zero-alpha pixels with nonzero colour bytes are still written");
+      data.data.fill(0);
+      assert.equal(upload(3,5,4,2,gl.ALPHA,undefined,true),true,"a partial mask still uses the normal transfer");
+      assert.equal(stores.get(gl.UNPACK_ALIGNMENT),4);
+    } else {
+      assert.equal(upload(3,5,4,2,gl.RGBA,undefined,true),true,"other platforms keep their usual transfer");
+    }
   }
+}
+
+{
+  const vmLayerOrder = vm.createContext({AtriumPCBAppearance, AtriumSpatial});
+  vm.runInContext(gpuCode.replace(sceneExport,"{scope, layerPlan, drawPasses, render, damage, stats,"),vmLayerOrder);
+  const {scope,layerPlan,drawPasses}=vmLayerOrder.AtriumCanvasGPU;
+  const visible = ["Top", "Bottom", "Multi", "Mechanical 1", "Mechanical 2", "Silk"];
+  const layers = new Map(visible.map(layer=>[layer,{layer,rep:{kind:"via",fromLayer:"Top",toLayer:"Bottom"}}]));
+  const board = Atrium.sheet("pcb","Single layer ordering"), defs = new Map();
+  const st = {scene:{layers,cache:{bounds:[-200,-100,200,100],rev:1,all:[]}},stats:{}};
+  const order = ["Mechanical 2","Mechanical 1","Bottom","Silk","Multi","Top"];
+  let calls = 0;
+  const I = {query:()=>[],paintOrder(){calls++;return order;}};
+  const cam = [0,0,8,true,400,320,2];
+  const active = {layer:"Top"}, multi = layers.get("Multi").rep;
+  assert.ok(AtriumPCBAppearance.visible("Multi",multi,{...active,layerMode:"single"}));
+  assert.ok(!AtriumPCBAppearance.visible("Multi",{...multi,fromLayer:"Inner 1"},{...active,layerMode:"single"}));
+  const stored = {layer:"Top",bounds:[-1,-1,2,2]};
+  board.pcbDrawing = {pours:[stored]};
+  const preview = [stored,{layer:"Mechanical 2",bounds:[-2,-2,2,2]}];
+  for (const layerMode of ["all","single","dim"]) {
+    const opts = {...active,layerMode,ghost:{kind:"track",layer:"Mechanical 2",width:.2,points:[[0,0],[2,0]]}};
+    const V = scope(I,st,board,defs,opts,cam,preview);
+    const plan=layerPlan(st,opts,true), pass=drawPasses(st,plan,st.scene.order,new Map());
+    const layersInOrder=Array.from(pass,x=>x.layer);
+    if (layerMode==="single") {
+      assert.equal(st.scene.order,null,"visible single-layer ranks need no viewport tie scan");
+      assert.equal(calls,1,"the hidden mechanical pair never triggers single-layer order collection");
+      assert.deepEqual(layersInOrder,["Multi","Top"],"spanning copper and the active layer keep their physical order");
+      assert.equal(V.liveLayers,null,"a hidden preview pour cannot add a visible band");
+      assert.ok(!AtriumPCBAppearance.visible(opts.ghost.layer,opts.ghost,opts),"the ghost uses the same single-layer visibility");
+    } else {
+      assert.equal(calls,layerMode==="all"?1:2,"tied visible layers still consult the reference painter");
+      assert.ok(layersInOrder.indexOf("Mechanical 2")<layersInOrder.indexOf("Mechanical 1"),
+        "equal-ranked mechanics still use the order from the live viewport");
+    }
+  }
+  // A prospective visible layer can be pour-only. It still reserves its band
+  // and composes above Multi without needing the arbitrary hidden ties.
+  layers.delete("Top");
+  board.pcbDrawing.pours=[];
+  const only = {layer:"Top",bounds:[-2,-2,2,2]}, opts={...active,layerMode:"single"};
+  const V=scope(I,st,board,defs,opts,cam,[only]);
+  assert.deepEqual(Array.from(V.liveLayers),["Top"]);
+  const passes=drawPasses(st,layerPlan(st,opts,true),st.scene.order,new Map([["Top",[only]]]));
+  assert.deepEqual(Array.from(passes,p=>p.layer),["Multi","Top"]);
+  assert.equal(calls,2,"preview-only copper does not start tie ordering in single mode");
+  console.log("Single-layer GPU order ignores hidden ties and keeps the active and spanning physical passes");
 }
 
 // Keep the full pixel result when a band's new footprint is smaller or moves away.
 {
   require("../../app/pcb/pcb-draw.js");
   const webKit=vm.createContext({AtriumPCBAppearance,AtriumResolvedLand,AtriumSpatial,navigator:{userAgent:"AppleWebKit"}});
-  vm.runInContext(gpuCode.replace(sceneExport,"{textLayer, render, damage, stats,"),webKit);
-  const {textLayer}=webKit.AtriumCanvasGPU;
-  const W=144,H=96,doc=Atrium.sheet("pcb","Text band uploads"),defs=new Map();
+  vm.runInContext(gpuCode.replace(sceneExport,"{textLayer, L, render, damage, stats,"),webKit);
+  const {textLayer,L}=webKit.AtriumCanvasGPU;
+  let W=144,H=96;
+  const doc=Atrium.sheet("pcb","Text band uploads"),defs=new Map();
   const label={id:"legend",kind:"label",layer:"Silk",text:"jÉ",size:.08,width:.002,x:0,y:0,angle:37,italic:true};
   const pad={...F4.pad,id:"land",kind:"pad",layer:"Top",net:"LONG_NET_NAME",x:0,y:0,w:6,h:3,drill:0};
   const line={id:"path",kind:"label",text:"Imported annotation",size:1.1,width:.2,layer:"Silk",x:1,y:1,
     points:[[-5,-4],[5,-4]]};
   const rec=AtriumPDF.recorder(W,H), view=AtriumCanvas.create(rec.canvas);
-  const scratch=new Uint8Array(W*H), reads=[];
+  let scratch=new Uint8Array(W*H);
+  const reads=[];
   let bound, drawCaption=false;
   rec.ctx.clearRect=()=>scratch.fill(0);
   rec.ctx.fillRect=(x,y,w,h)=>{
@@ -963,13 +1356,20 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   const gl={RGBA:1,createTexture:()=>new Uint8Array(W*H),bindTexture(_,t){bound=t;},
     texStorage2D(){},texParameteri(){},pixelStorei(){},deleteTexture(){},
     texSubImage2D(_,level,x,bottom,w,h,format,type,pixels){
-      for(let row=H-bottom-h;row<H-bottom;row++)
-        bound.set(pixels.subarray(row*W+x,row*W+x+w),row*W+x);
+      for(let row=H-bottom-h;row<H-bottom;row++) {
+        if(pixels===scratch) bound.set(pixels.subarray(row*W+x,row*W+x+w),row*W+x);
+        else {
+          const start=(row-(H-bottom-h))*w*4;
+          assert.ok(pixels.length>=w*h*4 && !pixels.subarray(start,start+w*4).some(Boolean),"blank RGBA strip");
+          bound.fill(0,row*W+x,row*W+x+w);
+        }
+      }
     }};
-  function paint(st,items,cx,flipped,dpr,scale,hidden) {
+  function paint(st,items,cx,flipped,dpr,scale,hidden,useLOD=false,hooks) {
     doc.items=items;
-    const layer="Top",opts={layer,layerMode:"all",flipped,hidden};
+    const layer="Top",opts={layer,layerMode:"all",flipped,hidden,...hooks};
     const I={...view.internals(),ctx:rec.ctx,worldToScreen:()=>[W/(2*dpr)+(flipped?cx:-cx)*scale,H/(2*dpr)],query:()=>items};
+    if (useLOD) { view.internals().sync(doc,defs); view.internals().lodForce=true; }
     const V={items:items.filter(i=>i.kind==="label" || i.kind==="part" || i.keepout),all:items,active:layer,o2:opts,padDetails:items.includes(pad),viewport:[-20,-20,20,20]};
     return textLayer(I,st,doc,defs,opts,[cx,0,scale,flipped,W/dpr,H/dpr,dpr],V,null);
   }
@@ -990,6 +1390,17 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     assert.deepEqual(st.text.bands[0].tex,scratch,"the next crop has exactly the current glyph");
     const [left,,width]=reads.at(-1);
     assert.ok(first%W<left || first%W>=left+width,"drop the first ink extent once it has been cleared");
+  }
+  for(const [flipped,dpr] of [[false,1],[true,2]]) {
+    const st=state(), before={...label,x:-10,y:-6}, after={...label,x:10,y:6};
+    paint(st,[before],0,flipped,dpr,6/dpr);
+    const oldPixel=scratch.indexOf(1), readStart=reads.length;
+    assert.ok(oldPixel>=0,"the first camera drew visible ink");
+    paint(st,[after],.125,flipped,dpr,6/dpr);
+    assert.ok(scratch.includes(1) && !scratch[oldPixel],"the new ink is far from the old");
+    assert.deepEqual(st.text.bands[0].tex,scratch,"the previous ink was erased");
+    const readPixels=reads.slice(readStart).reduce((sum,[,,w,h])=>sum+w*h,0);
+    assert.ok(readPixels<512,`separated ink should not read the empty gap (${readPixels} pixels)`);
   }
   const measure=rec.ctx.measureText;
   try {
@@ -1194,7 +1605,102 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     assert.deepEqual(reads.at(-1),[0,0,W,H],"an invalid pen width retains the unknown ink fallback");
     paint(unknownState,[label,thick],1,false,1,6);
     assert.deepEqual(reads.at(-1),[0,0,W,H],"unknown prior ink must be cleared with a full transfer");
+    const mounted={...part,def:"keepout-part",showRef:false,x:1,y:1,angle:30,mirror:true};
+    const fp=shape=>({id:mounted.def,footprint:{pads:[],shapes:[shape]}});
+    defs.set(mounted.def,fp({...thick,kind:"path"}));
+    const mountedState=state();
+    for(const [camera,flip] of [[-3,false],[3,true],[-3,false]]) {
+      paint(mountedState,[mounted],camera,flip,1.5,6);
+      const [,,w,h]=reads.at(-1);
+      assert.ok(w*h<W*H/2,"the placed keepout supplies its transformed paint bounds");
+      assert.ok(scratch.includes(2),"the footprint keepout is visible");
+      assert.deepEqual(mountedState.text.bands[0].tex,scratch,"the cropped upload includes the placed dashes and wide caps");
+    }
+    defs.set(mounted.def,fp({...thick,kind:"path",width:Infinity}));
+    paint(state(),[mounted],0,false,1,6);
+    assert.deepEqual(reads.at(-1),[0,0,W,H],"an unknown footprint pen retains the full upload");
+    defs.delete(mounted.def);
   } finally { rec.ctx.stroke=stroke; }
+  // Widely separated glyphs leave large transparent gaps in one ordered band.
+  W=1024; H=640; rec.canvas.width=W; rec.canvas.height=H; scratch=new Uint8Array(W*H);
+  for(const [flip,dpr] of [[false,1],[true,1.25]]) {
+    const st=state(), glyph=(x,y)=>({...label,id:x+","+y,x,y}), pixels=()=>reads.reduce((n,[,,w,h])=>n+w*h,0);
+    const first=[glyph(-68,-41),glyph(-43,.1),glyph(64,38)], second=[first[1],glyph(-64,39),glyph(68,-40)];
+    reads.length=0;
+    paint(st,first,0,flip,dpr,6/dpr);
+    assert.ok(scratch.includes(1),"some of the separated glyphs painted");
+    assert.deepEqual(st.text.bands[0].tex,scratch,"sparse upload includes every visible glyph");
+    const before=scratch.slice();
+    paint(st,second,.25,flip,dpr,6/dpr);
+    assert.ok(before.some((v,i)=>v!==scratch[i]),"the edit places and removes visible ink");
+    assert.deepEqual(st.text.bands[0].tex,scratch,"moving across upload regions clears old ink and retains the boundary glyph");
+    assert.ok(pixels()<W*H/4,"separated glyphs do not read the transparent space between them");
+    const band=st.text.bands[0];
+    band.tex[10*W+20]=1;
+    band.inkRect=[0,0,W,H];
+    paint(st,second,.4,flip,dpr,6/dpr);
+    assert.deepEqual(band.tex,scratch,"a later strip write invalidates previous sparse bounds");
+    st.text.bands[0].inkRect=undefined;
+    reads.length=0;
+    paint(st,first,.5,flip,dpr,6/dpr);
+    assert.deepEqual(reads,[[0,0,W,H]],"an unknown previous texture requires a full read");
+    assert.deepEqual(st.text.bands[0].tex,scratch,"the fallback clears every previous texel");
+  }
+  // A real ordered Bottom layer requires batch fallback. An independent Silk
+  // band can still crop its authored label and erase a moved or hidden inscription.
+  {
+    const U=AtriumUndoStore, project=Atrium.project("Independent LOD bands");
+    const silk={...label,x:-4}, bottom={...label,id:"bottom-label",layer:"Bottom",x:0,y:3};
+    const track={id:"track",kind:"track",layer:"Bottom",points:[[-4,0],[4,0]],width:.3};
+    const items=doc.items=[silk,bottom,track], history=[], future=[], st=state();
+    project.documents=[doc];
+    const alpha=AtriumPCBAppearance.layerAlpha("Bottom");
+    try {
+      AtriumPCBAppearance.setLayerOpacity("Bottom",.5);
+      L(st.scene,"Bottom"); L(st.scene,"Top");
+      const show=(hidden)=>paint(st,items,0,true,1.25,6,hidden,true);
+      const render=()=>{reads.length=0;show();return Array.from(st.text.bands,b=>b.tex);};
+      const initial=render();
+      assert.ok(view.internals().cache.lod.info.has(track),"the Bottom copper uses the real batched path");
+      assert.deepEqual(Array.from(st.text.exact),["Bottom"]);
+      assert.equal(initial.length,2);
+      assert.deepEqual(reads[0],[0,0,W,H],"the ordered LOD band still uploads its full backing");
+      assert.ok(reads.length===2 && reads[1][2]*reads[1][3]<W*H/4,
+        "a separate glyph band remains tightly bounded under ordered copper LOD");
+      assert.ok(initial[0].some(Boolean) && initial[1].some(Boolean),"both real layers produce ink");
+      const original=initial[1].slice();
+      U.reset(project);
+      U.checkpoint(history,future,U.mark(project),"Move Silk label");
+      silk.x=4; U.record(project,{doc,items:[silk]}); st.scene.rev++; st.scene.textRev++;
+      const moved=render()[1];
+      assert.ok(moved.some(Boolean) && moved.some((v,i)=>v!==original[i]),"the edit paints at the new position");
+      assert.ok(original.some((v,i)=>v && !moved[i]),"the old ink is cleared");
+      U.jump(history,future,U.mark(project),-1); st.scene.rev++; st.scene.textRev++;
+      assert.deepEqual(render()[1],original,"Undo restores all original glyph pixels and clears the edited location");
+      const band=st.text.bands[1];
+      band.tex[0]=1; band.inkRect=undefined;
+      silk.x=-4.1; st.scene.rev++; st.scene.textRev++;
+      assert.equal(render()[1][0],0,"unknown prior contents are cleared");
+      assert.deepEqual(reads[1],[0,0,W,H],"unknown prior ink still requires a complete transfer");
+      show(new Set(["Silk"]));
+      assert.ok(!st.text.bands[1]?.tex?.some(Boolean),"the hidden label no longer contributes pixels");
+      assert.ok(st.text.bands[0].tex.some(Boolean),"the ordered layer remains visible");
+
+      const recording=state(), recorded=[], clipped=[];
+      L(recording.scene,"Bottom"); L(recording.scene,"Top");
+      reads.length=0;
+      paint(recording,items,0,true,1.25,6,undefined,true,{
+        recordLayer:layer=>recorded.push(layer), clipLayer:layer=>{clipped.push(layer); return null;}
+      });
+      assert.equal(recorded.filter(layer=>layer==="Bottom").length,2,"custom record hooks retain the original LOD visits");
+      assert.deepEqual(clipped,recorded.filter(Boolean),"custom clipping hooks see those same visits");
+      assert.deepEqual(reads,[[0,0,W,H],[0,0,W,H]],"custom hooks retain the conservative LOD upload");
+    } finally {
+      view.internals().lodForce=undefined;
+      AtriumPCBAppearance.setLayerOpacity("Bottom",alpha);
+      U.reset();
+    }
+  }
   console.log("WebKit text crops preserve old/new glyph pixels and fall back for native captions and mixed label/path records");
 }
 
@@ -1342,15 +1848,15 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   I.query=()=>[label];
   const live=()=>made.filter(c=>c.width>1 || c.height>1);
   const area=()=>live().reduce((n,c)=>n+c.width*c.height,0);
-  let peak=0, deleted=0;
-  const webKit=vm.createContext({AtriumPCBAppearance,AtriumCanvas,navigator:{userAgent:"AppleWebKit"},
+  let peak=0, deleted=0, time=0, resizes=0;
+  const webKit=vm.createContext({AtriumPCBAppearance,AtriumCanvas,navigator:{userAgent:"AppleWebKit"},performance:{now:()=>time},
     setTimeout:()=>1,clearTimeout(){},requestAnimationFrame:()=>2,cancelAnimationFrame(){},
     document:{createElement(){
       const {ctx}=AtriumPDF.recorder(1,1);
       let width=1,height=1;
       const c={
-        get width(){return width;}, set width(w){width=w;peak=Math.max(peak,area());},
-        get height(){return height;}, set height(h){height=h;peak=Math.max(peak,area());},
+        get width(){return width;}, set width(w){width=w;resizes++;peak=Math.max(peak,area());},
+        get height(){return height;}, set height(h){height=h;resizes++;peak=Math.max(peak,area());},
         getContext:()=>ctx
       };
       ctx.getImageData=(x,y,w,h)=>{
@@ -1361,8 +1867,8 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
       return c;
     }}
   });
-  vm.runInContext(gpuCode.replace(sceneExport,"{scrollText, afterMove, freeViewport, render, damage, stats,"),webKit);
-  const {scrollText,afterMove,freeViewport}=webKit.AtriumCanvasGPU;
+  vm.runInContext(gpuCode.replace(sceneExport,"{scrollText, afterMove, freeViewport, place, listen, views, render, damage, stats,"),webKit);
+  const {scrollText,afterMove,freeViewport,place,listen,views}=webKit.AtriumCanvasGPU;
   const gl={RGBA:1,bindTexture(){},pixelStorei(){},deleteTexture(){deleted++;},
     texSubImage2D(_,level,x,bottom,w,h,format,type,ink){
       assert.deepEqual([ink.w,ink.h],[w,h],"the painted strip is uploaded");
@@ -1396,7 +1902,144 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
   freeViewport(state);
   assert.equal(area(),0,"viewport teardown releases the remaining pan scratch");
   assert.equal(deleted,1,"viewport teardown deletes the retained texture");
-  console.log("GPU diagonal pan bounds its scratch and releases the large-jump backing before settle");
+
+  T.valid=[0,0]; state.text=T;
+  pan(W,H);
+  const full=state.stripLarge, initial=made.length;
+  let x=W,y=H;
+  // Genuine large jumps interspersed with thin frames keep the same canvas.
+  for(let n=0;n<24;n++){
+    time+=16; x+=n%2 ? W : 3; y-=n%2 ? 0 : 4;
+    pan(x,y);
+    afterMove(I,state,board,defs,opts,null,false,true);
+    assert.equal(state.stripLarge,full);
+  }
+  assert.equal(made.length,initial,"alternating rapid pans reuse one large surface");
+  // Every camera frame continues to rearm settle; only strip demand turns thin.
+  for(let n=0;n<15;n++){
+    time+=16; x+=3; y-=4;
+    pan(x,y);
+    afterMove(I,state,board,defs,opts,null,false,true);
+    assert.equal(state.stripLarge,full,"short gaps in large demand reuse the surface");
+  }
+  time+=16; x+=3; y-=4;
+  pan(x,y);
+  afterMove(I,state,board,defs,opts,null,false,true);
+  assert.ok(state.idle && !state.settling,"the continuous pan has not settled");
+  assert.equal(state.stripLarge,null,"sustained thin motion releases the broad backing");
+  assert.deepEqual([full.width,full.height],[1,1],"release gives the backing store back");
+  assert.ok(area()>0 && area()<=W*H/4,"only thin strip backing remains");
+  const thinResizes=resizes;
+  for(let n=0;n<20;n++){
+    time+=16; x+=3; y-=4;
+    pan(x,y);
+  }
+  assert.equal(resizes,thinResizes,"wrapped strips do not grow the thin long axes a few pixels at a time");
+  assert.equal(made.length,initial+2,"the rest of the thin motion only reuses its two canvases");
+  time+=16; x+=W;
+  pan(x,y);
+  assert.ok(state.stripLarge && !state.stripWide && !state.stripTall,"a later jump releases thin backings before regrowth");
+  assert.equal(made.length,initial+3);
+  const events=new Map();
+  state.canvas={width:W+32,height:H+32,style:{},addEventListener:(name,run)=>events.set(name,run)};
+  state.place=(W+32)+"x"+(H+32)+"/"+W+"x"+H;
+  state.overlayCopy={width:W,height:H}; state.ovAt=[x,y];
+  gl.drawingBufferWidth=state.canvas.width; gl.drawingBufferHeight=state.canvas.height;
+  I.canvas.width=W+1; I.canvas.height=H; I.canvas.style={};
+  const retained=state.stripLarge;
+  assert.ok(place(I,state,W+1,H,true),"the resized view draws inside its retained backing");
+  assert.deepEqual([state.canvas.width,state.canvas.height],[W+32,H+32],"the resize reuses the larger framebuffer");
+  assert.equal(state.stripLarge,retained,"viewport placement retains the pan scratch");
+  assert.equal(state.overlayCopy,null,"the changed view size releases the copied top layer");
+  assert.equal(state.ovAt,null);
+  afterMove(I,state,board,defs,opts,null,true,false);
+  assert.equal(area(),0,"the exact text pass releases the large pan backing");
+  T.valid=[0,0]; state.text=T; pan(W,H);
+  views.set(I,state);
+  listen(I,state);
+  let prevented=false;
+  events.get("webglcontextlost")({preventDefault(){prevented=true;}});
+  assert.ok(prevented && state.lost && !state.idle);
+  assert.equal(area(),0,"context loss cancels the gesture and releases its large backing");
+  console.log("GPU pan scratch stays bounded during alternating jumps and releases its broad backing during continuous thin motion");
+}
+
+{
+  // Simulate physical texture writes and check every texel against the unwrapped
+  // artwork. Test both a measured ink bound and a texture with unknown contents.
+  for (const dpr of [1, 2]) for (const known of [true, false]) {
+    const W = 24*dpr, H = 18*dpr, uploads = [];
+    const view = AtriumCanvas.create(AtriumPDF.recorder(24,18).canvas);
+    view.resized({width:24,height:18});
+    view.setFlipped(dpr === 2);
+    const I = view.internals(), cam = I.cam(), origin = I.worldToScreen([0,0]);
+    cam[6] = dpr;
+    const label = {kind:"label"};
+    I.query = () => [label];
+    function ink(x,y) {
+      x /= dpr; y /= dpr;
+      return x >= 8 && x < 15 && y >= 3 && y < 10 ||
+             x >= 38 && x < 46 && y >= 1 && y < 9 ||
+             x >= -5 && x < -1 && y >= -9 && y < 4;
+    }
+    const texels = new Uint8Array(W*H);
+    for (let y=0;y<H;y++) for (let x=0;x<W;x++) texels[y*W+x] = ink(x,y) ? 255 : 0;
+    const sandbox = vm.createContext({AtriumPCBAppearance,AtriumCanvas,
+      navigator:{userAgent:dpr === 1 ? "AppleWebKit" : "Chrome/140"},
+      document:{createElement(){
+        let top, left, width, height, data;
+        const ctx = {
+          globalAlpha:1, save(){},restore(){},beginPath(){},rect(){},clip(){},
+          setTransform(a,b,c,d,e,f) { left = Math.round(dpr*origin[0]-e); top = Math.round(dpr*origin[1]-f); },
+          clearRect(x,y,w,h) { width=w; height=h; data=new Uint8Array(w*h*4); },
+          getImageData() { return {data}; },
+          paint(painted) {
+            let drawn=false;
+            for (let y=0;y<height;y++) for (let x=0;x<width;x++) if (ink(left+x,top+y)) {
+              data[(y*width+x)*4+3] = 255;
+              drawn=true;
+            }
+            if (drawn) painted(label);
+          }
+        };
+        return {width:1,height:1,getContext:()=>ctx};
+      }}
+    });
+    vm.runInContext(gpuCode.replace(sceneExport,"{scrollText, render, damage, stats,"),sandbox);
+    const gl = {RGBA:1,bindTexture(){},pixelStorei(){},
+      texSubImage2D(target,level,x,bottom,w,h,format,type,source) {
+        const y=H-bottom-h, data=source.data;
+        assert.ok(x>=0 && y>=0 && x+w<=W && y+h<=H);
+        assert.ok(data || source.length>=w*h*4,"every clear has enough zero texels");
+        uploads.push([x,y,w,h,!!data]);
+        for (let j=0;j<h;j++) for (let k=0;k<w;k++) texels[(y+j)*W+x+k]=data?.[(j*w+k)*4+3] || 0;
+      }};
+    const T = {w:W,h:H,valid:[0,0],bands:[{tex:{},inkRect:known?[8*dpr,3*dpr,15*dpr,10*dpr]:undefined}],
+      strip:{need:[Infinity],cam,paintBand(g,next,items,found,details,filter,box,painted){g.paint(painted);}}};
+    const state={gl,stats:{textUpload:0,acc:{text:0}},scene:{cache:{boxes:new Map()}}};
+    const mod = (v,n)=>(v%n+n)%n;
+    function pan(x,y) {
+      uploads.length=0;
+      const before=state.stats.textUpload;
+      const nx=x*dpr, ny=y*dpr;
+      assert.ok(sandbox.AtriumCanvasGPU.scrollText(I,state,board,new Map(),{layer:"Top"},T,-nx,-ny));
+      for (let j=0;j<H;j++) for(let k=0;k<W;k++)
+        assert.equal(texels[mod(ny+j,H)*W+mod(nx+k,W)],ink(nx+k,ny+j)?255:0,
+          `physical texture matches authored pixels at DPR ${dpr}, ${x}/${y}, pixel ${k}/${j}`);
+      assert.equal(state.stats.textUpload-before,uploads.reduce((n,[,,w,h])=>n+w*h*4,0));
+      return uploads.slice();
+    }
+    const empty = pan(4,0);
+    assert.deepEqual(empty,known?[]:[[0,0,4*dpr,H,false]],
+      "skip only where a known bound excludes old ink");
+    const clears = pan(12,0);
+    assert.deepEqual(clears,known?[[8*dpr,3*dpr,4*dpr,7*dpr,false]]:[[4*dpr,0,8*dpr,H,false]],
+      "a real clear covers the old wrapped ink, and clips to the known possible ink");
+    assert.ok(pan(9,0).some(a=>a[4]),"reverse direction restores ink outside the shortened bound");
+    assert.ok(pan(12,0).some(a=>!a[4]),"leaving that ink again still clears it");
+    for (const [x,y] of [[17,4],[14,-6],[-5,-11],[36,24],[0,0]]) pan(x,y);
+  }
+  console.log("GPU pan zero uploads preserve ink, cropped clears, diagonal wrap and re-entry at DPR 1 and 2");
 }
 
 {
@@ -1469,6 +2112,17 @@ console.log("Large sibling pads preserve earlier/later order, unbounded pads, an
     if (allocation) { state.checkMemory = true; memoryGPU.memory(input,state,board); }
     memoryGPU.queueDriverMemoryProbe(input,state,board);
   }
+
+  newState();
+  const coldBand = {}, freedBands = [];
+  gl.deleteTexture = tex => freedBands.push(tex);
+  state.text = {key:"empty",empty:true,w:360,h:260,bands:[{tex:coldBand}]};
+  state.checkMemory = true;
+  vmMemory.__atriumGpuCapMB = .5;
+  assert.ok(memoryGPU.memory(input,state,board),"a camera with no artwork gives up its warm texture before GPU fallback");
+  assert.deepEqual(freedBands,[coldBand]);
+  assert.equal(state.over,undefined);
+  delete vmMemory.__atriumGpuCapMB;
 
   newState();
   sync = false;
@@ -1619,8 +2273,11 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
       return c;
     }},
     draw(_I, _st, _doc, _defs, _opts, _cam, _scene, text) { drawn.push(text); },
-    scope:I => { work(I, I.scopeWork ?? .75); I.onScope?.(); return {viewport:[0,0,4,4],o2:{}}; },
-    textLayer(I, st, doc, defs, opts, cam, V, pours, T, [, y, , h]) {
+    scope(I, ...args) {
+      if (I.scopeWitness) return I.scopeWitness(I, ...args);
+      work(I, I.scopeWork ?? .75); I.onScope?.(); return {viewport:[0,0,4,4],o2:{}};
+    },
+    textLayer(I, st, doc, defs, opts, cam, V, pours, T, [, y, , h], timing) {
       if (!h) {
         T.key = "painted"; T.bands = [{tex:I.name}]; T.pixels = new Uint8Array(st.canvas.height);
         T.exact = new Set(["Top"]); T.pours = pours;
@@ -1628,8 +2285,11 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
       }
       else if (I.fail) throw new Error("raster failed");
       T.pixels.fill(1, y, y + h);
-      if (h) I.onRows?.(y,h);
-      work(I, h ? h * (I.workPerRow ?? .125) : .75);
+      if (h) { T.canvas = I.ctx.canvas; T.ctx = I.ctx; I.onRows?.(y,h); }
+      const rowMs = h * (I.workPerRow ?? .125);
+      st.stats.acc.board += rowMs / 2;
+      if (timing) { timing.upload += rowMs / 4; timing.readback += rowMs / 8; }
+      work(I, h ? rowMs : .75);
       return T;
     },
     pourCoverage:I => work(I, .75),
@@ -1638,9 +2298,9 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
   if (!posted) delete fixture.MessageChannel;
   const sliceVM = vm.createContext(fixture);
   vm.runInContext(gpuCode.replace("  return Object.freeze(" + sceneExport,
-    "  ({scope, textLayer, pourCoverage, copyCanvas, draw} = globalThis);\n" +
+    "  const realScope = scope; ({scope, textLayer, pourCoverage, copyCanvas, draw} = globalThis);\n" +
     "  const settleAfterMove = afterMove; place = memory = () => true; update = afterMove = queueDriverMemoryProbe = () => {};\n" +
-    "  return Object.freeze({render, damage, stats, views, textSlices, wideLayers, scheduleWide, wideFits, freeWide, releaseCanvas, covers, settleAfterMove,"), sliceVM);
+    "  return Object.freeze({render, damage, stats, views, textSlices, wideLayers, scheduleWide, wideFits, freeWide, releaseCanvas, covers, settleAfterMove, realScope,"), sliceVM);
   const slices = sliceVM.AtriumCanvasGPU;
   function viewForSlices(name, wide = false, height = 80) {
     const cam = [0, 0, 1, false, 200, height, 1], canvas = {width:200,height,isConnected:true}, deleted = [];
@@ -1651,7 +2311,7 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
       boardTransform() {}, paintTop() {}, drawBoard(ctx, parts) { ctx.canvas.ink = parts[0].id; this.onOverlay?.(); }};
     const st = {canvas, shown:true, strict:true, powerPreference:"low-power",
       scene:{rev:1,cache:{all:[{id:"selected",kind:"part"}]}}, commandEpoch:0, gl:{deleteTexture:tex => deleted.push(tex)},
-      stats:{acc:{n:0,gesture:0}, textSliceRows:0, wideSliceRows:0, textSliceWorkMs:0, wideSliceWorkMs:0}};
+      stats:{acc:{n:0,gesture:0,board:0}, textSliceRows:0, wideSliceRows:0, textSliceWorkMs:0, wideSliceWorkMs:0}};
     slices.views.set(I, st);
     const target = wide ? {getContext:() => ctx} : canvas;
     let completed;
@@ -1723,6 +2383,52 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     ["speculative dense",true,64,true]
   ]) assert.ok(heights(name,wide,count,culled).slice(2).some(h=>h>8),
     name+" keeps the normal growth policy");
+
+  if (hz === 60) {
+    const checkpoint=time, f=viewForSlices("exact viewport publication"), {I,st,cam}=f, defs=new Map(), pours=[];
+    const track={id:"route",kind:"track",x:0}, label={id:"legend",kind:"label",x:1}, far={id:"far",kind:"label",x:500};
+    let queries=0, revision=1, items=[track,label,far];
+    Object.assign(I.cache,{bounds:[-600,-50,600,50],all:items});
+    st.scene.cache=I.cache; st.scene.layers=new Map(); st.scene.maxPad=0;
+    I.scopeWitness=slices.realScope;
+    I.query=(_doc,_defs,box)=>{queries++;return items.filter(item=>box[0]<=item.x&&item.x<=box[2]);};
+    I.withCamera=(cx,cy,scale,run)=>{
+      const previous=cam.slice(0,3);cam.splice(0,3,cx,cy,scale);
+      try {return run();} finally {cam.splice(0,3,...previous);}
+    };
+    sliceVM.AtriumSpatial={};
+    const visible=opts=>slices.realScope(I,st,board,defs,opts||{},cam,pours);
+    const hidden={routePreview:{hidden:[track.id]}}, present=[];
+    const job=(opts,target,at=cam.slice())=>{
+      slices.textSlices(I,st,board,defs,opts,pours,target===I.canvas?"textJob":"wideText",at,target,
+        (_text,V)=>present.push(Array.from(V.all, i=>i.id)));
+    };
+    job(hidden,I.canvas); drain();
+    assert.deepEqual(present,[["legend"]],"sliced artwork filters its own preview items");
+    assert.deepEqual(Array.from(visible().all,i=>i.id),["route","legend"],"raw cache keeps items needed by the subsequent exact draw");
+    assert.equal(queries,1,"the exact draw reuses the ordered viewport built by the foreground slice");
+    job({}, {getContext:I.canvas.getContext}, [500,0,1,false,200,80,1]); drain();
+    assert.deepEqual(present.at(-1),["far"],"the speculative job still queries its own wide camera");
+    assert.equal(queries,2);
+    assert.deepEqual(visible(hidden).all.map(i=>i.id).join(","),"legend");
+    assert.equal(queries,2,"the wide job cannot evict the exact camera viewport");
+    items=[track,{...label,x:550},far];I.cache.rev=st.scene.rev=++revision;
+    assert.deepEqual(Array.from(visible().all,i=>i.id),["route"],"an edit changes the viewport membership");
+    items=[track,label,far];I.cache.rev=st.scene.rev=++revision;
+    assert.deepEqual(Array.from(visible().all,i=>i.id),["route","legend"],"Undo uses a fresh ordered query");
+    assert.equal(queries,4);
+    cam[0]=500;
+    job({},I.canvas);
+    while(!st.textJob.V)runNext();
+    cam[0]=0;drain();
+    assert.deepEqual(Array.from(visible().all,i=>i.id),["route","legend"],"cancelled exact slices cannot substitute a different viewport");
+    assert.equal(queries,6);
+    assert.equal(present.length,2,"cancelled results never publish");
+    assert.equal(tasks.size,0);
+    slices.views.delete(I);
+    delete sliceVM.AtriumSpatial;
+    time=checkpoint;
+  }
 
   // A new camera invalidates partial artwork, including its footprint on the GPU.
   exact.start(); runNext(); runNext();
@@ -1837,6 +2543,8 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     runNext(); runNext();
     assert.equal(waits(),3,"both setup and paint deliveries are measured");
     assert.equal(stage("stationary-text-rows").runP95,2,"row paint remains a separate sample");
+    assert.deepEqual(["stationary-band-paint","stationary-text-upload","stationary-text-readback"]
+      .map(name => stage(name)?.runP95),[1,.5,.25],"readback is nested in upload; band painting is separate");
     partial.cam[0]++;
     runNext();
     assert.equal(waits(),3,"a changed camera invalidates the pending measurement");
@@ -1875,54 +2583,79 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     assert.equal(waits(),0,"a later recording cannot claim an older post");
     runNext();
     assert.equal(waits(),1);
+    crossing.I.onRows = () => { detail.stop(); detail=diagnostics.startPerformance({rendererStages:true}); };
+    runNext();
+    for (const name of ["stationary-text-rows","stationary-band-paint","stationary-text-upload","stationary-text-readback"])
+      assert.equal(stage(name),undefined,"a recording started during a strip cannot claim its timing");
     slices.pause(crossing.I); detail.stop();
     messageDelay=.25;
     assert.equal(tasks.size,0);
     assert.equal(channels,0);
   }
-  for (const [ua,readback] of [["Chrome/158",false],["AppleWebKit/621",true]]) {
-    // Keep production copyCanvas/copyRows/restorePixels. Represent each opaque or
-    // transparent row with one value and emulate the corresponding Canvas draws.
-    const made = [];
+  for (const [ua,platform,readback,gtk] of [
+    ["Chrome/158","Linux aarch64",false,false],["AppleWebKit/621","MacIntel",true,false],
+    ["AppleWebKit/621 Android","Linux armv8",true,false],["AppleWebKit/621","Linux aarch64",true,true]
+  ]) {
+    // Keep the real overlay transfers. Each synthetic Canvas row has its own visible value.
+    const made = [], copied = [];
+    let denyFullContext = false, throwContext = false, loseContext = false, lastRaster;
+    let lang = "en", dir = "ltr", styledDir = "ltr";
+    const rasterBytes = 200 * 240 * 4;
     const canvasForRows = (w,h) => {
       let rows = new Uint8Array(h);
       const canvas = {
         isConnected:true,
-        ownerDocument:{createElement(){
-          const scratch=canvasForRows(300,150);made.push(scratch);return scratch;
-        }},
+        closest(selector){return selector==="[lang]"?{lang}:{dir};},
+        ownerDocument:{
+          defaultView:{getComputedStyle(){return {direction:styledDir};}},
+          createElement(){const scratch=canvasForRows(300,150);made.push(scratch);return scratch;}
+        },
         get width(){return w;},set width(n){w=n;rows.fill(0);},
         get height(){return h;},set height(n){h=n;rows=new Uint8Array(h);},
         get rows(){return rows;},
-        getContext(){return ctx;}
+        getContext(){
+          if (!made.includes(canvas) || h!==240) return ctx;
+          if (throwContext) throw Error("Unable to allocate the offscreen context");
+          return denyFullContext ? null : ctx;
+        }
       };
       const ctx = {canvas,save(){},restore(){},setTransform(){},beginPath(){},rect(){},clip(){},
+        isContextLost(){return loseContext && made.includes(canvas) && h===240;},
         drawImage(source,...args){
           const [sy,height,dy] = args.length===2 ? [0,source.height,0] : [args[1],args[3],args[5]];
+          copied.push([source,canvas,sy,height,dy]);
           rows.set(source.rows.subarray(sy,sy+height),dy);
         }};
       return canvas;
     };
-    const ctx = vm.createContext({...fixture,navigator:{userAgent:ua},
+    const ctx = vm.createContext({...fixture,navigator:{userAgent:ua,platform},
       AtriumPower:{visible:()=>!hidden},
       AtriumCanvas:{resizeBacking(c,w,h){if(c.width!==w)c.width=w;if(c.height!==h)c.height=h;}},
       pourCoverage(I){I.onCoverage?.();}
     });
     vm.runInContext(gpuCode.replace("  return Object.freeze("+sceneExport,
       "  ({scope, textLayer, pourCoverage} = globalThis); memory = queueDriverMemoryProbe = () => true;\n" +
-      "  return Object.freeze({render, damage, stats, views, textSlices, restorePixels,"),ctx);
+      "  return Object.freeze({render, damage, stats, views, textSlices, restorePixels, bytesOf,"),ctx);
     const api = ctx.AtriumCanvasGPU, canvas = canvasForRows(200,240), camera = [0,0,1,false,200,240,1];
     const overlay = Uint8Array.from(canvas.rows,(_,i)=>i%19 ? 0 : 207);
     let done = 0, repaints = 0;
-    const gl = {deleteTexture(){}}, st = {canvas,shown:true,scene:{rev:1},gl,commandEpoch:0,
-      stats:{textSliceRows:0,textSliceWorkMs:0}};
+    const zero={glCap:0,stride:0}, gl = {deleteTexture(){}};
+    const framebuffer = {width:240,height:300};
+    const st = {canvas:framebuffer,shown:true,scene:{rev:1,layers:new Map(),edge:zero,air:zero},parked:new Map(),
+      gl,commandEpoch:0,stats:{acc:{board:0},textSliceRows:0,textSliceWorkMs:0,pourBytes:0}};
     const I = {name:ua,canvas,ctx:canvas.getContext(),cache:{doc:board},cam:()=>camera,
       withCamera(x,y,s,fn){fn();},repaint(){repaints++;},onRows(y,h){
-        canvas.rows.fill(17,readback?y:0,readback?y+h:canvas.height);
+        lastRaster=I.ctx.canvas;
+        lastRaster.rows.fill(17,readback?y:0,readback?y+h:lastRaster.height);
+        assert.ok(lastRaster.rows.subarray(y,y+h).every(value=>value===17),"the raster keeps its source row coordinates");
+        st.textJob.T.w=canvas.width;st.textJob.T.h=canvas.height;
       }};
     I.sync = () => I.cache;
     api.views.set(I,st);
     const start = () => api.textSlices(I,st,board,new Map(),{},[],"textJob",camera,canvas,(T,V,foreground)=>{
+      assert.equal(T.canvas,canvas,"a published band uses the stable canvas for later drawing");
+      assert.equal(T.ctx,I.ctx);
+      assert.equal(api.bytesOf(st),0,"the released job cannot keep its surface in the app budget");
       if (st.exact) {
         assert.ok(foreground);
         assert.deepEqual(foreground.rows,overlay,"the final coverage stage preserves the full live overlay");
@@ -1939,8 +2672,19 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     canvas.rows.set(overlay);
     start();firstRows();
     let scratch=made.at(-1);
-    assert.deepEqual(size(scratch),[200,readback?150:240],ua+" allocates the production scratch size");
+    assert.equal(lastRaster===canvas,!gtk,platform+" chooses the expected foreground surface");
+    assert.deepEqual(size(scratch),[200,gtk||!readback?240:150],platform+" owns one working backing");
+    if (gtk) assert.deepEqual([scratch.lang,scratch.dir],["en","ltr"],"the allowed detached scene keeps English LTR shaping");
+    assert.equal(copied.length,gtk?0:2,platform+" only snapshots and restores the attached raster");
+    assert.equal(api.bytesOf(st),rasterBytes*(gtk?2:1),"live WebGL texture and new raster both count");
     identical();
+    if (gtk) {
+      canvas.rows[33]=89;
+      runNext();
+      assert.equal(canvas.rows[33],89,"interleaved live tool pixels survive the next detached stripe");
+      assert.equal(copied.length,0);
+      canvas.rows[33]=overlay[33];
+    }
     api.pause(I);
     released(scratch);
     assert.equal(tasks.size,0);
@@ -2002,6 +2746,107 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     released(made.at(-1));
     assert.equal(done,3,"ordinary coverage publishes and releases the overlay snapshot");
     identical();
+
+    if (gtk) {
+      st.exact=null;
+      st.driverOutOfMemory=false;
+      I.onRows=(y,h)=>{rows(y,h);st.driverOutOfMemory=true;};
+      start();firstRows();
+      released(made.at(-1));
+      assert.equal(tasks.size,0);
+      assert.equal(done,3,"a driver failure never publishes the half-painted texture");
+      st.driverOutOfMemory=false;
+      I.onRows=rows;
+      identical();
+
+      ctx.__atriumGpuCapMB=(framebuffer.width * framebuffer.height * 4 + rasterBytes) / 1048576;
+      start();firstRows();
+      assert.notEqual(lastRaster,canvas,"one large framebuffer and one view-size raster fit their combined budget");
+      api.pause(I);
+      identical();
+
+      ctx.__atriumGpuCapMB=.25;
+      start();firstRows();
+      assert.equal(lastRaster,canvas,"insufficient headroom uses the already-admitted attached path");
+      api.pause(I);
+      delete ctx.__atriumGpuCapMB;
+      identical();
+
+      denyFullContext=true;
+      start();firstRows();
+      assert.equal(lastRaster,canvas,"a failed scratch context retries the same row on the attached path");
+      released(made.at(-2));
+      api.pause(I);
+      denyFullContext=false;
+      identical();
+
+      throwContext=true;
+      start();firstRows();
+      assert.equal(lastRaster,canvas,"a throwing scratch allocation retries the same row on the attached path");
+      released(made.at(-2));
+      api.pause(I);
+      throwContext=false;
+      identical();
+
+      for (const [locale,direction,style] of [["ar","rtl","rtl"],["ja","ltr","ltr"],
+        ["en","auto","ltr"],["en","ltr","rtl"]]) {
+        [lang,dir,styledDir]=[locale,direction,style];
+        start();firstRows();
+        assert.equal(lastRaster,canvas,"unsupported locale or computed direction stays attached");
+        api.pause(I);
+        identical();
+      }
+      [lang,dir,styledDir]=["en","ltr","ltr"];
+      start();firstRows();
+      assert.notEqual(lastRaster,canvas,"restored English LTR enables the same detached painter");
+      scratch=made.at(-1);
+      styledDir="rtl";
+      runNext();
+      released(scratch);
+      assert.equal(tasks.size,0,"an ancestor's direction change drops the old partial texture");
+      assert.equal(done,3);
+      identical();
+      styledDir="ltr";
+
+      start();firstRows();scratch=made.at(-1);
+      const beforeLoss=repaints;
+      I.onRows=(y,h)=>{rows(y,h);loseContext=true;};
+      runNext();
+      assert.equal(repaints,beforeLoss+1,"a lost 2D raster asks the standard attached paint to recover");
+      assert.equal(tasks.size,0);
+      assert.equal(done,3,"a lost 2D raster cannot publish a partially cleared band");
+      released(scratch);
+      identical();
+      loseContext=false;
+      I.onRows=rows;
+      start();firstRows();
+      assert.equal(lastRaster,canvas,"a view with an independent 2D loss does not retry the detached context");
+      api.pause(I);
+      identical();
+    }
+
+    // The ordinary attached coverage job may fail after queuing a successor.
+    // No newer paint runs inline. The successor owns the only future task.
+    st.exact={};
+    let successor;
+    const beginDone=done, beginRepaints=repaints;
+    I.onCoverage=()=>{
+      I.ctx.canvas.rows.fill(213);
+      I.onCoverage=null;
+      start();
+      successor=st.textJob;
+      throw Error("old coverage failed after another job was queued");
+    };
+    start();
+    while(!successor)runNext();
+    identical();
+    assert.equal(st.textJob,successor,"failure in the old job must not cancel a queued successor");
+    assert.equal(tasks.size,1);
+    assert.equal(done,beginDone,"the stale job cannot publish");
+    assert.equal(repaints,beginRepaints,"an older renderer failure must not schedule another paint");
+    drain();
+    assert.equal(done,beginDone+1,"the pending successor owns publication");
+    identical();
   }
   console.log("Foreground slice scratch restores Chromium and WebKit overlay rows and releases on cancel, failure and publication");
   // Drive the LOD publisher through the editor's draw/settle route. The prior
@@ -2022,14 +2867,14 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     assert.ok(a >= 0 && b > a);
     return editor.slice(a, b);
   };
-  const hostForInterrupt = vm.runInContext(`({pane, clock})=>{
-    const panes=[pane], activePane=pane, viewportVisible=true, homeFit=false, in3D=()=>false;
+  const hostForInterrupt = vm.runInContext(`({pane, clock, inactive})=>{
+    const panes=[pane], activePane=inactive?{}:pane, viewportVisible=true, homeFit=false, in3D=()=>false;
     let frame=0, activeDirty=false, pointerOnly=false;
     function schedule(){if(!frame)frame=clock(()=>{frame=0;activeDirty=false;});}
     ${sourceRange("  function paneRepaint(", "  view.onRepaint")}
     ${sourceRange("  function draw(){activeDirty=true;", "  function redraw(")}
     ${sourceRange("  function cameraFrame(", "  // Preserve first-contact")}
-    return {cameraFrame, repaint:moving=>paneRepaint(pane,moving)};
+    return {cameraFrame, cameraEnd:typeof cameraEnd==="function"?cameraEnd:undefined, repaint:moving=>paneRepaint(pane,moving)};
   }`,sliceVM);
   const canvasStub = sliceVM.AtriumCanvas;
   sliceVM.Atrium = Atrium;
@@ -2060,6 +2905,75 @@ for (const [hz, posted] of [[60,false],[120,false],[60,true],[120,true]]) {
     assert.equal(paints,1,kind+" still receives one editor paint");
   }
   console.log("Stale posted text rows preserve queued editor motion and standalone camera recovery");
+
+  for (const kind of ["queued motion", "queued artwork", "displayed motion", "inactive", "covered"]) {
+    const job=viewForSlices("finish editor "+kind), paints=[];
+    job.I.canvas.getBoundingClientRect=()=>({width:200,height:80});
+    const view=createView(job.I.canvas), pane={view,version:0};
+    const current = sliceVM.AtriumCanvasGPU;
+    sliceVM.AtriumCanvasGPU = {
+      render:(_I,_doc,_defs,_opts,gesture)=>{paints.push(gesture);return true;},
+      finishMove:slices.finishMove
+    };
+    const internals=view.internals();
+    slices.views.set(internals,job.st);
+    const host=hostForInterrupt({pane,inactive:kind==="inactive",clock:run=>task(()=>{
+      run();
+      view.render({...board,items:[]},new Map(),{reuseBase:true});
+    },time+period,"display")});
+    view.onRepaint(host.repaint);
+    try {
+      if(kind==="queued motion" || kind==="inactive" || kind==="covered")host.cameraFrame(pane,false,false);
+      if(kind==="queued artwork")host.repaint(false);
+      if(kind==="displayed motion")slices.settleAfterMove(internals,job.st,board,new Map(),{},[],false,true);
+      if(kind==="covered")pane.covered=true;
+      host.cameraEnd?.(pane);
+      host.cameraEnd?.(pane);
+      assert.equal(tasks.size,1,"the physical end still uses exactly one pending frame");
+      assert.equal(tasks.values().next().value.kind,"display","completion does not leave a timer behind");
+      drain();
+      assert.deepEqual(paints,[kind==="queued motion"||kind==="inactive"?"wheel-end":kind==="covered"?true:false],
+        "only a real queued gesture is upgraded; an already displayed gesture needs a settling repaint");
+    } finally {
+      slices.views.delete(internals);
+      slices.views.delete(job.I);
+      sliceVM.AtriumCanvasGPU=current;
+    }
+  }
+  for (const kind of ["signal", "ordinary", "covered", "paused", "hidden"]) {
+    const {I,st,cam}=viewForSlices("motion finish "+kind), start=time, defs=new Map();
+    st.text={bands:[]};
+    slices.settleAfterMove(I,st,board,defs,{},[],false,true);
+    assert.equal(tasks.size,1);
+    if (kind==="covered") I.canvas.inert=true;
+    if (kind==="paused") I.canvas.isConnected=false;
+    if (kind==="hidden") hidden=true;
+    if (kind!=="ordinary") slices.finishMove?.(I);
+    if (kind==="signal") {
+      assert.equal(I.repaints,1,"explicit end requests the existing settling paint without the 140 ms retry");
+      assert.equal(time,start);
+      assert.equal(tasks.size,0,"completion replaces rather than duplicates the outstanding retry");
+      assert.equal(st.settling,true);
+      slices.settleAfterMove(I,st,board,defs,{},[],true,false);
+      assert.ok(st.textJob,"the next paint prepares the final camera");
+      slices.finishMove?.(I); // A delayed duplicate arrives while exact rows are pending.
+      runNext(); runNext(); runNext();
+      assert.ok(st.stats.textSliceRows>0);
+      cam[0]++;
+      runNext(); drain();
+      assert.equal(st.text.bands.length,0,"interruption cannot publish abandoned rows");
+    } else {
+      assert.equal(I.repaints,undefined,kind+" waits for normal idle behavior");
+      hidden=false;
+      runNext();
+      assert.equal(time-start,140);
+      assert.equal(I.repaints,1);
+    }
+    slices.finishMove?.(I);
+    assert.equal(tasks.size,0,"a late completion creates no callback");
+    slices.views.delete(I);
+  }
+
   sliceVM.TextDecoder = TextDecoder;
   sliceVM.atob = atob;
   sliceVM.btoa = btoa;
@@ -2268,7 +3182,8 @@ function renderStageAttribution() {
   const viewport = {viewport:[-5,-5,5,5], o2:{}};
   const leaf = {
     place: work(0), update: work(0), memory: work(3), covers: () => !failedStrip || sameScaleCopy,
-    scrollText: work(2), scrollOverlay: () => { elapsed += 3; return !failedStrip; },
+    scrollText(_I,st) { elapsed+=2; st.stats.textUpload+=64; return true; },
+    scrollOverlay: () => { elapsed += 3; return !failedStrip; },
     draw: work(5), moveOverlay: work(17), afterMove: work(23),
     scope(I) { elapsed += 7; return I.stageViewport || viewport; },
     textLayer(_I, st) { elapsed += 11; st.stats.acc.board += 9; return null; },
@@ -2335,7 +3250,7 @@ function renderStageAttribution() {
         getParameter() { driverReads++; return null; },
         getError() { driverReads++; return 0; }
       },
-      stats:{acc:{n:0,gesture:0,update:0,gl:0,overlay:0,board:0}, last:prior,pourBytes:0,coverageUpload:0}
+      stats:{acc:{n:0,gesture:0,update:0,gl:0,overlay:0,board:0}, last:prior,pourBytes:0,coverageUpload:0,textUpload:4096}
     };
     if (realText) {
       const pad = {...F4.pad, id:"caption",kind:"pad",layer:"Top",net:"CAPTION",x:0,y:0,w:60,h:30,drill:0};
@@ -2350,6 +3265,8 @@ function renderStageAttribution() {
       renderer.L(st.scene,"Top");
       st.text = {};
     }
+    const broad = kind === "zoom" || rejectStrip ? {width:200,height:80} : null;
+    if (broad) st.stripLarge = broad;
     renderer.views.set(I, st);
     const cancelled = [];
     if (speculative) {
@@ -2370,8 +3287,13 @@ function renderStageAttribution() {
       assert.deepEqual(cancelled, ["timer","rows","partial"], kind + " cancels unfinished wide work before another refresh");
       assert.equal(st.wide, completeWide, "camera motion preserves the completed wide artwork");
     }
+    if (broad) assert.deepEqual([st.stripLarge,broad.width,broad.height],[null,1,1],
+      "zoom and abandoned pan release the broad scratch");
     const afterRender = clockReads;
     assert.equal(driverReads, driverBefore);
+    if(kind==="zoom" || kind==="pan" || kind==="copy")
+      assert.equal(renderer.resourceCounters(I).textUpload,kind==="zoom"?0:64,
+        "each frame reports its own transfers, including a strip abandoned before the final draw");
     assert.equal(st.stats.acc.gesture, kind === "full" || kind === "slice" || rejectStrip ? 0 : 1);
     if (st.stats.acc.gesture) assert.equal(st.stats.last, prior, "legacy last remains the last full draw");
     renderer.views.delete(I);
@@ -2432,6 +3354,84 @@ function renderStageAttribution() {
 }
 renderStageAttribution();
 
+{
+  // Keep the real render decision, overlay order and idle/end lifecycle. The
+  // fixture starts with no retained viewport or text and a nonempty wire graph.
+  const order = [], timers = new Map(), listeners = new Map(), defs = new Map(), frame = {pours:[]};
+  const result = {airwires:[{from:[0,0],to:[3,4],net:"signal"}]};
+  const opts = {editorPane:true, layer:"Silk", showUnrouted:true, highlight:"signal", netColors:new Map([["signal","#ffaa11"]])};
+  let next = 0, lookups = 0, repaints = 0;
+  const leaf = {
+    // Exercise the full repaint when neither the prior nor wider raster can be used.
+    place:() => true, update() {}, memory:() => true, wideNowFits:() => false,
+    scope:() => ({top:true, active:"Silk", o2:opts, items:[], viewport:[-10,-10,10,10]}),
+    textLayer:() => null, pourCoverage:() => null, scheduleWide() {}, queueDriverMemoryProbe() {},
+    copyCanvas:() => ({width:200,height:80}),
+    draw(I, st, doc, defs, options, cam, c, text, pours, coverage, wires, moving = wires === undefined) {
+      assert.equal(options.netColors,opts.netColors);
+      assert.equal(options.highlight,opts.highlight);
+      assert.equal(wires,result,"the painter gets the already-resolved graph");
+      order.push(moving ? "gpu wires" : "geometry");
+    }
+  };
+  const context = vm.createContext({AtriumPCBAppearance, leaf,
+    AtriumCanvasGPUPref:{decision:() => ({use:true})},
+    setTimeout(run, delay) { timers.set(++next,{run,delay}); return next; },
+    clearTimeout(id) { timers.delete(id); }
+  });
+  let code = gpuCode.replace(sceneExport,"{render, damage, stats, views, listen,");
+  for (const name of Object.keys(leaf)) {
+    const declaration = new RegExp("(function " + name + "\\([^\\n]*\\) \\{)");
+    assert.match(code,declaration);
+    code = code.replace(declaration,"$1 return G.leaf." + name + "(...arguments);");
+  }
+  vm.runInContext(code,context);
+  const R = context.AtriumCanvasGPU, doc = {...board}, cache = {doc,rev:1}, cam = [0,0,1,false,200,80,1];
+  const I = {canvas:{width:200,height:80,isConnected:true,style:{}},cache,cam:() => cam,sync:() => cache,
+    ctx:{setTransform() {},clearRect() {}}, boardTransform() {},
+    drawBoard() { order.push("world"); }, paintTop() { order.push("tools"); },
+    artworkViewport:() => [-10,-10,10,10], airwireConnectivity() { lookups++; return result; },
+    drawAirwires(doc,defs,view,highlight,substrate,colors) {
+      assert.equal(highlight,opts.highlight); assert.equal(colors,opts.netColors);
+      order.push("exact wires");
+    },
+    repaint() { repaints++; if (!st.lost) render(false); }
+  };
+  const st = {strict:true, powerPreference:"low-power", shown:true, losses:0, text:{key:null},
+    canvas:{style:{},addEventListener(name,run) { listeners.set(name,run); }},
+    scene:{cache}, gl:{isContextLost:() => st.lost}, stats:{acc:{n:0,gesture:0,board:0,update:0,gl:0,overlay:0}}};
+  R.views.set(I,st); R.listen(I,st);
+  function render(gesture, options = opts) { assert.equal(R.render(I,doc,defs,options,gesture,frame),true); }
+  function moving() {
+    cam[2] /= 5; // outside the retained zoom ratio when a previous viewport exists
+    const before = lookups; order.length = 0;
+    render(true);
+    assert.deepEqual(order,["gpu wires","world","tools"],"moving full redraw draws the GPU wires below the world overlay");
+    assert.equal(lookups,before+1);
+    assert.equal(R.resourceCounters(I).exactCamera,false,"a wire preview is not the exact stationary frame");
+    assert.deepEqual([...timers.values()].map(item=>item.delay),[140],"the empty text layer still gets one settle timer");
+  }
+  function exact() {
+    assert.deepEqual(order,["geometry","world","exact wires","tools"],"exact wire art returns between world and tools");
+    assert.equal(R.resourceCounters(I).exactCamera,true);
+    assert.equal(timers.size,0);
+  }
+  moving();
+  const [id,timer] = timers.entries().next().value;
+  order.length = 0; timers.delete(id); timer.run(); exact();
+  assert.equal(repaints,1,"idle repaints once");
+  moving(); order.length = 0; render("wheel-end"); exact();
+  assert.equal(repaints,1,"a known end paints its current pose without a second repaint");
+  moving(); order.length = 0; R.finishMove(I); exact();
+  assert.equal(repaints,2,"an explicit stop replaces the pending idle repaint");
+  moving(); order.length = 0; render(false,{...opts,noReuse:true}); exact();
+  moving(); R.pause(I); assert.equal(timers.size,0,"covering the pane cancels deferred exact work");
+  moving(); listeners.get("webglcontextlost")({preventDefault() {}});
+  assert.equal(timers.size,0,"context loss cancels deferred exact work");
+  assert.equal(st.exact,null,"a lost context cannot retain its preview camera");
+  console.log("Moving full GPU frames settle exact wire order once, including empty text and cancellation");
+}
+
 async function frameCounterBurst() {
   const {measureZoomSettle} = require("../support/browser-zoom-probe.cjs");
   let driverReads = 0, legacyReads = 0;
@@ -2469,3 +3469,81 @@ async function frameCounterBurst() {
 }
 const done = globalThis.__testDone = frameCounterBurst();
 done.catch(error => { console.error(error); process.exitCode = 1; });
+
+{
+  // A cold board owner need not decode unrelated copper to report the
+  // invalidation. Drive the real resolver with the committed Undo journal.
+  require("../support/3d-geometry.cjs");
+  require("../../app/history/undo-store.js");
+  const A = Atrium, R = AtriumResolvedGeometry, U = AtriumUndoStore, P = AtriumPCBPours;
+  const project = A.project("Stored copper damage");
+  const doc = project.documents.find(d => d.kind === "pcb");
+  doc.outline = [[0,0],[100,0],[100,100],[0,100]];
+  const trace = {id:"trace",kind:"track",layer:"Top",width:.2,points:[[8,8],[12,8]]};
+  doc.items.push(trace);
+  const circle = (x,y,r,degrees) => degrees.map(d => [
+    x+r*Math.cos(d*Math.PI/180), y-r*Math.sin(d*Math.PI/180)
+  ]);
+  const linear = P.region([circle(60,60,5,Array.from({length:4096},(_,n)=>n*360/4096))],"Bottom","B");
+  // The arc reaches 90° between stored samples. Stored bounds alone cannot
+  // cover its exact damage. An undersized linear hint must not clip it either.
+  const curved = P.region([[...circle(20,20,5,[15,55,122]),[17,22]]],"Top","T",{arcs:[0,0,2,20,20]});
+  linear.bounds = [58,58,62,62];
+  assert.ok(curved.bounds[1] > 15);
+  doc.pcbDrawing = {annotations:{},pours:[linear,curved]};
+  P.storeSignature(doc,new Map(),project);
+  const history = [], future = [];
+  const oldContour = P.contourEdges, decoded = [];
+  const getView = () => R.readEditor(project,doc);
+  const boardKey = {kind:"board",documentId:doc.id,instancePath:[]};
+  const edit = fn => {
+    const mark=U.mark(project);
+    U.duringEdit(fn);
+    U.checkpoint(history,future,mark,"Edit track");
+    U.record(project,{doc,items:[trace]});
+  };
+  function checkDamage(view,since) {
+    const change=view.changes(since);
+    assert.equal(change.kind,"incremental");
+    assert.deepEqual(change.owners.map(owner=>owner.kind).sort(),["board","item"]);
+    assert.deepEqual(change.layers,["Top","Bottom"],"only the edited copper layers are dirty");
+    assert.ok(change.bounds.some(box=>box.every((v,i)=>v===[55,55,65,65][i])),
+      "linear damage comes from actual ring coordinates");
+    assert.ok(change.bounds.some(box=>Math.abs(box[1]-15)<1e-8),"arc damage includes the true minimum between samples");
+    assert.deepEqual(decoded,["T"],"only the stored arc requires contour expansion");
+    decoded.length=0;
+  }
+  try {
+    U.reset(project);
+    U.record(project);
+    P.contourEdges=(p,...args)=>{decoded.push(p.net);return oldContour(p,...args);};
+    const original=getView().revision;
+    edit(()=>{trace.reviewNote="Does not enter the copper signature";});
+    const untouched=getView(), clean=untouched.revision;
+    const change=untouched.changes(original);
+    assert.deepEqual(change.layers,["Top"],"the unaffected board profile and copper get no damage");
+    assert.deepEqual(decoded,[],"an unchanged copper snapshot never expands its contours");
+
+    edit(()=>{trace.width=.6;});
+    const stale=getView(), staleToken=stale.revision;
+    checkDamage(stale,clean);
+    assert.equal(stale.owner(boardKey).features.filter(f=>f.key.role==="pour").length,0,
+      "stale copper disappears from the committed material");
+
+    U.jump(history,future,U.mark(project),-1);
+    const restored=getView();
+    checkDamage(restored,staleToken);
+    assert.equal(restored.owner(boardKey).features.filter(f=>f.key.role==="pour").length,2,
+      "Undo restores both stored pours");
+    decoded.length=0;
+    const restoredToken=restored.revision;
+    U.jump(history,future,U.mark(project),1);
+    const redo=getView();
+    checkDamage(redo,restoredToken);
+    assert.equal(redo.owner(boardKey).features.filter(f=>f.key.role==="pour").length,0);
+  } finally {
+    P.contourEdges=oldContour;
+    U.reset();
+  }
+}
+console.log("Retained board damage skips equal copper and exactly removes or restores archived linear and curved rings");

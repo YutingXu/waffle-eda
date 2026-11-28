@@ -55,10 +55,11 @@ globalThis.AtriumPolygonPour=(()=>{
   const SETTINGS=Object.keys(DEFAULTS);
   const STYLES=["relief","direct","none","auto"],FIXED=["relief","direct","none"];
   const outlineOf=p=>Array.isArray(p?.points)?p.points:Array.isArray(p?.outline)?p.outline:[];
+  const pourIndexOf=p=>finite(+p.pourIndex)?+p.pourIndex:finite(+p.priority)?+p.priority:0;
   function settings(p){
     const s={id:p.id,kind:"polygon"};
     for(const k of SETTINGS)s[k]=p[k]??DEFAULTS[k];
-    s.pourIndex=finite(+p.pourIndex)?+p.pourIndex:finite(+p.priority)?+p.priority:0;
+    s.pourIndex=pourIndexOf(p);
     s.net=typeof s.net==="string"?s.net:"";
     s.connectStyle=STYLES.includes(s.connectStyle)?s.connectStyle:"relief";
     s.viaConnectStyle=STYLES.includes(s.viaConnectStyle)?s.viaConnectStyle:"direct";
@@ -142,22 +143,26 @@ globalThis.AtriumPolygonPour=(()=>{
     // input: [{cls, ring:int[], sign, tags?}]; tags[i] labels edge i (vertex i
     // to i+1) with the true arc it approximates, or -1.
     function edgeList(input){
-      const E={X1:[],Y1:[],X2:[],Y2:[],C:[],S:[],T:[]};
+      let capacity=0;
+      for(const {ring} of input)if(ring.length>=6)capacity+=ring.length>>1;
+      const writer=edgeWriter(capacity);
       for(const {cls,ring,sign,tags} of input){
         const n=ring.length>>1;if(n<3)continue;
         for(let i=0;i<n;i++){
           const j=i+1===n?0:i+1,ax=ring[2*i],ay=ring[2*i+1],bx=ring[2*j],by=ring[2*j+1];
           if(ax===bx&&ay===by)continue;
-          E.X1.push(ax);E.Y1.push(ay);E.X2.push(bx);E.Y2.push(by);E.C.push(cls);E.S.push(sign);E.T.push(tags?tags[i]:-1);
+          writer.add(ax,ay,bx,by,cls,sign,tags?tags[i]:-1);
         }
       }
-      return E;
+      return writer.edges();
     }
     // Uniform-grid candidate search. Each edge registers in the cells its
     // supercover crosses; only pairs with at least one changed edge are tested.
-    function intersections(E,dirty){
-      const {X1,Y1,X2,Y2}=E,n=X1.length,found={edge:[],x:[],y:[]};
-      if(n<2)return found;
+    // With a sink, stream hits in the original traversal order. A caller
+    // checking planarity needs only the first hit.
+    function intersections(E,dirty,hit){
+      const {X1,Y1,X2,Y2}=E,n=X1.length;
+      if(n<2)return false;
       let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
       for(let i=0;i<n;i++){
         const a=X1[i],b=X2[i],c=Y1[i],d=Y2[i];
@@ -166,18 +171,18 @@ globalThis.AtriumPolygonPour=(()=>{
       }
       const W=maxX-minX+1,H=maxY-minY+1,lo=Math.max(W/2048,H/2048);
       let cs=Math.max(1,Math.sqrt(W*H/n)*1.5);cs=Math.max(cs,W/2048,H/2048);
-      let cols,rows,cells,cellCount,edgeStart;
+      let cols,rows,cells,cellCount;
       function visit(i,fn){
         const x1=X1[i],y1=Y1[i],x2=X2[i],y2=Y2[i];
         const lx=x1<x2?x1:x2,hx=x1<x2?x2:x1,ly=y1<y2?y1:y2,hy=y1<y2?y2:y1;
         const c0=Math.floor((lx-minX)/cs),c1=Math.floor((hx-minX)/cs),r0=Math.floor((ly-minY)/cs),r1=Math.floor((hy-minY)/cs);
-        if(c0===c1||r0===r1){for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++)fn(r*cols+c);return;}
+        if(c0===c1||r0===r1){for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++)if(fn(r*cols+c))return true;return;}
         const slope=(y2-y1)/(x2-x1);
         for(let c=c0;c<=c1;c++){
           const xa=Math.max(lx,minX+c*cs),xb=Math.min(hx,minX+(c+1)*cs);
           const ya=y1+(xa-x1)*slope,yb=y1+(xb-x1)*slope;
           const ra=Math.max(r0,Math.floor(((ya<yb?ya:yb)-1-minY)/cs)),rb=Math.min(r1,Math.floor(((ya<yb?yb:ya)+1-minY)/cs));
-          for(let r=ra;r<=rb;r++)fn(r*cols+c);
+          for(let r=ra;r<=rb;r++)if(fn(r*cols+c))return true;
         }
       }
       // The candidate loop costs about the sum over cells of their item count squared. Where
@@ -187,15 +192,15 @@ globalThis.AtriumPolygonPour=(()=>{
       let work=0;
       for(;;){
         cols=Math.floor(W/cs)+1;rows=Math.floor(H/cs)+1;cells=cols*rows;
-        cellCount=new Int32Array(cells+1);edgeStart=new Int32Array(n+1);
-        for(let i=0;i<n;i++){let k=0;visit(i,c=>{cellCount[c+1]++;k++;});edgeStart[i+1]=edgeStart[i]+k;}
+        cellCount=new Int32Array(cells+1);
+        for(let i=0;i<n;i++)visit(i,c=>{cellCount[c+1]++;});
         work=0;for(let c=1;c<=cells;c++)work+=cellCount[c]*cellCount[c];
         if(work<=48*n+1048576||cs<=lo)break;
         cs=Math.max(lo,cs/4);
       }
       for(let c=0;c<cells;c++)cellCount[c+1]+=cellCount[c];
-      const cellItems=new Int32Array(cellCount[cells]),fill=cellCount.slice(0,cells),edgeCells=new Int32Array(edgeStart[n]);
-      for(let i=0;i<n;i++){let k=edgeStart[i];visit(i,c=>{cellItems[fill[c]++]=i;edgeCells[k++]=c;});}
+      const cellItems=new Int32Array(cellCount[cells]),fill=cellCount.slice(0,cells);
+      for(let i=0;i<n;i++)visit(i,c=>{cellItems[fill[c]++]=i;});
       // Sub-grids: a cell of m > 256 items gets ceil(sqrt(m/4)) (at most 256) cells a side; an edge
       // visits the sub-cells its part in the cell crosses (clamped: a superset), as above.
       const subOf=new Int32Array(work>48*n+1048576?cells:0).fill(-1),subs=[];
@@ -223,7 +228,8 @@ globalThis.AtriumPolygonPour=(()=>{
         subOf[cell]=subs.length;subs.push(g);
       }
       const mark=new Int32Array(n).fill(-1);
-      const add=(e,x,y)=>{found.edge.push(e);found.x.push(x);found.y.push(y);};
+      let found=false;
+      const add=(e,x,y)=>{found=true;if(hit)hit(e,x,y);return !hit;};
       for(let i=0;i<n;i++){
         if(!dirty[i])continue;
         const ax=X1[i],ay=Y1[i],bx=X2[i],by=Y2[i];
@@ -239,18 +245,23 @@ globalThis.AtriumPolygonPour=(()=>{
             if((d3>0&&d4>0)||(d3<0&&d4<0))return;
             if(d1!==0&&d2!==0&&d3!==0&&d4!==0){
               const t=d3/(d3-d4),px=Math.round(ax+t*(bx-ax)),py=Math.round(ay+t*(by-ay));
-              add(i,px,py);add(j,px,py);return;
+              if(add(i,px,py))return true;
+              add(j,px,py);return false;
             }
-            if(d1===0&&strictlyOn(ax,ay,bx,by,cx,cy))add(i,cx,cy);
-            if(d2===0&&strictlyOn(ax,ay,bx,by,dx,dy))add(i,dx,dy);
-            if(d3===0&&strictlyOn(cx,cy,dx,dy,ax,ay))add(j,ax,ay);
-            if(d4===0&&strictlyOn(cx,cy,dx,dy,bx,by))add(j,bx,by);
+            return (d1===0&&strictlyOn(ax,ay,bx,by,cx,cy)&&add(i,cx,cy))||
+              (d2===0&&strictlyOn(ax,ay,bx,by,dx,dy)&&add(i,dx,dy))||
+              (d3===0&&strictlyOn(cx,cy,dx,dy,ax,ay)&&add(j,ax,ay))||
+              (d4===0&&strictlyOn(cx,cy,dx,dy,bx,by)&&add(j,bx,by));
         };
-        for(let k=edgeStart[i];k<edgeStart[i+1];k++){
-          const cell=edgeCells[k],sb=subs.length?subOf[cell]:-1;
-          if(sb<0)for(let q=cellCount[cell];q<cellCount[cell+1];q++)test(cellItems[q]);
-          else{const g=subs[sb];visitSub(i,g,c=>{for(let q=g.start[c];q<g.start[c+1];q++)test(g.items[q]);});}
-        }
+        if(visit(i,cell=>{
+          const sb=subs.length?subOf[cell]:-1;
+          if(sb<0){for(let q=cellCount[cell];q<cellCount[cell+1];q++)if(test(cellItems[q]))return true;}
+          else{
+            const g=subs[sb];let stop=false;
+            visitSub(i,g,c=>{for(let q=g.start[c];!stop&&q<g.start[c+1];q++)stop=test(g.items[q]);});
+            if(stop)return true;
+          }
+        }))return true;
       }
       return found;
     }
@@ -261,36 +272,72 @@ globalThis.AtriumPolygonPour=(()=>{
     // by more than a grid unit or never settle (near-parallel edges), so the
     // input edges are snap rounded instead (snapRound).
     function planarize(E,stats){
-      const E0=E;let dirty=new Uint8Array(E.X1.length).fill(1);
-      for(let pass=0;pass<2;pass++){
-        const found=intersections(E,dirty);
-        stats.passes=pass+1;
-        if(!found.edge.length)return E;
-        if(pass)return snapRound(E0,stats);
-        const at=new Map();
-        for(let k=0;k<found.edge.length;k++){
-          const e=found.edge[k];let list=at.get(e);if(!list)at.set(e,list=[]);list.push(found.x[k],found.y[k]);
-        }
-        const R={X1:[],Y1:[],X2:[],Y2:[],C:[],S:[],T:[]},nd=[];
-        const push=(ax,ay,bx,by,c,s,g,d)=>{R.X1.push(ax);R.Y1.push(ay);R.X2.push(bx);R.Y2.push(by);R.C.push(c);R.S.push(s);R.T.push(g);nd.push(d);};
-        for(let i=0;i<E.X1.length;i++){
-          const ax=E.X1[i],ay=E.Y1[i],bx=E.X2[i],by=E.Y2[i],c=E.C[i],s=E.S[i],g=E.T[i],list=at.get(i);
-          if(!list){push(ax,ay,bx,by,c,s,g,0);continue;}
-          const vx=bx-ax,vy=by-ay,len=vx*vx+vy*vy,pts=[];
-          for(let k=0;k<list.length;k+=2){
-            const t=(list[k]-ax)*vx+(list[k+1]-ay)*vy;
-            if(t>0&&t<len)pts.push([t,list[k],list[k+1]]);
+      return splitAtIntersections(E,stats)||snapRound(E,stats);
+    }
+    // Core inputs use signed integer grid coordinates and integer arc tags.
+    // Keep winding signs as Numbers. The snap round may need room for more
+    // hot pixels than the original intersection incidence count.
+    function edgeWriter(capacity){
+      const rows={X1:new Int32Array(capacity),Y1:new Int32Array(capacity),
+        X2:new Int32Array(capacity),Y2:new Int32Array(capacity),C:new Int32Array(capacity),
+        S:new Float64Array(capacity),T:new Int32Array(capacity)};
+      let n=0;
+      return {
+        add(ax,ay,bx,by,c,s,g){
+          if(n===rows.X1.length){
+            for(const key in rows){
+              const old=rows[key],next=new old.constructor(Math.max(8,Math.ceil(n*1.5)));
+              next.set(old);rows[key]=next;
+            }
           }
-          pts.sort((p,q)=>p[0]-q[0]);
-          let px=ax,py=ay;
-          for(const [,x,y] of pts){
-            if((x===px&&y===py)||(x===bx&&y===by))continue;
-            push(px,py,x,y,c,s,g,1);px=x;py=y;
-          }
-          push(px,py,bx,by,c,s,g,1);
+          rows.X1[n]=ax;rows.Y1[n]=ay;rows.X2[n]=bx;rows.Y2[n]=by;
+          rows.C[n]=c;rows.S[n]=s;rows.T[n++]=g;
+        },
+        edges(){for(const key in rows)rows[key]=rows[key].subarray(0,n);return rows;}
+      };
+    }
+    function splitAtIntersections(E,stats){
+      // Each hit is three integers. Edge heads point to the newest hit.
+      // Preserve the original order when two distinct rounded points tie
+      // on projection along the edge.
+      const n=E.X1.length,heads=new Uint32Array(n),shift=16,block=1<<shift,mask=block-1,chunks=[];
+      let hits=0;
+      stats.passes=1;
+      if(!intersections(E,new Uint8Array(n).fill(1),(e,x,y)=>{
+        const id=hits++,chunk=id>>>shift,k=(id&mask)*3;
+        let data=chunks[chunk]??=new Int32Array((chunk?block:128)*3);
+        if(k===data.length){
+          const expanded=new Int32Array(data.length*2);
+          expanded.set(data);chunks[chunk]=data=expanded;
         }
-        E=R;dirty=Uint8Array.from(nd);
+        data[k]=x;data[k+1]=y;data[k+2]=heads[e];heads[e]=id+1;
+      }))return E;
+      // Zero terminates each chain of one-based Uint32 links.
+      if(hits>0xffffffff)throw new RangeError("Too many polygon intersections.");
+      const writer=edgeWriter(n+hits),nd=new Uint8Array(n+hits);
+      let written=0;
+      for(let i=0;i<n;i++){
+        const ax=E.X1[i],ay=E.Y1[i],bx=E.X2[i],by=E.Y2[i],c=E.C[i],s=E.S[i],g=E.T[i];
+        if(!heads[i]){writer.add(ax,ay,bx,by,c,s,g);written++;continue;}
+        const vx=bx-ax,vy=by-ay,len=vx*vx+vy*vy,pts=[];
+        for(let id=heads[i];id;){
+          const k=((id-1)&mask)*3,data=chunks[(id-1)>>>shift],x=data[k],y=data[k+1];
+          const t=(x-ax)*vx+(y-ay)*vy;
+          if(t>0&&t<len)pts.push([t,x,y,id]);
+          id=data[k+2]>>>0;
+        }
+        pts.sort((p,q)=>p[0]-q[0]||p[3]-q[3]);
+        let px=ax,py=ay;
+        for(const [,x,y] of pts){
+          if((x===px&&y===py)||(x===bx&&y===by))continue;
+          writer.add(px,py,x,y,c,s,g);nd[written++]=1;px=x;py=y;
+        }
+        writer.add(px,py,bx,by,c,s,g);nd[written++]=1;
       }
+      chunks.length=0;
+      const R=writer.edges();
+      stats.passes=2;
+      return intersections(R,nd.subarray(0,written))?null:R;
     }
     // Snap rounding (Hobby), for the inputs whose rounded crossings make new ones. Starting
     // again from the input edges: every endpoint and every crossing rounded to the grid is a hot
@@ -300,14 +347,11 @@ globalThis.AtriumPolygonPour=(()=>{
     // round is checked, and rounded again if a crossing remains. stats.passes is 12 plus the
     // rounds checked (13..16); unresolved only when 4 rounds leave a crossing.
     function snapRound(E,stats){
-      const OFF=33554432,SPAN=67108864;
       for(let round=0;round<4;round++){
-        const n=E.X1.length,found=intersections(E,new Uint8Array(n).fill(1));
-        if(round){stats.passes=12+round;if(!found.edge.length)return E;}
-        const {X1,Y1,X2,Y2}=E,hmap=new Map(),HX=[],HY=[];
-        const hot=(x,y)=>{const k=(x+OFF)*SPAN+(y+OFF);if(!hmap.has(k)){hmap.set(k,HX.length);HX.push(x);HY.push(y);}};
-        for(let i=0;i<n;i++){hot(X1[i],Y1[i]);hot(X2[i],Y2[i]);}
-        for(let k=0;k<found.x.length;k++)hot(found.x[k],found.y[k]);
+        if(round)stats.passes=12+round;
+        const {X1,Y1,X2,Y2}=E,n=X1.length,hot=snapPixels(E,round);
+        if(!hot)return E;
+        const {HX,HY,hits}=hot;
         const h=HX.length;
         let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
         for(let q=0;q<h;q++){const x=HX[q],y=HY[q];if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;}
@@ -320,7 +364,7 @@ globalThis.AtriumPolygonPour=(()=>{
         for(let c=0;c<cells;c++)start[c+1]+=start[c];
         const items=new Int32Array(h),fill=start.slice(0,cells);
         for(let q=0;q<h;q++)items[fill[rowOf(HY[q])*cols+colOf(HX[q])]++]=q;
-        const mark=new Int32Array(h).fill(-1),R={X1:[],Y1:[],X2:[],Y2:[],C:[],S:[],T:[]},pts=[];
+        const mark=new Int32Array(h).fill(-1),writer=edgeWriter(n+hits),pts=[];
         for(let i=0;i<n;i++){
           const ax=X1[i],ay=Y1[i],bx=X2[i],by=Y2[i],vx=bx-ax,vy=by-ay;
           const lx=ax<bx?ax:bx,hx=ax<bx?bx:ax,ly=ay<by?ay:by,hy=ay<by?by:ay;
@@ -355,39 +399,90 @@ globalThis.AtriumPolygonPour=(()=>{
           pts.sort((p,q)=>p[0]-q[0]||p[1]-q[1]||p[2]-q[2]);
           let px=ax,py=ay;
           const c=E.C[i],s=E.S[i],g=E.T[i];
-          for(const [,x,y] of pts){if(x===px&&y===py)continue;R.X1.push(px);R.Y1.push(py);R.X2.push(x);R.Y2.push(y);R.C.push(c);R.S.push(s);R.T.push(g);px=x;py=y;}
-          if(px!==bx||py!==by){R.X1.push(px);R.Y1.push(py);R.X2.push(bx);R.Y2.push(by);R.C.push(c);R.S.push(s);R.T.push(g);}
+          for(const [,x,y] of pts){if(x===px&&y===py)continue;writer.add(px,py,x,y,c,s,g);px=x;py=y;}
+          if(px!==bx||py!==by)writer.add(px,py,bx,by,c,s,g);
         }
-        E=R;
+        E=writer.edges();
       }
       stats.passes=16;
-      if(intersections(E,new Uint8Array(E.X1.length).fill(1)).edge.length)stats.unresolved=true;
+      if(intersections(E,new Uint8Array(E.X1.length).fill(1)))stats.unresolved=true;
       return E;
+    }
+    function snapPixels(E,round){
+      const OFF=33554432,SPAN=67108864,{X1,Y1,X2,Y2}=E,n=X1.length;
+      const seen=new Set();let HX,HY,pixels=0;
+      const hot=(x,y)=>{
+        const k=(x+OFF)*SPAN+(y+OFF);
+        if(seen.has(k))return;
+        seen.add(k);
+        if(!HX){HX=new Int32Array(n);HY=new Int32Array(n);}
+        if(pixels===HX.length){
+          const capacity=Math.ceil(pixels*1.5),X=new Int32Array(capacity),Y=new Int32Array(capacity);
+          X.set(HX);Y.set(HY);HX=X;HY=Y;
+        }
+        HX[pixels]=x;HY[pixels++]=y;
+      };
+      const endpoints=()=>{for(let i=0;i<n;i++){hot(X1[i],Y1[i]);hot(X2[i],Y2[i]);}};
+      let hits=0;
+      const found=intersections(E,new Uint8Array(n).fill(1),(_edge,x,y)=>{
+        if(!hits)endpoints();
+        hits++;hot(x,y);
+      });
+      if(!found){if(round)return null;endpoints();}
+      return {HX:HX.subarray(0,pixels),HY:HY.subarray(0,pixels),hits};
     }
     // Coincident edges become one undirected edge carrying a winding change per
     // class. Its orientation is normalized so the start is the lower x (then y).
     // Vertices get dense ids, so edge keys are numbers (no string building).
     function merge(E,K){
-      const OFF=33554432,SPAN=67108864,vmap=new Map(),VX=[],VY=[];
+      const n=E.X1.length,OFF=33554432,SPAN=67108864,vmap=new Map(),VX=[],VY=[];
+      // Only use integer accumulators when even all input signs on one edge
+      // cannot overflow. Custom overlays may supply larger or fractional signs.
+      let compact=Number.isInteger(K)&&K>0&&n*K>=1048576&&Number.isSafeInteger(n*K)&&n<=0x7fffffff;
+      if(compact){
+        const signLimit=Math.floor(0x7fffffff/n);
+        for(let i=0;i<n;i++){
+          const c=E.C[i],s=E.S[i];
+          if(!Number.isInteger(c)||c<0||c>=K||!Number.isInteger(s)||Math.abs(s)>signLimit){compact=false;break;}
+        }
+      }
+      const rowOf=compact?new Int32Array(n):null;
       const vid=(x,y)=>{const k=(x+OFF)*SPAN+(y+OFF);let v=vmap.get(k);if(v===undefined){v=VX.length;vmap.set(k,v);VX.push(x);VY.push(y);}return v;};
-      const emap=new Map(),A=[],B=[],T=[],D=[];
-      for(let i=0;i<E.X1.length;i++){
+      const emap=new Map(),A=[],B=[],T=[];
+      /** @type {number[] | Int32Array} */
+      let D=[];
+      for(let i=0;i<n;i++){
         let ax=E.X1[i],ay=E.Y1[i],bx=E.X2[i],by=E.Y2[i],s=E.S[i];
-        if(ax>bx||(ax===bx&&ay>by)){let t=ax;ax=bx;bx=t;t=ay;ay=by;by=t;s=-s;}
+        const reverse=ax>bx||(ax===bx&&ay>by);
+        if(reverse){let t=ax;ax=bx;bx=t;t=ay;ay=by;by=t;s=-s;}
         const a=vid(ax,ay),b=vid(bx,by),key=a*SPAN+b;
         let k=emap.get(key);
-        if(k===undefined){k=A.length;emap.set(key,k);A.push(a);B.push(b);T.push(E.T[i]);for(let c=0;c<K;c++)D.push(0);}
-        else if(T[k]!==E.T[i])T[k]=-1;
-        D[k*K+E.C[i]]+=s;
+        if(k===undefined){
+          k=A.length;emap.set(key,k);A.push(a);B.push(b);T.push(E.T[i]);
+          if(!rowOf)for(let c=0;c<K;c++)D.push(0);
+        }else if(T[k]!==E.T[i])T[k]=-1;
+        if(rowOf)rowOf[i]=reverse?~k:k;
+        else D[k*K+E.C[i]]+=s;
       }
-      let m=0;const keep=[];
-      for(let k=0;k<A.length;k++){let any=false;for(let c=0;c<K;c++)if(D[k*K+c]){any=true;break;}if(any){keep.push(k);m++;}}
-      const out={X1:new Int32Array(m),Y1:new Int32Array(m),X2:new Int32Array(m),Y2:new Int32Array(m),A:new Int32Array(m),B:new Int32Array(m),T:new Int32Array(m),D:new Int32Array(m*K),K,
+      // Allocate winding storage for the actual number of distinct edges.
+      // The same scratch indexes are then reused to retain the live row order.
+      if(rowOf){
+        D=new Int32Array(A.length*K);
+        for(let i=0;i<n;i++){
+          const k=rowOf[i],s=E.S[i];
+          if(k<0)D[(~k)*K+E.C[i]]-=s;
+          else D[k*K+E.C[i]]+=s;
+        }
+      }
+      let m=0;const keep=rowOf||[];
+      for(let k=0;k<A.length;k++){let any=false;for(let c=0;c<K;c++)if(D[k*K+c]){any=true;break;}if(any)keep[m++]=k;}
+      const finalD=rowOf&&m===A.length?D:new Int32Array(m*K);
+      const out={X1:new Int32Array(m),Y1:new Int32Array(m),X2:new Int32Array(m),Y2:new Int32Array(m),A:new Int32Array(m),B:new Int32Array(m),T:new Int32Array(m),D:finalD,K,
         VX:Int32Array.from(VX),VY:Int32Array.from(VY)};
-      keep.forEach((k,e)=>{
-        const a=A[k],b=B[k];out.A[e]=a;out.B[e]=b;out.X1[e]=VX[a];out.Y1[e]=VY[a];out.X2[e]=VX[b];out.Y2[e]=VY[b];out.T[e]=T[k];
-        for(let c=0;c<K;c++)out.D[e*K+c]=D[k*K+c];
-      });
+      for(let e=0;e<m;e++){
+        const k=keep[e],a=A[k],b=B[k];out.A[e]=a;out.B[e]=b;out.X1[e]=VX[a];out.Y1[e]=VY[a];out.X2[e]=VX[b];out.Y2[e]=VY[b];out.T[e]=T[k];
+        if(finalD!==D)for(let c=0;c<K;c++)finalD[e*K+c]=D[k*K+c];
+      }
       return out;
     }
     // Winding numbers by an upward ray from an edge midpoint, using doubled
@@ -2811,9 +2906,8 @@ globalThis.AtriumPolygonPour=(()=>{
 
   // ----------------------------------------------- repour, order, staleness
   function polygons(doc){
-    return (doc.items||[]).map((item,index)=>({item,index}))
-      .filter(e=>e.item.kind==="polygon"&&!e.item.cutout&&!e.item.shelved)
-      .sort((a,b)=>settings(a.item).pourIndex-settings(b.item).pourIndex||a.index-b.index).map(e=>e.item);
+    return (doc.items||[]).filter(i=>i.kind==="polygon"&&!i.cutout&&!i.shelved)
+      .sort((a,b)=>pourIndexOf(a)-pourIndexOf(b)); // Stable sort keeps authored ties.
   }
   function hasher(){
     let h1=2166136261,h2=5381;
@@ -2911,6 +3005,25 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     return true;
   }
+  function missesSignatureArea(boxes,k,area){
+    return boxes[k]>area[2]||boxes[k+2]<area[0]||boxes[k+1]>area[3]||boxes[k+3]<area[1];
+  }
+  // Bound consecutive rows so skipping a disjoint page preserves the order of mixed words.
+  function* signaturePages(boxes,length,size,chunk){
+    const pages=new Float64Array(Math.ceil(length/size)*4);
+    for(let start=0,next=chunk;start<length;start+=size){
+      if(start>=next){yield;next=start+chunk;}
+      const end=Math.min(length,start+size);
+      let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+      for(let k=4*start;k<4*end;k+=4){
+        x0=Math.min(x0,boxes[k]);y0=Math.min(y0,boxes[k+1]);
+        x1=Math.max(x1,boxes[k+2]);y1=Math.max(y1,boxes[k+3]);
+      }
+      const k=4*(start/size);
+      pages[k]=x0;pages[k+1]=y0;pages[k+2]=x1;pages[k+3]=y1;
+    }
+    return pages;
+  }
   // Hash of a region's edges that reach into `area` (both end points).
   function regionWords(r,area){
     let entry=regionHashes.get(r);
@@ -2979,6 +3092,8 @@ globalThis.AtriumPolygonPour=(()=>{
       }
       boxes.set(entry.box,4*k);layerOf[k]=entry.layer;words[2*k]=entry.w0;words[2*k+1]=entry.w1;
     }
+    const paged=list.length>=8&&items.length>=128,pageSize=paged?16:items.length;
+    const pages=paged?yield* signaturePages(boxes,items.length,pageSize,chunk):null;
     const rules=pourRules(doc,options);
     const base=fastHasher(projectPrecision);base.value(doc.outline||null);{const ch=globalThis.AtriumBoardShape?.holes?.(doc);if(ch?.length)base.value(ch);}base.value(rules);
     const reach=ruleReach(rules,options);
@@ -3001,11 +3116,15 @@ globalThis.AtriumPolygonPour=(()=>{
       h.mix(version);h.mix(common[0]);h.mix(common[1]);
       if(changedFallback&&s.clearance==null&&!finite(options.clearance)&&!options.clearanceFor)h.value("native clearance fallback");
       const {id,...rest}=s;h.value(rest);
-      for(let k=0;k<items.length;k++){
-        if(boxes[4*k]>area[2]||boxes[4*k+2]<area[0]||boxes[4*k+1]>area[3]||boxes[4*k+3]<area[1]||(layerOf[k]&&layerOf[k]!==p.layer))continue;
-        h.mix(words[2*k]);h.mix(words[2*k+1]);
-        if(nearby)nearby.push(items[k]);
-        if(targets&&(items[k].kind==="part"||items[k].kind==="pad"||items[k].kind==="via"))targets.push(items[k]);
+      for(let start=0,page=0;start<items.length;start+=pageSize,page+=4){
+        if(pages&&missesSignatureArea(pages,page,area))continue;
+        const end=Math.min(start+pageSize,items.length);
+        for(let k=start;k<end;k++){
+          if(missesSignatureArea(boxes,4*k,area)||(layerOf[k]&&layerOf[k]!==p.layer))continue;
+          h.mix(words[2*k]);h.mix(words[2*k+1]);
+          if(nearby)nearby.push(items[k]);
+          if(targets&&(items[k].kind==="part"||items[k].kind==="pad"||items[k].kind==="via"))targets.push(items[k]);
+        }
       }
       // A transistor elsewhere on the net, copper thickness or a component-scoped rule can
       // change a local pad's connection. Fingerprint the copper-making decisions, not labels.
@@ -3257,6 +3376,9 @@ globalThis.AtriumPolygonPour=(()=>{
         area1=yield* areaSolveSteps({job,task:job.task,prior:previousArea?.stage1,area,hash:hash1,stage:1,j});
         solved1=area1.solved;
       }else if(!solved1){solved1=yield {task:job.task,hash:hash1,stage:1,j,job};solvedHere=true;}
+      // The solve and any retries are done. Later stages use the solved rings and metadata,
+      // so release the original task before waiting for prerequisites.
+      job.task=null;
     }
     while(!deps[j].every(i=>regionsOf[i]!==undefined))yield WAIT;
     if(prerequisiteUnavailable(ctx,j))return deferredPour(ctx,j);
@@ -3304,7 +3426,7 @@ globalThis.AtriumPolygonPour=(()=>{
     }
     if(rc){
       if(solvedHere)REUSE.stats.solved++;
-      reuseStore(rc,p,{key,seq,contrib,hash1,job:job.task?{...job,task:null,regions:null}:job,solved1,earlier:ek,regions,stats:s2.job.stats,solved:solvedHere});
+      reuseStore(rc,p,{key,seq,contrib,hash1,job:job.regions?{...job,regions:null}:job,solved1,earlier:ek,regions,stats:s2.job.stats,solved:solvedHere});
     }
     return {regions,stats:s2.job.stats};
   }

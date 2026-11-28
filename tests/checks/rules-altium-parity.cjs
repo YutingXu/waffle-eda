@@ -64,6 +64,55 @@ assert.equal(cl(R.drc(board(npth), defs, withRules(c => {clearance(c).objects = 
 out = R.drc(board(npth), defs, withRules(c => {clearance(c).objects = {"track-hole":.15};}));
 assert.equal(cl(out).length, 1); assert.equal(cl(out)[0].what, "Hole clearance"); close(cl(out)[0].actual, .1);
 assert.equal(cl(R.drc(board([pad("h1", "A", 0, 0, 1.6, 1.6, 1)]), defs, withRules(c => {clearance(c).objects = {"th-hole":5};}))).length, 0, "a pad's own hole is not checked against its copper");
+{
+  const options = {types:["clearance"], checkMode:"batch"};
+  const crossing = track("overlap", "B", [[0, .05], [5, .05]]);
+  const tracks = [pair[0], crossing];
+  const zero = withRules(c => {clearance(c).gap = 0;});
+  const zeroMatrix = withRules(c => Object.assign(clearance(c),
+    {gap:0, objects:{"track-track":0, "track-hole":0, "track-poly":0}}));
+  require("../../app/pcb/pcb-draw.js");
+  const doc = board([...tracks, npth[0],
+    track("unassigned", "", [[0, 3], [5, 3]]),
+    {id:"stale", kind:"graphic", teardrop:true, teardropTrack:"removed", net:"A",
+      layer:"Top", closed:true, fill:true, points:[[8, 0], [9, 0], [8, 1]]}
+  ], {ruleCheckSelection:{batch:[]}});
+  const keepout = AtriumPCBDraw.place(doc, {type:"keepout", shape:"fill", a:[2,-1], b:[3,1]});
+  doc.items.push(keepout);
+  for (const rules of [zero, zeroMatrix]) {
+    const result = R.drc(doc, defs, rules, options);
+    assert.equal(result.stats.candidates, 0, "zero clearance runs no copper or hole neighborhood scan");
+    assert.ok(result.violations.some(v => v.id === "stale" && v.what === "Stale teardrop"));
+    assert.ok(result.violations.some(v => v.otherId === keepout.id), "the keepout still flags touching copper");
+    assert.ok(result.notes.some(n => n.includes("imported Altium batch")));
+    assert.ok(result.notes.some(n => n.includes("without a net")));
+    assert.equal(result.notes.some(n => n.includes("matrix cells for polygons")), rules === zeroMatrix);
+    assert.equal(result.rules.find(r => r.type === "clearance").count, result.total);
+  }
+  const short = R.drc(board(tracks), defs, zero, {types:["clearance", "short"]});
+  assert.equal(short.violations.filter(v => v.type === "short").length, 1, "electrical shorts remain independent of zero clearance");
+  const copper = withRules(c => Object.assign(clearance(c), {gap:0, objects:{"track-track":.2}}));
+  const hole = withRules(c => Object.assign(clearance(c), {gap:0, objects:{"track-hole":.15}}));
+  assert.deepEqual(cl(R.drc(board(pair), defs, copper, options)).map(v => v.required), [.2], "a positive copper cell wins over the base zero");
+  const holeResult = R.drc(board(npth), defs, hole, options);
+  assert.deepEqual(cl(holeResult).map(v => v.what), ["Hole clearance"], "a positive hole cell wins over the base zero");
+  close(cl(holeResult)[0].actual, .1);
+  const measured = withRules(c => {
+    clearance(c).scope = AtriumDesignQueryRecord.create("track where width < rule(MinWidth)");
+    c.list = [clearance(c)];
+  }, zero);
+  const needed = R.drc(board(tracks), defs, measured, options);
+  assert.equal(needed.complete, false, "required measurement diagnostics still appear at zero gap");
+  assert.equal(needed.diagnostics[0].code, "measurement");
+  assert.equal(R.kit.needsClearancePairs([{gap:0, objects:null}]), false);
+  assert.equal(R.kit.needsClearancePairs([{gap:0, objects:{"track-track":0}}]), false);
+  const ownCell = Object.defineProperty({}, "track-hole", {value:.25});
+  assert.equal(R.kit.needsClearancePairs([{gap:0, objects:ownCell}]), true, "every own matrix cell can override the base gap");
+  for (const invalid of [{gap:NaN}, {gap:Infinity}, {gap:-1}, {gap:"0"}, {gap:null}, {gap:0, objects:[]},
+    {gap:0, objects:{"track-hole":NaN}}, {gap:0, objects:{"track-hole":null}}, {gap:0, objects:{"bad-pair":0}}]) {
+    assert.equal(R.kit.needsClearancePairs([invalid]), true, "unknown thresholds conservatively retain pair checks");
+  }
+}
 // Scoped rules each keep their own matrix.
 const scoped = withRules(c => {
   c.netClasses = {HV:["A"]};

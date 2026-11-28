@@ -71,6 +71,10 @@ Eleven edit and selection cases, including insertion, deletion, undo, redo, a gr
   - So WebGPU did ship in Safari 26 / macOS 26-era WebKit, and it is on in WKWebView.
 - **WebGL2:** the renderer is "Apple GPU", with 4× MSAA and an 8-bit stencil.
 
+On the M6 Mac, both Waffle’s accelerated PCB view and its populated 3D view run on **Metal**. Waffle submits WebGL draws to WKWebView. WebKit’s ANGLE backend encodes them for Metal. The 2D overlay and the PCB fallback use Canvas 2D. [WebKit’s macOS backend selection](https://github.com/WebKit/WebKit/blob/e46f3646c7b27ad09d55adc845ca0708b6a0b1b4/Source/WebCore/platform/graphics/cocoa/GraphicsContextGLCocoa.mm#L80-L145)
+
+Sampling the native app’s WebKit GPU process during camera movement showed the PCB’s instanced draws in `rx::ContextMtl::drawArraysInstanced` and the populated 3D view’s indexed draws in `rx::ContextMtl::drawElementsInstanced`. The 3D presentation stack continued into Apple’s GPU driver to commit a Metal command buffer. To repeat the check on another Mac, sample the WKWebView’s GPU process while moving each view and inspect the WebGL work queue for those calls. They identify the backend even when WebGL reports only “Apple GPU”.
+
 **Why WebGL2.**
 
 1. **It is everywhere we ship.** WebKitGTK is the open question for WebGPU. A renderer that only works on two of
@@ -179,6 +183,10 @@ geometry draws after item geometry, as in `drawBoard`.
   - The fragment shader evaluates the distance to the segment (round caps) or to a box (butt caps, for connection
     lines).
   - Round joins come from consecutive capsules, as Canvas's `lineJoin = "round"` does.
+  - An authored circular track and its mask and paste strokes can each use one instance in the same layer batch.
+    The GPU measures distance to the arc and its round caps inside a four-vertex strip. Camera movement reuses
+    the instance. Long sweeps, thin arcs with a large bounding area and coordinates beyond the precision
+    guard use the sampled stroke. Editing, clearance checks and fabrication read the original geometry.
   - Minimum widths match canvas.js: `max(1/scale, w)` for tracks, `max(.9/scale, w)` for line art, `1.25/scale`
     for the edge, and 1 or 1.5 px for connection lines.
 - **Blobs** (12 floats an instance): pads, vias and footprint circles.
@@ -214,16 +222,19 @@ buffers draw at each camera. Raster layers follow the reuse and exact-redraw rul
 
 A poured region is an even-odd set of rings (outline plus clearance holes); here, 64 regions.
 
-- **Upload, once per region object.** Every ring becomes a triangle fan from its first vertex. This needs no
-  triangulation, just an index buffer of `3·(n−2)` per ring.
-- **Pass 1 (stencil only).** Draw the fans with `INVERT` on stencil bit 1. A sample inside an odd number of rings
-  ends with the bit set: this is the even-odd rule, exactly, per MSAA sample.
-- **Pass 2 (cover).** Draw the same triangles where the bit is set, in the pour colour times its opacity, and zero
-  the bit. Each sample is painted once, so the 0.55 pour alpha never doubles.
+- **Upload.** A ring with `n` vertices contributes `n−2` stencil triangles. For finite rings of 32 or more
+  vertices, the renderer joins neighbouring vertices at successively doubled strides. Each interior diagonal
+  occurs twice and cancels in the stencil. This reduces overdraw on long, winding contours. Smaller rings
+  keep a fan from the first vertex, as do rings with non-finite Float32 coordinates. A region with up to
+  65,535 vertices uses 16-bit indices. Larger regions use 32-bit indices.
+- **Pass 1 (stencil only).** Draw the triangles with `INVERT` on stencil bit 1. A sample inside an odd number
+  of rings ends with the bit set.
+- **Pass 2 (cover).** Draw a four-vertex rectangle around the region. Each set sample takes the pour colour
+  and opacity once and has its stencil bit cleared.
 - **Board outline.** It uses the same mechanism. Its stencil bit is left set while the board-grid pass draws, which
   clips the board grid to the board as canvas.js does with `clip(rule)`.
-- **Caching.** Buffers are cached in a `WeakMap` keyed by the region object. Live pours replace only the regions
-  they repour, so an unchanged region is never uploaded again.
+- **Caching.** The view keeps buffers by region and level of detail, reuses them across camera changes and
+  releases regions removed by a repour.
 - **Cost.** On this board: 11.0 MB of GPU memory, uploaded in 2.5–4 ms, plus a 5–11 ms one-time shader setup. Fan
   building is a loop over decoded rings. A worker is not needed at this size, but it is the natural next step for
   1M-vertex pours (see §7).

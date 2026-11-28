@@ -118,6 +118,60 @@ test("returnPlane: a high-speed track over a split, a void, and a layer change w
   assert.equal(run(near, "returnPlane").length, 0);
 });
 
+test("SI working data ends with each Insights pass while published stitching fixes remain usable", () => {
+  const doc = board([poly("GND", "Inner 1", rect(0, 0, 60, 40)), poly("GND", "Inner 2", rect(0, 0, 60, 40)),
+    track("CLK", "Top", [[5, 10], [20, 10]]), via("CLK", 20, 10), track("CLK", "Bottom", [[20, 10], [35, 10]])]);
+  const p = project(doc), e = I.engine(), U = AtriumUndoStore;
+  const opts = {prefs: false, checks: ["returnPlane", "diffPair", "crosstalk", "siPassProbe"]};
+  let held = null;
+  I.register({id: "siPassProbe", kind: "pcb", scope: "doc", on: false, heavy: true, run(ctx) {
+    held = ctx; // Intentionally keep the analysis context reachable like a retained UI result.
+    return [];
+  }});
+  const finish = it => { let r; do { r = it.next(); } while (!r.done); return r.value; };
+  const runPass = () => finish(e.update(p, doc, defs, null, opts));
+  const released = label => {
+    assert.equal(Object.hasOwn(held, "_si"), false, label + " releases the SI context");
+    assert.equal(Object.hasOwn(held, "_siNets"), false, label + " releases the net report memo");
+  };
+  U.mark(p); U.prime();
+  const published = runPass().insights.find(x => x.fix?.preview?.kind === "via");
+  assert.ok(published);
+  released("successful pass");
+
+  const sibling = JSON.parse(JSON.stringify(doc)); // Same board/item IDs in an independent project.
+  for (const i of sibling.items) if (i.kind === "track" || i.kind === "via") {
+    if (i.kind === "track") for (const pt of i.points) pt[1] += 5;
+    else i.y += 5;
+  }
+  const pending = e.update(project(sibling), sibling, defs, null, opts);
+  for (;;) {
+    const r = pending.next();
+    assert.equal(r.done, false, "candidate pass reaches its last check");
+    if (r.value?.id === "siPassProbe") break;
+  }
+  assert.ok(held._si?.nets.size > 0, "the interrupted pass really ran SI");
+  assert.equal(held.doc, sibling);
+  pending.return();
+  released("cancelled pass");
+  assert.strictEqual(e.list(doc.id).find(x => x.key === published.key), published,
+    "cancellation left the original board's publication in force");
+
+  const history = [], future = [], before = U.mark(p);
+  const [viaId] = published.fix.apply(doc, p, defs);
+  U.checkpoint(history, future, before, published.fix.label); U.touch(p);
+  const stitched = doc.items.find(x => x.id === viaId);
+  assert.deepEqual([stitched.net, stitched.x, stitched.y, stitched.diameter],
+    ["GND", ...published.fix.preview.at, published.fix.preview.diameter]);
+  assert.equal(runPass().insights.some(x => x.key === published.key), false, "new via clears the finding");
+  assert.ok(U.jump(history, future, U.mark(p), -1)); U.touch(p);
+  assert.ok(runPass().insights.some(x => x.key === published.key), "Undo restores the finding");
+  assert.ok(U.jump(history, future, U.mark(p), 1)); U.touch(p);
+  assert.equal(runPass().insights.some(x => x.key === published.key), false, "Redo restores the fix");
+  released("latest pass");
+  held = null;
+});
+
 test("acuteAngle: a 45° corner (fixed by cutting it) and a 45° junction; 90° and 135° are fine", () => {
   const bad = board([track("A", "Top", [[5, 5], [15, 5], [7, 13]])]);
   const [x] = pair("acuteAngle", bad, board([track("A", "Top", [[5, 5], [15, 5], [22, 12]]), track("B", "Top", [[5, 20], [15, 20], [15, 30]])]));
@@ -574,6 +628,11 @@ test("engine: incremental runs from the undo journal match a full run, and touch
   const v = doc.items.pop();
   r = drain(e.update(p, doc, defs, {from: 3, to: 4, ids: new Set([v.id]), items: new Map()}, {prefs: false, checks}));
   assert.ok(!r.insights.some(x => x.check === "ringMin"));
+  const rebuilt = I.engine();
+  drain(rebuilt.update(p, doc, defs, null, {prefs: false, checks}));
+  const cells = engine => [...engine.state(doc.id).grid]
+    .map(([cell, occupants]) => [cell, [...occupants].sort()]).sort((a, b) => a[0] - b[0]);
+  assert.deepEqual(cells(e), cells(rebuilt), "moves and deletions leave exactly the occupied cells of a fresh index");
   // Nothing changed: no work.
   r = drain(e.update(p, doc, defs, {from: 4, to: 4, ids: new Set(), items: new Map()}, {prefs: false, checks}));
   assert.equal(r.mode, "none");

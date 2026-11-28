@@ -418,7 +418,7 @@
           AtriumHierarchy.invalidatePublished(project);navEmit("folder-owner",detail);
         }
       },explorer:renderExplorer,
-      adopt(session,close){closeSplit(true,false);leaveFolder();setFileSession({folder:session,close});(UNDO||=globalThis.AtriumUndoStore).reset(session.dirty?null:session.project);history=[];future=[];
+      adopt(session,close){closeSplit(true,false);leaveFolder();setFileSession({folder:session,close});resetHistory(session.dirty?null:session.project);
         showProject(session.project,session.activeId,false,true);importSessionChanged();
         FUI().restoreView?.(session,documentViews);if(restoreDocumentView(false))draw();}
     };
@@ -507,9 +507,13 @@
   // reverted at their change(); a project replaced meanwhile (Open) keeps its undo step.
   var lockRevert=null,scopeCheckpoint=false;function checkpoint(state=snapshot(),label,targets=[current]){const mirror=mirrorWorkspace();if(mirror||targets.some(id=>folder()?.canEdit(id)===false||globalThis.AtriumCollabLock?.guard(id))||globalThis.AtriumRevisions?.guard?.(project,true)){lockRevert={state,label,project,mirror};return;}return checkpoint0(state,label);}
   function checkpoint0(state,label){scopeCheckpoint=true;if(UNDO)return UNDO.checkpoint(history,future,state,label);globalThis.AtriumLazy?.need?.("AtriumUndoStore");history.push(state);let size=state.project.length;for(let i=history.length-2;i>=0;i--){size+=history[i].project.length;if(size>16000000||history.length-i>45){history.splice(0,i+1);break;}}future=[];}
+  function resetHistory(verifiedProject=null){
+    history=[];future=[];lockRevert=null;scopeCheckpoint=false;
+    (UNDO||=globalThis.AtriumUndoStore)?.reset(verifiedProject);
+  }
   // n<0 undoes and n>0 redoes |n| steps in one restore (History panel jumps); tree switches to an alternate branch's state.
   function undo(redo=false,n=redo?1:-1,tree=null){
-    if(mirrorWorkspace())return forwardMirror(redo?"redo":"undo");
+    if(mirrorWorkspace())return !starter&&forwardMirror(redo?"redo":"undo");
     if(drag)endDrag(true);
     globalThis.AtriumCanvasInput?.cancelSketch?.(canvas);
     if(routeSession){if(!redo&&!tree)executeKey("route-back");return;}
@@ -1474,7 +1478,10 @@
   // same: the same project again (a workspace window's mirror refresh); open document views stay (doc-views.js).
   function showProject(p,id,deferFit=false,clean=false,same=false){
     const replacement=p!==project;
-    if(replacement)for(const pane of panes){pane.view?.invalidate?.();if(pane.view)globalThis.AtriumCanvasGPU?.release?.(pane.view.internals());}
+    if(replacement){
+      globalThis.AtriumPCBLayerBar?.release($("layer-tabs"));
+      for(const pane of panes){pane.view?.invalidate?.();if(pane.view)globalThis.AtriumCanvasGPU?.release?.(pane.view.internals());}
+    }
     project=p;current=id;navEmit("replace",replacement&&!same?undefined:{sameProject:true});documentViews.clear();globalThis.AtriumMessages?.clear?.(null,{replacement});single(null);
     hidden=new Set();highlight="";schematicNetHighlight=null;resetTools();
     if(clean){
@@ -2004,9 +2011,12 @@
     // The wheel animation already runs inside a frame. Include its camera in that paint.
     if(inFrame&&frame){cancelAnimationFrame(frame);paintFrame();}
   }
+  function cameraEnd(p){
+    if(!p.covered)p.view.finishMoving?.(!!frame);
+  }
   // Preserve first-contact ordering and its document while the idle camera module loads.
   const inputOps={find:c=>panes.find(q=>q.canvas===c),host:()=>navHost,docId:p=>p===activePane?current:p.docId,active:p=>p===activePane,
-    activate:activatePane,frame:cameraFrame,busy:()=>!!drag&&!drag.sticky};
+    activate:activatePane,frame:cameraFrame,finish:cameraEnd,busy:()=>!!drag&&!drag.sticky};
   let precisionLoad=null;
   // One contact recogniser for every profile. Taps select and cycle, drags pan or move the selection, and
   // a hold picks up the object or opens the context menu on release. Two fingers pan and pinch.
@@ -2539,12 +2549,13 @@
       if(p.rules!=null&&!globalThis.AtriumDesignQueryRecord)readers.push("AtriumDesignQueryRecord");
       await Promise.all([readers.length && L?.need(readers),prepareWorkbench(p,{starterView:!!o.starter})]);
       if(project!==old || authoredRevision!==stamp || o.current&&!o.current())return false;
-      if(drag)endDrag(true);if(!starter&&!o.workspaceMirror)checkpoint();
+      if(drag)endDrag(true);if(!starter&&!o.workspaceMirror&&!o.closeProject)checkpoint();
       const H=globalThis.AtriumHost;
       leaveFolder();
       if(o.copy||fileSession.imported||o.importFileSession)H?.clearProjectPath?.();
       if(o.copy)globalThis.AtriumAutosave?.detach?.(p);
       if(o.copy||folder()||fileSession.imported||o.importFileSession)setFileSession(o.importFileSession||{});
+      if(o.closeProject)resetHistory();
       starter=false;showProject(p,(o.workspaceMirror&&o.document)||(!o.starter&&A.preferredDocument(p,"pcb")?.id)||p.documents[0].id,false,false,!!(o.workspaceMirror&&old?.id&&old.id===p.id));
       if(o.starter)starter=true;if(o.dirty===false||o.starter)dirtyState(false);
       importSessionChanged();

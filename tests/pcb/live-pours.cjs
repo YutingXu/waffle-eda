@@ -626,6 +626,67 @@ async function pooled() {
   console.log("ok - an edit during the run restarts it; same pcbDrawing");
 }
 
+async function taskLifetime() {
+  const project = A.project("Pour task lifetime"), doc = project.documents.find(d => d.kind === "pcb");
+  const defs = new Map(), core = PP._internal.core;
+  doc.outline = rect(0, 0, 40, 25);
+  const polygon = (id, net, pourIndex, box) =>
+    PP.make(rect(...box), {id, layer:"Top", net, pourIndex, removeDeadCopper:false});
+  doc.items = [
+    polygon("owner", "GND", 0, [1, 1, 13, 24]),
+    polygon("visible-a", "VCC", 1, [10, 2, 35, 20]),
+    polygon("visible-b", "VCC", 2, [11, 4, 38, 23]),
+    via("clearance", 21, 11, "SIG"),
+    via("upstream", 12, 8, "GND")
+  ];
+  assert.deepEqual(PP.pourDependencies(doc, defs, PP.polygons(doc), {project}), [[], [0], [0]]);
+  PP.noteView([16, 1, 37, 24], 14, doc);
+  const control = {}, inputs = new Map(), dispatched = [], done = [], progress = [];
+  let current, ownerReply, parked = false, cancelled = 0;
+  const pool = {size:1, run(task, transfer) {
+    const input = structuredClone(task, {transfer});
+    let reject;
+    const reply = new Promise((resolve, no) => {
+      reject = no;
+      const solve = () => resolve(core.solve(input));
+      if (current[0] === "owner") ownerReply = solve;
+      else solve();
+    });
+    return Object.assign(reply, {cancel() { cancelled++; reject(Error("cancelled")); }});
+  }};
+  const options = {project, control, reuse:false, limit:() => 4,
+    onSolving(id, stage) { current = [id, stage]; dispatched.push(current); },
+    preview(id, job, task) { assert.equal(job.task, task); inputs.set(id, job); },
+    onDone(id) { done.push(id); },
+    onProgress(entry) { progress.push(entry); },
+    idle() { if (ownerReply) parked = true; return false; }
+  };
+  const pending = PP.repourParallel(doc, defs, options, pool);
+  await until(() => parked, "visible stage-one results are parked while the offscreen prerequisite runs");
+  try {
+    assert.deepEqual(dispatched, [["visible-a", 1], ["visible-b", 1], ["owner", 1]]);
+    assert.deepEqual(done, []);
+    assert.deepEqual(progress, []);
+    for (const id of ["visible-a", "visible-b"]) {
+      assert.ok(inputs.get(id).task === null, id + " releases its solved stage-one input during the wait");
+      assert.ok(inputs.get(id).nShapes > 1);
+    }
+    assert.ok(inputs.get("owner").task, "the running prerequisite still owns its recoverable input");
+    assert.equal(doc.pcbDrawing?.pours?.length || 0, 0);
+  } finally { ownerReply(); }
+  const result = await pending;
+  assert.deepEqual(dispatched.slice(3), [["visible-a", 2], ["visible-b", 2]]);
+  assert.deepEqual(done, ["owner", "visible-a", "visible-b"]);
+  assert.deepEqual(progress, [1, 2, 3].map(done => ({done, total:3})));
+  assert.deepEqual(result.failed, []);
+  assert.deepEqual(result.blocked, []);
+  assert.equal(cancelled, 0);
+  const cold = A.clone(project), ref = cold.documents.find(d => d.id === doc.id);
+  PP.apply(ref, defs, {project:cold, reuse:false});
+  PP.apply(doc, defs, {project, result});
+  assert.deepEqual(doc.pcbDrawing, ref.pcbDrawing, "exact regions and published signatures match serial output");
+}
+
 async function idleSolve() {
   const {core:CORE, MAIN} = PP._internal;
   const wasm = !!globalThis.AtriumEngine?.available && engineMode !== "js";
@@ -781,6 +842,7 @@ const CASES = {
   "pour-fade-hold": {run: fadeHold, modules:tileModules, engine:true},
   "pour-tiles-live": {run: exactTiles, modules:[...tileModules, "bom", "fab-outputs", "edit-pipeline"], engine:true},
   "repour-pooled": {run: pooled, modules:tileModules, engine:true},
+  "pour-task-lifetime": {run: taskLifetime, modules:["pour-marker"]},
   "pour-idle-solve": {run: idleSolve, modules:[...tileModules, "worker-pool", "checks"], engine:true}
 };
 

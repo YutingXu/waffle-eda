@@ -218,6 +218,28 @@ for (const r of regressions) {
 }
 console.log("pour-fuzz: " + regressions.length + " regression fixtures pass (" + (kernels.map(k => k[0]).join(", ") || "JS only") + ")");
 
+// An exact rectangular lattice produces 67,712 split incidences, crossing
+// the packed split-record block boundary. Every void and island is known.
+{
+  const n = 92, size = 4 * n + 4, tags = Int32Array.of(10, 11, 12, 13);
+  const shape = (cls, x, y, w, h, tags = null) => ({cls, sign: 1, ring: Int32Array.from(rect(x, y, w, h)), tags});
+  const shapes = [shape(0, 0, 0, size, size, tags)];
+  for (let i = 0; i < n; i++) {
+    const v = 4 * i + 4;
+    shapes.push(shape(2, 2, v, size - 4, 1), shape(2, v, 2, 1, size - 4));
+  }
+  const t = {shapes, K: 6, hasBoard: false, anchors: [], removeDead: false, minArea: 0, minSize: 0};
+  const {islands, stats} = jsSolve(t);
+  const exterior = islands.find(i => i.holes.length);
+  assert.equal(stats.passes, 2, "the integer lattice is planar after splitting, without snap repair");
+  assert.equal(stats.edges, 4 + 8 * n + 8 * n * n, "each exact crossing splits both edges");
+  assert.equal(islands.length, 1 + (n - 1) ** 2, "every lattice cell survives as an island");
+  assert.deepEqual([...exterior.tags].sort(), [...tags], "outer arc tags survive the dense split");
+  assert.equal(exterior.holes.length, 1, "the linked obstacles form one exterior hole");
+  assert.ok(islands.every(i => i === exterior || (i.ring.length === 8 && core.area2(i.ring) === 18)),
+    "all interior cells are exact 3 × 3 squares");
+}
+
 // ---------------------------------------------------------------- 2. dense fans
 // Hundreds of thin spokes through one small disk on a board-sized frame: tens of thousands of
 // crossings in one grid cell (what offset rings of fine concave boundaries made). The grid

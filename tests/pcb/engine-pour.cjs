@@ -24,6 +24,126 @@ if (!engine.available) {
   console.log("engine-pour: the Rust/WebAssembly kernels are not loaded (ATRIUM_ENGINE=" + (mode || "auto") + "); nothing to compare");
   return;
 }
+// A real Wasm RuntimeError carries a stack for an instance that imports the
+// solver's memory. Keep the public bridge alive across garbage-collection jobs.
+async function testTrappedEngineMemory(root) {
+  const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
+  const file = part => path.join(root, part);
+  let payload;
+  vm.runInNewContext(fs.readFileSync(file("app/engine-mvp.js"), "utf8"), {
+    AtriumEngine: {install(kind, bytes) { assert.equal(kind, "mvp"); payload = bytes; }}
+  });
+  const trap = new WebAssembly.Module(Uint8Array.of(
+    0,97,115,109,1,0,0,0,1,4,1,96,0,0,2,13,1,1,101,6,109,101,109,111,114,121,2,0,0,
+    3,2,1,0,7,8,1,4,116,114,97,112,0,0,10,5,1,3,0,0,11
+  ));
+  require(file("app/pcb/polygon-pour.js"));
+  const core = AtriumPolygonPour._internal.core;
+  const task = {shapes:[{cls:0,ring:Int32Array.of(0,0,20,0,20,20,0,20),sign:1,tags:null}],
+    K:6,hasBoard:false,anchors:[],removeDead:false,minArea:0,minSize:0};
+  const exact = core.solve(task).islands;
+  assert(exact.length);
+  let trapNext = false, calls = 0, memory, buffer;
+  const source = fs.readFileSync(file("engine/bridge.js"), "utf8");
+  function factory(tap, fail = () => false) {
+    const wrap = (instance, module) => ({exports:tap(instance.exports, module)});
+    const wasm = Object.create(WebAssembly);
+    Object.defineProperties(wasm, {
+      Instance:{value:function(module, imports) {
+        if (fail()) throw new WebAssembly.LinkError("injected restart failure");
+        return wrap(new WebAssembly.Instance(module, imports), module);
+      }},
+      instantiate:{value:async function(bytes, imports) {
+        const {instance,module} = await WebAssembly.instantiate(bytes, imports);
+        return {instance:wrap(instance,module), module};
+      }}
+    });
+    return new Function("WebAssembly", source + "\nreturn createAtriumEngine;")(wasm);
+  }
+  async function collect() {
+    for (let i = 0; i < 12; i++) {
+      await new Promise(resolve => setImmediate(resolve));
+      global.gc();
+    }
+  }
+  const bridge = factory(exports => {
+    const own = exports.memory;
+    own.grow(4); // Four logical pages and no large fixture.
+    memory = new WeakRef(own);
+    return {...exports, pour_solve() {
+      calls++;
+      if (trapNext) new WebAssembly.Instance(trap, {e:{memory:own}}).exports.trap();
+      return exports.pour_solve();
+    }};
+  })("mvp", payload, "wasm");
+  assert(bridge.available);
+  assert.deepEqual(bridge.pourSolve(task).islands, exact);
+  buffer = new WeakRef(memory.deref().buffer);
+  trapNext = true;
+  globalThis.AtriumEngine = bridge;
+  assert.deepEqual(core.solve(task).islands, exact);
+  assert.deepEqual(core.solve(task).islands, exact);
+  assert.equal(calls, 2);
+  assert.equal(bridge.available, false);
+  assert.equal(bridge.workerSource(), "");
+  assert.equal(bridge.stats.fallbacks, 1);
+  assert.match(bridge.failure, /unreachable/);
+  await collect();
+  assert.equal(globalThis.AtriumEngine, bridge);
+  assert.equal(memory.deref(), undefined, "the trapped engine must release its linear memory");
+  assert.equal(buffer.deref(), undefined, "the trapped engine must release its ArrayBuffer");
+  assert.match(bridge.failure, /unreachable/);
+  let action = "solve", shouldFailRestart = false;
+  const instances = [];
+  const retry = factory((exports, module) => {
+    const own = exports.memory;
+    instances.push({module, memory:new WeakRef(own), initial:own.buffer.byteLength});
+    return {...exports, pour_solve() {
+      if (action === "grow" || action === "grow-refuse") own.grow(4096); // Logical pages without writing the backing.
+      if (action === "refuse" || action === "grow-refuse") return -2;
+      if (action === "invalid") return -1;
+      return exports.pour_solve();
+    }};
+  }, () => shouldFailRestart)("mvp", payload, "wasm", true);
+  await retry.ready;
+  assert(retry.available);
+  globalThis.AtriumEngine = retry;
+  action = "refuse";
+  assert.deepEqual(core.solve(task).islands, exact);
+  assert.equal(instances.length, 1, "small status -2 reuses its instance");
+  action = "grow";
+  assert.deepEqual(retry.pourSolve(task).islands, exact);
+  assert.equal(instances.length, 1, "a successful grown solve remains available");
+  action = "invalid";
+  assert.equal(retry.pourSolve(task), null);
+  assert.equal(instances.length, 1, "status -1 reuses even a grown instance");
+  action = "refuse"; // Reuse an already-grown backing without growing again.
+  assert.deepEqual(core.solve(task).islands, exact);
+  assert.equal(instances.length, 2, "status -2 retires the already-grown instance");
+  assert.equal(instances[0].module, instances[1].module);
+  assert.equal(instances[0].initial, instances[1].initial);
+  await collect();
+  assert.equal(instances[0].memory.deref(), undefined);
+  action = "solve";
+  assert.deepEqual(retry.pourSolve(task).islands, exact);
+  action = "grow-refuse";
+  shouldFailRestart = true;
+  assert.deepEqual(core.solve(task).islands, exact);
+  assert.equal(retry.available, false);
+  assert.equal(retry.workerSource(), "");
+  assert.match(retry.failure, /injected restart failure/);
+  await collect();
+  assert.equal(instances[1].memory.deref(), undefined);
+  assert.deepEqual(core.solve(task).islands, exact);
+}
+if (process.versions?.node) {
+  const {spawnSync} = require("node:child_process");
+  const child = spawnSync(process.execPath, ["--expose-gc", "--eval",
+    "(" + testTrappedEngineMemory + ")(process.argv[1]).catch(e=>{console.error(e);process.exitCode=1;})",
+    path.resolve(__dirname, "../..")], {encoding:"utf8", timeout:10000});
+  assert.equal(child.status, 0, child.stderr || child.error?.message);
+}
+
 const withEngine = (on, f) => { globalThis.AtriumEngine = on ? engine : undefined; try { return f(); } finally { globalThis.AtriumEngine = engine; } };
 const timing = s => Object.fromEntries(Object.entries(s).filter(([k]) => !/^t[A-Z]/.test(k)));
 const clean = r => ({islands: r.islands.map(i => ({ring: Array.from(i.ring), tags: Array.from(i.tags), links: i.links,

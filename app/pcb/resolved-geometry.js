@@ -65,6 +65,10 @@ globalThis.AtriumResolvedGeometry = (() => {
       ctx.emit(part === "outline" ? [...member, "stroke"] : member, role, layer, mapInk(ink, transform), {polarity, net});
     });
   }
+  function copperInk(pour) {
+    const contours = module("AtriumPCBPours").contourEdges(pour);
+    return contours[0]?.length ? region(contours[0], contours.slice(1)) : null;
+  }
   function collectInk(ctx, geometry) {
     const {doc, item} = ctx, PCB = module("AtriumPCBAppearance");
     if (!item) {
@@ -83,8 +87,8 @@ globalThis.AtriumResolvedGeometry = (() => {
       } else if (doc.outline?.length >= 3) ctx.emit([], "profile", "Outline", region(toLines(doc.outline, true)));
       const copper = geometry.copper;
       if (copper) for (const [index, pour] of copper.regions.entries()) {
-        const contours = module("AtriumPCBPours").contourEdges(pour);
-        if (contours[0]?.length) ctx.emit(["pour", String(index)], "pour", pour.layer, region(contours[0], contours.slice(1)), {net: pour.net || null});
+        const ink = copperInk(pour);
+        if (ink) ctx.emit(["pour", String(index)], "pour", pour.layer, ink, {net: pour.net || null});
       }
       return;
     }
@@ -220,8 +224,7 @@ globalThis.AtriumResolvedGeometry = (() => {
     const U = G.AtriumUndoStore;
     if (!U) return null;
     const docs = [doc, ...sources.filter(src => src !== doc)];
-    const versions = docs.map(d => U.documentVersions(d, project, true) ||
-      (U.verifiedDocumentVersion(d) != null ? {floor: U.verifiedDocumentVersion(d)} : null));
+    const versions = docs.map(d => U.documentVersions(d, project, true) || U.verifiedDocumentVersions(d, project));
     if (versions.some(v => !v)) return null;
     const key = versions.flatMap(v => [v.floor, v.items, v.outer, v.pours, v.project, v.parameters, v.library]);
     return {versions: new Map(docs.map((d, i) => [d, versions[i]])), key};
@@ -482,6 +485,52 @@ globalThis.AtriumResolvedGeometry = (() => {
       if (JSON.stringify(was) !== JSON.stringify(next)) { if (was) yield was; if (next) yield next; }
     }
   }
+  const noRegions = Object.freeze([]);
+  function sameCopperInk(a, b) {
+    const left = a.arcs || noRegions, right = b.arcs || noRegions;
+    return a.layer === b.layer && (a.net || null) === (b.net || null) &&
+      a.count === b.count && a.data === b.data &&
+      (left === right || Array.isArray(left) && Array.isArray(right) && same(left, right));
+  }
+  function copperBounds(pour) {
+    if (pour.arcs?.length) {
+      const ink = copperInk(pour);
+      return ink && inkBounds(ink);
+    }
+    // Straight copper uses every point in the outer ring. Read the decoded
+    // coordinates directly, avoiding a temporary feature and edges for damage.
+    const outer = module("AtriumPCBPours").contours(pour)[0];
+    if (!outer?.length) return null;
+    const box = boxOf();
+    for (let i = 0; i < outer.length; i += 2) {
+      box[0] = Math.min(box[0], outer[i]); box[1] = Math.min(box[1], outer[i + 1]);
+      box[2] = Math.max(box[2], outer[i]); box[3] = Math.max(box[3], outer[i + 1]);
+    }
+    return box;
+  }
+  function boardDamage(before, after, note) {
+    const a = before.geometry, b = after.geometry;
+    // Only plain board rows have precisely the outline and the archived
+    // copper below. Panel profile and transformed damage use resolved ink.
+    if (!a.transform && !b.transform && !a.panelProfile && !b.panelProfile &&
+        JSON.stringify(a.doc.outline) === JSON.stringify(b.doc.outline) &&
+        JSON.stringify(a.doc.boardShape) === JSON.stringify(b.doc.boardShape)) {
+      const prior = a.copper?.regions || noRegions, next = b.copper?.regions || noRegions;
+      if (prior.length === next.length && prior.every((pour, index) => sameCopperInk(pour, next[index]))) return;
+      // A freshness transition can remove or restore the entire archive.
+      // The damage needs its exact outer bounds, not the resolved features.
+      if (!prior.length || !next.length) {
+        const row = prior.length ? before : after;
+        for (const pour of row.geometry.copper.regions) {
+          const box = copperBounds(pour);
+          if (box) note(pour.layer, bounded(box, row.owner));
+        }
+        return;
+      }
+    }
+    for (const feature of changedFeatures(resolved(before).value.features, resolved(after).value.features))
+      note(feature.key.layer, feature.bounds);
+  }
   function dirty(rows, boards = []) {
     const owners = new Map(), layers = new Set(), bounds = new Map();
     const noteBounds = box => { if (box) bounds.set(box.join(","), box); };
@@ -495,10 +544,7 @@ globalThis.AtriumResolvedGeometry = (() => {
       // Profile, imported copper and solved pours share a board owner. Preserve the
       // layers and extent of each unchanged feature during a copper publication.
       owners.set(ownerKey(after.owner), after.owner);
-      for (const feature of changedFeatures(resolved(before).value.features, resolved(after).value.features)) {
-        layers.add(feature.key.layer);
-        noteBounds(feature.bounds);
-      }
+      boardDamage(before, after, (layer, box) => { layers.add(layer); noteBounds(box); });
     }
     return immutable({kind: "incremental", owners: [...owners.values()], layers: [...layers], bounds: [...bounds.values()]});
   }

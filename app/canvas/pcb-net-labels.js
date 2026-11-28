@@ -55,15 +55,68 @@ globalThis.AtriumPCBNetLabels = (() => {
   // ---------------------------------------------------------------- tracks
   const trackSize = (width, scale) => width * scale * TRACK_FONT;
   // Each view provides its own scene cache. Parked/rebuilt scenes never share bounds.
-  const trackWidths=new WeakMap(), SPARSE_TRACKS=32;
+  const trackWidths=new WeakMap(), SPARSE_TRACKS=32, TRACK_REFS=64*SPARSE_TRACKS;
+  function widthChange(scene, cached) {
+    const change=scene.delta;
+    return change && change.from===cached.rev && change.to===scene.rev && change.itemsKnown && !change.removed.length ? change : null;
+  }
+  function singleTrack(change) {
+    const item=change?.changed.length===1 && change.changed[0];
+    return item?.kind==="track" && item.net && typeof item.width==="number" && item.width>0 ? item : null;
+  }
+  function extendDense(box, previous, next) {
+    // A peer still owns an edge if the edited item's old box was inside it.
+    // A possible owner moving inward requires rebuilding the exact aggregate.
+    if (previous[0]===box[0] && next[0]>previous[0] ||
+        previous[1]===box[1] && next[1]>previous[1] ||
+        previous[2]===box[2] && next[2]<previous[2] ||
+        previous[3]===box[3] && next[3]<previous[3]) return false;
+    box[0]=Math.min(box[0],next[0]); box[1]=Math.min(box[1],next[1]);
+    box[2]=Math.max(box[2],next[2]); box[3]=Math.max(box[3],next[3]);
+    return true;
+  }
+  function refreshTrackWidths(scene, cached, change, item) {
+    if(cached.denseGroups && change.changed.some(item=>item.kind!=="track"))releaseDenseGroups(cached);
+    const last=cached.witness;
+    if (last) {
+      if (item===last.item && item.layer===last.layer && item.width===last.width) {
+        const next=scene.boxes.get(item);
+        if (next && extendDense(last.group.box,last.box,next)) {
+          last.box=next.slice();
+          return true;
+        }
+      }
+      cached.witness=null;
+    }
+    let touched;
+    for (const item of change.changed) {
+      if (item.kind!=="track") continue;
+      const group=cached.by.get(item.layer)?.bounds?.find(([width])=>width===item.width)?.[1];
+      // The same object in the same sparse group keeps its layer, width and paint order.
+      if (!item.net || !group?.tracks || group.tracks.length>SPARSE_TRACKS || !group.tracks.includes(item) || !scene.boxes.get(item)) return false;
+      (touched ??= new Set()).add(group);
+    }
+    if (touched) for (const group of touched) {
+      const box=[Infinity,Infinity,-Infinity,-Infinity];
+      for (const item of group.tracks) {
+        const bounds=scene.boxes.get(item);
+        if (!bounds) continue;
+        box[0]=Math.min(box[0],bounds[0]); box[1]=Math.min(box[1],bounds[1]);
+        box[2]=Math.max(box[2],bounds[2]); box[3]=Math.max(box[3],bounds[3]);
+      }
+      group.box=box;
+    }
+    return true;
+  }
   function netTrackWidths(c,layer){
-    let e=trackWidths.get(c);
+    let e=trackWidths.get(c), seed;
     if(!e||e.rev!==c.rev){
-      const d=c.delta;
-      // A complete, consecutive non-track change can only leave an extra
-      // bound if a track changed kind. The item query still owns placement.
-      if(e&&d?.from===e.rev&&d.to===c.rev&&d.itemsKnown&&!d.removed.length&&!d.changed.some(i=>i.kind==="track"))e.rev=c.rev;
-      else{e={rev:c.rev,by:new Map()};trackWidths.set(c,e);}
+      const change=e&&widthChange(c,e), item=singleTrack(change);
+      if(change&&refreshTrackWidths(c,e,change,item))e.rev=c.rev;
+      else{
+        if (item?.layer===layer) seed=item;
+        e={rev:c.rev,by:new Map(),witness:null,triedDense:e?.triedDense}; trackWidths.set(c,e);
+      }
     }
     const cached=e.by.get(layer);
     if(cached)return cached;
@@ -87,20 +140,63 @@ globalThis.AtriumPCBNetLabels = (() => {
       }else bounds.set(i.width,{box:box.slice(),tracks:typeof i.width==="number"?[i]:null});
     }
     const result={max,bounds:bounds&&[...bounds]};
-    e.by.set(layer,result);return result;
+    e.by.set(layer,result);
+    if (seed) {
+      const group=bounds?.get(seed.width), box=c.boxes.get(seed);
+      if (group && !group.tracks && box) e.witness={item:seed,layer,width:seed.width,group,box:box.slice()};
+    }
+    return result;
+  }
+  // The ordinary width memo only remembers small groups. A retained draw
+  // can fill dense groups for the currently useful widths with one bounded
+  // walk. Other layers and later, closer zooms can use the viewport index.
+  function releaseDenseGroups(memo) {
+    for(const group of memo.denseGroups)group.tracks=null;
+    memo.denseGroups=null;
+  }
+  function releaseDense(scene) {
+    const memo=trackWidths.get(scene);
+    if(memo?.denseGroups)releaseDenseGroups(memo);
+  }
+  function collectDenseGroups(scene, layer, bounds, scale) {
+    const memo=trackWidths.get(scene);
+    if(memo.triedDense)return;
+    memo.triedDense=true;
+    let room=TRACK_REFS;
+    const wanted=new Map();
+    for(const [width,group] of bounds) {
+      room-=group.tracks?.length||0;
+      if(!group.tracks && typeof width==="number" && trackSize(width,scale)>=MIN_PX) wanted.set(width,[]);
+    }
+    if(!wanted.size)return;
+    for(const item of scene.all) {
+      if(item.kind!=="track"||item.layer!==layer||!item.net)continue;
+      const tracks=wanted.get(item.width);
+      if(!tracks)continue;
+      if(--room<0)return;
+      tracks.push(item);
+    }
+    memo.denseLayer=layer; memo.denseGroups=[];
+    for(const [width,group] of bounds) if(wanted.has(width)) {
+      group.tracks=wanted.get(width); memo.denseGroups.push(group);
+    }
   }
   const noTracks=Object.freeze({maxWidth:0,tracks:null});
   // A null track list asks the caller for its ordinary viewport items.
   function trackCandidates(scene,layer,scale,view,reuseArtwork){
     const {max,bounds}=netTrackWidths(scene,layer), spatial=globalThis.AtriumSpatial;
+    const memo=trackWidths.get(scene);
+    if(memo.denseGroups && memo.denseLayer!==layer)releaseDenseGroups(memo);
     if(!(trackSize(max,scale)>=MIN_PX))return noTracks;
     if(!bounds||!spatial)return {maxWidth:max,tracks:null};
+    const limit=!reuseArtwork && scene.index?.smallQuery?.(view) ? SPARSE_TRACKS : TRACK_REFS;
     let found=false, tracks=reuseArtwork?null:[], count=0;
     for(const [width,group] of bounds){
       if(!(trackSize(width,scale)>=MIN_PX)||!spatial.overlaps(group.box,view))continue;
       found=true;
       if(!tracks)break;
-      if(!group.tracks||(count+=group.tracks.length)>SPARSE_TRACKS){tracks=null;break;}
+      if(!group.tracks && limit===TRACK_REFS && typeof width==="number")collectDenseGroups(scene,layer,bounds,scale);
+      if(!group.tracks||(count+=group.tracks.length)>limit){tracks=null;break;}
       // The scene removes a box with its object, even when an in-memory
       // board has absent or duplicate IDs. Kind changes can leave an old group.
       for(const item of group.tracks){
@@ -233,22 +329,27 @@ globalThis.AtriumPCBNetLabels = (() => {
   }
 
   // ---------------------------------------------------------------- placement and drawing
+  function visibleLayer(PCB, opts) {
+    const layer = opts.layer || "Top";
+    return opts.netNames !== false && PCB.index(layer) >= 0 && PCB.visible(layer, null, opts) ? layer : null;
+  }
+  const trackInput = (i, layer, scale) => i.kind === "track" && i.layer === layer && i.net &&
+    i.points?.length > 1 && !(trackSize(i.width || 0, scale) < MIN_PX);
   // place(v) -> labels [{kind, id, text, x, y (screen px), angle (radians), size (px), ink, layer}].
   // v: {items (objects in view), pours, scale, width, height, toScreen, view (world box), PCB, opts, trackInk(i), pourInk(region),
   //     maxWidth (widest track on the layer, to skip the whole pass when no track can carry a label),
   //     obstacles() or obstaclesFor(box) (screen boxes of components that could block a pour name)}
-  function place(v) {
-    const out = [], placed = [], {PCB, opts} = v, layer = opts.layer || "Top";
-    if (opts.netNames === false || PCB.index(layer) < 0 || !PCB.visible(layer, null, opts)) return out;
+  function place(v, layer = visibleLayer(v.PCB, v.opts)) {
+    const out = [], placed = [], {opts} = v;
+    if (!layer) return out;
     v.screen = [2, 2, v.width - 2, v.height - 2];
     const hidden = opts.hide, gone = opts.routePreview?.hidden?.length ? new Set(opts.routePreview.hidden) : null;
     if (!(v.maxWidth >= 0) || trackSize(v.maxWidth, v.scale) >= MIN_PX) {
       // Wider tracks first: they carry the larger text.
       const tracks = [];
       for (const i of v.items) {
-        if (i.kind !== "track" || i.layer !== layer || !i.net || !(i.points?.length > 1) || hidden?.has(i) || gone?.has(i.id)) continue;
+        if (!trackInput(i, layer, v.scale) || hidden?.has(i) || gone?.has(i.id)) continue;
         if (globalThis.Atrium?.pathArc?.(i)) continue;
-        if (trackSize(i.width || 0, v.scale) < MIN_PX) continue;
         tracks.push(i);
       }
       tracks.sort((a, b) => (b.width || 0) - (a.width || 0));
@@ -284,5 +385,5 @@ globalThis.AtriumPCBNetLabels = (() => {
     }
     ctx.restore();
   }
-  return Object.freeze({place, draw, clip, upright, MIN_PX, trackWidthLimit, trackCandidates});
+  return Object.freeze({place, draw, clip, upright, MIN_PX, trackWidthLimit, trackCandidates, visibleLayer, trackInput, releaseDense});
 })();

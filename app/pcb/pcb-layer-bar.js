@@ -195,5 +195,13 @@ globalThis.AtriumPCBLayerBar = (() => {
       if (active instanceof HTMLElement) active.focus();
     }
   }
-  return {otherLayers, copperTabs, sync, controls};
+  function release(bar) {
+    cachedLayers = renderedDoc = undefined;
+    if (menuTrigger?.getAttribute("aria-expanded") === "true") globalThis.AtriumContextMenu?.close(false, true);
+    if (bar) {
+      bar.replaceChildren();
+      delete bar.dataset.layers;
+    }
+  }
+  return {otherLayers, copperTabs, sync, controls, release};
 })();

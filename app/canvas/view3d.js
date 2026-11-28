@@ -273,7 +273,7 @@ void main(){
     if (!gl) { gl = canvas.getContext("webgl", attrs) || canvas.getContext("experimental-webgl", attrs); version = 1; }
     if (!gl) return null;
     const divisor = (i, n) => version === 2 ? gl.vertexAttribDivisor(i, n) : inst.vertexAttribDivisorANGLE(i, n);
-    const drawInst = (count, n) => version === 2 ? gl.drawElementsInstanced(gl.TRIANGLES, count, gl.UNSIGNED_INT, 0, n) : inst.drawElementsInstancedANGLE(gl.TRIANGLES, count, gl.UNSIGNED_INT, 0, n);
+    const drawInst = (count, indexType, n) => version === 2 ? gl.drawElementsInstanced(gl.TRIANGLES, count, indexType, 0, n) : inst.drawElementsInstancedANGLE(gl.TRIANGLES, count, indexType, 0, n);
     const live = new Set(), sizes = new Map();
     const shaders = [], U = {};
     let prog, samples, stencilAvailable, batches = [];
@@ -325,7 +325,11 @@ void main(){
           b.gl = old.gl; old.gl = null;
           continue;
         }
-        b.gl = {pos: buffer(gl.ARRAY_BUFFER, b.positions), nor: buffer(gl.ARRAY_BUFFER, b.normals), idx: buffer(gl.ELEMENT_ARRAY_BUFFER, b.indices),
+        // WebGL2 reserves 0xffff for primitive restart with UNSIGNED_SHORT.
+        const narrow = b.indices instanceof Uint32Array && b.positions.length / 3 <= 0xffff && b.indices.every(i => i < 0xffff);
+        const indices = narrow ? new Uint16Array(b.indices) : b.indices;
+        b.gl = {pos: buffer(gl.ARRAY_BUFFER, b.positions), nor: buffer(gl.ARRAY_BUFFER, b.normals), idx: buffer(gl.ELEMENT_ARRAY_BUFFER, indices),
+          indexType: narrow ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
           inst: null, cap: 0, count: 0, data: null, vao: null};
       }
       release(); batches = scene.batches;
@@ -399,7 +403,7 @@ void main(){
           // Closed solids: cull back faces unless a section shows their insides.
           if (clipped || blend && b.kind !== "board") gl.disable(gl.CULL_FACE); else gl.enable(gl.CULL_FACE);
           gl.uniform4fv(U.uCore, b.kind === "board" && f.core ? f.core : [0, 0, 0, 0]);
-          bind(b); drawInst(b.indices.length, b.gl.count); calls++;
+          bind(b); drawInst(b.indices.length, b.gl.indexType, b.gl.count); calls++;
         }
       };
       pass(f.opaque, false); if (f.blend.length) pass(f.blend, true);

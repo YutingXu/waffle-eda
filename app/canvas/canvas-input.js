@@ -140,6 +140,7 @@ globalThis.AtriumCanvasInput = (() => {
     const active = s => s.pane.input?.active() ?? ops.active(s.pane);
     const docId = p => p.input?.host.currentId() || ops.docId(p);
     const frame = (p,inFrame,wheelEnd) => p.input ? p.input.frame() : ops.frame(p,inFrame,wheelEnd);
+    const finish = p => { if (!p.input) ops.finish?.(p); };
     const state = p => {
       if (!states.has(p)) {
         const s={pane:p,points:new Map(),mode:"idle",recent:-Infinity}; states.set(p,s);
@@ -296,7 +297,7 @@ globalThis.AtriumCanvasInput = (() => {
     }
     function start(s, e) {
       s.docId=docId(s.pane); s.start=client(e); s.last=e; s.mode="pending"; s.multi=false; s.invalid=false; s.velocity=null;
-      s.first=time.now(); s.fingers=1; s.wandered=false; s.multiCamera=null;
+      s.first=time.now(); s.fingers=1; s.wandered=false; s.multiCamera=null; s.cameraMoved=false;
       s.tool=active(s)?host(s).tool():"select";
       s.hit=host(s).hit(s.pane.canvas,e.clientX,e.clientY); s.offset=null; s.grip=false;
       s.startWorld=s.hit?.point || world(s,s.start);
@@ -331,11 +332,14 @@ globalThis.AtriumCanvasInput = (() => {
     }
     function pan(s, from, to, factor=1, angle=0) {
       const dx=to[0]-from[0],dy=to[1]-from[1],v=s.pane.view;
-      if (!dx && !dy && factor===1 && !angle) return;
-      const at=loc(s,to); v.pan(dx,dy);
-      if (factor!==1 && Number.isFinite(factor)) v.zoom(factor,at);
-      if (angle) v.rotate?.(angle,at);
-      frame(s.pane);
+      if (!dx && !dy && factor===1 && !angle) return false;
+      const at=loc(s,to);
+      let moved=!!(dx||dy);
+      if (moved) v.pan(dx,dy);
+      if (factor!==1 && Number.isFinite(factor) && v.zoom(factor,at)!==false) moved=true;
+      if (angle && v.rotate) { v.rotate(angle,at); moved=true; }
+      if (moved) frame(s.pane);
+      return moved;
     }
     function speed(s, dx, dy, dt) {
       if (dt<=0 || dt>100 || !dx&&!dy) return;
@@ -355,10 +359,11 @@ globalThis.AtriumCanvasInput = (() => {
       const run=coast={state:s,last:0}; coasting.set(s.pane.view,stopMotion);
       run.track=motion.choreograph(s.pane.view,"camera",{camera:true,ms,ease:"linear",step(_e,t) {
         if (coast!==run || !valid(s) || !C().animate()) { if (coast===run) stopMotion(); return; }
-        const end=t*ms, integral=85*(Math.exp(-run.last/85)-Math.exp(-end/85));
-        if (integral) { s.pane.view.pan(v.x*k*integral,v.y*k*integral); frame(s.pane); }
+        const end=t*ms, remaining=Math.exp(-end/85);
+        const integral=85*(Math.exp(-run.last/85)-remaining), complete=t===1 || m*k*remaining<.025;
+        if (integral) { s.pane.view.pan(v.x*k*integral,v.y*k*integral); frame(s.pane,false,complete); }
         run.last=end;
-        if (m*k*Math.exp(-end/85)<.025) stopMotion();
+        if (complete) stopMotion();
       },done:stopMotion});
     }
     function move(s,e) {
@@ -381,7 +386,7 @@ globalThis.AtriumCanvasInput = (() => {
         const isPen=e.pointerType==="pen";
         // A finger pans unless it starts on the selection (or a touch modifier asks for a selection box).
         if (s.pane.input?.navigation || s.tool==="pan" || !isPen && (!active(s) || s.tool==="select" && !s.selected && !keys.shiftKey)) {
-          s.mode="pan"; pan(s,s.start,at); s.t=time.now(); return;
+          s.mode="pan"; s.cameraMoved=pan(s,s.start,at); s.t=time.now(); return;
         }
         if (s.tool!=="select" && !s.grip && !isPen) s.mode="place";
         else { s.mode="drag"; replay(s,s.down,"pointerdown",s.start); }
@@ -392,7 +397,7 @@ globalThis.AtriumCanvasInput = (() => {
       } else if (s.mode==="pan" && before) {
         const after=pair(s.points),factor=before.span&&after.span?after.span/before.span:1;
         const angle=before.span&&after.span&&cameraPref("camera.rotate")?turn(after.angle-before.angle):0;
-        pan(s,before.at,after.at,factor,angle);
+        s.cameraMoved=pan(s,before.at,after.at,factor,angle)||s.cameraMoved;
         if (distance(after.at,before.at)>0) {
           const t=time.now(); speed(s,after.at[0]-before.at[0],after.at[1]-before.at[1],t-s.t); s.t=t;
         }
@@ -462,7 +467,10 @@ globalThis.AtriumCanvasInput = (() => {
           command(s,s.fingers===2?"two-finger-tap":"three-finger-tap");
         }
         else if(s.swipe) swipe(s);
-        else if(wasPan&&!cancel) momentum(s);
+        else if(wasPan&&!cancel) {
+          momentum(s);
+          if(e.pointerType==="touch"&&s.fingers<=2&&s.cameraMoved&&coast?.state!==s) finish(s.pane);
+        }
         s.mode="idle"; s.aim=false; s.swipe=null; s.hit=null; s.last=null; s.down=null;
       }
     }
@@ -518,10 +526,12 @@ globalThis.AtriumCanvasInput = (() => {
         if(last && time.now()-last.t<45 && distance(last.at,at)<26) s.pane.view.restoreCamera(last.before);
         s.wheelPinch=null;
         s.web={at,scale:e.scale>0?e.scale:1,rotation,direct:!!s.points.size}; s.docId=docId(s.pane);
-      } else if(e.type==="gestureend") { s.web=null; s.webEnd={at,t:time.now()}; }
-      else if(g&&!g.direct && e.scale>0 && Number.isFinite(e.scale)) {
+      } else if(e.type==="gestureend") {
+        s.web=null; s.webEnd={at,t:time.now()};
+        if(g?.moved&&!g.direct&&valid(s)) finish(s.pane);
+      } else if(g&&!g.direct && e.scale>0 && Number.isFinite(e.scale)) {
         const angle=cameraPref("camera.rotate")?turn((rotation-g.rotation)*Math.PI/180):0;
-        pan(s,g.at,at,e.scale/g.scale,angle); g.at=at; g.scale=e.scale; g.rotation=rotation;
+        g.moved=pan(s,g.at,at,e.scale/g.scale,angle)||g.moved; g.at=at; g.scale=e.scale; g.rotation=rotation;
       }
       return true;
     }

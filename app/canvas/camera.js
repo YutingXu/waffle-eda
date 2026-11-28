@@ -179,7 +179,7 @@ globalThis.AtriumCamera = (() => {
       const trace = deliveredAt !== undefined && !pinch && Number.isFinite(e.timeStamp) ? {stamp:e.timeStamp, deliveredAt, source} : null;
       if (glide) { notchZoom(view, canvas, a.zoom, at, redraw, trace); return; }
       const scale = trace && view.camera().scale;
-      view.zoom(a.zoom, at);
+      if (view.zoom(a.zoom, at) === false) return;
       if (trace && scale !== view.camera().scale) traceWheel(canvas, trace);
     } else view.pan(a.pan[0], a.pan[1]);
     redraw?.();

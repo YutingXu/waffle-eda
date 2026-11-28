@@ -69,6 +69,12 @@ async function testGPUProcessRecovery({renderer}) {
   const geometry = () => hash.bytes(new TextEncoder().encode(JSON.stringify([H.doc().outline, H.doc().items])));
   const initialGeometry = geometry(), itemCount = H.doc().items.length;
   expect(itemCount >= 25000, "The dense board has at least 25,000 items", itemCount);
+  // Publishing the online checks changes the board overlay without an edit.
+  // Keep the same findings visible in the recovery frame and its reference.
+  const [drc] = await AtriumLazy.need(["AtriumDRCView", "AtriumDRCMarkers"]);
+  expect(await until(() => drc.violations(H.doc().id).length > 0 && drc.status() === null, 15000),
+    "The dense board published its DRC findings before the pixel comparison", drc.status());
+  H.redraw(true);
   const clip = {x:Math.floor(r.left + r.width * .19), y:Math.floor(r.top + r.height * .20),
     w:Math.floor(r.width * .62), h:Math.floor(r.height * .57)};
   // The strip is outside the copper crop but travels in the same WebKit snapshot.
@@ -187,10 +193,17 @@ async function testGPUProcessRecovery({renderer}) {
       const {shot:after, drawn:afterDraw} = recovered, renderedBy = afterDraw.renderer;
       view.invalidate();
       view.settle();
-      const beforeFresh = draws;
-      view.render(lastRender[0], lastRender[1], {...lastRender[2], noReuse:true});
-      await frame(); await frame();
-      const repainted = await presented("fresh-" + n, before, beforeFresh, baseline.copper * .7, true);
+      const repainted = await until(async () => {
+        view.render(lastRender[0], lastRender[1], {...lastRender[2], noReuse:true});
+        const freshId = draws;
+        await frame(); await frame();
+        const observed = await presented("fresh-" + n, before, freshId - 1, baseline.copper * .7, true);
+        // The compositor can show a later automatic repaint before the snapshot arrives.
+        // Request another reference only when this capture missed the submitted frame.
+        if (inspected.frameID !== freshId) return null;
+        expect(observed, "The presented reference has the exact camera, renderer and copper", inspected);
+        return observed;
+      }, 3000);
       expect(repainted, "A fresh complete render presents the same camera on the requested renderer", inspected);
       const {shot:fresh, drawn:freshDraw} = repainted;
       expect(fresh.sha256 === after.sha256, "Settled viewport pixels match a fresh complete render", {after, fresh, afterDraw, freshDraw});

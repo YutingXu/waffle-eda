@@ -509,7 +509,7 @@ fn intersections(e: &Edges, dirty: &[u8], blocked: bool) -> Result<Found, Error>
 
 /// `planarize` in JS: the edges split at their rounded crossings, or None when the second pass
 /// finds crossings the rounding made (the caller snap rounds the input edges instead).
-fn planarize(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Option<Edges>, Error> {
+fn planarize<const LIMIT: usize>(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Option<Edges>, Error> {
     let mut dirty = vec![1u8; e.len()];
     for pass in 0..2 {
         let found = intersections(&e, &dirty, blocked)?;
@@ -528,6 +528,9 @@ fn planarize(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Option<Ed
         let mut r = Edges::default();
         let mut nd: Vec<u8> = Vec::new();
         let mut pts: Vec<(f64, f64, f64)> = Vec::new();
+        // Every original edge contributes its terminal segment, including
+        // edges without crossings. Only accepted splits spend the extra budget.
+        let mut splits_left = LIMIT.checked_sub(e.len()).ok_or(Error::Fallback)?;
         for i in 0..e.len() {
             let (ax, ay, bx, by, c, s, g) = (e.x1[i], e.y1[i], e.x2[i], e.y2[i], e.c[i], e.s[i], e.t[i]);
             if first[i] == u32::MAX { r.push(ax, ay, bx, by, c, s, g); nd.push(0); continue; }
@@ -545,12 +548,13 @@ fn planarize(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Option<Ed
             let (mut px, mut py) = (ax, ay);
             for &(_, x, y) in &pts {
                 if (x == px && y == py) || (x == bx && y == by) { continue; }
+                if splits_left == 0 { return Err(Error::Fallback); }
+                splits_left -= 1;
                 r.push(px, py, x, y, c, s, g); nd.push(1);
                 px = x; py = y;
             }
             r.push(px, py, bx, by, c, s, g); nd.push(1);
         }
-        if r.len() > MAX_EDGES { return Err(Error::Fallback); }
         e = r;
         dirty = nd;
     }
@@ -562,7 +566,7 @@ fn planarize(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Option<Ed
 /// is routed through the centre of every hot pixel it meets (half-open unit squares), in order
 /// along the edge (by projection, then x, then y). Each round is checked; `stats.passes` is 12
 /// plus the rounds checked (13..16), `unresolved` only when 4 rounds leave a crossing.
-fn snap_round(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Edges, Error> {
+fn snap_round<const LIMIT: usize>(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Edges, Error> {
     for round in 0..4u32 {
         let n = e.len();
         let found = intersections(&e, &vec![1u8; n], blocked)?;
@@ -649,12 +653,15 @@ fn snap_round(mut e: Edges, stats: &mut Stats, blocked: bool) -> Result<Edges, E
             let (mut px, mut py) = (ax, ay);
             for &(_, x, y) in &pts {
                 if x == px && y == py { continue; }
+                if r.len() == LIMIT { return Err(Error::Fallback); }
                 r.push(px, py, x, y, cl, sg, tg);
                 px = x; py = y;
             }
-            if px != bx || py != by { r.push(px, py, bx, by, cl, sg, tg); }
+            if px != bx || py != by {
+                if r.len() == LIMIT { return Err(Error::Fallback); }
+                r.push(px, py, bx, by, cl, sg, tg);
+            }
         }
-        if r.len() > MAX_EDGES { return Err(Error::Fallback); }
         e = r;
     }
     stats.passes = 16;
@@ -1211,9 +1218,9 @@ fn overlay(shapes: &[Shape], k: usize, inside: &dyn Fn(&[i32]) -> bool, blocked:
     }
     if edges > MAX_EDGES { return Err(Error::Fallback); }
     let mut stats = Stats::default();
-    let e = match planarize(edge_list(shapes), &mut stats, blocked)? {
+    let e = match planarize::<MAX_EDGES>(edge_list(shapes), &mut stats, blocked)? {
         Some(e) => e,
-        None => snap_round(edge_list(shapes), &mut stats, blocked)?,
+        None => snap_round::<MAX_EDGES>(edge_list(shapes), &mut stats, blocked)?,
     };
     let m = merge(&e, k);
     drop(e);
@@ -1409,9 +1416,9 @@ pub fn solve_with(task: &Task, blocked: bool) -> Result<(Vec<Island>, Stats), Er
     let blocked = blocked && (BLOCKED || cfg!(test));
     validate(task)?;
     let mut stats = Stats::default();
-    let e = match planarize(edge_list(&task.shapes), &mut stats, blocked)? {
+    let e = match planarize::<MAX_EDGES>(edge_list(&task.shapes), &mut stats, blocked)? {
         Some(e) => e,
-        None => snap_round(edge_list(&task.shapes), &mut stats, blocked)?,
+        None => snap_round::<MAX_EDGES>(edge_list(&task.shapes), &mut stats, blocked)?,
     };
     stats.edges = e.len() as u32;
     let m = merge(&e, task.k);
@@ -1451,6 +1458,34 @@ mod tests {
     use super::*;
 
     fn square(x: i32, y: i32, s: i32) -> Vec<i32> { vec![x, y, x + s, y, x + s, y + s, x, y + s] }
+
+    #[test]
+    fn split_and_snap_count_distinct_emitted_edges_against_the_cap() {
+        fn crossings() -> Edges {
+            let mut e = Edges::default();
+            e.push(0.0, 0.0, 10.0, 0.0, 0, 1.0, 10);
+            // The horizontal edge sees the same hot point twice.
+            e.push(5.0, -5.0, 5.0, 5.0, 1, 1.0, 11);
+            e.push(5.0, -5.0, 5.0, 5.0, 2, -1.0, 12);
+            // This final edge takes the planar no-hit path.
+            e.push(50.0, 50.0, 60.0, 50.0, 3, 1.0, 13);
+            e
+        }
+        let tags = [10, 10, 11, 11, 12, 12, 13];
+        for blocked in [false, true] {
+            let planar = planarize::<7>(crossings(), &mut Stats::default(), blocked).unwrap().unwrap();
+            assert_eq!(planar.t, tags);
+            assert!(matches!(planarize::<6>(crossings(), &mut Stats::default(), blocked), Err(Error::Fallback)));
+
+            let snapped = snap_round::<7>(crossings(), &mut Stats::default(), blocked).unwrap();
+            assert_eq!(snapped.t, tags);
+            assert!(matches!(snap_round::<6>(crossings(), &mut Stats::default(), blocked), Err(Error::Fallback)));
+
+            // With no tail segment left in the budget, an interior split alone
+            // must not grow the snap output.
+            assert!(matches!(snap_round::<1>(crossings(), &mut Stats::default(), blocked), Err(Error::Fallback)));
+        }
+    }
 
     #[test]
     fn js_number_helpers() {

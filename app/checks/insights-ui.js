@@ -124,11 +124,10 @@ globalThis.AtriumInsightsUI = (() => {
       sheetChanged: s => { if (!U?.changed) return true; const c = U.changed(s, since); return since == null || c.ids == null || c.ids.size > 0; }};
     const project = host.project(), defs = host.defs(), initialStamp = stampOf(d), it = engine.update(project, d, defs, hint, opts);
     return (function* () {
-      for (;;) {
-        const r = it.next();
-        if (r.done) { stamps.set(d.id, initialStamp); finish(d, r.value, ch?.seq); return r.value; }
-        yield;
-      }
+      const r = yield* it;
+      stamps.set(d.id, initialStamp);
+      finish(d, r, ch?.seq);
+      return r;
     })();
   }
   function finish(d, r, seq) {

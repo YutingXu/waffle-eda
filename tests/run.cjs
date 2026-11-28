@@ -21,6 +21,30 @@ if (fixturesAt >= 0 && !fixtures) throw Error("--fixtures requires a directory")
 
 const cases = [];
 const test = (name, run) => cases.push({ name, run });
+
+test("project precision matches decimal rounding and skips conversion on the nanometre grid", () => {
+  const decimal = n => Number.isInteger(n) || !(Math.abs(n) < 1e9) ? n : Number(n.toPrecision(12));
+  const values = [-0, NaN, -Infinity, Infinity, Number.MIN_VALUE, 1e9, 999999999.9876543, 999999.999999, 1e6, 1e6 + 0.000001];
+  const view = new DataView(new ArrayBuffer(8));
+  for (const n of [0.000001, 0.00001, 0.0254, 0.254, 1.234567, 999999.999999, 1e6, 1e9]) {
+    view.setFloat64(0, n);
+    const bits = view.getBigUint64(0);
+    for (const delta of [-1n, 0n, 1n]) {
+      view.setBigUint64(0, bits + delta);
+      const adjacent = view.getFloat64(0);
+      values.push(adjacent, -adjacent);
+    }
+  }
+  for (const n of values) assert.ok(Object.is(A.projectNumber(n), decimal(n)), String(n));
+
+  const original = Number.prototype.toPrecision;
+  let conversions = 0;
+  try {
+    Number.prototype.toPrecision = function (digits) { conversions++; return original.call(this, digits); };
+    for (const n of [0.000001, -0.0254, 0.254, -2.54, 999999.999999]) assert.equal(A.projectNumber(n), n);
+  } finally { Number.prototype.toPrecision = original; }
+  assert.equal(conversions, 0, "grid coordinates already have at most twelve significant digits");
+});
 const defsFor = p => new Map(p.library.map(d => [d.id, d]));
 const byName = (doc, name) => doc.items.find(i => i.ref === name);
 const count = (list, kind) => list.filter(i => i.kind === kind).length;

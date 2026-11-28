@@ -242,7 +242,7 @@ const project=AtriumParts.example(),proj=project,board=project.documents.find(d=
 
 // ---- GL lifetime against a recording mock -------------------------------------------
 function mockGL(version,{exts={},samples=4,allocateVertexArray=()=>true}={}){
-  const live=new Map(),log={created:0,deleted:0,lost:false,draws:0,instanced:0};let id=0;
+  const live=new Map(),log={created:0,deleted:0,lost:false,draws:0,instanced:0,elementBuffers:new Map()};let id=0;
   const obj=k=>{const o={k,id:++id};live.set(o,k);log.created++;return o;};
   const del=o=>{if(o&&live.delete(o))log.deleted++;};
   const consts=new Proxy({},{get:(_,k)=>typeof k==="string"?k:undefined});
@@ -251,7 +251,7 @@ function mockGL(version,{exts={},samples=4,allocateVertexArray=()=>true}={}){
   let activeVAO=defaultVAO,arrayBuffer=null;
   Object.assign(log,{drawStates:[],vertexPointers:0,vertexArrayBinds:0,bufferBinds:0,updates:0});
   const gl={
-    createBuffer:()=>obj("buffer"),deleteBuffer:del,createShader:()=>obj("shader"),deleteShader:del,createProgram:()=>obj("program"),deleteProgram:del,
+    createBuffer:()=>obj("buffer"),deleteBuffer:b=>{log.elementBuffers.delete(b);del(b);},createShader:()=>obj("shader"),deleteShader:del,createProgram:()=>obj("program"),deleteProgram:del,
     getShaderParameter:()=>true,getProgramParameter:()=>true,isContextLost:()=>false,getShaderInfoLog:()=>"",getProgramInfoLog:()=>"",
     getUniformLocation:(p,n)=>n,getParameter:k=>k==="SAMPLES"?samples:k==="RENDERER"?"mock":0,
     getExtension:n=>n==="WEBGL_lose_context"?{loseContext:()=>{log.lost=true;}}:exts[n]||null,
@@ -261,6 +261,7 @@ function mockGL(version,{exts={},samples=4,allocateVertexArray=()=>true}={}){
     enableVertexAttribArray:i=>{activeVAO.enabled[i]=true;},
     vertexAttribDivisor:(i,n)=>{activeVAO.divisor[i]=n;},
     vertexAttribPointer:(i,...args)=>{activeVAO.attributes[i]=[arrayBuffer,...args];log.vertexPointers++;},
+    bufferData:(target,data)=>{if(target==="ELEMENT_ARRAY_BUFFER")log.elementBuffers.set(activeVAO.element,data);},
     bufferSubData:()=>{log.updates++;},
     drawElementsInstanced:(...args)=>{
       log.draws++;
@@ -277,7 +278,7 @@ function mockGL(version,{exts={},samples=4,allocateVertexArray=()=>true}={}){
   const meshed=S.mesh(S.model(proj,board,{})),scene=V.buildScene(meshed);
   R.upload(scene);
   for(const b of scene.batches){for(const x of b.instances)x.rgba=[1,1,1,1];R.instances(b,b.instances);}
-  const expected=scene.batches.reduce((n,b)=>n+b.positions.byteLength+b.normals.byteLength+b.indices.byteLength+b.instances.length*80,0);
+  const expected=scene.batches.reduce((n,b)=>n+b.positions.byteLength+b.normals.byteLength+mk.log.elementBuffers.get(b.gl.idx).byteLength+b.instances.length*80,0);
   assert.equal(R.bytes(),expected,"GPU budget counts every buffer once (shared bodies once)");
   assert.equal(R.live(),scene.batches.length*4,"position, normal, index and instance buffers per batch");
   const frame=()=>({w:10,h:10,bg:[0,0,0],m:M.matrices({target:[0,0,0],dist:10,yaw:0,pitch:30,fov:30},1,null),light:[0,0,1],hemi:[0,0,1],clip:null,edge:0.3,core:[1,1,1,1],opaque:scene.batches,blend:[]});
@@ -361,6 +362,33 @@ for(const [name,fault] of [
   R.draw({w:1,h:1,bg:[0,0,0],m:M.matrices({target:[0,0,0],dist:10,yaw:0,pitch:30,fov:30},1,null),light:[0,0,1],hemi:[0,0,1],clip:[1,0,0,5],edge:0,core:null,opaque:scene.batches,blend:[]});
   assert.equal(inst,scene.batches.length,"WebGL1 draws through ANGLE_instanced_arrays");
   R.dispose();assert.equal(ok.live.size,0);
+}
+for(const version of [1,2]){
+  const mk=mockGL(version,{exts:{ANGLE_instanced_arrays:{vertexAttribDivisorANGLE(){},
+    drawElementsInstancedANGLE:(...args)=>mk.gl.drawElementsInstanced(...args)},OES_element_index_uint:{}}});
+  const api=version===1?"webgl":"webgl2", R=V.createRenderer({getContext:k=>k===api?mk.gl:null});
+  const cases=[
+    {vertices:65535,last:65534,type:"UNSIGNED_SHORT",ArrayType:Uint16Array},
+    {vertices:65536,last:65535,type:"UNSIGNED_INT",ArrayType:Uint32Array},
+    {vertices:65537,last:65536,type:"UNSIGNED_INT",ArrayType:Uint32Array},
+    {vertices:3,last:65536,type:"UNSIGNED_INT",ArrayType:Uint32Array}, // An invalid index must not wrap into valid geometry.
+  ];
+  const scene=V.buildScene({parts:cases.map(({vertices,last})=>({
+    kind:"board",positions:new Float32Array(vertices*3),normals:new Float32Array(vertices*3),
+    indices:Uint32Array.of(0,1,last),matrix:Float32Array.of(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1),
+  }))});
+  R.upload(scene);
+  for(const b of scene.batches){b.instances[0].rgba=[1,1,1,1];R.instances(b,b.instances);}
+  R.draw({w:1,h:1,bg:[0,0,0],m:M.matrices({target:[0,0,0],dist:10,yaw:0,pitch:30,fov:30},1,null),
+    light:[0,0,1],hemi:[0,0,1],clip:null,edge:0,core:null,opaque:scene.batches,blend:[]});
+  assert.equal(mk.log.draws,cases.length);
+  for(const [i,{last,type,ArrayType}] of cases.entries()){
+    const state=mk.log.drawStates[i], uploaded=mk.log.elementBuffers.get(state.element);
+    assert.deepEqual(state.args,["TRIANGLES",3,type,0,1],"WebGL "+version+" uses the matching index type and byte offset");
+    assert.deepEqual(uploaded,ArrayType.of(0,1,last),"indices survive upload exactly");
+    assert.deepEqual(scene.batches[i].indices,Uint32Array.of(0,1,last),"picking keeps the original indices");
+  }
+  R.dispose();assert.equal(mk.live.size,0);
 }
 // Options and reduced motion work without a DOM.
 assert.equal(V.isOpen(),false);assert.equal(V.command("fit"),false);assert.equal(V.stats(),null);

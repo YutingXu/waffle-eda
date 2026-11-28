@@ -1,7 +1,16 @@
 "use strict";
 // Design rule check engine (AtriumRules.drc) and the DRC report (AtriumDRC.report).
 const assert=require("node:assert/strict");
-require("../../app/core/model.js");require("../../app/pcb/pcb-appearance.js");require("../../app/checks/connectivity.js");require("../../app/checks/rules.js");require("../../app/checks/drc.js");require("../../app/pcb/length-tuning.js");
+require("../../app/core/model.js");require("../../app/pcb/pcb-appearance.js");require("../../app/checks/connectivity.js");require("../../app/core/geometry.js");
+const geometry = globalThis.AtriumGeometry;
+let distanceCalls = null;
+globalThis.AtriumGeometry = {...geometry,closestSegments(...points) {
+  if (distanceCalls != null) distanceCalls++;
+  return geometry.closestSegments(...points);
+}};
+require("../../app/checks/rules.js");
+globalThis.AtriumGeometry = geometry;
+require("../../app/checks/drc.js");require("../../app/pcb/length-tuning.js");
 const R=AtriumRules, scope=AtriumDesignQueryRecord.selector, defs=new Map();
 const base=R.create();
 const withRules=(f,set=base)=>{const c=JSON.parse(JSON.stringify(set));f(c);R.validate(c);return c;};
@@ -172,6 +181,92 @@ out=run([P(0,14),N(.4,10)],pairRules());
 assert.deepEqual(of(out,"diffPairsRouting").map(v=>[v.what,v.limit,Math.round(v.actual*10)/10]),[["Uncoupled length","max",3.7]],"the first 0.3 mm past the end of N is still within the max gap");
 out=run([P(0,0+10,.2,"Bottom"),N(.4,10,.2,"Bottom")],pairRules(c=>{c.list.find(r=>r.type==="diffPairsRouting").layers={Bottom:{gapMin:.25,gapMax:.5}};}));
 assert.deepEqual(of(out,"diffPairsRouting").map(v=>[v.what,v.required]),[["Pair gap",.25]],"Bottom layer row");
+
+{
+  // The coupling scan's selector belongs to the positive segment. Profile outcomes
+  // on the same layer may still vary by rigid/flex stack.
+  const d=board([P(0),N(.3),N(.34),P(4,14),N(4.38),P(8,10,.2,"Bottom"),N(8.4,10,.2,"Bottom"),P(12,1,.2,"Inner 1")]);
+  const check=(rules,inspect)=>{
+    const compiled=R.compiled(d,{rules,defs}), first=compiled.first;
+    let lookups=0;
+    compiled.first=(type,o)=>{if(type==="diffPairsRouting")lookups++;return first(type,o);};
+    const result=R.drc(d,defs,rules,{compiled,types:["diffPairsRouting"]});
+    inspect(result);
+    // Rule subjects differ by layer and substack. Repeated hits and misses share each lookup.
+    assert.equal(lookups,4,"one differential-pair rule lookup per layer and substack");
+  };
+  const oldFlex=globalThis.AtriumRigidFlex, oldStack=globalThis.AtriumStackup;
+  globalThis.AtriumRigidFlex={
+    regionsResolved:()=>({split:false}),
+    piecesAlong:(_d,[a,b])=>[{a,b,stack:a[1]<2?"rigid":"flex"}]
+  };
+  globalThis.AtriumStackup={profileValues:(_d,_profile,layer,_defs,stack)=>layer==="Top" ? {
+    width:.2,minWidth:.15,maxWidth:.25,gap:.2,minGap:stack==="flex"?.25:.15,maxGap:.3,
+    result:{delay:1,eeff:2}
+  }:null};
+  try {
+    check(pairRules(c=>Object.assign(c.list.find(r=>r.type==="diffPairsRouting"),{
+      impedanceProfile:"USB-profile",layers:{Bottom:{gapMin:.25,gapMax:.5}}
+    })),result=>{
+      const rows=result.violations;
+      assert.deepEqual(rows.map(v=>[v.id,v.otherId,v.what,v.required]),[
+        ["p0Top","n0.3Top","Pair gap",.15],
+        ["p0Top","n0.34Top","Pair gap",.15],
+        ["p4Top","n4.38Top","Pair gap",.25],
+        ["p8Bottom","n8.4Bottom","Pair gap",.25],
+        ["p4Top",undefined,"Uncoupled length",2]
+      ]);
+      const expected=[[0,.15,.1],[0,.17,.14],[0,4.19,.18],[0,8.2,.2]];
+      for(const [i,v] of rows.slice(0,4).entries()){
+        const [x,y,gap]=expected[i];
+        close(v.at[0],x);close(v.at[1],y);close(v.actual,gap);
+      }
+      assert.ok(rows[4].actual>2,"uncoupled samples are still evaluated");
+    });
+    check(pairRules(c=>{
+      c.list.find(r=>r.type==="diffPairsRouting").scope=AtriumDesignQueryRecord.create('object where net.name = "unmatched"');
+    }),result=>{
+      assert.equal(result.complete,true);
+      assert.deepEqual(result.violations,[],"a missing rule stays missing across the negative segments");
+    });
+  } finally {
+    globalThis.AtriumRigidFlex=oldFlex;
+    globalThis.AtriumStackup=oldStack;
+  }
+}
+
+{
+  // The distance kernel can report zero from its rounded orientation test on
+  // nearly collinear segments, even with disjoint endpoint bounds.
+  const a=[[71294.24973390996,51860.52258138884], [403861.0626012087,174321.72587865655]], b=[[574038.9407146722,236986.39030705273], [969346.412923187,382550.6103255201]];
+  assert.ok(a[1][0]+1<b[0][0], "the centerline bounds are disjoint");
+  const closest=geometry.closestSegments(...a,...b), gap=Math.max(0,closest.d-.1-.1);
+  const result=run([track("numeric-p","USB_P",a),track("numeric-n","USB_N",b)],
+    pairRules(),{types:["diffPairsRouting"]});
+  const gaps=of(result,"diffPairsRouting").filter(v=>v.what==="Pair gap");
+  const expected=gap+R.kit.EPS<.15 ? [["numeric-p","numeric-n",gap,
+    closest.pa.map((x,i)=>(x+closest.pb[i])/2)]] : [];
+  assert.deepEqual(gaps.map(v=>[v.id,v.otherId,v.actual,v.at]),expected,
+    "bounds rejection must agree with the shared segment distance");
+
+  distanceCalls=0;
+  try {
+    run([P(0),N(20)],pairRules(),{types:["diffPairsRouting"]});
+    assert.equal(distanceCalls,0,"disjoint differential-pair bounds skip the full distance calculation");
+  } finally { distanceCalls=null; }
+}
+
+
+{
+  // An overlapping mate on the other layer cannot hide the first uncovered sample.
+  const differentLayer=track("parallel-bottom","USB_N",[[3,.4],[25,.4]],.2,"Bottom");
+  const result=run([P(0,40),differentLayer,N(.4,3)],pairRules(),{types:["diffPairsRouting"]});
+  const rows=of(result,"diffPairsRouting").filter(v=>v.what==="Uncoupled length");
+  assert.deepEqual(rows.map(v=>v.id),["p0Top"],"only same-layer mates couple prescribed samples");
+  close(rows[0].actual,36.6);
+  close(rows[0].at[0],3.5);
+  close(rows[0].at[1],0);
+}
 
 // Length and matched lengths, with via heights from the board thickness.
 const hs=withRules(c=>{

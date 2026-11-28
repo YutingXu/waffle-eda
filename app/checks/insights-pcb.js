@@ -356,6 +356,12 @@ globalThis.AtriumInsightsPCB = (() => {
     if (!ctx._siNets.has(net)) { let r = null; try { r = G.AtriumSI.analyzeNet(si, net); } catch (e) { ctx.notes.push(net + ": " + e.message); } ctx._siNets.set(net, r); }
     return ctx._siNets.get(net);
   }
+  // The reports and plane indexes are working data shared by this pass's SI checks.
+  // Published findings and their fixes need only the completed output.
+  function releaseSI(ctx) {
+    delete ctx._siNets;
+    delete ctx._si;
+  }
   const trackNets = (ctx, nets) => {
     const out = [];
     for (const net of nets ? [...nets] : ctx.netNames()) if (ctx.netItemsOf(net).some(i => i.kind === "track")) out.push(net);
@@ -847,5 +853,5 @@ globalThis.AtriumInsightsPCB = (() => {
     return true;
   }
   install();
-  return Object.freeze({necksOf, padContains, install});
+  return Object.freeze({necksOf, padContains, install, releaseSI});
 })();

@@ -178,6 +178,40 @@ const board = () => { const p = AtriumParts.example(); return {p, d: p.documents
   assert.ok(!ringIn(toA(10), toA(10)), "no copper inside the keep-out");
 }
 
+// A narrow query retains authored keep-out order, an inclusive box contact,
+// layer restrictions and exact witness points even when most keep-outs are distant.
+{
+  const keep = (id, layer, at, restrictions) => ({
+    ...D.keepoutItem({type:"fill",a:at,b:[at[0]+1,at[1]+2]},{layer}), id, keepoutRestrictions:restrictions
+  });
+  const distant = Array.from({length:40},(_,n)=>keep("far"+n,"all",[30+n*8,10]));
+  const top = keep("top","Top",[.5,-1],2), bottom = keep("bottom","Bottom",[.5,-1]);
+  const shared = keep("shared","all",[-.5,-1]);
+  const via = {kind:"via",id:"via",x:0,y:0,diameter:1};
+  const track = {kind:"track",id:"track",layer:"Top",width:.2,points:[[0,0],[2,0]]};
+  const d = {kind:"pcb",items:[via,track,...distant,top,bottom,shared]};
+  const blocks=A.keepoutBlocks;
+  let calls=0, rows;
+  try {
+    A.keepoutBlocks=(...args)=>{calls++; return blocks(...args);};
+    rows=D.keepoutViolations(d,new Map(),{limit:4});
+  } finally { A.keepoutBlocks=blocks; }
+  assert.deepEqual(rows.map(r=>[r.id,r.otherId,r.actual,r.required,r.at,r.otherAt]),[
+    ["via","bottom",0,0,[0,0],[.5,0]],
+    ["via","shared",0,0,[0,0],[0,0]],
+    ["track","top",0,0,[1.5,0],[1.5,0]],
+    ["track","shared",0,0,[0,0],[0,0]]
+  ]);
+  assert.deepEqual(D.keepoutViolations(d,new Map(),{limit:1}),rows.slice(0,1),"cap preserves the first authored match");
+  assert.ok(calls<=12,"distant keep-outs never enter the restriction test");
+  const huge = {...via,id:"far-via",x:1e25};
+  const hugeKeep = {...top,id:"far-keep",points:[[1e25,1],[1e25+1e12,1],[1e25+1e12,3],[1e25,3]]};
+  for (const item of [huge,hugeKeep]) {
+    assert.deepEqual(D.keepoutViolations({...d,items:[item,...d.items]},new Map()),rows,
+      "extreme grid coordinates retain linear keep-out behavior");
+  }
+}
+
 // ---------------------------------------------------------------- vertex edits
 {
   const sq = [[0, 0], [10, 0], [10, 10], [0, 10]];
@@ -330,6 +364,11 @@ if (patched("L7 pcb-edit.js", [AtriumPCBEdit.kindOf], "fills")) assert.equal(Atr
   const calls = []; const ctx = new Proxy({}, {get: (t, k) => k in t ? t[k] : (...a) => calls.push(k), set: (t, k, v) => { t[k] = v; return true; }});
   D.drawKeepout(ctx, D.keepoutItem({type: "region", points: [[0, 0], [4, 0], [4, 4]]}, {layer: "Top"}), {scale: 10, ink: "#f00"});
   assert.ok(calls.includes("clip") && calls.filter(k => k === "stroke").length >= 2, "M8: hatched and outlined");
+  calls.length = 0;
+  D.drawKeepout(ctx, {points:[[0,0],[2,0],[1,1]],closed:true,width:.4}, {scale:10});
+  assert.deepEqual(calls.filter(k => ["beginPath","moveTo","lineTo","closePath","stroke","setLineDash"].includes(k)),
+    ["beginPath","moveTo","lineTo","lineTo","closePath","stroke","setLineDash","stroke"],
+    "the translucent band and its dashed spine stroke one path");
 }
 if (pending.length) console.log("PENDING shared-file patches (draw-review-fixes.py): " + pending.join(", "));
 
