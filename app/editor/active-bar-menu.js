@@ -61,6 +61,7 @@ globalThis.AtriumActiveBarMenu = (() => {
     fly.setAttribute("aria-label", (button.getAttribute("aria-label") || "Tools") + " tools");
     const items = [];
     for (const row of list) {
+      if (row.sep) { fly.append(C.el("hr")); continue; }
       const b = C.el("button", null, "nav-menu-item"); b.type = "button"; b.tabIndex = -1; b.setAttribute("role", "menuitem");
       b.append(C.el("span", row.label));
       b.setAttribute("aria-label", row.label);

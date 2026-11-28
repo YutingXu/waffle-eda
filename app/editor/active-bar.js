@@ -43,9 +43,10 @@ globalThis.AtriumActiveBar = (() => {
     G.AtriumKeymap?.onChange?.(titles);
     new MutationObserver(() => { titles(); bars(); }).observe(D.body, {attributes:true, attributeFilter:["data-kind"]});
     new ResizeObserver(() => { if (bar.scrollWidth > bar.clientWidth + 1) bars(true); }).observe(bar);
+    // Every flyout owner opens the same way: a markup tool, a user's group, More tools.
     bar.addEventListener("pointerdown", e => {
-      const b = e.target.closest?.(".tool[data-action]");
-      if (!b || e.button !== 0 || !b.dataset.toolGroup) return;
+      const b = e.target.closest?.(".tool[data-tool-group]");
+      if (!b || e.button !== 0) return;
       clearTimeout(pressTimer);
       pressTimer = setTimeout(() => {suppress = true; open(b);}, 380);
     });
@@ -58,8 +59,8 @@ globalThis.AtriumActiveBar = (() => {
       if (b) open(b); else load().then(() => G.AtriumBars.menu(), () => {});
     });
     bar.addEventListener("keydown", e => {
-      const b = e.target.closest?.(".tool[data-action]");
-      if (b && b.dataset.toolGroup && e.key === "ArrowDown") {e.preventDefault(); e.stopPropagation(); open(b);}
+      const b = e.target.closest?.(".tool[data-tool-group]");
+      if (b && e.key === "ArrowDown") {e.preventDefault(); e.stopPropagation(); open(b);}
     });
     D.addEventListener("keydown", e => {
       if (want && ["Escape", "Tab", "ArrowLeft"].includes(e.key)) {e.preventDefault(); e.stopPropagation(); cancel();}

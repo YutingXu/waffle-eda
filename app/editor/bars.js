@@ -355,8 +355,17 @@ globalThis.AtriumBars = (() => {
     b.append(svg("more"));
     return b;
   }
-  const overflowRows = () => [...bar.querySelectorAll(":scope > [data-overflow]")].filter(n => !isDivider(n) && !n.hidden)
-    .map(n => ({id:idOf(n), label:base(n), overflow:true, run:() => n.click()}));
+  // Its rows: the moved buttons in bar order. A group stays a group: its own flyout's rows form a section
+  // between separators (the menu's sectioning), and choosing one there is choosing it in that flyout.
+  function overflowRows(k) {
+    const parts = [...bar.querySelectorAll(":scope > [data-overflow]")].filter(n => !isDivider(n) && !n.hidden).map(n => {
+      const one = [{id:idOf(n), label:base(n), run:() => n.click()}];
+      if (!n.dataset.toolGroup) return one;
+      return Promise.resolve(flyout(n, k) ?? M()?.rows(n.dataset.toolGroup, k)).then(rows => rows?.length ? rows.map(r => ({...r, owner:n})) : one, () => one);
+    });
+    const sep = {sep:true};
+    return Promise.all(parts).then(lists => tidy(lists.flatMap(rows => rows[0]?.owner ? [sep, ...rows, sep] : rows), r => r === sep));
+  }
 
   // ------------------------------------------------------------------ flyouts
   // Rows for a button's flyout, or null for a built-in group (GROUPS, drawings). A promise for a
@@ -371,15 +380,17 @@ globalThis.AtriumBars = (() => {
   }
   function flyout(button, k) {
     const key = button.dataset.toolGroup;
-    if (key === "overflow") return overflowRows();
+    if (key === "overflow") return overflowRows(k);
     if (groups.has(key)) return groups.get(key).filter(id => drawable(id, k)).map(id => ({id, label:name(id, k), run:() => run(id)}));
     if (key === "widgets") return provided(key, k);
     return null;
   }
-  // Sticky flyouts: the choice becomes the button's face for this kind (view state, not the bar).
+  // Sticky flyouts: the choice becomes the button's face for this kind (view state, not the bar). A row
+  // of More tools that came from a group's section names that group as its owner.
   function choose(button, row, k = kind()) {
-    if (!button || button === more || row?.overflow || !isId(row?.id)) return;
-    const slot = slots.get(button) || idOf(button);
+    const owner = row?.owner || button;
+    if (!owner || owner === more || !isId(row?.id)) return;
+    const slot = slots.get(owner) || idOf(owner);
     if (!isId(slot)) return;
     const all = faces(), mine = {...(all[k] || {})}, group = known.get(row.id)?.group;
     if (row.id === slot) delete mine[slot];

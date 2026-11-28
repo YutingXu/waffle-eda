@@ -7,7 +7,11 @@
 //   - an extension's Active Bar button, macros with and without parameters, the notebook's Widgets
 //     flyout (with an extension widget, and the notebook switched off under it), GND and VDD;
 //   - settings export and import carry the bar; the tutorial still finds its tools.
-// Optional: --shots DIR writes the owner's screenshots (light, dark, touch).
+//   - review fixes: an overflowed group keeps its commands in More tools, which opens from the keyboard;
+//     icon loads draw the current kind; an extension button can be a group's face; remembered faces
+//     follow their group, settings import and Reset All; conditional extension buttons; no idle writes;
+//     menus and Preferences stay inside small windows; redraws keep focus, expansion and tool state.
+// Optional: --shots DIR writes the owner's screenshots (light, dark, touch); --only NAME,… runs those sections.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -15,6 +19,7 @@ const {pathToFileURL} = require("node:url");
 
 const URL = pathToFileURL(path.join(__dirname, "../../app/index.html")).href;
 const shotsAt = process.argv.indexOf("--shots"), SHOTS = shotsAt > 0 ? path.resolve(process.argv[shotsAt + 1]) : null;
+const onlyAt = process.argv.indexOf("--only"), ONLY = onlyAt > 0 ? new Set(process.argv[onlyAt + 1].split(",")) : null;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // A fresh profile per page; reloads keep what the page stored.
@@ -24,8 +29,8 @@ function seed(values) {
   localStorage.clear();
   localStorage.setItem("atrium.prefs", JSON.stringify({format:"atrium-prefs", version:1, values}));
 }
-async function open(browser, {viewport = {width:1440, height:900}, colorScheme = "light", hasTouch = false, prefs = {}} = {}) {
-  const page = await browser.newPage({viewport, colorScheme, hasTouch, reducedMotion:"reduce"});
+async function open(browser, {viewport = {width:1440, height:900}, colorScheme = "light", hasTouch = false, isMobile = false, prefs = {}} = {}) {
+  const page = await browser.newPage({viewport, colorScheme, hasTouch, isMobile, reducedMotion:"reduce"});
   await page.addInitScript(seed, {"general.efficiency":"always", "general.startPage":"always", ...prefs});
   await page.goto(URL);
   await demo(page);
@@ -466,6 +471,64 @@ async function settings(browser) {
   } finally { await page.close(); }
 }
 
+// An extension's Active Bar button as the extension host builds it (extensions.js ui.menu "activeBar"),
+// without an install: a text face, data-command, data-extension and an optional `when`.
+const extensionButton = (page, id, when = "") => page.evaluate(({id, when}) => {
+  const b = document.createElement("button"), s = document.createElement("span");
+  b.type = "button"; b.className = "tool ext-tool"; b.dataset.command = id; b.dataset.extension = "test.fixture";
+  if (when) b.dataset.when = when;
+  b.title = id; b.setAttribute("aria-label", id); s.className = "tool-text"; s.textContent = id; b.append(s);
+  globalThis.__ran ||= {}; b.addEventListener("click", () => { globalThis.__ran[id] = (globalThis.__ran[id] || 0) + 1; });
+  document.getElementById("tools").append(b);
+}, {id, when});
+const flyoutRows = page => page.evaluate(() => [...document.querySelectorAll("#active-bar-flyout > *")].map(n => n.tagName === "HR" ? "|" : n.getAttribute("aria-label")));
+const waitFlyout = page => page.waitForFunction(() => document.querySelector("#active-bar-flyout [role=menuitem]"), null, {timeout:8000});
+
+// [P2] An overflowed group stays a group: its commands are a section of More tools, and choosing one
+// there makes it the group's face. 770 × 600: the macOS host's narrowest window.
+const crowded = ["select", "pan", "|", "library", "junction", "label", "power:GND", "power:VDD", "|", "measure", "comment-mode",
+  "fit", "zoom-in", "zoom-out", "undo", "redo", "grid", "|", "route", "sch-port"];
+async function overflowGroups(browser) {
+  const page = await open(browser, {viewport:{width:770, height:600}});
+  try {
+    await page.evaluate(async list => { await AtriumLazy.need("AtriumActiveBarMenu"); AtriumBars.setList("schematic", list); }, crowded);
+    await settle(page);
+    assert.equal(await page.evaluate(() => document.querySelector('#tools [data-action="route"]').hasAttribute("data-overflow")), true, "the Wire group overflows");
+    await page.evaluate(() => document.querySelector("#tools [data-tool-group=overflow]").click());
+    await waitFlyout(page);
+    const rows = await flyoutRows(page), at = rows.indexOf("Wire");
+    assert.deepEqual(rows.slice(at - 1, at + 3), ["|", "Wire", "Split Wire", "|"], "the group's commands are one section: " + rows.join(", "));
+    await page.evaluate(() => [...document.querySelectorAll("#active-bar-flyout [role=menuitem]")].find(b => b.getAttribute("aria-label") === "Split Wire").click());
+    await settle(page);
+    assert.deepEqual(await page.evaluate(() => [AtriumNavHost.tool(), JSON.parse(localStorage.getItem("atrium.bar-faces"))]), ["split-wire", {schematic:{route:"split-wire"}}],
+      "choosing from the section runs the command and makes it the group's face");
+    console.log("PASS overflow keeps groups: an overflowed group is a section of More tools");
+  } finally { await page.close(); }
+}
+// [P2] More tools is a flyout owner like the others: Down Arrow, a long press and a right-click open it.
+async function overflowKeyboard(browser) {
+  const page = await open(browser, {viewport:{width:770, height:600}});
+  try {
+    await page.evaluate(async list => { await AtriumLazy.need("AtriumActiveBarMenu"); AtriumBars.setList("schematic", list); }, crowded);
+    await settle(page);
+    await page.evaluate(() => document.querySelector("#tools [data-tool-group=overflow]").focus());
+    await page.keyboard.press("ArrowDown");
+    await waitFlyout(page).catch(() => assert.fail("Down Arrow on More tools opens it"));
+    assert.equal(await page.evaluate(() => document.activeElement.closest("#active-bar-flyout") != null), true, "focus moves into the menu");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.toolGroup), "overflow", "Escape returns to More tools");
+    // Roving focus reaches it from the last visible tool with the arrow keys.
+    await page.evaluate(() => [...document.querySelectorAll("#tools > .tool")].filter(n => n.getClientRects().length && n.dataset.toolGroup !== "overflow").at(-1).focus());
+    await page.keyboard.press("ArrowRight");
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.toolGroup), "overflow");
+    const box = await page.evaluate(() => { const r = document.querySelector("#tools [data-tool-group=overflow]").getBoundingClientRect(); return {x:r.x + r.width / 2, y:r.y + r.height / 2}; });
+    await page.mouse.move(box.x, box.y); await page.mouse.down(); await wait(600); await page.mouse.up();
+    await waitFlyout(page).catch(() => assert.fail("a long press opens More tools"));
+    await page.keyboard.press("Escape");
+    console.log("PASS More tools opens on Down Arrow and a long press, and is a roving member of the bar");
+  } finally { await page.close(); }
+}
+
 // Screenshots for the owner: the default bar, a customised bar with a macro and an overflow, the
 // Toolbars page; light, dark and touch.
 async function shots(browser) {
@@ -504,15 +567,9 @@ async function shots(browser) {
 }
 
 async function run(browser) {
-  await contract(browser);
-  await toolbarsPage(browser);
-  await sticky(browser);
-  await overflow(browser);
-  await icons(browser);
-  await extensionsAndMacros(browser);
-  await widgetsAndPower(browser);
-  await settings(browser);
-  await shots(browser);
+  const sections = {contract, toolbarsPage, sticky, overflow, icons, extensionsAndMacros, widgetsAndPower, settings,
+    overflowGroups, overflowKeyboard, shots};
+  for (const [name, section] of Object.entries(sections)) if (!ONLY || ONLY.has(name)) await section(browser);
 }
 if (require.main === module)
   require("../support/standalone-chromium.cjs")(() => process.env.CHROME ? {executablePath:process.env.CHROME} : {channel:"chrome"}, run, error => {console.error(error); process.exitCode = 1;});
