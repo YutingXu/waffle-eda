@@ -403,6 +403,18 @@ async function dialogSections(scope) {
   });
 }
 
+// The surface's own box lies inside the layout viewport, so a dialog or popover with no fields, sections or key
+// lists still fails when it opens partly or wholly off screen.
+async function viewportGeometry(scope) {
+  return scope.evaluate(root => {
+    const box = root.getBoundingClientRect(), view = document.documentElement;
+    const label = root.getAttribute("aria-label") || root.querySelector("h1,h2,h3,.ui-dialog-title")?.textContent.trim() || root.className;
+    return [["left", -box.left], ["top", -box.top], ["right", box.right - view.clientWidth], ["bottom", box.bottom - view.clientHeight]]
+      .map(([edge, overflow]) => ({kind:"surface viewport overflow", label, edge, actual:Math.max(0, overflow), expected:0,
+        box:{left:box.left, top:box.top, right:box.right, bottom:box.bottom}, viewport:{width:view.clientWidth, height:view.clientHeight}}));
+  });
+}
+
 function failures(metrics) {
   return metrics.filter(({actual, expected, relation}) => relation === "greater" ? !(actual > expected + TOLERANCE) : !near(actual, expected));
 }
@@ -438,4 +450,4 @@ async function shiftsByPixel(locator, axis, measure, label) {
 
 module.exports = {FIELD, near, fields, fieldResults, textBaselines, baselineResults, assertBaselinePerturbations,
   assertStackedCaptionPerturbation, BASELINE_CONTROL,
-  preferenceGeometry, keyListGeometry, dialogSections, failures, changesByPixel, shiftsByPixel};
+  preferenceGeometry, keyListGeometry, dialogSections, viewportGeometry, failures, changesByPixel, shiftsByPixel};

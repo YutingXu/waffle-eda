@@ -185,7 +185,8 @@ async function preferences(page, session, profile, report, save) {
       const items = await G.fields(page, session, scope), geometry = await G.preferenceGeometry(page);
       const textBaselines = await G.textBaselines(page, session, scope);
       const {census, metrics:coverage} = await fieldCoverage(scope,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result, ...await G.keyListGeometry(scope)];
+      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result,
+        ...await G.keyListGeometry(scope), ...await G.viewportGeometry(dialog)];
       const visit = repeat ? (report.preferenceStates ||= []) : report.preferences;
       visit.push({id:entry.id, name:entry.title, state, fields:items.length, rows:geometry.rows, groups:geometry.groups,
         renderProblems, textBaselines, census, measurements, failures:G.failures(measurements)});
@@ -338,7 +339,8 @@ async function narrowPreferences(page, session, dialog, scope, report) {
       const items = await G.fields(page, session, scope), geometry = await G.preferenceGeometry(page, {narrow:true});
       const textBaselines = await G.textBaselines(page, session, scope);
       const {census, metrics:coverage} = await fieldCoverage(scope,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result];
+      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...geometry.result,
+        ...await G.viewportGeometry(dialog)];
       const accessibleHelp = await scope.locator(".prf-row:has(.prf-help)").evaluateAll(rows => rows.flatMap(row => {
         const help = row.querySelector(".prf-help");
         const input = row.querySelector("input[aria-describedby],select[aria-describedby]");
@@ -604,7 +606,8 @@ async function auditDialogs(page, session, report, action, context, original) {
       const items = await G.fields(page, session, locator), sections = await G.dialogSections(locator);
       const textBaselines = await G.textBaselines(page, session, locator);
       const {census, metrics:coverage} = await fieldCoverage(locator,textBaselines);
-      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...sections, ...await G.keyListGeometry(locator)];
+      const measurements = [...G.fieldResults(items), ...G.baselineResults(textBaselines), ...coverage, ...sections,
+        ...await G.keyListGeometry(locator), ...await G.viewportGeometry(locator)];
       const strays = await strayShortcuts(locator);
       report.dialogs.push({...surface, action, context, fields:items.length, sections:sections.length,
         textBaselines, census, measurements, failures:G.failures(measurements)});
