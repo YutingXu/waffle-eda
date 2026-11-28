@@ -54,6 +54,8 @@ const SAFE = {
   "project/collab-presence.js|AtriumCollabPair": "registered by this file at load",
   // modules() first awaits AtriumOutputJobs, whose output-jobs.js registers AtriumReleaseUI.
   "project/revisions-ui.js|AtriumReleaseUI": "registered by output-jobs.js, awaited first",
+  // The palette's Library tab action first awaits AtriumLibrary, whose library-panel.js registers AtriumLibraryView.
+  "editor/palette.js|AtriumLibraryView": "registered by library-panel.js, awaited first",
   // "Move to New Window" is listed only once AtriumProjectWindowClient exists, and its file registers AtriumWindowsUI.
   "editor/context-menu.js|AtriumWindowsUI": "registered by project-window-client.js, which the menu requires",
   // prefs.js registers AtriumVSCode; index.html requests AtriumPrefs at DOMContentLoaded, before the
