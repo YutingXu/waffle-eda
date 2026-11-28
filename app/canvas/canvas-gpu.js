@@ -1009,8 +1009,8 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
   }
   // Where a layer's coverage changed: the boxes the pour engine finds around the changed copper
   // (AtriumPCBPours.viewDamage), else the bounds of every region that changed.
-  function coverageDamage(before, after, view, group) {
-    const P = G.AtriumPCBPours, boxes = view && P.viewDamage ? P.viewDamage(view, P.view(group)) : null;
+  function coverageDamage(before, after, view, group, k) {
+    const P = G.AtriumPCBPours, boxes = view && P.viewDamage ? P.viewDamage(view, P.view(group), k) : null;
     if (boxes) { let box = null; for (const b of boxes) box = mergeBounds(box, b); return box; }
     let box = null;
     for (let n=0; n<Math.max(before.length,after.length); n++) {
@@ -1144,7 +1144,7 @@ void main(){o=vec4(v_pass==0?u_fineOdd:v_pass==1?u_coarseOdd:v_pass==2?u_fine:u_
       if (band?.tex && !!band.ink !== !!ink) { gl.deleteTexture(band.tex); cover.layers.delete(layer); band = null; }
       const needsTexture = !band?.tex;
       const next = group.map(coverageRegion);
-      const sameView = !needsTexture && band.key === bandKey, dirty = sameView ? coverageDamage(band.regions,next,band.view,group) : null;
+      const sameView = !needsTexture && band.key === bandKey, dirty = sameView ? coverageDamage(band.regions,next,band.view,group,Math.abs(scale*dpr)) : null;
       if (band?.ink) band.ink = ink;
       if (sameView && dirty === null) { band.offscreen = false; continue; }
       const pixels = coveragePixels(I,next,dpr,w,h,!READBACK);

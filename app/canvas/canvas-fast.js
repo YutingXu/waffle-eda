@@ -264,7 +264,7 @@ globalThis.AtriumCanvasFast = (() => {
       if (doc.kind === "pcb" && opts.showUnrouted) I.airwireConnectivity(doc, defs);
     }
     const key = keyOf(I, doc, defs, opts, undefined, frame), sel = selOf(opts);
-    const view = pourView(doc), copper = pourDamage(e.pourView, view);
+    const view = pourView(doc), cam = I.cam(), copper = pourDamage(e.pourView, view, Math.abs(cam[2] * cam[6]));
     if (!copper) return false;
     if (resized) {
       // Only the view's size changed: the camera, the presentation, the selection and the copper are the copy's.
@@ -290,9 +290,9 @@ globalThis.AtriumCanvasFast = (() => {
   // The poured copper a board frame shows, and the boxes where it changed since a copy (pcb-pours.js
   // view, viewDamage); null: repaint the whole frame.
   const pourView = doc => doc.kind === "pcb" ? globalThis.AtriumPCBPours?.view?.(doc.pcbDrawing?.pours) ?? null : null;
-  function pourDamage(a, b) {
+  function pourDamage(a, b, k) {
     if (!a && !b) return [];
-    return a && b ? globalThis.AtriumPCBPours.viewDamage(a, b) : null;
+    return a && b ? globalThis.AtriumPCBPours.viewDamage(a, b, k) : null;
   }
   function restoreState(ctx, entry) {
     for (const n in entry.state) ctx[n] = entry.state[n];

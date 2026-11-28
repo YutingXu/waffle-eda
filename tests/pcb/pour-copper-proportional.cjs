@@ -140,7 +140,7 @@ function changeOracle(before, after) {
   }
   return {changes, same: !changes.length};
 }
-const canonBoxes = c => c && JSON.stringify(c.changes.map(x => ({...x, boxes: x.boxes.map(b => b.join(",")).sort()})).sort((a, b) => (a.polygon + a.layer + a.net).localeCompare(b.polygon + b.layer + b.net)));
+const canonBoxes = c => c && JSON.stringify(c.changes.map(x => ({polygon: x.polygon, layer: x.layer, net: x.net, boxes: x.boxes.map(b => b.join(",")).sort()})).sort((a, b) => (a.polygon + a.layer + a.net).localeCompare(b.polygon + b.layer + b.net)));
 const sameRings = (a, b) => a.length === b.length && a.every((x, i) => x.length === b[i].length && x.every((v, j) => v === b[i][j]));
 const regionJSON = r => JSON.stringify(Object.keys(r).sort().map(k => [k, r[k]]));
 
@@ -240,6 +240,26 @@ const more = (from, n = +(process.env.SEEDS || 0)) => Array.from({length: n}, (_
   assert.ok(stats.kept > 0, "some islands were kept by a refill");
   if (engine) assert.ok(stats.changes > 0 && stats.lod > 0, "changed copper and LOD were compared " + JSON.stringify({...stats, digests: 0}));
   if (engine) { const g = stats.undoGrowth.sort((a, b) => a - b), med = g[g.length >> 1]; stats.undoGrowth = {n: g.length, median: +med.toFixed(3), max: +g.at(-1).toFixed(3)}; assert.ok(med < .5, "Undo holds about the changed runs of an island, not the island: " + JSON.stringify(stats.undoGrowth)); }
+});
+// (e) A frame drawn at a display LOD level shows each ring simplified over its whole length, so one
+// changed vertex can move the simplified outline far from the changed edges (a dependent pour's long
+// border ring after a refill). viewDamage(a, b, k) at such a scale must cover every moved segment; the
+// boxes of the changed edges alone do not (what browser-pour-damage's pour outline edit showed).
+await test("damage at a display LOD level covers where a changed ring's simplified outline moved", async () => {
+  if (!engine) return;
+  const N = 4000, ring = s => Array.from({length: N}, (_, n) => { const t = 2 * Math.PI * n / N, r = 30 + .004 * Math.sin(37 * t) + (n === s ? .5 : 0); return [r * Math.cos(t), r * Math.sin(t)]; });
+  const a = C.regionLike(null, [ring(-1)], "Top", "GND", {polygon: "lod", links: []}), b = C.regionLike(null, [ring(1000)], "Top", "GND", {polygon: "lod", links: []});
+  const k = 2, key = C.lod.keyAt(k);
+  assert.notEqual(key, "stored", "this scale draws at a LOD level");
+  const tol = .002 * 2 ** +key.split(":")[0], simple = r => C.simplify(C.contours(r)[0], tol);
+  const segs = r => { const s = new Set(); for (let i = 0; i < r.length; i += 2) { const j = (i + 2) % r.length; s.add([r[i], r[i + 1], r[j], r[j + 1]].join(",")); } return s; };
+  const sa = segs(simple(a)), sb = segs(simple(b));
+  const moved = [...[...sa].filter(x => !sb.has(x)), ...[...sb].filter(x => !sa.has(x))].map(x => x.split(",").map(Number));
+  const inside = (boxes, e) => boxes.some(q => Math.min(e[0], e[2]) >= q[0] - 1e-9 && Math.max(e[0], e[2]) <= q[2] + 1e-9 && Math.min(e[1], e[3]) >= q[1] - 1e-9 && Math.max(e[1], e[3]) <= q[3] + 1e-9);
+  const edges = C.viewDamage(C.view([a]), C.view([b]), 1e9), lod = C.viewDamage(C.view([a]), C.view([b]), k);
+  assert.ok(moved.length > 0, "the simplified outlines differ");
+  assert.ok(moved.some(e => !inside(edges, e)), "the simplified outline moved outside the changed edges' boxes (the case is exercised)");
+  assert.ok(moved.every(e => inside(lod, e)), "damage at the LOD level covers every moved segment");
 });
 console.log("  " + JSON.stringify({...stats, digests: stats.digests.length}));
 if (digestFile) fs.writeFileSync(digestFile, JSON.stringify(stats.digests, null, 0));

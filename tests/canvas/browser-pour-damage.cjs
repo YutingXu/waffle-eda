@@ -98,7 +98,12 @@ async function pourDamage({efficiency, gpu, quick, debug}) {
       }
       const row = {label, reused, inexact: frame, pixels: n, max, box};
       // ATRIUM_DEBUG_DAMAGE: both pictures of the first frames that differ by more than the noise, as data URLs.
-      if (debug) { row.damage = damageLog.splice(0); row.tiles = AtriumPolygonPour.tiles.version; }
+      if (debug) {
+        row.damage = damageLog.splice(0); row.tiles = AtriumPolygonPour.tiles.version;
+        // Screen = a * world + b per axis (device pixels), to place a diff box on the board.
+        const o = I.worldToScreen([0, 0]), u = I.worldToScreen([1, 1]), dpr = I.cam()[6];
+        row.map = {ax: (u[0] - o[0]) * dpr, bx: o[0] * dpr, ay: (u[1] - o[1]) * dpr, by: o[1] * dpr};
+      }
       if (n && debug && shots.length < 6 && max > NOISE) row.shots = [canvas.toDataURL(), ref.toDataURL()], shots.push(row);
       frames.push(row);
     } finally { I.ctx = real; globalThis.AtriumCanvasFast = wrapped; checking = false; }
@@ -111,8 +116,8 @@ async function pourDamage({efficiency, gpu, quick, debug}) {
   globalThis.AtriumCanvasFast = wrapped;
   const viewDamage = P.viewDamage;
   let shrink = false;
-  if (viewDamage) P.viewDamage = function (a, b) {
-    const boxes = viewDamage(a, b);
+  if (viewDamage) P.viewDamage = function (a, b, ...rest) {
+    const boxes = viewDamage(a, b, ...rest);
     if (debug) damageLog.push({label, hook: [a?.hook, b?.hook], boxes: boxes && boxes.map(q => q.map(v => +v.toFixed(2)))});
     if (boxes?.length) copperPatches++;
     return shrink && boxes ? Object.assign([], {layers: boxes.layers}) : boxes;
@@ -160,7 +165,7 @@ async function pourDamage({efficiency, gpu, quick, debug}) {
   const control = frames.slice(c0);
   globalThis.AtriumCanvasFast = F; P.viewDamage = viewDamage;
   I.armIdle = arm;
-  return {frames: debug ? frames.slice(0, 40).map(({shots: s, ...f}) => f) : null, shots: shots.map(({shots: s, ...row}) => ({...row, retained: s[0], full: s[1]})), rows, control: {frames: control.length, caught: control.some(f => f.max > NOISE), pixels: Math.max(0, ...control.map(f => f.pixels || 0)), max: Math.max(0, ...control.map(f => f.max || 0))},
+  return {frames: debug ? frames.map(({shots: s, ...f}) => f) : null, shots: shots.map(({shots: s, ...row}) => ({...row, retained: s[0], full: s[1]})), rows, control: {frames: control.length, caught: control.some(f => f.max > NOISE), pixels: Math.max(0, ...control.map(f => f.pixels || 0)), max: Math.max(0, ...control.map(f => f.max || 0))},
     gpu: !!I.gpu, efficiency: AtriumPower.mode(), tiles: AtriumPolygonPour.tiles.history?.length || 0};
 }
 

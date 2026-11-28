@@ -1005,7 +1005,15 @@ globalThis.AtriumPCBPours=(()=>{
         }
       }
       if(!edges.size)continue;
-      const sample=g.now[0]||g.old[0],out={polygon:sample.polygon??null,layer:sample.layer,net:sample.net||"",boxes:[]};
+      // rings: the box of every ring left over, before and after. A ring drawn simplified (display LOD:
+      // simplify() keeps vertices chosen over the whole ring) can move anywhere along it when any of its
+      // edges changed, so a frame at a LOD level differs within these boxes, not only the edges' (viewDamage).
+      const sample=g.now[0]||g.old[0],out={polygon:sample.polygon??null,layer:sample.layer,net:sample.net||"",boxes:[],rings:[]};
+      for(const l of rings.values())for(const {ring} of l){
+        const b=[Infinity,Infinity,-Infinity,-Infinity];
+        for(let i=0;i<ring.length;i+=2){const x=ring[i],y=ring[i+1];if(x<b[0])b[0]=x;if(y<b[1])b[1]=y;if(x>b[2])b[2]=x;if(y>b[3])b[3]=y;}
+        out.rings.push(b);
+      }
       changes.push(out);
       // Many changed edges (a new island, a large outline): one box around them all.
       if(edges.size>20000){
@@ -1035,7 +1043,10 @@ globalThis.AtriumPCBPours=(()=>{
   // clip rectangles; both enclose every pixel that changes, edges and their antialiasing included.
   function view(stored){return {list:listCopy(stored),none:!stored,hook:api.displayHook?.version?.()??null};}
   // The boxes carry the copper layers they are on (boxes.layers).
-  function viewDamage(a,b){
+  // k: the frame's device pixels per mm. Where it draws at a display LOD level (levelOf(k) >= 0), a
+  // changed ring's simplified outline can move anywhere along it, so the damage is the box of each
+  // changed ring (copperChange's rings); otherwise the boxes of its changed edges. Without k, the rings'.
+  function viewDamage(a,b,k){
     if(!a||!b||a.none!==b.none)return null;
     const boxes=[];boxes.layers=new Set();
     if(a.hook!==b.hook){
@@ -1046,7 +1057,8 @@ globalThis.AtriumPCBPours=(()=>{
     if(!same){
       const c=copperChange(a.list.map(x=>x.r),b.list.map(x=>x.r));
       if(!c)return null;
-      for(const ch of c.changes){boxes.push(...ch.boxes);boxes.layers.add(ch.layer);}
+      const stored=k>0&&levelOf(k)<0;
+      for(const ch of c.changes){boxes.push(...(stored||!ch.rings?ch.boxes:ch.rings));boxes.layers.add(ch.layer);}
     }
     return boxes;
   }
